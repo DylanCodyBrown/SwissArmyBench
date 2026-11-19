@@ -155,12 +155,3 @@ def with_import_os(code: str) -> str:
         line = (future[-1].end_lineno or 0) if future else 0
     parts = code.split("\n")
     return "\n".join([*parts[:line], "import os", *parts[line:]])
-
-
-def suggested_variable(connection: str, setting: str) -> str:
-    """The variable a file is offered as: Warehouse, certificate file -> WAREHOUSE_CERTIFICATE_FILE; a
-    keystore's is always TRINO_KEYSTORE_PATH (the owner's name for it: only Trino signs in with one)."""
-    if setting == "keystore":
-        return "TRINO_KEYSTORE_PATH"
-    words = re.sub(r"[^A-Za-z0-9]+", "_", f"{connection} {setting}").strip("_").upper()
-    return words if words and not words[0].isdigit() else f"_{words}"

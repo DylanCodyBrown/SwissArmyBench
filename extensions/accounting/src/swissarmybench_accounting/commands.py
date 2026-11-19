@@ -10,25 +10,16 @@ extension is on, so each is an MCP tool and a `sab` command. Standard library on
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 from urllib.parse import quote
 
 from swissarmybench.cli import api
-from swissarmybench.cli.commands import Arg, Command, opt, req
+from swissarmybench.cli.commands import Command, Registrar, opt, req
 
 COMMANDS: dict[str, Command] = {}
 
 
-Run = Callable[[dict[str, Any]], Any]
-
-
-def command(name: str, summary: str, *args: Arg, values: bool = False) -> Callable[[Run], Run]:
-    def register(run: Run) -> Run:
-        COMMANDS[name] = Command(name, summary, args, run, values, False)
-        return run
-
-    return register
+command = Registrar(COMMANDS)
 
 
 def _q(value: Any) -> str:

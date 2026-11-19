@@ -73,7 +73,9 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.client import blades_client, connection_use, standalone
+from swissarmybench.client.kernel_values import is_table
 from swissarmybench.client.push_client import ServerNotRunningError
+from swissarmybench.client.writes import quote
 from swissarmybench.domain import dataverse, lakes, variable_refs
 from swissarmybench.renamed import env
 
@@ -177,10 +179,6 @@ def _record(name: str) -> dict[str, Any]:
     raise SqlCellError(f"No connection is named {name!r}. %sql_connections lists the ones a cell can use.")
 
 
-def _quote(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
 def _literal(text: str) -> str:
     return "'" + text.replace("'", "''") + "'"
 
@@ -195,12 +193,6 @@ def _duckdb() -> Any:
     return duckdb
 
 
-def _is_table(value: Any) -> bool:
-    """A DataFrame-like table (pandas, polars, Arrow): something DuckDB reads by its variable name."""
-    module = type(value).__module__.split(".")[0]
-    return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
-
-
 def _files_in(path: Path) -> list[Path]:
     if path.is_dir():
         return sorted(
@@ -211,10 +203,10 @@ def _files_in(path: Path) -> list[Path]:
 
 def _view(con: Any, schema: str | None, table: str, select: str) -> None:
     """The table by its bare name (the first one to claim it) and as the connection's catalog names it."""
-    names = [_quote(table)]
+    names = [quote(table)]
     if schema and schema.lower() not in _RESERVED_SCHEMAS:
-        con.execute(f"CREATE SCHEMA IF NOT EXISTS {_quote(schema)}")
-        names.append(f"{_quote(schema)}.{_quote(table)}")
+        con.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(schema)}")
+        names.append(f"{quote(schema)}.{quote(table)}")
     taken = {
         r[0].lower()
         for r in con.execute("SELECT view_name FROM duckdb_views() WHERE schema_name = 'main'").fetchall()
@@ -305,10 +297,8 @@ def _open_python(label: str) -> Connection:
         def load() -> None:
             con.register(table, _as_frame(read(schema, table)))
             if schema and schema.lower() not in _RESERVED_SCHEMAS:
-                con.execute(f"CREATE SCHEMA IF NOT EXISTS {_quote(schema)}")
-                con.execute(
-                    f"CREATE OR REPLACE VIEW {_quote(schema)}.{_quote(table)} AS FROM {_quote(table)}"
-                )
+                con.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(schema)}")
+                con.execute(f"CREATE OR REPLACE VIEW {quote(schema)}.{quote(table)} AS FROM {quote(table)}")
 
         return load
 
@@ -404,9 +394,7 @@ def open_connection(name: str, fresh: bool = True) -> Connection:
         _connections[" ".join(name.split()).casefold()] = found
     elif isinstance(value, (str, os.PathLike)):
         found = _open_files(label, value)
-    elif _is_table(value) or (
-        isinstance(value, dict) and value and all(_is_table(v) for v in value.values())
-    ):
+    elif is_table(value) or (isinstance(value, dict) and value and all(is_table(v) for v in value.values())):
         found = _open_tables(label, value, str(record.get("variable") or ""))
     elif dataverse.is_dataverse(record.get("dialect")) and _runs_sql(value):
         made = "a Dataverse environment: SQL on its read-only SQL endpoint (T-SQL, SELECT only)"
@@ -458,7 +446,7 @@ def columns(found: Connection) -> dict[str, list[str]]:
     for name in tables(found):
         try:
             described = found.target.execute(
-                f"DESCRIBE SELECT * FROM {'.'.join(_quote(p) for p in name.split('.', 1))}"
+                f"DESCRIBE SELECT * FROM {'.'.join(quote(p) for p in name.split('.', 1))}"
             ).fetchall()
         except Exception:  # noqa: S112 (a table that can't be described offers no columns)
             continue
@@ -639,7 +627,7 @@ def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
             if (
                 isinstance(name, str)
                 and not name.startswith("_")
-                and _is_table(value)
+                and is_table(value)
                 and re.search(rf"(?<![\w.]){re.escape(name)}(?![\w])", sql)
             ):
                 con.register(name, value)

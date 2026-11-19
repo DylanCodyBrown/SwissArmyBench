@@ -665,6 +665,9 @@ src/swissarmybench/
     packs.py             list packs, make a marketplace, add saved blades and relationship sets to an editable pack
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
+    atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
+                         the file's own; if_changed), replacing (the same for a writer that needs a path: a
+                         zip) and JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py)
     database.py          the locked DuckDB, the priority worker pool, DuckDB's own SQL grammar
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
     views.py             the view cache and windows
@@ -780,6 +783,8 @@ src/swissarmybench/
   client/structures_client.py sab.structure (a saved structure's value), sab.structure_table (its records as a
                          DataFrame), sab.show_structure (a dict or list as a Structures tab)
   client/completion.py   Tab completion of catalog names inside SQL in Jupyter and IPython (sab.complete)
+  client/kernel_values.py what the kernel-side helpers share: a value's type name, is it a table, the user's
+                         namespace (lineage_values.py keeps its own: a live page carries it as a file)
   client/kernel_errors.py the last error taken apart in the kernel (frames, columns, stack_data's values, facts)
   client/kernel_intel.py Jedi's answers (the member list, signatures, hovers): its Interpreter over a kernel's
                          namespace, asked in the kernel; its Script the server runs where no kernel has

@@ -51,8 +51,10 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
+
+from swissarmybench.domain.catalogs import quote_identifier
 
 if TYPE_CHECKING:  # the model is imported where it is built: the plain client imports this module
     from swissarmybench.domain.relationships import Model
@@ -1250,7 +1252,7 @@ ORDER BY 2, 3, 8"""
 
 def count_sql(schema: str, table: str) -> str:
     """A table's rows from sys.partitions (no COUNT(*) over the table); a view's are counted."""
-    name = ".".join("[" + p.replace("]", "]]") + "]" for p in (schema, table) if p)
+    name = ".".join(quote_identifier(p, "sqlserver") for p in (schema, table) if p)
     literal = "N'" + name.replace("'", "''") + "'"
     return (
         f"SELECT CASE WHEN OBJECTPROPERTY(OBJECT_ID({literal}), 'IsUserTable') = 1\n"  # noqa: S608 (quoted)
@@ -1388,7 +1390,3 @@ def env_mappable(template: str | None) -> list[str]:
 
 def options(template: str | None) -> list[str]:
     return list(OPTIONS) if template in TEMPLATES else []
-
-
-def model_tables(model: Model) -> Collection[str]:
-    return model.tables()

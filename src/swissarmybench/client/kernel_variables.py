@@ -18,6 +18,8 @@ import time
 import types
 from typing import Any
 
+from swissarmybench.client.kernel_values import is_table, type_name
+
 _PREVIEW = reprlib.Repr()
 _PREVIEW.maxstring = 120
 _PREVIEW.maxother = 120
@@ -27,12 +29,6 @@ _MAX_PREVIEW: int = 200
 _PREVIEW_SECONDS: float = 1.0
 # IPython's own names, and the names the Workbench's setup makes.
 _HIDDEN = frozenset({"In", "Out", "exit", "quit", "get_ipython", "open", "sab", "sag"})  # sag: the old alias
-
-
-def _type_name(value: Any) -> str:
-    kind = type(value)
-    module = kind.__module__.split(".")[0]
-    return kind.__qualname__ if module == "builtins" else f"{module}.{kind.__qualname__}"
 
 
 def _count(n: int, word: str) -> str:
@@ -75,15 +71,6 @@ def _safe_preview(value: Any) -> str:
         return f"<could not be read: {type(error).__name__}>"
 
 
-def _is_table(value: Any) -> bool:
-    """Something the grid can open (sab.push takes it): a DataFrame or an Arrow table."""
-    module = type(value).__module__.split(".")[0]
-    try:
-        return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
-    except Exception:  # a property that raises something other than AttributeError
-        return False
-
-
 def snapshot(env_names: list[str] | None = None, namespace: dict[str, Any] | None = None) -> str:
     """The overlay's rows, as JSON: connections and blades, the user's variables, the environment."""
     if namespace is None:
@@ -111,8 +98,8 @@ def snapshot(env_names: list[str] | None = None, namespace: dict[str, Any] | Non
         # list: its row says so; after a second of previews the rest show without one.
         row: dict[str, Any] = {"name": name, "type": "", "size": "", "value": "", "table": False}
         try:
-            row["type"] = _type_name(value)
-            row["table"] = _is_table(value)
+            row["type"] = type_name(value)
+            row["table"] = is_table(value)
             row["size"] = _size(value)
             row["value"] = _preview(value) if time.monotonic() - started < _PREVIEW_SECONDS else "…"
         except Exception as error:
@@ -124,11 +111,11 @@ def snapshot(env_names: list[str] | None = None, namespace: dict[str, Any] | Non
             "name": name,
             "connection": connection,
             "open": name in namespace,
-            "type": _type_name(namespace[name]) if name in namespace else "",
+            "type": type_name(namespace[name]) if name in namespace else "",
             "value": _safe_preview(namespace[name])
             if name in namespace
             else "opened when a cell first uses it",
-            "table": name in namespace and _is_table(namespace[name]),
+            "table": name in namespace and is_table(namespace[name]),
         }
         for name, connection in sorted(connections.items())
     ]

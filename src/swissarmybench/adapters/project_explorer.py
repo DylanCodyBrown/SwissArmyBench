@@ -23,6 +23,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import project_scope
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain.project_explorer import read_settings, write_settings
@@ -58,10 +59,7 @@ class ExplorerSettings:
                 return
         except OSError:
             pass
-        self._file.parent.mkdir(parents=True, exist_ok=True)
-        partial = self._file.with_name(f".{self._file.name}.saving")
-        partial.write_text(text, encoding="utf-8")
-        os.replace(partial, self._file)
+        write_atomic(self._file, text)
 
 
 def _top(folder: Path) -> list[str]:

@@ -14,11 +14,12 @@ Claude Desktop's config file.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import time
 from pathlib import Path
 from typing import Any
+
+from swissarmybench.adapters.atomic_files import write_atomic
 
 INDEX = Path(__file__).resolve().parents[1] / "mcp" / "index.md"
 
@@ -67,9 +68,7 @@ class ClaudeFiles:
                 return str(target)
         except OSError:
             pass
-        temporary = folder / ".context.md.tmp"
-        temporary.write_text(text, encoding="utf-8")
-        os.replace(temporary, target)
+        write_atomic(target, text)
         return str(target)
 
     def context_path(self, name: str) -> str | None:
@@ -106,10 +105,7 @@ class ClaudeFiles:
         if self._choices is None:
             self._memory = dict(data)
             return
-        self._choices.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self._choices.with_suffix(".tmp")
-        temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        os.replace(temporary, self._choices)
+        write_atomic(self._choices, json.dumps(data, indent=2))
 
     # ===== files the user picks, and Claude Desktop's config =====
 
@@ -135,8 +131,5 @@ class ClaudeFiles:
         if target.exists():
             backup = target.with_name(f"{target.name}.{time.strftime('%Y%m%d-%H%M%S')}.bak")
             shutil.copy2(target, backup)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(target.name + ".swissarmybench.tmp")
-        temporary.write_text(text, encoding="utf-8")
-        os.replace(temporary, target)
+        write_atomic(target, text)
         return str(backup) if backup else None

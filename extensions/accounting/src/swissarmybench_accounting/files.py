@@ -21,6 +21,7 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench_accounting import runtime
 
 PREVIEW_ROWS = 200
@@ -43,10 +44,7 @@ def read_json(path: str | Path) -> Any:
 def write_text(path: str | Path, text: str) -> str:
     """A file written whole (a temporary file beside it, then a replace)."""
     target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(f".{target.name}.writing")
-    temporary.write_text(text, encoding="utf-8")
-    temporary.replace(target)
+    write_atomic(target, text)
     return str(target)
 
 

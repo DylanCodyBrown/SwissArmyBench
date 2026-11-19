@@ -6,24 +6,17 @@ Standard library only.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from swissarmybench.cli import api
-from swissarmybench.cli.commands import Arg, Command, opt, req
+from swissarmybench.cli.commands import Command, Registrar, opt, req
 
 COMMANDS: dict[str, Command] = {}
-Run = Callable[[dict[str, Any]], Any]
 LONG = 600.0  # a pull or a push of many files, or the Allow it waits for
 WHICH = opt("which", "library (the team library folder, default) or shared (the shared projects folder).")
 
 
-def command(name: str, summary: str, *args: Arg) -> Callable[[Run], Run]:
-    def register(run: Run) -> Run:
-        COMMANDS[name] = Command(name, summary, args, run, False, False)
-        return run
-
-    return register
+command = Registrar(COMMANDS)
 
 
 def _which(a: dict[str, Any]) -> str:

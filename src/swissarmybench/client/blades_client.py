@@ -35,6 +35,7 @@ from swissarmybench.adapters.blade_run import (
     set_variables,
 )
 from swissarmybench.client import connection_use, standalone
+from swissarmybench.client.kernel_values import is_table
 from swissarmybench.client.push_client import (
     ServerNotRunningError,
     _arrow_bytes,
@@ -179,17 +180,11 @@ def blade(name: str) -> Any:
     return _named(made, str(spec.get("table") or ""))
 
 
-def _is_table(value: Any) -> bool:
-    """A DataFrame-like table (pandas, polars, Arrow), as client/sql_cell.py reads one by its name."""
-    module = type(value).__module__.split(".")[0]
-    return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
-
-
 def register_table(name: str, value: Any) -> Any:
     """A blade's table under its own name (its header's `table = "..."`): in Jupyter, IPython or a Workbench
     kernel it is the variable `name`, so DuckDB SQL (%%sql, sab.sql) names it, the Workbench's Variables
     and the Open list show it, and Open as grid opens it by that name. Elsewhere it is only returned."""
-    if not name or not _is_table(value):
+    if not name or not is_table(value):
         return value
     module = sys.modules.get("IPython")
     get = getattr(module, "get_ipython", None) if module is not None else None
@@ -204,7 +199,7 @@ def _named(made: Any, table: str) -> Any:
     time it is called."""
     if not table:
         return made
-    if _is_table(made):
+    if is_table(made):
         return register_table(table, made)
     if callable(made) and not isinstance(made, type):
 

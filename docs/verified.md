@@ -3597,3 +3597,13 @@ The unit suite on this branch (no browser tests): 4,425 passed, 31 skipped, 1 fa
 60 s), fails about one run in three or four here on 0.0.26's code as well (five runs: one failed), so it is
 this machine's, not the pass's. ruff, ruff format --check, mypy, and the page's typecheck and build: clean.
 The browser tests (tests/e2e) were not run for this pass: no page file changed.
+
+## The Python cleanup (2026-11-19, branch opt-clean)
+- The unit suite (no browser tests): 4,422 passed, 31 skipped, 1 failed: test_desktop_shell's browser test,
+  only because this worktree had no built page yet; after `npm run build` the file passes (2/2). ruff, ruff
+  format --check, mypy (861 files), tests/test_architecture.py green.
+- tests/test_atomic_files.py: eight writers and a reader on one file at once (every read parses, the end is one
+  writer's whole document, no temporary left), 0o600 kept over a file left readable, an existing file's mode
+  kept, a new one the umask's, a failed zip leaves the old file and no temporary.
+- Not run: the browser tests (tests/e2e) on this branch; nothing under web/ changed. Not checked on Windows:
+  os.replace over a file another process holds open (the hand-written blocks had the same exposure).

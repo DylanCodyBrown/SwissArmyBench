@@ -312,18 +312,11 @@ def test_the_presets_fill_the_form_and_say_where_the_document_is() -> None:
         "name": "x-functions-key",
     }
     assert "{tenant}" in azure["auths"][1]["token_url"]
-    assert apis.spec_urls("azure", "https://made-up.azurewebsites.net/api") == [
-        "https://made-up.azurewebsites.net/api/openapi/v3.json",
-        "https://made-up.azurewebsites.net/api/swagger.json",
-        "https://made-up.azurewebsites.net/api/openapi/v2.json",
-    ]
-    assert apis.spec_urls("azure", "https://<app>.azurewebsites.net/api") == []  # not filled in yet
+    # Where the host keeps its OpenAPI document, from the address's root (the dialog joins them).
+    assert azure["spec_paths"] == ["/api/openapi/v3.json", "/api/swagger.json", "/api/openapi/v2.json"]
     aws = presets["aws"]
     assert [a["type"] for a in aws["auths"]] == ["none", "api_key", "jwt", "sigv4"]
-    assert (
-        aws["auths"][1]["name"] == "x-api-key"
-        and apis.spec_urls("aws", "https://x.lambda-url.us-east-1.on.aws") == []
-    )
+    assert aws["auths"][1]["name"] == "x-api-key" and aws["spec_paths"] == []
     google = presets["google"]
     assert [a["type"] for a in google["auths"]] == ["firebase", "google"]
     assert [u["label"] for u in google["urls"]] == ["Cloud Functions", "Cloud Run"]

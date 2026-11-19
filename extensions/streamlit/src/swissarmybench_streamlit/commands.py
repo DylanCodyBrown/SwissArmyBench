@@ -11,22 +11,15 @@ work on what is in front; the streamlit_* commands on an app by its id.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from swissarmybench.cli import api
-from swissarmybench.cli.commands import Arg, Command, CommandError, _q, _window, opt, req
+from swissarmybench.cli.commands import Command, CommandError, Registrar, _q, _window, opt, req
 
 COMMANDS: dict[str, Command] = {}
-Run = Callable[[dict[str, Any]], Any]
 
 
-def command(name: str, summary: str, *args: Arg) -> Callable[[Run], Run]:
-    def register(run: Run) -> Run:
-        COMMANDS[name] = Command(name, summary, args, run, False, False)
-        return run
-
-    return register
+command = Registrar(COMMANDS)
 
 
 @command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")

@@ -28,7 +28,7 @@ import math
 import re
 import tomllib
 import xml.etree.ElementTree as ElementTree
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -61,10 +61,6 @@ def format_of(file_name: str) -> str | None:
     """The format a file's suffix names (None: not a structure's file)."""
     dot = file_name.rfind(".")
     return SUFFIXES.get(file_name[dot:].lower()) if dot >= 0 else None
-
-
-def is_structure_file(file_name: str) -> bool:
-    return format_of(file_name) is not None
 
 
 def detect(text: str) -> str:
@@ -798,19 +794,6 @@ def name_of(file_name_: str) -> str:
     """A structure's name from its file: gates.yaml -> gates."""
     base = re.split(r"[\\/]", file_name_)[-1]
     return base[: base.rfind(".")] if format_of(base) else base
-
-
-def iter_keys(value: Any) -> Iterator[str]:
-    """Every key of every object in a structure (the search)."""
-    stack = [value]
-    while stack:
-        node = stack.pop()
-        if isinstance(node, dict):
-            for k, v in node.items():
-                yield str(k)
-                stack.append(v)
-        elif isinstance(node, list):
-            stack += node
 
 
 # ===== lineage: where a structure came from, what was done to it, what was made of it =====

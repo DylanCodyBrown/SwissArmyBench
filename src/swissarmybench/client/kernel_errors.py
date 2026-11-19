@@ -26,6 +26,8 @@ import traceback
 import types
 from typing import Any
 
+from swissarmybench.client.kernel_values import is_table, type_name
+
 _PREVIEW = reprlib.Repr()
 _PREVIEW.maxstring = 160
 _PREVIEW.maxother = 160
@@ -65,20 +67,6 @@ def _preview(value: Any) -> str:
     except Exception as error:  # a repr that fails says so
         return f"<no preview: {type(error).__name__}>"
     return text if len(text) <= 200 else text[:199] + "…"
-
-
-def _type_name(value: Any) -> str:
-    kind = type(value)
-    module = kind.__module__.split(".")[0]
-    return kind.__qualname__ if module == "builtins" else f"{module}.{kind.__qualname__}"
-
-
-def _is_table(value: Any) -> bool:
-    module = type(value).__module__.split(".")[0]
-    try:
-        return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
-    except Exception:
-        return False
 
 
 def _utf16_column(line: str, byte_offset: int | None) -> int | None:
@@ -156,7 +144,7 @@ def _stack_values(tb: types.TracebackType) -> dict[int, list[dict[str, str]]]:
                     {
                         "expr": str(variable.name),
                         "repr": _preview(variable.value),
-                        "type": _type_name(variable.value),
+                        "type": type_name(variable.value),
                     }
                 )
             found[id(info.frame)] = rows
@@ -217,13 +205,13 @@ def _facts(
         obj = getattr(error, "obj", None)
         if isinstance(name, str):
             facts["name"] = name
-            facts["object_type"] = _type_name(obj) if obj is not None else ""
+            facts["object_type"] = type_name(obj) if obj is not None else ""
             facts["is_none"] = obj is None and "NoneType" in str(error)
             try:
                 facts["candidates"] = _close(name, [n for n in dir(obj) if not n.startswith("_")])
             except Exception:
                 facts["candidates"] = []
-            if _is_table(obj):
+            if is_table(obj):
                 facts["columns"] = [str(c) for c in list(getattr(obj, "columns", []))[:_MAX_KEYS]]
                 facts["column_candidates"] = _close(name, facts["columns"])
     elif isinstance(error, ModuleNotFoundError):
@@ -235,9 +223,9 @@ def _facts(
         facts["key"] = _preview(key)
         container = _executing_container(tb, user_frames) if tb is not None else None
         if container is not None:
-            facts["container_type"] = _type_name(container)
+            facts["container_type"] = type_name(container)
             try:
-                if _is_table(container):
+                if is_table(container):
                     keys = [str(c) for c in list(container.columns)]
                     facts["table"] = True
                 elif isinstance(container, dict):
@@ -356,8 +344,8 @@ def _frames(
                             {
                                 "name": name,
                                 "repr": _preview(value),
-                                "type": _type_name(value),
-                                "table": _is_table(value),
+                                "type": type_name(value),
+                                "table": is_table(value),
                             }
                         )
                 except Exception:  # noqa: S110 (a frame without readable locals)

@@ -39,7 +39,6 @@ from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
 from swissarmybench.domain.packages import Package as Package
 from swissarmybench.domain.packages import install_command as install_command
-from swissarmybench.domain.packages import missing_imports as missing_imports
 from swissarmybench.domain.packages import missing_module_hint as missing_module_hint
 from swissarmybench.domain.packages import pip_name as pip_name
 from swissarmybench.domain.packages import provided as provided

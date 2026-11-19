@@ -22,10 +22,10 @@ from __future__ import annotations
 
 import io
 import re
-import sys
 from importlib import import_module
 from typing import Any
 
+from swissarmybench.client.kernel_values import namespace as _namespace
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 _MISSING: Any = object()
@@ -37,15 +37,6 @@ _results: dict[str, Any] = {}
 _busy: set[str] = set()
 # The tables whose cell ran on an original the grid has not been sent yet.
 _pending: set[str] = set()
-
-
-def _namespace() -> dict[str, Any]:
-    ipython = sys.modules.get("IPython")
-    shell = ipython.get_ipython() if ipython is not None else None
-    if shell is not None:
-        return shell.user_ns  # type: ignore[no-any-return]
-    main = sys.modules.get("__main__")
-    return vars(main) if main is not None else {}
 
 
 def note_original(name: str, value: Any) -> None:

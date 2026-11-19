@@ -12,26 +12,15 @@ POST /apis           the same, and "variables"?, "secrets"?, "row_limit"?: API_<
 
 from __future__ import annotations
 
-from typing import Any
-
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.apis import Apis
 
 
 def routes(apis: Apis) -> list[BaseRoute]:
-    def safely(handler: Any) -> Any:
-        async def guarded(request: Request) -> Response:
-            try:
-                return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:
-                return error_response(error)
-
-        return guarded
-
     async def choices(request: Request) -> Response:
         return json_response(apis.choices())
 

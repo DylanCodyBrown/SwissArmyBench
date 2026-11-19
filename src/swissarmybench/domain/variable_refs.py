@@ -155,10 +155,6 @@ def missing_words(missing: list[str], where: str = "") -> str:
 Lookup = Callable[[str], str | None]
 
 
-def lookup_in(values: Mapping[str, str]) -> Lookup:
-    return values.get
-
-
 def unresolved(text: str, lookup: Lookup) -> list[str]:
     """The names a text needs that the lookup does not give and that have no default."""
     return list(dict.fromkeys(r.name for r in find(text) if r.default is None and lookup(r.name) is None))

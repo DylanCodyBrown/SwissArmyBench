@@ -18,26 +18,12 @@ POST   /copilot/event             {id, kind: shown|accepted|partial, length?}   
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench_copilot.services.copilot import Copilot
-
-Handler = Callable[[Request], Awaitable[Response]]
-
-
-def safely(handler: Handler) -> Handler:
-    async def run(request: Request) -> Response:
-        try:
-            return await handler(request)
-        except Exception as error:
-            return error_response(error)
-
-    return run
 
 
 def routes(copilot: Copilot) -> list[BaseRoute]:

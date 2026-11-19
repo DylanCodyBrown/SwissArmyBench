@@ -23,6 +23,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from swissarmybench.domain.datasets import quote
+
 # The dialects SAB knows how to quote for, with the names people also use for them.
 DIALECTS: tuple[str, ...] = (
     "sqlserver",
@@ -131,10 +133,6 @@ def check_name(name: str) -> str:
     return name
 
 
-def quote(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
 def pick_columns(names: list[str]) -> dict[str, str]:
     """Normalized column -> the source column it is read from."""
     by_key: dict[str, str] = {}
@@ -206,12 +204,6 @@ def quote_identifier(name: str, dialect: str) -> str:
 def dax_table(name: str) -> str:
     """A table's name in DAX: 'Order Lines' (a quote inside it doubled)."""
     return "'" + name.replace("'", "''") + "'"
-
-
-def dax_column(column: str, table: str = "") -> str:
-    """A column's name in DAX: 'Order Lines'[Unit Price]; a measure's has no table: [Total Sales].
-    A closing bracket inside the name is doubled."""
-    return (dax_table(table) if table else "") + "[" + column.replace("]", "]]") + "]"
 
 
 def _source(dialect: str, database: str, schema: str, table: str) -> str:

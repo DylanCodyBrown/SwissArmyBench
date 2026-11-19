@@ -10,26 +10,15 @@ GET  /streamlit/apps/{app}/pages/{page}/blocks/{block}/move-to-data   a thin cel
 
 from __future__ import annotations
 
-from typing import Any
-
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response
+from swissarmybench.server.http import actor, json_response, safely
 from swissarmybench_streamlit.services.controllers import Controllers
 
 
 def routes(controllers: Controllers) -> list[BaseRoute]:
-    def safely(handler: Any) -> Any:
-        async def guarded(request: Request) -> Response:
-            try:
-                return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:
-                return error_response(error)
-
-        return guarded
-
     async def check(request: Request) -> Response:
         page = request.query_params.get("page") or None
         return json_response(controllers.check(request.path_params["app"], page))

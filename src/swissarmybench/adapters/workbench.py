@@ -13,6 +13,8 @@ import tokenize
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
+
 MAX_FILE_BYTES: int = 20 * 1024 * 1024
 MAX_RECENT: int = 15
 
@@ -105,16 +107,7 @@ class Documents:
             raise ValueError(
                 f"{file.name} is {encoding}, which cannot hold {error.object[error.start : error.end]!r}."
             ) from None
-        handle, temporary = tempfile.mkstemp(dir=file.parent, prefix=f".{file.name}.", suffix=".saving")
-        try:
-            with os.fdopen(handle, "wb") as out:
-                out.write(data)
-            if mode is not None:
-                os.chmod(temporary, mode)
-            os.replace(temporary, file)
-        except BaseException:
-            Path(temporary).unlink(missing_ok=True)
-            raise
+        write_atomic(file, data, mode=mode)
         return str(file), file.stat().st_mtime
 
     def scratch(self, text: str) -> str:

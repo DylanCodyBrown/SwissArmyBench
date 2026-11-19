@@ -80,18 +80,27 @@ def opt(name: str, help: str, type: ArgType = "str") -> Arg:
     return Arg(name, help, type, False)
 
 
-def command(
-    name: str,
-    summary: str,
-    *args: Arg,
-    values: bool = False,
-    image: bool = False,
-) -> Callable[[Callable[[dict[str, Any]], Any]], Callable[[dict[str, Any]], Any]]:
-    def register(run: Callable[[dict[str, Any]], Any]) -> Callable[[dict[str, Any]], Any]:
-        REGISTRY[name] = Command(name, summary, args, run, values, image)
-        return run
+Run = Callable[[dict[str, Any]], Any]
 
-    return register
+
+class Registrar:
+    """The `@command(name, summary, *args)` decorator, registering into `into`: the base's REGISTRY, or an
+    extension's COMMANDS (`command = Registrar(COMMANDS)`; the base's registry takes them when it is on)."""
+
+    def __init__(self, into: dict[str, Command]) -> None:
+        self.into = into
+
+    def __call__(
+        self, name: str, summary: str, *args: Arg, values: bool = False, image: bool = False
+    ) -> Callable[[Run], Run]:
+        def register(run: Run) -> Run:
+            self.into[name] = Command(name, summary, args, run, values, image)
+            return run
+
+        return register
+
+
+command = Registrar(REGISTRY)
 
 
 def _q(value: Any) -> str:

@@ -27,20 +27,11 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.project_explorer import ProjectExplorer
 
 
 def routes(explorer: ProjectExplorer) -> list[BaseRoute]:
-    def safely(handler: Any) -> Any:
-        async def guarded(request: Request) -> Response:
-            try:
-                return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:
-                return error_response(error)
-
-        return guarded
-
     async def listing(request: Request) -> Response:
         return json_response(await explorer.list(dict(request.query_params)))
 

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import os
 import secrets
 import socket
 import socketserver
@@ -20,6 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import JsonFile
 from swissarmybench.domain import desktop as rules
 
 Handler = Callable[[dict[str, Any]], dict[str, Any]]
@@ -84,29 +84,17 @@ def ask(port: int, key: str, said: dict[str, Any], timeout: float = ANSWER_SECON
     return answer
 
 
-class RecordFile:
+class RecordFile(JsonFile):
     """desktop.json: the app's process id and channel (written atomically; owner-only where the system has
     modes)."""
 
-    def __init__(self, path: Path) -> None:
-        self.path = path
+    path: Path
 
-    def read(self) -> Any:
-        try:
-            return json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
+    def __init__(self, path: Path) -> None:
+        super().__init__(path, mode=0o600, indent=None, end="")
 
     def shell(self) -> tuple[int, int, str] | None:
         return rules.read_record(self.read())
-
-    def write(self, data: dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as file:
-            file.write(json.dumps(data))
-        os.replace(temporary, self.path)
 
     def remove(self, pid: int) -> None:
         """Gone at the shell's end, when it is still this shell's."""
@@ -116,25 +104,15 @@ class RecordFile:
                 self.path.unlink()
 
 
-class JsonState:
-    """A small state file (windows.json: the windows' places), written only when its text changes."""
+class JsonState(JsonFile):
+    """A small state file (windows.json: the windows' places), written only when its text changes; a
+    failed write is let go (the places are a nicety)."""
+
+    path: Path
 
     def __init__(self, path: Path) -> None:
-        self.path = path
-
-    def read(self) -> Any:
-        try:
-            return json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
+        super().__init__(path, if_changed=True)
 
     def write_text(self, text: str) -> None:
-        try:
-            if self.path.is_file() and self.path.read_text(encoding="utf-8") == text:
-                return
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = self.path.with_name(f".{self.path.name}.tmp")
-            temporary.write_text(text, encoding="utf-8")
-            os.replace(temporary, self.path)
-        except OSError:
-            pass
+        with contextlib.suppress(OSError):
+            super().write_text(text)

@@ -19,7 +19,7 @@ from swissarmybench.adapters.blade_run import BladeRunError, run_catalog, run_co
 from swissarmybench.client import blades_client, sql_cell
 from swissarmybench.domain import notebooks, powerbi
 from swissarmybench.domain.blades import detect_settings, read_code
-from swissarmybench.domain.catalogs import count_sql, dax_column, dax_table, normalize_dialect, select_sql
+from swissarmybench.domain.catalogs import count_sql, dax_table, normalize_dialect, select_sql
 from swissarmybench.domain.connections import signs_in_interactively
 from swissarmybench.domain.relationships import Model, Relationship, conflicts, merge
 from swissarmybench.server.blade_templates import (
@@ -121,9 +121,6 @@ def saved_connection(client: TestClient, name: str = "Finance", **more: Any) -> 
 
 def test_dax_names_are_quoted_dax_style() -> None:
     assert dax_table("Sales") == "'Sales'" and dax_table("Bob's Orders") == "'Bob''s Orders'"
-    assert dax_column("Unit Price", "Order Lines") == "'Order Lines'[Unit Price]"
-    assert dax_column("Total Sales") == "[Total Sales]"  # a measure has no table in front
-    assert dax_column("Net [USD]", "Sales") == "'Sales'[Net [USD]]]"  # a closing bracket doubled
     assert normalize_dialect("Power BI") == "dax" and normalize_dialect("DAX") == "dax"
 
 

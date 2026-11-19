@@ -35,22 +35,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_response, json_response, with_actor, with_body
 from swissarmybench_git.services.scm import SourceControl
 
 Handler = Callable[[Request], Awaitable[Response]]
 
 
 def routes(sync: SourceControl) -> list[BaseRoute]:
-    def with_body(run: Callable[[Any, str], Awaitable[dict[str, Any]]]) -> Handler:
-        async def handle(request: Request) -> Response:
-            try:
-                return json_response(await run(await read_json(request), actor(request)))
-            except Exception as error:
-                return error_response(error)
-
-        return handle
-
     def with_query(run: Callable[[Any, str], Awaitable[dict[str, Any]]]) -> Handler:
         async def handle(request: Request) -> Response:
             query: dict[str, Any] = dict(request.query_params)
@@ -58,15 +49,6 @@ def routes(sync: SourceControl) -> list[BaseRoute]:
                 query[key] = query.get(key) in ("1", "true")
             try:
                 return json_response(await run(query, actor(request)))
-            except Exception as error:
-                return error_response(error)
-
-        return handle
-
-    def plain(run: Callable[[str], Awaitable[dict[str, Any]]]) -> Handler:
-        async def handle(request: Request) -> Response:
-            try:
-                return json_response(await run(actor(request)))
             except Exception as error:
                 return error_response(error)
 
@@ -89,10 +71,10 @@ def routes(sync: SourceControl) -> list[BaseRoute]:
         Route("/git", status),
         Route("/git/mark", mark),
         Route("/git/sign-in/token", with_body(sync.sign_in_token), methods=["POST"]),
-        Route("/git/sign-in/device", plain(sync.device_start), methods=["POST"]),
-        Route("/git/sign-in/device/poll", plain(sync.device_poll), methods=["POST"]),
-        Route("/git/sign-out", plain(sync.sign_out), methods=["POST"]),
-        Route("/git/repositories", plain(sync.repositories)),
+        Route("/git/sign-in/device", with_actor(sync.device_start), methods=["POST"]),
+        Route("/git/sign-in/device/poll", with_actor(sync.device_poll), methods=["POST"]),
+        Route("/git/sign-out", with_actor(sync.sign_out), methods=["POST"]),
+        Route("/git/repositories", with_actor(sync.repositories)),
         Route("/git/clone", with_body(sync.clone), methods=["POST"]),
         Route("/git/connect", with_body(sync.connect), methods=["POST"]),
         Route("/git/disconnect", with_body(sync.disconnect), methods=["POST"]),

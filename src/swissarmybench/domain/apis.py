@@ -616,15 +616,6 @@ PRESETS: dict[str, Preset] = {
 }
 
 
-def spec_urls(preset: str, base_url: str) -> list[str]:
-    """Where a preset's host keeps its OpenAPI document, for this address (none: add endpoints by hand)."""
-    found = PRESETS.get(preset)
-    match = re.match(r"^(https?://[^/]+)", base_url.strip())
-    if found is None or match is None or "<" in base_url:
-        return []
-    return [match.group(1) + path for path in found.spec_paths]
-
-
 def choices() -> dict[str, Any]:
     """What the Add API dialog offers: the auth types with their settings, and the presets."""
     return {

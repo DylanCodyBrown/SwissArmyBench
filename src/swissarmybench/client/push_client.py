@@ -55,6 +55,7 @@ class TableNotOpenError(RuntimeError):
 
 
 def info_file() -> Path:
+    """The server's connection file; SWISSARMYBENCH_INFO overrides it (tests use this)."""
     override = env("SWISSARMYBENCH_INFO")
     return Path(override) if override else home_state_folder() / "server.json"
 

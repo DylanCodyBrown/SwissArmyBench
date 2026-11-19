@@ -60,17 +60,7 @@ def test_bad_python_is_refused_with_its_line() -> None:
         blade_code.read_code("conn = 1\nconn = (\n")
 
 
-def test_imports_already_in_a_script_are_not_added_again() -> None:
-    script = "import pandas as pd, numpy\nfrom pathlib import Path, PurePath\nimport swissarmybench\n"
-    wanted = [
-        "import pandas as pd",
-        "import numpy",
-        "from pathlib import Path",
-        "import swissarmybench as sab",  # `import swissarmybench` does not give `sab`
-        "import pyodbc",
-    ]
-    assert blade_code.missing_imports(script, wanted) == ["import swissarmybench as sab", "import pyodbc"]
-    assert blade_code.missing_imports("x = (", ["import os"]) == ["import os"]
+def test_a_scripts_import_lines() -> None:
     assert blade_code.import_lines("import os\nx = 1\nfrom a import (\n    b,\n)\n") == [
         "import os",
         "from a import (\n    b,\n)",
