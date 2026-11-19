@@ -3521,3 +3521,29 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
   toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
   test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
+
+## feel-c: a first run, empty pages and the layout (2026-11-19, branch feel-c)
+- **Rules (Python, tests/test_first_run.py):** the made-up sample store is the same every time and joins (every
+  order names a customer and a product that are there); POST /samples/store opens customers, products and orders,
+  a second time under free names (customers_2 ...), a grid counting 120 orders; the rail's names on until turned
+  off, a bad switch refused (400), kept in rail.json across a restart; the agent's `datasets_sample` and
+  `app_rail`. The tool list's budget raised to 86,300 for the two.
+- **Browser (Chromium, tests/e2e/test_first_run_page.py, 7 tests):** the empty Connections, Variables (no sample),
+  Session and Notebooks pages with their sentence and button; Try it with sample data opening three tabs and the
+  page making way; the products grid's columns filling the width; the Application row hidden with no project; the
+  Export tooltip; the rail at 176px with its names, Icons only (60px, kept: a new window opens the same), Show
+  names from a right-click following in the other window; Paste data opening a grid; Add connection's search
+  (postgres: one tile; nothing: the line; Enter opens SQLite) and its crumb, SQLite first after Back; Ctrl+K's
+  keys and Recently used first; the finder drawing its joins beside the list with Undo; a new notebook's hint;
+  Close project from the Projects page (the question with unsaved changes, Cancel keeps it, then closed, the Open
+  mark gone, the page stays). test_relationship_sets_page (Undo, then Find again) and test_rail_page (the
+  toolbar's buttons, 176px, the tips with the icons alone) updated and passing.
+- **Whole suite (Chromium, load average about 15 from the other builders):** 4926 passed, 46 skipped, 9 failed in
+  52 minutes. Passed alone: test_errors_page's three and test_catalog_page's pack test (6/6), test_data_explorer's
+  pane test, test_desktop_shell (2/2). test_performance's million-row sort (1.2 s against 0.5 s) fails alone
+  under this load (a server-side sort this work does not touch). test_tour's walk fails about one run in three
+  here and the branch it started from failed one run in five under the same load (a practice box or the made-up
+  form not ready within the tour's 5 s; GET /connections/types takes 2.3 to 2.8 s each time here).
+  tests/e2e/test_launch_page.py is not in this branch (another builder's file was collected): not judged.
+- **Not checked:** the desktop app's windows with the wider rail; Edge; a table of many columns that only just
+  fits (the filling stops past the window).
