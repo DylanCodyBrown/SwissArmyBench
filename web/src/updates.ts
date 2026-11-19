@@ -15,7 +15,7 @@
  * ROUTING: GET/PUT /updates, POST /updates/install; the `update_changed` and `app_updating` notices
  */
 import { api, onNotice } from "./api";
-import { button, h, icon, openDialog, showMenu, toast } from "./dom";
+import { button, h, icon, openDialog, toast } from "./dom";
 import type { Command } from "./workbenchCommands";
 import { errorHere } from "./errorNote";
 
@@ -43,8 +43,6 @@ let state: UpdateState | null = null;
 let loading: Promise<UpdateState | null> | null = null;
 let listening = false;
 const listeners: (() => void)[] = [];
-
-export const updateState = (): UpdateState | null => state;
 
 function take(next: UpdateState): void {
   state = next;

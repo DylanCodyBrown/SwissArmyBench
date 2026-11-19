@@ -29,20 +29,20 @@
  * ROUTING: GET /apis, /apis/search, /apis/{name}  ·  POST/PUT /apis/{name}/calls/{op}  ·  POST /refresh,
  *          /refresh/apply, /delete, /make-into-blades  ·  PUT /check, /name  ·  Add API: addApi.ts
  */
-import { api, ApiError, saidOf } from "./api";
+import { api, saidOf } from "./api";
 import { showAddApi } from "./addApi";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { promptForError } from "./missingPackages";
-import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
+import { dismissDialog, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { mountText, mountTree, type Part, pathText, type Value } from "./structureTree";
 import { openStructures } from "./structuresPage";
 import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
+import { APIS } from "./lazyPages";
 
 /** The page's name, in one place. */
-export const APIS = "APIs";
 
 interface Card {
   name: string;
@@ -129,12 +129,6 @@ registerLayer("apis", {
     if (shownPage) dismissDialog(shownPage);
   },
 });
-
-export function openApis(): void {
-  if (shownPage?.open) return;
-  layerOpened("apis");
-  drawPage();
-}
 
 async function call<T>(path: string, method = "GET", body?: unknown): Promise<T | null> {
   try {

@@ -17,7 +17,7 @@
  * (routes_connection_colours.py); the `connection_colours_changed`, `blades_changed` and
  * `kind_colours_changed` notices.
  */
-import { api, errorText, onNotice } from "./api";
+import { api, onNotice } from "./api";
 import { h } from "./dom";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorHere } from "./errorNote";
@@ -249,6 +249,14 @@ function soon(el: HTMLElement): void {
   });
 }
 
+/** A drawn node worth painting: it, or something in it, names connections. A grid's rows and cells never
+ * do (AG Grid adds them by the hundred as it scrolls), so nothing inside a grid is looked into. */
+function namesConnections(node: HTMLElement): boolean {
+  if (node.dataset.connections !== undefined) return true;
+  if (node.closest(".ag-root-wrapper")) return false;
+  return node.querySelector("[data-connections]") !== null;
+}
+
 let watching = false;
 /** Paint as the page draws, and follow every change. Call once per page. */
 export function watchConnectionColours(): void {
@@ -257,7 +265,7 @@ export function watchConnectionColours(): void {
   new MutationObserver((changes) => {
     for (const change of changes) {
       if (change.type === "attributes") soon(change.target as HTMLElement);
-      else for (const node of change.addedNodes) if (node instanceof HTMLElement) soon(node);
+      else for (const node of change.addedNodes) if (node instanceof HTMLElement && namesConnections(node)) soon(node);
     }
   }).observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-connections"] });
   void loadConnectionColours();

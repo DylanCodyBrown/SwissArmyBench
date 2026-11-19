@@ -51,7 +51,7 @@
  *          [INSTALL] POST /blades/install {packages}, then POST /blades/inspect (is it installed now?)
  */
 import { showAddApi } from "./addApi";
-import { api, errorText, onNotice, token } from "./api";
+import { api, onNotice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
 import { accessSection } from "./connectionAccess";
@@ -63,7 +63,7 @@ import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError, reminder } from "./missingPackages";
-import { touring } from "./tour";
+import { touring } from "./tourButton";
 import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
 import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
@@ -442,14 +442,6 @@ let listShowing: (() => void) | null = null;
 onNotice((notice) => {
   if (notice.type === "catalog_loading" || notice.type === "catalogs_changed") listShowing?.();
 });
-
-/** What a connection's catalog is doing, in a word or two (the reason on hover). */
-function catalogWord(c: Connection): HTMLElement | null {
-  const state = c.catalog_state?.state;
-  if (state === "loading") return h("span", { class: "hint" }, "loading catalog…");
-  if (state === "failed") return errorMark("catalog not loaded", { title: c.catalog_state?.error ?? "" });
-  return null;
-}
 
 interface Preview {
   columns: string[];

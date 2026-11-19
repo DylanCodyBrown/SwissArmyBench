@@ -21,7 +21,6 @@ const CIRCLE_STROKE_WIDTH = 2;
 /** Colours, as VS Code's colour ids (scmGraph.historyItemRefColor and the rest). */
 export const REF_COLOR = "scmGraph-historyItemRefColor";
 export const REMOTE_REF_COLOR = "scmGraph-historyItemRemoteRefColor";
-export const BASE_REF_COLOR = "scmGraph-historyItemBaseRefColor";
 const COLORS = ["scmGraph-foreground1", "scmGraph-foreground2", "scmGraph-foreground3", "scmGraph-foreground4", "scmGraph-foreground5"];
 export const INCOMING_ID = "scm-graph-incoming-changes";
 

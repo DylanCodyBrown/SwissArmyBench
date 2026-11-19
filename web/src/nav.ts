@@ -237,6 +237,19 @@ export function registerLayer(key: string, layer: Layer): void {
   layers.set(key, layer);
 }
 
+/** A layer whose page loads when first opened (lazyPages.ts): `load` brings its module, which registers the
+ *  real layer in this one's place as it runs; until then it is closed, and opening it waits for the load. */
+export function registerLazyLayer(key: string, load: () => Promise<unknown>): void {
+  const real = (): Promise<Layer> => load().then(() => layers.get(key)!);
+  const stand: Layer = {
+    isOpen: () => false,
+    open: (url) => void real().then((layer) => layer !== stand && layer.open(url)),
+    show: () => undefined, // never open: nothing to show or dismiss
+    dismiss: () => undefined,
+  };
+  layers.set(key, stand);
+}
+
 /** Whether this page has the layer `key` (Settings, Connections): the rail opens it here, else at home. */
 export function hasLayer(key: string): boolean {
   return layers.has(key);

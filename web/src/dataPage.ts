@@ -20,7 +20,6 @@
 import { api } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { EMPTY_STATE, type Explorer, type ExplorerState, mountExplorer } from "./dataExplorer";
-import { toast } from "./dom";
 import { dismissDialog, HOME_WINDOW, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { openVariables } from "./variablesPage";
 import { errorHere } from "./errorNote";
