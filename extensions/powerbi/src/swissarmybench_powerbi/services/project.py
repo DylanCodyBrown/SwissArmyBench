@@ -45,11 +45,16 @@ class Files(Protocol):
 
 
 class LiveSource(Protocol):
-    """E's Local source: DAX over the live link to the target (services/live_link.py)."""
+    """E's Local source (DAX over the live link to the target) and the page's Edit in Power BI Desktop (its
+    dry run and Apply): services/live_link.py."""
 
     def open_file(self) -> str | None: ...
 
     async def evaluate(self, dax: str) -> Any: ...
+
+    async def plan(self, body: Any) -> dict[str, Any]: ...
+
+    async def apply(self, body: Any, who: str) -> dict[str, Any]: ...
 
 
 def _settings_of(code: str) -> dict[str, str]:

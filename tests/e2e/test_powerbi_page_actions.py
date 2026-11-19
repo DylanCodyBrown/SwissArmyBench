@@ -1,7 +1,7 @@
 # ruff: noqa: F811
-"""The Power BI page's actions, in a real browser: Edit in Power BI Desktop shows its dry run on the page (each
-change listed, Apply), and Use another report's pages opens the report dialog right there. A running Power BI
-Desktop and pbixray are stood in for. Made-up data only.
+"""The Power BI page's actions, in a real browser: Edit in Power BI Desktop shows its dry run on the page
+(each change listed, Apply), and Use another report's pages opens the report dialog right there.
+A running Power BI Desktop and pbixray are stood in for. Made-up data only.
 
 With SWISSARMYBENCH_SHOTS set to a folder, the test also saves screenshots there (2x, light and dark)."""
 

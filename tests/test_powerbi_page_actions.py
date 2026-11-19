@@ -1,6 +1,6 @@
 """The Power BI page's actions complete (the owner's F and D): Edit in Power BI Desktop answers an on-page dry
-run (each change listed, Apply, Cancel; the agent's Apply waits for the user's Allow), and Use another report's
-pages asks the page to open the report dialog right there. A running Power BI Desktop is stood in for
+run (each change listed, Apply, Cancel; the agent's Apply waits for the user's Allow), and Use another
+report's pages asks the page to open the report dialog right there. A running Power BI Desktop is stood in for
 (tests/powerbi_live_fake.py), pbixray too. Made-up data only."""
 
 from __future__ import annotations
