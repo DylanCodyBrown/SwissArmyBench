@@ -318,7 +318,10 @@ def test_the_tour_is_offered_on_the_projects_page_only(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
     page = home(browser, server, "?open=projects")
-    expect(page.locator('.area-page[data-page="projects"] .tour-btn')).to_be_visible(timeout=20000)
+    # A first visit: the "New here?" bubble is the tour's one button (feel-a); Tour comes once it is seen.
+    slot = page.locator('.area-page[data-page="projects"] .tour-slot')
+    expect(slot.locator(".tour-bubble")).to_be_visible(timeout=20000)
+    expect(slot.locator(".tour-btn")).to_be_hidden()
     expect(page.locator(".app-row .tour-btn")).to_have_count(0)
     for path in ("/workbench", "/catalog"):
         other = page.context.new_page()
