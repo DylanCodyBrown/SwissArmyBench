@@ -106,6 +106,7 @@ import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
 import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 import { installVariableAnywhere } from "./variableAnywhere";
+import { errorHere, errorToast } from "./errorNote";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -282,7 +283,7 @@ function drawTablesTool(): void {
   clear(
     tablesHost,
     waiting.length
-      ? button(stale ? `Run tables: ${stale} out of date` : `Run tables: ${waiting.length} not run`, () => void view!.runOutOfDate().catch((e: Error) => toast(e.message, "error")), {
+      ? button(stale ? `Run tables: ${stale} out of date` : `Run tables: ${waiting.length} not run`, () => void view!.runOutOfDate().catch((e: Error) => errorHere(e)), {
           icon: "play",
           class: stale ? "wb-tables-stale" : "",
           title: `Run each table's cell that is not up to date: ${waiting.map((t) => t.name).join(", ")}`,
@@ -331,7 +332,7 @@ const settleDocuments = async (): Promise<void> => {
 async function runApp(doc: Doc): Promise<boolean> {
   if (!doc.streamlit) return false;
   const state = await doc.streamlit.run();
-  if (state.problem?.kind === "failed") toast(problemText(state.problem), "error");
+  if (state.problem?.kind === "failed") errorHere(problemText(state.problem));
   // Streamlit missing from the document's Python: the prompt in the user's face (it installs, then runs).
   if (state.problem?.kind === "missing") void promptInstall(state.problem, streamlitInstall(doc));
   return state.running && !state.problem;
@@ -384,7 +385,7 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
     moveToData: (plan) => moveToData(plan, doc),
     lineage: (page, block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page, block }),
     selected: () => doc.modes?.redraw("properties"),
-    starter: (name, where) => void addStarter(doc, name, where).catch((e: Error) => toast(e.message, "error")),
+    starter: (name, where) => void addStarter(doc, name, where).catch((e: Error) => errorHere(e)),
   }, settings);
   doc.element.append(doc.canvas.element);
   doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
@@ -553,7 +554,7 @@ async function exportData(): Promise<unknown> {
   await settleDocuments();
   const done = await api<{ path: string; names: string[]; fill_in: string[]; skipped: string[] }>("/projects/export-data", "POST", { folder });
   for (const said of done.skipped) toast(said);
-  if (done.fill_in.length) toast(`data.py cannot read ${done.fill_in.join(", ")} again: add the code that reads it to data.ipynb.`, "error");
+  if (done.fill_in.length) errorHere(`data.py cannot read ${done.fill_in.join(", ")} again: add the code that reads it to data.ipynb.`);
   return done;
 }
 
@@ -624,7 +625,7 @@ async function exportDocument(doc: Doc | null, format: "script" | "notebook", to
 
 /** The project's entries (in a group's "+" and the top bar's "…"). */
 function projectEntries(): MenuEntry[] {
-  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
   const open = docs.some(isData) || !!project;
   return [
     { label: "New project…", icon: "plus", title: "A folder that starts with data.ipynb", run: guarded(() => newProject()) },
@@ -754,8 +755,8 @@ async function saveProjectDocuments(folder: string | undefined): Promise<{ saved
 /** App mode's reach into the rest of the window: a block's cell, renamed or gone to; the logo's file. */
 function appHost(doc: Doc): AppHost {
   return {
-    lineage: (block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page: (doc.canvas?.report() as { page?: string } | undefined)?.page ?? undefined, block }).catch((e: Error) => toast(e.message, "error")),
-    goToCell: (document, cell) => void goToCell(document, baseName(document), cell).catch((e: Error) => toast(e.message, "error")),
+    lineage: (block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page: (doc.canvas?.report() as { page?: string } | undefined)?.page ?? undefined, block }).catch((e: Error) => errorHere(e)),
+    goToCell: (document, cell) => void goToCell(document, baseName(document), cell).catch((e: Error) => errorHere(e)),
     renameCell: async (document, cell, name) => {
       let held = docs.find((d) => d.path === document);
       if (!held) {
@@ -927,10 +928,10 @@ async function runScheduled(doc: Doc): Promise<RunRecord | null> {
     historyAt.get(doc)!.at = 0;
     if (!doc.modes?.isOpen("runHistory")) doc.modes?.toggle("runHistory", true);
     else doc.modes.redraw("runHistory");
-    if (run.exit_code !== 0) toast(`Exit code ${run.exit_code ?? "stopped"}`, "error");
+    if (run.exit_code !== 0) errorHere(`Exit code ${run.exit_code ?? "stopped"}`);
     return run;
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return null;
   } finally {
     scheduling.delete(doc);
@@ -1147,7 +1148,7 @@ async function takeDocument(id: string): Promise<void> {
   remember();
 }
 
-const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => toast(e.message, "error"));
+const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => errorHere(e));
 
 function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified: number | null): Doc {
   const doc: Doc = { id: ++counter, kind, title, path, modified, dirty: false, kernel: null, python: null, element: h("div", { class: `wb-doc-body kind-${kind}` }) };
@@ -1214,7 +1215,7 @@ async function openResult(doc: Doc, count: number, name?: string): Promise<void>
     const opened = await api<{ dataset: string }>(`/workbench/kernels/${doc.kernel.id}/grid`, "POST", name ? { output: count, name } : { output: count });
     toast(`${opened.dataset} is open as a grid.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -1224,7 +1225,7 @@ async function openGrid(doc: Doc, name: string): Promise<void> {
     await api(`/workbench/kernels/${doc.kernel.id}/grid`, "POST", { name });
     toast(`${name} is open as a grid.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -1430,7 +1431,7 @@ function show(doc: Doc): void {
 
 /** App mode's starter gallery (its Starters panel): a click adds one to the canvas in front. */
 const gallery = starterGallery((name) => {
-  if (current?.canvas) void addStarter(current, name).catch((e: Error) => toast(e.message, "error"));
+  if (current?.canvas) void addStarter(current, name).catch((e: Error) => errorHere(e));
 });
 
 /** The focused group's document changed: everything that follows the focused document follows. */
@@ -1536,7 +1537,7 @@ async function openCodeFileDoc(path: string): Promise<void> {
     });
   } catch (e) {
     docs.splice(docs.indexOf(doc), 1);
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   doc.element.append(doc.codefile.element);
@@ -1557,7 +1558,7 @@ async function newModeFile(language: string): Promise<void> {
     const path = await newCodeFile(name.endsWith(ending) || /\.(ts|tsx)$/.test(name) ? name : `${name}${ending}`);
     await openCodeFileDoc(path);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -1606,7 +1607,7 @@ const landing = mountLanding({
     else if (chosen.path) void open(chosen.path);
   },
   tables: async () => (await fetchTables()).map((t) => ({ name: t.name, steps: t.step_words ?? [], problem: t.problem })),
-  showTable: (name) => void showTransformations(name).catch((e: Error) => toast(e.message, "error")),
+  showTable: (name) => void showTransformations(name).catch((e: Error) => errorHere(e)),
 });
 layout.source.append(groups.element, empty, landing.element);
 
@@ -1667,7 +1668,7 @@ async function open(path?: string): Promise<void> {
     try {
       chosen = await importFile(chosen);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return;
     }
   }
@@ -1687,7 +1688,7 @@ async function open(path?: string): Promise<void> {
     }
     void refreshHome();
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -1738,10 +1739,10 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     if (e instanceof ApiError && e.status === 409 && confirm(`${e.message}\n\nReplace the file on disk with this one?`)) {
       return send(true).then(
         () => true,
-        (err: Error) => (toast(err.message, "error"), false),
+        (err: Error) => (errorHere(err), false),
       );
     }
-    toast((e as Error).message, "error");
+    errorHere(e);
     return false;
   }
 }
@@ -1799,7 +1800,7 @@ function useEnvironment(doc: Doc, python: string): void {
     doc.kernel.stop();
     toast("Kernel stopped");
   }
-  if (doc.path) void api("/workbench/environment", "POST", { path: doc.path, python }).catch((e: Error) => toast(e.message, "error"));
+  if (doc.path) void api("/workbench/environment", "POST", { path: doc.path, python }).catch((e: Error) => errorHere(e));
   drawStatus();
 }
 
@@ -1839,7 +1840,7 @@ function pythonPicker(doc: Doc): HTMLElement {
 // ----- the top bar: the mark, the focused document's name, Save, Save as…, "…"
 
 const topName = h("span", { class: "wb-name" });
-const saveButton = button("Save", () => void saveFront().catch((e: Error) => toast(e.message, "error")), { icon: "save", title: "Save (Ctrl+S)" });
+const saveButton = button("Save", () => void saveFront().catch((e: Error) => errorHere(e)), { icon: "save", title: "Save (Ctrl+S)" });
 const topProject = menuButton(button("Project", () => undefined, { icon: "project", class: "ghost wb-project" }), "Project", () => projectEntries());
 const saveAsButton = button("Save as…", () => void save(current, true), { icon: "save", title: "Save as (Ctrl+Shift+S)" });
 // New and Open… beside them (the owner, 2026-11-16: "new script and open should be in the bar above along
@@ -1963,8 +1964,8 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
     ...(doc.notebook || doc.script ? [{ label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) }] : []),
     ...(doc.notebook || doc.script
       ? [
-          { label: "Export as one Python script…", icon: "export", title: "One .py that runs with plain python: its connections, vault lookups and grid steps written out", run: () => void exportDocument(doc, "script").catch((e: Error) => toast(e.message, "error")) },
-          { label: "Export as one notebook…", icon: "export", title: "One linear .ipynb that runs top to bottom in any Jupyter (nbconvert, papermill)", run: () => void exportDocument(doc, "notebook").catch((e: Error) => toast(e.message, "error")) },
+          { label: "Export as one Python script…", icon: "export", title: "One .py that runs with plain python: its connections, vault lookups and grid steps written out", run: () => void exportDocument(doc, "script").catch((e: Error) => errorHere(e)) },
+          { label: "Export as one notebook…", icon: "export", title: "One linear .ipynb that runs top to bottom in any Jupyter (nbconvert, papermill)", run: () => void exportDocument(doc, "notebook").catch((e: Error) => errorHere(e)) },
         ]
       : []),
     null,
@@ -1985,7 +1986,7 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
 /** A tab's moves between windows (its "…" menu and its right-click menu). */
 function moveEntries(doc: Doc): MenuEntry[] {
   if (!moves(doc)) return [];
-  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+  const guarded = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
   const mark = docMark(doc);
   return [
     { label: "Open in its own window", icon: "popout", mark, run: guarded(() => popOut(doc)) },
@@ -2040,7 +2041,7 @@ const variablesToggle = button("Variables", () => {
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
 installZoomInput();
-const explorerToggle = button("Data Explorer", () => void runCommand("view.explorer").catch((e: Error) => toast(e.message, "error")), { class: "ghost wb-toggle wb-explorer-toggle", pressed: false, title: "Data Explorer (Ctrl+Shift+E)" });
+const explorerToggle = button("Data Explorer", () => void runCommand("view.explorer").catch((e: Error) => errorHere(e)), { class: "ghost wb-toggle wb-explorer-toggle", pressed: false, title: "Data Explorer (Ctrl+Shift+E)" });
 // The lint's count for the document in front (errors and warnings; unused names are faded, not counted):
 // a click lists every problem, and goes to the one picked. Nothing shows while there is none.
 const problemsButton = menuButton(
@@ -2207,17 +2208,17 @@ const explorerPane = mountExplorerPane({
     drawStatus();
     window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize"))); // the editors measure again
   },
-  popOut: () => void popExplorer().catch((e: Error) => toast(e.message, "error")),
+  popOut: () => void popExplorer().catch((e: Error) => errorHere(e)),
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(explorerPane.element);
 /** App mode's Streamlit cells panel: one list, shown in the canvas in front's panel. */
-const streamlitCells = cellsPane((document, title, cell) => void goToCell(document, title, cell).catch((e: Error) => toast(e.message, "error")));
+const streamlitCells = cellsPane((document, title, cell) => void goToCell(document, title, cell).catch((e: Error) => errorHere(e)));
 paneReady = true;
 
 /** An open table's grid, shown in the home window (the grids are its). */
 function showGridAtHome(grid: string): void {
   const opened = window.open(`/g/${encodeURIComponent(grid)}#token=${encodeURIComponent(token)}`, HOME_WINDOW);
-  if (!opened) toast("The browser blocked the grid's window. Allow pop-ups for this address.", "error");
+  if (!opened) errorHere("The browser blocked the grid's window. Allow pop-ups for this address.");
 }
 
 // ----- the Data Explorer popped out: the Data page in a window of its own (dataPage.ts; the owner,
@@ -2344,7 +2345,7 @@ async function showTransformations(name: string): Promise<{ table: string; docum
     // No notebook or script holds it: the grid's own steps window.
     if (!info.grid) throw new Error(`${name} has no grid open.`);
     const page = `/g/${encodeURIComponent(info.grid)}`;
-    if (!window.open(`${page}?panel=steps#token=${encodeURIComponent(token)}`, `steps-${page}`, "popup,width=460,height=820")) toast("The browser blocked the steps window.", "error");
+    if (!window.open(`${page}?panel=steps#token=${encodeURIComponent(token)}`, `steps-${page}`, "popup,width=460,height=820")) errorHere("The browser blocked the steps window.");
     return { table: name, document: null, cell: null };
   }
   if (from) {
@@ -2760,7 +2761,7 @@ const COMMANDS: Command[] = [
   { id: "project.exportData", group: "Project", title: "Export data.py (from data.ipynb)", when: () => docs.some(isData) || !!project, whyNot: "no project is open", run: () => exportData() },
   // The desktop app's Ctrl+W (desktopApp.ts): the document in front, and the window once none is left.
   { id: "file.closeTab", group: "File", title: "Close the document in front (the window when none is open)", keys: inApp() ? "Ctrl+W" : undefined, run: () => (current ? close(current) : closeWindow()) },
-  { id: "tabs.reopen", group: "Tabs", title: "Reopen the last closed table (in the home window)", keys: inApp() ? "Ctrl+Shift+T" : undefined, run: () => api("/grids/reopen", "POST").catch((e: ApiError) => toast(e.status === 404 ? "No closed table to reopen." : e.message, e.status === 404 ? "info" : "error")) },
+  { id: "tabs.reopen", group: "Tabs", title: "Reopen the last closed table (in the home window)", keys: inApp() ? "Ctrl+Shift+T" : undefined, run: () => api("/grids/reopen", "POST").catch((e: ApiError) => (e.status === 404 ? toast("No closed table to reopen.") : errorHere(e))) },
   { id: "file.close", group: "File", title: "Close the document", args: "index: a document (default: the one in front)", when: () => docs.length > 0, whyNot: "nothing is open", run: (a) => {
     const at = num(a, "index");
     const doc = at === undefined ? current : docs[at];
@@ -3218,7 +3219,7 @@ document.addEventListener(
     e.preventDefault();
     e.stopPropagation();
     if (document.querySelector(".wb-palette-shade") && id !== "palette") return;
-    void runCommand(id).catch((error: Error) => toast(error.message, "error"));
+    void runCommand(id).catch((error: Error) => errorHere(error));
   },
   true,
 );
@@ -3280,7 +3281,7 @@ onNotice((notice) => {
   // A document moved back to this (the main) window from one it was popped out into.
   const handedTo = notice.type === "workbench_handoff" ? (notice as unknown as { to: string }).to : null;
   if (handedTo !== null && (handedTo === WINDOW_ID || (handedTo === "main" && isMainWindow()))) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => {
-      if (!(e instanceof ApiError && e.status === 409)) toast(e.message, "error"); // another main window took it
+      if (!(e instanceof ApiError && e.status === 409)) errorToast(e); // another main window took it
     });
   if (notice.type === "workbench_command") void answerAgent(notice as unknown as { id: string; command: string; args?: Record<string, unknown> });
   if (notice.type === "catalogs_changed") {
@@ -3340,7 +3341,7 @@ window.addEventListener("message", (e: MessageEvent) => {
   const said = e.data as { sab?: unknown; path?: unknown } | null;
   if (e.origin === location.origin && said?.sab === "codefile" && typeof said.path === "string") void openCodeFileDoc(said.path);
   // A document by its path (the Code App page's data notebook).
-  if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => toast(err.message, "error"));
+  if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => errorToast(err));
 });
 void Promise.all([
   loadPanels(),
@@ -3361,11 +3362,11 @@ void Promise.all([
     const wanted = openedWith.get("open"); // the address as opened (the page clears it once the token is read)
     // At a reference's cell too (the Connections page, with no Workbench window yet).
     const cell = Number(openedWith.get("cell"));
-    if (wanted && cell > 0) void openCell(wanted, cell).catch((e: Error) => toast(e.message, "error"));
+    if (wanted && cell > 0) void openCell(wanted, cell).catch((e: Error) => errorHere(e));
     else if (wanted) void open(wanted);
     // A document popped out of another window: this window was opened to take it.
     const handed = openedWith.get("take");
-    if (handed) void takeDocument(handed).catch((e: Error) => toast(e.message, "error"));
+    if (handed) void takeDocument(handed).catch((e: Error) => errorHere(e));
     // Opened for a kind (the rail's Notebooks, Scripts, Apps): its landing page, or with none of it open
     // that page too. (A reload's documents came back as they were, the one in front too.)
     const here = new URLSearchParams(location.search);
@@ -3373,7 +3374,7 @@ void Promise.all([
     if (k && here.get("view") === "list") showLanding(k);
     else if (k && !docs.some((d) => docKindOf(d) === k)) showKind(k);
     // The open project: its documents here (once), its name and unsaved mark in the top row.
-    onProject((state) => void followProject(state).catch((e: Error) => toast(e.message, "error")));
+    onProject((state) => void followProject(state).catch((e: Error) => errorHere(e)));
     onBeforeSave(reportSab);
     mountProject();
   });

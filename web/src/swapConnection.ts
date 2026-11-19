@@ -16,6 +16,7 @@
  */
 import { api, onNotice } from "./api";
 import { append, button, clear, h, icon, openDialog, toast } from "./dom";
+import { errorHere, problemsHere } from "./errorNote";
 
 export interface TableConnection {
   table: string;
@@ -121,7 +122,7 @@ export async function undoSwap(table: string): Promise<void> {
   try {
     await api(`/tables/${enc(table)}/connection/undo`, "POST", {});
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
   forgetSwap(table);
 }
@@ -131,7 +132,7 @@ function swappedDone(done: Swapped): void {
   known.delete(done.table);
   changed();
   toast(`${done.table}: ${done.to}`, "info", { label: "Undo", run: () => void undoSwap(done.table) });
-  for (const problem of done.steps_problems) toast(`${done.table}: ${problem}`, "error");
+  problemsHere(done.steps_problems, `${done.steps_problems.length} steps of ${done.table} no longer fit.`, { where: done.table, level: "warning" });
 }
 
 /** The SQL window: the queries of `tables` looked over, then run on `to`. */
@@ -143,7 +144,7 @@ export function openSqlWindow(to: string, tables: string[], sql?: string): void 
   if (sql) at.searchParams.set("sql", sql);
   const opened = window.open(`${at.pathname}${at.search}`, "sab-connsql", "popup,width=960,height=680");
   if (opened) opened.focus();
-  else toast("The browser blocked the SQL window: allow pop-ups for this address.", "error");
+  else errorHere("The browser blocked the SQL window: allow pop-ups for this address.");
 }
 
 async function swap(table: string, body: Record<string, unknown>, close: () => void, host: HTMLElement): Promise<void> {
@@ -151,7 +152,7 @@ async function swap(table: string, body: Record<string, unknown>, close: () => v
   try {
     answer = await api<Answer>(`/tables/${enc(table)}/connection`, "POST", body);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   const to = String(body.to);
@@ -166,7 +167,7 @@ async function swap(table: string, body: Record<string, unknown>, close: () => v
   } else if (answer.pick) {
     drawPick(answer.pick, host, close);
   } else if (answer.failed) {
-    toast(answer.failed, "error");
+    errorHere(answer.failed);
   }
 }
 
@@ -193,7 +194,7 @@ function drawPick(pick: Pick, host: HTMLElement, close: () => void): void {
         const found = await api<{ tables: Place[] }>(`/catalogs/${enc(pick.to)}/tables?${params}`);
         clear(tables, ...found.tables.map((t) => h("li", {}, button(t.table, () => choose(t), { icon: "table", class: "ghost" }))));
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     }, { icon: "schema", class: "ghost" });
     branch.append(toggle, tables);
@@ -219,7 +220,7 @@ export async function openConnectionChooser(table: string): Promise<void> {
   try {
     state = await load(table);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   const { body, foot, close } = openDialog(`Connection: ${table}`);
@@ -246,7 +247,7 @@ export async function openMoveChooser(from: string): Promise<void> {
     const listed = await api<{ connections: { name: string; connection: string }[] }>("/connections");
     names = listed.connections.filter((c) => (c.connection === "database" || c.connection === "python") && c.name.toLowerCase() !== from.toLowerCase()).map((c) => c.name);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   const { body, close } = openDialog(`Use another connection for ${from}`);
@@ -256,11 +257,11 @@ export async function openMoveChooser(from: string): Promise<void> {
     try {
       answer = await api(`/connections/${enc(from)}/move`, "POST", { to, run_as_is: asIs });
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return;
     }
     for (const done of answer.moved) swappedDone(done);
-    for (const failed of answer.failed) toast(`${failed.table}: ${failed.error}`, "error");
+    problemsHere(answer.failed.map((f) => `${f.table}: ${f.error}`), `${answer.failed.length} tables could not be moved to ${to}.`);
     if (!answer.review.length && !answer.pick.length) {
       close();
       await offerRepoint(from, to);
@@ -337,10 +338,10 @@ export async function offerRepoint(from: string | null, to: string, always = fal
       }
       try {
         const done = await api<{ cells: number; failed: { document: string; error: string }[] }>(`/connections/${enc(from)}/repoint`, "POST", { to, picks });
-        for (const failed of done.failed) toast(`${failed.document}: ${failed.error}`, "error");
+        problemsHere(done.failed.map((f) => `${f.document}: ${f.error}`), `${done.failed.length} documents could not be pointed at ${to}.`);
         toast(`${done.cells} ${done.cells === 1 ? "cell" : "cells"}: ${to}`);
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
         return;
       }
       close();
@@ -391,10 +392,11 @@ export async function mountConnectionSqlWindow(): Promise<void> {
       try {
         const answer = await api<Answer>(`/tables/${enc(table_)}/connection`, "POST", { to, sql });
         if (answer.failed) throw new Error(answer.failed);
-        for (const problem of answer.swapped?.steps_problems ?? []) toast(`${table_}: ${problem}`, "error");
+        const unfit = answer.swapped?.steps_problems ?? [];
+        problemsHere(unfit, `${unfit.length} steps of ${table_} no longer fit.`, { where: table_, level: "warning" });
         return true;
       } catch (e) {
-        toast(`${table_}: ${(e as Error).message}`, "error");
+        errorHere(e, { where: table_ });
         return false;
       }
     };

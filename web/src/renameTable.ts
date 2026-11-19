@@ -9,7 +9,8 @@
  * ROUTING: POST /datasets/{name}/rename {to}
  */
 import { api } from "./api";
-import { h, toast } from "./dom";
+import { h } from "./dom";
+import { errorHere } from "./errorNote";
 
 /** Ask the server to rename `name`; a refusal (a taken or bad name) is a toast. */
 export async function renameTable(name: string, to: string): Promise<boolean> {
@@ -19,7 +20,7 @@ export async function renameTable(name: string, to: string): Promise<boolean> {
     await api(`/datasets/${encodeURIComponent(name)}/rename`, "POST", { to: next });
     return true;
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return false;
   }
 }

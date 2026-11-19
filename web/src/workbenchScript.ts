@@ -43,7 +43,7 @@
 import { inlineSource } from "./inlineCompletion";
 import { cellConnections, colourOf, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
-import { h, toast } from "./dom";
+import { h } from "./dom";
 import type { CodeEditor, LineNote, ScriptOutline } from "./lazy/codeEditor";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { type ConsoleView, loadEditors, type RunOrigin } from "./workbenchConsole";
@@ -56,6 +56,7 @@ import type { HtmlReport, TableReport } from "./workbenchNotebook";
 import type { ErrorHooks } from "./workbenchOutputs";
 import { cleanName, copyCell, markerName, markerWordsOf, PIECE_HEIGHT, type PieceSource, type PieceTools, pieceTools, pieceView, type StreamlitHost, withMarkerName } from "./workbenchStreamlit";
 import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, tableLineRest, tableState } from "./workbenchTables";
+import { errorHere } from "./errorNote";
 
 export interface ScriptView {
   element: HTMLElement;
@@ -691,7 +692,7 @@ export function scriptView(
   const goTo = (number: number): boolean => {
     const cell = outline.cells.find((c) => c.number === number);
     if (!cell || !editor) {
-      toast(`There is no cell ${number} in this script.`, "error");
+      errorHere(`There is no cell ${number} in this script.`);
       return false;
     }
     if (cell.grouped && outline.region) editor.unfold([outline.region[0], cell.line]);
@@ -823,7 +824,7 @@ export function scriptView(
               run: (line) => {
                 const found = outline.cells.find((c) => line >= c.line && line <= c.end && c.number !== null);
                 if (found?.number) hooks.lineage!(found.number);
-                else toast("Lineage starts from a numbered cell (a `# %%` cell).", "error");
+                else errorHere("Lineage starts from a numbered cell (a `# %%` cell).");
               },
             },
           ]

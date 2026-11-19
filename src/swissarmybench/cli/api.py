@@ -107,6 +107,20 @@ def _http(
     return status, fields, payload
 
 
+def refusal_words(payload: bytes) -> str:
+    """A refusal as the agent reads it. Every route answers the one shape (design principle 9.5:
+    {"error", "where", "fixes", "details"}); one that says only its words reads as those words, as the
+    plain answers did, and one with more (where, the fixes and their commands, details) stays JSON."""
+    text = payload.decode("utf-8", "replace")
+    try:
+        said = json.loads(text)
+    except ValueError:
+        return text
+    if isinstance(said, dict) and set(said) == {"error"} and isinstance(said["error"], str):
+        return said["error"]
+    return text
+
+
 def call(
     method: str,
     path: str,
@@ -128,7 +142,7 @@ def call(
     status, _, payload = _http(info, method, target, headers, data, timeout)
     # A 3xx is not an answer either: the server redirects a path with a trailing slash (an empty id).
     if status >= 300:
-        raise CommandError(f"{status}: {payload.decode('utf-8', 'replace') or 'no such address'}")
+        raise CommandError(f"{status}: {refusal_words(payload) or 'no such address'}")
     try:
         return json.loads(payload or b"null")
     except ValueError as error:
@@ -162,7 +176,7 @@ def fetch_bytes(
     }
     status, fields, payload = _http(info, method, path, headers, data, timeout)
     if status >= 300:
-        raise CommandError(f"{status}: {payload.decode('utf-8', 'replace')}")
+        raise CommandError(f"{status}: {refusal_words(payload)}")
     return payload, fields
 
 

@@ -16,6 +16,7 @@ import { type Context } from "./panes";
 import { saveBlob } from "./profileView";
 import { sentToast } from "./sandboxShow";
 import { busyClick, loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 interface Choice {
   name: string;
@@ -123,7 +124,7 @@ export async function openTieOut(cmp: CompareInfo, pair: [Context, Context]): Pr
       toast(`Both grids show ${g.group.map((v) => v ?? "(blank)").join(" · ")}.`);
       close();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
 
@@ -180,12 +181,12 @@ export async function openTieOut(cmp: CompareInfo, pair: [Context, Context]): Pr
         void Promise.all([
           api("/cards", "POST", { kind: "note", title: `Tie-out: ${left} and ${right}`, body: note, size: { w: 4, h: 6 } }),
           api("/cards", "POST", { kind: "table", title: `Tie-out by ${r.group_by.join(", ") || "total"}`, columns: table.columns, rows: table.rows, size: { w: 8, h: 10 } }),
-        ]).then(([note]) => sentToast("In Visualizations: a note and the table.", note), (e: Error) => toast(e.message, "error"));
+        ]).then(([note]) => sentToast("In Visualizations: a note and the table.", note), (e: Error) => errorHere(e));
       }, { icon: "agent" }),
       button("Show the math", () => {
         void api<{ title: string; markdown: string }>("/analysis-proof", "POST", { analysis: "tie_out", result: r, dataset: `${left} and ${right}` })
           .then((proof) => api("/cards", "POST", { kind: "note", title: proof.title, body: proof.markdown, size: { w: 8, h: 14 } }))
-          .then((made) => sentToast("In Visualizations: the math, step by step.", made), (e: Error) => toast(e.message, "error"));
+          .then((made) => sentToast("In Visualizations: the math, step by step.", made), (e: Error) => errorHere(e));
       }, { icon: "steps", title: "Step by step, to Visualizations" }),
       button("Download CSV", () => saveBlob(new Blob([csv(table.columns, table.rows)], { type: "text/csv" }), `tie-out-${left}-${right}.csv`), { icon: "export" }),
     );

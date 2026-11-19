@@ -20,6 +20,7 @@ import { activeMode, familyShown, familyWords, onMode, whenMode } from "./modes"
 import type { Move } from "./nav";
 import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
 import { busyClick } from "./loading";
+import { errorHere } from "./errorNote";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -142,7 +143,7 @@ export async function openTableAsGrid(catalog: string, where: { schema?: string;
     const offer = dax && !(await relationshipsImported(catalog, dataset)) ? { label: "Import its relationships", run: () => void importRelationships(catalog, dataset) } : undefined;
     toast(cut ? `${answer.dataset}: the first ${answer.shown!.toLocaleString()} of ${answer.total!.toLocaleString()} rows open as a grid.` : `${answer.dataset} is open as a grid.`, "info", offer);
   } catch (e) {
-    toast(errorText(e), "error");
+    errorHere(e);
   }
 }
 
@@ -216,7 +217,7 @@ export const DROP_TYPE = "application/x-sab-drop";
 export function copy(text: string, what: string): void {
   void navigator.clipboard.writeText(text).then(
     () => toast(`Copied ${what}.`),
-    () => toast("The browser did not allow copying.", "error"),
+    () => errorHere("The browser did not allow copying."),
   );
 }
 
@@ -323,7 +324,7 @@ export function mountRail(host: RailHost): Rail {
     try {
       [blades] = await Promise.all([api<{ blades: BladeSummary[] }>("/blades").then((r) => r.blades), startersAsked]);
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
       blades = [];
     }
     renderBlades();
@@ -448,7 +449,7 @@ export function mountRail(host: RailHost): Rail {
       blade.pinned = pinned;
       renderBladeList();
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
     }
   }
 
@@ -599,7 +600,7 @@ export function mountRail(host: RailHost): Rail {
     try {
       catalogs = (await api<{ catalogs: CatalogInfo[] }>("/catalogs")).catalogs;
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
       catalogs = [];
     }
     const wanted = select ?? current?.name ?? recall("catalog");
@@ -623,7 +624,7 @@ export function mountRail(host: RailHost): Rail {
             void api(catalogPath(target.name), "DELETE").then(() => {
               current = null;
               void loadCatalogs();
-            }, (error: Error) => toast(error.message, "error"));
+            }, (error: Error) => errorHere(error));
           }, { icon: "trash", iconOnly: true, class: "ghost" })
         : null,
     );
@@ -774,7 +775,7 @@ export function mountRail(host: RailHost): Rail {
     try {
       schemas = (await api<{ schemas: SchemaRow[] }>(`${catalogPath(current.name)}/schemas`)).schemas;
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
       return;
     }
     for (const row of schemas) {
@@ -836,7 +837,7 @@ export function mountRail(host: RailHost): Rail {
       try {
         await loadChildren(item, data);
       } catch (error) {
-        toast((error as Error).message, "error");
+        errorHere(error);
         return;
       }
     }
@@ -971,7 +972,7 @@ export function mountRail(host: RailHost): Rail {
         `${catalogPath(current.name)}/columns${query({ schema: data.schema, table: data.table, database: current.databases > 1 ? data.database : undefined })}`,
       );
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
       return;
     }
     // A connection from the user's own Python: no SELECT, the line that reads the table in a notebook.
@@ -1045,7 +1046,7 @@ export function mountRail(host: RailHost): Rail {
     try {
       found = await api<SearchResult>(`${catalogPath(current.name)}/search${query({ q: text, limit: 50 })}`);
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
       return;
     }
     if (serial !== searchSerial) return; // a newer search is on its way

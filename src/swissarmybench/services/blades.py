@@ -21,7 +21,15 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
 
-from swissarmybench.domain import blade_tables, dataverse, lakes, portability, python_connections, snippets
+from swissarmybench.domain import (
+    blade_tables,
+    dataverse,
+    lakes,
+    portability,
+    python_connections,
+    refusals,
+    snippets,
+)
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import project_scope as scope_rules
@@ -676,9 +684,12 @@ class BladeService:
     ) -> dict[str, Any]:
         """What the page shows for a failed run: the message, and the install when a module is missing
         (the one shape: the blade's or connection's feature, the package, the app's Python)."""
-        content: dict[str, Any] = {"error": message}
+        # The one refusal shape (9.5): the first sentence, where (the blade or connection), the whole
+        # message folded as details, Install now when a module is missing.
+        content: dict[str, Any] = refusals.shape(message, where=name if name and name != "Untitled" else None)
         if missing_module:
             pip, _ = pip_name(missing_module)
+            content["fixes"] = [refusals.install(install_command([pip], self._python))]
             content |= {
                 "missing": missing_packages(
                     self.feature(template, name) if isinstance(template, str) else self.feature_of(name),

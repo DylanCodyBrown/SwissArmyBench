@@ -125,7 +125,7 @@ export function openPalette(): void {
         recordAction(c.id);
         return c.run({}, { agent: false });
       })
-      .catch((e: Error) => import("./dom").then((m) => m.toast(e.message, "error")));
+      .catch((e: Error) => import("./errorNote").then((m) => m.errorHere(e)));
   };
   const draw = (): void => {
     const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);

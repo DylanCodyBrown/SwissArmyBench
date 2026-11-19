@@ -14,6 +14,7 @@
 import { api } from "./api";
 import { button, extraMenuItems, h, openDialog, toast } from "./dom";
 import type { ErrorDetail } from "./workbenchErrors";
+import { errorHere } from "./errorNote";
 
 export interface AgentItem {
   kind: "error" | "code";
@@ -38,7 +39,7 @@ async function post(item: AgentItem, note: string): Promise<void> {
     await api("/agent/inbox", "POST", { ...item, note });
     toast("Sent to the agent");
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 

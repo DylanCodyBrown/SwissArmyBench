@@ -16,11 +16,12 @@
  *          [CLOSE]           -> close(): the split stays, no keys
  */
 import { api } from "./api";
-import { button, clear, formatCount, h, icon, openDialog, toast } from "./dom";
+import { button, clear, formatCount, h, icon, openDialog } from "./dom";
 import { currentCompare, startCompare } from "./compare";
 import { pct } from "./keyFinder";
 import type { Context } from "./panes";
 import { isKnownPair, knownPairs, loadRelationships } from "./relationships";
+import { errorHere } from "./errorNote";
 
 interface Pair {
   source_column: string;
@@ -114,7 +115,7 @@ export function openCompareDialog(left: Context, right: Context): void {
     const lefts = new Set(keys.map((k) => k[0]));
     const rights = new Set(keys.map((k) => k[1]));
     if (lefts.size < keys.length || rights.size < keys.length) {
-      toast("Use each column in one key pair only.", "error");
+      errorHere("Use each column in one key pair only.");
       return;
     }
     close();

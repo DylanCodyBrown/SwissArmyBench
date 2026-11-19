@@ -9,12 +9,13 @@ import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisC
 import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
 import { sendCards } from "./analyzeMenu";
 import { api, grid } from "./api";
-import { showMenu, toast, type MenuItem } from "./dom";
+import { showMenu, type MenuItem } from "./dom";
 import { cellValue, copySelection, focusedCell, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
 import { openColumnProfile, profileToSandbox } from "./profileView";
 import { filterByCells, keepColumns, sortColumns } from "./ribbon";
 import { editStep } from "./stepForms";
 import { state } from "./state";
+import { errorHere } from "./errorNote";
 
 const dataset = (): string => state.info?.dataset ?? "";
 
@@ -28,7 +29,7 @@ async function distinctToSandbox(column: string): Promise<void> {
     const counted = await api<OddsCardInput>(`${grid}/odds`, "POST", { column });
     await sendCards(oddsCards(counted).map((card) => ({ ...card, title: card.title.replace(/^Odds: /, "Distinct values of ") })));
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -74,7 +75,7 @@ export function mountContextMenus(): void {
     // A LIST or STRUCT column (an API's answer read by DuckDB keeps them): Unnest this column, a SQL step.
     const type = viewColumns().find((c) => c.name === column)?.type ?? "";
     const nested = /\]$/.test(type) || /^(STRUCT|LIST)[(<]/i.test(type);
-    const unnest = (): void => void state.stepOp({ column }, "unnest").catch((e: Error) => toast(e.message, "error"));
+    const unnest = (): void => void state.stepOp({ column }, "unnest").catch((e: Error) => errorHere(e));
     showMenu(event.clientX, event.clientY, column, [
       ["sortup", "Sort A→Z", () => void sortColumns(cols, "asc")],
       ["sortdown", "Sort Z→A", () => void sortColumns(cols, "desc")],

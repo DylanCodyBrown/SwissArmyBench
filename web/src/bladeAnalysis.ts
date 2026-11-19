@@ -5,11 +5,12 @@
  */
 import { api, errorText, grid, token } from "./api";
 import { missingOf, promptInstall, reminder } from "./missingPackages";
-import { button, clear, h, openDialog, toast } from "./dom";
+import { button, clear, h, openDialog } from "./dom";
 import { sentToast } from "./sandboxShow";
 import { selection } from "./gridView";
 import { renderMarkdown } from "./markdown";
 import { effectiveTheme } from "./theme";
+import { errorHere } from "./errorNote";
 
 interface Card {
   kind: string;
@@ -89,7 +90,7 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
               first ??= made; // each card sent (??= alone skipped every card after the first)
             }
             return first;
-          })().then((first) => sentToast(`In Visualizations: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`, first), (e: Error) => toast(e.message, "error"));
+          })().then((first) => sentToast(`In Visualizations: ${answer.cards.length} card${answer.cards.length === 1 ? "" : "s"} from ${blade.name}.`, first), (e: Error) => errorHere(e));
         }, { icon: "image" }),
         button("Run again", () => void run(), { icon: "play" }),
         button("Edit on the blades page", openBladesPage, { icon: "edit", class: "ghost" }),

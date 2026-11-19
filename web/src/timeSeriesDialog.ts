@@ -12,11 +12,12 @@
 import { forecastCards, forecastFigure, timeSeriesCards, timeSeriesFigure, type ForecastResult, type TimeSeriesResult } from "./analysisCards";
 import { datasetName, formDefaults, registerAnalysis, resultButtons, tableName } from "./analyzeMenu";
 import { api, grid } from "./api";
-import { button, clear, h, isDateType, isNumericType, markStaleOnChange, openDialog, toast } from "./dom";
+import { button, clear, h, isDateType, isNumericType, markStaleOnChange, openDialog } from "./dom";
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { effectiveTheme } from "./theme";
 import { busyClick, loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 const plotly = (): Promise<typeof import("./lazy/plotly")> => import(/* external */ "/static/build/lazy/plotly.js" as string) as Promise<typeof import("./lazy/plotly")>;
 
@@ -97,7 +98,7 @@ export async function openTimeSeries(given: Record<string, unknown> = {}): Promi
       );
       clear(
         actions,
-        r.step ? button("Show these rows", () => void state.addStep(r.step!).then(close, (e: Error) => toast(e.message, "error")), { icon: "filter", title: "Periods that stand out" }) : null,
+        r.step ? button("Show these rows", () => void state.addStep(r.step!).then(close, (e: Error) => errorHere(e)), { icon: "filter", title: "Periods that stand out" }) : null,
         button("Forecast…", () => { close(); void openForecast(form.read()); }, { icon: "expand", class: "primary" }),
         ...resultButtons({
           analysis: "time_series",

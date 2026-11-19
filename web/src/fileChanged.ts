@@ -12,7 +12,8 @@
  * ROUTING: GET /datasets (changed_on_disk), POST /datasets/{name}/reload {"not_now"?}; the agent's tabs_reload
  */
 import { api, onNotice } from "./api";
-import { button, h, toast } from "./dom";
+import { button, h } from "./dom";
+import { errorHere } from "./errorNote";
 
 const changed = new Set<string>();
 const listeners: (() => void)[] = [];
@@ -36,7 +37,7 @@ export async function reloadTable(dataset: string): Promise<void> {
   try {
     await api(`/datasets/${encodeURIComponent(dataset)}/reload`, "POST", {});
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -45,7 +46,7 @@ async function notNow(dataset: string): Promise<void> {
   try {
     await api(`/datasets/${encodeURIComponent(dataset)}/reload`, "POST", { not_now: true });
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 

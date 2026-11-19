@@ -36,6 +36,7 @@ import type { DiffViewer } from "./lazy/codeEditor";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 import { graph, INCOMING_ID, REF_COLOR, REMOTE_REF_COLOR, type HistoryItem, type Ref, type ViewModel, viewModels } from "./scmGraph";
 import { effectiveTheme, onThemeChange } from "./theme";
+import { errorToast } from "./errorNote";
 
 export const SCM = "Source Control";
 const KEY = "scm";
@@ -382,7 +383,7 @@ function drawPage(): void {
     try {
       return await api<T>(path, method, data);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorToast(e);
       return null;
     }
   };
@@ -1108,7 +1109,7 @@ function drawPage(): void {
     } else paths = staged;
     if (!message) {
       box?.focus();
-      toast("Please provide a commit message", "error");
+      errorToast("Please provide a commit message");
       return;
     }
     const done = await after(call<{ pushed: number; words: string }>("/git/commit", "POST", { which: repo.which, message, paths, sync: syncFirst }), (d) => d.words);
@@ -1159,7 +1160,7 @@ function githubSignIn(status: Status | null, done: () => void): HTMLElement[] {
         token.value = "";
         done();
       },
-      (e: Error) => toast(e.message, "error"),
+      (e: Error) => errorToast(e),
     );
   };
   token.addEventListener("keydown", (e) => {
@@ -1179,12 +1180,12 @@ function githubSignIn(status: Status | null, done: () => void): HTMLElement[] {
               else if (said.state === "signed_in") done();
               else code.textContent = said.words ?? said.state;
             },
-            (e: Error) => toast(e.message, "error"),
+            (e: Error) => errorToast(e),
           );
         };
         window.setTimeout(poll, got.interval * 1000);
       },
-      (e: Error) => toast(e.message, "error"),
+      (e: Error) => errorToast(e),
     );
   };
   return [
@@ -1200,7 +1201,7 @@ const WHICH_WORDS: Record<string, string> = { library: "Team library folder", sh
 
 async function pickRepository(): Promise<string | null> {
   const got = await api<{ repositories: { repository: string; branch: string; private: boolean }[] }>("/git/repositories").catch((e: Error) => {
-    toast(e.message, "error");
+    errorToast(e);
     return null;
   });
   if (!got) return null;
@@ -1226,7 +1227,7 @@ export async function cloneRepository(): Promise<void> {
   const folder = await chooseFile({ title: `Choose a folder to clone ${repository} into`, mode: "folder" });
   if (!folder) return;
   const done = await api<{ files: number }>("/git/clone", "POST", { which, repository, folder }).catch((e: Error) => {
-    toast(e.message, "error");
+    errorToast(e);
     return null;
   });
   if (done) toast(`Cloned ${repository}: ${done.files} files. It is the ${WHICH_WORDS[which]?.toLowerCase()} now.`);
@@ -1238,7 +1239,7 @@ export async function connectFolder(): Promise<void> {
   const repository = await pickRepository();
   if (!repository) return;
   const done = await api<{ words: string }>("/git/connect", "POST", { which, repository }).catch((e: Error) => {
-    toast(e.message, "error");
+    errorToast(e);
     return null;
   });
   if (done) toast(done.words);
@@ -1258,14 +1259,14 @@ export function teamSignIn(said: { device: boolean; token_steps: string[] }, don
         token.value = "";
         done();
       },
-      (e: Error) => toast(e.message, "error"),
+      (e: Error) => errorToast(e),
     );
   token.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && token.value.trim()) void use();
   });
   const device = async (): Promise<void> => {
     const got = await api<{ user_code: string; verification_uri: string; interval: number }>("/git/sign-in/device", "POST").catch((e: Error) => {
-      toast(e.message, "error");
+      errorToast(e);
       return null;
     });
     if (!got) return;
@@ -1280,7 +1281,7 @@ export function teamSignIn(said: { device: boolean; token_steps: string[] }, don
           else if (answer.state === "signed_in") done();
           else code.textContent = answer.words ?? answer.state;
         },
-        (e: Error) => toast(e.message, "error"),
+        (e: Error) => errorToast(e),
       );
     };
     window.setTimeout(poll, got.interval * 1000);
@@ -1336,7 +1337,7 @@ export function cardActions(status: Status | null, path: string): { label: strin
   const act = (route: string, data: unknown) => (): Promise<unknown> =>
     api<{ words: string }>(route, "POST", data).then(
       (d) => toast(d.words),
-      (e: Error) => toast(e.message, "error"),
+      (e: Error) => errorToast(e),
     );
   return [
     { label: "Pull", run: act("/git/pull", { which: "shared" }) },

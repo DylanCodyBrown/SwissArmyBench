@@ -29,7 +29,7 @@
  * ROUTING: GET /apis, /apis/search, /apis/{name}  ·  POST/PUT /apis/{name}/calls/{op}  ·  POST /refresh,
  *          /refresh/apply, /delete, /make-into-blades  ·  PUT /check, /name  ·  Add API: addApi.ts
  */
-import { api, ApiError } from "./api";
+import { api, ApiError, saidOf } from "./api";
 import { showAddApi } from "./addApi";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
@@ -39,6 +39,7 @@ import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { mountText, mountTree, type Part, pathText, type Value } from "./structureTree";
 import { openStructures } from "./structuresPage";
+import { errorHere } from "./errorNote";
 
 /** The page's name, in one place. */
 export const APIS = "APIs";
@@ -139,15 +140,8 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T 
   try {
     return await api<T>(path, method, body);
   } catch (e) {
-    let said: unknown = e;
-    if (e instanceof ApiError) {
-      try {
-        said = JSON.parse(e.message);
-      } catch {
-        said = e;
-      }
-    }
-    if (!promptForError(said)) toast((e as Error).message, "error");
+    const said: unknown = saidOf(e) ?? e;
+    if (!promptForError(said)) errorHere(e);
     return null;
   }
 }
@@ -306,7 +300,7 @@ function drawPage(): void {
       done = await api<{ web_calls: string[] }>(path, "POST", {});
     } catch (e) {
       if (!/spec_path/.test((e as Error).message)) {
-        toast((e as Error).message, "error");
+        errorHere(e);
         return;
       }
       const file = await chooseFile({ title: `${name}'s OpenAPI document`, mode: "file", suffixes: [".json", ".yaml", ".yml"] });

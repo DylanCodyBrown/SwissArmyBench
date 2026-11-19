@@ -18,8 +18,9 @@
  * `kind_colours_changed` notices.
  */
 import { api, errorText, onNotice } from "./api";
-import { h, toast } from "./dom";
+import { h } from "./dom";
 import { effectiveTheme, onThemeChange } from "./theme";
+import { errorHere } from "./errorNote";
 
 export interface ConnectionColour {
   name: string;
@@ -133,7 +134,7 @@ export function colourPicker(name: string): HTMLButtonElement {
 }
 
 function choose(name: string, colour: string | null): void {
-  void setConnectionColour(name, colour).catch((e: unknown) => toast(errorText(e), "error"));
+  void setConnectionColour(name, colour).catch((e: unknown) => errorHere(e));
 }
 
 function showPalette(name: string, anchor: HTMLElement): void {

@@ -40,6 +40,7 @@ import { applySandboxTheme, loadThemes, sandboxDark, sandboxTheme, themeControls
 import { PAPERS, fitPages, makeMovable, moveCard, paginate, printPages, type Paper } from "./sandboxPages";
 import { effectiveTheme, gridZoom, onThemeChange, setTheme, themeChoice } from "./theme";
 import type { Drawn } from "./lazy/charts";
+import { errorHere } from "./errorNote";
 
 type CardKind = "chart" | "note" | "table" | "diagram" | "graphviz" | "plotly" | "echarts" | "vegalite" | "image";
 
@@ -488,7 +489,7 @@ async function exportMarkdown(): Promise<void> {
     saveBlob(new Blob([text], { type: "text/markdown" }), `sandbox-${new Date().toISOString().slice(0, 10)}.md`);
     toast(`Exported ${cards.length} card${cards.length === 1 ? "" : "s"} as markdown.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   } finally {
     if (dark) {
       setTheme(theme);
@@ -692,7 +693,7 @@ async function crossFilter(card: Card, value: unknown, y2?: unknown): Promise<vo
     await owner.load();
     owner.emit("view");
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -721,7 +722,7 @@ async function copyAltair(card: Card): Promise<void> {
     await navigator.clipboard.writeText(code);
     toast("Copied the Altair code.");
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -797,7 +798,7 @@ function noteDialog(existing?: Card): void {
   );
   const save = (): Promise<unknown> =>
     existing ? api(`/cards/${existing.id}`, "PATCH", { title: title.value, body: text.value }) : api("/cards", "POST", { kind: "note", title: title.value, body: text.value });
-  foot.append(button("Cancel", close), button(existing ? "Save" : "Add note", () => void save().then(() => { close(); void render(); }).catch((e: Error) => toast(e.message, "error")), { class: "primary" }));
+  foot.append(button("Cancel", close), button(existing ? "Save" : "Add note", () => void save().then(() => { close(); void render(); }).catch((e: Error) => errorHere(e)), { class: "primary" }));
 }
 
 export function refreshPanel(): void {

@@ -15,10 +15,11 @@
  * Copy as SQL and Copy as Python left this strip (the steps window's Code tab has them).
  */
 import { api, token } from "./api";
-import { button, clear, h, icon, toast } from "./dom";
+import { button, clear, h, icon } from "./dom";
 import { busy, busyClick } from "./loading";
 import { state } from "./state";
 import type { GridInfo } from "./api";
+import { errorHere } from "./errorNote";
 
 let host: HTMLElement;
 
@@ -27,7 +28,7 @@ function openStepsWindow(): void {
   if (!info) return;
   const page = `/g/${encodeURIComponent(info.grid)}`;
   const opened = window.open(`${page}?panel=steps#token=${encodeURIComponent(token)}`, `steps-${page}`, "popup,width=460,height=820");
-  if (!opened) toast("The browser blocked the steps window.", "error");
+  if (!opened) errorHere("The browser blocked the steps window.");
 }
 
 function render(): void {
@@ -69,7 +70,7 @@ function render(): void {
   );
 }
 
-const failed = (e: Error): void => toast(e.message, "error");
+const failed = (e: Error): void => errorHere(e);
 
 function disabledUnless(usable: boolean | undefined, btn: HTMLButtonElement): HTMLButtonElement {
   btn.disabled = !usable;

@@ -42,6 +42,7 @@ import { GridSelection } from "./selection";
 import type { PageState } from "./state";
 import { gridRowHeight, gridTheme, gridZoom, headerProfiles, onHeaderProfilesChange, onThemeChange, setHeaderProfiles } from "./theme";
 import { openValueViewer } from "./valueViewer";
+import { errorHere, errorNote } from "./errorNote";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -227,7 +228,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         done = true;
         const next = box.value.trim();
         label.replaceChildren(this.params.displayName);
-        if (keep && next && next !== name) void state.addStep({ kind: "rename", params: { mapping: { [name]: next } } }).catch((e: Error) => toast(e.message, "error"));
+        if (keep && next && next !== name) void state.addStep({ kind: "rename", params: { mapping: { [name]: next } } }).catch((e: Error) => errorHere(e));
       };
       box.addEventListener("keydown", (e) => {
         e.stopPropagation(); // the grid's own keys (copy, select all) stay out of the box
@@ -436,6 +437,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         state.changedCells = changed.size + newColumns.size * body.rows.length;
         state.emit("preview-marks");
       }
+      host.querySelector(":scope > .grid-error")?.remove();
       params.successCallback(body.rows, body.row_count);
       showEmpty(body.row_count === 0 && params.startRow === 0);
       gridApi?.setColumnsVisible([MARKER], highlights.size > 0);
@@ -445,7 +447,11 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     } catch (error) {
       if (destroyed) return;
       params.failCallback();
-      if ((error as { status?: number }).status !== 409) toast(String((error as Error).message ?? error), "error");
+      // In place, over the grid whose rows did not come (9.5), with Try again; the next rows that come clear it.
+      if ((error as { status?: number }).status !== 409) {
+        host.querySelector(":scope > .grid-error")?.remove();
+        host.append(h("div", { class: "grid-error" }, errorNote(error, { fixes: [{ label: "Try again", icon: "reset", run: () => gridApi?.refreshInfiniteCache() }] })));
+      }
     }
   }
 
@@ -874,7 +880,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     }
     const rows = selection.rowCount(shownTotal);
     if (rows > COPY_CAP) {
-      toast(`Too many rows to copy (up to ${formatCount(COPY_CAP)}).`, "error");
+      errorHere(`Too many rows to copy (up to ${formatCount(COPY_CAP)}).`);
       return;
     }
     const text = download(
@@ -904,7 +910,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       }
       toast(done);
     } catch (error) {
-      toast(`Could not copy: ${(error as Error).message}`, "error");
+      errorHere(error, { what: "Could not copy." });
     }
   }
 
@@ -954,7 +960,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       const cell = await api<{ value: unknown }>(`${grid}/cell${query({ row, column, upto: state.previewUpto })}`);
       openValueViewer(`${column}, row ${formatCount(row + 1)}`, cell.value);
     } catch (error) {
-      toast(String((error as Error).message), "error");
+      errorHere(error);
     }
   }
 

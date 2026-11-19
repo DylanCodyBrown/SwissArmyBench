@@ -23,7 +23,7 @@ import { mdTable, type SandboxCard } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
 import { api, grid, gridId, token } from "./api";
 import { button, clear, formatCount, h, icon, toast } from "./dom";
-import { errorNote } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 import { busy, busyButton, loadingBlock } from "./loading";
 import { isKnownPair, loadRelationships } from "./relationships";
 
@@ -85,7 +85,7 @@ export function openKeyFinderWindow(): void {
   const page = `/g/${encodeURIComponent(gridId)}`;
   const url = `${page}?panel=keys#token=${encodeURIComponent(token)}`;
   const win = window.open(url, `keys-${page}`, "width=1180,height=780");
-  if (!win) toast("Pop-up blocked: allow pop-ups for this page.", "error");
+  if (!win) errorHere("Pop-up blocked: allow pop-ups for this page.");
   else win.focus();
 }
 
@@ -116,7 +116,7 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
     const { grids } = await api<{ grids: { grid: string; label: string; self: boolean }[] }>(`${grid}/key-finder`);
     for (const g of grids) picker.append(h("option", { value: g.grid }, g.self ? `${g.label} (self-join)` : g.label));
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
   if (last) picker.value = last.target;
   const trim = h("input", { type: "checkbox", checked: last ? Boolean(last.options.trim) : true });
@@ -225,7 +225,7 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
         await api("/compares", "POST", { left: gridId, right: pair.target_grid, keys: [[pair.source_column, pair.target_column]], show: true });
         toast(`${sourceName} and ${pair.target_dataset} are side by side in the grid window, lined up on ${pair.source_column}${pair.source_column === pair.target_column ? "" : ` = ${pair.target_column}`}.`);
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     };
     const addRelationship = async (): Promise<void> => {
@@ -236,7 +236,7 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
         await loadRelationships();
         draw(); // the row now wears the crown, and its button says so
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     };
     const tr = h(

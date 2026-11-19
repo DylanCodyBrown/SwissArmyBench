@@ -25,8 +25,9 @@
  *          [ERROR TOAST]   process_error notice -> the table that did not open, and why
  */
 import { api, onNotice, type Budget, type Notice } from "./api";
-import { button, closeDialogs, formatCount, h, openDialog, toast } from "./dom";
+import { button, closeDialogs, formatCount, h, openDialog } from "./dom";
 import { loadingBlock } from "./loading";
+import { errorHere, errorToast } from "./errorNote";
 
 interface Dataset {
   name: string;
@@ -66,7 +67,7 @@ export function mountOpenMenu(): void {
   onNotice((notice: Notice) => {
     if (["processes_changed", "grid_shown", "grid_closed", "dataset_closed", "dataset_updated", "dataset_renamed"].includes(notice.type)) redraw?.();
     if (notice.type === "process_error") {
-      toast(`${notice.name ?? "A table"} did not open from ${notice.label || "Python"}: ${notice.message ?? "no reason given"}`, "error");
+      errorToast(`${notice.name ?? "A table"} did not open from ${notice.label || "Python"}: ${notice.message ?? "no reason given"}`);
     }
   });
 }
@@ -89,7 +90,7 @@ async function askToOpen(session: Session, table: TableEntry, pressed?: HTMLButt
   try {
     await api(`/processes/${encodeURIComponent(session.id)}/open`, "POST", { name: table.name });
   } catch (e) {
-    toast(`Could not ask ${session.label} for ${table.name}: ${(e as Error).message}`, "error");
+    errorHere(`Could not ask ${session.label} for ${table.name}: ${(e as Error).message}`);
     if (pressed) pressed.disabled = false;
   }
 }
@@ -145,12 +146,12 @@ function datasetRow(d: Dataset): HTMLElement {
     ? button("Open", (event) => {
         (event.currentTarget as HTMLButtonElement).disabled = true;
         // A grid on the table itself: the original comes back as a tab, in front, and this list closes.
-        void api("/grids", "POST", { dataset: d.name }).then(closeDialogs, (e: Error) => toast(e.message, "error"));
+        void api("/grids", "POST", { dataset: d.name }).then(closeDialogs, (e: Error) => errorHere(e));
       }, { class: "primary" })
     : null;
   const remove = button(`Remove ${d.name}`, () => {
     if (!confirm(`Remove ${d.name} from memory? ${closed ? "Nothing" : "Its tabs close too; nothing"} is saved.`)) return;
-    void api(`/datasets/${encodeURIComponent(d.name)}`, "DELETE").catch((e: Error) => toast(e.message, "error"));
+    void api(`/datasets/${encodeURIComponent(d.name)}`, "DELETE").catch((e: Error) => errorHere(e));
   }, { icon: "trash", iconOnly: true, class: "ghost" });
   return h(
     "tr",

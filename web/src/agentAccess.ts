@@ -9,7 +9,8 @@
  * ROUTING: [APPROVAL POPUP]   Allow / Deny -> resolveApproval(id, approve)
  */
 import { api, query, type Notice } from "./api";
-import { button, clear, formatCount, h, icon, openDialog, toast } from "./dom";
+import { button, clear, formatCount, h, icon, openDialog } from "./dom";
+import { errorHere } from "./errorNote";
 
 interface Approval {
   id: string;
@@ -87,6 +88,6 @@ async function resolveApproval(id: string, approve: boolean): Promise<void> {
     pending = pending.filter((a) => a.id !== id);
     showApprovals();
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }

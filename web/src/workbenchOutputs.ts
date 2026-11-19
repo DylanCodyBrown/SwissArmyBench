@@ -22,6 +22,7 @@ import { button, h, toast } from "./dom";
 import { renderMarkdown } from "./markdown";
 import { currentDocument } from "./workbenchAgent";
 import { type ErrorActions, type ErrorDetail, errorPanel } from "./workbenchErrors";
+import { errorHere } from "./errorNote";
 
 /** What a failed run's error panel can do, and who is told it was shown (to mark the editor). */
 export interface ErrorHooks extends ErrorActions {
@@ -188,7 +189,7 @@ function withSandbox(drawn: HTMLElement, data: Record<string, unknown>): HTMLEle
   const send = button("Send to Visualizations", () => {
     void api("/cards", "POST", { ...card, title: `From ${currentDocument()}` }).then(
       () => toast("Sent to Visualizations"),
-      (e: Error) => toast(e.message, "error"),
+      (e: Error) => errorHere(e),
     );
   }, { icon: "export", class: "ghost wb-to-sandbox" });
   return h("figure", { class: "wb-figure" }, drawn, send);

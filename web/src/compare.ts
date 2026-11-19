@@ -28,6 +28,7 @@
 import { api } from "./api";
 import { button, clear, formatCount, h, recall, remember, toast } from "./dom";
 import { contextOf, onSplitChange, splitPair, splitWith, type Context } from "./panes";
+import { errorHere } from "./errorNote";
 
 export interface DiffOptions {
   tolerance: number;
@@ -148,7 +149,7 @@ export async function startCompare(keys: [string, string][], mode: CompareInfo["
   try {
     current = await api<CompareInfo>("/compares", "POST", { left: pair[0].id, right: pair[1].id, keys, mode });
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   apply(pair, true);
@@ -163,7 +164,7 @@ export async function changeCompare(patch: Partial<Pick<CompareInfo, "keys" | "m
   try {
     current = await api<CompareInfo>(`/compares/${encodeURIComponent(current.compare)}`, "PATCH", patch);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   // Only what is shown changed (Only differing columns): the rows on screen are still right.
@@ -404,7 +405,7 @@ async function showKeyGroup(row: number): Promise<void> {
     const group = await api<{ first: number; last: number }>(`/compares/${encodeURIComponent(current.compare)}/key-group?row=${row}`);
     for (const ctx of pair) ctx.view?.setKeyRows(group);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -415,7 +416,7 @@ async function pick(side: "left" | "right", row: number): Promise<void> {
   try {
     current = await api<CompareInfo>(`/compares/${encodeURIComponent(current.compare)}/focus`, "POST", { side, position: row });
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   const filtered = current.focus?.side === "left" ? pair[0] : pair[1];

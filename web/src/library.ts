@@ -34,6 +34,7 @@ import { busy, busyClick, loadingBlock } from "./loading";
 import { openLayer } from "./nav";
 import { localProjectsRow, sharedProjectsRow } from "./projectExplorer";
 import { teamSignIn } from "./scmPage";
+import { errorHere } from "./errorNote";
 
 type Action = "join" | "start";
 
@@ -105,7 +106,7 @@ function setupChecklist(host: HTMLElement): (check?: boolean) => Promise<void> {
           fix.kind === "password"
             ? api(`/blades/${encodeURIComponent(connection ?? fix.connection ?? "")}/secrets`, "PUT", { [fix.name ?? ""]: value })
             : api("/variables", "PUT", fix.kind === "local" ? { name: fix.name, value, local: true } : { name: fix.name, value, from: "keyring" });
-        void done.then(() => void draw(), (e: Error) => toast(e.message, "error"));
+        void done.then(() => void draw(), (e: Error) => errorHere(e));
       };
       input.addEventListener("keydown", (e) => {
         if (e.key === "Enter") save();
@@ -128,7 +129,7 @@ function setupChecklist(host: HTMLElement): (check?: boolean) => Promise<void> {
                 toast(`${connection}'s ${secret} now comes from ${pick.value}.`);
                 void draw();
               },
-              (e: Error) => toast(e.message, "error"),
+              (e: Error) => errorHere(e),
             ),
           { class: "small line", icon: "key" },
         ),
@@ -327,7 +328,7 @@ export function teamSection(): HTMLElement {
         if (d.words) toast(d.words);
         void draw();
       },
-      (e: Error) => toast(e.message, "error"),
+      (e: Error) => errorHere(e),
     );
 
   const leave = (s: TeamStatus): void => {
@@ -341,7 +342,7 @@ export function teamSection(): HTMLElement {
           toast(done.words);
           void draw();
         },
-        (e: Error) => toast(e.message, "error"),
+        (e: Error) => errorHere(e),
       );
     };
     foot.append(button("Keep a copy", go(true), { class: "primary team-leave-keep" }), button("Leave without a copy", go(false), { class: "line team-leave-plain" }), button("Cancel", close, { class: "ghost" }));
@@ -351,7 +352,7 @@ export function teamSection(): HTMLElement {
     const use = (folder: string | null): void =>
       void api("/library", "PUT", { folder }).then(
         () => void draw(),
-        (e: Error) => toast(e.message, "error"),
+        (e: Error) => errorHere(e),
       );
     libraryRow.replaceChildren(
       h("span", { class: "team-advanced-label" }, "Team library folder"),
@@ -379,7 +380,7 @@ export function teamSection(): HTMLElement {
           showMenu(r.left, r.bottom + 4, team.repository, [
             ["globe", "Open on GitHub", () => team.url && window.open(team.url, "_blank", "noopener"), team.url ? undefined : "GitHub sync is not installed"],
             ["check", "Set up this computer", openSetup],
-            ["folder", "Show its folder", () => void api("/team/show", "POST").catch((error: Error) => toast(error.message, "error"))],
+            ["folder", "Show its folder", () => void api("/team/show", "POST").catch((error: Error) => errorHere(error))],
             "-",
             ["close", "Leave the team", () => leave(s)],
           ]);

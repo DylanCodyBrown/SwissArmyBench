@@ -37,6 +37,7 @@ import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDial
 import { loadPanels, panelList, setPanel } from "./panels";
 import { followSwitch } from "./sessionPage";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
+import { errorHere } from "./errorNote";
 
 /** One switch for each panel, by page. A panel turned off is gone from every window at once. */
 function panelsSection(): HTMLElement {
@@ -59,7 +60,7 @@ function panelsSection(): HTMLElement {
                   type: "checkbox",
                   checked: p.on,
                   dataset: { panel: p.id },
-                  onchange: (e: Event) => void setPanel(p.id, (e.target as HTMLInputElement).checked).catch((error: Error) => toast(error.message, "error")),
+                  onchange: (e: Event) => void setPanel(p.id, (e.target as HTMLInputElement).checked).catch((error: Error) => errorHere(error)),
                 }),
                 p.name,
               ),
@@ -85,7 +86,7 @@ function kindColoursSection(): HTMLElement {
           value: /^#[0-9a-f]{6}$/i.test(shown) ? shown : "#000000",
           "aria-label": `${k.name} colour`,
           dataset: { kind: k.kind },
-          onchange: (e: Event) => void setKindColour(k.kind, (e.target as HTMLInputElement).value).then(draw, (error: Error) => toast(error.message, "error")),
+          onchange: (e: Event) => void setKindColour(k.kind, (e.target as HTMLInputElement).value).then(draw, (error: Error) => errorHere(error)),
         });
         return h(
           "div",
@@ -93,7 +94,7 @@ function kindColoursSection(): HTMLElement {
           h("span", { class: "kind-colour-icon" }, icon(kindIcon(k.kind as Kind))),
           h("span", { class: "kind-colour-name" }, k.name),
           picker,
-          k.chosen ? button("Default", () => void setKindColour(k.kind, null).then(draw, (error: Error) => toast(error.message, "error")), { class: "ghost", title: `${k.name}: the theme's own colour` }) : null,
+          k.chosen ? button("Default", () => void setKindColour(k.kind, null).then(draw, (error: Error) => errorHere(error)), { class: "ghost", title: `${k.name}: the theme's own colour` }) : null,
         );
       }),
     );
@@ -117,7 +118,7 @@ async function copyMcpPrompt(): Promise<void> {
     await navigator.clipboard.writeText(MCP_PROMPT);
     toast("Copied.");
   } catch {
-    toast("The browser blocked the clipboard.", "error");
+    errorHere("The browser blocked the clipboard.");
   }
 }
 

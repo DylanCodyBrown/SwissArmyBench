@@ -14,6 +14,7 @@
  */
 import { api, onNotice } from "./api";
 import { button, h, icon, toast } from "./dom";
+import { errorHere } from "./errorNote";
 
 export interface PanelData {
   title?: string;
@@ -56,7 +57,7 @@ export function extensionPanel(route: string): HTMLElement {
     let code: HTMLElement | null = null;
     if (data.code) {
       const said = data.code;
-      const copy = button("Copy", () => void navigator.clipboard.writeText(said.text).then(() => toast("Copied."), () => toast("The browser blocked the clipboard.", "error")), { icon: "copy", class: "ghost" });
+      const copy = button("Copy", () => void navigator.clipboard.writeText(said.text).then(() => toast("Copied."), () => errorHere("The browser blocked the clipboard.")), { icon: "copy", class: "ghost" });
       const open = button(said.link_label, () => {
         if (said.link.startsWith("https://")) window.open(said.link, "_blank", "noopener");
         void post({ action: said.then });

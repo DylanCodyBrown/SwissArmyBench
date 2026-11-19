@@ -12,12 +12,13 @@
  *
  * Nothing here names a mode or an extension: the routes are data the backend declared.
  */
-import { api, ApiError, token } from "./api";
+import { api, ApiError, saidOf, token } from "./api";
 import { toast } from "./dom";
 import type { CellRoute } from "./modes";
 import { type Missing, promptForError } from "./missingPackages";
 import type { Done } from "./workbenchKernel";
 import type { Output } from "./workbenchOutputs";
+import { errorHere } from "./errorNote";
 
 export interface RoutedRun {
   path: string | null;
@@ -28,14 +29,7 @@ export interface RoutedRun {
 
 /** A missing tool's answer (422 with {missing}) put in the user's face, Install going to the route's own. */
 function prompted(route: CellRoute, error: unknown, again?: () => void): boolean {
-  let said: unknown = error;
-  if (error instanceof ApiError) {
-    try {
-      said = JSON.parse(error.message);
-    } catch {
-      said = error;
-    }
-  }
+  const said: unknown = saidOf(error) ?? error;
   const install = async (missing: Missing): Promise<void> => {
     if (route.install) await api(route.install, "POST", { tool: (missing as Missing & { tool?: string }).tool });
   };
@@ -52,13 +46,7 @@ export async function runRouted(route: CellRoute, body: RoutedRun, onOutput: (o:
   if (!response.ok || !response.body) {
     const error = new ApiError(response.status, await response.text());
     if (prompted(route, error, again)) return { ok: false, execution_count: null, error: "" };
-    let message = error.message;
-    try {
-      message = String((JSON.parse(message) as { error?: string }).error ?? message);
-    } catch {
-      /* the text as it came */
-    }
-    throw new Error(message);
+    throw error;
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -99,7 +87,7 @@ export async function openRoutedTable(route: CellRoute, path: string | null, id:
     const opened = await api<{ dataset?: string }>(route.grid, "POST", { path, id, name });
     toast(`${opened.dataset ?? "The result"} is open as a grid.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 

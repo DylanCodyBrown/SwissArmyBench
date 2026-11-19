@@ -30,6 +30,7 @@ import { connectionIcon, openReference } from "./connectionsWindow";
 import { append, button, h, icon, toast } from "./dom";
 import { loadingBlock } from "./loading";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
+import { errorHere } from "./errorNote";
 
 type Source = "vault" | "value" | "keyring" | "env" | "missing";
 
@@ -170,7 +171,7 @@ function drawVariables(): void {
         ),
       );
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
 
@@ -252,7 +253,7 @@ function drawVariables(): void {
           show.title = "Hide";
           show.setAttribute("aria-label", "Hide");
         } catch (e) {
-          toast((e as Error).message, "error");
+          errorHere(e);
         }
       }, { icon: "eye", class: "small variable-show" });
       cell.append(shown, show);
@@ -272,7 +273,7 @@ function drawVariables(): void {
     const where = u.kind === "run_settings" ? `${u.name}: ${u.how}` : u.kind === "connection" ? `${u.name} · ${field}` : `${u.name}${u.cell ? ` · cell ${u.cell}` : ""}`;
     const open = (): void => {
       if (u.kind === "connection") visit(withParams({ open: "connections", at: "detail", type: null, name: u.name }));
-      else if (u.path) void openReference({ document: u.path, title: u.name, kind: u.kind === "notebook" ? "notebook" : "script", how: u.how, line: "", cell: u.cell ?? null }).catch((e: Error) => toast(e.message, "error"));
+      else if (u.path) void openReference({ document: u.path, title: u.name, kind: u.kind === "notebook" ? "notebook" : "script", how: u.how, line: "", cell: u.cell ?? null }).catch((e: Error) => errorHere(e));
     };
     return h("button", { type: "button", class: "variable-use", title: u.kind === "connection" ? `${u.name}: ${u.how}` : u.how, onclick: open }, icon(USE_ICONS[u.kind]), h("span", {}, where));
   };
@@ -335,7 +336,7 @@ function drawVariables(): void {
         afterChange(done.kernels);
         await load();
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     };
     const form = h(
@@ -370,7 +371,7 @@ function drawVariables(): void {
         } else toast(`Renamed to ${to.value.trim()}`);
         afterChange(done.kernels);
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     };
     formSlot.replaceChildren(
@@ -392,7 +393,7 @@ function drawVariables(): void {
         toast(`Removed ${v.name}`);
         await load();
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     };
     formSlot.replaceChildren(

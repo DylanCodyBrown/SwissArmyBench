@@ -17,6 +17,7 @@
 import { api, onNotice } from "./api";
 import { button, h, icon, openDialog, showMenu, toast } from "./dom";
 import type { Command } from "./workbenchCommands";
+import { errorHere } from "./errorNote";
 
 export interface UpdateState {
   current: string;
@@ -157,7 +158,7 @@ export async function startUpdate(confirmed = false): Promise<void> {
     }
     if (answer.updating && state) take({ ...state, updating: answer.updating });
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -184,12 +185,12 @@ export async function checkNow(): Promise<void> {
   try {
     take(await api<UpdateState>("/updates/check", "POST", { asked: true }));
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   const s = state;
   if (s?.available && s.version) await startUpdate();
-  else if ((s as { error?: string } | null)?.error) toast(String((s as { error?: string }).error), "error");
+  else if ((s as { error?: string } | null)?.error) errorHere(String((s as { error?: string }).error));
   else toast(`${s?.current ?? "This"} is the newest version.`);
 }
 
@@ -221,7 +222,7 @@ export async function setCheck(on: boolean): Promise<void> {
   try {
     take(await api<UpdateState>("/updates", "PUT", { check: on }));
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 

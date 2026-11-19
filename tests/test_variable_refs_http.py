@@ -111,7 +111,13 @@ def test_a_missing_variable_is_the_one_error(tmp_path: Path, monkeypatch: pytest
         assert shape["error"] == "NOT_SET_HERE is not set on this computer (t)."
         assert shape["missing_variables"] == ["NOT_SET_HERE"]
         assert shape["fixes"] == [
-            {"label": "Set it", "command": "variables_set", "page": "variables", "name": "NOT_SET_HERE"}
+            {
+                "label": "Set it",
+                "action": "set_variable",
+                "command": "variables_set",
+                "page": "variables",
+                "name": "NOT_SET_HERE",
+            }
         ]
 
 

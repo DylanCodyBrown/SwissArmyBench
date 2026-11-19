@@ -18,12 +18,13 @@
  *                             and its two tables pulse as the diagram draws it -> highlightRelationships()
  */
 import { api } from "./api";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h } from "./dom";
 import { contextOf, gridList, onAgentView, viewingErd } from "./panes";
 import { currentModel, onRelationshipsChange, projectScope, scopeSwitch } from "./relationships";
 import { importRelationships, openRelationships } from "./relationshipsDialog";
 import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
+import { errorHere } from "./errorNote";
 
 let host: HTMLElement;
 let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
@@ -199,7 +200,7 @@ async function applyShared(name: string): Promise<void> {
   try {
     await api(`/relationships/library/${encodeURIComponent(name)}`, "POST");
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 

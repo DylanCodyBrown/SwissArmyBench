@@ -6,7 +6,8 @@ whatever else it alone needs. In the book's terms this is the unit of work the h
 repositories in one place, handed in by the composition root (bootstrap.py).
 
 It also names the outcomes a use case can end in besides its answer. The doors (server/http.py)
-turn them into their own language: an HTTP status, a line in the terminal.
+turn them into their own language: an HTTP status, a line in the terminal. Each is Explained
+(domain/refusals.py): it may name where and the fixes, `Refused("...", where=name, fixes=[...])`.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from typing import Any, TypeVar
 
 from swissarmybench.domain.datasets import DatasetInfo, mib
 from swissarmybench.domain.grids import Grid, GridRegistry, StaleRequestError
+from swissarmybench.domain.refusals import Explained
 from swissarmybench.domain.sql_guard import SqlGrammar
 from swissarmybench.domain.steps import CompiledView
 from swissarmybench.services.ports import Audit, Datasets, Jobs, Notifier, SqlSession, Views
@@ -25,19 +27,19 @@ from swissarmybench.settings import Settings
 T = TypeVar("T")
 
 
-class Refused(Exception):
+class Refused(Explained):
     """Not for this caller: the agent asked for something that is the user's, or the user said no."""
 
 
-class NotFound(Exception):
+class NotFound(Explained):
     """What was named is not there (any more)."""
 
 
-class Conflict(Exception):
+class Conflict(Explained):
     """The request cannot be done as things stand now (a name taken, nothing open to answer)."""
 
 
-class TimedOut(Exception):
+class TimedOut(Explained):
     """The work was stopped: it ran past its time, or was cancelled."""
 
 

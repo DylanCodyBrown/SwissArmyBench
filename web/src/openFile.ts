@@ -11,9 +11,10 @@
  * ROUTING: [OPEN FILE] POST /files/sheets {path}; POST /datasets/{name}/load {path, sheet}
  *          [DROP]      POST /files/dropped-sheets?filename= (bytes); POST /datasets/{name}/drop?filename=&sheet=
  */
-import { api, token } from "./api";
-import { button, h, openDialog, toast } from "./dom";
+import { api, failure, token } from "./api";
+import { button, h, openDialog } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { errorHere } from "./errorNote";
 
 /** The kinds a table opens from (adapters/datasets.py SUFFIXES). */
 export const TABLE_FILES = [".csv", ".tsv", ".txt", ".parquet", ".json", ".jsonl", ".ndjson", ".arrow", ".feather", ".xlsx"];
@@ -58,13 +59,13 @@ export async function openFile(): Promise<void> {
       await api(`/datasets/${encodeURIComponent(name)}/load`, "POST", sheet ? { path, sheet } : { path });
     }
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
 async function send(url: string, file: File): Promise<Response> {
   const response = await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: await file.arrayBuffer() });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw await failure(response);
   return response;
 }
 
@@ -79,7 +80,7 @@ async function openDropped(file: File): Promise<void> {
       await send(`/datasets/${encodeURIComponent(name)}/drop?filename=${filename}${sheet ? `&sheet=${encodeURIComponent(sheet)}` : ""}`, file);
     }
   } catch (e) {
-    toast(`${file.name}: ${(e as Error).message}`, "error");
+    errorHere(`${file.name}: ${(e as Error).message}`);
   }
 }
 

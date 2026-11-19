@@ -20,6 +20,7 @@ import { button, closeDialogs, h, icon, toast } from "./dom";
 import { sentToast } from "./sandboxShow";
 import { state } from "./state";
 import { busyClick } from "./loading";
+import { errorHere } from "./errorNote";
 
 export interface ResultActions {
   /** The analysis's name for the server (odds, predictors, outliers, fit_test) and the request it ran. */
@@ -124,7 +125,7 @@ export async function showTheMath(analysis: string, result: unknown): Promise<vo
     const made = await api(`${grid}/cards`, "POST", { kind: "note", title: proof.title, body: proof.markdown, size: { w: 8, h: 14 } });
     sentToast("In Visualizations: the math, step by step.", made);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -141,7 +142,7 @@ export async function sendCards(cards: SandboxCard[]): Promise<void> {
     }
     sentToast(`In Visualizations: ${cards.length === 1 ? "a note" : "a note and its chart"}.`, first);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -149,7 +150,7 @@ async function toSandbox(actions: ResultActions): Promise<void> {
   try {
     await sendCards(actions.cards());
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -170,7 +171,7 @@ async function toGrid(actions: ResultActions): Promise<void> {
     closeDialogs();
     toast(`Opened as ${name}.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -181,10 +182,10 @@ async function copyCode(actions: ResultActions): Promise<void> {
     const text = made.imports.length ? [...made.imports, "", made.code].join("\n") : made.code;
     await navigator.clipboard.writeText(text).then(
       () => toast("Copied."),
-      () => toast("The browser blocked the clipboard.", "error"),
+      () => errorHere("The browser blocked the clipboard."),
     );
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 

@@ -43,7 +43,7 @@ from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
 
@@ -120,9 +120,9 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
         try:
             result = await window.ask(body.get("command"), body.get("args"), actor(request))
         except WindowRefused as error:
-            return Response(str(error), status_code=409)
+            return error_as(error, 409)
         except WindowUnanswered as error:
-            return Response(str(error), status_code=504)
+            return error_as(error, 504)
         return json_response({"result": result})
 
     async def window_answer(request: Request) -> Response:

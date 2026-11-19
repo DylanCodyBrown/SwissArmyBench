@@ -307,7 +307,9 @@ export function button(
 
 // ===== toasts =====
 
-export function toast(message: string, kind: "info" | "error" = "info", action?: { label: string; run: () => void }): void {
+/** The toasts' place: in the newest open modal dialog while one is open (the rest of the page is inert), else
+ *  the page; when that dialog closes its toasts go back to the page (or the dialog under it), still showing. */
+function toastHost(): HTMLElement {
   let host = document.querySelector<HTMLElement>(".toasts");
   if (!host) host = h("div", { class: "toasts", role: "status", "aria-live": "polite" });
   // A modal dialog makes the rest of the page inert and draws over it: while one is open the
@@ -324,17 +326,45 @@ export function toast(message: string, kind: "info" | "error" = "info", action?:
       }, { once: true });
     }
   }
+  return host;
+}
+
+/** A toast that holds `content` (errorNote.ts's errorToast: the error note itself), shown for `ms`, longer while
+ *  the pointer or focus is in it. The same `key` already showing is kept up instead of stacked again. */
+export function toastNode(content: HTMLElement, key: string, ms = 12000): HTMLElement {
+  const host = toastHost();
+  const shown = [...host.children].find((t) => (t as HTMLElement).dataset.message === key) as HTMLElement | undefined;
+  const item = shown ?? h("div", { class: "toast toast-note", "data-message": key }, content);
+  if (!shown) host.append(item);
+  const later = (): void => {
+    window.clearTimeout(Number(item.dataset.timer));
+    item.dataset.timer = String(window.setTimeout(() => item.remove(), ms));
+  };
+  if (!shown) {
+    const hold = (): void => window.clearTimeout(Number(item.dataset.timer));
+    item.addEventListener("mouseenter", hold);
+    item.addEventListener("focusin", hold);
+    item.addEventListener("mouseleave", later);
+  }
+  later();
+  return item;
+}
+
+/** A short message that goes by itself (Saved, Copied, an Undo). Never an error: an error is errorNote.ts's note,
+ *  in place, or errorToast for work with no place on screen (design principles 9.5). */
+export function toast(message: string, kind: "info" = "info", action?: { label: string; run: () => void }): void {
+  const host = toastHost();
   // The same message already showing (a stopped server fails every action alike): keep that
   // one up for longer rather than stack copies up the screen.
-  const shown = [...host.children].find((t) => (t as HTMLElement).dataset.message === message && t.classList.contains("error") === (kind === "error"));
-  const item = (shown as HTMLElement | undefined) ?? h("div", { class: `toast ${kind === "error" ? "error" : ""}`, "data-message": message }, message);
+  const shown = [...host.children].find((t) => (t as HTMLElement).dataset.message === message && !t.classList.contains("toast-note"));
+  const item = (shown as HTMLElement | undefined) ?? h("div", { class: `toast ${kind}`, "data-message": message }, message);
   if (!shown) host.append(item);
   if (action && !shown) {
     // One button (Undo): it acts and the message goes.
     item.append(" ", h("button", { type: "button", class: "link toast-action", onclick: () => { item.remove(); action.run(); } }, action.label));
   }
   window.clearTimeout(Number(item.dataset.timer));
-  item.dataset.timer = String(window.setTimeout(() => item.remove(), kind === "error" ? 9000 : 5000));
+  item.dataset.timer = String(window.setTimeout(() => item.remove(), 5000));
 }
 
 // ===== dialogs =====

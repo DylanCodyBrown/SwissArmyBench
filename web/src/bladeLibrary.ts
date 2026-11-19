@@ -9,6 +9,7 @@
 import { api, download } from "./api";
 import { append, button, clear, h, openDialog, toast } from "./dom";
 import { type BladeKind, type BladeSetting, kindLabel, settingField } from "./bladeEditor";
+import { errorHere, errorToast } from "./errorNote";
 
 interface ImportedBlade {
   name: string;
@@ -70,7 +71,7 @@ export async function exportBlades(name?: string): Promise<void> {
     save(got.blob, got.name);
     toast(name ? `Exported ${name} as ${got.name}.` : `Exported every blade as ${got.name}.`);
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
   }
 }
 
@@ -95,7 +96,7 @@ export async function importBlades(files: File[], onDone: () => void): Promise<v
     sent = await Promise.all(files.map(async (f) => ({ name: f.name, data: await asBase64(f) })));
     items = (await api<{ items: PreviewItem[] }>("/blades/import", "POST", { files: sent })).items;
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return;
   }
   const { body, foot, close } = openDialog("Import blades", true);
@@ -154,11 +155,12 @@ export async function importBlades(files: File[], onDone: () => void): Promise<v
           const saved = answer.results.filter((r) => r.status === "saved");
           const failed = answer.results.filter((r) => r.status === "error");
           toast(`Imported ${saved.length} blade${saved.length === 1 ? "" : "s"}${saved.length ? ": " + saved.map((r) => r.name).join(", ") : ""}.`);
-          for (const r of failed) toast(`${r.name ?? r.file}: ${r.message ?? "not imported"}`, "error");
-          for (const r of saved) if (r.message) toast(`${r.name}: ${r.message}`, "error");
+          // The dialog closed: the import's problems with no place left on screen go in one toast.
+          const problems = [...failed.map((r) => `${r.name ?? r.file}: ${r.message ?? "not imported"}`), ...saved.filter((r) => r.message).map((r) => `${r.name}: ${r.message}`)];
+          if (problems.length) errorToast({ what: problems.length === 1 ? problems[0]! : `${problems.length} blades need a look.`, details: problems.length > 1 ? problems.join("\n") : undefined });
           onDone();
         },
-        (error: Error) => toast(error.message, "error"),
+        (error: Error) => errorHere(error),
       );
     }, { class: "primary", icon: "plus" }),
   );
@@ -203,7 +205,7 @@ export async function editBladeFolders(onDone: () => void): Promise<void> {
   try {
     state = await bladeFolders();
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return;
   }
   const { body, foot, close } = openDialog("Blade folders");
@@ -253,7 +255,7 @@ export async function editBladeFolders(onDone: () => void): Promise<void> {
       void api("/blades/folders", "PUT", { folders: mine }).then(() => {
         close();
         onDone();
-      }, (error: Error) => toast(error.message, "error"));
+      }, (error: Error) => errorHere(error));
     }, { class: "primary", icon: "save" }),
   );
 }
@@ -295,7 +297,7 @@ export async function openPacks(onDone: () => void): Promise<void> {
   try {
     state = await api<PacksAnswer>("/packs");
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return;
   }
   const { body, foot, close } = openDialog("Packs", true);
@@ -356,7 +358,7 @@ async function addToPack(pack: PackInfo, onDone: () => void): Promise<void> {
     blades = (await api<{ blades: { name: string; source: string }[] }>("/blades")).blades.filter((b) => b.source !== "pack");
     sets = (await api<{ models: { name: string; where: string }[] }>("/relationships/library")).models.filter((t) => t.where !== "pack");
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return;
   }
   const { body, foot, close } = openDialog(`Add to ${pack.name}`);
@@ -385,7 +387,7 @@ async function addToPack(pack: PackInfo, onDone: () => void): Promise<void> {
           toast(`Added ${answer.written.length} files to ${pack.name}${answer.kept.length ? `; kept ${answer.kept.length} already there` : ""}.`);
           onDone();
         },
-        (error: Error) => toast(error.message, "error"),
+        (error: Error) => errorHere(error),
       );
     }, { class: "primary", icon: "plus" }),
   );
@@ -423,7 +425,7 @@ function newMarketplace(onDone: () => void): void {
           toast(`Created ${answer.files.length} files.`);
           onDone();
         },
-        (error: Error) => toast(error.message, "error"),
+        (error: Error) => errorHere(error),
       );
     }, { class: "primary", icon: "plus" }),
   );

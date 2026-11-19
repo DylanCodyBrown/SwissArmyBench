@@ -17,10 +17,12 @@ from starlette.routing import BaseRoute, Route
 from swissarmybench.server.http import (
     BodyTooLargeError,
     actor,
+    error_as,
     error_response,
     json_response,
     read_body,
     read_json,
+    refusal,
 )
 from swissarmybench.services.snapshots import (
     PNG_SIGNATURE,
@@ -45,9 +47,9 @@ def routes(snapshots: Snapshots) -> list[BaseRoute]:
             try:
                 data, meta = await snapshots.take(area, body.get("scale", 1), actor(request))
             except SnapshotUnanswered as error:
-                return Response(str(error), status_code=504)
+                return error_as(error, 504)
             except SnapshotFailed as error:
-                return Response(f"The page could not draw the snapshot: {error}", status_code=502)
+                return refusal(f"The page could not draw the snapshot: {error}", 502)
             headers = {f"X-Snapshot-{k.title()}": v for k, v in meta.items()}
             return Response(data, media_type="image/png", headers=headers | {"X-Snapshot-Area": area})
         except Exception as error:

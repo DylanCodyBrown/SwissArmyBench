@@ -11,7 +11,7 @@
  *
  * ROUTING: GET /workbench/environments; POST /workbench/environments (streamed, one JSON object a line)
  */
-import { api, token } from "./api";
+import { api, failure, token } from "./api";
 import { button, clear, h, openDialog } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busyClick, loadingBlock } from "./loading";
@@ -87,7 +87,7 @@ export async function newEnvironment(start: { folder: string; document: string |
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
           body: JSON.stringify({ folder: where.value.trim(), python: python.value || null, packages, document: start.document }),
         });
-        if (!response.ok || !response.body) throw new Error(await response.text());
+        if (!response.ok || !response.body) throw await failure(response);
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let pending = "";

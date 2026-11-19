@@ -45,7 +45,7 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.blades import VaultUnavailableError
 from swissarmybench.server.blade_runner import RefreshError
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.connection_usage import ConnectionUsage
@@ -102,7 +102,7 @@ def routes(
             previous = request.path_params.get("name")
             return json_response(await connections.save(await read_json(request), previous, actor(request)))
         except VaultUnavailableError as error:
-            return Response(str(error), status_code=409)
+            return error_as(error, 409)
         except Exception as error:
             return error_response(error)
 

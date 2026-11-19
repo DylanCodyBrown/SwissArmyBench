@@ -75,6 +75,7 @@ import { type Approval, type ApprovalNote, approvalNote, approve as approveOutpu
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
 import { CELL_DRAG, cleanName, copiedCell, copyCell, type EveryCell, MAX_CELL_NAME, mayUseStreamlit, PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
+import { errorHere } from "./errorNote";
 
 /** A SQL cell's first line as the kernel runs it (domain/notebooks.py sql_line). */
 export function sqlLine(connection: string | null): string {
@@ -690,7 +691,7 @@ export function notebookView(
       }
       return ok;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return false;
     } finally {
       for (const c of some) c.element.classList.remove("running");
@@ -957,7 +958,7 @@ export function notebookView(
       item("Insert a cell below", () => insertAt(at() + 1, cell.kind === "markdown" ? "code" : cell.kind)),
       item("Name…", () => editName(cell)),
       ...(hooks.lineage && !isHeading(cell.role) ? [item("Lineage", () => hooks.lineage!(cell.number))] : []),
-      ...(cell.kind !== "markdown" ? [item(cell.approved ? "Remove the approval" : "Approve the output", () => void approveCell(cell, !!cell.approved).catch((e: Error) => toast(e.message, "error")))] : []),
+      ...(cell.kind !== "markdown" ? [item(cell.approved ? "Remove the approval" : "Approve the output", () => void approveCell(cell, !!cell.approved).catch((e: Error) => errorHere(e)))] : []),
       ...(snippetLanguage(cell) ? [item("Insert a snippet…", () => void insertSnippetInto(cell))] : []),
       item("Copy", () => void copy(cell)),
       item("Paste below", () => void paste(cell)),
@@ -1013,7 +1014,7 @@ export function notebookView(
           const target = where();
           const entry = shown?.chain[shown.chain.length - 1];
           const near = hasSource(running.kind) ? (entry?.sql?.line ?? 1) : (yourFrame(entry)?.line ?? entry?.syntax?.line ?? 1);
-          if (!target.editor?.applyFix(fix, near)) toast(`${fix.target ?? "That"} is no longer in the cell.`, "error");
+          if (!target.editor?.applyFix(fix, near)) errorHere(`${fix.target ?? "That"} is no longer in the cell.`);
           else {
             select(target);
             target.editor.focus(); // back in the code, ready to run it again
@@ -1039,12 +1040,12 @@ export function notebookView(
           const maker = definingCell(fix.name, running);
           if (maker) {
             void run(maker).then((ok) => ok && toast(`Ran cell ${indexOf(maker) + 1}`));
-          } else toast(`No cell above defines ${fix.name}`, "error");
+          } else errorHere(`No cell above defines ${fix.name}`);
           return;
         }
         // Installed, the cell runs again (the missing-package prompt's retry).
         const again = fix.kind === "install" ? { again: () => void run(running) } : {};
-        if (!hooks.fix?.({ ...fix, ...again })) toast("Fix not available here", "error");
+        if (!hooks.fix?.({ ...fix, ...again })) errorHere("Fix not available here");
       },
       goTo: (frame) => {
         const target = shown ? cellOf(frame, shown, running) : null;
@@ -1154,7 +1155,7 @@ export function notebookView(
     const editButton = button("Edit HTML", () => edit(cell), { icon: "edit", iconOnly: true, class: "ghost wb-edit-html", title: "Edit the HTML (Enter)" });
     const { design, tools } = isHeading(role) ? { design: null, tools: null } : pane(data.kind, data.height ?? null, () => cell);
     const approval = approvalNote(() => {
-      if (self) void approveCell(self).catch((e: Error) => toast(e.message, "error"));
+      if (self) void approveCell(self).catch((e: Error) => errorHere(e));
     });
     const head =
       role === "transformations"
@@ -1283,7 +1284,7 @@ export function notebookView(
       select(cell);
       const items: MenuItem[] = [];
       if (hooks.lineage) items.push(["lineage", "Lineage", () => hooks.lineage!(cell.number)]);
-      if (cell.kind !== "markdown") items.push(cell.approved ? ["close", "Remove the approval", () => void approveCell(cell, true)] : ["check", "Approve the output", () => void approveCell(cell).catch((err: Error) => toast(err.message, "error")), cell.area.outputs().length ? undefined : "Run the cell first"]);
+      if (cell.kind !== "markdown") items.push(cell.approved ? ["close", "Remove the approval", () => void approveCell(cell, true)] : ["check", "Approve the output", () => void approveCell(cell).catch((err: Error) => errorHere(err)), cell.area.outputs().length ? undefined : "Run the cell first"]);
       showMenu(e.clientX, e.clientY, cell.name ?? `Cell ${cell.number}`, items);
     });
     // A snippet dragged from the blade list: taken before the editor's own drop (which would paste
@@ -1558,7 +1559,7 @@ export function notebookView(
    *  of its own below it. */
   const dropSnippet = async (cell: Cell | null, snippet: { name: string; language: SnippetLanguage }, x?: number, y?: number): Promise<void> => {
     const no = cell ? refusal(snippet.language, cell.kind) ?? (isApp(cell.role) ? "This cell follows the grid: drop it on a cell of yours." : null) : null;
-    if (no) return toast(no, "error");
+    if (no) return errorHere(no);
     const filled = await fillSnippet(snippet.name, cell?.kind === "dax" ? cell.connection : null);
     if (!filled) return;
     const kind = SNIPPET_CELL[filled.language];
@@ -1754,7 +1755,7 @@ export function notebookView(
   const goTo = (number: number): boolean => {
     const cell = byNumber(number);
     if (!cell) {
-      toast(`There is no cell ${number} in this notebook.`, "error");
+      errorHere(`There is no cell ${number} in this notebook.`);
       return false;
     }
     // Open what hides it.
@@ -2272,7 +2273,7 @@ export function notebookView(
     },
     insertSnippet,
     insertSnippetHere: () => {
-      if (!selected || !snippetLanguage(selected)) return toast("Select a Python, DAX or HTML cell of yours first.", "error");
+      if (!selected || !snippetLanguage(selected)) return errorHere("Select a Python, DAX or HTML cell of yours first.");
       void insertSnippetInto(selected);
     },
     dispose: () => {

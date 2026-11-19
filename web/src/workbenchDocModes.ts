@@ -16,9 +16,10 @@
  *          POST /projects/dictionary (routes_projects.py)
  */
 import { api } from "./api";
-import { button, clear, h, icon, toast } from "./dom";
+import { button, clear, h, icon } from "./dom";
 import { took, when } from "./workbenchModes";
 import { variableBox } from "./variableBox";
+import { errorHere } from "./errorNote";
 
 // ===== Notebook mode: the run order and the Outline =====
 
@@ -135,7 +136,7 @@ export function drawRunSettings(body: HTMLElement, path: string | null, vaults: 
           draw(next);
           saved();
         },
-        (e: Error) => toast(e.message, "error"),
+        (e: Error) => errorHere(e),
       );
     };
     const args = h("input", { type: "text", class: "app-input mono wb-run-args", value: settings.arguments, placeholder: "--date 2026-11-14", "aria-label": "Arguments" }) as HTMLInputElement;

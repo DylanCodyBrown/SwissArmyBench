@@ -16,9 +16,10 @@
  * makes no sense: search and filter boxes (type=search, role=searchbox, or a label or placeholder that starts
  * with Search, Filter or Find) and any box marked `data-no-variables` (with its children).
  */
-import { button, h, showMenu, toast } from "./dom";
+import { button, h, showMenu } from "./dom";
 import { typingName, variables, type Offered } from "./variableBox";
 import { addVariable } from "./variableLinks";
+import { errorHere } from "./errorNote";
 
 type Box = HTMLInputElement | HTMLTextAreaElement;
 
@@ -189,14 +190,14 @@ function onMenu(event: MouseEvent): void {
       await navigator.clipboard.writeText(selected);
       if (cut) edit("");
     } catch {
-      toast("The browser did not allow the copy: use Ctrl+C.", "error");
+      errorHere("The browser did not allow the copy: use Ctrl+C.");
     }
   };
   const paste = async (): Promise<void> => {
     try {
       edit(await navigator.clipboard.readText());
     } catch {
-      toast("The browser did not allow the paste: use Ctrl+V.", "error");
+      errorHere("The browser did not allow the paste: use Ctrl+V.");
     }
   };
   // The keyboard's menu key or Shift+F10: under the box.

@@ -42,6 +42,7 @@ import { effectiveTheme } from "./theme";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { menuButton } from "./workbenchMenu";
 import { type AppProblem, type AppSettings, type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, type LocalNotes, type MovePlan, type PageTest, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages, type SessionRow } from "./workbenchStreamlit";
+import { errorHere, problemsHere } from "./errorNote";
 
 /** What Test this page answers: its counts and each block's failures, or the Python's problem. */
 export type TestResult = (PageTest & { page: string; name: string; failures: Record<string, { case: string; error: string }[]> }) | { page: string; problem: AppProblem };
@@ -233,7 +234,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       if (before) changes.push(before);
       return done;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return null;
     }
   }
@@ -252,13 +253,13 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
         await host.settle(); // the linked cells as they are typed, saved or not
         return call("/run", "POST");
       })(), { errorIn: false });
-      if (ran.problem?.kind === "failed") toast(problemText(ran.problem), "error");
+      if (ran.problem?.kind === "failed") errorHere(problemText(ran.problem));
       // Streamlit missing from the app's Python: the prompt in the user's face; installed, Play again.
       if (ran.problem?.kind === "missing") void promptInstall(ran.problem, installing(() => void play(page)));
       if (ran.running && !ran.problem) mode = "live";
       return ran;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return null;
     } finally {
       busy = false;
@@ -305,8 +306,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     if (!agent && !(await goesAnyway("export"))) return null;
     const done = await (agent ? agentApi : api)<ExportResult>(`${base()}/export`, "POST", { folder: chosen });
     // Where it went, and how to run it: what the user needs next.
-    toast(`${done.folder}: ${done.run}`, done.problems.length ? "error" : "info");
-    for (const problem of done.problems) toast(problem, "error");
+    toast(`${done.folder}: ${done.run}`);
+    problemsHere(done.problems, `The export has ${done.problems.length} problems.`, { where: done.folder });
     return done;
   }
 
@@ -319,8 +320,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     await host.settle();
     if (!agent && !(await goesAnyway("save-as"))) return null;
     const done = await (agent ? agentApi : api)<SaveAsResult>(`${base()}/save-as`, "POST", { path: chosen });
-    toast(done.path, done.problems.length ? "error" : "info");
-    for (const problem of done.problems) toast(problem, "error");
+    toast(done.path);
+    problemsHere(done.problems, `Saving has ${done.problems.length} problems.`, { where: done.path });
     return done;
   }
 
@@ -340,18 +341,20 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       })(), { errorIn: false });
       if ("problem" in done && done.problem && typeof done.problem === "object") {
         if (done.problem.kind === "missing") void promptInstall(done.problem, installing(() => void test(target)));
-        else toast(problemText(done.problem), "error");
+        else errorHere(problemText(done.problem));
       }
       else if ("tries" in done) {
         const blocks = Object.keys(done.failures).length + (done.outside.length ? 1 : 0);
         const said = done.problem ?? (blocks ? `${blocks} ${blocks === 1 ? "block" : "blocks"} failed` : "Every block ran");
         const untried = done.untried.length ? ` · ${done.untried.length} not tried` : "";
-        toast(`Tested ${done.tries} ${done.tries === 1 ? "value" : "values"}: ${said}${untried}`, blocks || done.problem ? "error" : "info");
+        const words = `Tested ${done.tries} ${done.tries === 1 ? "value" : "values"}: ${said}${untried}`;
+        if (blocks || done.problem) errorHere(words, { where: name });
+        else toast(words);
       }
       await call("", "GET").catch(() => undefined);
       return done;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return null;
     } finally {
       testing = null;
@@ -375,7 +378,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
 
   async function place(link: CellLink, where?: { row: number; column: number; insert?: boolean }): Promise<boolean> {
     if (!link.document) {
-      toast(`Save ${link.title} first: a block links to a cell in a saved file.`, "error");
+      errorHere(`Save ${link.title} first: a block links to a cell in a saved file.`);
       return false;
     }
     await host.settle().catch(() => undefined); // a cell just typed is known to the server first
@@ -394,7 +397,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     const link = copiedCell();
     if (!link) return false;
     if (link.kind !== "code" && link.kind !== "markdown" && link.kind !== "html") {
-      toast("A Python, Markdown or HTML cell goes on a Streamlit app's canvas.", "error");
+      errorHere("A Python, Markdown or HTML cell goes on a Streamlit app's canvas.");
       return true;
     }
     await place(link);
@@ -453,8 +456,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     playButton.disabled = busy || !page;
     if (busy) markBusy(playButton, "Starting…");
     const modes = h("span", { class: "cv-mode", role: "group", "aria-label": "Edit or play" }, editButton, playButton);
-    const exportButton = button("Export…", () => void exportApp().catch((e: Error) => toast(e.message, "error")), { icon: "export", class: "cv-export", title: "Export an app that runs alone: app.py, its pages, the data as Parquet" });
-    const saveAsButton = button("Save as zip…", () => void saveAs().catch((e: Error) => toast(e.message, "error")), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
+    const exportButton = button("Export…", () => void exportApp().catch((e: Error) => errorHere(e)), { icon: "export", class: "cv-export", title: "Export an app that runs alone: app.py, its pages, the data as Parquet" });
+    const saveAsButton = button("Save as zip…", () => void saveAs().catch((e: Error) => errorHere(e)), { icon: "save", class: "cv-save-as", title: "Save as: the project as one zip (data.py, pages, the sources; no rows)" });
     exportButton.disabled = saveAsButton.disabled = !pages.length;
     const testButton = button("Test this page", () => void test(), { icon: "check", class: "cv-test", title: "Run the page with each filter's values (Streamlit's own test runner)" });
     testButton.disabled = !!testing || busy || !page?.blocks.length;
@@ -598,7 +601,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       await call("", "PUT", { pages });
       return true;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return false;
     }
   }
@@ -663,7 +666,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       await call("/settings", "PUT", changed);
       return true;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return false;
     }
   }
@@ -786,7 +789,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       ...(block.defaults ?? []).map((d) => h("div", { class: "hint cv-block-default", title: d.maker }, `${d.name} = ${d.value}`, h("span", { class: "cv-block-default-from" }, ` · ${d.maker.split(", ")[0]} is not on this page`))),
       ...(block.contract ?? []).map((p) => h("div", { class: "cv-block-missing", role: "alert" }, p)),
       ...(block.failures ?? []).map((f) => h("div", { class: "cv-block-missing cv-block-failed", role: "alert" }, `${f.case}: ${f.error}`)),
-      block.thin ? h("div", { class: "cv-block-thin" }, h("span", { class: "hint" }, block.thin.words), button("Move to data.ipynb", () => void moveToData(block.id).catch((e: Error) => toast(e.message, "error")), { icon: "notebook", class: "ghost cv-move-data", title: "Move these lines into a named cell of data.ipynb; one line here reads them back" })) : null,
+      block.thin ? h("div", { class: "cv-block-thin" }, h("span", { class: "hint" }, block.thin.words), button("Move to data.ipynb", () => void moveToData(block.id).catch((e: Error) => errorHere(e)), { icon: "notebook", class: "ghost cv-move-data", title: "Move these lines into a named cell of data.ipynb; one line here reads them back" })) : null,
       size,
       grip,
     );
@@ -1003,7 +1006,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
   }
 
   draw();
-  void ensure().catch((e: Error) => toast(e.message, "error"));
+  void ensure().catch((e: Error) => errorHere(e));
 
   return {
     element,

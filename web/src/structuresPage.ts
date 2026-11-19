@@ -30,6 +30,7 @@ import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mountTree, nodeAt, type Part, pathText, type TextView, type Tree, type Value } from "./structureTree";
 import { effectiveTheme } from "./theme";
+import { errorHere } from "./errorNote";
 
 /** The page's name, in one place (the owner chose it, 2026-11-17): the rail, the title, the tabs. */
 export const STRUCTURES = "Structures";
@@ -107,7 +108,7 @@ async function call<T>(path: string, method = "GET", body?: unknown): Promise<T 
   try {
     return await api<T>(path, method, body);
   } catch (e) {
-    if (!promptForError(e instanceof ApiError ? safeJson(e.message) : e)) toast((e as Error).message, "error");
+    if (!promptForError(e instanceof ApiError ? safeJson(e.message) : e)) errorHere(e);
     return null;
   }
 }

@@ -141,6 +141,13 @@ PRUNE_EVERY_SECONDS: float = 10.0
 ANY = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
+async def _no_such_address(request: Request, error: Exception) -> Response:
+    """Starlette's own 404 and 405 (an address no route has, a method it does not take) in the one shape."""
+    status = getattr(error, "status_code", 404)
+    words = "No such address." if status == 404 else f"{request.method} is not taken at this address."
+    return JSONResponse({"error": words, "where": request.url.path}, status_code=status)
+
+
 def not_installed(name: str, ident: str) -> Callable[[Request], Awaitable[Response]]:
     """The answer of an extension's door while it is not installed here: which one, and where to add it."""
 
@@ -355,6 +362,8 @@ def create_app(
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
         ],
         lifespan=lifespan,
+        # No such address, or not that method: the one refusal shape too (design principle 9.5).
+        exception_handlers={404: _no_such_address, 405: _no_such_address},
     )
     app.state.ctx = ctx
     return app

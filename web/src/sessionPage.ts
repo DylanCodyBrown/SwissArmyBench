@@ -22,9 +22,10 @@
 import { api, onNotice, type Notice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { openReference } from "./connectionsWindow";
-import { button, h, icon, recall, remember, toast } from "./dom";
+import { button, h, icon, recall, remember } from "./dom";
 import { dismissDialog, go, homeWindow, HOME_URL, layerOpened, layerShown, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { loadingBlock } from "./loading";
+import { errorHere, errorToast } from "./errorNote";
 
 export interface Target {
   place: "grid" | "dataset" | "card" | "relationship" | "connection" | "blade" | "cell" | "document" | "area";
@@ -204,7 +205,7 @@ export function followSwitch(): HTMLElement {
   input.checked = follow;
   input.addEventListener("change", () => void setFollow(input.checked).catch((e: Error) => {
     input.checked = follow;
-    toast(e.message, "error");
+    errorHere(e);
   }));
   onFollow((on) => (input.checked = on));
   if (!loaded) void load().then(() => (input.checked = follow)).catch(() => undefined);
@@ -243,7 +244,7 @@ export function goToTarget(t: Target | null): void {
   if (!t) return;
   if ((t.place === "cell" || t.place === "document") && t.path) {
     const kind = t.path.endsWith(".stapp.json") ? "app" : t.path.endsWith(".ipynb") ? "notebook" : "script";
-    void openReference({ document: t.path, title: t.path, kind, how: "", line: "", cell: t.cell ?? null }).catch((e: Error) => toast(e.message, "error"));
+    void openReference({ document: t.path, title: t.path, kind, how: "", line: "", cell: t.cell ?? null }).catch((e: Error) => errorHere(e));
     return;
   }
   if (t.place === "connection" && t.name) {
@@ -264,7 +265,7 @@ export function goToTarget(t: Target | null): void {
     // The page makes way with no history move of its own: the view's move is the entry, so Back
     // brings the Session page again.
     if (shownPage?.open) dismissDialog(shownPage);
-    if (!goer(t)) toast("It is not open any more.", "error");
+    if (!goer(t)) errorHere("It is not open any more.");
     // The same view as before (nothing to push): the page's words leave the address.
     window.setTimeout(() => {
       if (new URLSearchParams(location.search).get("open") === "session" && !shownPage?.open) void go(withParams({ open: null, at: null, type: null, name: null }), "replace");
@@ -282,7 +283,7 @@ export function goToTarget(t: Target | null): void {
 window.addEventListener("message", (e: MessageEvent) => {
   const said = e.data as { sab?: unknown; target?: Target } | null;
   if (e.origin !== location.origin || said?.sab !== "session-go" || !said.target || !goer) return;
-  if (!goer(said.target)) toast("It is not open any more.", "error");
+  if (!goer(said.target)) errorToast("It is not open any more.");
 });
 
 // ===== the page =====

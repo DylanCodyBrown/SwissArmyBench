@@ -14,6 +14,7 @@ import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busyClick } from "./loading";
+import { errorHere } from "./errorNote";
 
 export type ImportKind = "documents" | "connections" | "blades";
 
@@ -68,7 +69,7 @@ export function openImport(kind: ImportKind): Promise<Imported | null> {
       try {
         offered = await api<Offered>("/project/import/sources", "POST", { from });
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
         return;
       }
       ticks.length = 0;
@@ -93,7 +94,7 @@ export function openImport(kind: ImportKind): Promise<Imported | null> {
     const finish = async (): Promise<void> => {
       if (!offered) return;
       const chosen = ticks.filter((t) => t.box.checked).map((t) => t.name);
-      if (!chosen.length) return toast("Tick what to import.", "error");
+      if (!chosen.length) return errorHere("Tick what to import.");
       try {
         const body = offered.kind === "file" ? { from: offered.from } : { from: offered.from, [kind]: chosen };
         const result = await api<Imported>("/project/import", "POST", body);
@@ -101,7 +102,7 @@ export function openImport(kind: ImportKind): Promise<Imported | null> {
         for (const name of Object.keys(result.needs_password)) toast(`${name} needs a password on this computer.`);
         end(result);
       } catch (e) {
-        toast((e as Error).message, "error");
+        errorHere(e);
       }
     };
 

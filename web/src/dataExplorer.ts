@@ -34,6 +34,7 @@ import { busyButton, busyClick, loadingBlock } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
 import { openStructures } from "./structuresPage";
 import type { Part } from "./structureTree";
+import { errorHere } from "./errorNote";
 
 /** A result's drag: {sql, python} (the code for each kind of cell). lazy/codeEditor.ts reads it. */
 export const EXPLORER_DRAG = "application/x-sab-explorer";
@@ -145,7 +146,7 @@ function keepRecent(text: string): void {
 const copyText = (text: string, what: string): void =>
   void navigator.clipboard.writeText(text).then(
     () => toast(`Copied ${what}`),
-    () => toast("The browser did not allow copying.", "error"),
+    () => errorHere("The browser did not allow copying."),
   );
 
 /** The imports a result's Python needs, for a drop that places a whole cell. */
@@ -393,7 +394,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       const got = await api<{ dataset?: string }>(`/connections/${encodeURIComponent(r.connection)}/open`, "POST", r.place);
       toast(`${got.dataset ?? r.name} is open as a grid.`);
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   };
 
@@ -416,7 +417,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
     try {
       toast(`${r.name} is in ${await host.insert(r)}.`);
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   };
 
@@ -428,7 +429,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       if (under) clear(under, loadingBlock(`Loading ${connection}'s catalog…`, { height: "48px" }));
       void search(true);
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   };
 
@@ -478,7 +479,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
           } },
         ];
       case "structures": {
-        const open = host.openStructure ?? ((x: ExplorerResult) => void openStructureAt(x).catch((e: unknown) => toast(errorText(e), "error")));
+        const open = host.openStructure ?? ((x: ExplorerResult) => void openStructureAt(x).catch((e: unknown) => errorHere(e)));
         const pointer = String(r.pointer ?? "$");
         return [
           { label: pointer === "$" ? "Open" : "Open at this node", icon: "json", run: () => open(r) },

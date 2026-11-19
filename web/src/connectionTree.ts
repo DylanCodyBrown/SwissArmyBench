@@ -18,6 +18,7 @@ import { api, errorText } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
+import { clearError, errorHere, showError } from "./errorNote";
 
 interface TreeTable {
   database: string;
@@ -85,7 +86,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
       toast(`${got.dataset ?? t.table} is open as a grid.`);
       onOpened();
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   };
 
@@ -108,10 +109,15 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
     try {
       const got = await busy(section, `Opening ${g.count} tables of ${g.schema}…`, api<{ opened: unknown[]; failed: { table: string; error: string }[] }>(`/connections/${path}/open-dataset`, "POST", { dataset: g.schema }), { errorIn: false });
       const failed = got.failed.length ? ` ${got.failed.length} could not: ${got.failed.map((f) => f.table).join(", ")}.` : "";
-      toast(`${got.opened.length} tables of ${g.schema} are open.${failed}`, got.failed.length ? "error" : "info");
+      if (got.failed.length) {
+        showError(section, { what: `${got.opened.length} tables of ${g.schema} are open.${failed}`, where: g.schema, details: got.failed.map((f) => `${f.table}: ${f.error}`).join("\n") });
+      } else {
+        clearError(section);
+        toast(`${got.opened.length} tables of ${g.schema} are open.`);
+      }
       onOpened();
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   };
 
@@ -120,7 +126,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
       const got = await api<{ imported: unknown[] }>(`/connections/${path}/relationships`, "POST", { dataset: g.schema });
       toast(`${got.imported.length} relationships from ${g.schema} are in the model.`);
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   };
 

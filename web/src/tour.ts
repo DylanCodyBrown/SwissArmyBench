@@ -25,7 +25,7 @@
  * (dom.remember). A teaching aid of the page only: the agent has no command for it (docs/ideas.md).
  */
 
-import { api, token } from "./api";
+import { api, failure, token } from "./api";
 import { button, h, icon, recall, remember } from "./dom";
 import { here, historyDepth, layerShown, returnTo, runArea, visit, withParams } from "./nav";
 import { forgetVariables, namesVariable, previewLine } from "./variableBox";
@@ -380,7 +380,7 @@ function freeName(base: string, taken: Set<string>): string {
 
 async function paste(name: string, text: string): Promise<Table> {
   const response = await fetch(`/datasets/${encodeURIComponent(name)}/paste`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: text });
-  if (!response.ok) throw new Error(await response.text());
+  if (!response.ok) throw await failure(response);
   const shown = (await response.json()) as { grid: string; dataset: string };
   return { name: shown.dataset, grid: shown.grid };
 }

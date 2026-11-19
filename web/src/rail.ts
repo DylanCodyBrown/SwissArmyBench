@@ -42,7 +42,7 @@
  * and ?view=diagram still land there (panes.ts), and the address is replaced with the new word.
  */
 import { token } from "./api";
-import { h, icon, toast } from "./dom";
+import { h, icon } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, markIcon, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
@@ -55,6 +55,7 @@ import { canvasOn } from "./modes";
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, the same
 import { openMenu } from "./workbenchMenu";
+import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 
 export type Area = "projects" | "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
@@ -132,7 +133,7 @@ const withToken = (path: string, more: Record<string, string> = {}): string => {
 function newKindWindow(k: Kind): void {
   const opened = window.open(withToken(`/workbench?kind=${k}`, { fresh: "1", popped: "1" }), `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800");
   if (opened) opened.focus();
-  else toast("The browser blocked the new window: allow pop-ups for this address.", "error");
+  else errorHere("The browser blocked the new window: allow pop-ups for this address.");
 }
 
 
@@ -152,7 +153,7 @@ export function goArea(area: Area, newWindow = false): void {
   const k = kindOfArea(area);
   if (newWindow) {
     if (k) newKindWindow(k);
-    else if (!window.open(withToken(pageUrl(area)), "_blank")) toast("The browser blocked the new window: allow pop-ups for this address.", "error");
+    else if (!window.open(withToken(pageUrl(area)), "_blank")) errorHere("The browser blocked the new window: allow pop-ups for this address.");
     return;
   }
   if (k && kind === "workbench") {

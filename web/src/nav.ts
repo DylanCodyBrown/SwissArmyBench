@@ -26,7 +26,8 @@
  * (a dialog closed, another opened) waits for it instead of being the entry Back takes away.
  */
 import { onNotice, type Notice } from "./api";
-import { h, setDialogHook, toast } from "./dom";
+import { h, setDialogHook } from "./dom";
+import { errorHere } from "./errorNote";
 
 /** What each entry of this tab's history carries (history.state.sab). */
 interface Entry {
@@ -465,7 +466,7 @@ export function namedWindow(name: string, blocked = "The browser blocked the new
   if (window.name === name) return { win: window, fresh: false };
   const win = window.open("", name);
   if (!win) {
-    toast(blocked, "error");
+    errorHere(blocked);
     return null;
   }
   try {

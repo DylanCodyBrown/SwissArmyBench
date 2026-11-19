@@ -40,7 +40,16 @@ from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.steps import StepError
-from swissarmybench.server.http import actor, client_of, error_response, json_response, query_int, read_json
+from swissarmybench.server.http import (
+    actor,
+    client_of,
+    error_as,
+    error_response,
+    json_response,
+    query_int,
+    read_json,
+    refusal,
+)
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.export import Exports
 from swissarmybench.services.grids import GridService
@@ -160,7 +169,7 @@ def routes(
             body = await read_json(request)
             return json_response(await grids.put_steps(grid, info, body, actor(request)))
         except StepError as error:
-            return Response(str(error), status_code=400)
+            return error_as(error, 400)
         except Exception as error:
             return error_response(error)
 
@@ -171,7 +180,7 @@ def routes(
             body = await read_json(request)
             return json_response(await grids.step_op(grid, info, body, actor(request)))
         except StepError as error:
-            return Response(str(error), status_code=400)
+            return error_as(error, 400)
         except Exception as error:
             return error_response(error)
 
@@ -190,7 +199,7 @@ def routes(
             body = await read_json(request)
             return json_response(await grids.unnest(grid, info, body, actor(request)))
         except StepError as error:
-            return Response(str(error), status_code=400)
+            return error_as(error, 400)
         except Exception as error:
             return error_response(error)
 
@@ -203,7 +212,7 @@ def routes(
             try:
                 answer = await sql.run(grid, info, body, actor(request))
             except duckdb.Error as error:
-                return Response(f"DuckDB: {error}", status_code=400)
+                return refusal(f"DuckDB: {error}", 400)
             if "pinned" in answer:
                 return json_response(answer)
             return json_response(answer, max_bytes=settings.max_sql_response_bytes)

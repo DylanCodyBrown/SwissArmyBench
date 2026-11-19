@@ -14,9 +14,10 @@
  * (a Streamlit app's, a document's), whose place passes its own installer.
  */
 
-import { api } from "./api";
+import { api, saidOf } from "./api";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { loadingBlock, markBusy } from "./loading";
+import { errorHere } from "./errorNote";
 
 export interface Missing {
   feature: string;
@@ -87,15 +88,7 @@ function isMissing(value: unknown): value is Missing {
 
 /** The missing packages an answer or an error names ({"missing": {...}}), or null. */
 export function missingOf(answer: unknown): Missing | null {
-  let found: unknown = answer;
-  if (answer instanceof Error) {
-    if (!answer.message.startsWith("{")) return null;
-    try {
-      found = JSON.parse(answer.message);
-    } catch {
-      return null;
-    }
-  }
+  const found: unknown = answer instanceof Error ? saidOf(answer) : answer;
   const inner = found && typeof found === "object" ? (found as { missing?: unknown }).missing : null;
   return isMissing(inner) ? inner : null;
 }
@@ -103,13 +96,10 @@ export function missingOf(answer: unknown): Missing | null {
 /** An install's failure in plain words: its last lines of output when it answered with them. */
 export function installError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
-  try {
-    const said = JSON.parse(message) as { output?: string; error?: string };
-    const out = (said.output ?? said.error ?? "").trim();
-    return out ? out.split("\n").slice(-8).join("\n") : "The install failed.";
-  } catch {
-    return message || "The install failed.";
-  }
+  const said = saidOf(error) as { output?: string; error?: string } | null;
+  if (!said) return message || "The install failed.";
+  const out = (said.output ?? said.error ?? "").trim();
+  return out ? out.split("\n").slice(-8).join("\n") : "The install failed.";
 }
 
 /** Into the app's own Python (where connections and blades run): POST /blades/install. */
@@ -186,7 +176,7 @@ export function promptInstall(missing: Missing, options: PromptOptions = {}): Pr
       try {
         await options.then?.();
       } catch (error) {
-        toast((error as Error).message, "error");
+        errorHere(error);
       }
     };
     foot.append(later, go);

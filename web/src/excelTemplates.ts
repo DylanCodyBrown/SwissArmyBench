@@ -20,6 +20,7 @@ import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
 import { drawSheet, type Preview } from "./excelPreview";
 import { chooseFile } from "./fileChooser";
+import { errorHere } from "./errorNote";
 
 interface Binding {
   kind: "value" | "table";
@@ -91,7 +92,7 @@ export async function openTemplates(name?: string): Promise<void> {
       await listAll();
       take(made);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -100,7 +101,7 @@ export async function openTemplates(name?: string): Promise<void> {
       take(await api<Template>("/accounting/templates/show", "POST", { name: t }));
       void listAll();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -137,7 +138,7 @@ export async function openTemplates(name?: string): Promise<void> {
     try {
       take(await api<Template>("/accounting/templates/bind", "POST", { name: current.name, ...body }));
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -275,7 +276,7 @@ export async function openStatements(template?: string): Promise<void> {
       buildButton.setAttribute("aria-label", word);
       if (!dryRun) toast(`Built ${done.count} in ${done.folder}`);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -284,7 +285,7 @@ export async function openStatements(template?: string): Promise<void> {
       await api("/accounting/register", "POST", { open: true });
       toast("The register is open as a grid");
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 }

@@ -9,8 +9,9 @@
  *          [MATCH CASE / WILDCARDS / TRIM / EMPTY = BLANK] -> toggleSetting(key)  (POST steps + settings)
  */
 import type { Settings } from "./api";
-import { button, h, openDialog, toast } from "./dom";
+import { button, h, openDialog } from "./dom";
 import { state } from "./state";
+import { errorHere } from "./errorNote";
 
 const MATCHING: [keyof Settings, string, string][] = [
   ["case_sensitive", "Match case", "Oslo ≠ oslo"],
@@ -45,7 +46,7 @@ async function toggleSetting(key: keyof Settings, boxes: { key: keyof Settings; 
   try {
     await state.saveSteps(info.steps, { ...info.settings, [key]: !info.settings[key] });
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
   for (const b of boxes) b.box.checked = state.info!.settings[b.key];
 }

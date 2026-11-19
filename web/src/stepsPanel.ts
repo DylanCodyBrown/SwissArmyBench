@@ -19,6 +19,7 @@ import { button, clear, formatCount, h, toast } from "./dom";
 import { loadingBlock } from "./loading";
 import { KIND_LABELS, editStep } from "./stepForms";
 import { state } from "./state";
+import { errorHere } from "./errorNote";
 
 let tab: "steps" | "code" = "steps";
 let counts: number[] = [];
@@ -51,7 +52,7 @@ function openSqlWindow(step?: number): void {
   if (step !== undefined) at.searchParams.set("step", String(step));
   const opened = window.open(`${at.pathname}${at.search}`, `sql-${location.pathname}`, "popup,width=960,height=680");
   if (opened) opened.focus();
-  else toast("The browser blocked the SQL window: allow pop-ups for this address.", "error");
+  else errorHere("The browser blocked the SQL window: allow pop-ups for this address.");
 }
 
 async function render(): Promise<void> {
@@ -182,12 +183,12 @@ async function toggle(index: number): Promise<void> {
   const steps = [...state.info!.steps];
   const step = steps[index]!;
   steps[index] = { ...step, enabled: step.enabled === false };
-  await state.saveSteps(steps).catch((e: Error) => toast(e.message, "error"));
+  await state.saveSteps(steps).catch((e: Error) => errorHere(e));
 }
 
 async function remove(index: number): Promise<void> {
   const steps = state.info!.steps.filter((_, i) => i !== index);
-  await state.saveSteps(steps).catch((e: Error) => toast(e.message, "error"));
+  await state.saveSteps(steps).catch((e: Error) => errorHere(e));
 }
 
 async function move(from: number, to: number): Promise<void> {
@@ -196,7 +197,7 @@ async function move(from: number, to: number): Promise<void> {
   const [moved] = steps.splice(from, 1);
   steps.splice(to, 0, moved!);
   dragFrom = null;
-  await state.saveSteps(steps).catch((e: Error) => toast(e.message, "error"));
+  await state.saveSteps(steps).catch((e: Error) => errorHere(e));
 }
 
 interface CodeResult {
@@ -218,7 +219,7 @@ async function renderCode(body: HTMLElement): Promise<void> {
   const copyText = (text: string, what: string): void =>
     void navigator.clipboard.writeText(text).then(
       () => toast(`Copied the verified ${what}.`),
-      () => toast("The browser blocked the clipboard.", "error"),
+      () => errorHere("The browser blocked the clipboard."),
     );
   const copySql = button("Copy as SQL", () => result && copyText(result.sql.trim() + "\n", "SQL query"), {
     icon: "copy",

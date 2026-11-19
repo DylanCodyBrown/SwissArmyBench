@@ -35,6 +35,7 @@ import { openData } from "./dataPage";
 import { button, openDialog, toast } from "./dom";
 import { openVariables } from "./variablesPage";
 import { openPalette, setCommandSource, type Command } from "./workbenchCommands";
+import { errorHere } from "./errorNote";
 
 /** The keys the page already has, shown beside the command they run. */
 const KEYS: Record<string, string> = {
@@ -160,7 +161,8 @@ export async function reopenTab(): Promise<void> {
   try {
     await api("/grids/reopen", "POST");
   } catch (e) {
-    toast((e as { status?: number }).status === 404 ? "No closed table to reopen." : (e as Error).message, (e as { status?: number }).status === 404 ? "info" : "error");
+    if ((e as { status?: number }).status === 404) toast("No closed table to reopen.");
+    else errorHere(e);
   }
 }
 

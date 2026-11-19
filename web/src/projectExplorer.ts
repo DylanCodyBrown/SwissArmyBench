@@ -28,6 +28,7 @@ import { loadingBlock } from "./loading";
 import { baseName, copyProject, newProject, openProject, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
 import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
+import { errorHere } from "./errorNote";
 
 export interface ProjectCard {
   path: string;
@@ -76,7 +77,7 @@ let where = "";
 let loading = 0;
 let opened: (state: ProjectState | null) => void = () => undefined;
 
-const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
 
 /** The Project Explorer on this page (once). `afterOpen`: what the page does once a project opened (its
  *  Grids). */
@@ -108,7 +109,7 @@ export async function refreshExplorer(): Promise<void> {
     if (asked !== loading) return;
     listing = read;
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   draw();
@@ -489,7 +490,7 @@ export function localProjectsRow(): HTMLElement {
       return null;
     });
     if (!read) return;
-    const use = (body: Record<string, unknown>): void => void api("/projects/folder", "POST", body).then(() => void draw(), (e: Error) => toast(e.message, "error"));
+    const use = (body: Record<string, unknown>): void => void api("/projects/folder", "POST", body).then(() => void draw(), (e: Error) => errorHere(e));
     row.replaceChildren(
       "New projects go in ",
       h("code", { class: "mono projects-local" }, read.folder),
@@ -513,7 +514,7 @@ export function sharedProjectsRow(): HTMLElement {
   const draw = async (): Promise<void> => {
     const read = await api<Folders>("/projects/folder").catch(() => null);
     if (!read) return;
-    const use = (body: Record<string, unknown>): void => void api("/projects/folder", "POST", body).then(() => void draw(), (e: Error) => toast(e.message, "error"));
+    const use = (body: Record<string, unknown>): void => void api("/projects/folder", "POST", body).then(() => void draw(), (e: Error) => errorHere(e));
     row.replaceChildren(
       h("span", { class: "team-advanced-label" }, "Shared projects folder"),
       read.shared_folder ? h("code", { class: "mono projects-shared" }, read.shared_folder) : h("span", { class: "hint projects-shared" }, "None"),

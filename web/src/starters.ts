@@ -14,6 +14,7 @@
 import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
 import { familyShown, familyWords, whenMode } from "./modes";
+import { errorHere } from "./errorNote";
 
 /** The type a snippet's drag carries: {"name", "language"}. */
 export const SNIPPET_DRAG = "application/x-sab-snippet";
@@ -79,7 +80,7 @@ export async function copyAsOwn(name: string): Promise<string | null> {
     toast(`Copied as ${copied.name}.`);
     return copied.name;
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return null;
   }
 }
@@ -142,7 +143,7 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
   try {
     form = await api<SnippetFormData>(`${path(name)}/snippet${dataset ? `?dataset=${encodeURIComponent(dataset)}` : ""}`);
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return null;
   }
   const send = (values: Record<string, string>): Promise<FilledSnippet> => api<FilledSnippet>(`${path(name)}/snippet`, "POST", { values });
@@ -150,7 +151,7 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
     try {
       return await send({});
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
       return null;
     }
   }
@@ -258,7 +259,7 @@ export async function pickSnippet(language: SnippetLanguage): Promise<string | n
     const fits = (b: StarterSummary): boolean => !!b.language && SNIPPET_CELL[b.language] === SNIPPET_CELL[language];
     found = [...mine.blades.filter((b) => b.kind === "snippet" && fits(b)), ...pack.flatMap((f) => f.blades.filter(fits).map((b) => ({ ...b, family: f.family })))];
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return null;
   }
   const { body, foot, close } = openDialog(`Insert ${{ dax: "a DAX snippet", html: "an HTML snippet", markdown: "a Markdown snippet", streamlit: "a Streamlit starter", python: "a Python snippet" }[language]}`);

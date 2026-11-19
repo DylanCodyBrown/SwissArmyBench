@@ -30,6 +30,7 @@ import { cellAt, drawSheet, letters, type Preview } from "./excelPreview";
 import { openStatements, openTemplates } from "./excelTemplates";
 import { busy as gate, markBusy } from "./loading";
 import { menuButton } from "./workbenchMenu";
+import { errorHere } from "./errorNote";
 
 export const WORKBOOK_ENDING = ".design.json";
 const COL_W = 76;
@@ -225,7 +226,7 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
       if (before) changes.push(before);
       return done;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return null;
     }
   }
@@ -236,7 +237,7 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
       await call("", "PUT", { design });
       return true;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return false;
     }
   }
@@ -291,7 +292,7 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
       draw();
       return done;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return null;
     } finally {
       busy = false;
@@ -322,7 +323,7 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
       host.saved(done.path ?? where, done.modified ?? null);
       return true;
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
       return false;
     }
   }
@@ -380,8 +381,8 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
       { label: "Templates…", icon: "excel", run: () => void openTemplates() },
       { label: "Statements and invoices…", icon: "copy", run: () => void openStatements() },
     ]);
-    const exportButton = button("Export workbook.py", () => void exportPy().catch((e: Error) => toast(e.message, "error")), { icon: "export", class: "xc-export", title: "The automation that builds this workbook from data.py, without the app" });
-    const downloadButton = button("Download", () => void download().catch((e: Error) => toast(e.message, "error")), { icon: "import", class: "ghost xc-download", title: "The workbook Play built (.xlsx)" });
+    const exportButton = button("Export workbook.py", () => void exportPy().catch((e: Error) => errorHere(e)), { icon: "export", class: "xc-export", title: "The automation that builds this workbook from data.py, without the app" });
+    const downloadButton = button("Download", () => void download().catch((e: Error) => errorHere(e)), { icon: "import", class: "ghost xc-download", title: "The workbook Play built (.xlsx)" });
     downloadButton.disabled = !state?.played;
     clear(
       tools,
@@ -686,7 +687,7 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
 
   draw();
   listTables();
-  void ensure().catch((e: Error) => toast(e.message, "error"));
+  void ensure().catch((e: Error) => errorHere(e));
 
   return {
     element,

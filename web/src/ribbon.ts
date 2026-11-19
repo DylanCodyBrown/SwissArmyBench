@@ -36,6 +36,7 @@ import { connectionLabel, onConnectionChange, openConnectionChooser } from "./sw
 import { editStep } from "./stepForms";
 import { matchingSummary, openTextMatching } from "./textMatching";
 import { gridZoom, onThemeChange, stepZoom } from "./theme";
+import { errorHere } from "./errorNote";
 
 let host: HTMLElement;
 /** The steps strip (stepsStrip.ts), shown as the Transformations row below Table (the owner, 2026-11-16). */
@@ -275,15 +276,15 @@ function openDiffOptions(cmp: CompareInfo): void {
 }
 
 export async function sortColumns(cols: string[], direction: "asc" | "desc"): Promise<void> {
-  await state.addStep({ kind: "sort", params: { keys: cols.map((c) => [c, direction]) } }).catch((e: Error) => toast(e.message, "error"));
+  await state.addStep({ kind: "sort", params: { keys: cols.map((c) => [c, direction]) } }).catch((e: Error) => errorHere(e));
 }
 
 export async function keepColumns(keep: string[]): Promise<void> {
   if (!keep.length) {
-    toast("That would remove every column.", "error");
+    errorHere("That would remove every column.");
     return;
   }
-  await state.addStep({ kind: "columns", params: { keep } }).catch((e: Error) => toast(e.message, "error"));
+  await state.addStep({ kind: "columns", params: { keep } }).catch((e: Error) => errorHere(e));
 }
 
 /** Keep (or exclude) rows whose value in the column is one of the selected cells' values. */
@@ -304,5 +305,5 @@ export async function filterByCells(keep: boolean): Promise<void> {
   else if (present.length === 1) params = { column: column.name, op: keep ? "eq" : "ne", value: present[0] };
   else params = { column: column.name, op: keep ? "in" : "not_in", values: present };
   if (hasBlank && present.length) toast("Blank cells left out of the filter.");
-  await state.addStep({ kind: "filter", params }).catch((e: Error) => toast(e.message, "error"));
+  await state.addStep({ kind: "filter", params }).catch((e: Error) => errorHere(e));
 }

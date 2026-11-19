@@ -56,7 +56,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
-import { clearError, errorNote, showError } from "./errorNote";
+import { clearError, errorHere, errorNote, showError } from "./errorNote";
 import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
@@ -342,7 +342,7 @@ function referenceItem(ref: Reference, connection: string): HTMLElement {
         "data-kind": ref.kind,
         "data-connections": connection, // it wears the connection's colour
         title: ref.document || ref.title,
-        onclick: () => void openReference(ref).catch((e: Error) => toast(e.message, "error")),
+        onclick: () => void openReference(ref).catch((e: Error) => errorHere(e)),
       },
       h("span", { class: "connection-ref-icon", "aria-hidden": "true" }, icon(ref.kind === "grid" ? "grids" : kindIcon(ref.kind, ref.document))),
       h("span", { class: "connection-ref-where" }, h("strong", {}, ref.title), h("span", { class: "connection-ref-cell" }, where), ref.table_cell ? h("span", { class: "badge" }, "Table cell") : null),
@@ -474,7 +474,7 @@ async function openConnection(name: string): Promise<void> {
     shownAsTab();
     toast(`${answer.dataset} is open as a grid.`);
   } catch (e) {
-    toast(errorText(e), "error");
+    errorHere(e);
   }
 }
 
@@ -491,7 +491,7 @@ export async function importRelationships(connection: string, dataset = ""): Pro
     const changed = answer.changed.length ? ` Changed: ${answer.changed.join("; ")}.` : "";
     toast(`${n.toLocaleString()} relationship${n === 1 ? "" : "s"} from ${from} ${n === 1 ? "is" : "are"} in the model.${changed}`);
   } catch (e) {
-    toast(errorText(e), "error");
+    errorHere(e);
   }
 }
 
@@ -511,7 +511,7 @@ function withTables(name: string, c: Connection | undefined, used: HTMLElement):
 function dataverseSwitch(c: Connection | undefined, after: () => void): HTMLElement | null {
   if (c?.tables_kind !== "dataverse_web") return null;
   return button("Web API (switch to the SQL endpoint)", () => {
-    void api(`/connections/${encodeURIComponent(c.name)}/sql-endpoint`, "POST").then(after, (e: Error) => toast(errorText(e), "error"));
+    void api(`/connections/${encodeURIComponent(c.name)}/sql-endpoint`, "POST").then(after, (e: Error) => errorHere(e));
   }, { icon: "sql" });
 }
 
@@ -731,7 +731,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
               if (n) toast(`Removed ${n} relationship${n === 1 ? "" : "s"} that came from ${name}.`);
               void go(urlOf(LIST), "replace");
               void showList();
-            }, (e: Error) => toast(e.message, "error"));
+            }, (e: Error) => errorHere(e));
           }, { icon: "trash" }),
     );
     // Where it is used: the documents' cells, the canvases' blocks, the open grids.

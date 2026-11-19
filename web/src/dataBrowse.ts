@@ -26,6 +26,7 @@ import { api, errorText } from "./api";
 import { connectionDot } from "./connectionColours";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { busyClick, loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 /** A result as the Explorer has it (dataExplorer.ts's ExplorerResult, kept loose here to avoid a cycle). */
 export interface BrowseResult {
@@ -127,7 +128,7 @@ const columnInsert = (name: string): { sql: string; python: string } => ({ sql: 
 const copy = (text: string): void =>
   void navigator.clipboard.writeText(text).then(
     () => toast(`Copied ${text.length > 60 ? "the code" : text}`),
-    () => toast("The browser did not allow copying.", "error"),
+    () => errorHere("The browser did not allow copying."),
   );
 
 function stateWords(c: BrowseConnection): string {
@@ -446,7 +447,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       const got = await api<{ imported: unknown[] }>(`/connections/${encodeURIComponent(connection)}/relationships`, "POST", dataset ? { dataset } : {});
       toast(`${got.imported.length} relationships from ${dataset || connection} are in the model.`);
     } catch (e) {
-      toast(errorText(e), "error");
+      errorHere(e);
     }
   }
 

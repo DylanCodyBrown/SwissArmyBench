@@ -28,6 +28,7 @@ import { button, h, icon, openDialog, setMenuExtras, showMenu, toast } from "./d
 import { chooseFile } from "./fileChooser";
 import { panelList } from "./panels";
 import type { Command } from "./workbenchCommands";
+import { errorHere } from "./errorNote";
 
 export interface BetaState {
   on: boolean;
@@ -257,7 +258,7 @@ export async function setBeta(on: boolean): Promise<void> {
     take(await api<BetaState>("/beta", "PUT", { on }));
     toast(on ? "Beta mode on" : "Beta mode off");
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -270,7 +271,7 @@ export async function exportBetaLog(): Promise<void> {
     const made = await api<{ path: string }>("/beta/export", "POST", { path: path.toLowerCase().endsWith(".zip") ? path : `${path}.zip` });
     toast(`Saved to ${made.path}`); // the whole path: the chooser starts in the app's own folder, easy to lose
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -284,7 +285,7 @@ export function clearBetaLog(): void {
       void api("/beta/log", "DELETE").then(() => {
         toast("Cleared");
         void loadBeta();
-      }, (e: Error) => toast(e.message, "error"));
+      }, (e: Error) => errorHere(e));
     }, { icon: "trash", class: "danger" }),
   );
 }
@@ -343,7 +344,7 @@ export function openNote(target: Element): void {
       close();
       toast("Saved");
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
   text.addEventListener("keydown", (e) => {

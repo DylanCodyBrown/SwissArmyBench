@@ -15,11 +15,12 @@
  *
  * ROUTING: PUT /streamlit/apps/{app}/settings, GET /streamlit/apps/{app}/session (routes_streamlit.py)
  */
-import { button, clear, h, icon, toast } from "./dom";
+import { button, clear, h, icon } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
 import type { CanvasView } from "./workbenchCanvas";
 import type { ModeFrame } from "./workbenchModes";
 import { type AppSettings, type BlockState, type Controller, controllerOf, type SessionRow, shownValue } from "./workbenchStreamlit";
+import { errorHere } from "./errorNote";
 
 export interface AppHost {
   /** Go to a block's cell (its document opened when it is not). */
@@ -66,7 +67,7 @@ function drawBlock(body: HTMLElement, canvas: CanvasView, host: AppHost, block: 
   name.addEventListener("change", () => {
     const typed = name.value.trim();
     if (typed === (block.name ?? "")) return;
-    void host.renameCell(block.document, block.cell, typed).catch((e: Error) => toast(e.message, "error"));
+    void host.renameCell(block.document, block.cell, typed).catch((e: Error) => errorHere(e));
   });
   name.addEventListener("keydown", (e) => {
     if (e.key === "Enter") name.blur();

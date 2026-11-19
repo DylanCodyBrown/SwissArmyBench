@@ -19,6 +19,7 @@ import { exportBlades } from "./bladeLibrary";
 import { copyAsOwn } from "./starters";
 import { installError, type Missing, promptInstall, reminder } from "./missingPackages";
 import { variableBox } from "./variableBox";
+import { errorHere } from "./errorNote";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -226,7 +227,7 @@ function askTyped(needs: Record<string, string>, action: string): Promise<Record
         for (const [env, input] of inputs) {
           if (!input.value) {
             input.focus();
-            toast(`Type ${env}.`, "error");
+            errorHere(`Type ${env}.`);
             return;
           }
           values[env] = input.value;
@@ -247,11 +248,7 @@ interface RunFailure {
 
 function failureOf(error: unknown): RunFailure | null {
   if (!(error instanceof ApiError) || (error.status !== 409 && error.status !== 422)) return null;
-  try {
-    return JSON.parse(error.message) as RunFailure;
-  } catch {
-    return null;
-  }
+  return error.said as RunFailure | null;
 }
 
 /** Run a blade on the server (Refresh: its catalog; Test: does it work). Asks for secret-blade
@@ -280,7 +277,7 @@ export async function runBlade<T>(name: string, action: "refresh" | "test"): Pro
         showRunError(name, failure);
         return null;
       }
-      toast((error as Error).message, "error");
+      errorHere(error);
       return null;
     }
   }
@@ -324,7 +321,7 @@ export async function showFile(name: string): Promise<void> {
   try {
     await api(`${path(name)}/show`, "POST");
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
   }
 }
 
@@ -336,7 +333,7 @@ export async function showTemplatePicker(host: HTMLElement, onMade: (name: strin
   try {
     all = (await api<{ choices: NewChoice[] }>("/blades/new")).choices;
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return;
   }
   const groups = new Map<string, NewChoice[]>();
@@ -347,7 +344,7 @@ export async function showTemplatePicker(host: HTMLElement, onMade: (name: strin
       onMade(made.name);
       void showFile(made.name);
     } catch (error) {
-      toast((error as Error).message, "error");
+      errorHere(error);
     }
   };
   clear(
@@ -431,7 +428,7 @@ export async function editBlade(
   try {
     detail = await api<BladeDetail>(path(name));
   } catch (error) {
-    toast((error as Error).message, "error");
+    errorHere(error);
     return;
   }
   const starter = detail.source === "starter";
@@ -579,7 +576,7 @@ export async function editBlade(
       button("Cancel", close, { class: "ghost" }),
       button("Remove", () => {
         close();
-        void api(path(target), "DELETE").then(onClosed, (error: Error) => toast(error.message, "error"));
+        void api(path(target), "DELETE").then(onClosed, (error: Error) => errorHere(error));
       }, { class: "danger" }),
     );
   }

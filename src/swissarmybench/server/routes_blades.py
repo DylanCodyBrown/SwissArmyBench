@@ -42,15 +42,23 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.blades import BladeCodeError, VaultUnavailableError
 from swissarmybench.server.blade_runner import RefreshError
-from swissarmybench.server.http import actor, error_response, json_response, read_json, read_json_object
+from swissarmybench.server.http import (
+    actor,
+    error_as,
+    error_response,
+    json_response,
+    read_json,
+    read_json_object,
+    refusal,
+)
 from swissarmybench.services.blades import BladeService, NeedsValues
 
 
 def _agent_refused() -> Response:
-    return Response(
+    return refusal(
         "This answer holds the saved password values (for sab.blade in the user's Python): never the "
         "agent's. Run the blade in a Workbench kernel instead (workbench_run), where it reads them itself.",
-        status_code=403,
+        403,
     )
 
 
@@ -77,7 +85,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
                 return json_response(await blades.update(previous, await read_json(request), actor(request)))
             return json_response(await blades.save(await read_json(request), None, actor(request)))
         except VaultUnavailableError as error:
-            return Response(str(error), status_code=409)
+            return error_as(error, 409)
         except Exception as error:
             return error_response(error)
 
@@ -145,7 +153,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             body = await read_json(request)
             return json_response(blades.set_secrets(request.path_params["name"], body))
         except VaultUnavailableError as error:
-            return Response(str(error), status_code=409)
+            return error_as(error, 409)
         except Exception as error:
             return error_response(error)
 

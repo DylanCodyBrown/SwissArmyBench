@@ -13,6 +13,7 @@
 import { api, ApiError, token } from "./api";
 import { toast } from "./dom";
 import type { Output, OutputArea } from "./workbenchOutputs";
+import { errorHere, problemsHere } from "./errorNote";
 
 export type { Output } from "./workbenchOutputs";
 export { drawOutputs } from "./workbenchOutputs";
@@ -78,7 +79,7 @@ export class Kernel {
     try {
       const started = await api<{ kernel: string; python: string; vaults?: { set: string[]; problems: string[] } }>("/workbench/kernels", "POST", { python: this.chosenPython(), path: this.path(), window: WINDOW_ID });
       // A vault that could not be read: the kernel started without its variables.
-      for (const problem of started.vaults?.problems ?? []) toast(problem, "error");
+      problemsHere(started.vaults?.problems ?? [], "Some key vaults could not be read: the kernel started without their variables.", { level: "warning" });
       this.id = started.kernel;
       this.python = started.python;
       this.set("idle");

@@ -15,6 +15,7 @@ import { sendCards } from "./analyzeMenu";
 import { formatTemporal } from "./gridView";
 import { state } from "./state";
 import { loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 interface Profile {
   column: string;
@@ -129,7 +130,7 @@ async function filterOn(column: string, value: unknown, family: string): Promise
     await state.addStep({ kind: "filter", params });
     toast(`Added a filter step on ${column}.`);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -160,7 +161,7 @@ export async function profileToSandbox(column: string): Promise<void> {
     const p = await api<Profile>(`${grid}/profile${query({ column, upto: state.previewUpto })}`);
     await sendCards(profileCards(p, state.info?.dataset ?? ""));
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -213,7 +214,7 @@ export async function openTableProfile(): Promise<void> {
       () =>
         void download(`${grid}/export${query({ format: "csv", scope: "profile", file: `${state.info?.dataset ?? "data"}_profile` })}`)
           .then(({ blob, name, message }) => { saveBlob(blob, name); toast(message); })
-          .catch((e: Error) => toast(e.message, "error")),
+          .catch((e: Error) => errorHere(e)),
       { icon: "export" },
     ),
     button("Close", close, { class: "primary" }),

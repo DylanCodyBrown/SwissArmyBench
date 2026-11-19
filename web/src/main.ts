@@ -29,7 +29,7 @@
 import { mountContextMenus } from "./cellMenu";
 import { watchConnectionColours } from "./connectionColours";
 import { libraryNotices } from "./library";
-import { api, connect, gridId, onNotice, openedWith, requireSession, token, type Notice } from "./api";
+import { api, connect, failure, gridId, onNotice, openedWith, requireSession, token, type Notice } from "./api";
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
@@ -76,6 +76,7 @@ import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
 import { setGridZoom, stepZoom } from "./theme";
 import { installVariableAnywhere } from "./variableAnywhere";
+import { errorHere, errorToast } from "./errorNote";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -106,10 +107,10 @@ async function pasteAsDataset(text: string): Promise<void> {
     for (let n = 2; taken.has(name) || pasting.has(name); n += 1) name = `pasted_${stamp}_${n}`;
     pasting.add(name); // a second paste before this one lands picks another name
     const response = await fetch(`/datasets/${name}/paste`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: text });
-    if (!response.ok) throw new Error(await response.text());
+    if (!response.ok) throw await failure(response);
     pastedToast(name);
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }
 
@@ -128,7 +129,7 @@ function onLiveNotice(notice: Notice): void {
   if (notice.type === "dataset_closed" && notice.dataset) {
     for (const ctx of contextsOf(notice.dataset)) dropGrid(ctx.id);
     if (popout || keysWindow) {
-      toast(`Dataset ${notice.dataset} was closed.`, "error");
+      errorToast(`Dataset ${notice.dataset} was closed.`);
       setLive(false);
     }
   }
@@ -375,8 +376,8 @@ async function start(): Promise<void> {
     // The Grids landing's Paste: the clipboard's table, as Ctrl+V (the browser may ask first).
     paste: () =>
       void navigator.clipboard.readText().then(
-        (text) => (text.includes("\t") && text.includes("\n") ? pasteAsDataset(text) : toast("Copy a table first, then press Ctrl+V.", "error")),
-        () => toast("Press Ctrl+V to paste a table.", "error"),
+        (text) => (text.includes("\t") && text.includes("\n") ? pasteAsDataset(text) : errorHere("Copy a table first, then press Ctrl+V.")),
+        () => errorHere("Press Ctrl+V to paste a table."),
       ),
   });
   mountRibbon($(".ribbon"), openColumnProfile);
@@ -444,7 +445,7 @@ window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => 
   event.preventDefault();
   if (reason?.name === "AbortError") return; // cancelled on purpose
   console.warn(reason);
-  toast(reason?.message || String(reason), "error");
+  errorHere(reason instanceof Error ? reason : reason?.message || String(reason));
 });
 
 start().catch((e: unknown) => {

@@ -11,16 +11,19 @@
  *   warningNote(parts)          the same note in the warning colour ("Only works on your machine", cancelled work).
  *   showError(host, error, x)   the note at the top of `host`, in place of the one it showed before; returns it.
  *   clearError(host)            the note gone (a retry that worked: it never lingers).
- *   errorToast(error, show)     work with no place on screen (background): a toast with the same words, Show.
+ *   errorToast(error, show)     work with no place on screen (background): the same note in a toast, Show.
+ *   errorHere(error, extra)     in place where the user's last action was (the row of the control they pressed,
+ *                               inside its card, panel, form or dialog); pressing it again takes the note away.
  *   errorParts(error)           an ApiError, Error, string or the server's JSON refusal read into the parts.
  *
- * The server's refusal, read loosely (9.5's one shape): {"error" | "message": what, "where": ..., "details" |
- * "traceback": ..., "missing": {...}}; a missing package's refusal brings Install now (missingPackages.ts).
+ * The server's refusal (9.5's one shape, domain/refusals.py): {"error": what, "where": ..., "fixes": [{label,
+ * action: install | set_variable | sign_in | open_settings | try_again, ...}], "details": ...}, read loosely
+ * ("message" and "traceback" too); a missing package's refusal brings Install now (missingPackages.ts).
  * Code errors in the Workbench keep the error panel (workbenchErrors.ts), this note's fullest form.
  */
 
-import { ApiError } from "./api";
-import { button, h, icon, toast } from "./dom";
+import { ApiError, saidOf } from "./api";
+import { button, h, icon, toast, toastNode } from "./dom";
 import { missingOf, promptInstall } from "./missingPackages";
 import { addVariable } from "./variableLinks";
 import { sendToAgent } from "./workbenchAgent";
@@ -50,16 +53,6 @@ export interface ErrorParts {
 
 const asParts = (e: unknown): e is ErrorParts => typeof e === "object" && e !== null && !(e instanceof Error) && typeof (e as ErrorParts).what === "string";
 
-function parsed(message: string): Record<string, unknown> | null {
-  if (!message.trim().startsWith("{")) return null;
-  try {
-    const value = JSON.parse(message) as unknown;
-    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
-  } catch {
-    return null;
-  }
-}
-
 const text = (value: unknown): string | undefined => (typeof value === "string" && value.trim() ? value.trim() : undefined);
 
 /** The first sentence or line of a long message (the rest goes to Details). */
@@ -70,17 +63,50 @@ function firstSentence(message: string): string {
   return stop > 40 ? line.slice(0, stop + 1) : `${line.slice(0, 237)}…`;
 }
 
-/** An error of any kind read into the note's parts. */
+/** The connection's own page (its card's detail on the Connections page): Sign in and Open its settings. */
+function openConnection(name: string): void {
+  void import("./connectionsWindow").then((m) => m.openConnections({ detail: name }));
+}
+
+/** A fix the server named (9.5's shape: {label, action, ...}) as a button, or null for one this page cannot do
+ *  by itself (Try again: the caller's, since only it knows what to send again). */
+function serverFix(fix: unknown, said: Record<string, unknown>, e: unknown): ErrorFix | null {
+  if (!fix || typeof fix !== "object") return null;
+  const f = fix as Record<string, unknown>;
+  const label = text(f.label);
+  if (!label) return null;
+  const action = text(f.action) ?? (f.command === "variables_set" ? "set_variable" : undefined);
+  const missing = missingOf(e instanceof Error ? e : said);
+  switch (action) {
+    case "install":
+      return missing ? { label, icon: "import", run: () => promptInstall(missing, { force: true }) } : null;
+    case "set_variable":
+      return text(f.name) ? { label, icon: "plus", run: () => addVariable(text(f.name)!) } : null;
+    case "sign_in":
+    case "open_settings":
+      return text(f.connection) ? { label, icon: action === "sign_in" ? "key" : "settings", run: () => openConnection(text(f.connection)!) } : null;
+    default:
+      return null;
+  }
+}
+
+/** An error of any kind read into the note's parts: the server's one shape ({error, where, fixes, details};
+ *  an ApiError's `said`), an Error, a string. */
 export function errorParts(e: unknown): ErrorParts {
   if (asParts(e)) return e;
   const message = e instanceof Error ? e.message : typeof e === "string" ? e : String(e);
-  const said = parsed(message);
+  const said = saidOf(e instanceof Error || typeof e === "string" ? e : null) ?? (e && typeof e === "object" ? (e as Record<string, unknown>) : null);
   const fixes: ErrorFix[] = [];
+  const named = said && Array.isArray(said.fixes) ? said.fixes : [];
+  for (const fix of named) {
+    const made = serverFix(fix, said!, e);
+    if (made && !fixes.some((f) => f.label === made.label)) fixes.push(made);
+  }
+  // Answers from before the shape named its fixes: Install now from `missing`, Set it from `missing_variables`.
   const missing = missingOf(e instanceof Error ? e : said ?? e);
-  if (missing) fixes.push({ label: "Install now", icon: "import", run: () => promptInstall(missing, { force: true }) });
-  // A variable not set on this computer (12.7): Set it, the Add variable form with its name.
+  if (missing && !fixes.some((f) => f.label === "Install now")) fixes.push({ label: "Install now", icon: "import", run: () => promptInstall(missing, { force: true }) });
   const unset = said && Array.isArray(said.missing_variables) ? said.missing_variables.filter((n): n is string => typeof n === "string") : [];
-  for (const name of unset) fixes.push({ label: unset.length > 1 ? `Set ${name}` : "Set it", icon: "plus", run: () => addVariable(name) });
+  if (!named.length) for (const name of unset) fixes.push({ label: unset.length > 1 ? `Set ${name}` : "Set it", icon: "plus", run: () => addVariable(name) });
   if (said) {
     const what = text(said.error) ?? text(said.message) ?? (missing ? `${missing.packages.join(", ")} is not installed.` : "Something went wrong.");
     const details = text(said.details) ?? text(said.traceback) ?? (what.includes("\n") || what.length > 240 ? what : undefined);
@@ -159,8 +185,109 @@ export function clearError(host: HTMLElement): void {
   host.querySelectorAll(":scope > .error-note").forEach((old) => old.remove());
 }
 
-/** Work with no place on screen: a toast with the same words, and Show to go to the place when there is one. */
-export function errorToast(e: unknown, show?: () => void): void {
+/** Work with no place on screen (something in the background): the same note in a toast, with Show to go to the
+ *  place when there is one. */
+export function errorToast(e: unknown, show?: () => void, extra: Partial<ErrorParts> = {}): void {
   const parts = errorParts(e);
-  toast(parts.where ? `${parts.what} (${parts.where})` : parts.what, "error", show ? { label: "Show", run: show } : undefined);
+  let item: HTMLElement | null = null;
+  const fixes: ErrorFix[] = show ? [{ label: "Show", icon: "forward", run: () => { item?.remove(); show(); } }] : [];
+  const note = errorNote(parts, { ...extra, fixes: [...fixes, ...(extra.fixes ?? [])] });
+  // The note's own Close takes the toast with it.
+  note.querySelector(".error-note-close")?.addEventListener("click", () => item?.remove());
+  item = toastNode(note, `${parts.what}\n${parts.where ?? ""}`);
+}
+
+// ===== in place, where the action happened =====
+//
+// errorHere(e) puts the note where the user's last action was: under the row of the button, box or menu's
+// opener they pressed, inside the part of the page that holds it (its card, panel, pane, section, form, cell
+// or dialog). A second press of that control takes its note away first, so a retry that works leaves none
+// (9.5: "it goes when it is fixed"). With no such place on screen (the control is gone, or the work was the
+// page's own), it is errorToast.
+
+let lastAction: { element: Element; at: number } | null = null;
+
+const ACTING = "button, a, input, select, textarea, summary, [role=menuitem], [role=option], [role=tab], [role=button], [tabindex], [contenteditable=true]";
+
+/** A part of the page an error belongs to: a dialog's body, a form, a card, panel, pane, section, cell or
+ *  page by its class, a landmark, or a place marked data-error-host. */
+const PART = /(^|[-_])(card|panel|pane|section|cell|page|body|form|detail|details|group|tab|block)$/;
+
+function isPart(element: Element): boolean {
+  if (element instanceof HTMLDialogElement || element.matches("form, section, article, aside, main, [role=tabpanel], [role=region], [role=dialog], [data-error-host]")) return true;
+  return [...element.classList].some((c) => PART.test(c));
+}
+
+function heard(event: Event): void {
+  const target = event.target instanceof Element ? event.target : null;
+  const element = target?.closest(ACTING) ?? target;
+  if (!element || element.closest(".error-note, .toasts")) return;
+  // Pressing the same control again: its last note goes first (a retry that works leaves none).
+  document.querySelectorAll<HTMLElement>(".error-note[data-from]").forEach((note) => {
+    if (fromOf.get(note) === element) note.remove();
+  });
+  lastAction = { element, at: Date.now() };
+}
+
+const fromOf = new WeakMap<HTMLElement, Element>();
+let listening = false;
+
+function listen(): void {
+  if (listening || typeof document === "undefined") return;
+  listening = true;
+  document.addEventListener("pointerdown", heard, true);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " " || event.ctrlKey || event.metaKey) heard(event);
+  }, true);
+}
+listen();
+
+/** Where a note for an action on `from` goes: the part that holds it, and the child of that part to put the
+ *  note after (the row of the control), or null to put it first. */
+function placeFor(from: Element): { part: HTMLElement; after: Element | null } | null {
+  let child: Element = from;
+  for (let at = from.parentElement; at && at !== document.body && at !== document.documentElement; at = at.parentElement) {
+    if (isPart(at)) {
+      if (at instanceof HTMLDialogElement) {
+        // A dialog: its body, the note at the body's foot (just above the buttons) unless the control is in it.
+        const body = at.querySelector<HTMLElement>(":scope > .dialog-body");
+        if (body && !body.contains(from)) return { part: body, after: body.lastElementChild };
+      }
+      return { part: at as HTMLElement, after: child };
+    }
+    child = at;
+  }
+  return null;
+}
+
+/** Several problems from one action as one note, in place: the one itself, or `many` with each in Details. */
+export function problemsHere(items: string[], many: string, extra: Partial<ErrorParts> = {}): void {
+  if (!items.length) return;
+  errorHere({ what: items.length === 1 ? items[0]! : many, details: items.length > 1 ? items.join("\n") : undefined }, extra);
+}
+
+/** How long after the user's press a failure still belongs to it (a slow Test, a sign-in): later than this the
+ *  work is taken as the page's own, and the note is a toast. */
+const ACTION_MS = 3 * 60_000;
+
+/** The note in place where the user's last action was (see above), else errorToast. `from` names the control
+ *  when the caller has it. */
+export function errorHere(e: unknown, extra: Partial<ErrorParts> = {}, from?: Element | null): void {
+  const recent = lastAction && Date.now() - lastAction.at < ACTION_MS ? lastAction.element : null;
+  const control = from ?? recent;
+  const place = control && control.isConnected ? placeFor(control) : null;
+  if (!place) {
+    errorToast(e, undefined, extra);
+    return;
+  }
+  const note = errorNote(e, extra);
+  note.dataset.from = "";
+  if (control) fromOf.set(note, control);
+  // One note per place and control: the one it showed before goes.
+  place.part.querySelectorAll<HTMLElement>(":scope > .error-note[data-from]").forEach((old) => {
+    if (fromOf.get(old) === control) old.remove();
+  });
+  if (place.after && place.after.parentElement === place.part) place.after.after(note);
+  else place.part.prepend(note);
+  note.scrollIntoView?.({ block: "nearest" });
 }

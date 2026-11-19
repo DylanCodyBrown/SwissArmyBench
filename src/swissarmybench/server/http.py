@@ -1,5 +1,6 @@
 """What every route module shares for speaking HTTP: reading a request (bodies with a cap, JSON, who
-is asking) and shaping the answer (cell values as JSON, and each error as its status and plain words).
+is asking) and shaping the answer (cell values as JSON, and each error as its status and plain words, in
+the one refusal shape of design principle 9.5: {"error", "where", "fixes", "details"}, domain/refusals.py).
 
 The use cases know nothing of this: they take plain values and raise plain errors, and this file is
 where an error becomes a status code.
@@ -17,8 +18,9 @@ from uuid import UUID
 import duckdb
 import sqlglot
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse, Response
+from starlette.responses import Response
 
+from swissarmybench.domain import refusals
 from swissarmybench.domain.blades import BladeError
 from swissarmybench.domain.catalogs import CatalogError
 from swissarmybench.domain.datasets import (
@@ -92,11 +94,11 @@ def _jsonable_list(values: list[Any] | tuple[Any, ...]) -> list[Any] | tuple[Any
 def json_response(content: Any, status_code: int = 200, max_bytes: int | None = None) -> Response:
     body = json.dumps(jsonable(content), separators=(",", ":"))
     if max_bytes is not None and len(body) > max_bytes:
-        return PlainTextResponse(
+        words = (
             f"The response would be {len(body) / 1048576:.1f} MiB; the limit is "
-            f"{max_bytes / 1048576:.0f} MiB. Ask for fewer rows or columns.",
-            status_code=413,
+            f"{max_bytes / 1048576:.0f} MiB. Ask for fewer rows or columns."
         )
+        return Response(json.dumps({"error": words}), status_code=413, media_type="application/json")
     return Response(body, status_code=status_code, media_type="application/json")
 
 
@@ -118,14 +120,40 @@ def error_response(error: Exception) -> Response:
     return response
 
 
+def refusal(
+    what: str,
+    status_code: int,
+    *,
+    where: str | None = None,
+    fixes: list[dict[str, Any]] | None = None,
+    details: str | None = None,
+    **kept: Any,
+) -> Response:
+    """A refusal in the one shape (design principle 9.5; domain/refusals.py): {"error", "where", "fixes",
+    "details"} and the fields a page or the agent already reads. Every route's error answers this way."""
+    body = refusals.shape(what, where=where, fixes=fixes, details=details, **kept)
+    return json_response(body, status_code=status_code)
+
+
+def error_as(error: Exception, status_code: int) -> Response:
+    """`error` answered with `status_code` in the one shape (a route that picks its own status)."""
+    return json_response(refusals.of(error), status_code=status_code)
+
+
 def _error_response(error: Exception) -> Response:
     status = 500
     # What a use case ended in besides its answer (services/workspace.py).
     for outcome, code in ((Refused, 403), (NotFound, 404), (TimedOut, 408), (Conflict, 409)):
         if isinstance(error, outcome):
-            return Response(str(error), status_code=code)
+            return json_response(refusals.of(error), status_code=code)
     if isinstance(error, MissingPackagesError):  # the page's prompt and the agent read the same shape
-        return json_response({"error": str(error), "missing": error.missing}, status_code=422)
+        command = error.missing.get("command") if isinstance(error.missing, dict) else None
+        return refusal(
+            str(error),
+            422,
+            fixes=[refusals.install(command if isinstance(command, str) else None)],
+            missing=error.missing,
+        )
     if isinstance(error, MissingVariables):  # 12.7 and 9.5: "NAME is not set on this computer", Set it
         return json_response(error.to_json(), status_code=422)
     if isinstance(error, DatasetTooLargeError | BodyTooLargeError):
@@ -138,14 +166,14 @@ def _error_response(error: Exception) -> Response:
         status = 400
     elif isinstance(error, LookupError):
         status = 404
-    elif isinstance(error, duckdb.Error):
-        return PlainTextResponse(f"DuckDB: {error}", status_code=400)
+    elif isinstance(error, duckdb.Error):  # DuckDB's own words are the details; the sentence says whose
+        said = str(error)
+        return refusal(f"DuckDB: {refusals.first_sentence(said)}", 400, details=f"DuckDB: {said}")
     elif isinstance(error, sqlglot.errors.SqlglotError):  # SQL that could not be read: the sender's
-        return PlainTextResponse(
-            f"Could not read the SQL: {str(error).splitlines()[0][:300]}", status_code=400
-        )
+        said = str(error)
+        return refusal(f"Could not read the SQL: {said.splitlines()[0][:300]}", 400, details=said)
     message = "A newer request replaced this one." if isinstance(error, StaleRequestError) else str(error)
-    return PlainTextResponse(message or type(error).__name__, status_code=status)
+    return json_response(refusals.of(error, message or type(error).__name__), status_code=status)
 
 
 class BodyTooLargeError(ValueError):

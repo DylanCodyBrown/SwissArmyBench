@@ -33,6 +33,7 @@ import { showAgentView } from "./panes";
 import { saveBlob } from "./profileView";
 import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
 import { busyClick, loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 interface SavedSet {
   name: string;
@@ -136,7 +137,7 @@ export async function importRelationships(picked: File, after: () => Promise<voi
       await api("/relationships", "POST", { model });
       await after();
     } catch (e) {
-      toast(`Could not import ${picked.name}: ${(e as Error).message}`, "error");
+      errorHere(`Could not import ${picked.name}: ${(e as Error).message}`);
     }
     return;
   }
@@ -146,7 +147,7 @@ export async function importRelationships(picked: File, after: () => Promise<voi
     review = await api("/relationships/import", "POST", { text });
     shared = (await api<Library>("/relationships/library")).shared_folders;
   } catch (e) {
-    toast(`${picked.name}: ${(e as Error).message}`, "error");
+    errorHere(`${picked.name}: ${(e as Error).message}`);
     return;
   }
   const t = review.set;
@@ -169,7 +170,7 @@ export async function importRelationships(picked: File, after: () => Promise<voi
         rc();
         toast(`Applied ${t.name}${a.where ? ` and kept it (${a.where === "shared" ? "shared" : "yours"})` : ""}.`);
         await after();
-      }, (e: Error) => toast(e.message, "error"));
+      }, (e: Error) => errorHere(e));
     }, { class: "primary", icon: "check" }),
   );
 }
@@ -225,7 +226,7 @@ export function openRelationships(startFinding = false): void {
     try {
       library = await api<Library>("/relationships/library");
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
     renderSets();
   }
@@ -302,7 +303,7 @@ export function openRelationships(startFinding = false): void {
       toast(answer.changed.length ? `Applied ${name}; it changed: ${answer.changed.join("; ")}.` : `Applied ${name}.`, "info", { label: "Undo", run: () => void undo() });
       await renderCurrent();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -315,7 +316,7 @@ export function openRelationships(startFinding = false): void {
         rc();
         toast(`Renamed to ${name.value.trim()}.`);
         await loadLibrary();
-      }, (e: Error) => toast(e.message, "error"));
+      }, (e: Error) => errorHere(e));
     };
     name.addEventListener("keydown", (e) => {
       if (e.key === "Enter") go();
@@ -331,7 +332,7 @@ export function openRelationships(startFinding = false): void {
       toast(`Deleted ${t.name}.`);
       await loadLibrary();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -340,7 +341,7 @@ export function openRelationships(startFinding = false): void {
       const got = await download(`/relationships/sets/${encodeURIComponent(name)}`);
       saveBlob(got.blob, got.name);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -353,7 +354,7 @@ export function openRelationships(startFinding = false): void {
         drawCurrent();
       }
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -373,7 +374,7 @@ export function openRelationships(startFinding = false): void {
       found = await api("/relationships/find", "POST", {});
     } catch (e) {
       renderFindStart();
-      toast((e as Error).message, "error");
+      errorHere(e);
       return;
     }
     const picked = new Set(found.suggestions.filter((s) => !s.known && s.confidence >= 0.8).map((_, i) => i));
@@ -423,7 +424,7 @@ export function openRelationships(startFinding = false): void {
 
   async function accept(found: { suggestions: Suggestion[]; keys: Record<string, string[]> }, picked: Set<number>): Promise<void> {
     const chosen = found.suggestions.filter((_, i) => picked.has(i));
-    if (!chosen.length) return toast("No joins ticked.", "error");
+    if (!chosen.length) return errorHere("No joins ticked.");
     const tables: Record<string, { primary_key: string[] }> = {};
     for (const s of chosen) if (found.keys[s.to]) tables[s.to] = { primary_key: found.keys[s.to]! };
     const relationships = chosen.map(({ confidence: _c, containment: _a, coverage: _v, orphans: _o, reasons: _r, known: _k, ...join }) => join);
@@ -433,7 +434,7 @@ export function openRelationships(startFinding = false): void {
       await renderCurrent();
       await find();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -485,7 +486,7 @@ export function openRelationships(startFinding = false): void {
       await renderCurrent();
       if (answer.changed) toast(`${words}: ${plural(answer.changed, "relationship")}.`, "info", { label: "Undo", run: () => void undo() });
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -497,7 +498,7 @@ export function openRelationships(startFinding = false): void {
       await renderCurrent();
       toast(`Deleted ${plural(answer.removed, "relationship")}.`, "info", { label: "Undo", run: () => void undo() });
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -507,7 +508,7 @@ export function openRelationships(startFinding = false): void {
       await renderCurrent();
       toast("Undone.");
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -678,7 +679,7 @@ export function openRelationships(startFinding = false): void {
       const got = await download("/relationships/set");
       saveBlob(got.blob, got.name);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   }
 
@@ -707,7 +708,7 @@ export function openRelationships(startFinding = false): void {
           toast(`Saved ${payload.name} ${a.where === "shared" ? "in the shared folder" : "in your saved sets"}.`);
           await loadLibrary();
           await renderCurrent();
-        }, (e: Error) => toast(e.message, "error"));
+        }, (e: Error) => errorHere(e));
       }, { class: "primary", icon: "save" }),
     );
     name.focus();
@@ -761,6 +762,6 @@ async function drawErd(close: () => void): Promise<void> {
     showAgentView();
     toast("Diagram sent to Visualizations.");
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
   }
 }

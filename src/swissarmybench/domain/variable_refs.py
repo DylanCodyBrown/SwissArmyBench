@@ -130,7 +130,13 @@ class MissingVariables(ValueError):
             "where": self.where,
             "missing_variables": self.missing,
             "fixes": [
-                {"label": "Set it", "command": "variables_set", "page": "variables", "name": name}
+                {
+                    "label": "Set it",
+                    "action": "set_variable",
+                    "command": "variables_set",
+                    "page": "variables",
+                    "name": name,
+                }
                 for name in self.missing
             ],
         }

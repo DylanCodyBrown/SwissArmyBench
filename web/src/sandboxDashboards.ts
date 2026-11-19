@@ -10,6 +10,7 @@
  */
 import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
+import { errorHere } from "./errorNote";
 
 interface Saved {
   name: string;
@@ -39,7 +40,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
       close();
       redraw();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
 
@@ -81,7 +82,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
             button("History", () => void history(d.name, row), { icon: "rows" }),
             button("Delete", () => {
               if (!window.confirm(`Delete ${d.name} and its ${d.versions} version${d.versions === 1 ? "" : "s"}?`)) return;
-              void api(`/dashboards/${encodeURIComponent(d.name)}`, "DELETE").then(refresh, (e: Error) => toast(e.message, "error"));
+              void api(`/dashboards/${encodeURIComponent(d.name)}`, "DELETE").then(refresh, (e: Error) => errorHere(e));
             }, { icon: "trash", class: "ghost" }),
           ),
         );
@@ -96,7 +97,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
       toast(`Saved ${name.value.trim()}${r.version > 1 ? ` (version ${r.version})` : ""}: ${r.cards} card${r.cards === 1 ? "" : "s"}.`);
       await refresh();
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
   const saveButton = button("Save", () => void save(), { icon: "export", class: "primary", title: cardsNow ? undefined : "Visualizations is empty" });

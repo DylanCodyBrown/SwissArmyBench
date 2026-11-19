@@ -46,7 +46,7 @@ import secrets
 from collections.abc import Callable
 
 from starlette.datastructures import Headers
-from starlette.responses import HTMLResponse, PlainTextResponse
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocket
 
@@ -146,7 +146,8 @@ class LocalOnlyGuard:
         ):
             await HTMLResponse(SIGNED_OUT_PAGE, status_code=401)(scope, receive, send)
         else:
-            await PlainTextResponse(_MESSAGES[status], status_code=status)(scope, receive, send)
+            # The one refusal shape (design principle 9.5): {"error": ...}.
+            await JSONResponse({"error": _MESSAGES[status]}, status_code=status)(scope, receive, send)
 
     def _check(self, scope: Scope) -> int | None:
         """Return the refusal status code, or None when the request may proceed."""

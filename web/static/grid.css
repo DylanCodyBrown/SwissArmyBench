@@ -1597,10 +1597,6 @@ dialog::backdrop {
   box-shadow: var(--shadow);
 }
 
-.toast.error {
-  border-left-color: var(--error);
-}
-
 /* The Pasted toast: its name in a box, renamed with Enter (renameTable.ts). */
 .toast-naming {
   display: flex;
@@ -1625,11 +1621,6 @@ dialog::backdrop {
 
 .tab-rename {
   width: 14ch;
-}
-
-.toast.error::before {
-  content: "\26A0  ";
-  color: var(--error);
 }
 
 .expanded-chart {
@@ -1760,6 +1751,13 @@ html {
 
 .status-error:empty {
   display: none;
+}
+
+/* The grid's rows did not come: the error note over the grid (gridView.ts). */
+.grid-error {
+  position: absolute;
+  inset: 60px 20px auto;
+  z-index: 6;
 }
 
 .grid-empty {
@@ -15966,6 +15964,22 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+/* errorToast: the same note in a toast (work with no place on screen), opaque over the page. */
+.toast.toast-note {
+  width: min(440px, calc(100vw - 32px));
+  max-width: none;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.toast-note > .error-note {
+  margin: 0;
+  background: linear-gradient(var(--error-soft), var(--error-soft)), var(--raised);
+}
+.toast-note > .error-note.warning {
+  background: linear-gradient(var(--warn-soft), var(--warn-soft)), var(--raised);
 }
 
 /* fileChanged.ts: a table whose file changed on disk (its tab's dot, its pane's bar: Reload, Not now) */

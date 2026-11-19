@@ -170,26 +170,55 @@ export async function requireSession(): Promise<boolean> {
  * make each other's requests look stale. */
 export const clientId: string = Math.random().toString(36).slice(2, 12);
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
+function parsedObject(text: string): Record<string, unknown> | null {
+  if (!text.trim().startsWith("{")) return null;
+  try {
+    const value = JSON.parse(text) as unknown;
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
   }
 }
 
-/** An error's words. A connection that failed to run answers {"error": "..."} (with the package to
- * install, when one is missing): its message is shown, not the JSON around it. */
-export function errorText(e: unknown): string {
-  const message = e instanceof Error ? e.message : String(e);
-  if (!message.startsWith("{")) return message;
-  try {
-    const said = JSON.parse(message) as { error?: unknown; message?: unknown };
-    return typeof said.error === "string" ? said.error : typeof said.message === "string" ? said.message : message;
-  } catch {
-    return message;
+/** A refusal from the server. Every route answers the one shape (design principle 9.5; domain/refusals.py):
+ *  {"error": what happened, "where", "fixes": [{label, action, ...}], "details"} and the fields a page reads
+ *  beside them (missing, missing_variables, needs). `message` is the words; `said` the whole answer; `body`
+ *  its text as it came. */
+export class ApiError extends Error {
+  readonly said: Record<string, unknown> | null;
+  readonly body: string;
+  constructor(
+    public status: number,
+    text: string,
+  ) {
+    const said = parsedObject(text);
+    const words = said && typeof said.error === "string" ? said.error : said && typeof said.message === "string" ? said.message : text;
+    super(words);
+    this.said = said;
+    this.body = text;
   }
+}
+
+/** The server's whole answer behind an error (an ApiError's, or JSON an Error's words carry), else null. */
+export function saidOf(e: unknown): Record<string, unknown> | null {
+  if (e instanceof ApiError) return e.said;
+  if (e instanceof Error) return parsedObject(e.message);
+  if (typeof e === "string") return parsedObject(e);
+  return e && typeof e === "object" && !Array.isArray(e) ? (e as Record<string, unknown>) : null;
+}
+
+/** A failed response read into an ApiError (its words, and the whole answer behind them). */
+export async function failure(response: Response): Promise<ApiError> {
+  return new ApiError(response.status, (await response.text()) || response.statusText);
+}
+
+/** An error's words: the server's sentence, never the JSON around it. */
+export function errorText(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  const message = e instanceof Error ? e.message : String(e);
+  const said = parsedObject(message);
+  if (!said) return message;
+  return typeof said.error === "string" ? said.error : typeof said.message === "string" ? said.message : message;
 }
 
 export function headers(json: boolean): Record<string, string> {

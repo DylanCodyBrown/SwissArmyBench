@@ -16,6 +16,7 @@ import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { busyClick, loadingBlock } from "./loading";
 import type { Kernel } from "./workbenchKernel";
+import { errorHere } from "./errorNote";
 
 export interface Snapshot {
   busy: boolean;
@@ -64,7 +65,7 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
       await api(`/workbench/kernels/${kernel.id}/grid`, "POST", { name });
       toast(`${name} is open as a grid.`);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
 
@@ -75,7 +76,7 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
       await api(`/workbench/kernels/${kernel.id}/structure`, "POST", { name });
       toast(`${name} is open in Structures.`);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
 

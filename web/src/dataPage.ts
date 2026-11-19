@@ -23,6 +23,7 @@ import { EMPTY_STATE, type Explorer, type ExplorerState, mountExplorer } from ".
 import { toast } from "./dom";
 import { dismissDialog, HOME_WINDOW, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { openVariables } from "./variablesPage";
+import { errorHere } from "./errorNote";
 
 /** The page's name, in one place: the rail, the title. */
 export const DATA = "Data Catalog";
@@ -85,7 +86,7 @@ function drawPage(state: ExplorerState): void {
         gridShower(grid);
         return;
       }
-      if (!window.open(`/g/${encodeURIComponent(grid)}`, HOME_WINDOW)) toast("The browser blocked the grid's window. Allow pop-ups for this address.", "error");
+      if (!window.open(`/g/${encodeURIComponent(grid)}`, HOME_WINDOW)) errorHere("The browser blocked the grid's window. Allow pop-ups for this address.");
     },
     openVariable: () => openVariables(),
   });

@@ -17,6 +17,7 @@ import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDi
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { busyClick, loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
 const fmt = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "number" ? (Number.isFinite(v) ? number.format(v) : "∞") : String(v));
@@ -117,7 +118,7 @@ export async function openRegression(target?: string, predictors: string[] = [],
   };
   const add = async (step: { kind: string; params: Record<string, unknown> } | null): Promise<void> => {
     if (!step) return;
-    await state.addStep(step).then(() => toast("Added as a step."), (e: Error) => toast(e.message, "error"));
+    await state.addStep(step).then(() => toast("Added as a step."), (e: Error) => errorHere(e));
   };
   const checkMisses = async (answer: RegressionResult): Promise<void> => {
     if (!answer.steps.miss) return;
@@ -127,7 +128,7 @@ export async function openRegression(target?: string, predictors: string[] = [],
       await new Promise((resolve) => setTimeout(resolve, 500)); // the grid draws its new column first
       await openOutliers(`miss_${answer.target}`);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
   };
   body.append(

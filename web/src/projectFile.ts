@@ -23,6 +23,7 @@ import { button, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy } from "./loading";
 import { projectTypes, type ProjectType, typeCard } from "./projectTypes";
+import { errorHere } from "./errorNote";
 
 export interface ProjectTable {
   name: string;
@@ -376,7 +377,7 @@ export async function saveProject(): Promise<ProjectState | null> {
     return newProject();
   }
   if (project.read_only) {
-    toast(project.read_only, "error");
+    errorHere(project.read_only);
     return null;
   }
   let keep: Record<string, boolean> | undefined;
@@ -461,7 +462,7 @@ export async function fixTable(problem: Problem, how: { addConnection: (name: st
   }
   await loadProject();
   const still = state.project?.problems.find((p) => p.table === problem.table);
-  if (still) toast(still.message, "error");
+  if (still) errorHere(still);
 }
 
 /** Another program asked to open a project (`swissarmybench open`) while unsaved work is open: ask once. */

@@ -25,7 +25,7 @@
  *          /powerapps/project/new|open|close, /powerapps/sources[/remove], /powerapps/live, /powerapps/push,
  *          /powerapps/custom-connector · DELETE /powerapps/live · notices powerapps_*
  */
-import { api, ApiError, onNotice, type Notice, token } from "./api";
+import { api, ApiError, onNotice, saidOf, type Notice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
@@ -33,6 +33,7 @@ import { busy, busyClick, loadingBlock } from "./loading";
 import { type Missing, promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 import { mountTree, type Value } from "./structureTree";
+import { errorHere } from "./errorNote";
 
 export const CODE_APP = "Code App";
 const TYPE = "codeapp";
@@ -119,18 +120,11 @@ async function call<T>(path: string, method = "GET", body?: unknown, again?: () 
   try {
     return await api<T>(path, method, body);
   } catch (e) {
-    let said: unknown = e;
-    if (e instanceof ApiError) {
-      try {
-        said = JSON.parse(e.message);
-      } catch {
-        said = e;
-      }
-    }
+    const said: unknown = saidOf(e) ?? e;
     const install = async (missing: Missing): Promise<void> => {
       await api("/powerapps/tools/install", "POST", { tool: (missing as Missing & { tool?: string }).tool });
     };
-    if (!promptForError(said, { install, then: again })) toast((e as Error).message, "error");
+    if (!promptForError(said, { install, then: again })) errorHere(e);
     return null;
   }
 }
@@ -144,7 +138,7 @@ function openInWorkbench(path: string, document = false): void {
   const name = "swissarmybench-codeapp-workbench";
   const found = window.open("", name);
   if (!found) {
-    toast("The browser blocked the new window: allow pop-ups for this address.", "error");
+    errorHere("The browser blocked the new window: allow pop-ups for this address.");
     return;
   }
   let there = false;
@@ -378,7 +372,8 @@ function drawPage(): void {
   const dataverseGrid = async (s: Source): Promise<void> => {
     const got = await call<{ opened: boolean; dataset?: string; message?: string }>("/powerapps/dataverse/grid", "POST", { source: s.name });
     if (!got) return;
-    toast(got.opened ? `${got.dataset ?? s.name} is open as a grid.` : (got.message ?? ""), got.opened ? "info" : "error");
+    if (got.opened) toast(`${got.dataset ?? s.name} is open as a grid.`);
+    else errorHere(got.message ?? `${s.name} did not open as a grid.`, { where: s.name });
   };
 
   const drawTree = async (host: HTMLElement): Promise<void> => {
@@ -536,7 +531,7 @@ function drawPage(): void {
 
   const addToApp = async (c: Connector): Promise<void> => {
     if (!state?.project.open) {
-      toast("Open a code app first (Project).", "error");
+      errorHere("Open a code app first (Project).");
       return;
     }
     const got = await call<{ connections: { id: string; display_name: string; status: string }[] }>(`/powerapps/connections?connector=${encodeURIComponent(c.name)}`);

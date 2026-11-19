@@ -14,13 +14,14 @@
  *          [ASKED]    `swissarmybench open <folder>` with unsaved work open: the page asks
  */
 import { api, onNotice, token } from "./api";
-import { button, clear, h, icon, toast } from "./dom";
+import { button, clear, h, icon } from "./dom";
 import { openLayer, PROJECTS_URL, visit, withParams } from "./nav";
 import { newQueryTab, onAgentView, viewingLanding } from "./panes";
 import { answerAsked, autosaveSwitch, closeProject, copyProject, exportOutline, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, privateSwitch, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, setPrivate } from "./projectFile";
 import { PROJECTS } from "./projectsPage";
 import { openFile } from "./openFile";
 import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
+import { errorHere } from "./errorNote";
 
 const WORKBENCH = "swissarmybench-workbench";
 let host: HTMLElement;
@@ -30,7 +31,7 @@ let shownSerial = -1;
 let paste: () => void = () => undefined;
 let connections: { name: string; connection: string; needs_password: unknown; tables_kind?: string | null }[] = [];
 
-const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => toast(e.message, "error"));
+const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
 
 /** Open the Workbench window on `path` (a notebook or script), or bring it forward with that file. */
 export async function openInWorkbench(path?: string): Promise<void> {
@@ -63,7 +64,7 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
     drawGroup(state);
     drawFixes(state);
     draw(state);
-    if (state.asked) void answerAsked().catch((e: Error) => toast(e.message, "error"));
+    if (state.asked) void answerAsked().catch((e: Error) => errorHere(e));
     // A project opened (here, by the agent, a double-click): its tables arrived as tabs; the one in front
     // as it was saved.
     if (state.project && state.project.serial !== shownSerial) {
@@ -173,7 +174,7 @@ function drawGroup(state: ProjectState): void {
   const project = state.project;
   group.hidden = !project;
   if (!project) return clear(group);
-  const autosave = autosaveSwitch(project.autosave, (on) => void setAutosave(on).catch((e: Error) => toast(e.message, "error")));
+  const autosave = autosaveSwitch(project.autosave, (on) => void setAutosave(on).catch((e: Error) => errorHere(e)));
   if (project.autosave_error) autosave.element.title = project.autosave_error;
   // In the Application row (the owner, 2026-11-16): the project's name, then its tools, before Zoom.
   clear(
@@ -184,7 +185,7 @@ function drawGroup(state: ProjectState): void {
     button("Export outline", guard(() => exportOutline()), { icon: "outline", class: "ribbon-btn", title: "ARCHITECTURE.md: the project for someone joining it" }),
     button("Close", guard(() => closeProject()), { icon: "close", class: "ribbon-btn", title: "Close the project" }),
     autosave.element,
-    privateSwitch(project.private === true, (on) => void setPrivate(on).catch((e: Error) => toast(e.message, "error"))),
+    privateSwitch(project.private === true, (on) => void setPrivate(on).catch((e: Error) => errorHere(e))),
   );
 }
 

@@ -26,7 +26,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_response, json_response, read_json, refusal
 from swissarmybench.services.agent import AgentService
 from swissarmybench.services.inbox import Inbox
 
@@ -77,7 +77,7 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
             try:
                 answer = await agent.read_grid(grid, info, offset, limit)
             except duckdb.Error as error:
-                return Response(f"DuckDB: {error}", status_code=400)
+                return refusal(f"DuckDB: {error}", 400)
             if "capped" not in answer:  # nothing to read at that offset: the counts alone
                 return json_response(answer)
             return json_response(answer, max_bytes=ws.settings.max_sql_response_bytes)

@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
 from swissarmybench.services.folders import Folders
 
 
@@ -29,9 +29,9 @@ def routes(folders: Folders) -> list[BaseRoute]:
                 )
             )
         except FileNotFoundError as error:
-            return Response(str(error), status_code=404)
+            return error_as(error, 404)
         except PermissionError as error:
-            return Response(str(error), status_code=403)
+            return error_as(error, 403)
         except Exception as error:
             return error_response(error)
 
@@ -39,11 +39,11 @@ def routes(folders: Folders) -> list[BaseRoute]:
         try:
             return json_response(folders.new_folder(await read_json(request), actor(request)))
         except FileNotFoundError as error:
-            return Response(str(error), status_code=404)
+            return error_as(error, 404)
         except FileExistsError as error:
-            return Response(str(error), status_code=409)
+            return error_as(error, 409)
         except PermissionError as error:
-            return Response(str(error), status_code=403)
+            return error_as(error, 403)
         except Exception as error:
             return error_response(error)
 

@@ -33,7 +33,7 @@
  */
 import { changedOnDisk, drawDiskBar, onFileChanged } from "./fileChanged";
 import { api, onNotice, token, useGrid } from "./api";
-import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
+import { button, clear, h, icon, recall, remember, showMenu, type MenuItem } from "./dom";
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
 import { openMenuButton } from "./openMenu";
@@ -41,6 +41,7 @@ import { go, LAYER_PARAMS, layerShown, type Move, setTitle, visit, withParams } 
 import { renameInPlace } from "./renameTable";
 import { connectionColour, onConnectionColours } from "./connectionColours";
 import { PageState, activate } from "./state";
+import { errorHere } from "./errorNote";
 
 export interface Context {
   id: string;
@@ -602,7 +603,7 @@ async function bringForward(ctx: Context, id: string, mine: number): Promise<voi
     try {
       await ctx.state.load();
     } catch (e) {
-      if (mine === activations && contexts.get(id) === ctx) toast((e as Error).message, "error");
+      if (mine === activations && contexts.get(id) === ctx) errorHere(e);
       return;
     }
     // Another tab was clicked (or this one closed) while this one loaded: the last click wins.
@@ -707,7 +708,7 @@ export async function closeGrid(id: string): Promise<void> {
     await api(`/grids/${encodeURIComponent(id)}`, "DELETE");
   } catch (e) {
     // Already closed on the server (a restart, an agent): just drop the tab.
-    if ((e as { status?: number }).status !== 404) toast((e as Error).message, "error");
+    if ((e as { status?: number }).status !== 404) errorHere(e);
   }
   dropGrid(id);
 }

@@ -10,6 +10,7 @@ import { api } from "./api";
 import { button, h, toast } from "./dom";
 import { saveBlob } from "./profileView";
 import { effectiveTheme } from "./theme";
+import { errorHere } from "./errorNote";
 
 export interface SandboxTheme {
   id: string;
@@ -79,7 +80,7 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
     ),
   );
   select.addEventListener("change", () => {
-    void api("/visualizations/theme", "PUT", { theme: select.value }).then(changed, (e: Error) => toast(e.message, "error"));
+    void api("/visualizations/theme", "PUT", { theme: select.value }).then(changed, (e: Error) => errorHere(e));
   });
   const file = h("input", { type: "file", accept: ".json,application/json", hidden: true, "aria-label": "Theme file" });
   file.addEventListener("change", () => {
@@ -92,7 +93,7 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
         toast(`Imported theme ${added.label}.`);
         changed();
       } catch (e) {
-        toast(e instanceof SyntaxError ? "That file is not JSON." : (e as Error).message, "error");
+        errorHere(e instanceof SyntaxError ? "That file is not JSON." : (e as Error).message);
       }
     });
     file.value = "";
@@ -106,11 +107,11 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
     chosen
       ? button("Export theme", () => saveBlob(new Blob([JSON.stringify({ name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }, null, 2)], { type: "application/json" }), `${chosen.id}.theme.json`), { icon: "export", iconOnly: true, class: "ghost" })
       : null,
-    chosen?.by_agent ? button("Keep this theme", () => void api("/visualizations/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => toast(e.message, "error")), { icon: "save", class: "ghost" }) : null,
+    chosen?.by_agent ? button("Keep this theme", () => void api("/visualizations/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => errorHere(e)), { icon: "save", class: "ghost" }) : null,
     chosen?.custom && !chosen.by_agent
       ? button("Remove this theme", () => {
           if (!confirm(`Remove the theme ${chosen.label}? Visualizations goes back to following the app.`)) return;
-          void api(`/visualizations/themes/${encodeURIComponent(chosen.id)}`, "DELETE").then(changed, (e: Error) => toast(e.message, "error"));
+          void api(`/visualizations/themes/${encodeURIComponent(chosen.id)}`, "DELETE").then(changed, (e: Error) => errorHere(e));
         }, { icon: "trash", iconOnly: true, class: "ghost", title: `Remove ${chosen.label} (a theme you imported)` })
       : null,
     file,

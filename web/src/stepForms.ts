@@ -17,8 +17,9 @@
  *          [SQL STEP]        sqlForm: one SELECT over the table entering the step
  */
 import { api, grid, query, type ColumnInfo, type StepJson } from "./api";
-import { button, h, isBoolType, isDateType, isNumericType, isTextType, openDialog, toast } from "./dom";
+import { button, h, isBoolType, isDateType, isNumericType, isTextType, openDialog } from "./dom";
 import { state } from "./state";
+import { errorHere } from "./errorNote";
 
 type Params = Record<string, unknown>;
 interface Form {
@@ -403,7 +404,7 @@ export function editStep(kind: string, index?: number, preset: Params = {}): voi
   const info = state.info;
   if (!info) return;
   if (kind === "distinct") {
-    void state.addStep({ kind: "distinct", params: {} }).catch((e: Error) => toast(e.message, "error"));
+    void state.addStep({ kind: "distinct", params: {} }).catch((e: Error) => errorHere(e));
     return;
   }
   const existing = index !== undefined ? info.steps[index] : undefined;
@@ -424,7 +425,7 @@ export function editStep(kind: string, index?: number, preset: Params = {}): voi
         await state.addStep({ kind, params });
       }
       const broken = state.info?.step_error;
-      if (broken) toast(`Step ${broken.index + 1}: ${broken.message}`, "error");
+      if (broken) errorHere(`Step ${broken.index + 1}: ${broken.message}`);
       close();
     } catch (e) {
       error.textContent = (e as Error).message;

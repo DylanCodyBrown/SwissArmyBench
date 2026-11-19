@@ -17,10 +17,11 @@ import { datasetName, formDefaults, registerAnalysis, resultButtons, tableName }
 import { cheatSheet } from "./cheatSheets";
 import { openRegression } from "./modelDialog";
 import "./timeSeriesDialog"; // registers Time series and Forecast in the Analyze menu
-import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDialog, toast } from "./dom";
+import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDialog } from "./dom";
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { busyClick, loadingBlock } from "./loading";
+import { errorHere } from "./errorNote";
 
 interface FitRow {
   value: string;
@@ -295,7 +296,7 @@ export async function openOutliers(column?: string): Promise<void> {
   const actions = h("span", { class: "analysis-actions" });
   let steps: { show: Step | null; exclude: Step | null } = { show: null, exclude: null };
   const add = async (step: Step | null): Promise<void> => {
-    if (step) await state.addStep(step).then(close, (e: Error) => toast(e.message, "error"));
+    if (step) await state.addStep(step).then(close, (e: Error) => errorHere(e));
   };
   const show = button("Show these rows", () => void add(steps.show), { icon: "filter", class: "primary", title: "Keep only these rows" });
   const exclude = button("Exclude these", () => void add(steps.exclude), { icon: "exclude", title: "Leave these rows out" });

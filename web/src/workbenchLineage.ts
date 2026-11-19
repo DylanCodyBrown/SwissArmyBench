@@ -16,8 +16,9 @@
  * ROUTING: POST /workbench/lineage (routes_lineage.py)
  */
 import { api } from "./api";
-import { button, clear, h, toast } from "./dom";
+import { button, clear, h } from "./dom";
 import { effectiveTheme } from "./theme";
+import { errorHere } from "./errorNote";
 
 export interface LineageTarget {
   /** A cell of a notebook or script: its path (or, unsaved, its title) and its own number. */
@@ -362,7 +363,7 @@ export async function openLineage(target: LineageTarget, host: LineageHost, into
   } catch (e) {
     close();
     if (into) clear(into, h("p", { class: "error wb-lin-failed" }, (e as Error).message));
-    else toast((e as Error).message, "error");
+    else errorHere(e);
     throw e;
   }
 }

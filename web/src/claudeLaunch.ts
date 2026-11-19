@@ -21,6 +21,7 @@ import { button, h, icon, openDialog, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import type { Command } from "./workbenchCommands";
 import { busyClick } from "./loading";
+import { errorHere } from "./errorNote";
 
 type Kind = "code" | "desktop";
 
@@ -102,7 +103,7 @@ export async function launchClaude(app?: Kind, at?: { x: number; y: number }, co
   try {
     answer = await api<Launched>("/claude/launch", "POST", { ...(app ? { app } : {}), ...(confirmed ? { confirmed } : {}) });
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return;
   }
   if (answer.choose) {
@@ -127,7 +128,7 @@ export async function launchClaude(app?: Kind, at?: { x: number; y: number }, co
     return;
   }
   if (answer.error) {
-    toast(answer.error, "error");
+    errorHere(answer.error);
     return;
   }
   if (answer.launched === "code") toast(`Claude Code started in ${answer.terminal ?? "a terminal"}${answer.bypass ? " (bypass permissions)" : ""}.`);
@@ -217,7 +218,7 @@ async function chooseOther(kind: Kind): Promise<boolean> {
     state = await api<ClaudeState>("/claude", "PUT", { [kind]: path });
     return true;
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return false;
   }
 }
@@ -231,7 +232,7 @@ async function chooseConfig(): Promise<boolean> {
     state = await api<ClaudeState>("/claude", "PUT", { config: { [desktop]: path } });
     return true;
   } catch (e) {
-    toast((e as Error).message, "error");
+    errorHere(e);
     return false;
   }
 }
@@ -273,7 +274,7 @@ export function claudeSection(): HTMLElement {
     try {
       state = await api<ClaudeState>("/claude", "PUT", body);
     } catch (e) {
-      toast((e as Error).message, "error");
+      errorHere(e);
     }
     draw();
   };

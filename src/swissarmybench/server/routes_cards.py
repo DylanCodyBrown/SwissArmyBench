@@ -38,7 +38,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.charts import ChartError
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
 from swissarmybench.services.charts import Cards
 
 
@@ -64,7 +64,7 @@ def routes(cards: Cards) -> list[BaseRoute]:
             grid, info = ws.grid_and_info(request.path_params["grid_id"])
             return json_response(await cards.add(grid, info, await read_json(request), actor(request)))
         except ChartError as error:
-            return Response(str(error), status_code=400)
+            return error_as(error, 400)
         except Exception as error:
             return error_response(error)
 
@@ -79,7 +79,7 @@ def routes(cards: Cards) -> list[BaseRoute]:
             card = cards.get(request.path_params["card_id"])
             return json_response(await cards.update(card, await read_json(request), actor(request)))
         except ChartError as error:
-            return Response(str(error), status_code=400)
+            return error_as(error, 400)
         except Exception as error:
             return error_response(error)
 
