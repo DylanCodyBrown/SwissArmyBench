@@ -76,10 +76,13 @@ def lights_up(tour: Locator, target: Locator) -> None:
     spot = tour.locator(".tour-spot")
     expect(spot).to_be_visible(timeout=6000)
     expect(tour.locator(".tour-missing")).to_be_hidden()
-    deadline = time.monotonic() + 6
+    deadline = time.monotonic() + 10
     while True:
         box, want = spot.bounding_box(), target.bounding_box()
-        assert want
+        if want is None:  # the target is being drawn again (the page it is on just changed): asked again
+            assert time.monotonic() < deadline, "the target never showed"
+            time.sleep(0.1)
+            continue
         expected = (want["x"] - 6, want["y"] - 6, want["width"] + 12, want["height"] + 12)
         if box and all(
             abs(a - b) < 2

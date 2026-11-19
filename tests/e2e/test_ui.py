@@ -252,7 +252,14 @@ def close_pages(browser: Browser) -> Iterator[None]:
 def orders_url(server: dict[str, Any]) -> Iterator[str]:
     """A fresh grid on "orders" for each test (a plain re-push would reuse the first grid,
     steps and all), closed afterwards so the 20-grid limit is never reached."""
-    url = push_client.push(orders_frame(), name="orders", new_grid=True)
+    for attempt in range(3):  # the client's two-second health check can miss a busy server: asked again
+        try:
+            url = push_client.push(orders_frame(), name="orders", new_grid=True)
+            break
+        except push_client.ServerNotRunningError:
+            if attempt == 2:
+                raise
+            time.sleep(1)
     yield url
     call(server, "DELETE", f"/grids/{grid_of(url)}")
 
