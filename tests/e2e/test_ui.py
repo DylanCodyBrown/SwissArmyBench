@@ -751,6 +751,7 @@ def test_chart_clicks_filter_by_date_by_heatmap_cell_and_never_by_a_whole_line(
     call(server, "POST", f"/grids/{grid}/steps", {"steps": []})
     page.locator(".card", has_text="By day").locator(".mark-symbol path").first.dispatch_event("click")
     expect(page.locator(".toast").last).to_contain_text("Filtered the grid to order_date = 2026-")
+    until(lambda: steps())  # the toast can come a moment before the step is in, under load
     assert [s["params"]["op"] for s in steps()] == ["eq"]
     call(server, "POST", f"/grids/{grid}/steps", {"steps": []})
     page.locator(".card", has_text="Cells").locator(".mark-rect path").first.click()

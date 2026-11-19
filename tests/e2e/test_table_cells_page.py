@@ -73,6 +73,13 @@ def source_of(server: dict[str, Any], number: int) -> str:
     return str(next(c["source"] for c in cells if c["number"] == number))
 
 
+def settles_to(server: dict[str, Any], number: int, lines: list[str]) -> None:
+    """The cell's text reads `lines` once the arrange in flight has landed (under load an earlier pause in the
+    typing answers first, so one read right after the first answer can be a step behind)."""
+    until(lambda: source_of(server, number).split("\n") == lines)
+    assert source_of(server, number).split("\n") == lines
+
+
 def test_a_notebook_table_has_a_read_only_cell_that_follows_the_grid(
     browser: Browser, server: dict[str, Any]
 ) -> None:
@@ -196,20 +203,21 @@ def test_the_uses_line_follows_the_typing_and_a_cell_link_goes_to_its_cell(
     expect(user.locator(".view-lines")).to_contain_text(f"# uses sales @cell{number}", timeout=10000)
     with arranged(workbench):
         workbench.keyboard.type(".head(2)")
-    assert source_of(server, 2).split("\n") == [
-        f"# uses sales @cell{number}",
-        "# sales in a comment and 'sales' in a string do not count",
-        "big = sales.head(2)",
-    ]
+    settles_to(
+        server,
+        2,
+        [
+            f"# uses sales @cell{number}",
+            "# sales in a comment and 'sales' in a string do not count",
+            "big = sales.head(2)",
+        ],
+    )
     # A longer name is another name: the line goes when the cell names no table any more.
     for _ in range(len(".head(2)")):
         workbench.keyboard.press("Backspace")
     with arranged(workbench):
         workbench.keyboard.type("_2026")
-    assert source_of(server, 2).split("\n") == [
-        "# sales in a comment and 'sales' in a string do not count",
-        "big = sales_2026",
-    ]
+    settles_to(server, 2, ["# sales in a comment and 'sales' in a string do not count", "big = sales_2026"])
     # Undo takes the typing back; the app does not answer an undo with an edit of its own.
     with arranged(workbench):
         for _ in range(6):
