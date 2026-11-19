@@ -8,10 +8,8 @@ from __future__ import annotations
 
 import contextlib
 import json
-import socket
 import subprocess
 import sys
-import threading
 import time
 import types
 import urllib.request
@@ -23,12 +21,12 @@ import duckdb
 import pandas as pd
 import pyarrow as pa
 import pytest
-import uvicorn
 
 from swissarmybench.client import push_client, watcher
 from swissarmybench.client.watcher import Watcher, find_tables, label_for, resolve
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
+from tests.live_server import running
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -304,25 +302,17 @@ def until(condition: Callable[[], bool], seconds: float = 15.0) -> bool:
 
 @pytest.fixture
 def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Live]:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = int(s.getsockname()[1])
     token = "watch-test-token"
     settings = Settings(
         state_dir=tmp_path / "state", export_dir=tmp_path / "exports", max_total_bytes=256 * 1024 * 1024
     )
-    server = uvicorn.Server(uvicorn.Config(create_app(port, token, settings), port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    assert until(lambda: server.started, 20)
-    info = tmp_path / "server.json"
-    info.write_text(
-        json.dumps({"port": port, "token": token, "max_dataset_bytes": settings.max_dataset_bytes})
-    )
-    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
-    yield Live(port, token)
-    server.should_exit = True
-    thread.join(10)
+    with running(lambda port: create_app(port, token, settings)) as (port, _server):
+        info = tmp_path / "server.json"
+        info.write_text(
+            json.dumps({"port": port, "token": token, "max_dataset_bytes": settings.max_dataset_bytes})
+        )
+        monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+        yield Live(port, token)
 
 
 def test_detect_open_follow_and_stay_closed(live: Live) -> None:

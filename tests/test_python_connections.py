@@ -8,9 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import socket
-import threading
-import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -18,7 +15,6 @@ from typing import Any
 import pandas as pd
 import pyarrow as pa
 import pytest
-import uvicorn
 from starlette.testclient import TestClient
 
 import swissarmybench as sab
@@ -32,6 +28,7 @@ from swissarmybench.server.blade_templates import PYTHON_CONNECT, PYTHON_READ, P
 from swissarmybench.settings import Settings
 from tests.conftest import AGENT, AUTH
 from tests.fake_keyring import memory_keyring
+from tests.live_server import running
 from tests.orders_service import API_KEY, VAULT_CODE, Service
 
 
@@ -607,26 +604,15 @@ TOKEN = "python-connection-token"
 
 @pytest.fixture
 def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[int]:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = int(s.getsockname()[1])
     settings = Settings(
         state_dir=tmp_path / "state", export_dir=tmp_path / "exports", auto_load_catalogs=False
     )
-    server = uvicorn.Server(uvicorn.Config(create_app(port, TOKEN, settings), port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 20
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert server.started
-    info = tmp_path / "server.json"
-    info.write_text(json.dumps({"port": port, "token": TOKEN}))
-    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
-    monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
-    yield port
-    server.should_exit = True
-    thread.join(10)
+    with running(lambda port: create_app(port, TOKEN, settings)) as (port, _server):
+        info = tmp_path / "server.json"
+        info.write_text(json.dumps({"port": port, "token": TOKEN}))
+        monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+        monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
+        yield port
 
 
 def _post(port: int, path: str, body: Any) -> Any:
