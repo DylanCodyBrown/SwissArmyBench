@@ -32,6 +32,7 @@ from swissarmybench.domain.grids import GridLimitError, StaleRequestError
 from swissarmybench.domain.packages import MissingPackagesError
 from swissarmybench.domain.sql_guard import SqlRefused
 from swissarmybench.domain.steps import StepError
+from swissarmybench.domain.variable_refs import MissingVariables
 from swissarmybench.server.beta_requests import report
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, TimedOut
 
@@ -104,7 +105,14 @@ def error_response(error: Exception) -> Response:
     not one of a use case's outcomes goes to the beta log too (redacted: server/beta_requests.py)."""
     response = _error_response(error)
     if not isinstance(
-        error, Refused | NotFound | TimedOut | Conflict | StaleRequestError | MissingPackagesError
+        error,
+        Refused
+        | NotFound
+        | TimedOut
+        | Conflict
+        | StaleRequestError
+        | MissingPackagesError
+        | MissingVariables,
     ):
         report(error, response.status_code)
     return response
@@ -118,6 +126,8 @@ def _error_response(error: Exception) -> Response:
             return Response(str(error), status_code=code)
     if isinstance(error, MissingPackagesError):  # the page's prompt and the agent read the same shape
         return json_response({"error": str(error), "missing": error.missing}, status_code=422)
+    if isinstance(error, MissingVariables):  # 12.7 and 9.5: "NAME is not set on this computer", Set it
+        return json_response(error.to_json(), status_code=422)
     if isinstance(error, DatasetTooLargeError | BodyTooLargeError):
         status = 413
     elif isinstance(error, DatasetLimitError | GridLimitError | StaleRequestError):

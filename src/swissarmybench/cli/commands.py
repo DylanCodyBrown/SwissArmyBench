@@ -3542,6 +3542,24 @@ def variables_remove(a: dict[str, Any]) -> Any:
     return api.call("DELETE", f"/variables/{_q(a['name'])}")
 
 
+@command(
+    "variables_resolve",
+    "A box's ${NAME} as read here (a secret masked); names not set",
+    req("text", "https://${TENANT}.x.com, ${PORT:-5432}; $${X}: the text."),
+)
+def variables_resolve(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/variables/resolve", {"text": a["text"]})
+
+
+@command(
+    "variables_uses",
+    "What reads each variable: connections' fields, code, Run settings",
+    opt("name", "One variable."),
+)
+def variables_uses(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/variables/uses", params={"name": a.get("name")})
+
+
 # ===== beta mode: the beta log and the notes (redacted: no data, SQL, code, secrets or paths) =====
 
 

@@ -62,7 +62,12 @@ from swissarmybench.adapters.state_files import (
 from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
 from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note, take_server_events
-from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
+from swissarmybench.adapters.variables import (
+    ProcessEnvironment,
+    VariableFiles,
+    VariableKeyring,
+    backup_copies,
+)
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
@@ -77,6 +82,7 @@ from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import lifecycle as lifecycle_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
+from swissarmybench.domain import variables as variable_rules
 from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
@@ -813,7 +819,25 @@ def bootstrap(
         read=documents.read,
         run_settings=script_runs,
         kernels=workbench.kernel_count,
+        vault_values=vault_values,
     )
+    connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
+    datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
+    structures.variables = variables
+    api_explorer.variables = variables
+    if audit_log:
+        # Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
+        # variable, its connection's file backed up first; then what saved text now reads a variable (once).
+        today = datetime.now(UTC).date().isoformat()
+        library.notice(
+            "computer",
+            variables.migrate_passwords(backup_copies(state_dir / "backup" / f"before-variables-{today}")),
+        )
+        refs_seen = JsonFile(state_dir / "variable_refs.json")
+        holding = variables.holding() if refs_seen.read() is None else []
+        if holding:  # said once; nothing found writes nothing
+            library.notice("computer", variable_rules.holding_words(holding))
+            refs_seen.write({"listed": today})
 
     # Set up from the meta store: what this computer needs before the team's connections work.
     library_setup = LibrarySetup(

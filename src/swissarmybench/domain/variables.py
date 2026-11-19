@@ -502,3 +502,58 @@ def check_remove(variables: Sequence[Variable], body: Any) -> Variable:
         where = v.owner or v.vault or "this computer's environment"
         raise VariableError(f"{v.name} is not one of this computer's own: it comes from {where}.")
     return v
+
+
+# ===== passwords as variables (12.7: a password field holds a reference) =====
+
+
+@dataclass(frozen=True)
+class PasswordMove:
+    """A connection's own saved password made a variable: its keyring value kept under `variable`, and its
+    code's secret("<secret>") asking for secret("<variable>")."""
+
+    connection: str
+    secret: str
+    variable: str
+
+
+def password_moves(
+    connections: Sequence[ConnectionFacts], defined: Sequence[Defined], vault_names: Iterable[str] = ()
+) -> list[PasswordMove]:
+    """The passwords a connection keeps in its own keyring entry (not yet a variable's): each becomes a
+    keyring variable of the name the page already shows it under (Sales DB, password -> SALES_DB_PASSWORD).
+    A name taken (this computer's own, a vault's, another move's) leaves that one as it is."""
+    taken = {d.name for d in defined} | set(vault_names)
+    out: list[PasswordMove] = []
+    for c in connections:
+        if c.vault or c.read_only:
+            continue
+        for secret in c.secrets:
+            if variable_shaped(secret) or secret in c.sources or secret not in c.saved:
+                continue
+            variable = env_name_for(c.name, secret)
+            if variable in taken:
+                continue
+            taken.add(variable)
+            out.append(PasswordMove(c.name, secret, variable))
+    return out
+
+
+def password_move_words(moves: Sequence[PasswordMove], backup: str) -> str:
+    if not moves:
+        return ""
+    listed = ", ".join(f"{m.connection}'s {m.secret} as {m.variable}" for m in moves[:6])
+    more = f" and {len(moves) - 6} more" if len(moves) > 6 else ""
+    count = "1 password is" if len(moves) == 1 else f"{len(moves)} passwords are"
+    kept = f" Their connections as they were: {backup}." if backup else ""
+    return f"{count} now variables on the Variables page, in this computer's keyring: {listed}{more}.{kept}"
+
+
+def holding_words(found: Sequence[Mapping[str, Any]]) -> str:
+    """The first start's list: saved text that now reads as naming a variable (12.7)."""
+    if not found:
+        return ""
+    listed = "; ".join(f"{f['where']} (${{{f['names'][0]}}})" for f in found[:8])
+    more = f"; and {len(found) - 8} more" if len(found) > 8 else ""
+    said = "These now read a variable where they say ${NAME} (type $${NAME} to keep the text)"
+    return f"{said}: {listed}{more}."

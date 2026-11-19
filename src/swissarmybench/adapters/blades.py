@@ -40,6 +40,7 @@ from swissarmybench.domain.blades import (
     Blade,
     BladeError,
     VaultUnavailableError,
+    env_settings,
     file_name,
     is_blade,
     read_blade,
@@ -643,6 +644,8 @@ class BladeStore:
         """For the secrets the blade asks for and has no saved value for: the vault blades that set
         them (to run first), and the variables a secret blade asks the user for (name -> that blade)."""
         missing = [s for s in blade.secrets if s not in self.saved_secrets(blade)]
+        # A setting's ${NAME} (12.7): the code reads os.environ["NAME"], which a vault's entry may give.
+        missing += [m["variable"] for m in env_settings(blade.code) if m["variable"] not in os.environ]
         vaults: list[Blade] = []
         typed: dict[str, str] = {}
         for other in self.all() if everything is None else everything:

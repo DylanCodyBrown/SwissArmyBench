@@ -147,7 +147,12 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `update_failed.json`, `server_events.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
-  value in the keyring only; the values are set in the server's environment while it runs.
+  value in the keyring only; the values are set in the server's environment while it runs. **`${NAME}` anywhere
+  a value is typed (design principle 12.7, the owner 2026-11-18; domain/variable_refs.py):** resolved at use on
+  each computer, never stored resolved; a connection field is written into its code as `os.environ["NAME"]`, SQL
+  binds it as a parameter, `$${NAME}` is the text; each connection's own saved password became a keyring
+  variable once at start (`backup/before-variables-<date>/`), and `variable_refs.json` marks the one-time list
+  of saved text that now names a variable.
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
   row, value or secret); once a launch made it, its **context.md** (the app's live picture: connections,
@@ -341,6 +346,12 @@ src/swissarmybench/
     library.py           the library's rules: its layout, which folder a blade's file goes in (vaults/,
                          connections/, blades/), README.md and .gitignore, variables.toml and local/variables.toml
                          (sorted, stable), the JSON blades from before it, "<name> from <project>", the notices
+    variable_refs.py     `${NAME}` (12.7): references found (positions, the `$${` escape, `:-default`), resolved in
+                         one pass (MissingVariables: "NAME is not set on this computer", Set it), the preview
+                         (a secret masked), SQL as bound parameters in each driver's style (strings, quoted names
+                         and comments left; a name's place refused), the export form (`os.environ[...]` joined by
+                         `+`) and read back; a vault's secret names as variables. Standard library only
+    blade_suggestions.py a blade's settings' suggestions (other blades' values, the common environment variables)
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)

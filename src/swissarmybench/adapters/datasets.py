@@ -647,8 +647,11 @@ def parse_pasted(text: str, max_bytes: int) -> pa.Table:
 # ===== small things the service layer asks for =====
 
 
-def query_table(cursor: duckdb.DuckDBPyConnection, sql: str) -> pa.Table:
-    """A query's whole result as a table (the "+" tab and the SQL box's CREATE TABLE)."""
+def query_table(cursor: duckdb.DuckDBPyConnection, sql: str, params: list[str] | None = None) -> pa.Table:
+    """A query's whole result as a table (the "+" tab and the SQL box's CREATE TABLE); `params`: the values
+    of its $1, $2 (a ${NAME}'s, bound, 12.7)."""
+    if params:
+        return cursor.sql(sql, params=params).to_arrow_table()
     return cursor.sql(sql).to_arrow_table()
 
 

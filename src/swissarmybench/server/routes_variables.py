@@ -5,6 +5,8 @@ PUT    /variables              {"name", "value", "from", "local"}: add or change
 POST   /variables/rename       {"name", "to"}: renamed, connections and Run settings with it  variables_rename
 DELETE /variables/{name}       a variable of this computer, or a key vault's entry       variables_remove
 POST   /variables/reveal       {"name"}: Show (the user's only: 403 for the agent)
+POST   /variables/resolve      {"text"}: what a box's ${NAME} reads here (a secret masked)  variables_resolve
+GET    /variables/uses         ?name=: what reads each variable (fields by setting, code)    variables_uses
 """
 
 from __future__ import annotations
@@ -46,8 +48,22 @@ def routes(variables: Variables) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    async def resolve(request: Request) -> Response:
+        try:
+            return json_response(variables.preview(await read_json(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def uses(request: Request) -> Response:
+        try:
+            return json_response(variables.uses(request.query_params.get("name")))
+        except Exception as error:
+            return error_response(error)
+
     return [
         Route("/variables", listing, methods=["GET", "PUT"]),
+        Route("/variables/resolve", resolve, methods=["POST"]),
+        Route("/variables/uses", uses, methods=["GET"]),
         Route("/variables/rename", rename, methods=["POST"]),
         Route("/variables/reveal", reveal, methods=["POST"]),
         Route("/variables/{name}", remove, methods=["DELETE"]),

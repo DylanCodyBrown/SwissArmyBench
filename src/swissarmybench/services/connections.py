@@ -48,6 +48,9 @@ class ConnectionService:
         # Connection colours (services/connection_colours.py): a new connection's next free one, and a
         # colour sent with one checked against the rail's.
         self._colours = colours
+        # The Variables page (services/variables.py, set once built): a setting's ${NAME} checked before a
+        # Test runs, so a name not set here is the one error (12.7), not the driver's.
+        self.variable_check: CodeCheck | None = None
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a
@@ -290,6 +293,8 @@ class ConnectionService:
                 settings = self._blades.inspect(body["code"], body.get("template")).get("settings", [])
                 given = rules.name_from_path(rules.file_setting(settings, body.get("template"))) or None
             body = {**body, "name": given or "Untitled"}
+        if self.variable_check is not None and isinstance(body.get("code"), str):
+            self.variable_check.check_code(body["code"], str(body.get("name") or "the connection"))
         result = await self._blades.test_draft(body)
         path = result.pop("path", None)
         if given:
@@ -786,6 +791,10 @@ class Tables(Protocol):
     async def peek(self, path: str, sheet: str | None, rows: int) -> dict[str, Any]: ...
 
     async def read_file(self, path: str, sheet: str | None) -> Any: ...
+
+
+class CodeCheck(Protocol):
+    def check_code(self, code: str, where: str) -> None: ...
 
 
 def _web_api(blade: Blade) -> bool:

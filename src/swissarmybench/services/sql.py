@@ -37,8 +37,10 @@ class SqlBox:
         if not isinstance(text, str) or not text.strip():
             raise ValueError('Send {"sql": "SELECT ... FROM grid"}.')
         row_cap = settings.max_sql_rows
+        # ${NAME} (12.7): a bound parameter, never pasted into the text.
+        bound, params = await self._datasets.bind_sql(text, info.name)
         # A table named through its connection ([Finance Captive].model_Report) is read first.
-        prepared = await self._datasets.prepare_connections(text)
+        prepared = await self._datasets.prepare_connections(bound)
 
         def execute(cur: Any) -> Any:
             # `upto`: while editing step N, `grid` is the table entering that step. A dataset
@@ -63,8 +65,8 @@ class SqlBox:
                 timer.start()
                 try:
                     if guarded.kind == "create":
-                        return guarded, self._reader.query_table(cur, guarded.sql), [], 0.0
-                    result = cur.execute(guarded.sql)
+                        return guarded, self._reader.query_table(cur, guarded.sql, params or None), [], 0.0
+                    result = cur.execute(guarded.sql, params) if params else cur.execute(guarded.sql)
                     names = [d[0] for d in result.description or []]
                     fetched = result.fetchmany(row_cap + 1)
                 finally:

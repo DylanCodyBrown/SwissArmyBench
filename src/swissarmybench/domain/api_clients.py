@@ -26,6 +26,7 @@ import textwrap
 from collections.abc import Iterable
 from typing import Any
 
+from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain.apis import (
     AUTH_TYPES,
     Auth,
@@ -1200,7 +1201,8 @@ def write(spec: Spec, names: Names) -> str:
         ),
         '    """',
         "",
-        f"    BASE_URL = {_lit(spec.base_url)}",
+        # A ${NAME} in the address (12.7): read from the environment where the file runs, never its value.
+        f"    BASE_URL = {refs.python_expr(spec.base_url, _lit)}",
         *_auth_lines(auth),
     ]
     if auth.type == "oauth2":

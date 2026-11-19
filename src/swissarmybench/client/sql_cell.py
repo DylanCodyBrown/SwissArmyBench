@@ -74,7 +74,7 @@ from typing import Any
 
 from swissarmybench.client import blades_client, connection_use, standalone
 from swissarmybench.client.push_client import ServerNotRunningError
-from swissarmybench.domain import dataverse, lakes
+from swissarmybench.domain import dataverse, lakes, variable_refs
 from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
@@ -500,10 +500,47 @@ def _duck_result(relation: Any) -> Any:
         return _frame(list(relation.columns), relation.fetchall())
 
 
+# ===== ${NAME} in a query (12.7): a bound parameter in the driver's own style, never pasted text =====
+
+# How a driver's SQL is read for strings and quoted names (brackets in T-SQL, backslashes in MySQL).
+_SCANNED = {
+    "pyodbc": "tsql",
+    "mssql_python": "tsql",
+    "pymssql": "tsql",
+    "pytds": "tsql",
+    "pymysql": "mysql",
+    "mysql": "mysql",
+    "MySQLdb": "mysql",
+    "mariadb": "mysql",
+    "psycopg": "postgres",
+    "psycopg2": "postgres",
+    "duckdb": "duckdb",
+}
+_NO_PARAMETERS = ("clickhouse_connect", "google.cloud.bigquery", "pyspark")
+
+
+def _bound(sql: str, top: str, style: str) -> tuple[str, Any]:
+    """The query with each ${NAME} as the driver's placeholder, and its values from this Python's
+    environment (a Workbench kernel is given this computer's variables). (sql, None) when it names none."""
+    if "${" not in sql:
+        return sql, None
+    bound = variable_refs.bind_sql(sql, _SCANNED.get(top), style)
+    if not bound.refs:
+        return bound.sql, None
+    return bound.sql, bound.params(os.environ.get, "the query")
+
+
 def _run_database(target: Any, sql: str) -> Any:
     module = type(target).__module__
+    top = module.split(".")[0]
+    if "${" in sql and module.startswith(_NO_PARAMETERS) and variable_refs.find(sql):
+        raise SqlCellError(
+            f"A {top} connection takes no bound parameters, so its query cannot name a variable: a value "
+            "is never pasted into the query's text."
+        )
     if module.startswith("duckdb"):
-        return _duck_result(target.sql(sql))
+        text, params = _bound(sql, "duckdb", "dollar")
+        return _duck_result(target.sql(text, params=params) if params else target.sql(text))
     if module.startswith("clickhouse_connect"):
         return target.query_df(sql)
     if module.startswith("google.cloud.bigquery"):
@@ -513,14 +550,19 @@ def _run_database(target: Any, sql: str) -> Any:
     if module.startswith("sqlalchemy"):
         text = import_module("sqlalchemy").text  # only an engine's own Python has it
 
+        query, values = _bound(sql, "", "named")
         with target.begin() as live:
-            result = live.execute(text(sql))
+            result = live.execute(text(query), values) if values else live.execute(text(query))
             if not result.returns_rows:
                 return f"{result.rowcount} row(s) changed."
             return _frame(list(result.keys()), result.fetchall())
+    query, values = _bound(sql, top, variable_refs.paramstyle_of(sys.modules.get(top)))
     cursor = target.cursor()
     try:
-        cursor.execute(sql)
+        if values:
+            cursor.execute(query, values)
+        else:
+            cursor.execute(query)
         if cursor.description is None:  # an UPDATE, INSERT, CREATE: no rows
             commit = getattr(target, "commit", None)
             if callable(commit):
@@ -573,6 +615,7 @@ def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
     if not _here:
         _here.append(duckdb.connect())
     con = _here[0]
+    text, params = _bound(text, "duckdb", "dollar")
     sql, reads = text, []
     if _DOTTED.search(text):
         try:
@@ -601,7 +644,7 @@ def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
             ):
                 con.register(name, value)
                 registered.append(name)
-        return _duck_result(con.sql(sql))
+        return _duck_result(con.sql(sql, params=params) if params else con.sql(sql))
     finally:
         for name in registered:
             try:
@@ -638,7 +681,8 @@ def _run(found: Connection, text: str) -> Any:
             raise
     _refresh(found)
     _load_named(found, text)
-    return _duck_result(found.target.sql(text))
+    query, params = _bound(text, "duckdb", "dollar")
+    return _duck_result(found.target.sql(query, params=params) if params else found.target.sql(query))
 
 
 def sql(connection_name: str, query: str | None = None) -> Any:

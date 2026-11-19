@@ -886,6 +886,27 @@ tables, so it is not on the Connections page). Click a vault's card for its deta
 - The agent can list them (never a keyring's, a secret's or a vault's value), add and change them, and
   keep a secret in the keyring; it never reads one back. Show is yours only.
 
+### A variable in any box: `${NAME}`
+
+Type `${NAME}` into any box where you type a value: a connection's server, user or password, an API's
+address, a file's path, a script's Run settings, a SQL query. It reads that variable from the Variables page
+at the moment it is used, on this computer, so the value stays out of the files you share and each computer
+fills in its own.
+
+- Mix it with text: `https://${TENANT}.sharepoint.com/sites/${SITE}`. Give a default after `:-`:
+  `${PORT:-5432}` reads 5432 when PORT is not set.
+- **To type the text itself**, double the dollar: `$${NAME}` is the text `${NAME}`. Any other `$` stays as
+  you typed it: `pa$$word`, `Sheet1$`, `[Orders$]`, `${not a name}`.
+- A value that came from a variable is used exactly as it is: a password holding `${X}` stays that text.
+- **In SQL** the value is sent beside the query, never pasted into it, so a value with a quote in it cannot
+  change what the query does. Inside a quoted string or a comment, `${NAME}` is just text. It cannot stand
+  for a table's or a column's name: the app says so.
+- **Not set on this computer**: one message, "NAME is not set on this computer", with **Set it**.
+- What the code your connection makes (and an export) holds is `os.environ["NAME"]`, so on a Function App
+  the app's settings give the value.
+- Passwords you had saved for a connection became variables once, in this computer's keyring
+  (Sales DB's password as `SALES_DB_PASSWORD`), its connection's file backed up first.
+
 ### Your connections in DuckDB SQL
 
 A connection is something that exposes tables, and any DuckDB SQL can name them by the connection: the

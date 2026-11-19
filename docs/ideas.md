@@ -5671,3 +5671,58 @@ the home page". A front-end change on the owner's word.
 - **Smaller rail icons:** 24px (from 28), the item height clamp(34px, (100vh - 40px) / 19, 46px), the current bar
   8px from each end, the Session count moved to sit on the smaller icon's corner; `--rail-w` stays 60px.
 - **The tour** starts from Projects and returns there; a new second card, Projects, lights the mark on the rail.
+
+## A variable anywhere a value is typed: `${NAME}` (the owner, 2026-11-18; Phase A built, branch variable-refs)
+
+The owner: "everything in a connection should have the option for a env variable ... a reserved char that allows
+us to use env variable almost anywhere in the app" (like SSRS's expressions); "The drop downs were for the
+connections ... they take up space when a ${ could be used"; "Let's do it. ${ it is". The rules: design
+principle 12.7. Phase A (the rules, the backend, the agent) is built; Phase B (the forms: one box, `${` offers the
+variables, the preview line, the tour's card) waits for the loading branch.
+
+- **The rules (domain/variable_refs.py, standard library only):** a reference is `${` + NAME + `}` or
+  `${NAME:-default}` (the default literal up to the first `}`: no nesting); `$${NAME}` is the text; anything else
+  is as typed. One pass: a value is never read again. `escape` writes a literal back so reading it gives the same
+  text (a box shows a saved `${` as `$${`).
+- **A connection's fields:** a connection is its code, so a field holding `${NAME}` is written into the code as
+  `os.environ["NAME"]` (`os.environ.get("NAME", "default")`, joined to its text by `+`, `int(...)` for a number)
+  and read back from those shapes as the box's text (`text` beside `value` in every setting). The library, a
+  shared project and an export hold the name; the code reads the value where it runs (the server's environment
+  has every variable's value; a vault's entry runs its vault first: providers counts a setting's names). The older
+  "From an environment variable" mappings (certificate files, SQL Server's places) read as `${NAME:-path}`; the
+  old `{"value", "env"}` form still works until the forms change; `{"text": ...}` is the one box's form.
+- **Not done in a connection string's part** (`Server=...;` inside one literal): refused with a plain message
+  (type the value, or write the connection with keywords). Splitting the literal would not read back as one
+  setting.
+- **Passwords:** a password field is a variable already (`secret("WAREHOUSE_PASSWORD")`). Each connection's own
+  saved password (`secret("password")` in its own keyring entry) became, once at start, a keyring variable of the
+  name the page already showed it under (`SALES_DB_PASSWORD`), the code renamed, the connection files copied to
+  `backup/before-variables-<date>/` first; said once on the page. Its old keyring entry is left (nothing lost). A
+  name already taken leaves that one as it was. A second start finds nothing to move: no byte changes.
+- **SQL:** a reference outside strings, quoted names (`"x"`, `` `x` ``, T-SQL's and the app's `[x]`) and comments
+  (`--`, `/* */`, MySQL's `#`), and dollar-quoted text, is a bound parameter: DuckDB `$1` (the SQL box, the "+"
+  tab, `sab.sql`'s DuckDB), the driver's own PEP 249 paramstyle in a `%%sql` cell (sqlite3 and pyodbc `?`,
+  psycopg `%(p1)s` with every `%` doubled, SQLAlchemy `:p1`); ClickHouse, BigQuery and Spark take none (refused).
+  Where a name goes (after FROM, JOIN, INTO, AS, beside a `.`, glued to a name, before `(`) it is refused, never
+  pasted. **Our own scanner, not sqlglot's tokenizer:** the plain client (a `%%sql` cell in any Python) cannot
+  count on sqlglot, and sqlglot's tokens keep no comment positions; a test checks our string spans against
+  sqlglot's tokens.
+- **Paths, Run settings, an API:** a dataset's file path and a structure's are resolved at use (the dataset's
+  origin keeps the typed text; a structure's open path is the resolved one, as before). Run settings' arguments
+  are resolved from what the run is given (the log keeps the typed text). An API's base address holding `${NAME}`
+  is written into API_<name>.py as `os.environ[...]`; Try it's typed inputs are resolved (its origin keeps the
+  text).
+- **Missing:** one error, 422 `{"error": "NAME is not set on this computer (where).", "where",
+  "missing_variables", "fixes": [{"label": "Set it", "command": "variables_set", "page": "variables", "name"}]}`;
+  a connection's Test checks its settings first; a run that reaches `os.environ["NAME"]` says the same words.
+- **The first start's list:** saved settings whose literal text now reads as `${NAME}` are said once
+  (`variable_refs.json` marks it, written only once something was listed, so a start that finds nothing writes
+  nothing). They still mean the text until the user saves them again.
+- **The agent:** `variables_resolve(text)` (the preview: a secret masked by the same rule as Show; names not set
+  with the error) and `variables_uses(name)` (fields by setting, passwords, code, Run settings).
+- **blades.py kept under 1,500 lines:** its settings' suggestions moved to domain/blade_suggestions.py (blades.py
+  keeps `suggest_settings`, which reads it when asked), a vault's secret names as variables to variable_refs.py
+  (re-exported).
+- **Not built here:** a reference in DAX; a structure's saved path kept as the typed text; static API headers
+  (an API has none beside its sign-in); Streamlit pages and data.py inherit the connection's code, so they read
+  `os.environ` already; a `%%sql` cell's export as a script keeps the cell's text.

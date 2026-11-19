@@ -33,6 +33,25 @@ a variable by its name.
 - `variables_rename(name, to)`: connections' code and Run settings follow; `still_reading` lists the
   notebook and script cells to change. `variables_remove(name)` answers what still uses it.
 
+## `${NAME}`: a variable anywhere a value is typed
+- Every connection field, a password, an API's address and Try it's inputs, a file path, Run settings'
+  arguments and SQL take `${NAME}`, mixed with text (`https://${TENANT}.example.com`), with a default
+  (`${PORT:-5432}`). `$${NAME}` is the literal text `${NAME}`; `pa$$word`, `Sheet1$` and `${not a name}`
+  stay as typed. A value that came from a variable is never read again.
+- A connection field holding one is written into its code as `os.environ["NAME"]` (a default:
+  `os.environ.get("NAME", "5432")`), so the library and an export hold the name, never the value; the
+  form's settings answer `text` (the box's text) beside `value`. Write a setting with
+  `{"<id>": {"text": "${WAREHOUSE_HOST}"}}`. A connection string's part cannot hold one (said).
+- A password field is a variable: `secret("WAREHOUSE_PASSWORD")` reads it from its source here. At the
+  first start each connection's own saved password became a keyring variable (`SALES_DB_PASSWORD`).
+- SQL (a grid's SQL, the "+" tab's query, `%%sql`, `sab.sql`): a `${NAME}` outside strings and comments is
+  sent as a bound parameter; where a table's or a column's name goes it is refused (a name is never
+  pasted in).
+- `variables_resolve(text)`: what a box reads here (a secret masked, never its value), `missing`, and the
+  error. `variables_uses(name)`: what reads it (connections' fields by setting).
+- Not set here: one error, 422 `{"error": "NAME is not set on this computer", "missing_variables",
+  "fixes": [{"label": "Set it", "command": "variables_set", "name"}]}`.
+
 ## Making one
 - `connections_list`: every connection, its type, its name in code, its catalog's state.
 - `connections_types`: each kind's form (fields, passwords, the code they fill). Start from one.
