@@ -100,7 +100,7 @@ function commands(): Command[] {
   out.push(...buttonsOf("Steps", document, ".steps-strip button", (b) => b.classList.contains("steps-count")));
   // Tabs: where to go, what to open, and the table in front.
   out.push(
-    { id: "tabs.visualizations", group: "Tabs", title: "Go to Visualizations", run: () => showAgentView() },
+    { id: "tabs.analyze", group: "Tabs", title: "Go to Analyze", run: () => showAgentView() },
     { id: "tabs.erd", group: "Tabs", title: "Go to ERD", run: () => showErdView() },
     { id: "tabs.workbench", group: "Tabs", title: "Open the Workbench", run: () => openWorkbench() },
     ...gridList().map(({ id, label }): Command => ({ id: `tabs.go.${id}`, group: "Tabs", title: `Go to ${label}`, run: () => { showGridView(); void activateGrid(id); } })),
@@ -125,7 +125,7 @@ function commands(): Command[] {
 
 // ===== the browser's keys, the app's (desktopApp.ts): Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+Shift+T =====
 
-/** Ctrl+W: the tab in front closes (a table's, the query draft); on Visualizations or the ERD the grids come
+/** Ctrl+W: the tab in front closes (a table's, the query draft); on the Analyze board or the ERD the grids come
  *  back; with no tab left, false: the window closes (the shell's own Ctrl+W). */
 function closeTab(): boolean {
   const view = currentView();

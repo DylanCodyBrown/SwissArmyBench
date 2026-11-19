@@ -1,5 +1,5 @@
 /**
- * analysisCards.ts: an analysis result as Visualizations cards that read as a report (Plans/sandbox-report.plan.md,
+ * analysisCards.ts: an analysis result as Analyze cards that read as a report (Plans/sandbox-report.plan.md,
  * S1): a note (a title, the verdict, a table of the key rows, the key numbers in bold, the cautions) and a
  * Plotly chart beside it, the two sized to share one row. Charts name the theme's colors ("theme:accent"),
  * which lazy/plotly.ts resolves when it draws, so they look right in every theme.

@@ -22,10 +22,10 @@ from swissarmybench.services.workspace import Conflict, Workspace
 
 # The page areas an agent may ask for: what the page's own elements are called.
 # The Projects page (the rail's mark, the owner 2026-11-18) while it is open.
-AREAS: tuple[str, ...] = ("app", "ribbon", "grid", "steps", "visualizations", "projects")
-# The old names, one release (the Sandbox is Visualizations, the owner, 2026-11-16; the Start view is the
+AREAS: tuple[str, ...] = ("app", "ribbon", "grid", "steps", "analyze", "projects")
+# The old names, one release (the Sandbox is Visualizations, the owner, 2026-11-16, and Visualizations is Analyze, 2026-11-19; the Start view is the
 # Projects page, 2026-11-18).
-OLD_AREAS: dict[str, str] = {"sandbox": "visualizations", "start": "projects"}
+OLD_AREAS: dict[str, str] = {"sandbox": "analyze", "visualizations": "analyze", "start": "projects"}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 Answer = asyncio.Future[tuple[bytes, dict[str, str]]]

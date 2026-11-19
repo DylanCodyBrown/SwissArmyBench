@@ -20,8 +20,8 @@
  *                Under 1100 pixels the right column opens over the source as a drawer
  *   [HELP]       F1 on a name: a card over the source (Escape or its close button puts it away)
  *
- * Pictures and charts stay in the run's output, each with Send to Visualizations (the owner, 2026-11-14: the
- * Visualizations is where they gather, so the Workbench has no Plots pane of its own).
+ * Pictures and charts stay in the run's output, each with Send to Analyze (the owner, 2026-11-14: the
+ * Analyze is where they gather, so the Workbench has no Plots pane of its own).
  */
 import { button, h } from "./dom";
 

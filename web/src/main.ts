@@ -2,12 +2,12 @@
  * main.ts: the grid page, put together. [EXPORT: bootstrap, composition only]
  *
  * One page holds every open grid: the tab bar and the grid panes (two side by side when split)
- * are panes.ts; everything else here (toolbar, ribbon, steps, Visualizations in the Agent
+ * are panes.ts; everything else here (toolbar, ribbon, steps, Analyze in the Agent
  * tab, SQL box, status bar) is shared and shows the active grid. /g/<id> opens the page on that grid, /workspace on
  * the last one used.
  *
  * COMPOSES: panes (tabs, panes, split) · gridView + selection (one per grid) · ribbon (Table / Column tools) ·
- *           stepsPanel + stepForms (applied steps) · aiPanel (Visualizations) ·
+ *           stepsPanel + stepForms (applied steps) · aiPanel (Analyze) ·
  *           agentAccess (approval popups) · stepsStrip · exportDialog ·
  *           erdView (the ERD tab) · queryTab (the "+" tab: a new table from a query) ·
  *           openMenu (the Open dialog: tables in running Python sessions) ·
@@ -191,7 +191,7 @@ function goToTarget(t: Target, how: Move): boolean {
     showErdView(how);
     return true;
   }
-  if (t.place === "area" && t.area === "visualizations") showAgentView(how);
+  if (t.place === "area" && t.area === "analyze") showAgentView(how);
   else if (t.place === "area" && t.area === "erd") showErdView(how);
   else if (t.place === "area" && t.area === "grids") showGridView(how);
   else return false;
@@ -199,7 +199,7 @@ function goToTarget(t: Target, how: Move): boolean {
 }
 
 /** Follow the agent: its action's area to the front (a move of the app's: the address is replaced), the
- *  object pulsed. The grids, Visualizations and the ERD move here; nothing else does. */
+ *  object pulsed. The grids, Analyze and the ERD move here; nothing else does. */
 function follow(entry: Entry): boolean {
   const t = entry.target;
   if (!t || (t.place === "area" && t.area === "grids")) return false; // a table closed: nothing to show
@@ -337,7 +337,7 @@ async function start(): Promise<void> {
   state.on("info", () => {
     if (!state.info) return;
     title();
-    // The browser tab names the place in front (the table, Visualizations, the ERD); the tab bar names them all.
+    // The browser tab names the place in front (the table, Analyze, the ERD); the tab bar names them all.
     drawTitle();
   });
   // A project folder (startView.ts): the Start view, the project's name and Save, Save as, Close and
@@ -409,7 +409,7 @@ async function start(): Promise<void> {
   // A compare this page was showing before a reload comes back with its split.
   await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();
-  // The view the address named (Visualizations, the ERD, a table), then the dialog over it.
+  // The view the address named (Analyze, the ERD, a table), then the dialog over it.
   await showPlace(opened);
   startNav(opened);
   // Unless the user went somewhere meanwhile (a rail click while the page was starting): only the grids'

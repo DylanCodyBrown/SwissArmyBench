@@ -2,8 +2,8 @@
  * cellMenu.ts: the grid's right-click menus (Plans/sandbox-report.plan.md, S4). gridView.ts says where
  * the click was; this says what can be done there.
  *
- *   [CELL]    Send value to Visualizations, Send the row to Visualizations, Keep these, Exclude these, View value, Copy
- *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Visualizations, Distinct values to Visualizations, Profile, and the Analyze entries for it
+ *   [CELL]    Send value to Analyze, Send the row to Analyze, Keep these, Exclude these, View value, Copy
+ *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Analyze, Distinct values to Analyze, Profile, and the Analyze entries for it
  */
 import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisCards";
 import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
@@ -48,7 +48,7 @@ export function cellCommands(): [string, () => void][] {
     ["Copy", () => void copySelection()],
     ["Keep these", () => void filterByCells(true)],
     ["Exclude these", () => void filterByCells(false)],
-    ["Send value to Visualizations", sendValue],
+    ["Send value to Analyze", sendValue],
   ];
 }
 
@@ -56,8 +56,8 @@ export function mountContextMenus(): void {
   onCellMenu((click) => {
     const where = `${click.column}, row ${(click.row + 1).toLocaleString()}`;
     showMenu(click.x, click.y, where, [
-      ["image", "Send value to Visualizations", () => void cellValue(click.row, click.column).then((value) => sendCards(valueCards(value, where, dataset())))],
-      ["rows", "Send the row to Visualizations", () => void sendCards(rowCards(rowValues(click), click.row, dataset()))],
+      ["image", "Send value to Analyze", () => void cellValue(click.row, click.column).then((value) => sendCards(valueCards(value, where, dataset())))],
+      ["rows", "Send the row to Analyze", () => void sendCards(rowCards(rowValues(click), click.row, dataset()))],
       "-",
       ["filter", "Keep these", () => void filterByCells(true)],
       ["exclude", "Exclude these", () => void filterByCells(false)],
@@ -86,8 +86,8 @@ export function mountContextMenus(): void {
       ["group", "Group by…", () => editStep("group_by", undefined, { keys: cols })],
       ...(nested ? [["rows", "Unnest this column", unnest] as MenuItem] : []),
       "-",
-      ["image", "Profile to Visualizations", () => void profileToSandbox(column)],
-      ["tag", "Distinct values to Visualizations", () => void distinctToSandbox(column)],
+      ["image", "Profile to Analyze", () => void profileToSandbox(column)],
+      ["tag", "Distinct values to Analyze", () => void distinctToSandbox(column)],
       ["profile", "Profile…", () => openColumnProfile(column)],
       "-",
       ["tag", "Odds…", () => void openOdds(column)],

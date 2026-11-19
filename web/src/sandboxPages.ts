@@ -1,5 +1,5 @@
 /**
- * sandboxPages.ts: Visualizations as pages, and moving cards (Plans/sandbox-report.plan.md, S2). [SHARED]
+ * sandboxPages.ts: Analyze as pages, and moving cards (Plans/sandbox-report.plan.md, S2). [SHARED]
  *
  *   [PAGE VIEW]     paginate(): the cards, in their order, on letter or landscape pages with the edges
  *                   drawn. A card keeps its width (12 columns across the page's printable width) and

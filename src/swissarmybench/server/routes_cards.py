@@ -18,11 +18,11 @@
   POST   /dashboards/{name}/open           {"version"?}: make that version what Visualizations shows
   DELETE /dashboards/{name}                delete it and its versions
 
-  GET    /visualizations/themes            the themes Visualizations can take, and its current one
-  PUT    /visualizations/theme             {"theme": id or "app"}: Visualizations' theme (not the grid's)
-  POST   /visualizations/themes            a theme file {"name", "dark", "tokens"}: the user's is kept on
+  GET    /analyze/themes                   the themes the Analyze board can take, and its current one
+  PUT    /analyze/theme                    {"theme": id or "app"}: the board's theme (not the grid's)
+  POST   /analyze/themes                   a theme file {"name", "dark", "tokens"}: the user's is kept on
                                            disk; the agent's is proposed (in memory) until the user keeps it
-  DELETE /visualizations/themes/{id}       remove one of the user's themes
+  DELETE /analyze/themes/{id}            remove one of the user's themes
 Saving writes to disk and opening replaces what the user is looking at: those three are the user's
 click, so they refuse the agent, which may list and read them.
 
@@ -171,6 +171,11 @@ def routes(cards: Cards) -> list[BaseRoute]:
             return error_response(error)
 
     return [
+        Route("/analyze/themes", list_themes),
+        Route("/analyze/theme", set_theme, methods=["PUT"]),
+        Route("/analyze/themes", add_theme, methods=["POST"]),
+        Route("/analyze/themes/{theme_id}", remove_theme, methods=["DELETE"]),
+        # The old addresses, one release (Visualizations is the Analyze page, 2026-11-19).
         Route("/visualizations/themes", list_themes),
         Route("/visualizations/theme", set_theme, methods=["PUT"]),
         Route("/visualizations/themes", add_theme, methods=["POST"]),

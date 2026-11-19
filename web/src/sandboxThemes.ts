@@ -1,8 +1,8 @@
 /**
- * sandboxThemes.ts: Visualizations' own theme (server: domain/themes.py, GET/PUT /visualizations/theme).
+ * sandboxThemes.ts: the Analyze board's own theme (server: domain/themes.py, GET/PUT /analyze/theme).
  *
  * A theme is a set of the page's colour tokens (--bg, --fg, --accent, --cat-1..8, ...). They are set on
- * Visualizations' element only, so its cards, charts, Page view, PDF and markdown pictures take the theme
+ * the Analyze board's element only, so its cards, charts, Page view, PDF and markdown pictures take the theme
  * while the grid keeps the app's. "Follow the app" removes them again. Every built-in theme (and every
  * imported one, once the server has made it readable) meets its contrast.
  */
@@ -37,7 +37,7 @@ export function sandboxTheme(): SandboxTheme | null {
   return current;
 }
 
-/** Whether Visualizations draws on a dark ground: its theme's, or the app's when it follows the app. */
+/** Whether Analyze draws on a dark ground: its theme's, or the app's when it follows the app. */
 export function sandboxDark(): boolean {
   return current ? current.dark : effectiveTheme() !== "light" && effectiveTheme() !== "hc-light";
 }
@@ -63,24 +63,24 @@ export function applySandboxTheme(host: HTMLElement, theme: SandboxTheme | null)
 }
 
 export async function loadThemes(): Promise<Themes> {
-  return api<Themes>("/visualizations/themes");
+  return api<Themes>("/analyze/themes");
 }
 
 /** The theme picker, Import theme…, Export theme and, for a theme the user imported, Remove this theme:
- *  Visualizations' toolbar. The built-in themes cannot be removed. */
+ *  the Analyze board's toolbar. The built-in themes cannot be removed. */
 export function themeControls(themes: Themes, changed: () => void): HTMLElement {
   const groups = new Map<string, SandboxTheme[]>();
   for (const t of themes.themes) groups.set(t.group, [...(groups.get(t.group) ?? []), t]);
   const select = h(
     "select",
-    { "aria-label": "Visualizations theme", title: "Visualizations theme" },
+    { "aria-label": "Board theme", title: "Board theme" },
     h("option", { value: "app", selected: themes.current === "app" }, "Theme: follow the app"),
     ...[...groups.entries()].map(([group, list]) =>
       h("optgroup", { label: group }, ...list.map((t) => h("option", { value: t.id, selected: t.id === themes.current, title: t.note }, `${t.label}${t.by_agent ? " (agent)" : ""}`))),
     ),
   );
   select.addEventListener("change", () => {
-    void api("/visualizations/theme", "PUT", { theme: select.value }).then(changed, (e: Error) => errorHere(e));
+    void api("/analyze/theme", "PUT", { theme: select.value }).then(changed, (e: Error) => errorHere(e));
   });
   const file = h("input", { type: "file", accept: ".json,application/json", hidden: true, "aria-label": "Theme file" });
   file.addEventListener("change", () => {
@@ -88,8 +88,8 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
     if (!picked) return;
     void picked.text().then(async (text) => {
       try {
-        const added = await api<SandboxTheme>("/visualizations/themes", "POST", JSON.parse(text));
-        await api("/visualizations/theme", "PUT", { theme: added.id });
+        const added = await api<SandboxTheme>("/analyze/themes", "POST", JSON.parse(text));
+        await api("/analyze/theme", "PUT", { theme: added.id });
         toast(`Imported theme ${added.label}.`);
         changed();
       } catch (e) {
@@ -107,11 +107,11 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
     chosen
       ? button("Export theme", () => saveBlob(new Blob([JSON.stringify({ name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }, null, 2)], { type: "application/json" }), `${chosen.id}.theme.json`), { icon: "export", iconOnly: true, class: "ghost" })
       : null,
-    chosen?.by_agent ? button("Keep this theme", () => void api("/visualizations/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => errorHere(e)), { icon: "save", class: "ghost" }) : null,
+    chosen?.by_agent ? button("Keep this theme", () => void api("/analyze/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => errorHere(e)), { icon: "save", class: "ghost" }) : null,
     chosen?.custom && !chosen.by_agent
       ? button("Remove this theme", () => {
-          if (!confirm(`Remove the theme ${chosen.label}? Visualizations goes back to following the app.`)) return;
-          void api(`/visualizations/themes/${encodeURIComponent(chosen.id)}`, "DELETE").then(changed, (e: Error) => errorHere(e));
+          if (!confirm(`Remove the theme ${chosen.label}? Analyze goes back to following the app.`)) return;
+          void api(`/analyze/themes/${encodeURIComponent(chosen.id)}`, "DELETE").then(changed, (e: Error) => errorHere(e));
         }, { icon: "trash", iconOnly: true, class: "ghost", title: `Remove ${chosen.label} (a theme you imported)` })
       : null,
     file,

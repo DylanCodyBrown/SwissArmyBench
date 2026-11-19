@@ -7,13 +7,13 @@
  *             icon size just a bit so more fit. and give this button its own page for projects"): the
  *             Projects page (projectsPage.ts, open=projects, the home page's only); from another window it
  *             brings the home window forward showing Projects (nav.ts goHome). Alt+Home is the same.
- *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids, only the grids), Visualizations, ERD, Notebooks,
+ *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids, only the grids), Analyze, ERD, Notebooks,
  *             Scripts, Apps (the Streamlit canvas), Blades, Connections, Session (what the agent made this
  *             session, a count of what is new on its icon: sessionPage.ts), and Extensions
  *             (extensionsPage.ts) and Settings pinned at the bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours.
  *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
- *             rail should land on a page not open a form"): the grids, Visualizations, the ERD, a kind's
+ *             rail should land on a page not open a form"): the grids, Analyze, the ERD, a kind's
  *             landing page in the Workbench (workbenchLanding.ts), the blades page, the Connections page
  *             and the Settings page (areaPage.ts, over the page you are on: open=connections,
  *             open=settings).
@@ -21,7 +21,7 @@
  *             Back, Forward and a reload work. Connections and Settings show their pages where the page
  *             has them. An area another page shows takes this tab there (the owner, 2026-11-16: "the
  *             rail icons is opening a new tab every time instead of navigating the current page"): the
- *             home page for the grids, Visualizations and the ERD; the Workbench for notebooks, scripts and apps
+ *             home page for the grids, Analyze and the ERD; the Workbench for notebooks, scripts and apps
  *             (code still never sits in the grid page); the blades page.
  *   [KINDS]   Notebooks, Scripts and Apps land on that kind's page in the Workbench (?kind=notebook&
  *             view=list): its documents as cards, open ones first; New is on that page's panel, never in
@@ -37,8 +37,8 @@
  *   [AGENT]   app_navigate's areas run here (setAreaRunner), as a click would (new_window too).
  *
  * Another window's area reaches the window that shows it as a message from this origin ({sab: "area"});
- * a window opened for it is given the area in its address (?view=visualizations, ?open=settings, ?kind=script).
- * The Sandbox is Visualizations and the Diagram the ERD (the owner, 2026-11-16): the old ?view=sandbox
+ * a window opened for it is given the area in its address (?view=analyze, ?open=settings, ?kind=script).
+ * The Sandbox is Analyze and the Diagram the ERD (the owner, 2026-11-16): the old ?view=sandbox
  * and ?view=diagram still land there (panes.ts), and the address is replaced with the new word.
  */
 import { token } from "./api";
@@ -58,7 +58,7 @@ import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 
-export type Area = "projects" | "grids" | "visualizations" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
+export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -85,7 +85,7 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "apps", name: "Apps", icon: "page", kind: "app", plugin: () => canvasOn("streamlit") },
   // An extension's area the backend names (GET /app/areas), as VS Code's activity bar has it.
   { area: "scm", name: SCM, icon: "source-control", plugin: scmOn },
-  { area: "visualizations", name: "Visualizations", icon: "sandbox" },
+  { area: "analyze", name: "Analyze", icon: "sandbox" },
   { area: "session", name: "Session", icon: "session" }, // what the agent made this session (sessionPage.ts)
   // What plugs into the base (extensionsPage.ts), above Settings at the bottom (the owner, 2026-11-17).
   { area: "extensions", name: EXTENSIONS, icon: "extensions" },
@@ -110,7 +110,7 @@ function currentArea(url: URL): Area | null {
   if (kind === "catalog") return "blades";
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
   const view = kind === "home" ? url.searchParams.get("view") : null;
-  if (view === "visualizations" || view === "sandbox") return "visualizations";
+  if (view === "analyze" || view === "visualizations" || view === "sandbox") return "analyze";
   if (view === "erd" || view === "diagram") return "erd"; // the old words, one release
   if (view === "start") return "projects"; // the old Start view's address (one release): Projects
   return "grids"; // the grids (and the steps and Key Finder windows, which are a grid's)
@@ -118,7 +118,7 @@ function currentArea(url: URL): Area | null {
 
 /** A home window opened for `area`: the area in its address. */
 function arrivalUrl(area: Area): string {
-  if (area === "visualizations" || area === "erd") return `${HOME_URL}?view=${area}`;
+  if (area === "analyze" || area === "erd") return `${HOME_URL}?view=${area}`;
   if (area === "projects") return PROJECTS_URL;
   if (isLayer(area)) return `${HOME_URL}?open=${area}`;
   return HOME_URL;
@@ -161,7 +161,7 @@ export function goArea(area: Area, newWindow = false): void {
     visit(withParams({ ...LAYER_OFF, kind: k, view: "list" }));
     return;
   }
-  if (kind === "home" && (area === "grids" || area === "visualizations" || area === "erd")) {
+  if (kind === "home" && (area === "grids" || area === "analyze" || area === "erd")) {
     visit(withParams({ ...LAYER_OFF, view: area === "grids" ? null : area }, HOME_URL));
     return;
   }

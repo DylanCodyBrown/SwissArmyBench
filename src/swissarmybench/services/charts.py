@@ -40,9 +40,9 @@ from swissarmybench.services.workspace import NotFound, Refused, Workspace
 _TABLE_CARD_ROWS: int = 100
 _TABLE_CARD_COLUMNS: int = 50
 _CELL_CHARACTERS: int = 1_000
-_ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Visualizations"}
+_ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Analyze"}
 # A card saved before the Sandbox became Visualizations (2026-11-16) is badged with the new name.
-_ORIGIN_NOW: dict[str, str] = {"Sandbox": "Visualizations"}
+_ORIGIN_NOW: dict[str, str] = {"Sandbox": "Analyze", "Visualizations": "Analyze"}
 # A diagram is Mermaid text (an ERD from GET /relationships/erd, or any flowchart), drawn by the page.
 # Graphviz is DOT text; Plotly and ECharts are a figure as JSON text; an image is a data: URL. The page
 # draws each (web/src/lazy/), so the server only checks that the text is there and not too big.
@@ -338,10 +338,10 @@ class Cards:
 
     async def set_theme(self, theme_id: Any, who: str) -> dict[str, Any]:
         if theme_id != themes.APP and (not isinstance(theme_id, str) or self._theme_by_id(theme_id) is None):
-            raise NotFound(f"No Visualizations theme {theme_id!r}: GET /visualizations/themes lists them.")
+            raise NotFound(f"No Visualizations theme {theme_id!r}: GET /analyze/themes lists them.")
         self._theme = str(theme_id)
         await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
-        self.ws.audit.write(who, "visualizations_theme", self._theme)
+        self.ws.audit.write(who, "analyze_theme", self._theme)
         return {"current": self._theme}
 
     async def add_theme(self, raw: Any, who: str) -> dict[str, Any]:
@@ -633,7 +633,7 @@ class Cards:
                 "grid": None,
                 "dataset": saved.get("dataset"),
                 "frozen": saved.get("frozen") or {},
-                "origin": _ORIGIN_NOW.get(saved.get("origin") or "", saved.get("origin")) or "Visualizations",
+                "origin": _ORIGIN_NOW.get(saved.get("origin") or "", saved.get("origin")) or "Analyze",
                 "pinned": bool(saved.get("pinned")),
                 "new_page": bool(saved.get("new_page")),
                 "created_by": saved.get("created_by") or who,
@@ -704,7 +704,7 @@ class Cards:
                 "key": key,
                 "grid": grid,
                 "dataset": dataset,
-                "origin": _ORIGINS.get(origin, "Visualizations"),
+                "origin": _ORIGINS.get(origin, "Analyze"),
                 "pinned": False,
                 "new_page": False,
                 "created_by": who,

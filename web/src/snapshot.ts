@@ -25,7 +25,7 @@ const AREAS: Record<string, string> = {
   ribbon: ".ribbon",
   grid: ".panes",
   steps: ".steps-strip", // the panel opens in its own window; the grid page shows the strip
-  visualizations: "#ai-panel",
+  analyze: "#ai-panel",
   projects: '.area-page[data-page="projects"]', // the Projects page (projectsPage.ts), while it is open
 };
 

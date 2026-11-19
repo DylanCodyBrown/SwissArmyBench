@@ -175,7 +175,7 @@ export const STOPS: readonly Stop[] = [
   {
     icon: "fit",
     word: "Analyze",
-    line: "Statistics on the table in front: odds, outliers, fit tests, regression, time series and forecasts. Each asks a few questions in a short form, and its results go to Visualizations or copy as Python. Click Analyze in the Table row.",
+    line: "Statistics on the table in front: odds, outliers, fit tests, regression, time series and forecasts. Each asks a few questions in a short form, and its results go to Analyze or copy as Python. Click Analyze in the Table row.",
     clue: "Odds, outliers, fit tests, regression and forecasts on the table in front.",
     place: { grid: "orders" },
     target: ['.ribbon [aria-label="Analyze"]'],
@@ -252,11 +252,11 @@ export const STOPS: readonly Stop[] = [
   },
   {
     icon: "image",
-    word: "Visualizations",
-    line: "Charts, notes, tables and diagrams on one board you arrange. Send any analysis result here, save boards as dashboards, or print the page. Click Visualizations on the rail.",
-    clue: "Charts, notes and diagrams on one board.",
-    place: { area: "visualizations" },
-    target: ["#ai-panel .add-step", "#ai-panel"],
+    word: "Analyze",
+    line: "Every analysis across the top, in everyday words: the table is already picked, so you usually only press Run. Each result lands on the board below, with charts, notes and your own cards; save it as a dashboard or print it. Click Analyze on the rail.",
+    clue: "Every analysis in one place; each result lands on the board.",
+    place: { area: "analyze" },
+    target: ["#ai-panel .analyze-toolbar", "#ai-panel"],
   },
   {
     icon: "session",

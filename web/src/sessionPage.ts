@@ -10,7 +10,7 @@
  *   [FILTER]  The agent (the default) | Me | Both, remembered per viewer.
  *   [FOLLOW]  a switch here and in Settings (the server's, kept across restarts; the agent reads it and is
  *             refused the change). On: each agent action brings its area to the front in the home window
- *             (main.ts setFollower: the grids, Visualizations, the ERD), the object scrolled to and pulsed;
+ *             (main.ts setFollower: the grids, Analyze, the ERD), the object scrolled to and pulsed;
  *             a cell's in the Workbench window (workbenchPage.ts). Off: nothing moves.
  *   [WAIT]    never while the user types in a box, has a dialog open, or reads a page of the rail's
  *             (Session, Settings, Connections): the latest action waits until they leave it; the rail's
@@ -57,7 +57,7 @@ const WHO: { who: Who; label: string }[] = [
 ];
 const AREA_NAMES: Record<string, string> = {
   grids: "Grids",
-  visualizations: "Visualizations",
+  analyze: "Analyze",
   erd: "ERD",
   notebooks: "Notebooks",
   scripts: "Scripts",
@@ -70,7 +70,7 @@ const AREA_NAMES: Record<string, string> = {
 };
 const AREA_ICONS: Record<string, string> = {
   grids: "grids",
-  visualizations: "sandbox",
+  analyze: "sandbox",
   erd: "diagram",
   notebooks: "notebook",
   scripts: "code",
@@ -233,9 +233,9 @@ onNotice((notice: Notice) => {
 
 function arrivalUrl(t: Target): string {
   if (t.place === "grid" && t.grid) return `/g/${encodeURIComponent(t.grid)}`;
-  if (t.place === "card") return `${HOME_URL}?view=visualizations`;
+  if (t.place === "card") return `${HOME_URL}?view=analyze`;
   if (t.place === "relationship") return `${HOME_URL}?view=erd`;
-  if (t.place === "area" && (t.area === "visualizations" || t.area === "erd")) return `${HOME_URL}?view=${t.area}`;
+  if (t.place === "area" && (t.area === "analyze" || t.area === "erd")) return `${HOME_URL}?view=${t.area}`;
   return HOME_URL;
 }
 
@@ -256,7 +256,7 @@ export function goToTarget(t: Target | null): void {
     else location.assign(`/catalog?blade=${encodeURIComponent(t.name)}`);
     return;
   }
-  if (t.place === "area" && t.area && !["grids", "visualizations", "erd"].includes(t.area)) {
+  if (t.place === "area" && t.area && !["grids", "analyze", "erd"].includes(t.area)) {
     runArea(t.area === "project" ? "projects" : t.area); // the project: the Projects page (projectsPage.ts)
     return;
   }

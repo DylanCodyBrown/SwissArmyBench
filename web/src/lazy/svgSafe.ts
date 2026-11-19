@@ -27,7 +27,7 @@ export function contained(svg: string): Node {
 }
 
 /** A theme token as a hex colour (Mermaid's theming reads no other form), resolved where the drawing
- *  goes, so Visualizations' own theme (or the app's) colours it. Unreadable: the fallback. */
+ *  goes, so the Analyze board's own theme (or the app's) colours it. Unreadable: the fallback. */
 export function token(where: HTMLElement, name: string, fallback: string): string {
   const probe = document.createElement("span");
   probe.style.color = `var(${name}, ${fallback})`;
@@ -38,7 +38,7 @@ export function token(where: HTMLElement, name: string, fallback: string): strin
   return rgb ? `#${rgb.slice(1, 4).map((v) => Number(v).toString(16).padStart(2, "0")).join("")}` : fallback;
 }
 
-/** The theme's eight series colours, read where the drawing goes (Visualizations' own theme there). */
+/** The theme's eight series colours, read where the drawing goes (the Analyze board's own theme there). */
 export function themePalette(where: Element = document.documentElement): string[] {
   const style = getComputedStyle(where);
   return [1, 2, 3, 4, 5, 6, 7, 8].map((i) => style.getPropertyValue(`--cat-${i}`).trim()).filter(Boolean);
