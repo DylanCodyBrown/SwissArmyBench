@@ -57,8 +57,6 @@ let listening = false;
 let errorTimes: number[] = [];
 
 export const betaOn = (): boolean => state?.on === true;
-export const betaState = (): BetaState | null => state;
-
 /** Called when beta mode goes on or off (here or in another window). */
 export function onBeta(listener: (on: boolean) => void): void {
   listeners.push(listener);

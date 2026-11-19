@@ -19,7 +19,7 @@
  * ROUTING: GET /apis/choices; POST /apis/preview (as the form changes); POST /apis/try (Try it: an
  *          operation's first rows, nothing written); POST /apis (Add)
  */
-import { api, errorText } from "./api";
+import { api } from "./api";
 import { promptForError } from "./missingPackages";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";

@@ -169,11 +169,6 @@ export function closePlacedLineage(): void {
   placed?.close();
 }
 
-/** Close the lineage overlay, if one is open. */
-export function closeLineage(): void {
-  open?.close();
-}
-
 /** Open the lineage overlay for a cell or a block, or (`into`: the Data mode's Lineage view) the same
  *  flow drawn in place inside that element. What it shows, for the agent. */
 export async function openLineage(target: LineageTarget, host: LineageHost, into?: HTMLElement): Promise<LineageGraph> {

@@ -213,7 +213,6 @@ function onKey(e: KeyboardEvent): void {
 }
 
 function item(area: (typeof AREAS)[number]): HTMLButtonElement {
-  const grids = area.area === "grids";
   const element = h(
     "button",
     {

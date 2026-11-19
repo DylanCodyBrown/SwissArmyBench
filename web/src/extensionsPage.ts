@@ -17,7 +17,7 @@ import { api, headers, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog } from "./dom";
 import { extensionPanel } from "./extensionPanel";
-import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
+import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { busyClick } from "./loading";
 import { errorNote } from "./errorNote";
 
@@ -66,13 +66,6 @@ onNotice((n) => {
   const said = n as unknown as { id: string; action: "install" | "remove" };
   started(said.id, said.action);
 });
-
-/** The Extensions page, opened by the user (the rail's icon). */
-export function openExtensions(): void {
-  if (shownPage?.open) return;
-  layerOpened("extensions");
-  drawPage();
-}
 
 /** A change handed over (the user's click, or the agent's after Allow): the card follows the restart. */
 function started(id: string, action: "install" | "remove"): void {

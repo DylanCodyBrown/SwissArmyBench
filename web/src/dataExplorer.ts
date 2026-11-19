@@ -24,7 +24,7 @@
  * ROUTING: GET /explorer/search  GET /explorer/browse  POST /connections/{name}/open|preview|catalog
  *          GET /grids/{id}/rows  POST /workbench/window {command: "cell.insertBelow" | "explorer.insert"}
  */
-import { api, errorText, onNoticeWhile, token } from "./api";
+import { api, onNoticeWhile, token } from "./api";
 import { DROP_TYPE } from "./catalogRail";
 import { queryInNotebook } from "./connectionTree";
 import { type BrowseAnswer, mountBrowse } from "./dataBrowse";

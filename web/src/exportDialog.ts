@@ -9,7 +9,7 @@
  *          [DOWNLOAD]                 -> exportNow(false)
  *          [SAVE TO FOLDER]           -> exportNow(true)
  */
-import { ApiError, api, download, grid, query } from "./api";
+import { api, download, grid, query } from "./api";
 import { button, h, openDialog, toast } from "./dom";
 import { saveBlob } from "./profileView";
 import { selection, shownTotal } from "./gridView";

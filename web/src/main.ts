@@ -77,7 +77,6 @@ import { editStep } from "./stepForms";
 import { mountStepsStrip } from "./stepsStrip";
 import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
-import { setGridZoom, stepZoom } from "./theme";
 import { installVariableAnywhere } from "./variableAnywhere";
 import { errorHere, errorNote, errorToast } from "./errorNote";
 

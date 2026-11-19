@@ -15,8 +15,7 @@
  *
  * ROUTING: PUT /streamlit/apps/{app}/settings, GET /streamlit/apps/{app}/session (routes_streamlit.py)
  */
-import { button, clear, h, icon } from "./dom";
-import { kindIcon, kindOfPath } from "./kindColours";
+import { button, clear, h } from "./dom";
 import { canvasPane, type CodePlan, type Inspected } from "./canvasPane";
 import type { CanvasView } from "./workbenchCanvas";
 import type { ModeFrame } from "./workbenchModes";

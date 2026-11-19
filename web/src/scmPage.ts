@@ -33,7 +33,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import type { DiffViewer } from "./lazy/codeEditor";
-import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
+import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { graph, INCOMING_ID, REF_COLOR, REMOTE_REF_COLOR, type HistoryItem, type Ref, type ViewModel, viewModels } from "./scmGraph";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorToast } from "./errorNote";
@@ -285,12 +285,6 @@ registerLayer(KEY, {
     if (shownPage) dismissDialog(shownPage);
   },
 });
-
-export function openScm(): void {
-  if (shownPage?.open) return;
-  layerOpened(KEY);
-  drawPage();
-}
 
 onNotice((n) => {
   if (n.type === "sync_changed" || n.type === "project_changed" || n.type === "projects_changed") redraw?.();

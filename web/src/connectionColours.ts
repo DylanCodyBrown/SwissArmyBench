@@ -17,7 +17,7 @@
  * (routes_connection_colours.py); the `connection_colours_changed`, `blades_changed` and
  * `kind_colours_changed` notices.
  */
-import { api, errorText, onNotice } from "./api";
+import { api, onNotice } from "./api";
 import { h } from "./dom";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorHere } from "./errorNote";

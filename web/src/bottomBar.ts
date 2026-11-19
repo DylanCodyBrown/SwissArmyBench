@@ -8,7 +8,7 @@
  *          [LIVE]           -> setLive(): words only while the page is not live
  *          [LAUNCH CLAUDE]  -> claudeLaunch.ts: Claude Code in a terminal or Claude Desktop, with the context
  */
-import { api, type Budget } from "./api";
+import { type Budget } from "./api";
 import { mountAppFooter } from "./appFooter";
 import { clear, formatCount, h } from "./dom";
 import { showTables } from "./openMenu";

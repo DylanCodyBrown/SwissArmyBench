@@ -25,13 +25,13 @@
  *          /powerapps/project/new|open|close, /powerapps/sources[/remove], /powerapps/live, /powerapps/push,
  *          /powerapps/custom-connector · DELETE /powerapps/live · notices powerapps_*
  */
-import { api, ApiError, onNotice, saidOf, type Notice, token } from "./api";
+import { api, onNotice, saidOf, type Notice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { type Missing, promptForError } from "./missingPackages";
-import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
+import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { mountTree, type Value } from "./structureTree";
 import { errorHere, errorNote } from "./errorNote";
 
@@ -107,12 +107,6 @@ registerLayer(TYPE, {
     if (shownPage) dismissDialog(shownPage);
   },
 });
-
-export function openCodeApp(): void {
-  if (shownPage?.open) return;
-  layerOpened(TYPE);
-  drawPage();
-}
 
 /** A call whose missing tool puts the install prompt in the user's face (Install runs this system's
  *  command on the server); any other failure is said in a toast. */
@@ -498,7 +492,7 @@ function drawPage(): void {
         item.addEventListener("click", () => {
           left.querySelectorAll(".current").forEach((x) => x.classList.remove("current"));
           item.classList.add("current");
-          showOperation(got, c, op, right);
+          showOperation(c, op, right);
         });
         group.append(item);
       }
@@ -514,7 +508,7 @@ function drawPage(): void {
   const tree = (title: string, value: Value, schema: boolean): HTMLElement =>
     h("div", { class: "api-tree-block" }, h("h4", {}, title), mountTree(value, { depth: 3, schema, label: title }).element);
 
-  const showOperation = (got: Explored, c: Connector, op: Operation, right: HTMLElement): void => {
+  const showOperation = (c: Connector, op: Operation, right: HTMLElement): void => {
     const service = `${c.name.replace(/^shared_/, "").replace(/^./, (x) => x.toUpperCase())}Service`;
     const inputs = op.parameters.length
       ? h("table", { class: "api-params" }, h("thead", {}, h("tr", {}, ...["Name", "Where", "Type", "Required", "Description"].map((t) => h("th", {}, t)))), h("tbody", {}, ...op.parameters.map((p) => h("tr", {}, h("td", { class: "mono" }, p.name), h("td", {}, p.in), h("td", {}, p.type), h("td", {}, p.required ? "yes" : ""), h("td", {}, p.description)))))

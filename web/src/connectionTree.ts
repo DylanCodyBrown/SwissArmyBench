@@ -14,7 +14,7 @@
  *          POST /connections/{name}/open-dataset {dataset}   POST /connections/{name}/relationships
  *          POST /workbench/window {command: "cell.insertBelow"}
  */
-import { api, errorText } from "./api";
+import { api } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";

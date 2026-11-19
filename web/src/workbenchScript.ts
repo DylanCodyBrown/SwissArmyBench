@@ -701,13 +701,6 @@ export function scriptView(
     return true;
   };
 
-  /** The marker of the cell a line is in ("" when it is in none). */
-  const lineAbove = (line: number): string => {
-    const lines = (editor ? editor.value() : text).split("\n");
-    for (let at = Math.min(line, lines.length); at >= 1; at--) if (/^# ?(%%|region Tables|endregion)/.test(lines[at - 1]!)) return lines[at - 1]!;
-    return "";
-  };
-
   const statementAt = async (line: number): Promise<Statement> => {
     try {
       return await api<Statement>("/workbench/statement", "POST", { code: editor ? editor.value() : text, line });
