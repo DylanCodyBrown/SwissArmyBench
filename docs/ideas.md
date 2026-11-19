@@ -6126,3 +6126,51 @@ Left:
 - Forecast's predictors, a time series' split by a category and a fit test against given shares are not in
   the form (the lower-level tools have them).
 - Cancel stops a run's own queries; a tie-out or Key Finder in flight finishes unseen and lands nothing.
+
+## Everyday comforts (the owner approved the feel survey, 2026-11-19; built, branch feel-b)
+
+The survey's items 3, 4, 5, 6, 10, 11 and 14. Decisions:
+- **Filter by ticking values (3).** The Filter form starts on the selected column (the Table row's Filter
+  too, not the first column) and, for text and numbers, on "is one of" with a checklist: the column's values
+  most common first with their row counts, a search box (any case, a plain substring: `%` is text), Select
+  all over what is shown, the ticks kept while searching. Blanks are not a value to tick ("is blank" is its
+  own condition); the foot says how many. The values are the view entering the step being edited (`upto`).
+  `GET /grids/{id}/values?column=&search=&limit=&upto=` (200 by default, 2,000 at most, `more` when cut),
+  kept by view key in Profiles' cache; the agent's `column_values` (tool budget 86,600).
+- **Keyboard shortcuts (4).** `?` outside a text box and Ctrl+/ outside an editor (Monaco keeps Ctrl+/ for a
+  comment) open one sheet built from the same command list as the palette (8.3): every command with keys, by
+  group, with a find box. The Workbench registers it as `help.shortcuts` (the agent's workbench_window too).
+- **The palette (5).** The grid page lists the ribbon's rows, Steps, Cell and Tabs first; Application,
+  Analyze, Launch Claude, updates and beta after. The steps strip's buttons were listed twice (as the ribbon's
+  Transformations row and as Steps): once now, as Steps. Any group and title appears once. A command that
+  cannot run shows its reason in its row (not only a tooltip). The recently used (the last 8, this browser's
+  localStorage, every read and write in try/catch) come first, in both the grid page's and the Workbench's.
+- **Undo after a removal (6).** Closing a tab ("Closed orders · Undo": tabs_reopen's route), removing a column
+  or keeping only some ("Removed the column region"), removing a step, clearing the steps: a toast with Undo,
+  bound to that grid's own steps whichever grid is in front by then. toast() was already able to carry it.
+- **A header's numbers (10).** Resting on a header for 450 ms shows a card from the column's profile (the
+  server keeps it by view; the page keeps each answer for the same steps): type, blanks, distinct, range,
+  mean, a 20-bin histogram (dates: by month) or the three most common values. The native tooltip went. The
+  bars are muted, not brand red. **The status bar:** id-like columns (domain/grids.py `id_like`: a whole-number
+  column named id, `*_id`, `*Id`, key, code, no, num, number) are counted, never summed or averaged; Sum shows
+  the columns' scale (`display_digits`: integers 0, DECIMAL its scale, floats 2), Average at least two; a
+  small fraction keeps four significant digits. `cell_selection_stats` answers `id_like` and `digits`.
+- **Copy with headers and as Markdown (11).** The cell menu (and the palette's Cell group) has Copy, Copy with
+  headers and Copy as Markdown; with no selection the one cell under its column's name. The export gained
+  `format=md` (domain/export.py `markdown_table`: pipes escaped, line breaks as `<br>`, number columns
+  right-aligned). A right-click into a block no longer collapses it to the clicked cell (the focus change
+  counted as a keyboard move).
+- **Run feedback (14).** A cell's head shows "Running… 3 s" once a run passes a second, then the time it took
+  ("320 ms", "4.2 s", "2 min 5 s"). The first run gates the cell with loading.ts's busy() "Starting Python…"
+  (8.12); Kernel.ensure() now shares one start between callers, so two runs never start two kernels. A cell
+  that has run keeps its Name box showing (faint) instead of only on hover or selection.
+
+Release notes (pending):
+- Filter lists a column's values with their counts: tick the ones to keep, search to find one.
+- Press ? for every keyboard shortcut.
+- The command palette leads with the table's commands and the ones you used lately, and says why a command is off.
+- Closing a tab, removing a column or a step, and clearing the steps can be undone from the message they leave.
+- Rest the pointer on a column header to see its numbers and a small histogram.
+- The status bar never sums an id column, and shows Sum and Average to the column's scale.
+- Copy with headers and Copy as Markdown on a cell's menu.
+- A notebook cell shows how long it ran, and says "Starting Python…" on the first run.

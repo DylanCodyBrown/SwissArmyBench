@@ -17031,8 +17031,8 @@ body:has(> .tour) > .context-menu {
 .header-card-bars span {
   flex: 1;
   border-radius: 1px 1px 0 0;
-  background: var(--accent);
-  opacity: 0.75;
+  background: var(--muted);
+  opacity: 0.6;
 }
 
 .header-card-top {

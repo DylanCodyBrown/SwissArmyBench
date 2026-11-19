@@ -3521,3 +3521,24 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
   toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
   test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
+
+## Everyday comforts (2026-11-19, branch feel-b)
+- **Python (tests/test_everyday_comforts.py):** id_like over 15 names and types (camelCase, separators,
+  "paid", "valid", "monkey" not ids; a DOUBLE never one); display_digits for integers, DECIMAL scales and
+  floats; selection stats leaving ids out of Sum and Average and still counting them; a column's values most
+  common first with blanks counted apart, search in any case with `%` as plain text, limit and `more`, the
+  view entering a step (`upto`), refusals (an unknown column names the view's columns, no column, no token);
+  the agent's column_values; markdown_table's escaping, alignment and line breaks; a selection exported as
+  `format=md`. tests/test_sql_step_and_selection.py's Sum over every number cell now leaves the id out (520,
+  not 575).
+- **Browser (tests/e2e/test_everyday_comforts_page.py, Chromium):** Filter on the selected column with "is
+  one of", four values with counts, search narrowing, two ticked, the step keeping 20 of 60 rows; ? and
+  Ctrl+/ opening the shortcuts, the find box, Escape; the palette's first group the table's, Undo listed once
+  with its reason in the row, the command just run first next time; Remove from a header's menu and Undo,
+  Close a tab and Undo reopening it; the header card's range and 20 bars, a text column's most common value,
+  an id column's status bar with no Sum, a price's Sum to two places; Copy as Markdown and Copy with headers
+  of a 2 x 2 block read back from the clipboard; a notebook cell gated with "Starting Python…", "Running…
+  N s", then "N.N s", its Name box showing. tests/e2e/test_grid_palette.py follows the steps strip listed once.
+- **Not checked:** Edge and the desktop app (Chromium here); the shortcuts sheet with the Workbench's Jupyter
+  command mode keys in a long session; the header card on a 100-column table's horizontal scroll; values of
+  DECIMAL and TIMESTAMP columns ticked in the checklist (they go through JSON as the profile's top values do).

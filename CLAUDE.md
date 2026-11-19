@@ -855,7 +855,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          sandboxDashboards.ts saving and opening the board as named dashboards;
                          sandboxThemes.ts the board's own theme (tokens on its element only);
                          sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
-                         markdown export; cellMenu.ts the right-click menus on cells and headers;
+                         markdown export; cellMenu.ts the right-click menus on cells and headers
+                         (Copy, Copy with headers, Copy as Markdown); headerCard.ts a column's numbers on
+                         resting over its header (its profile: range, blanks, distinct, a histogram);
                          tour.ts is the first-time tour (on the Projects page only: a card per
                          place in the rail's order that goes there and lights up the real control,
                          two made-up tables staged and closed again, back to where it started; then
@@ -924,7 +926,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchCellsPane.ts (App mode's Streamlit cells panel: every cell that calls
                          Streamlit, by name: dragged onto a canvas), workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
-                         workbenchCommands.ts (every window action by one name: the palette, the keys, and
+                         workbenchCommands.ts (every window action by one name: the palette (recent first), the keys (? lists
+                         them: the shortcuts sheet, the grid page's too), and
                          the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command
                          mode), workbenchScript.ts, workbenchConsole.ts (each document's console),
                          workbenchKernel.ts (runs), workbenchOutputs.ts (outputs drawn as they arrive:

@@ -601,6 +601,9 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
         const column = event.column.getColId();
         if (!cellMenu || [MARKER, FILLER, ROWNUM].includes(column) || event.rowIndex == null) return;
         if (!selection.hasCell(event.rowIndex, column)) selection.selectCells(event.rowIndex, column, false);
+        // A pointer press, as a left one is: the focus moving must not collapse the selection to this cell
+        // (onCellFocused), or Copy as Markdown on a block would copy one cell.
+        lastPointerDown = Date.now();
         gridApi?.setFocusedCell(event.rowIndex, column);
         const mouse = event.event as MouseEvent | null;
         cellMenu({ row: event.rowIndex, column, data: (event.data ?? {}) as Record<string, unknown>, x: mouse?.clientX ?? 0, y: mouse?.clientY ?? 0 });

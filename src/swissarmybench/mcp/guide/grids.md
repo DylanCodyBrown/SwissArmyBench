@@ -23,6 +23,10 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 ## Reading
 - `tabs_get`: columns, every step with its index and id, settings, the view's row count.
 - `table_profile` (`dataset=` for a table with no grid), `column_profile`, `table_header_stats`.
+- `column_values`: a column's values with their row counts, most common first (`search`, `limit`, `upto`):
+  the Filter form's checklist. Pick from it, then `table_filter` with `op: "in"`.
+- `cell_selection_stats` leaves id-like columns (`order_id`, `CustomerKey`) out of Sum and Average (`id_like`
+  names them) and gives `digits` to show each to its scale. `table_export` takes `format: "md"` (a Markdown table).
 - `row_read(format="csv", start, end)`: the rows as the user sees them, up to 1,048,576 a read; it
   starts with `row_count`, so page with start and end. `cell_view` gives one long value.
 - `steps_run_sql`: one DuckDB SELECT; `grid` is the view after its steps, an open table by its name is
