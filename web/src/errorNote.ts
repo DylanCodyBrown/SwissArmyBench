@@ -66,7 +66,8 @@ function firstSentence(message: string): string {
 
 /** The connection's own page (its card's detail on the Connections page): Sign in and Open its settings. */
 function openConnection(name: string): void {
-  void import("./connectionsWindow").then((m) => m.openConnections({ detail: name }));
+  // By its address (nav.ts): the Connections page's layer opens on the card's detail, as a link to it does.
+  void import("./nav").then((nav) => nav.visit(nav.withParams({ open: "connections", at: "detail", type: null, name })));
 }
 
 /** A fix the server named (9.5's shape: {label, action, ...}) as a button, or null for one this page cannot do

@@ -105,6 +105,7 @@ def test_a_missing_variable_is_one_error_with_set_it() -> None:
     assert shape["missing_variables"] == ["NOPE", "OTHER"]
     assert shape["fixes"][0] == {
         "label": "Set it",
+        "action": "set_variable",
         "command": "variables_set",
         "page": "variables",
         "name": "NOPE",

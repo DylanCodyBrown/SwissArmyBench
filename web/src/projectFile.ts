@@ -98,7 +98,8 @@ function tellAutosave(read: ProjectState): void {
     const name = read.project!.name;
     errorToast(
       { what: `Autosave could not save ${name}.`, where: read.project!.folder, details: failed! },
-      () => void import("./nav").then((nav) => nav.go(nav.withParams({ open: null, view: "grids" }, nav.HOME_URL), "push")),
+      // Show: the project's group (the Application row: Save, Autosave), on this grid page or the Grids page.
+      () => void import("./nav").then((nav) => nav.visit(location.pathname.startsWith("/g/") ? nav.withParams({ open: null }) : nav.withParams({ open: null, view: "grids" }, nav.HOME_URL))),
       { fixes: [{ label: "Save now", icon: "save", run: () => void saveProject().catch((e: unknown) => errorToast(e)) }] },
     );
   }

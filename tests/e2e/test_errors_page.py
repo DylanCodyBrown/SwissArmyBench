@@ -9,7 +9,6 @@ is the same component as a warning. Screenshots light and dark into SAB_ERROR_SH
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import sqlite3
 from pathlib import Path
@@ -129,7 +128,7 @@ def test_a_background_failure_is_the_same_note_in_a_toast_with_show(
         shot(page, "error-toast-dark.png")
         toast.get_by_role("button", name="Show").click()
         expect(page.locator(".toast.toast-note")).to_have_count(0)
-        expect(page).to_have_url(re.compile(r"view=grids"))
+        expect(page.locator(".app-row").get_by_text("Autosave")).to_be_visible()  # the project's group
     finally:
         (target / ".sab").unlink(missing_ok=True)
         page.context.close()

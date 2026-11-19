@@ -261,7 +261,8 @@ def test_an_oversized_upload_is_refused_before_it_is_read_whole(tmp_path: Path) 
             assert too_big.status_code == 413
             client.post(f"/snapshots/{request['id']}/error", content=b"x" * 10_000, headers=AUTH)
             thread.join(10)
-    assert result["response"].status_code == 502 and len(result["response"].text) < 500
+    # The one refusal shape: its sentence and the page's words as details, never the 10 kB sent.
+    assert result["response"].status_code == 502 and len(result["response"].text) < 1000
 
 
 def test_a_grid_page_also_counts_as_an_open_page(client: TestClient) -> None:

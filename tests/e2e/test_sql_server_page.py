@@ -129,7 +129,7 @@ def test_a_failing_card_says_why_and_import_relationships_fills_the_model(
         expect(works.locator(".connection-card-about")).to_contain_text("mssql-python")
         shot(page, "sql-server-cards")
         failing.click()
-        expect(dialog.locator(".error-note")).to_contain_text("Networking")
+        expect(dialog.locator(".error-note", has_text="Networking").first).to_be_visible()
         shot(page, "sql-server-failing")
         page.get_by_role("button", name="Back to Connections").first.click()
         works.click()

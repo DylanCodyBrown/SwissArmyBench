@@ -91,7 +91,7 @@ def test_two_folders_marks_filter_new_share_and_a_local_copy(tmp_path: Path) -> 
         assert (copy / ".sab" / "project.json").is_file() and not (copy / ".sab" / "data").exists()
         assert not (copy / ".git").exists() and (local / "Q3 review" / ".sab" / "data").is_dir()
         again = client.post("/projects/share", json={"path": str(local / "Q3 review")}, headers=AUTH)
-        assert again.status_code == 409 and '"Q3 review 2" is free' in again.text
+        assert again.status_code == 409 and '"Q3 review 2" is free' in again.json()["error"]
         ok(client.post("/project/close", json={"discard": True}, headers=AUTH))
 
         # Make a local copy of a shared project: copied_from, no rows; a name taken asks for another.
@@ -99,7 +99,7 @@ def test_two_folders_marks_filter_new_share_and_a_local_copy(tmp_path: Path) -> 
         taken = client.post(
             "/projects/copy-local", json={"path": str(shared / "Cession close")}, headers=AGENT
         )
-        assert taken.status_code == 409 and '"Cession close 2" is free' in taken.text
+        assert taken.status_code == 409 and '"Cession close 2" is free' in taken.json()["error"]
         body = {"path": str(shared / "Cession close"), "name": "Cession close mine"}
         copied = ok(client.post("/projects/copy-local", json=body, headers=AGENT))
         mine = local / "Cession close mine"
