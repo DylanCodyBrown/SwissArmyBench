@@ -106,11 +106,11 @@ function kindColoursSection(): HTMLElement {
 /** What an agent needs to connect: paste it into Claude Code (or any agent that has a shell). The
  * command is the one the installers put on PATH (uv tool install of the wheel). */
 export const MCP_PROMPT = [
-  "Connect the grid MCP server so you can work on my local data grids:",
+  "Connect the Swiss Army Bench MCP server so you can work on my local data:",
   "1. Run: claude mcp add --scope user swissarmybench -- swissarmybench-mcp",
   "   (another agent: add an MCP server over stdio whose command is swissarmybench-mcp)",
   "2. Reconnect your MCP servers (/mcp in Claude Code).",
-  "3. Call its guide tool first; it explains the grids and the tools.",
+  "3. Call its guide tool first; it explains the app and its tools.",
 ].join("\n");
 
 async function copyMcpPrompt(): Promise<void> {

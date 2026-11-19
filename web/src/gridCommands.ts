@@ -205,10 +205,28 @@ function mountAppKeys(): void {
 /** Find data… (Ctrl+K): the Data Explorer's search in a dialog over the grids (dataExplorer.ts, the same
  *  component as the Workbench's pane), so finding data does not need the Workbench. Insert goes into the
  *  Workbench's selected cell; Open the Data Explorer opens its window with the same search. */
+let closeFindData: (() => void) | null = null;
+
 export function openFindData(): void {
   if (document.querySelector("dialog.find-data[open]")) return;
   const { dialog, body, foot, close } = openDialog("Find data", true);
   dialog.classList.add("find-data");
+  closeFindData = close;
+  dialog.addEventListener("close", () => {
+    if (closeFindData === close) closeFindData = null;
+  });
+  // One Escape closes it, text or not: a search box's own Escape only cleared its text and the dialog
+  // stayed over the page, holding the next keys (feel-a, 2026-11-19).
+  dialog.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key !== "Escape" || !(event.target instanceof HTMLInputElement) || event.target.type !== "search") return;
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    },
+    true,
+  );
   const explorer = mountExplorer({
     insert: async (r) => {
       const got = await api<{ result: { document: string; cell: number | null } }>("/workbench/window", "POST", { command: "explorer.insert", args: { insert: r.insert, name: r.name } });
@@ -249,8 +267,9 @@ export function mountGridCommands(): void {
     }
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "p") return;
     event.preventDefault();
-    // A menu left open would sit over the palette.
+    // A menu left open would sit over the palette, and Find data's modal dialog would hold the keys.
     document.querySelector(".menu")?.remove();
+    closeFindData?.();
     openPalette();
   });
 }

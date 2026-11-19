@@ -837,7 +837,7 @@ function tabFor(id: string): HTMLElement {
       },
     },
     inSplit ? h("span", { class: "split-mark", "aria-label": "side by side" }, "◫") : null,
-    h("span", { class: "tab-label", title: "Double-click to rename the table" }, label(id)),
+    h("span", { class: "tab-label", title: `${label(id)}: double-click to rename` }, label(id)),
     changedOnDisk(contexts.get(id)!.dataset) ? h("span", { class: "tab-changed", title: "Changed on disk", "aria-label": "Changed on disk" }) : null,
     closeButton(id, selected),
   );

@@ -209,7 +209,7 @@ export function updatesSection(): HTMLElement {
     void checkNow().finally(() => {
       checking.disabled = false;
     });
-  }, { icon: "import", class: "primary update-check-now" });
+  }, { icon: "import", class: "line update-check-now" });
   return h(
     "fieldset",
     { class: "fieldset updates-fieldset" },

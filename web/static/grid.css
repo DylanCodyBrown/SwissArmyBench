@@ -2491,15 +2491,17 @@ button.link {
   min-width: 0;
 }
 
+/* A tab's basis is its least width, so the row fills before it wraps: at 1024px nine tables still sit
+   on one row, each as wide as the row allows (up to 200px, the name ellipsed). Wrapping is for many. */
 .tab-item {
   display: flex;
-  flex: 0 1 auto;
+  flex: 1 1 76px;
   align-items: center;
   gap: 4px;
-  max-width: 240px;
-  min-width: 90px;
+  max-width: 200px;
+  min-width: 76px;
   height: 32px;
-  padding: 0 4px 0 12px;
+  padding: 0 4px 0 10px;
   border: 1px solid transparent;
   border-bottom: 0;
   border-radius: 8px 8px 0 0;
@@ -2514,6 +2516,7 @@ button.link {
 }
 
 .tab-item.active {
+  flex: 0 0 auto; /* the table in front shows its whole name (up to the tab's widest) */
   margin-bottom: -1px;
   border-color: var(--border);
   background: var(--bg);
@@ -2549,6 +2552,12 @@ button.link {
 .tab-item:hover .tab-close,
 .tab-item.active .tab-close {
   opacity: 1;
+}
+
+/* A tab's close button is the active or hovered tab's (the room is its name's otherwise), as a browser's
+   narrow tabs; the keyboard still reaches it (focus-within). */
+.tab-item:not(.active):not(.in-split):not(:hover):not(:focus-within) .tab-close {
+  display: none;
 }
 
 .tab-end {
@@ -6501,6 +6510,11 @@ body.wb-dragging-tab * {
   background: var(--accent-soft);
 }
 
+/* "No matches": inside the list's inset, as an item's words sit. */
+.wb-palette-list > li.hint {
+  padding: 8px 12px 4px;
+}
+
 .wb-palette-item.off {
   opacity: 0.5;
 }
@@ -10083,6 +10097,8 @@ body.has-rail .area-page {
 
 .settings-page > .fieldset {
   margin: 0;
+  /* A box as tall as its row's tallest keeps its own lines at the top, never spread over the height. */
+  align-content: start;
 }
 
 /* ----- the Connections page: a card each ----- */
@@ -10786,7 +10802,7 @@ body.sql-window dialog[open] textarea.code-input {
 
 .claude-side {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr) auto;
+  grid-template-columns: 8.5em minmax(0, 1fr) auto; /* the two rows line up; the path has the room */
   align-items: center;
   gap: 6px 10px;
 }
