@@ -3521,3 +3521,13 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
   toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
   test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
+
+## The Python cleanup (2026-11-19, branch opt-clean)
+- The unit suite (no browser tests): 4,422 passed, 31 skipped, 1 failed: test_desktop_shell's browser test,
+  only because this worktree had no built page yet; after `npm run build` the file passes (2/2). ruff, ruff
+  format --check, mypy (861 files), tests/test_architecture.py green.
+- tests/test_atomic_files.py: eight writers and a reader on one file at once (every read parses, the end is one
+  writer's whole document, no temporary left), 0o600 kept over a file left readable, an existing file's mode
+  kept, a new one the umask's, a failed zip leaves the old file and no temporary.
+- Not run: the browser tests (tests/e2e) on this branch; nothing under web/ changed. Not checked on Windows:
+  os.replace over a file another process holds open (the hand-written blocks had the same exposure).
