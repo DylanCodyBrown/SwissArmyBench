@@ -345,6 +345,21 @@ textarea {
   resize: vertical;
 }
 
+/* A badge after words on a line (a relationship's "inactive", "in use") keeps a space from them. */
+.set-text .badge {
+  margin-left: 6px;
+}
+
+/* Search boxes look like the other inputs (the Variables page's had the browser's own border, feel-a);
+   :where() keeps this at no weight, so a search box styled by its own class keeps its own look. */
+:where(input[type="search"]) {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -6673,6 +6688,47 @@ body.wb-dragging-tab * {
   padding: 3px 6px;
   border-bottom: 1px solid var(--border);
   border-radius: 8px 8px 0 0;
+}
+
+/* A cell's kind and connection: quiet pickers like the head's other tools, not the browser's own
+   boxes (feel-a). A border shows on hover and focus; the chevron is drawn in the theme's muted colour. */
+.wb-cell-head > select {
+  min-height: 24px;
+  padding: 1px 22px 1px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 12px) 55%,
+    calc(100% - 8px) 55%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  color: var(--fg);
+  font-size: 0.92em;
+  appearance: none;
+  cursor: pointer;
+}
+
+.wb-cell-head > select:hover,
+.wb-cell-head > select:focus-visible {
+  border-color: var(--border-strong);
+  background-color: var(--row-hover);
+}
+
+.wb-cell-head > select option {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+@media (forced-colors: active) {
+  .wb-cell-head > select {
+    border-color: ButtonText;
+    background-image: none;
+    appearance: auto;
+  }
 }
 
 .wb-cell-head .spacer,

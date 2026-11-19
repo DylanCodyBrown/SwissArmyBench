@@ -289,7 +289,9 @@ const SEEN = "tour.seen";
 /** How long a card waits for its control before it says it is not here. */
 const WAIT_MS = 2500;
 
-/** The Projects page's Tour button, with the "New here?" bubble until the tour is opened once. */
+/** The Projects page's Tour button: one button. On a first visit it is the "New here? Take the tour" bubble
+ *  (with Not now); once the tour was opened or put off, the plain Tour button in its place (feel-a: the two
+ *  side by side said the same thing twice). */
 export function tourButton(): HTMLElement {
   const btn = button("Tour", () => openTour(), {
     icon: "help",
@@ -304,14 +306,14 @@ export function tourButton(): HTMLElement {
     h("button", { type: "button", class: "tour-bubble-go", onclick: () => openTour() }, "New here? Take the tour"),
     button("Not now", () => markSeen(), { icon: "close", iconOnly: true, class: "ghost" }),
   );
-  btn.classList.add("tour-new");
+  btn.hidden = true;
   return h("span", { class: "tour-slot" }, btn, bubble);
 }
 
 function markSeen(): void {
   remember(SEEN, "1");
   document.querySelectorAll(".tour-bubble").forEach((b) => b.remove());
-  document.querySelectorAll(".tour-new").forEach((b) => b.classList.remove("tour-new"));
+  document.querySelectorAll<HTMLElement>(".tour-slot .tour-btn").forEach((b) => (b.hidden = false));
 }
 
 /** The first visible element for any of `selectors`, in their order, or null. */

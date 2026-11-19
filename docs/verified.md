@@ -3521,3 +3521,19 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
   toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
   test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
+
+## Feel, part A (2026-11-19, branch feel-a)
+
+- Checked: tests/test_errors.py (DuckDB 2.0's "Table with name X does not exist!" wording, the system-table
+  guess dropped, a close name kept, the open table's fix); tests/test_sql_sees_grids.py against a running server
+  and a real kernel (the grid's view with its steps as Arrow, any case, 404 in the refusal shape; `sab.sql` with
+  no connection reads it, a step removed is seen by the next query, this Python's own table wins, an unknown name
+  keeps DuckDB's error; a Workbench SQL cell reads it, and a typo's error comes once, without `pg_`);
+  tests/e2e/test_feel_polish_page.py in Chromium (the SQL cell and its error, a Python cell's Add its table cell,
+  nine tabs on one row at 1024px, the palette's empty line, Find data's Escape and Ctrl+Shift+P, Settings,
+  the Variables search box, the ERD's status bar, the cell pickers).
+- DuckDB 2.0: a grid's cursor can hold an unfinished result from the view cache's work, so `cursor.sql(...)`
+  refused ("unfinished result from execute()"); the view is read with `execute(...).to_arrow_reader()` (its
+  copy warning silenced there) and written batch by batch.
+- Not checked: the desktop app's Qt WebEngine (Chromium only); the screen-reader reading of the hidden tab
+  close buttons (they reach the keyboard by focus-within).

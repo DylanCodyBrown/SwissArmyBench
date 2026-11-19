@@ -104,8 +104,9 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         row = page.locator('.area-page[data-page="projects"]')
         expect(row).to_be_visible()
         bubble = row.locator(".tour-bubble")
-        expect(bubble).to_contain_text("New here?")  # a first visit
-        row.get_by_role("button", name="Tour", exact=True).click()
+        expect(bubble).to_contain_text("New here?")  # a first visit: the one tour button is the bubble
+        expect(row.get_by_role("button", name="Tour", exact=True)).to_have_count(0)
+        bubble.get_by_role("button", name="New here? Take the tour").click()
         tour = page.get_by_role("dialog", name="Tour")
         expect(tour).to_contain_text("Hi!")
         expect(bubble).to_have_count(0)  # seen: gone for good

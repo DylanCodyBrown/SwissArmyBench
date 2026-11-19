@@ -43,6 +43,13 @@ function render(): void {
   const info = state.info;
   if (!info) return;
   const view = document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid";
+  if (view === "erd") {
+    // The ERD draws every open table: the grid behind it is not what it shows (feel-a).
+    rows.textContent = APP_TABS.erd!;
+    selection.textContent = "";
+    renderMeter(info.budget);
+    return;
+  }
   if (view !== "grid" && !(view === "query" && state.sqlResult)) {
     // The tab's name, then the grid behind it: an Analyze chart's click filters that grid, and this says so.
     const total = shownTotal() || 0;
