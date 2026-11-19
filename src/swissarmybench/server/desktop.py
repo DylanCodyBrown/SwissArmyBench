@@ -81,12 +81,6 @@ def running_app(info_file: Path | None = None) -> tuple[int, int, str] | None:
     return found if found and process_alive(found[0]) else None
 
 
-def app_pid(info_file: Path) -> int:
-    """The running app's process id (the update's helper ends it), else 0."""
-    found = running_app(info_file)
-    return found[0] if found else 0
-
-
 def tell(said: dict[str, Any], info_file: Path | None = None, wait: float = 0.0) -> dict[str, Any] | None:
     """A message to the running app (waiting up to `wait` seconds for one that is starting); its answer,
     or None when no app answers."""

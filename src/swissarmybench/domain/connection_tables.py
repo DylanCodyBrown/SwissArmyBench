@@ -114,13 +114,6 @@ def is_api(tags: Iterable[str], code: str) -> bool:
     return web_calls.API_TAG in said or ("spec_from_file_location(" in code and "API_" in code)
 
 
-def web_call_table(header: Mapping[str, object]) -> bool:
-    """A web call blade that is one of its API's tables: its Return as table switch on (the blades
-    version of Add API, 2026-11-17: "the gate for making it querable from DuckDB"). Nothing else of an
-    API's is a table. `header` is the blade (its `web_call` table, as its TOML header holds it)."""
-    return web_calls.is_table(header)
-
-
 def tables_kind(
     kind: str,
     template: str | None,

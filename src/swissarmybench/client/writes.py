@@ -270,10 +270,6 @@ def plain_value(value: Any) -> Any:
     return value
 
 
-def json_text(value: Any) -> str:
-    return json.dumps(value, default=lambda v: plain_value(v) if plain_value(v) is not v else str(v))
-
-
 def words(error: BaseException) -> str:
     """An error's first line, as the driver or service said it."""
     text = str(error).strip()

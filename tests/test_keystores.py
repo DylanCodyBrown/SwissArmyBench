@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.serialization import pkcs12
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import blades, certificate_files, keystores, script_runs
+from swissarmybench.domain import blades, keystores, script_runs
 from swissarmybench.domain import script_export as se
 from swissarmybench.domain.blades import FillError, apply_settings, detect_settings, env_settings
 from swissarmybench.domain.connections import form_order, picker
@@ -290,10 +290,6 @@ def test_a_server_may_come_from_a_variable_but_a_port_may_not() -> None:
         apply_settings(code, {setting(code, "port").id: {"value": 443, "env": "LAKE_PORT"}})
     hand = 'import os\nimport trino\nconn = trino.dbapi.connect(host=os.environ.get("LAKE_HOST", "db"))'
     assert [(s.name, s.env) for s in detect_settings(hand)] == [("server", "LAKE_HOST")]
-    assert (
-        certificate_files.suggested_variable("Warehouse", "certificate file") == "WAREHOUSE_CERTIFICATE_FILE"
-    )
-    assert certificate_files.suggested_variable("Lake", "keystore") == "TRINO_KEYSTORE_PATH"
 
 
 # ===== the export and Run settings: the variable only when mapped, never the file =====

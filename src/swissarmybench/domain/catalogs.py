@@ -206,12 +206,6 @@ def dax_table(name: str) -> str:
     return "'" + name.replace("'", "''") + "'"
 
 
-def dax_column(column: str, table: str = "") -> str:
-    """A column's name in DAX: 'Order Lines'[Unit Price]; a measure's has no table: [Total Sales].
-    A closing bracket inside the name is doubled."""
-    return (dax_table(table) if table else "") + "[" + column.replace("]", "]]") + "]"
-
-
 def _source(dialect: str, database: str, schema: str, table: str) -> str:
     if dialect == "dax":  # the schema is the dataset the query is sent to: a table is named by itself
         return dax_table(table)

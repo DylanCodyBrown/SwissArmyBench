@@ -184,41 +184,6 @@ def import_lines(code: str) -> list[str]:
     return found
 
 
-def missing_imports(script: str, wanted: list[str]) -> list[str]:
-    """The import statements in `wanted` that `script` does not already make. An import counts as made
-    when the script binds the same name to the same thing: `import pandas as pd` is there when the
-    script has it anywhere (even among others on one line), and `from x import a` is there when the
-    script has `from x import a, b`; but `import swissarmybench` does not give the `sab` that
-    `import swissarmybench as sab` would. A script that does not parse yet gets them all."""
-    try:
-        tree = ast.parse(script)
-    except SyntaxError:
-        return list(wanted)
-    have: set[tuple[str, ...]] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            have.update(("import", alias.name, alias.asname or alias.name) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            have.update(("from", node.module, alias.name, alias.asname or alias.name) for alias in node.names)
-    needed: list[str] = []
-    for line in wanted:
-        try:
-            statement = ast.parse(line).body[0]
-        except (SyntaxError, IndexError):
-            continue
-        keys: list[tuple[str, ...]]
-        if isinstance(statement, ast.Import):
-            keys = [("import", alias.name, alias.asname or alias.name) for alias in statement.names]
-        elif isinstance(statement, ast.ImportFrom) and statement.module:
-            module = statement.module
-            keys = [("from", module, alias.name, alias.asname or alias.name) for alias in statement.names]
-        else:
-            continue
-        if not all(key in have for key in keys):
-            needed.append(line)
-    return needed
-
-
 def needed(code: str, installed: Callable[[str], bool]) -> list[Package]:
     """Every package the blade needs, whether installed or not (`installed` answers for one module:
     adapters/blade_run.py asks this Python), in the order the code uses them."""

@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 
-from swissarmybench.domain import dataverse, entra
+from swissarmybench.domain import entra
 from swissarmybench.domain import lake_code as code
 from swissarmybench.domain.sql_server import TOKEN_CODE
 
@@ -69,16 +69,6 @@ AT = re.compile(r"@(?:[vV]\d+|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?)$")
 
 def is_kind(dialect: str | None) -> bool:
     return dialect in KINDS
-
-
-def read_by_code(dialect: str | None, catalog_language: str | None = None) -> str | None:
-    """The connection's own read for a dialect whose tables its code reads (these five; Dataverse on its
-    Web API), else None (a SQL source: a SELECT reads it)."""
-    if is_kind(dialect):
-        return READ
-    if dataverse.is_dataverse(dialect) and not dataverse.on_sql_endpoint(catalog_language):
-        return dataverse.READ
-    return None
 
 
 def read_with(how: str) -> str:

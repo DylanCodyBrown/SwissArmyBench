@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from swissarmybench.domain.catalogs import quote_identifier
@@ -1390,7 +1390,3 @@ def env_mappable(template: str | None) -> list[str]:
 
 def options(template: str | None) -> list[str]:
     return list(OPTIONS) if template in TEMPLATES else []
-
-
-def model_tables(model: Model) -> Collection[str]:
-    return model.tables()
