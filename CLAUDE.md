@@ -137,7 +137,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   project's scaffold, `.sab/data/` only on the user's tick), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
-  **GitHub sync (the owner, 2026-11-18; the Git extension) sends the meta store's and shared projects' files to
+  **GitHub sync (the owner, 2026-11-18; the Git extension) sends the team library's and shared projects' files to
   GitHub on the user's Clone, Pull, Push and Commit only (`sync.json` in the state folder: links, never a file's
   content or the token); see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
@@ -205,16 +205,28 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   backend names, GET /app/areas) is VS Code's Source Control view and graph (its CSS values, graph code, words,
   menus, letters and codicons, MIT: THIRD_PARTY_NOTICES.md) with Monaco's diff editor; what needs a local Git
   (stash, local commits, rebase, amend, hunks, tags, worktrees, remotes) shows disabled. The footer's mark says
-  when the open project (or the meta store) is out of sync. "Fork" means a local copy of a shared project (Make a
+  when the open project (or the team library) is out of sync. "Fork" means a local copy of a shared project (Make a
   local copy), not a GitHub fork.
-  **The meta store (the owner, 2026-11-17/18: "a shared meta store on GitHub" / "Meta store folder in
-  settings"):** Settings calls the library folder the **Meta store folder** (a label; the code keeps `library`):
-  the user's clone of the team's repository. Its `catalog/<connection>.json` is the **shared catalog** (names,
+  **A team (the owner, 2026-11-19: "you have made linking a meta store and shared project folder way too
+  difficult; the settings menu makes no sense"; it replaces 2026-11-17/18's Meta store folder):** ONE GitHub
+  repository holds the team's library at its top and the team's shared projects in its `projects/`. Settings has
+  one **Team** box (first after Theme; no rail page, no Projects-page entry): no team: Join a team… and Start a
+  team…; joined: "Team: owner/repo", its sync words only when something is to do, Pull, Push and "…" (Open on
+  GitHub, Set up this computer, Show its folder, Leave the team); the local projects folder's row; Advanced
+  (folded): the two folders as their own paths. Join (one dialog: GitHub sync's Install, its step kept in the state
+  folder's `team.json` over the restart; Sign in; the repository) makes the local copy itself in the state
+  folder's `team/<owner>-<repo>/` (no path asked), points the library at it and the shared projects folder at its
+  `projects/`, then shows Set up this computer; Start makes a private repository (README.md, .gitignore with
+  local/ and .sab/data/, projects/) and pushes this computer's library; Leave asks whether to keep a copy of the
+  team's items, puts both folders back as they were and leaves the local copy on disk (`team_status`, `team_join`,
+  `team_start`, `team_leave`; the agent's on Allow; signing in the user's only). The screen says **Team library**
+  (never meta store, working copy, clone or Git in its main words); the code keeps `library`, `shared_folder`,
+  `sync`. The shared projects folder inside the team library syncs through that one link. Its `catalog/<connection>.json` is the **shared catalog** (names,
   types, keys, relationships, `used_by` project folder names, present or gone; never a value, count or secret),
   written on the events (a connection saved, its tables listed, relationships changed, a project opened or saved),
   pruned (a deleted connection's file, a table gone 30 days), byte-stable, and read again when the user's pull
   changes it (looked at every few seconds, said once); a file with merge markers is reported and left alone.
-  **Set up from the meta store** (Settings) is a new computer's checklist: vault sign-ins, values to type once,
+  **Set up this computer** (the Team box) is a new computer's checklist: vault sign-ins, values to type once,
   each connection's status, Move to a vault. **Local and shared projects (2026-11-18):** projects.json's
   `local_folder` (the older `folder` key read as it) and `shared_folder` (none by default; pushed and pulled by the user); each card Local or Shared; Share and Make a local copy (`copied_from` in its project.json),
   never .sab/data/ nor .git.
@@ -341,9 +353,13 @@ src/swissarmybench/
                          used_by, present/gone; the file's text (sorted, one table per block, byte-stable), read back
                          (merge markers and broken JSON said), a listing applied (gone since a date, pruned after N
                          days), the model's keys and relationships added, a deletion taken out, a project's usage
-    library_setup.py     Set up from the meta store: each vault (readable, its sign-in, the variables it gives), the
+    library_setup.py     Set up this computer: each vault (readable, its sign-in, the variables it gives), the
                          values to type once, each connection's status (works, needs, only works here), shared
                          projects not set up here, the count's words, the notice
+    team.py              a team (one GitHub repository: the library at its top, projects/): the layout (README.md,
+                         .gitignore, projects/), the local copy's place (team/<owner>-<repo>), the steps and the one
+                         kept over Install's restart, the repositories newest first, what a new team takes, Leave's
+                         choices, the Joined row's words (only when something is to do)
     library.py           the library's rules: its layout, which folder a blade's file goes in (vaults/,
                          connections/, blades/), README.md and .gitignore, variables.toml and local/variables.toml
                          (sorted, stable), the JSON blades from before it, "<name> from <project>", the notices
@@ -584,12 +600,14 @@ src/swissarmybench/
                          folders (the agent's on Allow), Share (on Allow) and Make a local copy, rename,
                          remove from the list, locate; Show in folder and Delete (to the trash, on its typed
                          name) the user's only
+    team.py              Settings' Team box: status, join, start, leave (the folders pointed and put back,
+                         team.json), pull, push, show; the GitHub work is hooks.team's (the Git extension's TeamPort)
     library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
                          once, an older project's blades taken in (the same skipped, `<name> from <project>`)
     shared_catalog.py    the shared catalog kept on the events (saved, listed, relationships, a project's usage),
                          pruned, the folder looked at for a pull's change (catalog_changed), a bad file left alone;
                          the listing, one table, the ERD's model, the Explorer's tables
-    library_setup.py     Set up from the meta store: the vaults checked in child processes, the checklist, Move to
+    library_setup.py     Set up this computer: the vaults checked in child processes, the checklist, Move to
                          a vault
     project_scope.py     the open project's documents, and import: documents from another project folder or a
                          loose file into the project; an older project's connections and blades
@@ -613,6 +631,7 @@ src/swissarmybench/
                          file each, written only when its text changes), blade folders (.blade.py files found
                          by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
     shared_catalog.py    the catalog/ folder's files: stamps, read, written atomically only when the bytes change
+    team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
     library.py           the library folder: where (library.json), README.md and .gitignore on first write,
                          counts, the one-time move of this computer's older stores (a dated backup), an older
                          project's .sab/blades read and dropped from its working folder
@@ -659,7 +678,7 @@ src/swissarmybench/
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, explorer, library,
-                         shared_catalog). Every route serves
+                         shared_catalog, team). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -760,9 +779,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          there (no switch), and the top tabs and the Application row no longer repeat its
                          areas (the owner, 2026-11-16); extensionsPage.ts the Extensions page (open=extensions,
                          above Settings: a card per extension, Install's progress through the restart);
-                         library.ts Settings' Meta store folder (the library folder, Change…,
-                         Default, its counts, the shared catalog's counts, Set up from the meta store) and the
-                         notices said once (the move, a team's meta store, a pull's catalog change); areaPage.ts is a page of the rail's over any page
+                         library.ts Settings' Team box (Join a team…, Start a team…: one dialog of steps; the
+                         Joined row: Pull, Push, …; Advanced: the two folders; Set up this computer) and the
+                         notices said once (the move, a team library, a pull's catalog change; a kept step
+                         opens Settings on the flow); areaPage.ts is a page of the rail's over any page
                          (Settings, Connections, Session: open=settings, open=connections, open=session; Projects
                          over the home page only, open=projects); projectsPage.ts the Projects page (the rail's
                          mark, 2026-11-18: the Project Explorer and the tour; the app opens on it with no table and
@@ -893,7 +913,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          beginners (their words from the backend, our own drawn pictures); projectExplorer.ts
                          the Project Explorer, drawn on the Projects page (cards marked Local or Shared, sort and dragged custom
                          order, filters, the types strip, the empty state, a card's menu: Share, Make a local copy;
-                         Settings' Local and Shared projects folders);
+                         the Team box's local projects row and Advanced's shared projects folder);
                          projectImport.ts the import dialog (documents, connections, blades: from another
                          project folder, a file, this computer);
                          startView.ts the grid page's Grids landing (/workspace?view=grids: no table open, a
@@ -1017,14 +1037,16 @@ extensions/git/          the Git extension (swissarmybench-git; entry point git 
                          SyncFolder (a folder's files walked, written atomically), known_secrets (the keyring's values)
     services/sync.py     GitHubSync: sign-in (token, device flow; the user's only), status (remote at most once a
                          minute), clone, connect, disconnect, pull, push (fast-forward, scoped to a project, named
-                         paths), the footer's mark
+                         paths), the footer's mark; a shared projects folder inside the team library synced by its link
+    services/team.py     TeamPort: what the base's Team box asks (hooks.team): sign-in state, repositories, owners, a new
+                         repository, the local copy (clone, or pull), its first push, status, pull, push
     services/scm.py      SourceControl: the page's repositories and groups, stage, discard, commit, sync, history, a
                          commit's files, the diff's two sides, branches, checkout and create
     server/routes.py     /git/*
 web/src/scmPage.ts       (a plug-in) the Source Control page: VS Code's view (repositories, the message box, Commit and
                          its menu, the groups, inline actions, menus, list or tree), the graph, Monaco's diff editor
                          and the files beside it, the welcome and GitHub sign-in, Clone and Connect's quick picks;
-                         Settings' GitHub section; a shared card's Pull, Push and words; Share's "Push it to GitHub
+                         the Team box's sign-in step (teamSignIn); a shared card's Pull, Push and words; Share's "Push it to GitHub
                          now?". scmGraph.ts the graph's swimlanes (ported from VS Code's scmHistory.ts, MIT)
 web/src/areaMarks.ts     the footer's marks an extension's area answers (GET /app/areas' mark route), generic
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,

@@ -196,18 +196,35 @@ terminal (it starts the app when it is not running).
   `swissarmybench open sales.sab` says so in one line; the installer takes away an earlier .sab
   registration.
 - A project saved by a newer version opens read-only and says so.
-- **Local and shared projects.** Settings has a **Local projects folder** and a **Shared projects folder** (a
-  folder you push and pull with Git, like the meta store). Each card says **Local** or **Shared**, and the
+- **Local and shared projects.** New projects go in your local projects folder (Settings, Team: "New projects
+  go in …", Change…); a team's projects are its shared ones (below). Each card says **Local** or **Shared**, and the
   Project Explorer filters All / Local / Shared. **Share** (a local card's menu) copies the project into the
   shared folder without its kept rows and opens it there; **Make a local copy** (a shared card's menu) copies it
   into your local folder, says "Copied from <project>" on its card, and opens it. New project asks Local or
   Shared. A shared project whose connections only work on your machine says so once when it opens.
-- **The meta store** (Settings, **Meta store folder**: your clone of the team's repository) holds the shared
-  catalog (`catalog/`: each connection's tables, columns, keys, relationships and the projects using them; never
-  a value). Your `git pull` brings a teammate's tables to the Data page ("From the shared catalog: not connected
-  here"). **Set up from the meta store** under it lists what this computer still needs: each key vault's
-  sign-in, each value to type once, each connection's status; **Move to a vault** for a password kept in your
-  keyring, so the next person needs nothing.
+- **A team** (Settings, **Team**). A team is one GitHub repository: the **Team library** (connections, key
+  vaults, variables, blades, APIs, relationship sets, colours and the shared catalog) at its top, the team's
+  shared projects in its `projects/` folder.
+  - **Join a team…** walks you through what is still needed, in one window: installing GitHub sync (the app
+    starts again and the window comes back where it was), **Sign in with GitHub** (or Use a token), then the
+    team's repository (search, newest first). The app makes its own copy on this computer (no folder to pick),
+    uses it as your library and its `projects/` as your shared projects, and shows **Set up this computer**:
+    each key vault's sign-in, each value to type once, each connection's status; **Move to a vault** for a
+    password kept in your keyring, so the next person needs nothing.
+  - **Start a team…** signs in the same way, then asks a name (and an organisation of yours, if any): a private
+    repository is made with a README, a .gitignore and `projects/`, your library goes in (passwords never do),
+    and you are in it.
+  - **In a team**, one row: "Team: owner/repo", what needs doing (2 changes to push, 1 behind: Pull, Conflicts:
+    1; nothing when it is up to date), **Pull**, **Push**, and "…": Open on GitHub, Set up this computer, Show its
+    folder, **Leave the team** (it asks whether to keep a copy of the team's items in your own library; your own
+    library and folders come back; the team's copy stays on disk, and the message says where).
+  - **Advanced** (folded): the Team library folder and the Shared projects folder as their own paths, for a team
+    that keeps them in two repositories or a folder synced another way; Set up this computer.
+  - The shared catalog (`catalog/`: each connection's tables, columns, keys, relationships and the projects
+    using them; never a value) brings a teammate's tables to the Data page after a Pull ("From the shared
+    catalog: not connected here").
+  - The agent: `team_status`, `team_join`, `team_start`, `team_leave` (each waits for your Allow); signing in is
+    yours only.
 - **The agent** does the same: `projects_list`, `projects_sort`, `project_types`, `project_new`,
   `project_open`, `project_save` (it waits for your Allow only when it would keep a table's rows),
   `project_copy`, `project_rename`, `project_remove_from_list`, `projects_folders` (your Allow),
@@ -1684,10 +1701,10 @@ With the GitHub Copilot extension installed, the Workbench's notebook cells (Pyt
 
 ## Git (an extension)
 
-With the Git extension installed, the meta store folder and the shared projects folder sync with GitHub, and the rail has a **Source Control** page (VS Code's Source Control view and its graph). No Git is needed on your computer: the app talks to GitHub's web API. Without it, nothing of this shows.
+With the Git extension installed (GitHub sync: Join a team… installs it), the team library and the shared projects folder sync with GitHub, and the rail has a **Source Control** page (VS Code's Source Control view and its graph). No Git is needed on your computer: the app talks to GitHub's web API. Without it, nothing of this shows.
 
-- **Sign in (Settings, GitHub):** **Use Token**: on GitHub, your picture, Settings, Developer settings, Personal access tokens, Fine-grained tokens, Generate new token; name it, pick an expiry, under Repository access choose Only select repositories (the meta store's and the shared projects'), under Repository permissions give Contents: Read and write; Generate token, copy it and paste it here once. It is kept in your computer's keyring only. **Sign in with GitHub** (a code to type at github.com/login/device) works once the app is registered with GitHub; until then it says to use a token. **Sign out** forgets the token.
-- **Clone a repository…:** pick one of your repositories, pick the folder it is for (Meta store folder or Shared projects folder), and an empty or new folder; Settings then points at it. **Connect this folder** links a folder you already have: nothing is written; the first **Pull** brings GitHub's files, and a file that differs on both sides comes as a conflict.
+- **Sign in (Settings, Team, Join a team… or Start a team…):** **Use a token**: on GitHub, your picture, Settings, Developer settings, Personal access tokens, Fine-grained tokens, Generate new token; name it, pick an expiry, under Repository access choose Only select repositories (your team's; to start a team, All repositories), under Repository permissions give Contents: Read and write (to start a team, Administration too); Generate token, copy it and paste it here once. It is kept in your computer's keyring only. **Sign in with GitHub** shows a code to type at github.com/login/device.
+- **Clone a repository…** (the Source Control page): pick one of your repositories, pick the folder it is for (Team library folder or Shared projects folder), and an empty or new folder; Settings then points at it. A team is simpler: Settings, Team, Join a team…. **Connect this folder** links a folder you already have: nothing is written; the first **Pull** brings GitHub's files, and a file that differs on both sides comes as a conflict.
 - **Pull:** GitHub's changes come in. A file changed on both sides is merged line by line; when the same lines changed, your file stays as it is and GitHub's is saved beside it as `<name>.theirs`: keep what you want in your file, delete the `.theirs`, then push.
 - **Push / Commit:** your changed files go to GitHub as one commit, never forced: when GitHub has changes you do not, Pull first. A file that looks like it holds a password or a token is refused, by name. Your `.gitignore`'s files, `local/`, `.sab/data/` (a project's rows) and files over 50 MB never go.
 - **The words:** each folder says Not connected, Up to date, 3 changes to push, 2 behind: Pull, or Conflicts: 2; a shared project's card says its own ("↑2 to push", "↓1 behind", "Conflicts: 1") and has **Pull** and **Push** in its menu; **Share** asks "Push it to GitHub now?". The footer shows the open project's out-of-sync mark (amber); a click opens Source Control.

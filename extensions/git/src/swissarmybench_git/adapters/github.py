@@ -107,6 +107,7 @@ class GitHubClient:
                     "branch": str(r.get("default_branch") or "main"),
                     "private": bool(r.get("private")),
                     "can_push": bool((r.get("permissions") or {}).get("push", True)),
+                    "pushed": str(r.get("pushed_at") or r.get("updated_at") or ""),
                 }
                 for r in found
                 if isinstance(r, dict) and r.get("full_name")
@@ -114,6 +115,26 @@ class GitHubClient:
             if len(found) < 100:
                 break
         return out
+
+    def organisations(self) -> list[str]:
+        """The organisations the signed-in account belongs to (a new team repository's possible owners)."""
+        found = self._get("/user/orgs?per_page=100")
+        return (
+            [str(o["login"]) for o in found if isinstance(o, dict) and o.get("login")]
+            if isinstance(found, list)
+            else []
+        )
+
+    def create_repository(self, owner: str | None, name: str, private: bool = True) -> dict[str, Any]:
+        """A new repository with a first commit (GitHub's README), so a push has a head to build on: the
+        account's own (owner None) or an organisation's."""
+        body = {"name": name, "private": private, "auto_init": True}
+        path = f"/orgs/{urllib.parse.quote(owner, safe='')}/repos" if owner else "/user/repos"
+        found = self._send("POST", self.api + path, body)
+        return {
+            "repository": str(found.get("full_name") or ""),
+            "branch": str(found.get("default_branch") or "main"),
+        }
 
     def default_branch(self, repository: str) -> str:
         return str(self._get(f"/repos/{repository}").get("default_branch") or "main")

@@ -97,7 +97,7 @@ def test_a_new_persons_checklist_its_fixes_and_move_to_a_vault(tmp_path: Path) -
     with memory_keyring(), make_client(tmp_path / "newcomer") as client:
         ok(client.put("/library", json={"folder": str(clone)}, headers=AUTH))
         found = ok(client.get("/library/setup?check=1", headers=AGENT))
-        assert found["heading"] == "Set up from the meta store"
+        assert found["heading"] == "Set up this computer"
         vaults = {v["name"]: v for v in found["vaults"]}
         assert vaults["Finance Vault"]["state"] == "ready" and vaults["Finance Vault"]["gives"].endswith(
             "1 variable"

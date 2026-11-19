@@ -29,7 +29,7 @@ from typing import Any
 MAX_FILE_BYTES: int = 50 * 1024 * 1024  # GitHub refuses a file larger than 50 MB through its API
 THEIRS: str = ".theirs"
 WHICH: tuple[str, ...] = ("library", "shared")  # the meta store folder, the shared projects folder
-WHICH_WORDS: dict[str, str] = {"library": "the meta store folder", "shared": "the shared projects folder"}
+WHICH_WORDS: dict[str, str] = {"library": "the team library folder", "shared": "the shared projects folder"}
 DEFAULT_MESSAGE: str = "Update from Swiss Army Bench"
 SCOPE: str = "repo"  # the device flow's scope: a classic OAuth App reads and writes the user's repositories
 KEYRING_USER: str = "github/token"
@@ -84,7 +84,7 @@ def check_which(raw: Any) -> str:
     which = str(raw or "library")
     if which not in WHICH:
         raise SyncError(
-            'which is "library" (the meta store folder) or "shared" (the shared projects folder).'
+            'which is "library" (the team library folder) or "shared" (the shared projects folder).'
         )
     return which
 
@@ -462,8 +462,9 @@ TOKEN_STEPS: tuple[str, ...] = (
     "On GitHub: your picture, Settings, Developer settings, Personal access tokens, Fine-grained tokens, "
     "Generate new token.",
     "Name it (Swiss Army Bench), pick an expiry, and under Repository access choose Only select repositories: "
-    "the meta store's and the shared projects'.",
-    "Under Permissions, Repository permissions: Contents, Read and write (Metadata, Read-only, comes with it).",
+    "your team's (to start a team, All repositories).",
+    "Under Permissions, Repository permissions: Contents, Read and write (Metadata, Read-only, comes with it); "
+    "to start a team, Administration, Read and write too.",
     "Generate token, copy it, and paste it here once: it is kept in this computer's keyring only.",
 )
 

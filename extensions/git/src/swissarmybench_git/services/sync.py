@@ -42,6 +42,10 @@ class Client(Protocol):
 
     def default_branch(self, repository: str) -> str: ...
 
+    def organisations(self) -> list[str]: ...
+
+    def create_repository(self, owner: str | None, name: str, private: bool = True) -> dict[str, Any]: ...
+
     def head(self, repository: str, branch: str) -> str | None: ...
 
     def tree_of(self, repository: str, commit: str) -> str: ...
@@ -156,7 +160,7 @@ class GitHubSync:
     def _signed_in(self) -> str:
         token = self._token.get()
         if not token:
-            raise Refused("Sign in to GitHub first: Settings, GitHub.")
+            raise Refused("Sign in to GitHub first: Settings, Team.")
         return token
 
     def _account(self) -> str | None:
@@ -174,7 +178,7 @@ class GitHubSync:
     @staticmethod
     def _user_only(who: str, doing: str) -> None:
         if who == "agent":
-            raise Refused(f"{doing} is the user's own: in Settings, GitHub.")
+            raise Refused(f"{doing} is the user's own: in Settings, Team.")
 
     async def sign_in_token(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Use a token: {"token"}: checked with GitHub (who it signs in), then kept in the keyring only."""
@@ -352,18 +356,19 @@ class GitHubSync:
         if not raw:
             state, words = rules.status_words(False, 0, 0, 0)
             return out | {"state": state, "words": words, "set": False}
-        folder = str(self._files.full(raw))
-        link = self._link(folder)
-        out |= {"folder": folder, "set": True}
-        if link is None:
+        out |= {"folder": str(self._files.full(raw)), "set": True}
+        held = self._covering(which)
+        if held is None:
             state, words = rules.status_words(False, 0, 0, 0)
             return out | {"state": state, "words": words}
+        folder, link, inside = held
         local, large = self._files.files(folder) if self._files.is_folder(folder) else ({}, [])
-        changed, deleted = rules.changes(link.files, local)
+        changed, deleted = rules.changes(link.files, local, inside)
         conflicts = self._open_conflicts(folder, link)
         if conflicts != link.conflicts:
             link.conflicts = conflicts
             self._save(folder, link)
+        conflicts = [p for p in conflicts if rules.in_scope(p, inside)]
         _head, behind, error = self._remote_of(token, folder, link, ask)
         never = link.commit is None
         state, words = rules.status_words(
@@ -371,14 +376,20 @@ class GitHubSync:
         )
         projects: dict[str, dict[str, int]] = {}
         if which == "shared":
+            cut = len(inside) + 1 if inside else 0
             for path in [*changed, *deleted]:
-                if "/" in path:
-                    projects.setdefault(path.split("/")[0], {"to_push": 0, "conflicts": 0})["to_push"] += 1
+                if "/" in path[cut:]:
+                    projects.setdefault(path[cut:].split("/")[0], {"to_push": 0, "conflicts": 0})[
+                        "to_push"
+                    ] += 1
             for path in conflicts:
-                if "/" in path:
-                    projects.setdefault(path.split("/")[0], {"to_push": 0, "conflicts": 0})["conflicts"] += 1
+                if "/" in path[cut:]:
+                    projects.setdefault(path[cut:].split("/")[0], {"to_push": 0, "conflicts": 0})[
+                        "conflicts"
+                    ] += 1
         return out | {
             "connected": True,
+            "within": inside,
             "repository": link.repository,
             "branch": link.branch,
             "state": state,
@@ -427,7 +438,7 @@ class GitHubSync:
                 not library.get("pulled"),
             )
             if mark:
-                return mark | {"which": "library", "name": "the meta store"}
+                return mark | {"which": "library", "name": "the team library"}
         return None
 
     async def status(self, remote: bool = False, who: str = "user") -> dict[str, Any]:
@@ -580,14 +591,42 @@ class GitHubSync:
         await self._changed()
         return {"which": which, "folder": folder, "connected": False}
 
-    def _connected(self, which: str) -> tuple[str, rules.Link]:
-        folder = self._folder_of(which)
+    def _covering(self, which: str) -> tuple[str, rules.Link, str | None] | None:
+        """The link that holds which's folder: its own (inside None), or, for a team's one repository (the
+        shared projects folder is the team library's projects/), the folder above's link and the subfolder."""
+        raw = self._folders(which)
+        if not raw:
+            return None
+        folder = str(self._files.full(raw))
         link = self._link(folder)
-        if link is None:
+        if link is not None:
+            return folder, link, None
+        for other in rules.WHICH:
+            above = self._folders(other) if other != which else None
+            if not above:
+                continue
+            top = str(self._files.full(above))
+            try:
+                rel = Path(folder).relative_to(Path(top)).as_posix()
+            except ValueError:
+                continue
+            found = self._link(top) if rel not in ("", ".") else None
+            if found is not None:
+                return top, found, rel
+        return None
+
+    def _inside(self, folder: str) -> list[str]:
+        """Every folder (which) the link of this folder holds: itself, and a shared projects folder inside."""
+        return [w for w in rules.WHICH if (held := self._covering(w)) is not None and held[0] == folder]
+
+    def _connected(self, which: str) -> tuple[str, rules.Link]:
+        held = self._covering(which)
+        if held is None:
+            self._folder_of(which)  # not set: says so
             raise rules.SyncError(
-                f"Connect {rules.WHICH_WORDS[which]} to a GitHub repository first: Settings, GitHub."
+                f"Connect {rules.WHICH_WORDS[which]} to a GitHub repository first: Settings, Team."
             )
-        return folder, link
+        return held[0], held[1]
 
     # ===== pull =====
 
@@ -602,7 +641,8 @@ class GitHubSync:
         async with self._lock:
             done = await asyncio.to_thread(self._pull, token, folder, link)
         if done["written"] and self._pulled is not None:
-            await self._pulled(which)
+            for each in self._inside(folder) or [which]:
+                await self._pulled(each)
         self.ws.audit.write(
             who, "github_pull", None, which=which, files=done["written"], conflicts=len(done["conflicts"])
         )
@@ -683,6 +723,9 @@ class GitHubSync:
         which = rules.check_which(body.get("which") if isinstance(body, dict) else None)
         folder, link = self._connected(which)
         scope, scope_name = self._scope(folder, body)
+        held = self._covering(which)
+        if scope is None and held is not None and held[2]:
+            scope = held[2]
         only = (
             set(rules.check_paths(body.get("paths")))
             if isinstance(body, dict) and body.get("paths")

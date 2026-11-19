@@ -41,7 +41,7 @@ HOW: dict[str, str] = {
     "onepassword": "op signin, then Check again",
     "hashicorp_vault": "vault login, then Check again",
 }
-HEADING: str = "Set up from the meta store"
+HEADING: str = "Set up this computer"
 
 
 @dataclass(frozen=True)
@@ -232,4 +232,7 @@ def setup_notice(connections: int, vaults: int) -> str:
     parts = [f"{connections} connection{'' if connections == 1 else 's'}"]
     if vaults:
         parts.append(f"{vaults} key vault{'' if vaults == 1 else 's'}")
-    return f"This meta store has {' and '.join(parts)}: Settings, {HEADING}, lists what this computer needs."
+    return (
+        f"This team library has {' and '.join(parts)}: Settings, Team, {HEADING}, lists what this "
+        "computer needs."
+    )

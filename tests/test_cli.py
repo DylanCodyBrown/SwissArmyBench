@@ -198,6 +198,11 @@ NOT_COMMANDS = {
     "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
     "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
     "/git/{}": "the Git extension is not on here: its door says so (extensions_install)",
+    "/team/pull": "the Team box's Pull: github_pull (the team library's folder) is the same",
+    "/team/push": "the Team box's Push: github_push (the team library's folder) is the same",
+    "/team/pending": "the Team box's step kept over Install's restart (page plumbing): team_status reads it",
+    "/team/show": "Show its folder opens the user's own file manager: the user's click only (403 for the "
+    "agent)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"
     " workbench_canvas_move_to_data",
 }
@@ -666,9 +671,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # extension added app_mode's areas (its own github_ and scm_ tools count only where it is on).
     # 83,000 (2026-11-18): the desktop app's browser keys and files added tabs_reopen (Ctrl+Shift+T) and
     # tabs_reload (a file changed on disk: Reload, steps kept).
-    # 83,400 (2026-11-18): ${NAME} anywhere a value is typed (12.7) added variables_resolve and
-    # variables_uses.
-    assert size < 83_400, f"the tool list is {size} characters"
+    # 83,400 (2026-11-18): the variable references (12.7) added variables_resolve and variables_uses;
+    # 84,200 (2026-11-19): the Team box's four (team_status, _join, _start, _leave).
+    assert size < 84_200, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

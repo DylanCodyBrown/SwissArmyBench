@@ -1,14 +1,14 @@
 # Git (an extension)
 
-When the Git extension is installed (`app_mode(areas=true)` lists the `scm` area), the meta store folder and
+When the Git extension is installed (`app_mode(areas=true)` lists the `scm` area), the team library folder and
 the shared projects folder sync with GitHub through GitHub's web API: no Git on the computer. Its `github_` tools
 sync; its `scm_` tools are the Source Control page (VS Code's Source Control view and graph).
 
 ## Signing in
-- `github_status`: who is signed in (never the token), each folder (`which`: `library`, the meta store folder;
+- `github_status`: who is signed in (never the token), each folder (`which`: `library`, the team library folder;
   `shared`, the shared projects folder), its repository and branch and its words: Not connected, Up to date,
   3 changes to push, 2 behind: Pull, Conflicts: 2. `remote=true` asks GitHub (at most once a minute).
-- Signing in and out is the user's own (Settings, GitHub: a token or Sign in with GitHub). You cannot.
+- Joining a team is `team_join` (guide topic library). Signing in and out is the user's own (Settings, Team: a token or Sign in with GitHub). You cannot.
 - `github_repositories`: the signed-in user's repositories.
 
 ## Clone, connect, pull, push (each waits for the user's Allow)

@@ -42,6 +42,8 @@ class Extension:
     project_type: str = ""  # the project type it adds (the Project Explorer: "needs the <name> extension")
     # Its agent commands' names start with one of these: called while it is off, a plain answer names it.
     tools: tuple[str, ...] = ()
+    # What the base asks of it by what it does, never by its id: "team" (GitHub sync for the Team box).
+    provides: tuple[str, ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -98,7 +100,8 @@ CATALOG: tuple[Extension, ...] = (
     Extension(
         "git",
         "Git",
-        "GitHub sync for the meta store and shared projects, and a Source Control page with a commit graph.",
+        "GitHub sync for the team library and shared projects, and a Source Control page with a commit "
+        "graph.",
         (
             "Sign in to GitHub",
             "Clone, connect, pull and push",
@@ -108,6 +111,7 @@ CATALOG: tuple[Extension, ...] = (
         "available",
         "swissarmybench-git",
         tools=("github_", "scm_"),
+        provides=("team",),
     ),
 )
 

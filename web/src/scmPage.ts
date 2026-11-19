@@ -10,7 +10,7 @@
  * commit before pushing, rebase, amend, staging a hunk, tags, worktrees, remotes) is shown disabled, as VS Code
  * shows a disabled command (docs/ideas.md lists each).
  *
- *   [CHANGES]  each connected folder a repository (the meta store; the shared projects, scoped to the open
+ *   [CHANGES]  each connected folder a repository (the team library; the shared projects, scoped to the open
  *              project): the message box ("Message (Ctrl+Enter to commit on "main")"), the Commit button and its
  *              menu, Merge Changes, Staged Changes and Changes with their counts, each file's icon, name, folder
  *              (greyed) and letter in VS Code's git decoration colour, the inline actions on hover (Open File,
@@ -20,7 +20,7 @@
  *   [DIFF]     Monaco's diff editor (side by side, Inline View, F7 and Shift+F7), the files beside it, the
  *              previous and next file; read-only (a file is edited in its own editor)
  *   [GITHUB]   signed out: VS Code's welcome words and Sign in; Clone Repository and Connect (a quick pick of
- *              the signed-in user's repositories, then the folder); the same section in Settings
+ *              the signed-in user's repositories, then the folder); Settings' Team box's sign-in step (teamSignIn)
  *   [CARDS]    a shared project's card: Pull and Push, and its sync words (projectExplorer.ts asks here)
  *
  * ROUTING: GET /app/areas · GET /git, /git/changes, /git/history, /git/commit-files, /git/diff, /git/branches,
@@ -30,7 +30,7 @@
  */
 import { api, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { h, toast } from "./dom";
+import { button, h, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import type { DiffViewer } from "./lazy/codeEditor";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
@@ -561,7 +561,7 @@ function drawPage(): void {
     if (!changes?.signed_in) {
       return [
         welcome(
-          h("p", {}, "In order to use Git features, you can sign in to GitHub and clone a repository or connect your meta store or shared projects folder."),
+          h("p", {}, "In order to use Git features, you can sign in to GitHub and clone a repository or connect your team library or shared projects folder."),
           ...githubSignIn(status, () => void load()),
         ),
       ];
@@ -569,7 +569,7 @@ function drawPage(): void {
     if (!repos.length) {
       return [
         welcome(
-          h("p", {}, "The meta store folder and the shared projects folder are not connected to a GitHub repository. You can clone a repository from GitHub, or connect a folder to one."),
+          h("p", {}, "The team library folder and the shared projects folder are not connected to a GitHub repository. You can clone a repository from GitHub, or connect a folder to one."),
           welcomeButton("Clone Repository", () => void cloneRepository()),
           welcomeButton("Connect Folder to Repository", () => void connectFolder()),
           h("p", {}, "Signed in to GitHub as ", h("strong", {}, changes.account ?? ""), "."),
@@ -1196,7 +1196,7 @@ function githubSignIn(status: Status | null, done: () => void): HTMLElement[] {
   ];
 }
 
-const WHICH_WORDS: Record<string, string> = { library: "Meta store folder", shared: "Shared projects folder" };
+const WHICH_WORDS: Record<string, string> = { library: "Team library folder", shared: "Shared projects folder" };
 
 async function pickRepository(): Promise<string | null> {
   const got = await api<{ repositories: { repository: string; branch: string; private: boolean }[] }>("/git/repositories").catch((e: Error) => {
@@ -1213,7 +1213,7 @@ async function pickRepository(): Promise<string | null> {
 
 async function pickWhich(): Promise<"library" | "shared" | null> {
   return quickPick<"library" | "shared">("Pick the folder", [
-    { label: "Meta store folder", description: "connections, variables, the shared catalog", value: "library" },
+    { label: "Team library folder", description: "connections, variables, the shared catalog", value: "library" },
     { label: "Shared projects folder", description: "your team's projects", value: "shared" },
   ]);
 }
@@ -1244,65 +1244,60 @@ export async function connectFolder(): Promise<void> {
   if (done) toast(done.words);
 }
 
-/** Settings' GitHub section: who is signed in, each folder's repository and words, Clone, Connect, Pull,
- *  Push, Sign out. Null where the backend has no Source Control area (the section is not drawn). */
-export function githubSettingsSection(): HTMLElement {
-  const body = h("div", { class: "github-settings" });
-  const section = h("fieldset", { class: "fieldset github-fieldset", hidden: true }, h("legend", {}, "GitHub"), body);
-  const draw = async (): Promise<void> => {
-    if (!(await scmOn())) return;
-    section.hidden = false;
-    let status: Status;
-    try {
-      status = await api<Status>("/git?remote=1");
-    } catch (e) {
-      body.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
-      return;
-    }
-    if (!status.signed_in) {
-      body.replaceChildren(h("p", { class: "hint" }, "Sign in to GitHub to clone, pull and push the meta store folder and the shared projects folder."), ...githubSignIn(status, () => void draw()));
-      return;
-    }
-    const act = (path: string, data: unknown): void =>
-      void api<{ words?: string }>(path, "POST", data).then(
-        (d) => {
-          if (d.words) toast(d.words);
-          void draw();
+/** The Team box's sign-in step (Settings' Join a team… and Start a team…, library.ts): Sign in with GitHub (the
+ *  device flow: the code shown, GitHub opened, asked again until typed) or a token pasted once. The user's own:
+ *  the agent never signs in. `done` runs once signed in. Drawn with the app's own buttons (Settings, not the
+ *  Source Control page). */
+export function teamSignIn(said: { device: boolean; token_steps: string[] }, done: () => void): HTMLElement {
+  const box = h("div", { class: "team-sign-in" });
+  const code = h("p", { class: "team-device-code", hidden: true });
+  const token = h("input", { type: "password", class: "input team-token", placeholder: "github_pat_…", "aria-label": "Personal access token", autocomplete: "off", spellcheck: "false" });
+  const use = (): Promise<unknown> =>
+    api("/git/sign-in/token", "POST", { token: token.value.trim() }).then(
+      () => {
+        token.value = "";
+        done();
+      },
+      (e: Error) => toast(e.message, "error"),
+    );
+  token.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && token.value.trim()) void use();
+  });
+  const device = async (): Promise<void> => {
+    const got = await api<{ user_code: string; verification_uri: string; interval: number }>("/git/sign-in/device", "POST").catch((e: Error) => {
+      toast(e.message, "error");
+      return null;
+    });
+    if (!got) return;
+    code.hidden = false;
+    code.replaceChildren("Type ", h("strong", { class: "mono" }, got.user_code), " at ", h("a", { href: got.verification_uri, target: "_blank", rel: "noopener" }, got.verification_uri));
+    window.open(got.verification_uri, "_blank", "noopener");
+    const poll = (): void => {
+      if (!box.isConnected) return;
+      void api<{ state: string; interval?: number; words?: string }>("/git/sign-in/device/poll", "POST").then(
+        (answer) => {
+          if (answer.state === "pending") window.setTimeout(poll, (answer.interval ?? 5) * 1000);
+          else if (answer.state === "signed_in") done();
+          else code.textContent = answer.words ?? answer.state;
         },
         (e: Error) => toast(e.message, "error"),
       );
-    body.replaceChildren(
-      h("p", { class: "github-account" }, "Signed in to GitHub as ", h("strong", {}, status.account ?? ""), " ", h("button", { type: "button", class: "ghost small", onclick: () => act("/git/sign-out", undefined) }, "Sign out")),
-      ...status.folders.map((f) =>
-        h(
-          "div",
-          { class: `github-folder github-${f.state}`, "data-which": f.which },
-          h("h4", {}, WHICH_WORDS[f.which] ?? f.which),
-          h("p", { class: "hint" }, f.folder ?? "Not set", f.connected ? ` · ${f.repository} (${f.branch})` : ""),
-          h("p", { class: "github-words" }, f.words),
-          h(
-            "div",
-            { class: "row" },
-            ...(f.connected
-              ? [
-                  h("button", { type: "button", class: "small line", onclick: () => act("/git/pull", { which: f.which }) }, "Pull"),
-                  h("button", { type: "button", class: "small line", onclick: () => act("/git/push", { which: f.which }) }, "Push"),
-                  h("button", { type: "button", class: "ghost small", onclick: () => act("/git/disconnect", { which: f.which }) }, "Disconnect"),
-                ]
-              : [
-                  h("button", { type: "button", class: "small line", onclick: () => void cloneRepository().then(() => draw()) }, "Clone a repository…"),
-                  f.set ? h("button", { type: "button", class: "small line", onclick: () => void connectFolder().then(() => draw()) }, "Connect this folder") : null,
-                ]),
-          ),
-        ),
-      ),
-    );
+    };
+    window.setTimeout(poll, got.interval * 1000);
   };
-  void draw();
-  onNotice((n) => {
-    if (section.isConnected && (n.type === "sync_changed" || n.type === "library_changed" || n.type === "projects_changed")) void draw();
-  });
-  return section;
+  const tokenPart = h(
+    "details",
+    { class: "team-token-part", open: said.device ? undefined : true },
+    h("summary", {}, "Use a token"),
+    h("ol", { class: "team-token-steps" }, ...said.token_steps.map((s) => h("li", {}, s))),
+    h("div", { class: "row" }, token, button("Use the token", () => void (token.value.trim() ? use() : token.focus()), { class: "line" })),
+  );
+  box.append(
+    ...(said.device ? [h("div", { class: "row" }, button("Sign in with GitHub", () => void device(), { icon: "user", class: "primary team-device" }))] : []),
+    code,
+    tokenPart,
+  );
+  return box;
 }
 
 // ===== the Project Explorer's shared cards =====

@@ -32,6 +32,8 @@ class Repo:
         self.name = name
         self.default = branch
         self.refs: dict[str, str] = {}
+        self.private = True
+        self.pushed = ""
 
 
 class GitHubStandin:
@@ -42,6 +44,8 @@ class GitHubStandin:
         self.repos: dict[str, Repo] = {}
         self.tokens: set[str] = {TOKEN}
         self.device_ready = False
+        self.organisations: list[str] = ["made-up-team"]
+        self.created: list[str] = []  # repositories the app made
         self.requests: list[tuple[str, str]] = []  # (method, path): what the app asked
         self.seen_auth: list[str] = []
         self._clock = 0
@@ -92,6 +96,8 @@ class GitHubStandin:
         """A repository; with files, its first commit (none: an empty repository)."""
         repo = Repo(name, branch)
         self.repos[name] = repo
+        self._clock += 1
+        repo.pushed = f"2026-11-18T09:{self._clock:02d}:00Z"
         if files is None:
             return None
         tree = self._tree({p: self._blob(d) for p, d in files.items()})
@@ -204,16 +210,30 @@ class GitHubStandin:
             return 401, {"message": "Bad credentials"}
         if path == "/user":
             return 200, {"login": LOGIN, "name": "Made Up Analyst"}
-        if path == "/user/repos":
+        if path == "/user/repos" and method == "GET":
             return 200, [
                 {
                     "full_name": r.name,
                     "default_branch": r.default,
-                    "private": True,
+                    "private": r.private,
                     "permissions": {"push": True},
+                    "pushed_at": r.pushed,
                 }
                 for r in self.repos.values()
             ] if query.get("page", "1") == "1" else []
+        if path == "/user/orgs":
+            return 200, [{"login": o} for o in self.organisations]
+        if path in ("/user/repos", *(f"/orgs/{o}/repos" for o in self.organisations)) and method == "POST":
+            body = request._body()
+            owner = LOGIN if path == "/user/repos" else path.split("/")[2]
+            name = f"{owner}/{body['name']}"
+            if name in self.repos:
+                return 422, {"message": "Repository creation failed: name already exists on this account"}
+            first = {"README.md": f"# {body['name']}\n".encode()} if body.get("auto_init") else None
+            self.repository(name, first)
+            self.repos[name].private = bool(body.get("private"))
+            self.created.append(name)
+            return 201, {"full_name": name, "default_branch": "main", "private": self.repos[name].private}
         parts = path.strip("/").split("/")
         if parts[0] != "repos" or len(parts) < 3:
             return 404, {"message": "Not Found"}
