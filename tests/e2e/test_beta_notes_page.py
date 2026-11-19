@@ -96,14 +96,19 @@ def test_notes_on_a_ribbon_button_and_a_grid_cell_and_a_text_box_keeps_its_menu(
         assert any(a.startswith("click:") for a in second["actions"])  # what was clicked before it
         assert VALUE not in log_text(server)
 
-        # ----- a text box keeps the browser's own menu, and copy and paste still work
+        # ----- a text box's right-click is the text menu (Cut, Copy, Paste, Insert variable…: the owner,
+        # 2026-11-19, design principle 12.7), and copy and paste by the keyboard still work
         page.locator(".ag-header-cell[col-id='client']").click()
         page.locator(".ribbon").get_by_role("button", name="Filter…").click()
         box = page.locator("dialog[open] input[type=text], dialog[open] input:not([type])").first
         expect(box).to_be_visible()
         box.fill("Initech")
         box.click(button="right")
-        expect(page.locator(".menu")).to_have_count(0)  # no app menu over the browser's own
+        menu = page.locator(".menu")
+        expect(menu.get_by_role("menuitem", name="Insert variable…")).to_be_visible()
+        expect(menu.get_by_role("menuitem", name="Paste")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(menu).to_have_count(0)
         box.press("Control+a")
         box.press("Control+c")
         box.fill("")

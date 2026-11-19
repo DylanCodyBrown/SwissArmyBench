@@ -2,7 +2,7 @@
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-web/node_modules/
+web/node_modules
 web/static/build/
 dist/
 # Written by every e2e run (the visual review reads them); forced-colors.png is kept as the reference.
@@ -10,7 +10,7 @@ docs/screenshots/theme-*.png
 # Copied from plugin/skills by deploy_plugin.py so the wheel carries the guides (not a source).
 
 # The VS Code extension
-vscode-extension/node_modules/
+vscode-extension/node_modules
 vscode-extension/out/
 vscode-extension/dist/
 vscode-extension/server/

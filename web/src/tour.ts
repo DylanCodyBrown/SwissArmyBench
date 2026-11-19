@@ -345,6 +345,8 @@ interface Table {
 interface Staged {
   orders: Table;
   customers: Table;
+  /** The orders' sort, added once the page holds the table (added before, the page could miss it). */
+  sorted?: Promise<unknown>;
 }
 
 const CUSTOMERS = ["Ada Fernwood", "Bo Calder", "Cy Marlow", "Dee Ashby", "Eli Brook", "Fay Linden", "Gus Harrow", "Hal Penrose", "Ivy Tamsin", "Jo Quill", "Kit Rowan", "Lu Merrin"];
@@ -377,7 +379,7 @@ async function paste(name: string, text: string): Promise<Table> {
   return { name: shown.dataset, grid: shown.grid };
 }
 
-/** Open the tour's two tables (the orders sorted by amount, so Steps has one). Each table opened is
+/** Open the tour's two tables (the orders get their sort in toGrids, so Steps has one). Each table opened is
  *  handed to `opened` at once, so a close while staging still closes it. */
 async function stage(opened: (t: Table) => void): Promise<Staged> {
   const taken = new Set((await api<{ datasets: { name: string }[] }>("/datasets")).datasets.map((d) => d.name));
@@ -385,7 +387,6 @@ async function stage(opened: (t: Table) => void): Promise<Staged> {
   opened(customers);
   const orders = await paste(freeName("tour_orders", taken), ordersText());
   opened(orders);
-  await api(`/grids/${encodeURIComponent(orders.grid)}/steps`, "POST", { steps: [{ kind: "sort", params: { keys: [["amount", "desc"]] } }] });
   return { orders, customers };
 }
 
@@ -406,6 +407,9 @@ async function toGrids(staged: Staged, pair: boolean): Promise<void> {
   if (layerShown() || workspace?.dataset.view !== "grid") runArea("grids");
   const { orders, customers } = staged;
   if (!(await until(() => !!contextOf(orders.grid) && !!contextOf(customers.grid)))) return;
+  // The sort for the Steps card, once the page holds the orders' grid, so its notice is heard.
+  staged.sorted ??= api(`/grids/${encodeURIComponent(orders.grid)}/steps`, "POST", { steps: [{ kind: "sort", params: { keys: [["amount", "desc"]] } }] }).catch(() => undefined);
+  await staged.sorted;
   const split = splitPair();
   const ours = !!split && split.some((c) => c.id === orders.grid) && split.some((c) => c.id === customers.grid);
   if (pair) {
