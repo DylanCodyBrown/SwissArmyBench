@@ -6150,8 +6150,9 @@ Left:
   browsers' narrow tabs), so nine tables sit on one row at 1024px; the palette's "No matches" inside the
   list's inset; Find data closes on one Escape (text or not) and Ctrl+Shift+P closes it before the palette
   opens; Settings' boxes keep their lines at the top (no spread radios, no tall Beta buttons), Claude's two
-  pickers line up with the path's room, Check for updates a plain button, the agent prompt names "the Swiss
-  Army Bench MCP server"; the tour is one button (the "New here?" bubble on a first visit, Tour once seen);
+  pickers line up with the path's room (Check for updates left to the coordinator's change), the agent prompt names "the Swiss
+  Army Bench MCP server"; the tour is one button (the "New here?" bubble on a first visit, Tour once seen: grid.css hides Tour while the
+  bubble is there);
   every search box without a style of its own looks like the other inputs; a relationship's "inactive" and
   "in use" badges keep a space; the ERD's status bar says ERD only; a cell's kind and connection pickers are
   quiet, the app's own (border on hover, a drawn chevron; the system's in forced colours).

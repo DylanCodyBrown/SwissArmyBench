@@ -3606,6 +3606,11 @@ body.agent-view .titlebar {
   gap: 6px;
 }
 
+/* A first visit: the "New here? Take the tour" bubble is the tour's one button; Tour comes once it is seen. */
+.tour-slot:has(.tour-bubble) > .tour-btn {
+  display: none;
+}
+
 .tour-btn.tour-new .icon-svg {
   color: var(--accent);
   animation: tour-pulse 1.6s ease-in-out infinite;

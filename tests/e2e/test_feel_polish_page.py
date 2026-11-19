@@ -3,9 +3,9 @@
 SQL cell reads an open grid by its name; a missing table's error is said once, without DuckDB's own-table
 guess; a Python cell's missing open table offers its table cell; at 1024px nine tabs sit on one row;
 the palette's "No matches" sits in the list's inset; one Escape closes Find data and Ctrl+Shift+P then works;
-Settings' boxes keep their lines at the top, Check for updates is a plain button, the agent prompt names the
-app; the Variables page's search box looks like the other inputs; the ERD's status bar says ERD only; a
-cell's kind and connection pickers are the app's own. Made-up data only."""
+Settings' boxes keep their lines at the top, the agent prompt names the app; the Variables page's search
+box looks like the other inputs; the ERD's status bar says ERD only; a cell's kind and connection pickers
+are the app's own. Made-up data only."""
 
 from __future__ import annotations
 
@@ -150,8 +150,6 @@ def test_settings_boxes_and_the_variables_search(browser: Browser, server: dict[
         expect(radios.first).to_be_visible(timeout=20000)
         first, third = (radios.nth(i).bounding_box() for i in (0, 2))
         assert first and third and third["y"] - first["y"] < 60, (first, third)  # rows, not a tall spread
-        check = page.get_by_role("button", name="Check for updates")
-        assert "primary" not in (check.get_attribute("class") or "")
         expect(page.locator(".mcp-prompt")).to_contain_text("Swiss Army Bench MCP server")
         expect(page.locator(".mcp-prompt")).not_to_contain_text("grid MCP server")
         page.locator(".nav-rail [data-area='variables']").click()

@@ -289,9 +289,8 @@ const SEEN = "tour.seen";
 /** How long a card waits for its control before it says it is not here. */
 const WAIT_MS = 2500;
 
-/** The Projects page's Tour button: one button. On a first visit it is the "New here? Take the tour" bubble
- *  (with Not now); once the tour was opened or put off, the plain Tour button in its place (feel-a: the two
- *  side by side said the same thing twice). */
+/** The Projects page's Tour button, with the "New here?" bubble until the tour is opened once. While the bubble
+ *  is there it is the one tour button (grid.css hides Tour beside it, feel-a: two said the same thing). */
 export function tourButton(): HTMLElement {
   const btn = button("Tour", () => openTour(), {
     icon: "help",
@@ -306,14 +305,14 @@ export function tourButton(): HTMLElement {
     h("button", { type: "button", class: "tour-bubble-go", onclick: () => openTour() }, "New here? Take the tour"),
     button("Not now", () => markSeen(), { icon: "close", iconOnly: true, class: "ghost" }),
   );
-  btn.hidden = true;
+  btn.classList.add("tour-new");
   return h("span", { class: "tour-slot" }, btn, bubble);
 }
 
 function markSeen(): void {
   remember(SEEN, "1");
   document.querySelectorAll(".tour-bubble").forEach((b) => b.remove());
-  document.querySelectorAll<HTMLElement>(".tour-slot .tour-btn").forEach((b) => (b.hidden = false));
+  document.querySelectorAll(".tour-new").forEach((b) => b.classList.remove("tour-new"));
 }
 
 /** The first visible element for any of `selectors`, in their order, or null. */
