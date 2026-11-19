@@ -17,14 +17,19 @@
  */
 import { button, clear, h, icon } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
+import { canvasPane, type CodePlan, type Inspected } from "./canvasPane";
 import type { CanvasView } from "./workbenchCanvas";
 import type { ModeFrame } from "./workbenchModes";
-import { type AppSettings, type BlockState, type Controller, controllerOf, type SessionRow, shownValue } from "./workbenchStreamlit";
-import { errorHere } from "./errorNote";
+import { type AppSettings, type SessionRow, shownValue } from "./workbenchStreamlit";
 
 export interface AppHost {
-  /** Go to a block's cell (its document opened when it is not). */
-  goToCell: (document: string, cell: number) => void;
+  /** Go to a block's cell (its document opened when it is not), at a line of it. */
+  goToCell: (document: string, cell: number, line?: number | null) => void;
+  /** A change to a cell's code made in its open document, like typing (the pane's plan). */
+  applyCode: (plan: CodePlan) => Promise<boolean>;
+  openVariable: (name: string) => void;
+  openConnection: (name: string) => void;
+  openGrid: (grid: string) => void;
   /** Name a cell of a document (its document opened when it is not). */
   renameCell: (document: string, cell: number, name: string) => Promise<void>;
   /** Choose a logo's file. */
@@ -33,8 +38,6 @@ export interface AppHost {
   lineage?: (block: string) => void;
 }
 
-const ROLES: Record<Controller["role"], string> = { filter: "Filter", action: "Action", view: "View", "": "Model work" };
-
 const COLOURS: [keyof AppSettings["colours"], string][] = [
   ["primary", "Primary"],
   ["background", "Background"],
@@ -42,87 +45,9 @@ const COLOURS: [keyof AppSettings["colours"], string][] = [
   ["text", "Text"],
 ];
 
-const chip = (name: string): HTMLElement => h("span", { class: "app-chip mono" }, name);
-
-/** A stepper: − value +. */
-function stepper(label: string, shown: string, down: (() => void) | null, up: (() => void) | null): HTMLElement {
-  const minus = button(`Less ${label.toLowerCase()}`, () => down?.(), { icon: "minus", iconOnly: true, class: "ghost" });
-  const plus = button(`More ${label.toLowerCase()}`, () => up?.(), { icon: "plus", iconOnly: true, class: "ghost" });
-  minus.disabled = !down;
-  plus.disabled = !up;
-  return h("div", { class: "pp-row" }, h("span", { class: "app-label" }, label), h("span", { class: "app-stepper", role: "group", "aria-label": label }, minus, h("output", { class: "app-step-value" }, shown), plus));
-}
-
 const section = (title: string, ...children: (HTMLElement | null)[]): HTMLElement => h("section", { class: "app-section" }, h("h3", { class: "app-heading" }, title), ...children);
 
-/** Properties: the selected block, else the page settings. `rows`: the live page's state, when known. */
-export function drawProperties(body: HTMLElement, canvas: CanvasView, host: AppHost, rows: SessionRow[]): void {
-  const block = canvas.selected();
-  if (block) return drawBlock(body, canvas, host, block, rows);
-  drawSettings(body, canvas, host);
-}
-
-function drawBlock(body: HTMLElement, canvas: CanvasView, host: AppHost, block: BlockState, rows: SessionRow[]): void {
-  const name = h("input", { type: "text", class: "app-input", value: block.name ?? "", maxlength: 80, "aria-label": "Name", dataset: { field: "name" } }) as HTMLInputElement;
-  name.addEventListener("change", () => {
-    const typed = name.value.trim();
-    if (typed === (block.name ?? "")) return;
-    void host.renameCell(block.document, block.cell, typed).catch((e: Error) => errorHere(e));
-  });
-  name.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") name.blur();
-    e.stopPropagation();
-  });
-  const kind = kindOfPath(block.document) ?? "notebook";
-  const source = h(
-    "button",
-    { type: "button", class: `link app-source km-${kind}`, title: block.document, onclick: () => host.goToCell(block.document, block.cell) },
-    icon(kindIcon(kind, block.document)),
-    h("span", { class: "mono" }, block.where),
-  );
-  const controller = controllerOf(block);
-  const feeds = canvas.feeds(block.id);
-  const values = rows.filter((r) => r.block !== null && r.block === block.name);
-  const w = block.w;
-  const height = block.h;
-  clear(
-    body,
-    section("Name", name),
-    section(
-      "Size",
-      stepper("Width", `${w} of 12`, w > 2 ? () => void canvas.changeBlock(block.id, { w: w - 1 }) : null, block.column + w <= 12 ? () => void canvas.changeBlock(block.id, { w: w + 1 }) : null),
-      stepper("Height", height === null ? "Fits" : `${height} ${height === 1 ? "row" : "rows"}`, height !== null ? () => void canvas.changeBlock(block.id, { h: height > 1 ? height - 1 : null }) : null, height === null || height < 30 ? () => void canvas.changeBlock(block.id, { h: height === null ? 2 : height + 1 }) : null),
-    ),
-    section(
-      "Source cell",
-      source,
-      block.makes.length ? h("div", { class: "pp-row" }, h("span", { class: "app-label" }, "Makes"), h("span", { class: "app-chips" }, ...block.makes.map(chip))) : null,
-      block.reads.length || block.tables.length ? h("div", { class: "pp-row" }, h("span", { class: "app-label" }, "Reads"), h("span", { class: "app-chips" }, ...[...block.tables, ...block.reads].map(chip))) : null,
-    ),
-    feeds.length
-      ? section(
-          "Feeds",
-          h(
-            "ul",
-            { class: "app-feeds" },
-            ...feeds.map((f) => h("li", {}, h("button", { type: "button", class: "link", onclick: () => canvas.select(f.id) }, icon("forward"), h("span", {}, f.name ?? f.where)))),
-          ),
-        )
-      : null,
-    values.length ? section("Widget value", ...values.map((r) => h("div", { class: "app-value" }, h("span", { class: "mono" }, r.key), h("span", { class: "mono" }, shownValue(r.value))))) : null,
-    controller
-      ? section(
-          "Controller",
-          h("div", { class: "pp-row" }, h("span", { class: "app-label" }, "Role"), h("span", { class: "app-role", dataset: { role: controller.role } }, ROLES[controller.role])),
-          ...controller.makes.map((m) => h("div", { class: "pp-row app-make", dataset: { name: m.name } }, chip(m.name), h("span", { class: "hint mono" }, m.default === null ? m.type : `${m.type} = ${m.default}`))),
-          ...controller.problems.map((p) => h("div", { class: "cv-block-missing", role: "alert" }, p)),
-        )
-      : null,
-    host.lineage && !block.missing ? h("section", { class: "app-section" }, button("Lineage…", () => host.lineage!(block.id), { icon: "lineage", class: "ghost app-lineage" })) : null,
-  );
-}
-
-function drawSettings(body: HTMLElement, canvas: CanvasView, host: AppHost): void {
+export function drawSettings(body: HTMLElement, canvas: CanvasView, host: AppHost): void {
   const settings = canvas.settings();
   const text = (field: "title" | "icon" | "logo", label: string, max: number, placeholder = ""): HTMLInputElement => {
     const input = h("input", { type: "text", class: "app-input", value: settings[field], maxlength: max, placeholder, "aria-label": label, dataset: { field } }) as HTMLInputElement;
@@ -181,8 +106,9 @@ export function drawState(body: HTMLElement, rows: SessionRow[], live: boolean):
 }
 
 /** App mode's two panels on a canvas document, and the state they share (the live page's). */
-export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppHost): { refresh: () => void; rows: () => SessionRow[]; resetState: () => void } {
+export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppHost): { refresh: () => void; rows: () => SessionRow[]; resetState: () => void; inspected: () => Inspected | null } {
   let rows: SessionRow[] = [];
+  const pane = canvasPane(canvas, { ...host, drawSettings: (body) => drawSettings(body, canvas(), host) });
   let timer: number | null = null;
   const live = (): boolean => canvas().mode() === "live";
   const fetchRows = async (): Promise<void> => {
@@ -197,7 +123,7 @@ export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppH
     }
   };
   const draw = (): void => {
-    frame.redraw("properties");
+    pane.setRows(rows);
     frame.redraw("state");
   };
   const poll = (): void => {
@@ -206,6 +132,7 @@ export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppH
     if (!frame.isOpen("state") && !frame.isOpen("properties")) return;
     if (!live()) return;
     timer = window.setTimeout(() => void fetchRows().then(() => {
+      timer = null;
       draw();
       poll();
     }), 1500);
@@ -215,7 +142,7 @@ export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppH
     rows = [];
     draw();
   };
-  frame.add({ id: "properties", title: "Properties", icon: "properties", where: "side", panel: "workbench.properties", draw: (body) => drawProperties(body, canvas(), host, rows) });
+  frame.add({ id: "properties", title: "Properties", icon: "properties", where: "side", panel: "workbench.properties", draw: (body) => pane.draw(body) });
   frame.add({
     id: "state",
     title: "State",
@@ -230,8 +157,13 @@ export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppH
   });
   return {
     refresh: () => {
-      void fetchRows().then(draw);
+      if (frame.isOpen("properties")) pane.refresh();
+      void fetchRows().then(() => {
+        draw();
+        if (timer === null) poll(); // the live values are followed while either panel shows
+      });
     },
+    inspected: () => pane.shown(),
     rows: () => rows,
     resetState,
   };

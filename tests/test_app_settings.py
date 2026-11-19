@@ -143,7 +143,7 @@ def test_the_canvas_takes_them_and_play_writes_them(
     assert (root / ".streamlit" / "config.toml").read_text().endswith('primaryColor = "#c8102e"\n')
     page = next(root.glob("page_p1_*.py")).read_text()
     ast.parse(page)
-    assert page.rstrip().endswith("_sab_state()")
+    assert "\n_sab_state()\n" in page and page.rstrip().endswith("st.rerun()")  # then what Now asked
     # The State panel: what the live page last wrote, each key with its block.
     assert _ok(client.get(f"{base}/session", headers=AUTH))["state"] == []
     (root / rules.STATE_FILE).write_text(json.dumps({"b1_1": "East", "count": 3}))

@@ -239,6 +239,98 @@ _sab_state()
 '''
 
 
+# ===== Now: what the property pane changes in the running app only (the owner, 2026-11-19) =====
+#
+# The pane's "Now" fields set st.session_state in the live page, and Clear this cache empties a cached
+# function there; nothing of the cell's code changes. The server writes what was asked into NOW_FILE in the
+# app's temporary folder (numbered, the last few kept) and the page reads it at its start: each session
+# makes what it has not made yet, once. A session that starts later makes none of it (it starts fresh).
+NOW_FILE: str = "_sab_now.json"
+MAX_NOW: int = 20
+NOW_HEAD: str = f'''# What the Workbench's property pane asked of this session (Now): the live page only.
+def _sab_now() -> list:
+    import datetime as _dt
+    import json as _json
+    from pathlib import Path as _Path
+
+    try:
+        asked = _json.loads((_Path(__file__).resolve().parent / "{NOW_FILE}").read_text(encoding="utf-8"))
+        made = [op for op in asked["made"] if isinstance(op, dict)]
+    except (OSError, ValueError, KeyError, TypeError):
+        made = []
+    last = max([int(op.get("n") or 0) for op in made] or [0])
+    seen = st.session_state.get("_sab_now")
+    st.session_state["_sab_now"] = last
+    if seen is None:
+        return []
+    clear = []
+    for op in made:
+        if int(op.get("n") or 0) <= seen:
+            continue
+        clear += [str(name) for name in op.get("clear") or []]
+        for key, value in (op.get("set") or {{}}).items():
+            old = st.session_state.get(key)
+            try:
+                if isinstance(old, (_dt.datetime, _dt.date, _dt.time)) and isinstance(value, str):
+                    value = type(old).fromisoformat(value)
+                elif isinstance(old, tuple) and isinstance(value, list):
+                    value = tuple(value)
+                st.session_state[key] = value
+            except Exception:
+                pass
+        for key in op.get("forget") or []:
+            st.session_state.pop(key, None)
+    return clear
+
+
+_sab_clear = _sab_now()
+
+'''
+# After the state is written: the caches asked to be cleared are, and the page runs once more.
+NOW_TAIL: str = """
+if _sab_clear:
+    for _name in _sab_clear:
+        if _name == "*":
+            st.cache_data.clear()
+            st.cache_resource.clear()
+        elif hasattr(globals().get(_name), "clear"):
+            globals()[_name].clear()
+    st.rerun()
+"""
+
+
+def check_now(body: Any) -> dict[str, Any]:
+    """What Now may ask: {"key", "value"} (a session state key given a plain value), {"key", "forget": true}
+    (the key taken out: its widget starts from its default again), {"clear": a cached function's name, or
+    "*" for every cache}."""
+    if not isinstance(body, dict):
+        raise AppSettingsError('Send {"key": "region", "value": "North"} or {"clear": "monthly"}.')
+    if "clear" in body:
+        name = body["clear"]
+        if not isinstance(name, str) or not re.fullmatch(r"\*|[A-Za-z_][A-Za-z0-9_]{0,99}", name):
+            raise AppSettingsError('Clear a cache by its function\'s name, or "*" for every cache.')
+        return {"clear": [name]}
+    key = body.get("key")
+    if not isinstance(key, str) or not key or len(key) > 200 or key.startswith(("_sab", "$$")):
+        raise AppSettingsError("A session state key is its name, as the page's State lists it.")
+    if body.get("forget") is True:
+        return {"forget": [key]}
+    if "value" not in body:
+        raise AppSettingsError('Send the key\'s value: {"key": "region", "value": "North"}.')
+    value = body["value"]
+    try:
+        text = json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError):
+        raise AppSettingsError("A session state value set from here is a plain one.") from None
+    if len(text) > 20_000:
+        raise AppSettingsError("That value is too long to set from here.")
+    return {"set": {key: value}}
+
+
+def now_file(made: Sequence[Mapping[str, Any]]) -> str:
+    return json.dumps({"made": list(made)[-MAX_NOW:]})
+
+
 _KEY = re.compile(r"\bkey\s*=\s*(['\"])([^'\"\n]{1,200})\1")
 
 

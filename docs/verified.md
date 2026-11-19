@@ -3607,3 +3607,53 @@ The browser tests (tests/e2e) were not run for this pass: no page file changed.
   kept, a new one the umask's, a failed zip leaves the old file and no temporary.
 - Not run: the browser tests (tests/e2e) on this branch; nothing under web/ changed. Not checked on Windows:
   os.replace over a file another process holds open (the hand-written blocks had the same exposure).
+
+## The canvas's property pane and the designer (2026-11-19, branch canvas-designer)
+
+Checked:
+
+- **Reading a cell's code** (tests/test_canvas_widget_code.py): widgets in the order written, the name each
+  value is given, labels, literal keys and the keys the page gives (numbered exactly as
+  `streamlit_cells.keyed` numbers them, checked against its output), positional arguments by their names, a
+  name, a session state key (`st.session_state["k"]`, `.k`, `.get("k")`), a variable (`os.environ[...]`,
+  `.get`, `os.getenv`, `secret()`), code; cache decorators and their arguments; the variables read (in source
+  order; `${NAME}` in a text, `$${` left).
+- **Writing back** (28 golden before/after pairs, tests/golden/canvas_code): each change equals the edits
+  applied to the text as it was, touches less than half of it, keeps every comment but its own line's, parses,
+  and made again changes nothing. A date stays a date, a tuple a tuple, a text keeps its quotes; hostile text
+  (quotes, backslashes, control characters, non-ASCII: ast's columns are UTF-8 bytes) reads back equal.
+  Refused: code that is not a plain value, a binding (unbind first), an argument given by its place, a missing
+  element or function, a change that would not parse (nothing written).
+- **The pane over HTTP** (tests/test_canvas_pane.py): a made-up project (data.ipynb, an app notebook, a canvas
+  of three blocks): uses (table with its grid, the variable with no value in the answer, the cells that make
+  each name, data.ipynb's names), used by, the lineage line, cache, the exported code; a table's preview after
+  a grid step; a plan changes no file; Now's file and the page's head and tail; the agent's canvas_* commands.
+- **Now, for real** (Streamlit 1.67, AppTest): a running session takes a value once; a session started later
+  starts fresh. In the browser test the live page's text follows a Now value typed in the pane and the agent's,
+  and Clear this cache leaves no error.
+- **The designer's model** (tests/test_canvas_designer.py): containers in the app's file (one line each; read
+  back and written again byte for byte; a plain page still version 1), the layout lines for every kind, what
+  goes inside what, a container's properties checked against its kind, align, same size, distribute (whole
+  columns, the extra from the left), the outline, Reset layout; over HTTP and by the agent's commands.
+- **The export round trip** (Streamlit 1.67, AppTest): a page with columns, tabs, a form, the sidebar, a
+  handler written by Add handler and a property bound to a session state key: its file reads back identical,
+  the export made from that runs with no exception, the handler ran on each click, the form's named button is
+  False then True.
+- **Snaplines** (tests/test_canvas_snap.py, the module bundled by the page's esbuild and run by Node): guides
+  join matching edges and centres (an edge never a centre), the tolerance, snapping per axis, equal gaps, same
+  size, the rubber band dragged either way.
+- **In the browser** (Chromium; tests/e2e/test_canvas_pane_page.py, test_canvas_designer_page.py): Uses lists a
+  table and a variable, the preview opens, Open as grid opens the grid; Default changes the cell's code, Undo
+  and Redo; a property set and reset by its menu; a cache's ttl; code shown read-only; Add handler; Bind to
+  session state; a Toolbox drop makes the cell and the block; a block dragged into a column; a container's
+  widths; the Outline's lock, hide, show and a drag into a tab; Ctrl+click, Make same width (one Undo), the
+  rubber band, Ctrl+D, Delete, a guide while dragging, the ruler, Phone, sample rows, Centered, Reset layout.
+
+Not checked:
+
+- Edge (the tests ran with Chromium here), the desktop app's window, a screen reader's reading of the grid.
+- Streamlit older than 1.67: nested columns and expanders need 1.46 or later; the canvas does not check the
+  installed version before Play.
+- Now with a widget whose value is not JSON (a file upload, a data editor's edits): the pane sends plain values.
+- A page with dozens of containers (no speed measurement); Windows paths in a container's file round trip.
+- Clear this cache on a function imported from another module by another name.

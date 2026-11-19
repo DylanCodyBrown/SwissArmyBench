@@ -53,3 +53,23 @@ drives the cells on the same page that read it.
   "canvas.resetState", "canvas.undo", "canvas.redo", "canvas.duplicate", "canvas.align", "canvas.zoom",
   "canvas.preview" (desktop, tablet, phone; light or dark), "canvas.addStarter" (a starter written as a
   named cell of the mockups notebook, then placed), "data.starters", "data.starterList".
+
+## The property pane and the designer (canvas_*)
+- `canvas_inspect` (app; page; block): what the pane draws. A block: its `widgets` (each Streamlit element its
+  cell calls: `index`, `call`, `arguments` as literal, name, state, variable or expression, `state_key`, `now`,
+  `default`, `events`, `params`), `uses` (tables, variables, connections, cells, used_by, lineage), `cache`,
+  `code` (what the page runs for it). `canvas_table` (a table's columns, steps in words, first rows).
+- A cell's CODE changes only in the characters named, in its open document (the window that holds the app
+  makes it, like typing): `canvas_set_default` (value=, index= or default=), `canvas_set_property` (any
+  property; without value: reset), `canvas_bind` (kind name, state, variable or expression),
+  `canvas_add_handler` (a stub and on_change= or on_click=), `canvas_set_cache` (kind data, resource or none;
+  settings ttl, max_entries, show_spinner, persist). Code that is not a plain value is refused: change it in
+  its cell. An app opened without a window (`streamlit_open`) is refused too: open it in the Workbench.
+- Now, the RUNNING app only (Play first): `canvas_state_set` (a session state key, or forget), `canvas_cache_clear`.
+- Designing: `canvas_toolbox` (the elements and containers; with element: its cell's code), `canvas_add` (an
+  element as a cell of the app notebook and its block, on the front canvas), `canvas_container` (columns, tabs,
+  expander, container, form, sidebar, popover), `streamlit_block_change` (parent, slot: into a container;
+  hidden; locked; props: a container's own), `canvas_arrange` (left, right, centre, top, bottom, same_width,
+  same_height, distribute; reset), `canvas_outline` (the page as a tree).
+- In the window: "canvas.add", "canvas.selectMany", "canvas.arrange", "canvas.view" (snaplines, rulers,
+  sampleRows, width), "canvas.panel" (toolbox, outline), "streamlit.addToApp" (the selected cell onto the page).

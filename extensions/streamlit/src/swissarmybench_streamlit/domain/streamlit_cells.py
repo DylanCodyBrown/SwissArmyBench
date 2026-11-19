@@ -57,6 +57,7 @@ from swissarmybench.domain.cell_facts import (
 )
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
+from swissarmybench_streamlit.domain import toolbox
 
 __all__ = [
     "MAX_NAME",
@@ -75,7 +76,9 @@ APP_MARK: str = "streamlit-app"
 # The marker's key; an app saved before the rename has SwissArmyGrid's, still read.
 APP_KEY: str = "swissarmybench"
 OLD_APP_KEY: str = "swissarmygrid"
-APP_VERSION: int = 1
+APP_VERSION: int = 2  # 2: layout containers, blocks inside them, hidden and locked (2026-11-19)
+MAX_CONTAINERS: int = 40
+MAX_DEPTH: int = 4
 MAX_APP_CHARS: int = 2_000_000
 
 COLUMNS: int = 12
@@ -357,6 +360,11 @@ class Block:
     column: int = 1
     w: int = DEFAULT_WIDTH
     h: int | None = None  # in units of ROW_HEIGHT; None: as tall as what it draws
+    # The container it sits in (None: the page itself) and which of its slots (a column, a tab).
+    parent: str | None = None
+    slot: int = 0
+    hidden: bool = False  # hidden while designing (the page still draws it)
+    locked: bool = False  # the designer does not move or size it
 
     @property
     def key(self) -> Key:
@@ -371,7 +379,82 @@ class Block:
             "column": self.column,
             "w": self.w,
             "h": self.h,
+            "parent": self.parent,
+            "slot": self.slot,
+            "hidden": self.hidden,
+            "locked": self.locked,
         }
+
+
+@dataclass
+class Container:
+    """A layout container (the designer's, 2026-11-19: WPF's panels): columns, tabs, an expander, a
+    container, a form, the sidebar, a popover. It has a place on the grid like a block (the sidebar has
+    none), its own properties, and slots that hold blocks and other containers, each slot a 12-column grid
+    of its own. It is the canvas's: no cell stands behind it, and it exports as plain Streamlit."""
+
+    id: str
+    kind: str
+    row: int = 1
+    column: int = 1
+    w: int = COLUMNS
+    h: int | None = None
+    parent: str | None = None
+    slot: int = 0
+    props: dict[str, Any] = field(default_factory=dict)
+    name: str = ""
+    hidden: bool = False
+    locked: bool = False
+
+    def get(self, name: str) -> Any:
+        """A property: what was set, else its default."""
+        if name in self.props:
+            return self.props[name]
+        found = toolbox.CONTAINERS[self.kind].param(name)
+        return None if found is None else found.default
+
+    @property
+    def slots(self) -> int:
+        how = toolbox.CONTAINERS[self.kind].slots
+        return (
+            len(self.get("widths")) if how == "widths" else len(self.get("labels")) if how == "labels" else 1
+        )
+
+    def slot_names(self) -> list[str]:
+        how = toolbox.CONTAINERS[self.kind].slots
+        if how == "labels":
+            return [str(label) for label in self.get("labels")]
+        if how == "widths":
+            return [f"Column {n}" for n in range(1, self.slots + 1)]
+        return [""]
+
+    @property
+    def title(self) -> str:
+        if self.name:
+            return self.name
+        label = self.get("label") if toolbox.CONTAINERS[self.kind].param("label") else None
+        kind = toolbox.CONTAINERS[self.kind].label
+        return f"{kind}: {label}" if isinstance(label, str) and label else kind
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "row": self.row,
+            "column": self.column,
+            "w": self.w,
+            "h": self.h,
+            "parent": self.parent,
+            "slot": self.slot,
+            "props": dict(self.props),
+            "name": self.name,
+            "hidden": self.hidden,
+            "locked": self.locked,
+        }
+
+
+Item = Block | Container
+Group = tuple[str | None, int]
 
 
 @dataclass
@@ -379,9 +462,24 @@ class Page:
     id: str
     name: str
     blocks: list[Block] = field(default_factory=list)
+    containers: list[Container] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
-        return {"id": self.id, "name": self.name, "blocks": [b.to_json() for b in self.blocks]}
+        said: dict[str, Any] = {
+            "id": self.id,
+            "name": self.name,
+            "blocks": [b.to_json() for b in self.blocks],
+        }
+        return said | {"containers": [c.to_json() for c in self.containers]}
+
+    def items(self) -> list[Item]:
+        return [*self.blocks, *self.containers]
+
+    def find(self, item_id: str) -> Item | None:
+        return next((i for i in self.items() if i.id == item_id), None)
+
+    def container(self, item_id: str | None) -> Container | None:
+        return next((c for c in self.containers if c.id == item_id), None) if item_id else None
 
 
 _ID = re.compile(r"^[A-Za-z0-9]{1,16}$")
@@ -434,6 +532,174 @@ def check_link(document: Any, cell: Any) -> Key:
     return document.strip(), cell
 
 
+def check_props(kind: Any, raw: Any, held: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """A container's properties as sent, checked against its kind (toolbox.CONTAINERS): {"widths": [2, 1]},
+    {"labels": ["Chart", "Table"]}, {"label": "Details", "expanded": true}... A property sent as null goes
+    back to its default. `held`: what it has now (a part is enough)."""
+    if kind not in toolbox.CONTAINERS:
+        raise StreamlitError(f"A container is one of: {', '.join(toolbox.CONTAINERS)}.")
+    if raw is None:
+        return dict(held or {})
+    if not isinstance(raw, dict):
+        raise StreamlitError('A container\'s properties are {"name": value}.')
+    known = toolbox.CONTAINERS[kind]
+    out = dict(held or {})
+    for name, value in raw.items():
+        param = known.param(name)
+        if param is None:
+            listed = ", ".join(p.name for p in known.params) or "none"
+            raise StreamlitError(f"{known.label} has no property called {name!r}. Its properties: {listed}.")
+        if value is None:
+            out.pop(name, None)
+            continue
+        if name == "widths":
+            ok = (
+                isinstance(value, list)
+                and 1 <= len(value) <= COLUMNS
+                and all(_whole(v) and 0 < v <= 100 for v in value)
+            )
+            if not ok:
+                raise StreamlitError("Column widths are ratios, like [2, 1]: one to twelve numbers above 0.")
+            value = [int(v) if float(v).is_integer() else float(v) for v in value]
+        elif name == "labels":
+            ok = isinstance(value, list) and 1 <= len(value) <= 20
+            ok = ok and all(
+                isinstance(v, str) and v.strip() and len(v) <= MAX_NAME and "\n" not in v for v in value
+            )
+            if not ok or len({v.strip() for v in value}) != len(value):
+                raise StreamlitError("Tabs are named: one to twenty names, each its own.")
+            value = [v.strip() for v in value]
+        elif name == "submitted":
+            if not isinstance(value, str) or (
+                value and (not value.isidentifier() or keyword.iskeyword(value))
+            ):
+                raise StreamlitError("The name of a form's button value is one word, like submitted.")
+        elif param.type == "bool":
+            if not isinstance(value, bool):
+                raise StreamlitError(f"{name} is true or false.")
+        elif param.type == "choice":
+            if value not in param.choices:
+                raise StreamlitError(f"{name} is one of: {', '.join(param.choices)}.")
+        elif not isinstance(value, str) or len(value) > MAX_NAME or "\n" in value:
+            raise StreamlitError(f"{name} is one line of at most {MAX_NAME} characters.")
+        if value == param.default and name not in ("widths", "labels"):
+            out.pop(name, None)
+        else:
+            out[name] = value
+    return out
+
+
+def grouped(page: Page) -> dict[Group, list[Item]]:
+    """The page's items by where they sit: (the container, its slot); (None, 0) is the page itself. The
+    sidebar has no place of its own, so it is in no group."""
+    out: dict[Group, list[Item]] = {}
+    for item in page.items():
+        if isinstance(item, Container) and item.kind == "sidebar":
+            continue
+        out.setdefault((item.parent, item.slot), []).append(item)
+    for items in out.values():
+        items.sort(key=lambda i: (i.row, i.column))
+    return out
+
+
+def depth_of(page: Page, item: Item) -> int:
+    depth, parent, seen = 0, page.container(item.parent), set()
+    while parent is not None and parent.id not in seen:
+        seen.add(parent.id)
+        depth += 1
+        parent = page.container(parent.parent)
+    return depth
+
+
+def _inside(page: Page, item: Item, kind: str) -> bool:
+    parent, seen = page.container(item.parent), set()
+    while parent is not None and parent.id not in seen:
+        if parent.kind == kind:
+            return True
+        seen.add(parent.id)
+        parent = page.container(parent.parent)
+    return False
+
+
+def check_nesting(page: Page, item: Item, parent_id: str | None, slot: Any = 0) -> tuple[str | None, int]:
+    """Where an item may go: into a container that is there, a slot it has; not into itself or what it
+    holds; no form in a form; the sidebar only on the page itself; at most MAX_DEPTH deep."""
+    if parent_id is None:
+        return None, 0
+    parent = page.container(parent_id)
+    if parent is None:
+        raise StreamlitError(f"This page has no container {parent_id}.")
+    if isinstance(slot, bool) or not isinstance(slot, int) or not 0 <= slot < parent.slots:
+        raise StreamlitError(
+            f"{parent.title} has {parent.slots} {'slot' if parent.slots == 1 else 'slots'}, from 0."
+        )
+    if isinstance(item, Container):
+        if item.kind == "sidebar":
+            raise StreamlitError("The sidebar is the page's own: it does not go inside a container.")
+        up: Container | None = parent
+        while up is not None:
+            if up.id == item.id:
+                raise StreamlitError("A container does not go inside itself.")
+            up = page.container(up.parent)
+        if item.kind == "form" and (parent.kind == "form" or _inside(page, parent, "form")):
+            raise StreamlitError("A form does not go inside another form (Streamlit does not draw it).")
+    if depth_of(page, parent) + 1 >= MAX_DEPTH:
+        raise StreamlitError(f"Containers nest at most {MAX_DEPTH} deep.")
+    return parent.id, slot
+
+
+def settle_page(page: Page, first: Item | None = None) -> None:
+    """Every grid of the page settled (`settle`): the page's own, and each slot of each container. An item
+    whose container is gone, or whose slot is, comes up to the page. The blocks and containers are left in
+    reading order, outside in."""
+    ids = {c.id for c in page.containers}
+    for item in page.items():
+        parent = page.container(item.parent) if item.parent in ids and item.parent != item.id else None
+        if parent is None:
+            item.parent, item.slot = None, 0
+        else:
+            item.slot = max(0, min(parent.slots - 1, item.slot))
+    # A container inside what it holds (a loop) comes up to the page.
+    for container in page.containers:
+        seen: set[str] = set()
+        up = page.container(container.parent)
+        while up is not None:
+            if up.id in seen or up.id == container.id:
+                container.parent, container.slot = None, 0
+                break
+            seen.add(up.id)
+            up = page.container(up.parent)
+    for bar in page.containers:
+        if bar.kind == "sidebar":  # it has no place of its own
+            bar.parent, bar.slot, bar.row, bar.column, bar.w, bar.h = None, 0, 1, 1, COLUMNS, None
+    groups = grouped(page)
+    for items in groups.values():
+        settle(items, first if any(i is first for i in items) else None)
+    ordered: list[Item] = []
+
+    def walk(key: Group) -> None:
+        for item in groups.get(key, []):
+            ordered.append(item)
+            if isinstance(item, Container):
+                for slot in range(item.slots):
+                    walk((item.id, slot))
+
+    walk((None, 0))
+    for bar in [c for c in page.containers if c.kind == "sidebar"]:
+        ordered.append(bar)
+        walk((bar.id, 0))
+    page.blocks[:] = [i for i in ordered if isinstance(i, Block)]
+    page.containers[:] = [i for i in ordered if isinstance(i, Container)]
+
+
+def grids(page: Page) -> dict[str, list[list[str]]]:
+    """Each grid's rows of ids: "" the page's own, "c1:0" a container's slot."""
+    return {
+        ("" if parent is None else f"{parent}:{slot}"): [[i.id for i in row] for row in rows(items)]
+        for (parent, slot), items in grouped(page).items()
+    }
+
+
 def next_id(prefix: str, taken: Iterable[str]) -> str:
     """The next id of a kind (p1, p2... for pages; b1, b2... for blocks), never one in use."""
     used = set(taken)
@@ -443,7 +709,7 @@ def next_id(prefix: str, taken: Iterable[str]) -> str:
     return f"{prefix}{n}"
 
 
-def settle(blocks: list[Block], first: Block | None = None) -> None:
+def settle(blocks: list[Any], first: Any = None) -> None:
     """The blocks as the grid holds them: in reading order (row, then column), no two on the same
     columns of a row, none past column 12. A block that would lie on another starts a row of its
     own below; `first` (the block just moved or placed) keeps the place it was given, and the
@@ -452,16 +718,16 @@ def settle(blocks: list[Block], first: Block | None = None) -> None:
     for block in blocks:
         block.w = max(MIN_WIDTH, min(COLUMNS, block.w))
         block.column = max(1, min(COLUMNS - block.w + 1, block.column))
-    asked: dict[int, list[Block]] = {}
+    asked: dict[int, list[Any]] = {}
     for block in blocks:
         asked.setdefault(block.row, []).append(block)
-    settled: list[list[Block]] = []
+    settled: list[list[Any]] = []
     for row in sorted(asked):
         waiting = sorted(asked[row], key=lambda b: (b is not first, b.column, order[id(b)]))
         while waiting:
             taken: set[int] = set()
-            here: list[Block] = []
-            below: list[Block] = []
+            here: list[Any] = []
+            below: list[Any] = []
             for block in waiting:
                 columns = set(range(block.column, block.column + block.w))
                 if columns & taken:
@@ -477,15 +743,15 @@ def settle(blocks: list[Block], first: Block | None = None) -> None:
     blocks[:] = [block for held in settled for block in held]
 
 
-def rows(blocks: Sequence[Block]) -> list[list[Block]]:
+def rows(blocks: Sequence[Any]) -> list[list[Any]]:
     """The blocks as the grid's rows (settled blocks: each row's in column order)."""
-    out: dict[int, list[Block]] = {}
+    out: dict[int, list[Any]] = {}
     for block in blocks:
         out.setdefault(block.row, []).append(block)
     return [out[row] for row in sorted(out)]
 
 
-def free_place(blocks: Sequence[Block], width: int = DEFAULT_WIDTH) -> tuple[int, int]:
+def free_place(blocks: Sequence[Any], width: int = DEFAULT_WIDTH) -> tuple[int, int]:
     """Where a new block goes when no place is said: beside the last one when the last row has the
     room, else a new row below. (row, column)."""
     if not blocks:
@@ -537,9 +803,46 @@ def read_pages(sent: Any) -> list[Page]:
                     check_column(item.get("column", 1)),
                     check_width(item.get("w", item.get("width", DEFAULT_WIDTH))),
                     check_rows(item.get("h", item.get("height"))),
+                    item.get("parent") if isinstance(item.get("parent"), str) else None,
+                    item["slot"] if type(item.get("slot")) is int and item["slot"] >= 0 else 0,
+                    item.get("hidden") is True,
+                    item.get("locked") is True,
                 )
             )
-        settle(page.blocks)
+        held = raw.get("containers") or []
+        if not isinstance(held, list) or len(held) > MAX_CONTAINERS:
+            raise StreamlitError(f"A page holds at most {MAX_CONTAINERS} containers.")
+        for index, item in enumerate(held):
+            if not isinstance(item, dict):
+                raise StreamlitError(
+                    'A container is {"kind": "columns", "props": {...}, "row", "column", "w"}.'
+                )
+            kind = item.get("kind")
+            props = check_props(kind, item.get("props") or {})
+            container_id = item.get("id")
+            if not isinstance(container_id, str) or not _ID.match(container_id) or container_id in block_ids:
+                container_id = next_id("c", block_ids)
+            block_ids.add(container_id)
+            name = item.get("name")
+            if kind == "sidebar" and any(c.kind == "sidebar" for c in page.containers):
+                raise StreamlitError("A page has one sidebar.")
+            page.containers.append(
+                Container(
+                    container_id,
+                    str(kind),
+                    check_row(item.get("row", index + 1)),
+                    check_column(item.get("column", 1)),
+                    check_width(item.get("w", item.get("width", COLUMNS))),
+                    check_rows(item.get("h", item.get("height"))),
+                    item.get("parent") if isinstance(item.get("parent"), str) else None,
+                    item["slot"] if type(item.get("slot")) is int and item["slot"] >= 0 else 0,
+                    props,
+                    check_name(name) if isinstance(name, str) and name.strip() else "",
+                    item.get("hidden") is True,
+                    item.get("locked") is True,
+                )
+            )
+        settle_page(page)
         pages.append(page)
     for index, page in enumerate(pages):
         if not page.name:
@@ -585,7 +888,12 @@ def write_app(
     """The app's file text. `link` gives each block's path as the file should hold it (relative to
     the file: `relative_link`). `settings`: the page settings' line (domain/app_settings.py file_line)."""
     said = json.dumps
-    lines = ["{", f"  {said(APP_KEY)}: {said(APP_MARK)},", f'  "version": {APP_VERSION},']
+    plain = all(
+        not page.containers and not any(b.parent or b.hidden or b.locked for b in page.blocks)
+        for page in pages
+    )
+    # A page with no container, nothing hidden and nothing locked is written as version 1 wrote it.
+    lines = ["{", f"  {said(APP_KEY)}: {said(APP_MARK)},", f'  "version": {1 if plain else APP_VERSION},']
     if settings:
         lines.append(settings)
     if not pages:
@@ -604,11 +912,30 @@ def write_app(
                     "width": block.w,
                     "height": block.h,
                 }
+                if block.parent:
+                    held |= {"parent": block.parent, "slot": block.slot}
+                held |= {key: True for key in ("hidden", "locked") if getattr(block, key)}
                 comma = "," if index + 1 < len(page.blocks) else ""
                 lines.append(f"        {said(held, ensure_ascii=False)}{comma}")
-            lines.append("      ]")
+            lines.append("      ]" + ("," if page.containers else ""))
         else:
-            lines.append('      "blocks": []')
+            lines.append('      "blocks": []' + ("," if page.containers else ""))
+        if page.containers:
+            lines.append('      "containers": [')
+            for index, box in enumerate(page.containers):
+                kept: dict[str, Any] = {"id": box.id, "kind": box.kind}
+                if box.name:
+                    kept["name"] = box.name
+                if box.kind != "sidebar":
+                    kept |= {"row": box.row, "column": box.column, "width": box.w, "height": box.h}
+                if box.parent:
+                    kept |= {"parent": box.parent, "slot": box.slot}
+                if box.props:
+                    kept["props"] = box.props
+                kept |= {key: True for key in ("hidden", "locked") if getattr(box, key)}
+                comma = "," if index + 1 < len(page.containers) else ""
+                lines.append(f"        {said(kept, ensure_ascii=False)}{comma}")
+            lines.append("      ]")
         lines.append("    }" + ("," if at + 1 < len(pages) else ""))
     lines += ["  ]", "}"]
     return "\n".join(lines) + "\n"
@@ -813,29 +1140,89 @@ def preamble(tables: Sequence[str], data: str, loader: str | None = None) -> lis
     return lines
 
 
-def _layout(placed: Sequence[Block]) -> list[str]:
+def _options(box: Container, names: Sequence[str]) -> str:
+    """A container's own properties as arguments, the ones that are not Streamlit's defaults."""
+    given = [f"{name}={box.props[name]!r}" for name in names if name in box.props]
+    return "".join(f", {text}" for text in given)
+
+
+def _layout(placed: Sequence[Block], containers: Sequence[Container] = ()) -> list[str]:
     """The page's layout as empty slots: a row of `st.columns` for each row of the grid (the empty
-    columns between and after the blocks are columns too, left empty), a container in each."""
+    columns between and after the blocks are columns too, left empty), a container in each. A layout
+    container is opened where it sits (`st.columns`, `st.tabs`, `st.expander`, `st.container`, `st.form`,
+    `st.popover`; the sidebar is `st.sidebar`) and each of its slots laid out the same way inside it."""
+    page = Page("", "", list(placed), list(containers))
+    groups = grouped(page)
     out: list[str] = []
-    for number, row in enumerate(rows(placed), start=1):
-        height = {b.id: "" if b.h is None else f"height={b.h * ROW_HEIGHT}" for b in row}
-        if len(row) == 1 and row[0].w == COLUMNS:
-            out.append(f"_slot_{row[0].id} = st.container({height[row[0].id]})")
-            continue
-        widths: list[int] = []
-        slots: list[tuple[Block, int]] = []
-        cursor = 1
-        for block in row:
-            if block.column > cursor:
-                widths.append(block.column - cursor)
-            slots.append((block, len(widths)))
-            widths.append(block.w)
-            cursor = block.column + block.w
-        if cursor <= COLUMNS:
-            widths.append(COLUMNS - cursor + 1)
-        out.append(f"_row_{number} = st.columns({widths})")
-        for block, index in slots:
-            out.append(f"_slot_{block.id} = _row_{number}[{index}].container({height[block.id]})")
+
+    def opened(box: Container, holder: str) -> None:
+        inside = f"_in_{box.id}"
+        tag = f"{box.id}_"
+        if box.kind == "columns":
+            out.append(
+                f"{inside} = {holder}.columns({box.get('widths')!r}"
+                f"{_options(box, ('gap', 'vertical_alignment', 'border'))})"
+            )
+        elif box.kind == "tabs":
+            out.append(f"{inside} = {holder}.tabs({box.get('labels')!r})")
+        elif box.kind == "expander":
+            out.append(
+                f"{inside} = {holder}.expander({box.get('label')!r}{_options(box, ('expanded', 'icon'))})"
+            )
+        elif box.kind == "container":
+            height = "" if box.h is None else f", height={box.h * ROW_HEIGHT}"
+            out.append(f"{inside} = {holder}.container(border={box.get('border')!r}{height})")
+        elif box.kind == "form":
+            out.append(
+                f"{inside} = {holder}.form({box.id!r}"
+                f"{_options(box, ('clear_on_submit', 'enter_to_submit', 'border'))})"
+            )
+        elif box.kind == "popover":
+            out.append(
+                f"{inside} = {holder}.popover({box.get('label')!r}"
+                f"{_options(box, ('icon', 'help', 'disabled'))})"
+            )
+        if box.slots == 1 and box.kind not in ("columns", "tabs"):
+            lay((box.id, 0), inside, tag)
+        else:
+            for slot in range(box.slots):
+                lay((box.id, slot), f"{inside}[{slot}]", f"{tag}{slot}_")
+        if box.kind == "form":
+            name = box.get("submitted") or f"_submitted_{box.id}"
+            out.append(f"{name} = {inside}.form_submit_button({box.get('submit')!r})")
+
+    def put(item: Item, holder: str) -> None:
+        if isinstance(item, Container):
+            opened(item, holder)
+        else:
+            height = "" if item.h is None else f"height={item.h * ROW_HEIGHT}"
+            out.append(f"_slot_{item.id} = {holder}.container({height})")
+
+    def lay(key: Group, into: str, tag: str) -> None:
+        for number, row in enumerate(rows(groups.get(key, [])), start=1):
+            if len(row) == 1 and row[0].w == COLUMNS:
+                put(row[0], into)
+                continue
+            widths: list[int] = []
+            slots: list[tuple[Item, int]] = []
+            cursor = 1
+            for item in row:
+                if item.column > cursor:
+                    widths.append(item.column - cursor)
+                slots.append((item, len(widths)))
+                widths.append(item.w)
+                cursor = item.column + item.w
+            if cursor <= COLUMNS:
+                widths.append(COLUMNS - cursor + 1)
+            out.append(f"_row_{tag}{number} = {into}.columns({widths})")
+            for item, index in slots:
+                put(item, f"_row_{tag}{number}[{index}]")
+
+    lay((None, 0), "st", "")
+    for bar in containers:
+        if bar.kind == "sidebar":
+            out.append(f"_in_{bar.id} = st.sidebar")
+            lay((bar.id, 0), f"_in_{bar.id}", f"{bar.id}_")
     return out
 
 
@@ -857,6 +1244,7 @@ def page_code(
     fallbacks: Mapping[str, Fallback] | None = None,
     record: bool = False,
     trace: str | None = None,
+    containers: Sequence[Container] = (),
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -934,7 +1322,7 @@ def page_code(
     if trace is not None:
         out += [f"import {TRACE_MODULE} as _sab_lineage", "", f"_sab_lineage.start(__file__, {trace!r})", ""]
     out.append(LAYOUT_LINE)
-    out += _layout(placed)
+    out += _layout(placed, containers)
     out.append("")
 
     def say(block_id: str, words: str) -> None:
@@ -1204,6 +1592,7 @@ def export(
             elsewhere=elsewhere(page, every, where or {}),
             gone=gone,
             fallbacks=(fallbacks or {}).get(page.id),
+            containers=page.containers,
         )
         files[f"app_pages/{module}.py"] = made.code
         modules.append((module, page.name))
@@ -1302,6 +1691,7 @@ def saved_pages(
             gone=gone,
             loader="data",
             fallbacks=(fallbacks or {}).get(page.id),
+            containers=page.containers,
         )
         title, _, rest = made.code.partition("\n")
         if head:  # the page settings: st.set_page_config and st.logo, before the layout

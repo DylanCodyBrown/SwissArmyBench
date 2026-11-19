@@ -1,0 +1,183 @@
+{
+ "default_index": {
+  "do": "set",
+  "index": 0,
+  "name": "index",
+  "value": 2
+ },
+ "default_positional": {
+  "do": "set",
+  "index": 1,
+  "name": "value",
+  "value": 120
+ },
+ "label_keeps_quotes": {
+  "do": "set",
+  "index": 1,
+  "name": "label",
+  "value": "Smallest order's amount"
+ },
+ "options_list": {
+  "do": "set",
+  "index": 0,
+  "name": "options",
+  "value": [
+   "All",
+   "North",
+   "South",
+   "West"
+  ]
+ },
+ "add_inline": {
+  "do": "set",
+  "index": 1,
+  "name": "step",
+  "value": 10
+ },
+ "add_key_inline": {
+  "do": "set",
+  "index": 1,
+  "name": "key",
+  "value": "least"
+ },
+ "add_exploded": {
+  "do": "set",
+  "index": 0,
+  "name": "help",
+  "value": "Pick one"
+ },
+ "reset_exploded": {
+  "do": "reset",
+  "index": 0,
+  "name": "index"
+ },
+ "handler": {
+  "do": "handler",
+  "index": 0
+ },
+ "bind_state": {
+  "do": "bind",
+  "index": 1,
+  "name": "value",
+  "kind": "state",
+  "target": "least"
+ },
+ "bind_variable": {
+  "do": "bind",
+  "index": 1,
+  "name": "max_value",
+  "kind": "variable",
+  "target": "MOST_AMOUNT"
+ },
+ "bind_name": {
+  "do": "bind",
+  "index": 1,
+  "name": "value",
+  "kind": "name",
+  "target": "least_default"
+ },
+ "bool_tight": {
+  "do": "set",
+  "index": 0,
+  "name": "value",
+  "value": false
+ },
+ "add_after_trailing_comma": {
+  "do": "set",
+  "index": 1,
+  "name": "border",
+  "value": true
+ },
+ "reset_last_inline": {
+  "do": "reset",
+  "index": 1,
+  "name": "delta"
+ },
+ "reset_only_keyword": {
+  "do": "reset",
+  "index": 0,
+  "name": "value"
+ },
+ "button_click": {
+  "do": "handler",
+  "index": 2
+ },
+ "date_stays_a_date": {
+  "do": "set",
+  "index": 3,
+  "name": "value",
+  "value": "2026-03-01"
+ },
+ "tuple_stays_a_tuple": {
+  "do": "set",
+  "index": 4,
+  "name": "value",
+  "value": [
+   1,
+   9
+  ]
+ },
+ "cache_ttl": {
+  "do": "cache",
+  "function": "monthly",
+  "kind": "data",
+  "settings": {
+   "ttl": 60
+  }
+ },
+ "cache_ttl_words": {
+  "do": "cache",
+  "function": "monthly",
+  "kind": "data",
+  "settings": {
+   "ttl": "1h"
+  }
+ },
+ "cache_add_setting": {
+  "do": "cache",
+  "function": "monthly",
+  "kind": "data",
+  "settings": {
+   "max_entries": 20
+  }
+ },
+ "cache_this_function": {
+  "do": "cache",
+  "function": "slow",
+  "kind": "data"
+ },
+ "cache_this_function_with_ttl": {
+  "do": "cache",
+  "function": "slow",
+  "kind": "data",
+  "settings": {
+   "ttl": 30
+  }
+ },
+ "cache_bare_gets_arguments": {
+  "do": "cache",
+  "function": "client",
+  "kind": "resource",
+  "settings": {
+   "max_entries": 1
+  }
+ },
+ "cache_kind": {
+  "do": "cache",
+  "function": "client",
+  "kind": "data"
+ },
+ "cache_removed": {
+  "do": "cache",
+  "function": "client",
+  "kind": null
+ },
+ "cache_setting_removed": {
+  "do": "cache",
+  "function": "monthly",
+  "kind": "data",
+  "settings": {
+   "show_spinner": null
+  }
+ }
+}

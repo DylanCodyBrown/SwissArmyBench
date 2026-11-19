@@ -92,6 +92,7 @@ class Controllers:
                 tables,
                 elsewhere=rules.elsewhere(page, found, where),
                 fallbacks=fallen,
+                containers=page.containers,
             )
             placed = [controllers.Placed(b.id, linked.code(b.key), linked.kind(b.key)) for b in page.blocks]
             check = controllers.check_page(
@@ -151,6 +152,7 @@ class Controllers:
                     imports=data.names if data is not None else (),
                     fallbacks=fallen,
                     record=record,
+                    containers=page.containers,
                 )
 
             live, made = written(False), written(True)

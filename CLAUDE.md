@@ -1074,6 +1074,19 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          this page's runner, in that Python (`python -I`), in a temporary folder
     server/routes_streamlit.py, routes_controllers.py  /streamlit/* (and the live pages, /streamlit/live/<key>/)
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
+    domain/widget_code.py  the canvas's property pane (the owner, 2026-11-19): a cell's Streamlit code read with ast
+                         (widgets, keys, the keys the page gives, each argument as a plain value, a name, a session
+                         state key, a variable or code; cache decorators) and written back into ONLY its own
+                         characters (set_argument, reset_argument, bind, add_handler, set_cache); NotPlain refuses
+    domain/toolbox.py    the designer's Toolbox: every Streamlit element (its positional parameters, its properties
+                         with types, defaults and one line each, its default and event, the minimal cell a drop
+                         makes) and the layout containers (columns, tabs, expander, container, form, sidebar, popover)
+    domain/designer.py   arrange (align, same size, distribute, in the grid's units), Reset layout, the Document Outline
+    services/canvas_pane.py  inspect (a block, a page, the app: properties, uses, used by, state, cache, code), a
+                         table beside the canvas, a change to a cell's code as a plan, a Toolbox element's cell;
+                         Now (the running app's session state and caches) is services/streamlit.py's `now`
+    server/routes_canvas.py  /streamlit/toolbox, …/inspect, /streamlit/tables/{name}, …/blocks/{block}/code, …/now,
+                         …/containers, …/arrange, …/outline (the agent's canvas_* commands)
 extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
                          project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
                          page, through GitHub's web API (no Git on the computer)
@@ -1166,6 +1179,12 @@ extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; e
     services/copilot.py  one server per app: start, sign in (device flow), the On switch, private projects,
                          complete, cancel, shown/accepted/partial, the panel as data
     server/routes.py     /copilot/*
+web/src/canvasPane.ts    (the Streamlit extension's) App mode's property pane: the grid (categorized, A to Z, search, a
+                         property's line), Uses (a table beside the canvas, Open as grid), Streamlit (State: key, Now,
+                         Default; Bindings; Cache), Events, Code; a container's own properties; several blocks' shared
+web/src/canvasToolbox.ts the Toolbox (drag or click: an element's cell and block, a container) and the Document Outline
+web/src/canvasSnap.ts    snapline maths over rectangles (guides, snapped, equalGaps, sameSize, inBand): pure,
+                         tested as the page runs it (tests/test_canvas_snap.py: esbuild and Node)
 web/src/inlineCompletion.ts ghost text from the provider the mode declares (`inline_completion`: its routes): the
                          ask (cancelled with Monaco's token), the shown/accepted/partial report, the status bar's
                          "Completions: <name> · on/off" (a click toggles); lazy/codeEditor.ts registers Monaco's
