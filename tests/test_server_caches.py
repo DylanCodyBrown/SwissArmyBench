@@ -121,6 +121,7 @@ def test_start_up_catalogs_wait_for_the_first_window_or_the_time_limit() -> None
         made = CatalogLoading.__new__(CatalogLoading)
         made._enabled = True
         made._windows = lambda: windows[0]
+
         def at_start() -> list[str]:
             started.append(time.monotonic())
             return []
@@ -209,3 +210,15 @@ def test_the_installed_extensions_are_read_once_and_again_when_forgotten(monkeyp
         assert len(calls) == 2
     finally:
         extensions.forget_installed()
+
+
+def test_the_index_and_guide_pages_are_read_again_when_they_change(tmp_path: Path) -> None:
+    from swissarmybench.adapters.claude import ClaudeFiles
+
+    files = ClaudeFiles(tmp_path / "claude", None)
+    page = tmp_path / "page.md"
+    page.write_text("# One\n", encoding="utf-8")
+    assert files._page(page) == "# One\n" == files._page(page)
+    page.write_text("# Two, longer\n", encoding="utf-8")
+    assert files._page(page) == "# Two, longer\n"
+    assert files.index() and files.guide("no-such-topic") == ""
