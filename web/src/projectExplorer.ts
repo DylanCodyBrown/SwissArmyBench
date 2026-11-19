@@ -25,7 +25,7 @@ import { api, onNotice } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { loadingBlock } from "./loading";
-import { baseName, copyProject, newProject, openProject, type ProjectState, when } from "./projectFile";
+import { baseName, closeProject, copyProject, newProject, onProject, openProject, projectState, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
 import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
 import { errorHere, errorMark } from "./errorNote";
@@ -80,10 +80,20 @@ let opened: (state: ProjectState | null) => void = () => undefined;
 
 const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
 
+/** Close project, from the Projects page (the owner, 2026-11-19: "I should be able to close a project from
+ *  the project home"): projectFile.ts's close (unsaved changes asked about, Autosave saves first); the page
+ *  stays, the card no longer marked Open. */
+const closeOpen = (): HTMLButtonElement =>
+  button("Close project", guard(() => closeProject().then(() => refreshExplorer())), { icon: "close", class: "explorer-close" });
+
 /** The Project Explorer on this page (once). `afterOpen`: what the page does once a project opened (its
  *  Grids). */
 export function mountExplorer(afterOpen: (state: ProjectState | null) => void): void {
   opened = afterOpen;
+  // The open project at the top and on its card follows the project as it is read again.
+  onProject(() => {
+    if (host?.isConnected && listing) draw();
+  });
   onNotice((notice) => {
     if (notice.type === "projects_changed" || notice.type === "project_changed") void refreshExplorer();
   });
@@ -147,6 +157,8 @@ function create(t?: ProjectType): void {
 }
 
 function header(read: Listing, empty: boolean): HTMLElement {
+  // The project open now, said at the top with its Close (it may be filtered out of the cards).
+  const open = projectState().project;
   const search = h("input", { type: "search", class: "explorer-search", placeholder: "Search projects", "aria-label": "Search projects", value: query });
   let typing = 0;
   search.addEventListener("input", () => {
@@ -193,6 +205,7 @@ function header(read: Listing, empty: boolean): HTMLElement {
       button("Open a file…", () => void openFile(), { icon: "file", class: "start-action" }),
       button("Paste data", () => pasteData(), { icon: "copy", class: "start-action", title: "A table copied from Excel or a web page" }),
     ),
+    open ? h("p", { class: "explorer-open-line" }, h("strong", {}, open.name), " is open", closeOpen()) : null,
     empty ? null : h("div", { class: "explorer-tools" }, search, places, types, h("label", { class: "explorer-sort-label" }, h("span", {}, "Sort"), sort), direction),
   );
 }
@@ -276,6 +289,7 @@ function card(c: ProjectCard, read: Listing): HTMLElement {
         h("span", { class: `explorer-where-mark where-${c.where ?? "local"}` }, c.where === "shared" ? "Shared" : "Local"),
         c.open ? h("span", { class: "explorer-open-mark" }, "Open") : null,
       ),
+      c.open ? closeOpen() : null,
       typeLine,
       c.copied_from ? h("p", { class: "hint explorer-copied" }, `Copied from ${c.copied_from}`) : null,
       ...meta,

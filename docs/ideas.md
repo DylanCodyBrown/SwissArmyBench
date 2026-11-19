@@ -6158,6 +6158,10 @@ Survey items 7, 8, 9, 12, 13 and 15.
   the state folder's `rail.json` (GET/PUT /rail, `app_rail`), every window following (`rail_changed`); the last
   one is also remembered in the page so it opens without a jump. Under 900px wide the rail is the icons alone,
   whatever the switch. The icon rail itself looks as before.
+- **Close a project from Projects** (the owner, 2026-11-19: "I should be able to close a project from the project
+  home"; projectExplorer.ts): while a project is open, its card (marked Open) and the page's top line ("<name>
+  is open") each carry **Close project**: projectFile.ts's close as before (unsaved changes asked about; Autosave
+  saves first); the Projects page stays and the Open mark goes. The agent's is `project_close` (already there).
 - **Layout** (gridView.ts, grid.css, ribbon.ts): a short table's columns grow in proportion to fill the width
   (at most four times their own; a column the user drags or Auto width stops it for that grid); the
   Application row takes no band while it is empty (no project open); the Table row's tools that fold to an icon
@@ -6176,3 +6180,4 @@ Survey items 7, 8, 9, 12, 13 and 15.
 - **Add connection** has a search box and the kinds you used last first.
 - **Ctrl+K** shows what you used last first, and the keys at its foot.
 - A short table fills the window's width, and the empty Application row is gone.
+- **Close a project from Projects:** the open project is named at the top with **Close project**, and its card has one too.

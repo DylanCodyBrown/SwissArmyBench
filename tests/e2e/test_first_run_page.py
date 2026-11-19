@@ -216,3 +216,39 @@ def test_a_new_notebook_says_how_it_works(browser: Browser, server: dict[str, An
     expect(page.locator(".wb-cell").first).to_contain_text("Shift+Enter runs", timeout=30000)
     shot(page, "notebook-hint")
     page.context.close()
+
+
+def test_a_project_closes_from_the_projects_page(browser: Browser, server: dict[str, Any]) -> None:
+    folder = Path(server["tmp"]) / "close-me"
+    call(server, "POST", "/project/new", {"path": str(folder)})
+    call(server, "POST", "/project/autosave", {"on": False})
+    # Unsaved changes (tables opened, Autosave off), before the page: an arriving table moves Projects away.
+    call(server, "POST", "/samples/store")
+    page = home(browser, server, "?open=projects")
+    projects = page.locator(".area-page[data-page='projects']")
+    top = projects.locator(".explorer-open-line")
+    expect(top).to_contain_text("close-me is open", timeout=20000)
+    card = projects.locator(".explorer-card.is-open")
+    expect(card.locator(".explorer-open-mark")).to_be_visible()
+    shot(page, "projects-close")
+    # The existing question; the first answer (Cancel) keeps it open.
+    asked: list[str] = []
+
+    def answer(dialog: Any) -> None:
+        asked.append(dialog.message)
+        if len(asked) == 1:
+            dialog.dismiss()
+        else:
+            dialog.accept()
+
+    page.on("dialog", answer)
+    card.get_by_role("button", name="Close project").click()
+    page.wait_for_timeout(800)
+    assert asked and "Let them go and close the project?" in asked[0], asked
+    expect(top).to_be_visible()
+    top.get_by_role("button", name="Close project").click()
+    expect(top).to_have_count(0, timeout=20000)
+    expect(projects.locator(".explorer-card.is-open")).to_have_count(0)
+    expect(projects).to_be_visible()  # the Projects page stays
+    assert call(server, "GET", "/project")["project"] is None
+    page.context.close()

@@ -14152,6 +14152,21 @@ dialog.find-data .dialog-body {
   white-space: nowrap;
 }
 
+/* The project open now, at the top of Projects, with its Close project (projectExplorer.ts closeOpen). */
+.explorer-open-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 10px 0 0;
+}
+
+.explorer-card .explorer-close {
+  justify-self: start;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
 .explorer-open-mark {
   flex: none;
   padding: 0 6px;
