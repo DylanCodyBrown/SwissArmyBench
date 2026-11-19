@@ -54,6 +54,7 @@ import { showAddApi } from "./addApi";
 import { api, errorText, onNotice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
+import { accessSection } from "./connectionAccess";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
 import { clearError, errorHere, errorMark, errorNote, showError, warningNote } from "./errorNote";
@@ -805,6 +806,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           "div",
           { class: "connection-detail-side" },
           h("section", { class: "connection-section", "aria-label": "Configuration" }, h("h2", {}, icon("cog"), "Configuration"), configuration),
+          config.kind === "vault" ? null : accessSection(name),
           h("section", { class: "connection-section", "aria-label": "Calls this session" }, h("h2", {}, icon("clock"), "Calls this session", h("span", { class: "count connection-calls-count" }, String(calls.total))), counted),
         ),
       ),

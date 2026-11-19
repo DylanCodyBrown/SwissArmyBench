@@ -65,6 +65,11 @@ def origin_words(origin: Origin) -> str:
     return {"python": "Python", "paste": "pasted", "query": "a query (the + tab)"}.get(origin.kind, "")
 
 
+def _when(iso: str) -> str:
+    """An access report's time to the minute: 2026-11-19 10:04."""
+    return iso[:16].replace("T", " ")
+
+
 def _colour_name(colour: str | None) -> str | None:
     if not colour:
         return None
@@ -115,6 +120,10 @@ class ContextMd:
         self._structures = structures
         self._shared = shared  # the shared catalog's listing (services/shared_catalog.py); None: not built
         self._clock = clock
+        # Set once built (bootstrap.py): a connection's Access section (services/app_registrations.py) and the
+        # open project's gates (services/modes.py). None: not said.
+        self.access: Callable[[str], dict[str, Any]] | None = None
+        self.gates: Callable[[], dict[str, Any]] | None = None
         self._lock = asyncio.Lock()
         self._looked: tuple[int, float] | None = None  # the notice count and time of the last look
         self._pending: rules.Rendered | None = None  # a change not yet settled
@@ -182,7 +191,33 @@ class ContextMd:
             shared=frozenset(shared),
             used_in=tuple(dict.fromkeys(used)),
             writes=(card.get("writes") or {}).get("writable"),
+            access=self._access_lines(name),
         )
+
+    def _access_lines(self, name: str) -> tuple[str, ...]:
+        if self.access is None:
+            return ()
+        try:
+            found = self.access(name).get("access") or []
+        except Exception:  # access is a nicety: app_registration_check has it
+            return ()
+        return tuple(
+            f"{rules.code(a['registration'])}: {a['line']}, checked {_when(str(a.get('checked', '')))}"
+            for a in found
+            if a.get("registration") and a.get("line")
+        )
+
+    def _gates(self) -> tuple[tuple[str, ...], str]:
+        if self.gates is None:
+            return (), ""
+        try:
+            said = self.gates()
+        except Exception:  # no project open, or no mode
+            return (), ""
+        closed = tuple(str(c.get("name") or c.get("area")) for c in said.get("closed") or [])
+        line = str(said.get("line") or "")
+        kind = line.removeprefix("This ").split(" project keeps", 1)[0] if line.startswith("This ") else ""
+        return closed, kind
 
     def _tables(self) -> tuple[rules.TableFacts, ...]:
         ws = self.ws
@@ -321,10 +356,13 @@ class ContextMd:
             if card.get("tables_kind") == "api" and self._apis is not None:
                 continue  # an API: its own section (APIs) has it and its tables
             connections.append(await self._connection(card, folder))
+        gates, gated_type = self._gates()
         return rules.State(
             version=self._version,
             project=project.get("name"),
             folder=folder,
+            gates=gates,
+            gated_type=gated_type,
             connections=tuple(connections),
             apis=self._apis_facts(),
             tables=self._tables(),

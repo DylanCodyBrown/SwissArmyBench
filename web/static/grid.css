@@ -10860,6 +10860,67 @@ body.has-rail .area-page {
   white-space: nowrap;
 }
 
+.connection-access-by {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.connection-access-by + .connection-access-by {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.connection-access-line,
+.connection-access-when {
+  margin: 0;
+}
+
+.connection-access-when {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-access-items {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.connection-access-item {
+  display: grid;
+  grid-template-columns: 1.5em minmax(0, 1fr);
+  gap: 6px;
+}
+
+.connection-access-what {
+  display: grid;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.connection-access-why,
+.connection-access-fix {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.access-ok .connection-access-mark {
+  color: var(--ok);
+}
+
+.access-refused .connection-access-mark {
+  color: var(--error);
+}
+
+.access-unchecked .connection-access-mark {
+  color: var(--muted);
+}
+
 .connection-config,
 .connection-calls {
   display: grid;

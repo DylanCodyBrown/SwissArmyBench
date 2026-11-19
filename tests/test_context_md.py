@@ -156,6 +156,17 @@ def test_a_connection_says_whether_it_writes() -> None:
     assert "- `Finance` (Power BI workspace); status ready; read-only" in text
 
 
+def test_a_connections_access_and_the_projects_gates_in_one_line_each() -> None:
+    reached = ConnectionFacts(
+        "Finance", "database", "Power BI workspace", access=("`Contoso BI`: ✓ 3, checked 2026-11-19 10:04",)
+    )
+    state = _state(connections=(reached,), gates=("Analyze", "Scripts"), gated_type="Power BI")
+    text = rules.render(state, 24_000).text
+    assert "  - access: `Contoso BI`: ✓ 3, checked 2026-11-19 10:04" in text
+    assert "- Gates: this Power BI project keeps closed Analyze, Scripts on the user's screens" in text
+    assert "Gates:" not in rules.render(_state(), 24_000).text
+
+
 def test_a_hostile_name_stays_in_code_formatting() -> None:
     state = _state(tables=(TableFacts(HOSTILE, 1, ((HOSTILE, "VARCHAR"),)),))
     text = rules.render(state, 24_000).text

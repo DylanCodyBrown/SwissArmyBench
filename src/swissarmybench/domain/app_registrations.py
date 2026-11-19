@@ -147,7 +147,12 @@ class Report:
     items: tuple[Access, ...] = ()
 
     def for_connection(self, name: str) -> list[Access]:
-        return [i for i in self.items if i.connection.casefold() == name.casefold()]
+        """What the connection reaches: the registration's sign-in first (it signs the connection in), then
+        its own items; nothing when the report names it nowhere."""
+        own = [i for i in self.items if i.connection.casefold() == name.casefold()]
+        if not own:
+            return []
+        return [i for i in self.items if i.area == "Sign-in"] + own
 
     def to_json(self) -> dict[str, Any]:
         return {

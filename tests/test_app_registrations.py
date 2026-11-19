@@ -38,6 +38,13 @@ def ok(response: Any) -> Any:
     return response.json()
 
 
+def await_state(ctx: Any) -> Any:
+    """context.md's facts as the app gathers them now."""
+    import asyncio
+
+    return asyncio.run(ctx.context_md.state())
+
+
 REG = {"name": "Contoso BI", "tenant": "BI_TENANT", "client": "BI_CLIENT", "secret": "BI_SECRET"}
 
 
@@ -107,6 +114,9 @@ def test_the_access_report_and_a_connections_access_section(tmp_path: Path, stan
         assert made_up.SECRET not in str(report) and made_up.TOKEN not in str(report)
         access = ok(client.get("/connections/Warehouse/access", headers=AGENT))["access"][0]
         assert access["registration"] == "Contoso BI" and access["line"] == "1 not checked"
+        facts = await_state(ctx)
+        warehouse = next(c for c in facts.connections if c.name == "Warehouse")
+        assert warehouse.access and warehouse.access[0].startswith("`Contoso BI`: 1 not checked, checked 20")
 
         # The tenant setting off: the plain reason and the fix.
         standin.tenant_setting_off = True

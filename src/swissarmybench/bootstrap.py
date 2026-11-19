@@ -1192,6 +1192,7 @@ def bootstrap(
         documents=lambda: project_scope.documents()["documents"],
         context_md=context_md,
     )
+    context_md.access = app_registrations.access
     modes = Modes(
         extension_modules.modes,
         lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
@@ -1200,6 +1201,7 @@ def bootstrap(
         sab_projects.setting,
         sab_projects.set_setting,
     )
+    context_md.gates = modes.gates
 
     def saved_dashboards() -> list[dict[str, Any]]:
         """The open project's saved dashboards: each one's name and its last version's cards."""
