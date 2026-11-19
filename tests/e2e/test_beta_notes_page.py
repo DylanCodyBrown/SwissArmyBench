@@ -100,6 +100,8 @@ def test_notes_on_a_ribbon_button_and_a_grid_cell_and_a_text_box_keeps_its_menu(
         # 2026-11-19, design principle 12.7), and copy and paste by the keyboard still work
         page.locator(".ag-header-cell[col-id='client']").click()
         page.locator(".ribbon").get_by_role("button", name="Filter…").click()
+        # A text column starts on its values to tick (feel-b, 2026-11-19): "equals" gives the one text box.
+        page.locator("dialog[open]").get_by_label("Condition").select_option("eq")
         box = page.locator("dialog[open] input[type=text], dialog[open] input:not([type])").first
         expect(box).to_be_visible()
         box.fill("Initech")
