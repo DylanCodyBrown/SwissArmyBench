@@ -4,8 +4,10 @@ can background load and feed the autocomplete").
 A connection's catalog (its tables and columns, by its catalog command) loads in the background:
 
   SAVED        when a connection is saved (the user is there: a sign-in window is expected)
-  START-UP     every connection when the server starts, but not one that signs in with a browser window
-               or a phone prompt (domain/connections.py signs_in_interactively): that one waits
+  START-UP     every connection once the app's first window is open (or START_WAIT_SECONDS after the
+               server started, with none), so the child processes never race the first page's own loading;
+               not one that signs in with a browser window or a phone prompt (domain/connections.py
+               signs_in_interactively): that one waits
   FIRST USE    a waiting one (or any not loaded) when a SQL cell, the side bar or the agent first asks
 
 Each load is Refresh's own run (a child process of the server's Python, services/blades.py), a few at
@@ -18,6 +20,7 @@ as Refresh's do.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from typing import Any
 
 from swissarmybench.domain import connections as rules
@@ -26,11 +29,25 @@ from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.workspace import Workspace
 
+# Start-up's loads wait for the app's first window (its page connected), then SETTLE_SECONDS more for the
+# page's own first requests; with no window, START_WAIT_SECONDS from the start (a server for the agent).
+START_WAIT_SECONDS: float = 15.0
+SETTLE_SECONDS: float = 2.0
+_POLL_SECONDS: float = 0.25
+
 
 class CatalogLoading:
     def __init__(
-        self, ws: Workspace, blades: BladeService, catalogs: CatalogService, enabled: bool, at_once: int
+        self,
+        ws: Workspace,
+        blades: BladeService,
+        catalogs: CatalogService,
+        enabled: bool,
+        at_once: int,
+        windows: Callable[[], int] = lambda: 1,
     ) -> None:
+        # How many of the app's windows are open (adapters/live_updates.py): start-up waits for the first.
+        self._windows = windows
         self.ws = ws
         self._blades = blades
         self._catalogs = catalogs
@@ -80,6 +97,20 @@ class CatalogLoading:
             self.load(name, "user")
         except BladeError:
             pass  # a vault, or code with no catalog command
+
+    async def at_start_later(
+        self, wait: float = START_WAIT_SECONDS, settle: float = SETTLE_SECONDS
+    ) -> list[str]:
+        """at_start, once the first window is open and its page has settled, or after `wait` seconds."""
+        if not self._enabled:
+            return []
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + wait
+        while self._windows() == 0 and loop.time() < deadline:
+            await asyncio.sleep(_POLL_SECONDS)
+        if self._windows():
+            await asyncio.sleep(settle)
+        return self.at_start()
 
     def at_start(self) -> list[str]:
         """Every connection's catalog, in the background, but the ones that sign in with a window (they

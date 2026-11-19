@@ -168,6 +168,8 @@ class Settings:
     # ones.
     claude_standin: Path | None = field(default_factory=_claude_standin)
     catalogs_at_once: int = 2
+    # Start-up's catalogs wait for the app's first window, at most this long (services/catalog_loading.py).
+    catalogs_start_wait_seconds: float = 15.0
     # How long reading the vaults may hold up a Workbench kernel's start (it then starts without them).
     vault_timeout_seconds: float = 60.0
     # Size of a push request body. JSON is several times larger than the same data in

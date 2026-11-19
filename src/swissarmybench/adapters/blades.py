@@ -52,6 +52,10 @@ KEYRING_SERVICE: str = "SwissArmyBench"
 # The service SwissArmyGrid saved under before its rename (renamed.py): a secret found only there is
 # copied to the new service on its first read, so saved passwords keep working; the next release drops it.
 OLD_KEYRING_SERVICE: str = "SwissArmyGrid"
+# Whether a blade's secret is saved, kept this long (a listing asks for every blade's, and an operating
+# system's vault can take milliseconds an answer); a save or forget here clears it at once, so the time
+# only bounds a change made outside the app.
+SECRET_STATUS_SECONDS: float = 30.0
 
 
 def parse_blade(data: Any, previous: Blade | None = None) -> Blade:
@@ -98,6 +102,10 @@ class BladeStore:
         # they change.
         self._seen: dict[str, tuple[tuple[int, int], Blade | None, str | None]] = {}
         self.problems: list[dict[str, str]] = []  # files with a blade header that could not be read
+        # A secret's vault entry (its user) -> (when looked, whether a value is saved): never the value.
+        self._saved_status: dict[str, tuple[float, bool]] = {}
+        # A starter's name (ignoring case) -> its file, from the last listing of the starters.
+        self._starter_index: dict[str, str] = {}
 
     @property
     def library(self) -> Path:
@@ -332,7 +340,27 @@ class BladeStore:
             if folder is not None and folder.is_dir():
                 found += self._pack_files(folder, rules.STARTERS, problems)
         order = {family: i for i, family in enumerate(rules.FAMILIES)}
-        return sorted(found, key=lambda b: (order.get(b.family, len(order)), b.name.casefold()))
+        found.sort(key=lambda b: (order.get(b.family, len(order)), b.name.casefold()))
+        index: dict[str, str] = {}
+        for blade in found:
+            index.setdefault(blade.name.casefold(), str(blade.path))
+        self._starter_index = index
+        return found
+
+    def _starter(self, name: str) -> Blade | None:
+        """A starter by its name: its file from the last listing's index, looked at alone (one stat), else
+        the starters listed again (a new file, one changed or gone)."""
+        path = self._starter_index.get(name.casefold())
+        cached = self._seen.get(path) if path is not None else None
+        if path is not None and cached is not None and cached[1] is not None:
+            try:
+                stat = Path(path).stat()
+            except OSError:
+                stat = None
+            same = stat is not None and cached[0] == (stat.st_mtime_ns, stat.st_size)
+            if same and cached[1].name.casefold() == name.casefold() and cached[1].pack == rules.STARTERS:
+                return cached[1]
+        return next((b for b in self.starters() if b.name.casefold() == name.casefold()), None)
 
     @staticmethod
     def _load_file(path: Path, size: int, is_blade: Any, read_blade: Any) -> tuple[Blade | None, str | None]:
@@ -385,9 +413,12 @@ class BladeStore:
         blade = self._cached(path) if path is not None else None
         if blade is not None:
             return self.listed(blade)
-        for found in [*self._scan(), *self.starters()]:
+        for found in self._scan():
             if found.name.casefold() == name.casefold():
                 return self.listed(found)
+        starter = self._starter(name)
+        if starter is not None:
+            return self.listed(starter)
         raise KeyError(name)
 
     def file_of(self, name: str) -> Path | None:
@@ -576,10 +607,30 @@ class BladeStore:
                     pass
         return value
 
+    def _has_secret(self, name: str, secret: str) -> bool:
+        """Whether a value is saved for the secret (kept SECRET_STATUS_SECONDS; raises
+        VaultUnavailableError as _secret does)."""
+        user, now = self._user(name, secret), time.monotonic()
+        kept = self._saved_status.get(user)
+        if kept is not None and now - kept[0] < SECRET_STATUS_SECONDS:
+            return kept[1]
+        saved = self._secret(name, secret) is not None
+        self._saved_status[user] = (now, saved)
+        return saved
+
     def _set_secret(self, name: str, secret: str, value: str) -> None:
-        self._keyring().set_password(KEYRING_SERVICE, self._user(name, secret), value)
+        try:
+            self._keyring().set_password(KEYRING_SERVICE, self._user(name, secret), value)
+        finally:
+            self._saved_status.pop(self._user(name, secret), None)
 
     def _delete_secret(self, name: str, secret: str) -> None:
+        try:
+            self._forget_secret(name, secret)
+        finally:
+            self._saved_status.pop(self._user(name, secret), None)
+
+    def _forget_secret(self, name: str, secret: str) -> None:
         for service in (KEYRING_SERVICE, OLD_KEYRING_SERVICE):  # forgotten under the old name too
             try:
                 self._keyring().delete_password(service, self._user(name, secret))
@@ -604,7 +655,7 @@ class BladeStore:
         """Each secret the blade's code asks for, and whether a value is saved (never the value)."""
         blade = name if isinstance(name, Blade) else self.get(name)
         try:
-            return {s: self._secret(blade.name, s) is not None for s in blade.secrets}
+            return {s: self._has_secret(blade.name, s) for s in blade.secrets}
         except VaultUnavailableError:
             return {s: False for s in blade.secrets}
 
@@ -643,7 +694,10 @@ class BladeStore:
     ) -> tuple[list[Blade], dict[str, str]]:
         """For the secrets the blade asks for and has no saved value for: the vault blades that set
         them (to run first), and the variables a secret blade asks the user for (name -> that blade)."""
-        missing = [s for s in blade.secrets if s not in self.saved_secrets(blade)]
+        try:
+            missing = [s for s in blade.secrets if not self._has_secret(blade.name, s)]
+        except VaultUnavailableError:
+            missing = list(blade.secrets)
         # A setting's ${NAME} (12.7): the code reads os.environ["NAME"], which a vault's entry may give.
         missing += [m["variable"] for m in env_settings(blade.code) if m["variable"] not in os.environ]
         # A connection from the user's own Python: a variable its boxes read that a vault's entry gives (the

@@ -19,6 +19,7 @@ Decisions recorded in docs/verified.md:
 from __future__ import annotations
 
 import csv
+import importlib
 import io
 import json
 from collections.abc import Iterator
@@ -30,10 +31,7 @@ from typing import Any
 
 import duckdb
 import pyarrow as pa
-import pyarrow.compute as pc
 import pyarrow.parquet as pq
-import xlsxwriter
-from xlsxwriter.utility import xl_col_to_name
 
 from swissarmybench.domain.datasets import Column
 from swissarmybench.domain.export import (
@@ -44,6 +42,26 @@ from swissarmybench.domain.export import (
     neutralize,
 )
 from swissarmybench.domain.steps import type_family
+
+
+class _Later:
+    """A module imported on its first use, not with the app (xlsxwriter, Arrow's compute: 50 ms)."""
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getattr__(self, attribute: str) -> Any:
+        return getattr(importlib.import_module(self._name), attribute)
+
+
+pc: Any = _Later("pyarrow.compute")
+xlsxwriter: Any = _Later("xlsxwriter")
+
+
+def xl_col_to_name(column: int) -> str:
+    name: str = importlib.import_module("xlsxwriter.utility").xl_col_to_name(column)
+    return name
+
 
 EXCEL_MAX_ROWS: int = 1_048_576
 EXCEL_MAX_COLUMNS: int = 16_384

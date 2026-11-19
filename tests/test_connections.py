@@ -531,8 +531,9 @@ def test_catalogs_load_themselves_when_saved_at_start_up_and_on_first_use(tmp_pa
     with make_client(tmp_path) as client:  # loading off: saved, not loaded
         for body in (mfa, gone):
             assert client.post("/connections", json=body, headers=AUTH).status_code == 200
-    # Start-up: every connection loads itself, but the one with a sign-in window waits for first use.
-    with make_client(tmp_path, auto_load_catalogs=True) as client:
+    # Start-up: every connection loads itself, but the one with a sign-in window waits for first use. It
+    # waits for the app's first window, at most catalogs_start_wait_seconds (none opens here: short).
+    with make_client(tmp_path, auto_load_catalogs=True, catalogs_start_wait_seconds=0.5) as client:
         _wait_for(client, "Orders", None, True)
         failed = _wait_for(client, "Gone", "failed", False)
         assert "gone.csv" in failed["catalog_state"]["error"]  # the reason, shown on the connection

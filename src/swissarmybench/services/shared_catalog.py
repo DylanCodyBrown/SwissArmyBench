@@ -113,7 +113,7 @@ class SharedCatalog:
     async def refresh(self, who: str = "user") -> dict[str, Any]:
         """Look at the folder now: what changed from outside read again, the pages told. What changed."""
         async with self._lock:
-            now = self._files.stamps()
+            now = await asyncio.to_thread(self._files.stamps)  # the folder's glob and stats, off the loop
             changed = sorted(
                 {n for n in now if self._stamps.get(n) != now[n]} | {n for n in self._stamps if n not in now}
             )

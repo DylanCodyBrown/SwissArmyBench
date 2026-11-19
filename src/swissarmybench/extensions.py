@@ -25,6 +25,7 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import os
+import sys
 from types import ModuleType
 from typing import Any
 
@@ -91,13 +92,28 @@ def _said(environ: dict[str, str] | None = None) -> tuple[set[str], set[str]]:
     return {w for w in words if not w.startswith("-")}, {w[1:] for w in words if w.startswith("-")}
 
 
+# The entry points read once per process (every package's metadata is read for them: 10 ms a request), again
+# when the import path changes. An extension's Install and Remove restart the app (server/updater.py).
+_installed: tuple[tuple[str, ...], dict[str, str]] | None = None
+
+
 def installed() -> dict[str, str]:
     """The installed extensions' entry points: {id: "module"}."""
-    try:
-        found = importlib.metadata.entry_points(group=GROUP)
-    except Exception:  # a broken install never stops the app
-        return {}
-    return {ep.name.lower(): ep.value for ep in found}
+    global _installed
+    path = tuple(sys.path)
+    if _installed is None or _installed[0] != path:
+        try:
+            found = {ep.name.lower(): ep.value for ep in importlib.metadata.entry_points(group=GROUP)}
+        except Exception:  # a broken install never stops the app
+            found = {}
+        _installed = (path, found)
+    return dict(_installed[1])
+
+
+def forget_installed() -> None:
+    """Read the entry points again on the next ask (an install in this process: tests, development)."""
+    global _installed
+    _installed = None
 
 
 def extension_on(extension: str, environ: dict[str, str] | None = None) -> bool:

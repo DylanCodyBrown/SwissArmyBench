@@ -256,7 +256,10 @@ def create_app(
         checker = asyncio.create_task(ctx.updates.run_forever())
         ctx.beta.started()  # the beta log: the version, OS and Python, and the crashes from here on
         ctx.variables.apply()  # the Variables page's values, in this server's environment
-        ctx.catalog_loading.at_start()  # every connection's catalog, in the background
+        # Every connection's catalog, in the background, once the first window is open (not racing it).
+        catalogs = asyncio.create_task(
+            ctx.catalog_loading.at_start_later(ctx.settings.catalogs_start_wait_seconds)
+        )
         ctx.extensions.bring_back()  # a preinstalled extension an update from a built-in version lacks
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
@@ -268,6 +271,7 @@ def create_app(
         if life is not None:
             life.cancel()
         shared.cancel()
+        catalogs.cancel()
         watch.cancel()
         context_md.cancel()
         autosave.cancel()
