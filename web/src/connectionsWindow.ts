@@ -56,7 +56,8 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
-import { errorNote } from "./errorNote";
+import { clearError, errorNote, showError } from "./errorNote";
+import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
@@ -80,13 +81,13 @@ interface Field {
   env?: string | null;
   /** The variable the form offers for it (SHAREPOINT_TENANT_ID), editable. */
   suggested_env?: string;
+  /** Its one box's text (12.7): the value, `${NAME}` where the code reads a variable. */
+  text?: string;
 }
 
 /** The lake and SharePoint kinds (domain/lakes.py): a group of their own on the page. */
 const LAKE_GROUP = "Lakes and SharePoint";
 const LAKE_KINDS = new Set(["onelake", "datalake", "delta", "sharepoint", "sharepoint_docs"]);
-/** The start of the variables a lake's or SharePoint's passwords are offered as (domain/lakes.py ENV_PREFIX). */
-const LAKE_ENV: Record<string, string> = { onelake: "ONELAKE", datalake: "DATALAKE", delta: "DELTA_LAKE", sharepoint: "SHAREPOINT", sharepoint_docs: "SHAREPOINT" };
 /** Those whose own code reads their tables: sab.read, and Test shows a table's first rows. */
 const readsByCode = (dialect: string): boolean => dialect === "dataverse" || LAKE_KINDS.has(dialect);
 
@@ -151,14 +152,6 @@ interface Form {
 interface Mapping {
   env: string;
   secret: string;
-}
-
-interface Vault {
-  name: string;
-  entries: Mapping[];
-  /** Every secret it holds, each under its own name. */
-  every: boolean;
-  read_only: boolean;
 }
 
 /** After a vault saved from a password's "New vault": back to that connection's form. */
@@ -406,13 +399,6 @@ const plain = (label: string): string => {
   return bare.charAt(0).toUpperCase() + bare.slice(1);
 };
 /** A path's file or folder name without its kind: C:\data\orders.csv -> orders. */
-/** The variable a certificate file is offered as (domain/certificate_files.py suggested_variable):
- *  Warehouse, certificate file -> WAREHOUSE_CERTIFICATE_FILE; a keystore's is TRINO_KEYSTORE_PATH. */
-const certificateVariable = (connection: string, setting: string): string => {
-  if (setting === "keystore") return "TRINO_KEYSTORE_PATH";
-  const name = `${connection} ${setting}`.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
-  return name && !/^[0-9]/.test(name) ? name : `_${name}`;
-};
 // What the file chooser offers for each kind of certificate file.
 const CERTIFICATE_KINDS: Record<string, string[]> = {
   "certificate file": [".pem", ".crt", ".cer"],
@@ -968,48 +954,54 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const codeBox = h("textarea", { class: "mono connection-code", rows: 8, spellcheck: false, "aria-label": "The Python this connection runs" }, code) as HTMLTextAreaElement;
     const result = h("div", { class: "connection-result", role: "status" });
 
+    // Changes to the code one at a time (a box left for another box sends two): each starts from the code the
+    // last one made. The settings' ids are places in the code, read again when a password's rename moved them.
+    let changing: Promise<unknown> = Promise.resolve();
+    const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+      const next = changing.then(work, work);
+      changing = next.catch(() => undefined);
+      return next;
+    };
+    let fieldsCode = code;
+    const freshIds = async (): Promise<void> => {
+      if (code === fieldsCode) return;
+      const read = await api<{ settings: Field[] }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing });
+      if (read.settings.length === fields.length) fields = fields.map((f, i) => ({ ...f, ...read.settings[i]!, picker: f.picker }));
+      fieldsCode = code;
+    };
+
     /** A changed field's value, written into the code by the server; the fields keep their boxes. */
-    const fill = async (field: Field, value: string, env?: string | null): Promise<void> => {
-      // A certificate file sends its source too: its variable, or null for a plain path.
-      const sent = field.env !== undefined || env !== undefined ? { value, env: env === undefined ? (field.env ?? null) : env } : field.type === "number" ? Number(value) : value;
+    const fill = (field: Field, value: string, boxed = true): Promise<void> => {
+      const at = fields.indexOf(field);
+      return inTurn(() => fillNow(at, field, value, boxed));
+    };
+    const fillNow = async (at: number, was: Field, value: string, boxed: boolean): Promise<void> => {
+      // A box's whole text (12.7): a value, or ${NAME} the code then reads where it runs. A choice: its value.
+      const sent = boxed && was.type !== "flag" ? { text: value } : value;
       try {
+        await freshIds();
+        const field = at >= 0 && fields[at]?.name === was.name ? fields[at]! : was;
         const answer = await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code, values: { [field.id]: sent }, template: form.id || null, name: editing });
         code = answer.code;
+        fieldsCode = code;
         codeBox.value = code;
         // The ids follow the new code; the same settings in the same order keep their boxes.
         if (answer.settings.length === fields.length) fields = fields.map((f, i) => ({ ...f, ...answer.settings[i]!, picker: f.picker }));
         else drawFields(answer.settings.map((s) => ({ ...s, picker: fields.find((f) => f.name === s.name)?.picker ?? (CERTIFICATE_KINDS[s.name] ? "file" : null) })));
         readWhenReady();
       } catch (e) {
-        result.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
+        showError(result, e);
       }
-    };
-
-    const fileSource = (field: Field, i: number, input: HTMLInputElement): HTMLElement => {
-      const label = words(field.name);
-      const typed = CERTIFICATE_KINDS[field.name] ? "Path" : "Typed here";
-      const from = h("select", { "aria-label": `${label} from` }, h("option", { value: "path", selected: !field.env }, typed), h("option", { value: "env", selected: Boolean(field.env) }, "From an environment variable")) as HTMLSelectElement;
-      const variable = h("input", { type: "text", value: field.env ?? "", placeholder: field.suggested_env ?? certificateVariable(name.value.trim() || form.id, field.name), "aria-label": `${label} variable`, spellcheck: false, hidden: !field.env, class: "mono" }) as HTMLInputElement;
-      const path = (): string => input.value.trim() || String(fields[i]!.value);
-      from.addEventListener("change", () => {
-        const mapped = from.value === "env";
-        if (mapped && !variable.value.trim()) variable.value = variable.placeholder;
-        variable.hidden = !mapped;
-        void fill(fields[i]!, path(), mapped ? variable.value.trim() : null);
-      });
-      variable.addEventListener("change", () => {
-        if (variable.value.trim()) void fill(fields[i]!, path(), variable.value.trim());
-      });
-      return h("span", { class: "field-row field-source" }, from, variable);
     };
 
     const drawFields = (next: Field[]): void => {
       fields = next;
+      fieldsCode = code;
       const boxes = fields.map((field, i) => {
         if (field.type === "flag") {
           // On or off: True/False in the code, yes/no in a connection string.
           const tick = h("input", { type: "checkbox", checked: ["true", "yes", "1", "on"].includes(String(field.value).toLowerCase()), "aria-label": words(field.name) }) as HTMLInputElement;
-          tick.addEventListener("change", () => void fill(fields[i]!, tick.checked ? "yes" : "no"));
+          tick.addEventListener("change", () => void fill(fields[i]!, tick.checked ? "yes" : "no", false));
           return h("label", { class: "field field-flag" }, tick, h("span", {}, words(field.name)));
         }
         const offered = form.choices?.[field.name];
@@ -1017,10 +1009,12 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           // A choice (SQL Server's Encrypt, its driver): the code's own value first when it is another.
           const now = String(field.value);
           const pick = h("select", { "aria-label": words(field.name) }, ...[...(offered.includes(now) ? [] : [now]), ...offered].map((o) => h("option", { value: o, selected: o === now }, o))) as HTMLSelectElement;
-          pick.addEventListener("change", () => void fill(fields[i]!, pick.value));
+          pick.addEventListener("change", () => void fill(fields[i]!, pick.value, false));
           return h("label", { class: "field" }, h("span", {}, words(field.name)), pick);
         }
-        const input = h("input", { type: field.type === "number" ? "number" : "text", value: field.placeholder ? "" : String(field.value), placeholder: String(field.value), "aria-label": words(field.name), spellcheck: false });
+        // One box (12.7): its text, ${NAME} where it reads a variable (a number's box takes one too).
+        const boxText = field.text ?? String(field.value);
+        const input = h("input", { type: "text", inputmode: field.type === "number" && !boxText.includes("${") ? "numeric" : "text", value: field.placeholder ? "" : boxText, placeholder: boxText, "aria-label": words(field.name), spellcheck: false });
         input.addEventListener("change", () => {
           // A file connection is named after its file, picked or typed, until the user names it.
           if (field.picker && !named && input.value.trim()) name.value = stem(input.value.trim());
@@ -1039,12 +1033,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           : null;
         const list = field.suggestions.length ? h("datalist", { id: `conn-suggest-${i}` }, ...field.suggestions.map((s) => h("option", { value: s.value }, s.from))) : null;
         if (list) input.setAttribute("list", `conn-suggest-${i}`);
-        // A certificate or keystore file: its path as it is, or from an environment variable whose
-        // default is the path on this computer (a function app sets the variable to the file there).
-        // A setting that says its source; SQL Server's server, database and user too (the form's env_settings).
-        const mappable = field.env !== undefined || Boolean(form.env_settings?.includes(field.name));
-        const source = mappable ? fileSource(field, i, input) : null;
-        return h("label", { class: `field${field.picker ? " wide" : ""}` }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, input, browse), source, list);
+        // A certificate file on a Function App: ${WAREHOUSE_CERTIFICATE_FILE:-C:\certs\ca.pem} (its path here the default).
+        return h("label", { class: `field${field.picker ? " wide" : ""}`, "data-setting": field.name }, h("span", {}, words(field.name), field.key.toLowerCase() !== field.name.toLowerCase() ? h("span", { class: "hint" }, ` (${field.key})`) : null), h("span", { class: "field-row" }, variableBox(input, { label: words(field.name) }), browse), list);
       });
       // The same order on every form: where, who, security (a setting the rule does not name stays
       // with "where", after the ones it does, in the code's order).
@@ -1066,168 +1056,96 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     };
     drawFields(fields);
 
-    // Each password's source: saved on this computer (the keyring), an environment variable, or a key
-    // vault (a vault blade's entry, or a new one added to it). Variables and vault entries are named in
-    // the code: secret("WAREHOUSE_PASSWORD"), read from the environment the vault sets.
-    let vaults: Vault[] = [];
-    // Each vault's secret names, read once in the background (names only: the server never sends a
-    // value); null: a vault that does not list them.
-    const secretNames = new Map<string, Promise<string[] | null>>();
-    const vaultSecrets = (vault: string): Promise<string[] | null> => {
-      let reading = secretNames.get(vault);
-      if (!reading) {
-        reading = api<{ names: Mapping[] | null }>("/connections/vaults/secrets", "POST", { name: vault }).then((r) => (r.names ? r.names.map((n) => n.secret) : null));
-        reading.catch(() => secretNames.delete(vault)); // a failed read is tried again next time
-        secretNames.set(vault, reading);
-      }
-      return reading;
-    };
-    const readVaults = (): Promise<unknown> => api<{ vaults: Vault[] }>("/connections/vaults").then((r) => (vaults = r.vaults), () => undefined);
-    const vaultsRead = readVaults();
-    // Each password's source as the user chose it (kept when the passwords are drawn again).
-    const chosen = new Map<string, string>();
-    // A password pointed at a vault: which vault, and the secret's name there (shown when drawn again).
-    const pointedAt = new Map<string, string>();
-    const secretOf = new Map<string, string>();
-    const looksLikeVariable = (s: string): boolean => /^[A-Z][A-Z0-9_]*$/.test(s) && s.includes("_");
-    // Each password keeps the word the starter gave it ("Password") while its source renames it in the code.
+    // Each password is one box (design principle 12.7): `${NAME}`, a variable whose source the Variables page
+    // keeps (the keyring, a vault's entry, the environment), named in the code as secret("NAME"); or a value
+    // typed here, kept on Save as a keyring variable of the connection's name (SALES_DB_PASSWORD).
+    const looksLikeVariable = (s: string): boolean => /^[A-Z_][A-Z0-9_]*$/.test(s) && /[A-Z]/.test(s);
+    // Each password keeps the word the starter gave it ("Password") while its variable renames it in the code.
     const labels = new Map<string, string>(form.secrets.map((s) => [s, s]));
     const label = (s: string): string => words(labels.get(s) ?? s);
-    const pointAt = async (secret: string, body: Record<string, unknown>): Promise<void> => {
-      try {
-        const answer = await api<{ code: string; secret: string }>("/connections/source", "POST", { code, secret, label: labels.get(secret) ?? secret, connection: name.value.trim(), ...body });
-        code = answer.code;
-        codeBox.value = code;
-        form.secrets = form.secrets.map((s) => (s === secret ? answer.secret : s));
-        labels.set(answer.secret, labels.get(secret) ?? secret);
-        if (body.from === "vault") vaults = (await api<{ vaults: Vault[] }>("/connections/vaults")).vaults;
-        chosen.delete(secret);
-        chosen.set(answer.secret, String(body.from)); // drawn again as the source just chosen
-        if (body.vault) pointedAt.set(answer.secret, String(body.vault));
-        if (typeof body.vault_secret === "string") secretOf.set(answer.secret, body.vault_secret);
-        passwordsSlot.replaceChildren(drawPasswords() ?? "");
-        result.replaceChildren(h("p", { class: "hint" }, `${label(answer.secret)}: ${answer.secret}${body.vault ? ` in ${String(body.vault)}` : ""}`));
-      } catch (e) {
-        result.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
-      }
+    // The variable a typed password is kept as (domain/connections.py env_name_for).
+    const variableFor = (s: string): string => {
+      const made = `${name.value.trim() || form.label}_${labels.get(s) ?? s}`.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+      return /^[0-9]/.test(made) ? `_${made}` : made || "PASSWORD";
     };
+    const pointAt = (secret: string, variable: string): Promise<void> => inTurn(() => pointAtNow(secret, variable));
+    const pointAtNow = async (secret: string, variable: string): Promise<void> => {
+      const answer = await api<{ code: string; secret: string }>("/connections/source", "POST", { code, secret, from: "env", env: variable });
+      code = answer.code;
+      codeBox.value = code;
+      form.secrets = form.secrets.map((s) => (s === secret ? answer.secret : s));
+      labels.set(answer.secret, labels.get(secret) ?? secret);
+    };
+    // A typed password as it is kept: `$${NAME}` is the text `${NAME}` (12.7); a `$` elsewhere stays as typed.
+    const typedValue = (text: string): string => text.replace(/\$(\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\})/g, "$1");
+    const referenceOnly = (text: string): string | null => /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(text.trim())?.[1] ?? null;
     const drawPasswords = (): HTMLElement | null => {
       passwords.clear();
       if (!form.secrets.length) return null;
       const saved = form.summary?.secrets ?? {};
-      // Which vault each password was pointed at (an every-secret vault has no entry to show it by).
+      const vaultOnly = form.secrets_from === "vault only"; // never typed into the app: a vault's variable
       return h(
         "fieldset",
         { class: "connection-passwords" },
         // A Power BI workspace's are an app registration's values (two ids and a secret), not passwords alone.
         h("legend", {}, form.dialect === "dax" || form.dialect === "dataverse" ? "App registration" : "Passwords"),
         ...form.secrets.map((s) => {
-          const inVault = vaults.find((v) => v.entries.some((e) => e.env === s)) ?? vaults.find((v) => v.name === pointedAt.get(s));
-          // A starter may say its passwords come from a key vault first (a Power BI dataset's app registration).
-          const vaultOnly = form.secrets_from === "vault only"; // never typed into the app
-          // A new one's password starts from a variable, never this computer's keyring (it runs only here:
-          // domain/portability.py); one saved before keeps its source.
-          const first = (form.secrets_from === "vault" && !editing && labels.get(s) === s) || vaultOnly ? "vault" : editing && saved[s] ? "keyring" : "env";
-          const guess = chosen.get(s) ?? (inVault ? "vault" : looksLikeVariable(s) && !saved[s] ? "env" : first);
-          const origin = vaultOnly && guess === "keyring" ? "vault" : guess;
-          const from = h("select", { "aria-label": `Where ${label(s)} comes from` }, vaultOnly ? null : h("option", { value: "keyring", selected: origin === "keyring" }, "Saved on this computer"), h("option", { value: "env", selected: origin === "env" }, "An environment variable"), h("option", { value: "vault", selected: origin === "vault" }, "A key vault"));
-          const slot = h("span", { class: "field-row" });
-          // The box's own label, above it: what to type or pick there.
-          const boxLabel = h("span", {});
-          const draw = (): void => {
-            if (from.value === "keyring") {
-              boxLabel.textContent = label(s);
-              const input = h("input", { type: "password", autocomplete: "new-password", "aria-label": label(s), placeholder: saved[s] ? "Saved" : "" });
-              passwords.set(s, input);
-              slot.replaceChildren(input, localNotes(form.keyring_note ? [form.keyring_note] : undefined, "password-local") ?? "");
-            } else if (from.value === "env") {
-              boxLabel.textContent = "Variable's name";
-              passwords.delete(s);
-              const variable = h("input", { type: "text", class: "mono", "aria-label": `${label(s)}: the variable's name`, value: looksLikeVariable(s) ? s : "", placeholder: LAKE_ENV[form.dialect] ? `${LAKE_ENV[form.dialect]}_${s.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}` : "WAREHOUSE_PASSWORD", spellcheck: false });
-              slot.replaceChildren(variable, button("Use it", () => void pointAt(s, { from: "env", env: variable.value.trim() }), { icon: "check" }));
-            } else {
-              boxLabel.textContent = "Vault and its entry";
-              passwords.delete(s);
-              if (!vaults.length) {
-                slot.replaceChildren(button("New vault", () => newVault(s), { icon: "plus" }));
-                return;
-              }
-              const vault = h("select", { "aria-label": "Vault" }, ...vaults.map((v) => h("option", { value: v.name, selected: v === inVault }, v.name)));
-              const entry = h("select", { "aria-label": "Entry in the vault" });
-              const newName = h("input", { type: "text", "aria-label": "The secret's name in the vault", placeholder: "Secret name", spellcheck: false, value: pointedAt.get(s) ? (secretOf.get(s) ?? "") : "" });
-              const useTyped = button("Use it", () => void pointAt(s, { from: "vault", vault: vault.value, vault_secret: newName.value.trim() }), { icon: "check" });
-              const BY_NAME = "\u0000by-name";
-              // The vault's secrets by name (never a value), read in the background: its entries show
-              // at once, the rest as they arrive. Picking one applies it; there is nothing else to press.
-              let filling = 0;
-              const fillEntries = (): void => {
-                const mine = ++filling;
-                const chosen = vaults.find((v) => v.name === vault.value);
-                const mapped = chosen?.entries ?? [];
-                const current = mapped.find((e) => e.env === s)?.secret ?? (pointedAt.get(s) === vault.value ? secretOf.get(s) : undefined);
-                const paint = (names: string[] | null, state: "reading" | "read" | "unlisted" | "failed"): void => {
-                  if (mine !== filling) return;
-                  const all = [...new Set([...mapped.map((e) => e.secret), ...(names ?? []), ...(current ? [current] : [])])];
-                  const typing = entry.value === BY_NAME || (state !== "reading" && !all.length);
-                  clear(
-                    entry,
-                    h("option", { value: "", disabled: true, selected: !current && !typing }, state === "reading" ? "Reading the vault…" : all.length ? "Choose a secret" : "No secrets listed"),
-                    ...all.map((secret) => {
-                      const as = mapped.find((e) => e.secret === secret)?.env;
-                      return h("option", { value: secret, selected: secret === current && !typing }, as && as !== envFor(secret) ? `${secret} (as ${as})` : secret);
-                    }),
-                    chosen?.read_only && !chosen.every ? null : h("option", { value: BY_NAME, selected: typing }, "A secret by name…"),
-                  );
-                  entry.title = state === "unlisted" ? "This vault does not list its secrets" : state === "failed" ? "The vault could not be read" : "";
-                  newName.hidden = useTyped.hidden = entry.value !== BY_NAME;
-                };
-                paint(null, "reading");
-                void vaultSecrets(vault.value).then(
-                  (names) => paint(names, names === null ? "unlisted" : "read"),
-                  () => paint(null, "failed"),
-                );
-              };
-              vault.addEventListener("change", fillEntries);
-              entry.addEventListener("change", () => {
-                newName.hidden = useTyped.hidden = entry.value !== BY_NAME;
-                if (entry.value === BY_NAME) {
-                  newName.focus();
-                  return;
-                }
-                const picked = vaults.find((v) => v.name === vault.value)?.entries.find((e) => e.secret === entry.value);
-                void pointAt(s, picked ? { from: "vault", vault: vault.value, env: picked.env } : { from: "vault", vault: vault.value, vault_secret: entry.value });
-              });
-              fillEntries();
-              slot.replaceChildren(vault, entry, newName, useTyped);
-            }
+          const named = looksLikeVariable(s) ? `\${${s}}` : "";
+          const input = h("input", { type: named ? "text" : "password", class: "mono", autocomplete: "new-password", "aria-label": label(s), spellcheck: false, value: named, placeholder: saved[s] ? "Saved" : vaultOnly ? "${VARIABLE}" : "" }) as HTMLInputElement;
+          // A reference reads as text; a typed password stays hidden.
+          // A typed one is kept in this computer's keyring: said, amber, while it is typed (the portability rule).
+          const note = h("div", { class: "password-note" });
+          const typedHere = (): void => {
+            input.type = input.value.includes("${") ? "text" : "password";
+            const local = input.value !== "" && !namesVariable(input.value) && form.keyring_note;
+            note.replaceChildren(local ? (localNotes([form.keyring_note!], "password-local") ?? "") : "");
           };
-          from.addEventListener("change", () => {
-            chosen.set(s, from.value);
-            draw();
-          });
-          draw();
-          return h(
-            "div",
-            { class: "connection-password" },
-            h("label", { class: "field" }, h("span", {}, `${label(s)} comes from`), from),
-            h("div", { class: "field password-box" }, boxLabel, slot),
-          );
+          input.addEventListener("input", typedHere);
+          // The secret's name the code asks for now (renamed when a variable is put in), and the text last
+          // settled: a box whose type changed while typed may not say "change", so leaving it settles it too.
+          let current = s;
+          let settled = input.value;
+          const settle = (): void => {
+            if (input.value === settled) return;
+            settled = input.value;
+            const variable = referenceOnly(input.value);
+            if (!variable && namesVariable(input.value)) {
+              // A password is a variable on its own, or a value: never part of one (its value is never shown).
+              showError(result, { what: `${label(current)} takes one variable on its own, such as \${${variableFor(current)}}, or a typed password.`, where: label(current) });
+              return;
+            }
+            if (variable && variable !== current) {
+              passwords.delete(current);
+              const was = current;
+              current = variable;
+              void pointAt(was, variable).then(
+                () => clearError(result),
+                (e: unknown) => {
+                  current = was;
+                  showError(result, e);
+                },
+              );
+            } else if (!variable) passwords.set(current, input);
+          };
+          input.addEventListener("change", settle);
+          input.addEventListener("blur", settle);
+          if (!named) passwords.set(s, input);
+          return h("div", { class: "connection-password" }, h("label", { class: "field password-box" }, h("span", {}, label(s)), h("span", { class: "field-row" }, variableBox(input, { label: label(s) })), note));
         }),
       );
     };
-    void vaultsRead.then(() => passwordsSlot.replaceChildren(drawPasswords() ?? ""));
-
-    /** A vault made from here: this form waits (kept as it is) and comes back with the new vault in its list. */
-    const newVault = (secret: string): void => {
-      const kept = [...body.childNodes];
-      const keptFoot = [...foot.childNodes];
-      chosen.set(secret, "vault");
-      void showTypes(async () => {
-        body.replaceChildren(...kept);
-        foot.replaceChildren(...keptFoot);
-        await readVaults();
-        passwordsSlot.replaceChildren(drawPasswords() ?? "");
-      });
+    /** Before Save: each typed password kept as a keyring variable, the code then asking for that variable. */
+    const typedToVariables = async (): Promise<void> => {
+      if (form.secrets_from === "vault only") return; // refused by the server, said there
+      for (const [s, input] of [...passwords]) {
+        if (!input.value || namesVariable(input.value)) continue;
+        const variable = variableFor(s);
+        await api("/variables", "PUT", { name: variable, value: typedValue(input.value), from: "keyring" });
+        await pointAt(s, variable);
+        passwords.delete(s);
+        input.value = `\${${variable}}`;
+        input.type = "text";
+      }
     };
 
     // ===== a vault's secrets: each ticked one becomes an environment variable =====
@@ -1328,7 +1246,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       );
     });
 
-    const typed = (): Record<string, string> => Object.fromEntries([...passwords].filter(([, input]) => input.value).map(([s, input]) => [s, input.value]));
+    const typed = (): Record<string, string> => Object.fromEntries([...passwords].filter(([, input]) => input.value).map(([s, input]) => [s, typedValue(input.value)]));
     const sent = (): Record<string, unknown> => ({
       name: name.value.trim(),
       description: description.value.trim(),
@@ -1351,7 +1269,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         : {}),
     });
     const failed = (e: unknown, again?: () => void): void => {
-      result.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+      showError(result, e, again ? { fixes: [{ label: "Try again", run: again }] } : {});
       // A run that stopped on a missing package: the prompt, then the run again once it is in.
       promptForError(e, { then: again });
     };
@@ -1373,6 +1291,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     };
     const save = async (): Promise<void> => {
       try {
+        await typedToVariables();
         const body = { ...sent(), secrets: typed() };
         await (editing ? api(`/connections/${encodeURIComponent(editing)}`, "PUT", body) : api("/connections", "POST", body));
         toast(`Saved ${name.value.trim()}.`);
@@ -1398,7 +1317,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const signIn = ways.length > 1 ? h("div", {}, h("label", { class: "field" }, h("span", {}, "Sign in"), signInSelect), signInNote) : null;
     const switchSignIn = async (way: { code: string }): Promise<void> => {
       // A value typed so far, with its variable when it comes from one (SQL Server's server, a certificate).
-      const typedSoFar = new Map<string, unknown>(fields.filter((f) => !f.placeholder || f.env).map((f) => [f.name, f.env ? { value: f.value, env: f.env } : f.value]));
+      const typedSoFar = new Map<string, unknown>(fields.filter((f) => !f.placeholder || namesVariable(f.text ?? "")).map((f) => [f.name, f.type === "flag" || form.choices?.[f.name] ? f.value : { text: f.text ?? String(f.value) }]));
       try {
         const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"]; missing?: Missing | null }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
         const keep = Object.fromEntries(next.settings.filter((s) => typedSoFar.has(s.name) && s.name !== "driver").map((s) => [s.id, typedSoFar.get(s.name)]));

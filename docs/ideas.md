@@ -5806,3 +5806,127 @@ The survey of the desktop app (read only) listed small fixes; each was checked b
   disk, Reload (POST /datasets/{name}/reload: read again in place, its grids and steps kept), Not now (the stamp
   taken as it is now: said again only on the next change). Never reloaded by itself; a file that is gone is not
   said. The agent: `tabs_reload` (`not_now`).
+## A variable anywhere a value is typed: `${NAME}` (the owner, 2026-11-18; built, branch variable-refs)
+
+The owner: "everything in a connection should have the option for a env variable ... a reserved char that allows
+us to use env variable almost anywhere in the app" (like SSRS's expressions); "The drop downs were for the
+connections ... they take up space when a ${ could be used"; "Let's do it. ${ it is". The rules: design
+principle 12.7. Phase A (the rules, the backend, the agent) and Phase B (the forms: one box, `${` offers the
+variables, the line under the box, the tour's card; 2026-11-19) are built.
+
+- **The rules (domain/variable_refs.py, standard library only):** a reference is `${` + NAME + `}` or
+  `${NAME:-default}` (the default literal up to the first `}`: no nesting); `$${NAME}` is the text; anything else
+  is as typed. One pass: a value is never read again. `escape` writes a literal back so reading it gives the same
+  text (a box shows a saved `${` as `$${`).
+- **A connection's fields:** a connection is its code, so a field holding `${NAME}` is written into the code as
+  `os.environ["NAME"]` (`os.environ.get("NAME", "default")`, joined to its text by `+`, `int(...)` for a number)
+  and read back from those shapes as the box's text (`text` beside `value` in every setting). The library, a
+  shared project and an export hold the name; the code reads the value where it runs (the server's environment
+  has every variable's value; a vault's entry runs its vault first: providers counts a setting's names). The older
+  "From an environment variable" mappings (certificate files, SQL Server's places) read as `${NAME:-path}`; the
+  old `{"value", "env"}` form still works until the forms change; `{"text": ...}` is the one box's form.
+- **Not done in a connection string's part** (`Server=...;` inside one literal): refused with a plain message
+  (type the value, or write the connection with keywords). Splitting the literal would not read back as one
+  setting.
+- **Passwords:** a password field is a variable already (`secret("WAREHOUSE_PASSWORD")`). Each connection's own
+  saved password (`secret("password")` in its own keyring entry) became, once at start, a keyring variable of the
+  name the page already showed it under (`SALES_DB_PASSWORD`), the code renamed, the connection files copied to
+  `backup/before-variables-<date>/` first; said once on the page. Its old keyring entry is left (nothing lost). A
+  name already taken leaves that one as it was. A second start finds nothing to move: no byte changes.
+- **SQL:** a reference outside strings, quoted names (`"x"`, `` `x` ``, T-SQL's and the app's `[x]`) and comments
+  (`--`, `/* */`, MySQL's `#`), and dollar-quoted text, is a bound parameter: DuckDB `$1` (the SQL box, the "+"
+  tab, `sab.sql`'s DuckDB), the driver's own PEP 249 paramstyle in a `%%sql` cell (sqlite3 and pyodbc `?`,
+  psycopg `%(p1)s` with every `%` doubled, SQLAlchemy `:p1`); ClickHouse, BigQuery and Spark take none (refused).
+  Where a name goes (after FROM, JOIN, INTO, AS, beside a `.`, glued to a name, before `(`) it is refused, never
+  pasted. **Our own scanner, not sqlglot's tokenizer:** the plain client (a `%%sql` cell in any Python) cannot
+  count on sqlglot, and sqlglot's tokens keep no comment positions; a test checks our string spans against
+  sqlglot's tokens.
+- **Paths, Run settings, an API:** a dataset's file path and a structure's are resolved at use (the dataset's
+  origin keeps the typed text; a structure's open path is the resolved one, as before). Run settings' arguments
+  are resolved from what the run is given (the log keeps the typed text). An API's base address holding `${NAME}`
+  is written into API_<name>.py as `os.environ[...]`; Try it's typed inputs are resolved (its origin keeps the
+  text).
+- **Missing:** one error, 422 `{"error": "NAME is not set on this computer (where).", "where",
+  "missing_variables", "fixes": [{"label": "Set it", "command": "variables_set", "page": "variables", "name"}]}`;
+  a connection's Test checks its settings first; a run that reaches `os.environ["NAME"]` says the same words.
+- **The first start's list:** saved settings whose literal text now reads as `${NAME}` are said once
+  (`variable_refs.json` marks it, written only once something was listed, so a start that finds nothing writes
+  nothing). They still mean the text until the user saves them again.
+- **The agent:** `variables_resolve(text)` (the preview: a secret masked by the same rule as Show; names not set
+  with the error) and `variables_uses(name)` (fields by setting, passwords, code, Run settings).
+- **blades.py kept under 1,500 lines:** its settings' suggestions moved to domain/blade_suggestions.py (blades.py
+  keeps `suggest_settings`, which reads it when asked), a vault's secret names as variables to variable_refs.py
+  (re-exported).
+- **Not built here:** a reference in DAX; a structure's saved path kept as the typed text; static API headers
+  (an API has none beside its sign-in); Streamlit pages and data.py inherit the connection's code, so they read
+  `os.environ` already; a `%%sql` cell's export as a script keeps the cell's text.
+
+### Phase B: the forms (2026-11-19)
+
+- **One box, web/src/variableBox.ts:** `variableBox(input)` makes any text box a variable box: typing `${`
+  lists the variables under it (GET /variables: the name and its source in words, a vault's name with it; never
+  a value), filtered as the name is typed; arrows, Enter or Tab pick, Escape closes; the last row is New
+  variable… (with the typed name). A `{x}` button on the box opens the same list at the caret. Under the box,
+  `previewLine()`: POST /variables/resolve's value (a secret as dots), or the one error (errorNote.ts) with Set
+  it; nothing when the box names no variable; drawn again on `variables_changed`. The box is an ARIA combobox
+  pattern (aria-autocomplete, aria-controls, aria-activedescendant) without the role, so the boxes keep their
+  textbox role and their labels.
+- **Set it and New variable… open the Add variable form in place** (web/src/variableLinks.ts: a dialog with the
+  Variables page's three fields), not the Variables page itself: a half-filled connection form is kept, and
+  the box that asked puts the new name in. errorNote.ts gives every refusal with `missing_variables` its Set it.
+- **Where:** every connection form field (connectionsWindow.ts: the "from" pickers and the password's source,
+  vault and entry pickers gone; certificate and keystore paths take `${NAME:-path}`; a number's box is text
+  with a numeric keyboard), a Python connection's variables (each listed with its line; the source pickers and
+  typed values gone: the Variables page keeps them; a mapping saved before stays as it was), Add API's base
+  address, a blade's settings (the import's fill-in), Run settings' Arguments.
+- **Passwords:** one box holds `${NAME}` alone, or a typed password (shown as dots, a reference as text). A
+  typed one is used for Test as it is and, on Save, kept as a keyring variable named after the connection and
+  its label (`WAREHOUSE_PASSWORD`), the code then asking for it; amber while typed (the keyring works only
+  here). `${NAME}` mixed with other text in a password box is refused in words (a password is never partly a
+  variable). A key vault's secret is its variable's name; a vault that loads every secret runs first when one is
+  missing, as before.
+- **A connection's code changes one at a time:** leaving one box for another sent two changes at once, and the
+  second could start from the code before the first (a password renamed while Encryption changed). They now go
+  in turn, and a setting's place in the code is read again when a rename moved it.
+- **A Python connection's variable a vault gives** runs that vault first (adapters/blades.py providers), as a
+  setting's variable already did, now that no mapping is saved with the connection.
+- **The Variables page** shows a connection's use with its box: `Warehouse · Server`.
+- **The tour:** a card after Variables, "Using a variable": it opens a made-up PostgreSQL form, puts
+  `${WAREHOUSE_HOST}` in its Server box and lights the box; the form is never saved and closing the tour goes
+  back past it. Its clue: "Typed into a box, it reads its value from this computer at the moment it is used."
+- **Not changed:** Run settings' per-variable sources (a scheduled run's own environment: a different thing
+  from a box's text); Add API's sign-in settings and the values typed for Try it (an API's own variables,
+  kept in the keyring on Add, as before); the file chooser's folder box (it moves the picker, it is not a
+  saved value).
+
+### Anywhere: typing a dollar-brace, and right-click, Insert variable… (the owner, 2026-11-19)
+
+The owner: "We should make a right click and insert env var menu and a auto complete when ${ is typed anywhere";
+and for the tour: "Add to the tutorial and make users type in a sample input box and make the user right click".
+
+- **web/src/variableAnywhere.ts**, installed once in each page's entry (main.ts, catalogPage.ts, workbenchPage.ts):
+  document-level listeners, so a box drawn later needs nothing. In any text box or text area (password boxes
+  too; a password box shows a reference as text), typing `${` opens the same list as the forms' boxes, as one
+  floating list under the box (inside the top dialog when one is open; over the tour); Enter or Tab put in
+  `${NAME}` (a closing brace already there is used), Escape closes, New variable… last. The page hears the
+  change as typing (input, then change).
+- **Right-click** any such box: the app's own menu, Cut, Copy, Paste, then Insert variable… (the pick replaces
+  the selection at the caret); the keyboard's menu key or Shift+F10 opens it under the box. Beta mode's Leave a
+  note… follows, as on every menu. Paste reads the clipboard (the desktop app allows it; a browser that refuses
+  says to use Ctrl+V).
+- **Left alone:** Monaco's own text area (the editors have their own), boxes with their own list (variableBox.ts),
+  search and filter boxes (type=search, role=searchbox, a label or placeholder that starts with Search, Filter or
+  Find, or a class naming search or filter), anything inside `[data-no-variables]`, read-only and disabled boxes,
+  and non-text inputs (numbers, dates, ticks).
+- **Editors:** a SQL editor (a Workbench SQL cell, the "+" tab's query) completes the variables after `${`
+  (Monaco's completion, its trigger the brace) and has Insert variable… in its right-click menu. Not a Python
+  cell (Python reads `os.environ["NAME"]`; the editor already completes names there) and not DAX (the backend
+  does not read a reference in DAX).
+- **The agent needs nothing new:** it passes text with references directly (every command takes the text as
+  typed); `variables_resolve` previews one.
+- **The tour, hands on:** after "Using a variable", two cards with a practice box in the card: Type it (type a
+  dollar-brace, pick from the list) and Right-click it (Insert variable… from the menu). Next waits until the
+  box holds a variable, then the card says it worked and shows what it reads; a hint after 8 seconds; Skip,
+  Back and Escape always work (an open list or menu takes Escape first). The list always has one to pick: the
+  tour adds TOUR_WAREHOUSE_HOST (warehouse.example.com, made up) when this computer has none of that name and
+  removes it when it ends, like its two tables. Not in the game (no clue).

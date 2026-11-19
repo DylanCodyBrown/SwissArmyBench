@@ -1,7 +1,7 @@
 # ruff: noqa: F811
 """Trino's client certificate in a real browser, against a made-up Trino on this computer that lets no
 one in without one (tests/trino_standin.py; made-up keys, certificates and keystores): the form's Sign
-in offers the keystore, its path is chosen as a plain path or From an environment variable (this
+in offers the keystore, its path is typed as a plain path or a variable (this
 computer's path its default), the password is a secret, and Test signs in with the certificate."""
 
 from __future__ import annotations
@@ -52,30 +52,23 @@ def test_the_keystore_sign_in_maps_its_path_to_a_variable_and_signs_in(
         ("Keystore", str(keystore)),
         ("Certificate file", str(standin.ca_file)),
     ):
-        box = dialog.get_by_role("textbox" if label != "Port" else "spinbutton", name=label, exact=True)
+        box = dialog.get_by_label(label, exact=True)
         box.fill(value)
         box.press("Tab")
         expect(code).to_have_value(re.compile(re.escape(value)))
-    keystore_field = dialog.locator(".field").filter(
-        has=page.get_by_role("textbox", name="Keystore", exact=True)
-    )
+    keystore_field = dialog.locator(".field").filter(has=page.get_by_label("Keystore", exact=True))
     expect(keystore_field.get_by_role("button", name="Browse…")).to_be_visible()  # the file chooser
-    # Only certificate and keystore files offer a variable: the server and the user do not.
-    expect(dialog.get_by_role("combobox", name="Keystore from")).to_have_value("path")
-    expect(dialog.get_by_role("combobox", name="Certificate file from")).to_be_visible()
-    expect(dialog.get_by_role("combobox", name="Server from")).to_have_count(0)
-    dialog.get_by_role("combobox", name="Keystore from").select_option(label="From an environment variable")
-    variable = dialog.get_by_role("textbox", name="Keystore variable")
-    expect(variable).to_have_value("TRINO_KEYSTORE_PATH")
+    # One box each (12.7): a path, or a variable with this computer's path as its default; no "from" pickers.
+    expect(dialog.get_by_role("combobox", name="Keystore from")).to_have_count(0)
+    keystore_box = dialog.get_by_label("Keystore", exact=True)
+    keystore_box.fill("${TRINO_KEYSTORE_PATH:-" + str(keystore) + "}")
+    keystore_box.press("Tab")
     expect(code).to_have_value(
         re.compile(re.escape(f'keystore = os.environ.get("TRINO_KEYSTORE_PATH", r"{keystore}")'))
     )
-    # The password is a secret: an environment variable of its own name at first (a function app's
-    # Application setting or Key Vault reference); here typed for this computer's keyring. Never in code.
-    source = dialog.get_by_role("combobox", name=re.compile("Where .* comes from"))
-    expect(source).to_have_value("env")
-    source.select_option("keyring")
-    password = dialog.locator('input[type="password"]').first
+    # The password: typed for a test, never in the code.
+    expect(dialog.get_by_role("combobox", name=re.compile("Where .* comes from"))).to_have_count(0)
+    password = dialog.get_by_label("Password", exact=True)
     password.fill(made_up.PASSWORD)
     dialog.get_by_role("button", name="Test connection").click()
     expect(dialog.locator(".connection-result .status-ok")).to_contain_text("It works", timeout=60000)
@@ -84,7 +77,7 @@ def test_the_keystore_sign_in_maps_its_path_to_a_variable_and_signs_in(
     if SHOTS:
         dialog.screenshot(path=str(Path(SHOTS) / "trino-keystore-form.png"))
     # Back to a plain path: the code says the path again.
-    dialog.get_by_role("combobox", name="Keystore from").select_option(label="Path")
+    keystore_box.fill(str(keystore))
+    keystore_box.press("Tab")
     expect(code).to_have_value(re.compile(re.escape(f'keystore = r"{keystore}"')))
-    expect(variable).to_be_hidden()
     page.close()

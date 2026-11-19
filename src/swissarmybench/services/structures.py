@@ -124,6 +124,8 @@ class Structures:
         self.grid_steps: Callable[[str], list[str]] = lambda table: []
         self._project: str | None = None  # the project folder last told (project_changed)
         self._lock = asyncio.Lock()
+        # The Variables page (services/variables.py, set once built): a path's ${NAME} (12.7).
+        self.variables: Any = None
 
     # ===== what is open =====
 
@@ -231,6 +233,8 @@ class Structures:
         path = body.get("path") if isinstance(body, dict) else None
         if not isinstance(path, str) or not path.strip():
             raise StructureError('Send {"path": "the file"}.')
+        if "${" in path and self.variables is not None:  # a path's ${NAME} (12.7), read here
+            path = await self.variables.resolve(path, "the file's path")
         try:
             full = self._files.full(path.strip())
         except FileNotFoundError as error:

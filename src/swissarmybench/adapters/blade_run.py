@@ -65,6 +65,14 @@ def _failure(error: BaseException, secrets: dict[str, str], what: str) -> BladeR
         return error
     missing = error.name if isinstance(error, ModuleNotFoundError) else None
     message = f"{what} failed: {type(error).__name__}: {error}"
+    unset = error.args[0] if isinstance(error, KeyError) and error.args else None
+    inner = error.__traceback__
+    while inner is not None and inner.tb_next is not None:
+        inner = inner.tb_next
+    from_environ = inner is not None and inner.tb_frame.f_code.co_filename.endswith(("os.py", "<frozen os>"))
+    if isinstance(unset, str) and from_environ and unset not in os.environ:
+        # os.environ["NAME"] (a setting's ${NAME}, 12.7): the one error's words, with its name.
+        message = f"{unset} is not set on this computer ({what}'s settings)."
     # The line in the blade, when the error came from it (not from deep in a driver).
     trace = error.__traceback__
     line = None

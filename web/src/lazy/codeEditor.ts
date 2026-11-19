@@ -803,6 +803,51 @@ function ownDrops(editor: monaco.editor.IStandaloneCodeEditor): void {
   });
 }
 
+// ===== a variable in SQL (12.7): `${` lists the variables; right-click, Insert variable… =====
+// Only where a reference is read: SQL (bound as a parameter). Never Python (os.environ is the way there) nor DAX.
+
+interface VariablesHook {
+  list: () => Promise<{ name: string; words: string }[]>;
+}
+const variablesHook = (): VariablesHook | undefined => (globalThis as { sabVariables?: VariablesHook }).sabVariables;
+let variablesRegistered = false;
+
+function variableCompletion(): void {
+  if (variablesRegistered) return;
+  variablesRegistered = true;
+  monaco.languages.registerCompletionItemProvider("sql", {
+    triggerCharacters: ["{"],
+    provideCompletionItems: async (model, position) => {
+      const before = model.getValueInRange(new monaco.Range(position.lineNumber, 1, position.lineNumber, position.column));
+      const typed = /(^|[^$])\$\{([A-Za-z_][A-Za-z0-9_]*)?$/.exec(before);
+      const hook = variablesHook();
+      if (!typed || !hook) return { suggestions: [] };
+      const name = typed[2] ?? "";
+      const after = model.getValueInRange(new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column + 1));
+      const range = new monaco.Range(position.lineNumber, position.column - name.length, position.lineNumber, position.column + (after === "}" ? 1 : 0));
+      const offered = await hook.list();
+      return {
+        incomplete: false,
+        suggestions: offered.map((v) => ({ label: v.name, kind: monaco.languages.CompletionItemKind.Variable, insertText: `${v.name}}`, filterText: v.name, range, detail: v.words, sortText: `0${v.name}` })),
+      };
+    },
+  });
+}
+
+function addVariableAction(editor: monaco.editor.IStandaloneCodeEditor): void {
+  variableCompletion();
+  editor.addAction({
+    id: "sab.insertVariable",
+    label: "Insert variable…",
+    contextMenuGroupId: "9_cutcopypaste",
+    contextMenuOrder: 9,
+    run: () => {
+      editor.trigger("sab", "type", { text: "${" });
+      editor.trigger("sab", "editor.action.triggerSuggest", {});
+    },
+  });
+}
+
 export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions): CodeEditor {
   // A project file's model has its own address (a .tsx file is read as TSX); else Monaco names one.
   const uri = options.path ? monaco.Uri.parse(`file:///${options.path.replace(/^\/+/, "")}`) : null;
@@ -1007,6 +1052,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   for (const action of options.actions ?? []) {
     editor.addAction({ id: action.id, label: action.label, contextMenuGroupId: "1_cell", contextMenuOrder: 1, run: () => action.run(editor.getPosition()?.lineNumber ?? 1) });
   }
+  if (options.language === "sql") addVariableAction(editor);
 
   addNoteAction(editor, host);
   ownDrops(editor);
@@ -1332,6 +1378,7 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
   ownDrops(editor);
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, onRun);
   addNoteAction(editor, host);
+  addVariableAction(editor);
   return {
     value: () => editor.getValue(),
     setValue: (text) => editor.setValue(text),

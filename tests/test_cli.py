@@ -203,8 +203,8 @@ NOT_COMMANDS = {
 }
 
 
-def test_every_server_route_has_a_command_or_a_stated_reason(live: Live) -> None:
-    app = create_app(1, "t", Settings(state_dir=Path("."), export_dir=Path(".")))
+def test_every_server_route_has_a_command_or_a_stated_reason(live: Live, tmp_path: Path) -> None:
+    app = create_app(1, "t", Settings(state_dir=tmp_path, export_dir=tmp_path))
     server_paths = {_normal(getattr(r, "path", "")) for r in app.routes}
     source = (Path(main.__file__).parent / "commands.py").read_text(encoding="utf-8")
     # And each extension's that is on (the Streamlit extension, preinstalled: its commands.py).
@@ -666,7 +666,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # extension added app_mode's areas (its own github_ and scm_ tools count only where it is on).
     # 83,000 (2026-11-18): the desktop app's browser keys and files added tabs_reopen (Ctrl+Shift+T) and
     # tabs_reload (a file changed on disk: Reload, steps kept).
-    assert size < 83_000, f"the tool list is {size} characters"
+    # 83,400 (2026-11-18): ${NAME} anywhere a value is typed (12.7) added variables_resolve and
+    # variables_uses.
+    assert size < 83_400, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

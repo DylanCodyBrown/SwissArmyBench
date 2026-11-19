@@ -14,12 +14,13 @@ each comes from and what uses it; add, change, rename and remove this computer's
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import connections as connection_rules
+from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain import variables as rules
-from swissarmybench.domain.blades import Blade, env_settings
+from swissarmybench.domain.blades import Blade, BladeCodeError, detect_settings, env_settings
 from swissarmybench.domain.python_connections import TEMPLATE as PYTHON_TEMPLATE
 from swissarmybench.services.workspace import Refused, Workspace
 
@@ -59,6 +60,13 @@ class Blades(Protocol):
 
     def saved_secrets(self, blade: Blade) -> dict[str, str]: ...
 
+    def save(self, data: Any, previous_name: str | None = None) -> Blade: ...
+
+    def file_of(self, name: str) -> Any: ...  # its file (a path), or None
+
+
+VaultValues = Callable[[dict[str, dict[str, str]]], Awaitable[tuple[dict[str, str], list[str]]]]
+
 
 class RunSettings(Protocol):
     def every(self) -> dict[str, dict[str, dict[str, str]]]: ...  # script -> variable -> source
@@ -82,7 +90,9 @@ class Variables:
         read: Callable[[str], tuple[str, str, float]],
         run_settings: RunSettings,
         kernels: Callable[[], int] = lambda: 0,
+        vault_values: VaultValues | None = None,
     ) -> None:
+        self._vault_values = vault_values
         self.ws = ws
         self._kept = kept
         self._secrets = secrets
@@ -343,3 +353,180 @@ class Variables:
             raise rules.VariableError(f"{variable.name} has no value on this computer.")
         self.ws.audit.write(who, "show_variable", variable.name)
         return {"name": variable.name, "value": value}
+
+    # ===== ${NAME} resolved at use (design principle 12.7) =====
+
+    def _sources(self) -> dict[str, rules.Variable]:
+        """Where each variable's value comes from here (no document is read for this)."""
+        defined = self._defined()
+        saved = self._keyring([d.name for d in defined if d.origin == "keyring"])
+        found, _ = rules.listing(defined, self._facts(), [], [], self._environment.base(), saved)
+        return {v.name: v for v in found}
+
+    def _known(self, name: str, by: Mapping[str, rules.Variable]) -> rules.Variable:
+        v = by.get(name)
+        if v is not None:
+            return v
+        here = rules.Variable(name)
+        if name in self._environment.base():
+            here.source, here.set = "env", True
+        return here
+
+    async def values(self, names: Iterable[str]) -> dict[str, str]:
+        """The values of these variables on this computer, from their sources (a key vault's read by
+        running it); a name not set here is left out. Never answered to a page or the agent."""
+        by = self._sources()
+        environ = self._environment.base()
+        out: dict[str, str] = {}
+        wanted: dict[str, dict[str, str]] = {}
+        from_vault: set[str] = set()
+        for name in dict.fromkeys(names):
+            v = self._known(name, by)
+            value: str | None = None
+            if v.source == "value":
+                value = v.value or ""
+            elif v.source == "keyring" and v.owner:
+                blade = next((b for b in self._blades.all() if b.name == v.owner), None)
+                value = self._blades.saved_secrets(blade).get(v.owner_secret or "") if blade else None
+            elif v.source == "keyring":
+                value = self._keyring([name]).get(name)
+            elif v.source == "env":
+                value = environ.get(name)
+            elif v.source == "vault" and v.vault and v.vault_secret:
+                wanted.setdefault(v.vault, {})[name] = v.vault_secret
+                from_vault.add(name)
+            if value is not None:
+                out[name] = value
+        if wanted and self._vault_values is not None:
+            got, _ = await self._vault_values(wanted)
+            out |= {k: value for k, value in got.items() if k in from_vault}
+        return out
+
+    def unset(self, names: Iterable[str]) -> list[str]:
+        """Of these names, those no source on this computer gives (a vault's entry counts as given)."""
+        by = self._sources()
+        return [n for n in dict.fromkeys(names) if not self._known(n, by).set]
+
+    def check_code(self, code: str, where: str) -> None:
+        """A connection's code about to run: each ${NAME} its settings read (with no default) set here, or
+        the one error, every missing name in it."""
+        try:
+            settings = detect_settings(code)
+        except BladeCodeError:
+            return
+        wanted = [r.name for s in settings for r in refs.find(s.text or "") if r.default is None]
+        missing = self.unset(wanted) if wanted else []
+        if missing:
+            raise refs.MissingVariables(missing, where)
+
+    async def resolve(self, text: str, where: str = "") -> str:
+        """Typed text with each ${NAME} put in (one pass); MissingVariables for a name not set here."""
+        names = refs.names(text)
+        found = await self.values(names) if names else {}
+        return refs.resolve(text, found.get, where)
+
+    async def resolve_all(self, values: Mapping[str, Any], where: str = "") -> dict[str, Any]:
+        names = [n for v in values.values() if isinstance(v, str) for n in refs.names(v)]
+        found = await self.values(names) if names else {}
+        return refs.resolve_all(values, found.get, where)
+
+    async def bind(
+        self, sql: str, dialect: str = "duckdb", style: str = "dollar", where: str = ""
+    ) -> tuple[str, Any]:
+        """SQL with each ${NAME} outside strings and comments a bound parameter: (sql, params). The params
+        are [] (or {}) when it names none."""
+        bound = refs.bind_sql(sql, dialect, style)
+        if not bound.refs:
+            return bound.sql, [] if style not in ("named", "pyformat") else {}
+        found = await self.values(r.name for r in bound.refs)
+        return bound.sql, bound.params(found.get, where)
+
+    def preview(self, body: Any) -> dict[str, Any]:
+        """What a box's text resolves to here: {"text"} -> the value with a secret's part masked (never a
+        secret's value: the same rule as Show), the names, those not set (the one error, with Set it), and
+        each name's source in words. The agent's too."""
+        text = body.get("text") if isinstance(body, dict) else body
+        if not isinstance(text, str) or len(text) > rules.MAX_VALUE:
+            raise rules.VariableError('Send {"text": "https://${TENANT}.example.com"}.')
+        by = self._sources()
+        environ = self._environment.base()
+        known = {name: self._known(name, by) for name in refs.names(text)}
+
+        def look(name: str) -> str | None:
+            v = known[name]
+            if not v.set:
+                return None
+            if v.secret:
+                return ""  # set; its value is never read for a preview
+            return v.value if v.source == "value" else environ.get(name, "")
+
+        shown = refs.preview(text, look, lambda name: known[name].secret)
+        shown["variables"] = [
+            {"name": v.name, "from": v.source, "words": rules.SOURCE_WORDS[v.source], "secret": v.secret}
+            for v in known.values()
+        ]
+        return shown
+
+    def uses(self, name: Any = None) -> dict[str, Any]:
+        """What reads each variable (connections' fields by setting, notebooks, scripts, Run settings), or
+        one variable's."""
+        found, _ = self._collect()
+        if name not in (None, ""):
+            v = rules.find(found, name)
+            return {"name": v.name, "uses": [u.to_json() for u in v.uses]}
+        return {"uses": {v.name: [u.to_json() for u in v.uses] for v in found if v.uses}}
+
+    # ===== the first start: passwords as variables, and saved text that now names one =====
+
+    def migrate_passwords(self, backup: Callable[[list[Any]], str]) -> str:
+        """Each connection's own saved password made a keyring variable of the name the page shows it under
+        (its value moved within the keyring, never into a file); the connection's code then asks for that
+        variable. `backup` copies the connections' files first and says where. The words to say once ("" when
+        nothing moved). Running again finds nothing to move: the library's files stay byte-stable."""
+        defined = self._defined()
+        moves = rules.password_moves(self._facts(), defined, self._vault_of())
+        if not moves:
+            return ""
+        blades = {b.name: b for b in self._blades.all()}
+        files = [p for m in moves if (p := self._blades.file_of(m.connection)) is not None]
+        kept = backup(sorted(set(files)))
+        done: list[rules.PasswordMove] = []
+        for move in moves:
+            blade = blades.get(move.connection)
+            if blade is None:
+                continue
+            value = self._blades.saved_secrets(blade).get(move.secret)
+            if value is None:
+                continue
+            try:
+                self._secrets.set(move.variable, value)
+                code = connection_rules.rename_secret(blade.code, move.secret, move.variable)
+            except Exception:  # noqa: S112 (no keyring here, or code that changed: left as it was)
+                continue
+            data = blade.to_json()
+            data["code"] = code
+            self._blades.save(data, blade.name)
+            defined = [*defined, rules.Defined(move.variable, "keyring")]
+            done.append(move)
+        if done:
+            self._write(defined)
+            self.apply()
+            for move in done:
+                self.ws.audit.write("user", "password_to_variable", move.connection, variable=move.variable)
+        return rules.password_move_words(done, kept)
+
+    def holding(self) -> list[dict[str, Any]]:
+        """Saved text that now reads as naming a variable (12.7): a connection's or blade's setting whose
+        value holds ${NAME}. {"where", "names"}."""
+        items: list[tuple[str, str]] = []
+        for blade in self._blades.all():
+            if blade.pack or blade.path or "${" not in blade.code:
+                continue
+            try:
+                settings = detect_settings(blade.code)
+            except BladeCodeError:
+                continue
+            for s in settings:
+                if isinstance(s.value, str) and s.text != s.value and s.text and not refs.find(s.text):
+                    items.append((f"{blade.name}: {s.key}", s.value))
+        return refs.holding(items)

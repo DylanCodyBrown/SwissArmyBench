@@ -22,6 +22,7 @@
 import { ApiError } from "./api";
 import { button, h, icon, toast } from "./dom";
 import { missingOf, promptInstall } from "./missingPackages";
+import { addVariable } from "./variableLinks";
 import { sendToAgent } from "./workbenchAgent";
 
 export interface ErrorFix {
@@ -77,6 +78,9 @@ export function errorParts(e: unknown): ErrorParts {
   const fixes: ErrorFix[] = [];
   const missing = missingOf(e instanceof Error ? e : said ?? e);
   if (missing) fixes.push({ label: "Install now", icon: "import", run: () => promptInstall(missing, { force: true }) });
+  // A variable not set on this computer (12.7): Set it, the Add variable form with its name.
+  const unset = said && Array.isArray(said.missing_variables) ? said.missing_variables.filter((n): n is string => typeof n === "string") : [];
+  for (const name of unset) fixes.push({ label: unset.length > 1 ? `Set ${name}` : "Set it", icon: "plus", run: () => addVariable(name) });
   if (said) {
     const what = text(said.error) ?? text(said.message) ?? (missing ? `${missing.packages.join(", ")} is not installed.` : "Something went wrong.");
     const details = text(said.details) ?? text(said.traceback) ?? (what.includes("\n") || what.length > 240 ? what : undefined);

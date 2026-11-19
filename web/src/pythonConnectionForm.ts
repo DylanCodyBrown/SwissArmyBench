@@ -6,14 +6,14 @@
  *               Connect makes conn; List the tables returns its catalog; Read a table returns a
  *               table's rows. One short line on each says what it gives back
  *   [VARIABLES] every environment variable the boxes read (os.environ["X"], os.environ.get,
- *               os.getenv, secret), found by the server as the boxes change. Each with where it comes
- *               from: this computer's environment, saved on this computer, a key vault's entry, or a
- *               plain value. A value typed here goes to the keyring; none comes back
+ *               os.getenv, secret), found by the server as the boxes change, each with what it reads on
+ *               this computer (variableBox.ts previewLine: a secret masked; not set: Set it). Where its
+ *               value comes from is the Variables page's (12.7), never a picker here
  *   [TEST]      Connect, then List the tables, then the first table's first rows (nothing is saved)
  *   [SAVE]      one connection: the three boxes and the mapping
  *
  * ROUTING: [VARIABLES] POST /connections/variables {code, tables, read}
- *          [VAULT]     GET /connections/vaults; POST /connections/vaults/secrets {name} (names only)
+ *          [LINE]      POST /variables/resolve
  *          [PACKAGES]  POST /blades/inspect (what the boxes import); POST /blades/install
  *          [TEST]      POST /connections/test      [SAVE] POST /connections, PUT /connections/{name}
  */
@@ -24,6 +24,7 @@ import { type Missing, promptForError, promptInstall, reminder } from "./missing
 import type { CodeEditor } from "./lazy/codeEditor";
 import { backButton } from "./nav";
 import { effectiveTheme } from "./theme";
+import { previewLine } from "./variableBox";
 
 interface Source {
   name: string;
@@ -54,11 +55,6 @@ export interface PythonForm {
   description?: string;
   row_limit?: number | null;
   summary?: { secrets: Record<string, boolean> };
-}
-
-interface Vault {
-  name: string;
-  entries: { env: string; secret: string }[];
 }
 
 export interface TablePreview {
@@ -177,117 +173,20 @@ export function showPythonForm(host: PythonFormHost): void {
   // ===== the variables the boxes read, and where each comes from =====
   let reads: Read[] = form.reads ?? [];
   const sources = new Map<string, Source>((form.variables ?? []).map((s) => [s.name, { ...s }]));
-  const typed = new Map<string, HTMLInputElement>(); // values to save on this computer
-  const savedHere = form.summary?.secrets ?? {};
-  let vaults: Vault[] = [];
-  const readVaults = (): Promise<unknown> => api<{ vaults: Vault[] }>("/connections/vaults").then((r) => (vaults = r.vaults), () => undefined);
-  // Each vault's secret names, read once (names only: the server never sends a value).
-  const secretNames = new Map<string, Promise<string[] | null>>();
-  const vaultSecrets = (vault: string): Promise<string[] | null> => {
-    let reading = secretNames.get(vault);
-    if (!reading) {
-      reading = api<{ names: { secret: string }[] | null }>("/connections/vaults/secrets", "POST", { name: vault }).then((r) => (r.names ? r.names.map((n) => n.secret) : null));
-      reading.catch(() => secretNames.delete(vault));
-      secretNames.set(vault, reading);
-    }
-    return reading;
-  };
   const variablesHost = h("div", {});
-  const sourceOf = (variable: string): Source => {
-    let source = sources.get(variable);
-    if (!source) {
-      source = { name: variable, from: "env" };
-      sources.set(variable, source);
-    }
-    return source;
-  };
+  // Each variable the boxes read, and what it reads on this computer (12.7): where its value comes from (the
+  // keyring, a key vault's entry, the environment, a plain value) is set once on the Variables page, for every
+  // place that uses it; one not set is the one error, with Set it. A secret is masked, never shown.
   const drawVariables = (): void => {
-    typed.clear();
     if (!reads.length) {
       variablesHost.replaceChildren();
       return;
     }
-    const BY_NAME = "\u0000by-name";
     const rows = reads.map((r) => {
-      const source = sourceOf(r.name);
-      const from = h(
-        "select",
-        { "aria-label": `Where ${r.name} comes from` },
-        h("option", { value: "env", selected: source.from === "env" }, "This computer's environment"),
-        h("option", { value: "keyring", selected: source.from === "keyring" }, "Saved on this computer"),
-        h("option", { value: "vault", selected: source.from === "vault" }, "A key vault"),
-        h("option", { value: "value", selected: source.from === "value" }, "A plain value (not a secret)"),
-      ) as HTMLSelectElement;
-      const slot = h("span", { class: "field-row" });
-      const draw = (): void => {
-        typed.delete(r.name);
-        if (source.from === "env") {
-          // Only what needs doing is said: a variable the code needs that this computer does not have.
-          slot.replaceChildren(r.set || !r.required ? "" : h("span", { class: "status-error" }, "Not set on this computer"));
-        } else if (source.from === "keyring") {
-          const input = h("input", { type: "password", autocomplete: "new-password", "aria-label": `${r.name}: its value`, placeholder: savedHere[r.name] ? "Saved" : "Value" }) as HTMLInputElement;
-          typed.set(r.name, input);
-          slot.replaceChildren(input);
-        } else if (source.from === "value") {
-          const input = h("input", { type: "text", class: "mono", "aria-label": `${r.name}: its value`, value: source.value ?? "", spellcheck: false, placeholder: "Value" }) as HTMLInputElement;
-          input.addEventListener("input", () => (source.value = input.value));
-          source.value ??= "";
-          slot.replaceChildren(input);
-        } else {
-          if (!vaults.length) {
-            slot.replaceChildren(button("New vault", () => host.newVault(async () => void (await readVaults(), drawVariables())), { icon: "plus" }));
-            return;
-          }
-          if (!vaults.some((v) => v.name === source.vault)) source.vault = vaults[0]!.name;
-          const vault = h("select", { "aria-label": `${r.name}: the vault` }, ...vaults.map((v) => h("option", { value: v.name, selected: v.name === source.vault }, v.name))) as HTMLSelectElement;
-          const entry = h("select", { "aria-label": `${r.name}: the entry in the vault` }) as HTMLSelectElement;
-          const byName = h("input", { type: "text", "aria-label": `${r.name}: the secret's name in the vault`, placeholder: "Secret name", spellcheck: false, value: source.secret ?? "", hidden: true }) as HTMLInputElement;
-          byName.addEventListener("input", () => (source.secret = byName.value.trim()));
-          let filling = 0;
-          const fill = (): void => {
-            const mine = ++filling;
-            const mapped = (vaults.find((v) => v.name === vault.value)?.entries ?? []).map((e) => e.secret);
-            const paint = (names: string[] | null, state: "reading" | "read" | "unlisted" | "failed"): void => {
-              if (mine !== filling) return;
-              const all = [...new Set([...mapped, ...(names ?? []), ...(source.secret ? [source.secret] : [])])];
-              const typing = entry.value === BY_NAME || (state !== "reading" && !all.length);
-              clear(
-                entry,
-                h("option", { value: "", disabled: true, selected: !source.secret && !typing }, state === "reading" ? "Reading the vault…" : all.length ? "Choose a secret" : "No secrets listed"),
-                ...all.map((secret) => h("option", { value: secret, selected: secret === source.secret && !typing }, secret)),
-                h("option", { value: BY_NAME, selected: typing }, "A secret by name…"),
-              );
-              entry.title = state === "unlisted" ? "This vault does not list its secrets" : state === "failed" ? "The vault could not be read" : "";
-              byName.hidden = entry.value !== BY_NAME;
-            };
-            paint(null, "reading");
-            void vaultSecrets(vault.value).then(
-              (names) => paint(names, names === null ? "unlisted" : "read"),
-              () => paint(null, "failed"),
-            );
-          };
-          vault.addEventListener("change", () => {
-            source.vault = vault.value;
-            source.secret = undefined;
-            fill();
-          });
-          entry.addEventListener("change", () => {
-            byName.hidden = entry.value !== BY_NAME;
-            if (entry.value === BY_NAME) {
-              source.secret = byName.value.trim() || undefined;
-              byName.focus();
-            } else source.secret = entry.value;
-          });
-          fill();
-          slot.replaceChildren(vault, entry, byName);
-        }
-      };
-      from.addEventListener("change", () => {
-        source.from = from.value as Source["from"];
-        draw();
-      });
-      draw();
-      return h("div", { class: "connection-password python-variable" }, h("label", { class: "field" }, h("code", {}, r.name), from), h("div", { class: "field password-box" }, slot));
+      const { line, show } = previewLine();
+      // A variable the code reads with a default of its own (os.environ.get) is not an error when not set.
+      void show(r.required || r.set ? `\${${r.name}}` : "");
+      return h("div", { class: "connection-password python-variable", "data-variable": r.name }, h("code", {}, r.name), line);
     });
     variablesHost.replaceChildren(h("fieldset", { class: "connection-passwords" }, h("legend", {}, "Environment variables"), ...rows));
   };
@@ -299,7 +198,7 @@ export function showPythonForm(host: PythonFormHost): void {
       if (mine !== asked) return;
       const same = found.variables.map((v) => v.name).join() === reads.map((v) => v.name).join();
       reads = found.variables;
-      if (!same) drawVariables(); // the same names keep their boxes (and what is typed in them)
+      if (!same) drawVariables();
       void readPackages(true);
     } catch {
       // the boxes are being typed: the names follow when they read again
@@ -342,8 +241,8 @@ export function showPythonForm(host: PythonFormHost): void {
       catalog: list.trim() ? { language: "python", command: list } : null,
       read: rows.trim() ? { command: rows } : null,
       row_limit: rowLimit.value.trim() ? Number(rowLimit.value) : null,
+      // A mapping saved before the Variables page kept every source stays as it was (nothing lost).
       variables: [...sources.values()].filter((s) => names.has(s.name)).map((s) => (s.from === "vault" ? { name: s.name, from: s.from, vault: s.vault ?? "", secret: s.secret ?? "" } : s.from === "value" ? { name: s.name, from: s.from, value: s.value ?? "" } : { name: s.name, from: s.from })),
-      secrets: Object.fromEntries([...typed].filter(([, input]) => input.value).map(([variable, input]) => [variable, input.value])),
     };
   };
   const test = async (): Promise<void> => {
@@ -397,7 +296,6 @@ export function showPythonForm(host: PythonFormHost): void {
     button("Save", busyClick("Saving…", () => busy(body, `Saving ${name.value.trim() || "the connection"}…`, save())), { icon: "save", class: "primary" }),
   );
   drawVariables();
-  void readVaults().then(drawVariables);
   void readPackages();
   name.focus();
 }

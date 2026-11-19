@@ -93,6 +93,8 @@ class Explorer:
         self._thread = to_thread
         self._refreshed: dict[str, dict[str, Any]] = {}  # an API's re-read document, until applied
         self._answers: dict[tuple[str, str], Any] = {}  # (api, operation) -> the last answer's schema
+        # The Variables page (services/variables.py, set once built): a typed input's variable (12.7).
+        self.variables: Any = None
 
     # ===== the library =====
 
@@ -290,8 +292,11 @@ class Explorer:
         explored = self._explored(name)
         op = self._operation(explored, operation)
         values = dict(given.get("inputs") or {}) | ({"body": given["body"]} if "body" in given else {})
+        typed, _ = self._inputs(op, values)
+        if self.variables is not None:  # an input's ${NAME} (12.7): its value sent, the typed text kept
+            values = await self.variables.resolve_all(values, f"{explored['name']} {op['id']}")
         inputs, sent_body = self._inputs(op, values)
-        value, origin = await self._run(explored["name"], op, inputs, sent_body, who)
+        value, origin = await self._run(explored["name"], op, inputs, sent_body, who, shown=typed)
         title = str(given.get("name") or f"{explored['name']} {op['id']}")
         opened = await self._structures.from_api(title, value, origin, who)
         self.ws.audit.write(
@@ -308,7 +313,13 @@ class Explorer:
         }
 
     async def _run(
-        self, api: str, op: Mapping[str, Any], inputs: dict[str, Any], body: Any, who: str
+        self,
+        api: str,
+        op: Mapping[str, Any],
+        inputs: dict[str, Any],
+        body: Any,
+        who: str,
+        shown: dict[str, Any] | None = None,
     ) -> tuple[Any, dict[str, Any]]:
         source = web_calls.code(api, op["method"], op["path"], "", inputs, body, None)
         command = "api = conn\n" + web_calls.send_command(source)
@@ -324,7 +335,7 @@ class Explorer:
             "operation": op["id"],
             "method": op["method"],
             "path": op["path"],
-            "inputs": _shown_inputs(inputs),
+            "inputs": _shown_inputs(inputs if shown is None else shown),
             "body": body,
             "at": self._now(),
             "status": said["status"],

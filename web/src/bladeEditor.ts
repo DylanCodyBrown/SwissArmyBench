@@ -18,6 +18,7 @@ import { effectiveTheme } from "./theme";
 import { exportBlades } from "./bladeLibrary";
 import { copyAsOwn } from "./starters";
 import { installError, type Missing, promptInstall, reminder } from "./missingPackages";
+import { variableBox } from "./variableBox";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -106,6 +107,8 @@ export interface BladeSetting {
   name: string; // server, database, user, path...
   key: string; // as the code writes it: host, Server, dbname...
   value: string | number;
+  /** Its box's text (12.7): the value, or a dollar-brace reference where the code reads a variable. */
+  text?: string;
   type: "text" | "number";
   line: number;
   where: string;
@@ -117,13 +120,15 @@ export interface BladeSetting {
  * values as buttons (from the user's other blades, or a standard environment variable). `onValue` gets
  * every change; `commit` (optional) a finished one: Enter, leaving the field, or a suggestion. */
 export function settingField(setting: BladeSetting, onValue: (value: string) => void, commit?: () => void): HTMLElement {
+  // One box (12.7): a value, or a variable with a dollar-brace that the code reads where it runs.
   const input = h("input", {
-    type: setting.type === "number" ? "number" : "text",
-    value: String(setting.value),
+    type: "text",
+    inputmode: setting.type === "number" ? "numeric" : "text",
+    value: setting.text ?? String(setting.value),
     spellcheck: "false",
     "aria-label": `${setting.key} (${setting.name})`,
     class: setting.placeholder ? "needs-value" : undefined,
-  });
+  }) as HTMLInputElement;
   input.addEventListener("input", () => onValue(input.value));
   if (commit) input.addEventListener("change", commit);
   const chips = setting.suggestions.slice(0, 4).map((s) =>
@@ -143,7 +148,7 @@ export function settingField(setting: BladeSetting, onValue: (value: string) => 
       h("span", { class: "hint" }, setting.name !== setting.key.toLowerCase() ? ` ${setting.name}, line ${setting.line}` : ` line ${setting.line}`),
       setting.placeholder ? h("span", { class: "needs-value-badge" }, "needs your value") : null,
     ),
-    input,
+    variableBox(input, { label: setting.key }),
     chips.length ? h("div", { class: "chips suggestions" }, h("span", { class: "hint" }, "Suggested:"), ...chips) : null,
   );
 }

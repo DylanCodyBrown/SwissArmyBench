@@ -18,6 +18,7 @@
 import { api } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { took, when } from "./workbenchModes";
+import { variableBox } from "./variableBox";
 
 // ===== Notebook mode: the run order and the Outline =====
 
@@ -141,7 +142,7 @@ export function drawRunSettings(body: HTMLElement, path: string | null, vaults: 
     args.addEventListener("change", send);
     args.addEventListener("keydown", (e) => {
       e.stopPropagation();
-      if (e.key === "Enter") args.blur();
+      if (e.key === "Enter" && args.getAttribute("aria-expanded") !== "true") args.blur(); // not a pick from the list
     });
     const variable = (v: RunSettings["variables"][number], row: Row): HTMLElement => {
       const choose = h(
@@ -188,7 +189,7 @@ export function drawRunSettings(body: HTMLElement, path: string | null, vaults: 
     }, { icon: "plus", class: "ghost wb-run-add" });
     clear(
       body,
-      h("section", { class: "app-section" }, h("h3", { class: "app-heading" }, "Arguments"), args),
+      h("section", { class: "app-section" }, h("h3", { class: "app-heading" }, "Arguments"), variableBox(args, { label: "Arguments" })),
       h(
         "section",
         { class: "app-section" },

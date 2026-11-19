@@ -14,6 +14,7 @@ keyring variables, and the server's own environment, which every process it star
 from __future__ import annotations
 
 import os
+import shutil
 from collections.abc import Callable, Mapping, MutableMapping
 from pathlib import Path
 from typing import Any
@@ -114,3 +115,19 @@ class ProcessEnvironment:
             if name not in self._before:
                 self._before[name] = self._environ.get(name)
             self._environ[name] = value
+
+
+def backup_copies(folder: Path) -> Callable[[list[Path]], str]:
+    """A dated backup of files about to change (the password move): each copied into `folder`, which is
+    made on the first copy. Says where ("" when nothing was copied)."""
+
+    def copy(paths: list[Path]) -> str:
+        copied = False
+        for path in paths:
+            if path.is_file():
+                folder.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, folder / path.name)
+                copied = True
+        return str(folder) if copied else ""
+
+    return copy

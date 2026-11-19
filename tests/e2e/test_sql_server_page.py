@@ -68,15 +68,15 @@ def test_sql_server_signs_in_every_way_with_its_options_folded(browser: Browser,
     expect(code_box(dialog)).to_have_value(re.compile(r'server="sql01\.shop\.local"'))
     passwords = dialog.locator(".connection-passwords")
     expect(passwords).to_be_visible()
-    source = passwords.get_by_role("combobox", name=re.compile("comes from"))
-    expect(source.locator("option:checked")).to_have_text("An environment variable")
-    # Saved on this computer: the keyring's note.
-    source.select_option(label="Saved on this computer")
+    # One box (12.7): a typed password is kept in this computer's keyring, said in amber while it is typed.
+    expect(passwords.get_by_role("combobox", name=re.compile("comes from"))).to_have_count(0)
+    password = passwords.get_by_label("Password", exact=True)
+    password.fill("made-up-typed")
     expect(passwords.locator(".local-only")).to_contain_text(
         "its password is saved in this computer's keyring"
     )
     shot(page, "sql-server-keyring-warning")
-    source.select_option(label="An environment variable")
+    password.fill("${SQL_SERVER_PASSWORD}")
     expect(passwords.locator(".local-only")).to_have_count(0)
     # The options are folded: encryption a choice, Trust server certificate a tick, off by default.
     options = dialog.locator("details.connection-options")
@@ -92,9 +92,8 @@ def test_sql_server_signs_in_every_way_with_its_options_folded(browser: Browser,
     expect(code_box(dialog)).to_have_value(re.compile(r"trust_server_certificate=True"))
     expect(options.get_by_role("combobox", name="Driver")).to_have_count(0)  # mssql-python: none to choose
     # The server from an environment variable (a function app's setting), this computer's as its default.
-    dialog.get_by_role("combobox", name="Server from").select_option(label="From an environment variable")
-    variable = dialog.get_by_role("textbox", name="Server variable")
-    expect(variable).to_have_value("SQL_SERVER_SERVER")
+    server_box.fill("${SQL_SERVER_SERVER:-sql01.shop.local}")
+    server_box.press("Tab")
     expect(code_box(dialog)).to_have_value(
         re.compile(r'server=os\.environ\.get\("SQL_SERVER_SERVER", "sql01\.shop\.local"\)')
     )

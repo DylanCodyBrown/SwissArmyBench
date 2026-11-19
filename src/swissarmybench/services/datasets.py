@@ -12,6 +12,7 @@ import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
+from swissarmybench.domain import variable_refs
 from swissarmybench.domain.datasets import DatasetError, DatasetInfo, Opened, mib, quote, validate_name
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.sql_guard import SqlRefused, guard
@@ -20,6 +21,14 @@ from swissarmybench.services.ports import BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.processes import ProcessRegistry
 from swissarmybench.services.table_cells import Origins
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, TimedOut, Workspace
+
+
+class SqlBinder(Protocol):
+    async def bind(
+        self, sql: str, dialect: str = ..., style: str = ..., where: str = ...
+    ) -> tuple[str, Any]: ...
+
+    async def resolve(self, text: str, where: str = ...) -> str: ...
 
 
 class TableReader(Protocol):
@@ -41,7 +50,7 @@ class TableReader(Protocol):
 
     def parse_pasted(self, text: str, max_bytes: int) -> Any: ...
 
-    def query_table(self, cursor: Any, sql: str) -> Any: ...
+    def query_table(self, cursor: Any, sql: str, params: Any = None) -> Any: ...
 
     def file_name(self, path_text: str) -> str: ...
 
@@ -69,6 +78,8 @@ class DatasetService:
         self.stored: list[Callable[[str, str], Awaitable[None]]] = []
         # A query's tables named through a connection, read first (services/connection_tables.py).
         self.connection_sql: ConnectionSql | None = None
+        # The Variables page (services/variables.py, set once built): a query's ${NAME} as a bound parameter.
+        self.variables: SqlBinder | None = None
         # A table read from a file that changed on disk since (services/file_watch.py), and its Not now.
         self.changed_on_disk: Callable[[str], bool] = lambda name: False
         self.not_now: Callable[[str, str], Awaitable[dict[str, Any]]] | None = None
@@ -336,18 +347,29 @@ class DatasetService:
         self, name: str, path: str, sheet: str | None, new_grid: bool, who: str
     ) -> dict[str, Any]:
         ws = self.ws
-        self._refuse_own_file(path)
+        used = await self.resolve_text(path, name)  # ${NAME} in a path (12.7); the origin keeps the text
+        self._refuse_own_file(used)
         table, kind = await ws.workers.run(
-            BACKGROUND, self._reader.load_file, path, ws.settings.max_dataset_bytes, sheet
+            BACKGROUND, self._reader.load_file, used, ws.settings.max_dataset_bytes, sheet
         )
         origin = Origin("file", path=path, sheet=sheet)
         result = await self.store_table(name, table, kind, new_grid, who, origin=origin)
         ws.audit.write(who, "load_file", name, file=self._reader.file_name(path), sheet=sheet)
         return result
 
+    async def resolve_text(self, text: str, where: str) -> str:
+        """Typed text with its ${NAME} put in from this computer's sources (12.7; `$${X}` is the text ${X});
+        MissingVariables for one not set here."""
+        if "${" not in text:
+            return text
+        if self.variables is None:
+            return variable_refs.resolve(text, lambda name: None, where)
+        return await self.variables.resolve(text, where)
+
     async def peek_file(self, path: str, sheet: str | None, rows: int) -> dict[str, Any]:
         """A file's first rows (the catalog page's preview): nothing is kept."""
         ws = self.ws
+        path = await self.resolve_text(path, "the file")
         self._refuse_own_file(path)
         table, _ = await ws.workers.run(
             BACKGROUND, self._reader.load_file, path, ws.settings.max_dataset_bytes, sheet
@@ -416,7 +438,8 @@ class DatasetService:
                 return f"SELECT * FROM {quote('ds_' + dataset)}"  # noqa: S608 (a quoted dataset name)
             return ws.compiled(cursor, grid, info).sql()
 
-        prepared = await self.prepare_connections(text)
+        bound, params = await self.bind_sql(text, name)
+        prepared = await self.prepare_connections(bound)
 
         def execute(cursor: Any) -> Any:
             datasets = {i.name for i in ws.store.all()}
@@ -435,7 +458,7 @@ class DatasetService:
             timer = threading.Timer(settings.query_timeout_seconds, cursor.interrupt)
             timer.start()
             try:
-                result = self._reader.query_table(cursor, guarded.sql)
+                result = self._reader.query_table(cursor, guarded.sql, params or None)
             finally:
                 timer.cancel()
             return result
@@ -451,6 +474,19 @@ class DatasetService:
         ws.audit.write(who, "sql_query", name, query=text, rows=table.num_rows)
         reads = {"connection_reads": prepared.reads} if prepared.reads else {}
         return result | {"rows": table.num_rows} | reads
+
+    async def bind_sql(self, text: str, where: str) -> tuple[str, list[str]]:
+        """A query's ${NAME} (12.7): each outside strings and comments a bound parameter ($1, $2), its value
+        from this computer's sources; MissingVariables for one not set here. The text itself never holds a
+        value."""
+        if "${" not in text:
+            return text, []
+        if self.variables is None:
+            bound = variable_refs.bind_sql(text, "duckdb", "dollar")
+            values = bound.params(lambda name: None, where)
+            return bound.sql, list(values)
+        sql, params = await self.variables.bind(text, "duckdb", "dollar", where)
+        return sql, list(params)
 
     async def prepare_connections(self, text: str) -> Any:
         """The query's connections' tables read (services/connection_tables.py), or the query as it was."""

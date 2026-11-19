@@ -903,6 +903,41 @@ tables, so it is not on the Connections page). Click a vault's card for its deta
 - The agent can list them (never a keyring's, a secret's or a vault's value), add and change them, and
   keep a secret in the keyring; it never reads one back. Show is yours only.
 
+### A variable in any box: `${NAME}`
+
+Type `${NAME}` into any box where you type a value: a connection's server, user or password, an API's
+address, a file's path, a script's Run settings, a SQL query. It reads that variable from the Variables page
+at the moment it is used, on this computer, so the value stays out of the files you share and each computer
+fills in its own.
+
+- Mix it with text: `https://${TENANT}.sharepoint.com/sites/${SITE}`. Give a default after `:-`:
+  `${PORT:-5432}` reads 5432 when PORT is not set.
+- **To type the text itself**, double the dollar: `$${NAME}` is the text `${NAME}`. Any other `$` stays as
+  you typed it: `pa$$word`, `Sheet1$`, `[Orders$]`, `${not a name}`.
+- A value that came from a variable is used exactly as it is: a password holding `${X}` stays that text.
+- **In SQL** the value is sent beside the query, never pasted into it, so a value with a quote in it cannot
+  change what the query does. Inside a quoted string or a comment, `${NAME}` is just text. It cannot stand
+  for a table's or a column's name: the app says so.
+- **Not set on this computer**: one message, "NAME is not set on this computer", with **Set it**.
+- What the code your connection makes (and an export) holds is `os.environ["NAME"]`, so on a Function App
+  the app's settings give the value.
+- Passwords you had saved for a connection became variables once, in this computer's keyring
+  (Sales DB's password as `SALES_DB_PASSWORD`), its connection's file backed up first.
+- **Picking one:** type `${` in a box and the variables are listed under it, each with where its value comes
+  from (Plain value, This computer's keyring, Key vault · Team vault), never a secret's value; the arrows and
+  Enter pick one, Escape closes. The small `{x}` button on a box opens the same list. **New variable…** at the
+  list's foot adds one with the name you typed, without leaving the form.
+- **Under the box**, what it reads on this computer: the value (a secret as dots), or the message with Set it.
+- **A password box** holds a variable on its own (`${WAREHOUSE_PASSWORD}`) or a password typed there; a typed
+  one is kept, on Save, as a keyring variable named after the connection (`WAREHOUSE_PASSWORD`), said in amber
+  while it is typed because it works only on this computer. A key vault's secret is a variable too: type its
+  variable's name. There are no "comes from" lists beside the boxes: where a value comes from is set once, on
+  the Variables page, for every place that uses it.
+- The Variables page lists each variable's uses by box: `Warehouse · Server`.
+- **Anywhere:** typing `${` in any box of the app lists the variables the same way, and right-clicking a box
+  offers **Insert variable…** (beside Cut, Copy and Paste; Shift+F10 from the keyboard). A SQL cell or query
+  box completes them after `${` too. Search boxes, and Python cells (use `os.environ["NAME"]` there), do not.
+
 ### Your connections in DuckDB SQL
 
 A connection is something that exposes tables, and any DuckDB SQL can name them by the connection: the

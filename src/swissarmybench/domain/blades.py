@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
+from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain.blade_templates import Template as Template
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
@@ -42,6 +43,8 @@ from swissarmybench.domain.packages import pip_name as pip_name
 from swissarmybench.domain.packages import provided as provided
 from swissarmybench.domain.packs import FAMILIES as FAMILIES
 from swissarmybench.domain.packs import STARTERS as STARTERS
+from swissarmybench.domain.variable_refs import env_name_for_secret as env_name_for_secret
+from swissarmybench.domain.variable_refs import every_secret as every_secret
 
 # ===== the code =====
 # What a blade's code makes, asks for and imports, read with `ast` and never run.
@@ -700,20 +703,8 @@ FLAGS = frozenset({"trust server certificate", "encrypt"}) | sql_server.FLAGS
 _SECRET_WORDS = re.compile(r"pass|pwd|token|secret|credential|api_?key|private", re.IGNORECASE)
 # The first argument of these calls is a file or folder.
 _PATH_CALLS = frozenset(
-    {
-        "Path",
-        "connect",
-        "open",
-        "read_csv",
-        "read_excel",
-        "read_parquet",
-        "read_json",
-        "read_table",
-        "read_feather",
-        "dotenv_values",
-        "load_workbook",
-        "ExcelFile",
-    }
+    "Path connect open read_csv read_excel read_parquet read_json read_table read_feather dotenv_values "
+    "load_workbook ExcelFile".split()
 )
 _PLACEHOLDER = re.compile(
     r"(^|[^a-z])(my|your)([-_ .]|$)|example|<[^>]*>|\{\{|change[-_ ]?me|xxx|abc123|1234567890|placeholder",
@@ -721,20 +712,6 @@ _PLACEHOLDER = re.compile(
 )
 _LOOKS_LIKE_PATH = re.compile(r"^([a-z]:[\\/]|[\\/]|~|\.{1,2}[\\/])|[\\/].*\.[a-z0-9]{1,8}$", re.IGNORECASE)
 _PAIR = re.compile(r"(?:^|;)\s*([A-Za-z][A-Za-z ]*?)\s*=\s*([^;]*)")
-# Environment variables that commonly hold a setting, per plain name. Never a password.
-ENVIRONMENT: dict[str, tuple[str, ...]] = {
-    "server": ("PGHOST", "MYSQL_HOST", "DB_HOST", "DATABASE_HOST", "SQLSERVER_HOST"),
-    "port": ("PGPORT", "MYSQL_PORT", "DB_PORT"),
-    "database": ("PGDATABASE", "MYSQL_DATABASE", "DB_NAME", "DATABASE_NAME"),
-    "user": ("PGUSER", "MYSQL_USER", "DB_USER", "SNOWFLAKE_USER"),
-    "account": ("SNOWFLAKE_ACCOUNT",),
-    "warehouse": ("SNOWFLAKE_WAREHOUSE",),
-    "role": ("SNOWFLAKE_ROLE",),
-    "project": ("GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT"),
-    "region": ("AWS_REGION", "AWS_DEFAULT_REGION"),
-    "vault address": ("AZURE_KEY_VAULT_URL", "VAULT_ADDR"),
-    "address": ("VAULT_ADDR",),
-}
 
 
 class FillError(ValueError):
@@ -754,19 +731,27 @@ class Setting:
     placeholder: bool  # still a stand-in such as my-server: it needs the person's own value
     suggestions: list[dict[str, str]] = field(default_factory=list)  # {"value", "from"}
     env: str | None = None  # read from this variable (value: its default); a file says always, others mapped
+    # What the setting's one box holds (design principle 12.7): its value with `${NAME}` for each variable
+    # it reads (`${NAME:-default}`), a literal `${` escaped as `$${`. None for an on/off.
+    text: str | None = None
+    number: bool = False  # a number in the code (a variable read as int(...) still is)
+
+    def __post_init__(self) -> None:
+        if self.text is None and self.env:  # os.environ.get("NAME", "this computer's path")
+            self.text = "${" + self.env + ":-" + refs.escape(str(self.value)) + "}"
+        elif self.text is None and not isinstance(self.value, bool):
+            self.text = refs.escape(self.value) if isinstance(self.value, str) else str(self.value)
+            self.number = not isinstance(self.value, str)
 
     def to_json(self) -> dict[str, Any]:
         mappable = {"env": self.env} if certificate_files.says_source(self.name, self.env) else {}
+        mappable |= {"text": self.text} if self.text is not None else {}
         return mappable | {
             "id": self.id,
             "name": self.name,
             "key": self.key,
             "value": self.value,
-            "type": "flag"
-            if self.name in FLAGS
-            else "number"
-            if isinstance(self.value, int | float) and not isinstance(self.value, bool)
-            else "text",
+            "type": "flag" if self.name in FLAGS else "number" if self.number else "text",
             "line": self.line,
             "where": self.where,
             "placeholder": self.placeholder,
@@ -875,6 +860,32 @@ def _detect(code: str) -> list[_Found]:
             False,
         )
 
+    def add_refs(node: ast.expr, name: str, key: str, where: str) -> bool:
+        """A setting written as the variables it reads (12.7; variable_refs.setting_read): its value is
+        the box's text. False when the expression is not one of those."""
+        read = refs.setting_read(node)
+        if (
+            read is None
+            or _SECRET_WORDS.search(key)
+            or node.end_lineno is None
+            or node.end_col_offset is None
+        ):
+            return False
+        text, number = read
+        start = _char(lines, starts, node.lineno, node.col_offset)
+        end = _char(lines, starts, node.end_lineno, node.end_col_offset)
+        if (start, end) in found or "\n" in text:
+            return True
+        written = code[start:end]
+        found[(start, end)] = _Found(
+            Setting(f"{start}:{end}", name, key, text, node.lineno, where, False, text=text, number=number),
+            start,
+            end,
+            'r"' in written or "r'" in written,
+            False,
+        )
+        return True
+
     def add_env(
         call: ast.expr, variable: str, default: ast.Constant, name: str, key: str, where: str
     ) -> None:
@@ -957,6 +968,12 @@ def _detect(code: str) -> list[_Found]:
             word = certificate_files.plain_name(target.id, KEYWORDS)
             if certificate_files.mappable(word):
                 add_env(value, mapped[0], mapped[1], word, target.id, "name")
+                continue
+        if isinstance(target, ast.Name) and value is not None:
+            known = certificate_files.plain_name(target.id, KEYWORDS)
+            if add_refs(value, known or target.id, target.id, "name"):
+                continue
+        if mapped is not None:
             continue
         literal = _literal(value)
         if isinstance(target, ast.Name):
@@ -979,6 +996,8 @@ def _detect(code: str) -> list[_Found]:
                 mapped = certificate_files.env_default(keyword.value)
                 if keyword.arg and certificate_files.mappable(word) and mapped is not None:
                     add_env(keyword.value, mapped[0], mapped[1], word, keyword.arg, "keyword")
+                    continue
+                if word and keyword.arg and add_refs(keyword.value, word, keyword.arg, "keyword"):
                     continue
                 literal = _literal(keyword.value) or _flag(keyword.value, word)
                 if keyword.arg and literal is not None and keyword.arg.casefold() in KEYWORDS:
@@ -1046,6 +1065,9 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
             raise FillError("The code changed since its settings were read: read them again.")
         old = spot.setting.value
         variable = spot.setting.env
+        if isinstance(new, dict) and isinstance(new.get("text"), str):
+            # {"text": ...}: the one box's text (12.7), the whole of it: a variable only where it names one.
+            new, variable = new["text"], None
         if isinstance(new, dict):  # {"value": path, "env": "NAME" or null}: a certificate file's source
             if "env" in new:
                 try:
@@ -1055,6 +1077,15 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
                 except certificate_files.MappingError as error:
                     raise FillError(str(error)) from None
             new = new.get("value", old)
+        elif isinstance(new, str) and refs.holds(new):
+            # The box names a variable (12.7): the code reads it where it runs, never its value here.
+            edits.append((spot.start, spot.end, _reads_variables(spot, new)))
+            needs_os = True
+            continue
+        elif isinstance(new, str):
+            new = refs.literal(new)  # $${X} typed: the text ${X}
+            if spot.setting.number and isinstance(old, str):  # was a variable read as a number
+                old = 0
         if variable:
             text = str(new)
             if "\n" in text:
@@ -1100,6 +1131,24 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
     return certificate_files.with_import_os(code) if needs_os else code
 
 
+def _reads_variables(spot: _Found, text: str) -> str:
+    """The code for a setting whose box names variables: `os.environ[...]` joined to its text, int(...)
+    for a number. Refused inside a connection string and for an on/off setting."""
+    s = spot.setting
+    if s.name in FLAGS:
+        raise FillError(f"{s.key} is on or off: it cannot name a variable.")
+    if spot.inside_string:
+        raise FillError(
+            f"{s.key} is part of a connection string here, which cannot read a variable: type its value, "
+            "or write the connection with its settings as keywords."
+        )
+    number = ("float" if isinstance(s.value, float) else "int") if s.number else None
+    try:
+        return refs.setting_code(text, s.key, lambda p: _string_literal(p, spot.raw or "\\" in p), number)
+    except ValueError as error:
+        raise FillError(str(error)) from None
+
+
 def env_settings(code: str) -> list[dict[str, str]]:
     """The certificate and keystore files this code reads from an environment variable: each one's
     variable, setting (its plain name), key (as the code writes it) and default (this computer's path).
@@ -1108,12 +1157,17 @@ def env_settings(code: str) -> list[dict[str, str]]:
         found = detect_settings(code)
     except BladeCodeError:
         return []
-    return [
-        {"variable": s.env, "setting": s.name, "key": s.key, "default": str(s.value)} for s in found if s.env
-    ]
+    out: list[dict[str, str]] = []
+    for s in found:
+        if s.env:
+            out.append({"variable": s.env, "setting": s.name, "key": s.key, "default": str(s.value)})
+            continue
+        for ref in refs.find(s.text or ""):
+            out.append({"variable": ref.name, "setting": s.name, "key": s.key, "default": ref.default or ""})
+    return out
 
 
-# ===== suggestions =====
+# ===== suggestions (domain/blade_suggestions.py) =====
 
 
 def suggest_settings(
@@ -1121,60 +1175,15 @@ def suggest_settings(
     others: Iterable[tuple[str, str, str]],
     environ: Mapping[str, str] | None = None,
 ) -> list[Setting]:
-    """Fill in each setting's suggestions: values the user's other blades use for the same setting
-    (`others`: (blade name, dialect, code); the same dialect first, then by how often), then standard
-    environment variables. Placeholders are never suggested, and neither is the value already there."""
-    env: Mapping[str, str] = {} if environ is None else environ
-    seen: dict[str, dict[str, list[tuple[str, str]]]] = {}  # name -> value -> [(blade, dialect)]
-    for blade, dialect, code in others:
-        try:
-            found = detect_settings(code)
-        except BladeCodeError:
-            continue
-        for other in found:
-            if other.placeholder or (other.name == other.key and other.where == "name"):
-                continue  # a placeholder, or a top-level name only that blade's code knows
-            seen.setdefault(other.name, {}).setdefault(str(other.value), []).append((blade, dialect))
-    for setting in settings:
-        offered: list[dict[str, str]] = []
-        current = str(setting.value)
-        values = seen.get(setting.name, {})
-        for value, users in sorted(values.items(), key=lambda kv: -len(kv[1])):
-            if value != current:
-                names = sorted({u[0] for u in users})
-                offered.append({"value": value, "from": "your blade " + ", ".join(names[:3])})
-        for variable in ENVIRONMENT.get(setting.name, ()):
-            value = env.get(variable, "").strip()
-            if value and value != current and all(o["value"] != value for o in offered) and len(value) < 300:
-                offered.append({"value": value, "from": f"environment variable {variable}"})
-        setting.suggestions = offered[:8]
-    return settings
+    """Each setting's suggestions: domain/blade_suggestions.py (read when asked: it reads these settings)."""
+    from swissarmybench.domain.blade_suggestions import suggest_settings as suggest
+
+    return suggest(settings, others, environ)
 
 
 # ===== the blade =====
 
 _ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,127}")
-
-
-def env_name_for_secret(secret: str) -> str:
-    """A secret's variable, named as in the vault: SqlPassword stays SqlPassword, Sql--Password becomes
-    Sql__Password (Azure's convention for a section: `--` in the vault, `__` in the environment), any
-    other character a variable cannot hold becomes _ (warehouse-password -> warehouse_password,
-    op://Private/Warehouse/password -> Private_Warehouse_password). Case is kept."""
-    bare = re.sub(r"^[a-z][a-z0-9+.-]*://", "", secret.strip(), flags=re.IGNORECASE)
-    words = re.sub(r"[^A-Za-z0-9_]", "_", bare.replace("--", "__")).strip("_")[:128] or "SECRET"
-    return words if not words[0].isdigit() else f"_{words}"[:128]
-
-
-def every_secret(names: Iterable[str], renamed: Mapping[str, str]) -> dict[str, str]:
-    """A vault's mapping when it loads every secret: each name its own variable, but a secret the user
-    renamed (`renamed`: variable -> secret) keeps that name. Variable -> secret."""
-    by_secret = {secret: env for env, secret in renamed.items()}
-    found: dict[str, str] = {}
-    for name in names:
-        if name not in by_secret:
-            found.setdefault(env_name_for_secret(name), name)
-    return found | dict(renamed)
 
 
 _MAX_CODE_CHARS: int = 200_000

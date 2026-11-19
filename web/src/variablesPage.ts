@@ -267,7 +267,9 @@ function drawVariables(): void {
   };
 
   const useChip = (u: Use): HTMLElement => {
-    const where = u.kind === "run_settings" ? `${u.name}: ${u.how}` : `${u.name}${u.cell ? ` · cell ${u.cell}` : ""}`;
+    // A connection's use names its field (12.7: Warehouse · Server); its code or a password by the same words.
+    const field = u.how.charAt(0).toUpperCase() + u.how.slice(1);
+    const where = u.kind === "run_settings" ? `${u.name}: ${u.how}` : u.kind === "connection" ? `${u.name} · ${field}` : `${u.name}${u.cell ? ` · cell ${u.cell}` : ""}`;
     const open = (): void => {
       if (u.kind === "connection") visit(withParams({ open: "connections", at: "detail", type: null, name: u.name }));
       else if (u.path) void openReference({ document: u.path, title: u.name, kind: u.kind === "notebook" ? "notebook" : "script", how: u.how, line: "", cell: u.cell ?? null }).catch((e: Error) => toast(e.message, "error"));

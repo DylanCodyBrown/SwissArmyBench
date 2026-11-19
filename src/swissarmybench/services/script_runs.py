@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any, Protocol
 
 from swissarmybench.domain import script_runs as rules
+from swissarmybench.domain import variable_refs
 from swissarmybench.domain.notebooks import kind_of
 from swissarmybench.services.workspace import NotFound, Workspace
 
@@ -140,10 +141,10 @@ class ScriptRuns:
         planned = rules.plan(settings, found, lambda name: name in self._environ)
         values, problems = await self._vault_values(planned.vaults) if planned.vaults else ({}, [])
         environ = dict(self._environ) | planned.values | values
+        # An argument's ${NAME} (12.7), read from what the run is given; the log keeps the typed text.
+        given = [variable_refs.resolve(a, environ.get, "Run settings' arguments") for a in planned.arguments]
         started = self._now()
-        code, seconds, output = await self._runner.run(
-            python, full, planned.arguments, environ, rules.RUN_SECONDS
-        )
+        code, seconds, output = await self._runner.run(python, full, given, environ, rules.RUN_SECONDS)
         said = [*problems, *(f"{name} is not set on this computer." for name in planned.missing)]
         log = [rules.command_line(full, planned.arguments), *rules.tail(output)]
         if code is None:

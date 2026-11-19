@@ -111,21 +111,17 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
         box.fill(value)
         box.press("Tab")
         expect(code).to_have_value(re.compile(re.escape(f'{key} = "{value}"')))
-    # The tenant from an environment variable, its name suggested, this computer's value its default.
-    dialog.get_by_role("combobox", name="Tenant id from").select_option("env")
-    expect(dialog.get_by_role("textbox", name="Tenant id variable")).to_have_value("SHAREPOINT_TENANT_ID")
+    # The tenant from a variable (12.7): a dollar-brace with this computer's value as its default.
+    tenant = dialog.get_by_label("Tenant id", exact=True)
+    tenant.fill("${SHAREPOINT_TENANT_ID:-" + made_up.TENANT + "}")
+    tenant.press("Tab")
     expect(code).to_have_value(
         re.compile(re.escape(f'tenant_id = os.environ.get("SHAREPOINT_TENANT_ID", "{made_up.TENANT}")'))
     )
-    # The password: from a variable at first (it runs anywhere); here kept in this computer's keyring
-    # (said, amber), never in the code.
-    source = dialog.get_by_role("combobox", name="Where Password comes from")
-    expect(source).to_have_value("env")
-    source.select_option("keyring")
-    expect(dialog.locator(".password-local")).to_contain_text(
-        "its password is saved in this computer's keyring"
-    )
-    dialog.locator('input[type="password"]').first.fill(made_up.PASSWORD)
+    # The password: one box, typed for a test (never in the code).
+    expect(dialog.get_by_role("combobox", name="Where Password comes from")).to_have_count(0)
+    password = dialog.get_by_label("Password", exact=True)
+    password.fill(made_up.PASSWORD)
     dialog.get_by_role("button", name="Test connection").click()
     result = dialog.locator(".connection-result")
     expect(result.locator(".status-ok")).to_have_text(
@@ -133,12 +129,9 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
     )
     expect(result.locator(".connection-preview tbody tr")).to_have_count(10)
     assert made_up.PASSWORD not in code.input_value()
-    # Saved: the password from an environment variable (this computer has no keyring here), its name offered.
-    dialog.get_by_role("combobox", name="Where Password comes from").select_option("env")
-    variable = dialog.get_by_role("textbox", name="Password: the variable's name")
-    expect(variable).to_have_attribute("placeholder", "SHAREPOINT_PASSWORD")
-    variable.fill("SHAREPOINT_PASSWORD")
-    dialog.get_by_role("button", name="Use it").click()
+    # Saved with the password as a variable (this computer has no keyring here): its name in the code.
+    password.fill("${SHAREPOINT_PASSWORD}")
+    password.press("Tab")
     expect(code).to_have_value(re.compile(re.escape('password = secret("SHAREPOINT_PASSWORD")')))
     shot(page, "lakes-sharepoint-form.png", dialog)
     dialog.get_by_role("button", name="Save").click()

@@ -3408,3 +3408,25 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
 - **Whole suite (Chromium; three other agents' suites running on the same machine):** 4446 passed, 46 skipped,
   3 failed; all three passed alone: test_copilot_page's private project, test_table_cells_page's maker that
   stays put, test_table_cells_live's cell run twice in a real kernel.
+## `${NAME}` anywhere a value is typed, Phase A (2026-11-18, branch variable-refs)
+
+- **Unit:** tests/test_variable_refs.py (every edge of 12.7: what is and is not a reference, `pa$$word`, `Sheet1$`,
+  `[Orders$]`, `${not a name}`, the doubled dollar, three dollars, defaults and no nesting, one pass, the escape
+  round trip, the missing error's words and shape, the masked preview; the export form evaluated with a stand-in
+  `os` and read back; SQL in each PEP 249 style, `%` doubled for format, strings, quoted names, `$$` text and
+  comments left, the escape in SQL, a name's place refused, a quote in a value against a real DuckDB, our string
+  spans against sqlglot's tokens); tests/test_variable_refs_settings.py (a connection's settings written as
+  `os.environ[...]`, `int(...)` for a port, mixed text, back to plain, the escape, a connection string refused, the
+  older certificate mapping read as `${NAME:-path}`, the `{"text"}` form).
+- **HTTP:** tests/test_variable_refs_http.py (the preview for the user and the agent: no secret's value, the
+  sources' words; a grid's SQL and the "+" tab bind `$1`, a value `x' OR '1'='1` returns nothing; a string's
+  `${REGION}` is text; FROM `${X}` refused; the 422 shape with Set it; a file path read through a variable; a
+  connection's Test refused before it runs, then passing once the variable is set, and `variables_uses`; the
+  first start's password move: the code renamed, the keyring variable shown by Show, the notice without the value,
+  the backup byte-equal to the files before, no secret in any library file, a second start changes no byte; the
+  one-time list of saved text naming a variable; sqlite3's `?` and DuckDB's `$1` in a `%%sql` cell).
+- **DuckDB 2.0.0:** `con.sql(text, params=[...])` binds `$1` and casts a VARCHAR parameter where an INTEGER is
+  compared or a LIMIT given; sqlglot keeps `$1` and `?` through the guard's parse and print.
+- **Not checked:** psycopg's and SQLAlchemy's styles against a real server (the styles are PEP 249's; the
+  test bed was not run); a vault's entry as a setting's variable in a real vault (the stand-in path of providers
+  only); the forms (Phase B).
