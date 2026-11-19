@@ -262,12 +262,12 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
         """The form settles in a moment: the password group and the certificate fields are drawn again
         once the connection's code has been checked in the background. Wait until it reads the same
         twice in a row."""
-        expect(dialog.get_by_role("textbox", name="Server")).to_be_visible()
-        expect(dialog.get_by_role("combobox", name="Password comes from")).to_be_visible()
+        expect(dialog.get_by_label("Server", exact=True)).to_be_visible()
+        expect(dialog.get_by_label("Password", exact=True)).to_be_visible()
         last: list[str] = []
         for _ in range(50):
             now = labels()
-            if now == last and "Password comes from" in now:
+            if now == last and "Password" in now:
                 return
             last = now
             page.wait_for_timeout(100)
@@ -275,10 +275,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     page.locator(".connection-type", has_text="Trino").click()
     not_now(page)
     drawn()
-    # A new password comes from a variable at first (the keyring runs only here: 2026-11-17); typed for
-    # this computer, its box is labelled.
-    dialog.get_by_role("combobox", name="Password comes from").select_option("keyring")
-    drawn()
+    # The password is one box (12.7): a value, or a variable with a dollar-brace; no source picker beside it.
     assert labels() == [
         "Name",
         "Description",
@@ -288,7 +285,6 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
         "Scheme",
         "Sign in",  # a password, or a client certificate from a keystore (2026-11-16)
         "User",
-        "Password comes from",
         "Password",
         "Certificate file",
         "Trust server certificate",
@@ -304,7 +300,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     not_now(page)
     drawn()
     found = labels()
-    assert found[2:7] == ["Server", "Port", "Database", "User", "Password comes from"], found
+    assert found[2:7] == ["Server", "Port", "Database", "User", "Password"], found
     dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
 
     # SQL Server: the user arrives with another way to sign in, and lands in the same place; its options
@@ -313,11 +309,10 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     not_now(page)
     dialog.get_by_role("combobox", name="Sign in").select_option(label="User name and password (SQL login)")
     expect(dialog.get_by_role("textbox", name="User")).to_be_visible()
-    dialog.get_by_role("combobox", name="Password comes from").select_option("keyring")
     dialog.locator("details.connection-options > summary").click()
     found = labels()
     assert found[2:4] == ["Server", "Database"]
-    assert found.index("Sign in") < found.index("User") < found.index("Password comes from")
+    assert found.index("Sign in") < found.index("User") < found.index("Password")
     assert found.index("Password") < found.index("Encryption") and "Trust server certificate" in found
 
 
@@ -339,14 +334,10 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
     page = open_grid(browser, orders_url)
     dialog = page.locator(".area-page[data-page='connections']")
     try:
-        page.locator(".nav-rail [data-area='connections']").click()
-        page.get_by_role("button", name="Add connection").click()
-        page.locator(".connection-type", has_text="PostgreSQL").click()
-        dialog.get_by_role("combobox", name="Where Password comes from").select_option("vault")
-        # No vault yet: make one here; the PostgreSQL form waits.
-        dialog.get_by_role("button", name="New vault").click()
-        expect(dialog.locator("h3")).to_have_text(["Key vaults"])  # only vaults from here
-        page.locator(".connection-type", has_text="Azure Key Vault").click()
+        # A key vault is added on the Variables page (its form is the Connections page's).
+        page.locator(".nav-rail [data-area='variables']").click()
+        page.locator('.area-page[data-page="variables"]').get_by_role("button", name="Add key vault").click()
+        page.locator(".variables-vault-types .connection-type", has_text="Azure Key Vault").click()
         not_now(page)
         dialog.locator("summary", has_text="Python code").click()
         code = dialog.get_by_role("textbox", name="The Python this connection runs")
@@ -365,40 +356,23 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         expect(dialog.get_by_role("checkbox", name="Every secret in the vault")).to_be_checked()
         dialog.get_by_role("textbox", name="api-key: the variable's name").fill("CRM_KEY")
         dialog.locator(".area-page-foot").get_by_role("button", name="Save").click()
-        # Back on the PostgreSQL form: its password is a secret in the new vault, under its own name.
-        expect(dialog.locator("h3")).to_have_text("New PostgreSQL connection")
-        expect(dialog.get_by_role("combobox", name="Vault", exact=True)).to_have_value("Azure Key Vault")
-        # Entry in the vault lists the vault's secrets by name, read in the background (decision 13):
-        # nothing to type, and never a value.
-        entry = dialog.get_by_role("combobox", name="Entry in the vault")
-        expect(entry.locator("option")).to_have_text(
-            [
-                "Choose a secret",
-                "api-key (as CRM_KEY)",
-                "3d-token",
-                "warehouse-password",
-                "A secret by name…",
-            ],
-            timeout=30000,
-        )
+        expect(dialog.locator(".area-page-title")).to_contain_text("Azure Key Vault", timeout=20000)
+        # A password is one box (12.7): typing a dollar-brace offers the vault's variable, by name and source.
+        page.locator(".nav-rail [data-area='connections']").click()
+        page.get_by_role("button", name="Add connection").click()
+        page.locator(".connection-type", has_text="PostgreSQL").click()
+        password = dialog.get_by_label("Password", exact=True)
+        password.click()
+        password.press_sequentially("${CRM")
+        offered = dialog.get_by_role("listbox", name="Variables for Password")
+        expect(offered.get_by_role("option").first).to_contain_text("CRM_KEY")
+        expect(offered.get_by_role("option").first).to_contain_text("Key vault · Azure Key Vault")
         expect(dialog).not_to_contain_text("made-up")
-        expect(dialog.get_by_role("button", name="Use it")).to_be_hidden()
-        # One action: picking the secret applies it. No box to fill, no Use it to press.
-        entry.select_option("warehouse-password")
-        expect(code_box(dialog)).to_have_value(re.compile(r'secret\("warehouse_password"\)'))
-        # Drawn again as chosen: the vault, and the secret picked there.
-        expect(dialog.get_by_role("combobox", name="Where Password comes from")).to_have_value("vault")
-        expect(dialog.get_by_role("combobox", name="Entry in the vault")).to_have_value("warehouse-password")
-        # A secret the vault does not list can still be named by hand.
-        dialog.get_by_role("combobox", name="Entry in the vault").select_option(label="A secret by name…")
-        typed = dialog.get_by_role("textbox", name="The secret's name in the vault")
-        expect(typed).to_be_focused()
-        typed.fill("reporting-password")
-        dialog.get_by_role("button", name="Use it").click()
-        expect(code_box(dialog)).to_have_value(re.compile(r'secret\("reporting_password"\)'))
+        password.press("Enter")
+        expect(password).to_have_value("${CRM_KEY}")
+        expect(code_box(dialog)).to_have_value(re.compile(r'secret\("CRM_KEY"\)'))
         # The vault is not on the Connections page (it has no tables): the Variables page lists it.
         dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
-        dialog.locator(".area-page-foot").get_by_role("button", name="Back to Connections").click()
         expect(dialog.get_by_role("heading", name="Key vaults")).to_have_count(0)
         page.locator(".nav-rail [data-area='variables']").click()
         # Its card's detail: what it sets (the Connections page's detail, 2026-11-16).

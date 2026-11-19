@@ -878,10 +878,10 @@ def add_finance(act: Actions, page: Page) -> None:
         ("Client id", "powerbi-client-id"),
         ("Client secret", "powerbi-client-secret"),
     ):
-        row = dialog.locator(".connection-password").filter(has_text=f"{label} comes from")
-        picker = row.get_by_role("combobox", name="Entry in the vault")
-        expect(picker.locator("option", has_text=entry)).to_have_count(1, timeout=LONG)
-        act.select(picker, value=entry)
+        # One box (12.7): the vault's secret by its variable's name.
+        box = dialog.locator(".connection-password").get_by_label(label, exact=True)
+        act.fill(box, "${" + entry.replace("-", "_") + "}")
+        box.press("Tab")
     act.click(dialog.get_by_role("button", name="Test connection"))
     expect(dialog.locator(".connection-result")).to_contain_text("It works", timeout=LONG)
     act.click(dialog.get_by_role("button", name="Save"))

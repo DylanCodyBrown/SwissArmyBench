@@ -25,6 +25,7 @@ import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { backButton } from "./nav";
+import { variableBox } from "./variableBox";
 
 interface Setting {
   id: string;
@@ -215,7 +216,9 @@ export function showAddApi(host: AddApiHost): void {
       later();
     });
     const preset = h("select", {}, h("option", { value: "" }, "Anywhere"), ...found.presets.map((p) => h("option", { value: p.id }, p.label))) as HTMLSelectElement;
-    const baseUrl = h("input", { type: "url", class: "mono", placeholder: "https://api.example.com/v1", spellcheck: false }) as HTMLInputElement;
+    // One box (12.7): an address, or one with a variable in it (https://NAME.example.com with a dollar-brace),
+    // written into API_<name>.py as os.environ[...].
+    const baseUrl = h("input", { type: "text", inputmode: "url", class: "mono", placeholder: "https://api.example.com/v1", spellcheck: false }) as HTMLInputElement;
     baseUrl.addEventListener("input", () => {
       drawFind();
       later();
@@ -609,7 +612,7 @@ export function showAddApi(host: AddApiHost): void {
         "section",
         { class: "add-api-part" },
         h("div", { class: "connection-fields" }, field("Name", name), field("Hosted on", h("span", { class: "field-row" }, presetIcon, preset))),
-        field("Base address", h("span", { class: "field-row" }, baseUrl, find)),
+        field("Base address", h("span", { class: "field-row" }, variableBox(baseUrl, { label: "Base address" }), find)),
       ),
       h("section", { class: "add-api-part add-api-auth" }, h("div", { class: "connection-fields" }, field("Sign in", authType)), settingsHost, valuesHost),
       formPart,

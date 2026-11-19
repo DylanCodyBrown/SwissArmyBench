@@ -1,4 +1,4 @@
-"""`${NAME}` in a connection's boxes (design principle 12.7), in a real browser: one box per field, typing `${`
+"""`${NAME}` in a connection's boxes (design principle 12.7), in a real browser: one box a field, typing `${`
 offers the variables (their source in words, never a value), the line under the box says what it reads here
 (a secret masked), a variable not set is the one error with Set it, and a PostgreSQL connection made with
 references in its Server and Password boxes tests, saves and opens a table. Its own server, a keyring kept in
@@ -22,11 +22,11 @@ from typing import Any
 import pandas as pd
 import pytest
 from playwright.sync_api import Browser, Page, expect
+from tools.testbed import testbed
+from tools.testbed.company import make_company
 
 from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call  # noqa: F401
-from tools.testbed import testbed
-from tools.testbed.company import make_company
 
 SHOTS = os.environ.get("SWISSARMYBENCH_VARIABLE_REFS_SHOTS")
 LONG = 30_000
@@ -148,7 +148,9 @@ def test_a_connection_made_of_references_tests_saves_and_opens_a_table(
     host.press("Enter")
     expect(host).to_have_value(HOST)
     expect(offered).to_be_hidden()
-    preview = host.locator("xpath=ancestor::span[contains(@class,'variable-box')]").locator(".variable-preview")
+    preview = host.locator("xpath=ancestor::span[contains(@class,'variable-box')]").locator(
+        ".variable-preview"
+    )
     expect(preview).to_have_text(postgres["host"])
 
     dialog.get_by_label("Port", exact=True).fill(str(postgres["port"]))
@@ -183,7 +185,9 @@ def test_a_connection_made_of_references_tests_saves_and_opens_a_table(
     # Its tables are read through the references, and one opens as a grid.
     tables = dialog.locator(".connection-tables .conn-tree-table")
     expect(tables.first).to_be_attached(timeout=LONG)
-    dialog.locator(".conn-tree-table[data-table='customers']").first.get_by_role("button", name="Open").click()
+    dialog.locator(".conn-tree-table[data-table='customers']").first.get_by_role(
+        "button", name="Open"
+    ).click()
     expect(page.locator(".toast", has_text="is open as a grid").last).to_be_visible(timeout=LONG)
 
     # The Variables page shows each variable's uses in fields: the connection and the box.
@@ -219,7 +223,9 @@ def test_a_variable_not_set_is_the_one_error_with_set_it(
             expect(dialog.get_by_role("listbox", name="Variables for Server")).to_be_visible()
             shot(page, "variable-refs-list-dark")
             host.press("Enter")
-            line = host.locator("xpath=ancestor::span[contains(@class,'variable-box')]").locator(".variable-preview")
+            line = host.locator("xpath=ancestor::span[contains(@class,'variable-box')]").locator(
+                ".variable-preview"
+            )
             expect(line).to_have_text("127.0.0.1")
             shot(page, "variable-refs-preview-dark")
             page.context.close()

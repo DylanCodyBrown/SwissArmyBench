@@ -77,19 +77,18 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     code = dialog.locator("textarea.connection-code")
     expect(code).to_have_value(re.compile(re.escape(f'workspace_id = "{made_up.WORKSPACE}"')))
     assert "dataset_id" not in code.input_value()
+    # One box each (12.7): the vault's secrets by their variables' names; no source or entry pickers.
     for label, entry in (
         ("Tenant id", "powerbi-tenant-id"),
         ("Client id", "powerbi-client-id"),
         ("Client secret", "powerbi-client-secret"),
     ):
-        row = dialog.locator(".connection-password").filter(has_text=f"{label} comes from")
-        expect(row.get_by_role("combobox", name=f"Where {label} comes from")).to_have_value("vault")
-        picker = row.get_by_role("combobox", name="Entry in the vault")
-        expect(picker.locator("option", has_text=entry)).to_have_count(
-            1, timeout=30000
-        )  # read from the vault
-        picker.select_option(entry)
-        expect(code).to_have_value(re.compile(re.escape(f'secret("{entry.replace("-", "_")}")')))
+        expect(dialog.get_by_role("combobox", name=f"Where {label} comes from")).to_have_count(0)
+        variable = entry.replace("-", "_")
+        box = dialog.locator(".connection-password").get_by_label(label, exact=True)
+        box.fill("${" + variable + "}")
+        box.press("Tab")
+        expect(code).to_have_value(re.compile(re.escape(f'secret("{variable}")')))
     dialog.get_by_role("button", name="Test connection").click()
     expect(dialog.locator(".connection-result")).to_have_text(
         "It works: signed in and found 3 datasets.", timeout=60000

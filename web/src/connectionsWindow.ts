@@ -954,13 +954,36 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const codeBox = h("textarea", { class: "mono connection-code", rows: 8, spellcheck: false, "aria-label": "The Python this connection runs" }, code) as HTMLTextAreaElement;
     const result = h("div", { class: "connection-result", role: "status" });
 
+    // Changes to the code one at a time (a box left for another box sends two): each starts from the code the
+    // last one made. The settings' ids are places in the code, read again when a password's rename moved them.
+    let changing: Promise<unknown> = Promise.resolve();
+    const inTurn = <T>(work: () => Promise<T>): Promise<T> => {
+      const next = changing.then(work, work);
+      changing = next.catch(() => undefined);
+      return next;
+    };
+    let fieldsCode = code;
+    const freshIds = async (): Promise<void> => {
+      if (code === fieldsCode) return;
+      const read = await api<{ settings: Field[] }>("/blades/inspect", "POST", { code, template: form.id || null, name: editing });
+      if (read.settings.length === fields.length) fields = fields.map((f, i) => ({ ...f, ...read.settings[i]!, picker: f.picker }));
+      fieldsCode = code;
+    };
+
     /** A changed field's value, written into the code by the server; the fields keep their boxes. */
-    const fill = async (field: Field, value: string, boxed = true): Promise<void> => {
+    const fill = (field: Field, value: string, boxed = true): Promise<void> => {
+      const at = fields.indexOf(field);
+      return inTurn(() => fillNow(at, field, value, boxed));
+    };
+    const fillNow = async (at: number, was: Field, value: string, boxed: boolean): Promise<void> => {
       // A box's whole text (12.7): a value, or ${NAME} the code then reads where it runs. A choice: its value.
-      const sent = boxed && field.type !== "flag" ? { text: value } : value;
+      const sent = boxed && was.type !== "flag" ? { text: value } : value;
       try {
+        await freshIds();
+        const field = at >= 0 && fields[at]?.name === was.name ? fields[at]! : was;
         const answer = await api<{ code: string; settings: Field[] }>("/blades/fill", "POST", { code, values: { [field.id]: sent }, template: form.id || null, name: editing });
         code = answer.code;
+        fieldsCode = code;
         codeBox.value = code;
         // The ids follow the new code; the same settings in the same order keep their boxes.
         if (answer.settings.length === fields.length) fields = fields.map((f, i) => ({ ...f, ...answer.settings[i]!, picker: f.picker }));
@@ -973,6 +996,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
 
     const drawFields = (next: Field[]): void => {
       fields = next;
+      fieldsCode = code;
       const boxes = fields.map((field, i) => {
         if (field.type === "flag") {
           // On or off: True/False in the code, yes/no in a connection string.
@@ -1044,7 +1068,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       const made = `${name.value.trim() || form.label}_${labels.get(s) ?? s}`.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
       return /^[0-9]/.test(made) ? `_${made}` : made || "PASSWORD";
     };
-    const pointAt = async (secret: string, variable: string): Promise<void> => {
+    const pointAt = (secret: string, variable: string): Promise<void> => inTurn(() => pointAtNow(secret, variable));
+    const pointAtNow = async (secret: string, variable: string): Promise<void> => {
       const answer = await api<{ code: string; secret: string }>("/connections/source", "POST", { code, secret, from: "env", env: variable });
       code = answer.code;
       codeBox.value = code;
@@ -1068,27 +1093,44 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           const named = looksLikeVariable(s) ? `\${${s}}` : "";
           const input = h("input", { type: named ? "text" : "password", class: "mono", autocomplete: "new-password", "aria-label": label(s), spellcheck: false, value: named, placeholder: saved[s] ? "Saved" : vaultOnly ? "${VARIABLE}" : "" }) as HTMLInputElement;
           // A reference reads as text; a typed password stays hidden.
-          input.addEventListener("input", () => (input.type = input.value.includes("${") ? "text" : "password"));
-          input.addEventListener("change", () => {
+          // A typed one is kept in this computer's keyring: said, amber, while it is typed (the portability rule).
+          const note = h("span", { class: "password-note" });
+          const typedHere = (): void => {
+            input.type = input.value.includes("${") ? "text" : "password";
+            const local = input.value !== "" && !namesVariable(input.value) && form.keyring_note;
+            note.replaceChildren(local ? (localNotes([form.keyring_note!], "password-local") ?? "") : "");
+          };
+          input.addEventListener("input", typedHere);
+          // The secret's name the code asks for now (renamed when a variable is put in), and the text last
+          // settled: a box whose type changed while typed may not say "change", so leaving it settles it too.
+          let current = s;
+          let settled = input.value;
+          const settle = (): void => {
+            if (input.value === settled) return;
+            settled = input.value;
             const variable = referenceOnly(input.value);
             if (!variable && namesVariable(input.value)) {
               // A password is a variable on its own, or a value: never part of one (its value is never shown).
-              showError(result, { what: `${label(s)} takes one variable on its own, such as \${${variableFor(s)}}, or a typed password.`, where: label(s) });
+              showError(result, { what: `${label(current)} takes one variable on its own, such as \${${variableFor(current)}}, or a typed password.`, where: label(current) });
               return;
             }
-            if (variable && variable !== s) {
-              passwords.delete(s);
-              void pointAt(s, variable).then(
-                () => {
-                  passwords.delete(variable);
-                  clearError(result);
+            if (variable && variable !== current) {
+              passwords.delete(current);
+              const was = current;
+              current = variable;
+              void pointAt(was, variable).then(
+                () => clearError(result),
+                (e: unknown) => {
+                  current = was;
+                  showError(result, e);
                 },
-                (e: unknown) => showError(result, e),
               );
-            } else if (!variable) passwords.set(s, input);
-          });
+            } else if (!variable) passwords.set(current, input);
+          };
+          input.addEventListener("change", settle);
+          input.addEventListener("blur", settle);
           if (!named) passwords.set(s, input);
-          return h("div", { class: "connection-password" }, h("label", { class: "field password-box" }, h("span", {}, label(s)), variableBox(input, { label: label(s) })));
+          return h("div", { class: "connection-password" }, h("label", { class: "field password-box" }, h("span", {}, label(s)), h("span", { class: "field-row" }, variableBox(input, { label: label(s) })), note));
         }),
       );
     };

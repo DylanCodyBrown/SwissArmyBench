@@ -88,7 +88,9 @@ def browser() -> Iterator[Browser]:
         # actions (milliseconds, 350 by default when headed).
         headed = os.environ.get("SAB_HEADED") == "1"
         slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
-        instance = p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
+        instance = p.chromium.launch(
+            channel="msedge", headless=not headed, slow_mo=slow
+        )
         yield instance
         instance.close()
 

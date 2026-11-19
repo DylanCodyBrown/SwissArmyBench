@@ -646,6 +646,9 @@ class BladeStore:
         missing = [s for s in blade.secrets if s not in self.saved_secrets(blade)]
         # A setting's ${NAME} (12.7): the code reads os.environ["NAME"], which a vault's entry may give.
         missing += [m["variable"] for m in env_settings(blade.code) if m["variable"] not in os.environ]
+        # A connection from the user's own Python: a variable its boxes read that a vault's entry gives (the
+        # Variables page keeps where each comes from, 12.7).
+        missing += [r.name for r in blade.env_reads if r.name not in os.environ]
         vaults: list[Blade] = []
         typed: dict[str, str] = {}
         for other in self.all() if everything is None else everything:

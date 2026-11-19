@@ -68,16 +68,6 @@ def choose(page: Page, folder: Path, file: str | None = None) -> None:
         chooser.get_by_role("button", name="Choose this folder").click()
 
 
-def key_from_the_vault(dialog: Locator, variable: str) -> None:
-    """The connection's form, after Add: the key the client reads comes from the made-up vault."""
-    row = dialog.locator(".python-variable", has_text=variable)
-    expect(row).to_contain_text("Not set on this computer", timeout=30000)
-    dialog.get_by_role("combobox", name=f"Where {variable} comes from").select_option("vault")
-    entry = dialog.get_by_role("combobox", name=f"{variable}: the entry in the vault")
-    expect(entry.locator("option", has_text="orders-api-key")).to_have_count(1, timeout=30000)
-    entry.select_option("orders-api-key")
-
-
 def open_add_api(page: Page) -> Locator:
     dialog = page.locator(".area-page[data-page='apis']")  # the APIs page (2026-11-17)
     page.locator(".nav-rail [data-area='apis']").click()

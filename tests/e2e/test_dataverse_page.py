@@ -94,14 +94,11 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
         expect(code).to_have_value(re.compile(re.escape(f'{key} = "{value}"')))  # written into its code
     # Its client secret: a key vault's (or an environment variable's), never typed into the app.
     expect(dialog.locator("legend", has_text="App registration")).to_be_visible()
-    row = dialog.locator(".connection-password").filter(has_text="Client secret comes from")
-    source = row.get_by_role("combobox", name="Where Client secret comes from")
-    expect(source).to_have_value("vault")
-    expect(source.locator("option")).to_have_text(["An environment variable", "A key vault"])
-    expect(dialog.locator('input[type="password"]')).to_have_count(0)
-    picker = row.get_by_role("combobox", name="Entry in the vault")
-    expect(picker.locator("option", has_text="crm-client-secret")).to_have_count(1, timeout=30000)
-    picker.select_option("crm-client-secret")
+    # One box (12.7): the vault's secret by its variable's name, a dollar-brace; no source or entry pickers.
+    expect(dialog.get_by_role("combobox", name="Where Client secret comes from")).to_have_count(0)
+    secret_box = dialog.get_by_label("Client secret", exact=True)
+    secret_box.fill("${crm_client_secret}")
+    secret_box.press("Tab")
     expect(code).to_have_value(re.compile(re.escape('client_secret = secret("crm_client_secret")')))
     dialog.get_by_role("button", name="Test connection").click()
     result = dialog.locator(".connection-result")

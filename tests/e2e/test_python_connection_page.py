@@ -56,8 +56,11 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     browser: Browser, january_url: str, server: dict[str, Any], service: Service
 ) -> None:
     vault: dict[str, Any] = {"name": "Team vault", "kind": "vault", "template": "azure_key_vault"}
-    vault |= {"variable": "get", "code": VAULT_CODE, "vault_mapping": [{"env": "OTHER", "secret": "other"}]}
+    mapping = [{"env": "OTHER", "secret": "other"}, {"env": "ORDERS_API_KEY", "secret": "orders-api-key"}]
+    vault |= {"variable": "get", "code": VAULT_CODE, "vault_mapping": mapping}
     call(server, "POST", "/connections", vault)
+    if any(v["name"] == "ORDERS_API_URL" for v in call(server, "GET", "/variables")["variables"]):
+        call(server, "DELETE", "/variables/ORDERS_API_URL")
     page = open_grid(browser, january_url)
     dialog = page.locator(".area-page[data-page='connections']")  # the Connections page (2026-11-16)
 
@@ -74,18 +77,21 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     type_into(page, boxes.nth(1), TABLES)
     type_into(page, boxes.nth(2), READ)
 
-    # The variables the code reads, found by themselves; one needs doing something about.
+    # The variables the code reads, found by themselves, each with what it reads here (12.7): no source
+    # pickers (the Variables page keeps where a value comes from); one not set is the one error, Set it.
     variables = dialog.locator(".python-variable")
     expect(variables.locator("code")).to_have_text(["ORDERS_API_URL", "ORDERS_API_KEY"])
-    expect(variables.nth(1)).to_contain_text("Not set on this computer")
-    dialog.get_by_role("combobox", name="Where ORDERS_API_URL comes from").select_option("value")
-    dialog.get_by_role("textbox", name="ORDERS_API_URL: its value").fill(service.url)
-    dialog.get_by_role("combobox", name="Where ORDERS_API_KEY comes from").select_option("vault")
-    expect(dialog.get_by_role("combobox", name="ORDERS_API_KEY: the vault")).to_have_value("Team vault")
-    entry = dialog.get_by_role("combobox", name="ORDERS_API_KEY: the entry in the vault")
-    expect(entry.locator("option", has_text="orders-api-key")).to_have_count(1, timeout=30000)
-    entry.select_option("orders-api-key")
-    expect(variables.nth(1)).not_to_contain_text("Not set")
+    expect(dialog.locator(".python-variable select")).to_have_count(0)
+    expect(variables.nth(0).locator(".error-note")).to_contain_text(
+        "ORDERS_API_URL is not set on this computer"
+    )
+    expect(variables.nth(1).locator(".variable-preview")).to_have_text("••••••••")  # the vault's entry
+    variables.nth(0).get_by_role("button", name="Set it").click()
+    form = page.locator("dialog .variables-form")
+    expect(form.get_by_label("Name")).to_have_value("ORDERS_API_URL")
+    form.get_by_label("Value").fill(service.url)
+    page.locator("dialog").get_by_role("button", name="Add").click()
+    expect(variables.nth(0).locator(".variable-preview")).to_have_text(service.url)
     dialog.get_by_role("spinbutton", name="Rows to open").fill("10")
 
     # Test: Connect, List the tables, the first table's first rows.
@@ -103,10 +109,7 @@ def test_a_python_connection_is_added_tested_saved_browsed_and_opened(
     expect(row.locator(".connection-config")).to_contain_text("Python (your own code)")
     saved = call(server, "GET", "/connections/Orders%20API")
     assert saved["catalog"]["command"] == TABLES and saved["read"]["command"] == READ
-    assert saved["row_limit"] == 10 and saved["variables"] == [
-        {"name": "ORDERS_API_URL", "from": "value", "value": service.url},
-        {"name": "ORDERS_API_KEY", "from": "vault", "vault": "Team vault", "secret": "orders-api-key"},
-    ]
+    assert saved["row_limit"] == 10 and not saved.get("variables")
     assert API_KEY not in str(saved)
     # Its catalog loads itself; the row's Test shows the rows under it.
     wait_until(lambda: any(c["name"] == "Orders API" for c in call(server, "GET", "/catalogs")["catalogs"]))
