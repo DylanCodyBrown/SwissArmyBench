@@ -1934,6 +1934,21 @@ def column_profile(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "column_values",
+    "A column's values and row counts, most common first (Filter's checklist).",
+    req("grid", "Grid id."),
+    req("column", "Column name."),
+    opt("search", "Only values holding this text."),
+    opt("limit", "At most (200).", "int"),
+    opt("upto", "Entering this step.", "int"),
+    values=True,
+)
+def column_values(a: dict[str, Any]) -> Any:
+    params = {k: a.get(k) for k in ("column", "search", "limit", "upto") if a.get(k) is not None}
+    return api.call("GET", f"/grids/{_q(a['grid'])}/values", params=params)
+
+
+@command(
     "column_fit_test",
     "Chi-square fit test on columns of the grid's view. expected: even (default), benford / benford2 "
     "(first digits of amounts), grid (another grid: reference), shares, together (two columns "

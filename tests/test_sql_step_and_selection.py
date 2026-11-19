@@ -142,8 +142,9 @@ def test_selection_stats_cover_unloaded_rows(client: TestClient) -> None:
     everything = stats({"rows": None, "columns": None})
     assert everything["rows"] == 10 and everything["cells"] == 30
     assert everything["count"] == 28  # one blank region, one blank amount
-    # Sum covers every number cell: the ids (55) and the amounts (520).
-    assert everything["sum"] == pytest.approx(575.0) and everything["numeric"] == 19
+    # Sum covers the number cells but the ids (counted, never summed: feel-b, 2026-11-19): the amounts.
+    assert everything["sum"] == pytest.approx(520.0) and everything["numeric"] == 9
+    assert everything["id_like"] == ["id"]
     column = stats({"rows": None, "columns": ["amount"]})
     assert column["count"] == 9 and column["mean"] == pytest.approx(520.0 / 9)
     assert column["sum"] == pytest.approx(520.0) and column["min"] == 10.0 and column["max"] == 100.0

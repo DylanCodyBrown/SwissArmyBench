@@ -10,6 +10,7 @@
   GET    /grids/{id}/step-counts         rows after each step ("12,000 -> 11,420")
   GET    /grids/{id}/profile?column=&upto=          column profile, or the whole-table profile
   GET    /grids/{id}/header-stats        distinct count and blank percent per column
+  GET    /grids/{id}/values?column=&search=&limit=&upto=   a column's values and counts (Filter)
   GET    /grids/{id}/categorize-stats?step=         unmatched and overlapping rows of a rule set
   POST   /grids/{id}/steps               {"steps": [...], "settings": {...}, "gen": n}
   POST   /grids/{id}/step-ops            {"op": add|edit|delete|toggle|move, "index"|"id", ...} one step
@@ -141,6 +142,24 @@ def routes(
             column_name = request.query_params.get("column")
             upto = query_int(request, "upto")
             return json_response(await profiles.profile(grid, info, column_name, upto, actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def values(request: Request) -> Response:
+        try:
+            grid, info = grids.find(request.path_params["grid_id"])
+            q = request.query_params
+            return json_response(
+                await profiles.values(
+                    grid,
+                    info,
+                    q.get("column"),
+                    q.get("search", ""),
+                    query_int(request, "limit"),
+                    query_int(request, "upto"),
+                    actor(request),
+                )
+            )
         except Exception as error:
             return error_response(error)
 
@@ -299,6 +318,7 @@ def routes(
         Route("/grids/{grid_id}/step-counts", step_counts),
         Route("/grids/{grid_id}/profile", profile),
         Route("/grids/{grid_id}/header-stats", stats),
+        Route("/grids/{grid_id}/values", values),
         Route("/grids/{grid_id}/categorize-stats", categorize_stats),
         Route("/grids/{grid_id}/steps", put_steps, methods=["POST"]),
         Route("/grids/{grid_id}/step-ops", step_op, methods=["POST"]),

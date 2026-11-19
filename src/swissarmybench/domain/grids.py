@@ -305,15 +305,70 @@ def stats_sql(positioned: str, where: str, columns: tuple[Column, ...]) -> tuple
     return f"SELECT {', '.join(parts)} FROM ({positioned}) {where}", numeric  # noqa: S608
 
 
+_INTEGER_TYPES: tuple[str, ...] = (
+    "TINYINT",
+    "SMALLINT",
+    "INTEGER",
+    "BIGINT",
+    "HUGEINT",
+    "UTINYINT",
+    "USMALLINT",
+    "UINTEGER",
+    "UBIGINT",
+    "UHUGEINT",
+)
+# The words that end an identifier's name: order_id, CustomerID, store_key, ProductKey, order_no,
+# invoice_number, zip_code. After a separator, or capitalised after a lower-case letter (camelCase);
+# alone they count too (id, key). "paid", "valid" and "monkey" do not end in one.
+_ID_WORDS: tuple[str, ...] = ("id", "key", "no", "num", "number", "code")
+
+
+def _scale(duckdb_type: str) -> int | None:
+    """Digits after the point a number type holds: 0 for integers, a DECIMAL's scale, None for floats."""
+    t = duckdb_type.upper().replace(" ", "")
+    if t.startswith(_INTEGER_TYPES):
+        return 0
+    if t.startswith(("DECIMAL", "NUMERIC")):
+        inside = t[t.find("(") + 1 : t.find(")")] if "(" in t else ""
+        parts = inside.split(",")
+        return int(parts[1]) if len(parts) == 2 and parts[1].isdigit() else 3  # DuckDB's DECIMAL is (18,3)
+    return None
+
+
+def id_like(column: Column) -> bool:
+    """Whether a number column holds identifiers (order_id, CustomerKey): its Sum and Average mean
+    nothing. Only whole numbers qualify; a fraction is a measure whatever its name."""
+    if type_family(column.type) != "number" or _scale(column.type) != 0:
+        return False
+    name = column.name.strip()
+    lower = name.lower()
+    for word in _ID_WORDS:
+        if lower == word or lower.endswith(("_" + word, "-" + word, " " + word, "." + word)):
+            return True
+        size = len(word)
+        if len(name) > size and name[-size - 1].islower() and name[-size].isupper() and lower.endswith(word):
+            return True
+    return False
+
+
+def display_digits(columns: list[Column] | tuple[Column, ...]) -> dict[str, int]:
+    """How many digits after the point the status bar shows: the Sum to the columns' scale (a float's
+    two), the Average to at least two."""
+    scale = max((2 if s is None else s for s in (_scale(c.type) for c in columns)), default=0)
+    return {"sum": scale, "mean": max(scale, 2)}
+
+
 def combine_stats(row: tuple[Any, ...], columns: tuple[Column, ...]) -> dict[str, Any]:
     """Excel's status bar numbers: Count = non-blank cells; Sum, Average, Min, Max over the
-    number cells."""
+    number cells. An identifier column (id_like) is counted, never summed or averaged."""
     rows = int(row[0])
     at = 1
     count = numbers = 0
     total = 0.0
     low: float | None = None
     high: float | None = None
+    ids: list[str] = []
+    measured: list[Column] = []
     for column in columns:
         filled = int(row[at])
         count += filled
@@ -321,6 +376,10 @@ def combine_stats(row: tuple[Any, ...], columns: tuple[Column, ...]) -> dict[str
         if type_family(column.type) == "number":
             s, lo, hi = row[at], row[at + 1], row[at + 2]
             at += 3
+            if id_like(column):
+                ids.append(column.name)
+                continue
+            measured.append(column)
             numbers += filled
             if s is not None:
                 total += float(s)
@@ -335,4 +394,6 @@ def combine_stats(row: tuple[Any, ...], columns: tuple[Column, ...]) -> dict[str
         "mean": total / numbers if numbers else None,
         "min": low,
         "max": high,
+        "id_like": ids,
+        "digits": display_digits(measured),
     }

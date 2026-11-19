@@ -23,7 +23,7 @@ from typing import Any
 from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.grids import Grid, view_key
 from swissarmybench.domain.steps import _TRIM_SQL, type_family
-from swissarmybench.services.ports import AGENT, BACKGROUND, SqlSession
+from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.workspace import Workspace
 
 TOP_VALUES: int = 20
@@ -205,6 +205,38 @@ def header_stats(cursor: SqlSession, view_sql: str, columns: tuple[Column, ...])
     return out
 
 
+VALUES_LIMIT: int = 200
+VALUES_MAX: int = 2000
+
+
+def column_values(
+    cursor: SqlSession, view_sql: str, column: Column, search: str, limit: int
+) -> dict[str, Any]:
+    """A column's values with how many rows hold each, most common first (the filter's checklist).
+    `search` keeps the values whose text holds it, in any case (a plain substring: no wildcards).
+    Blanks are not a value to tick ("is blank" is its own condition); they are counted beside."""
+    c = quote(column.name)
+    v = f"({view_sql}) AS v"
+    where = f"{c} IS NOT NULL"
+    params: list[Any] = []
+    if search:
+        where += f" AND contains(lower(CAST({c} AS VARCHAR)), lower(?))"
+        params.append(search)
+    found = cursor.execute(
+        f"SELECT {c}, count(*) FROM {v} WHERE {where} GROUP BY 1 ORDER BY 2 DESC, 1 ASC LIMIT {limit + 1}",
+        params,
+    ).fetchall()
+    blanks, distinct = _one(cursor, f"SELECT count(*) - count({c}), count(DISTINCT {c}) FROM {v}")
+    return {
+        "column": column.name,
+        "type": column.type,
+        "values": [{"value": value, "count": int(n)} for value, n in found[:limit]],
+        "more": len(found) > limit,
+        "blanks": int(blanks),
+        "distinct": int(distinct),
+    }
+
+
 # ===== the use cases =====
 
 
@@ -270,3 +302,37 @@ class Profiles:
             return self._cached(key, run)
 
         return await ws.grid_query(grid, gen, BACKGROUND, compute, client)
+
+    async def values(
+        self,
+        grid: Grid,
+        info: DatasetInfo,
+        column_name: str | None,
+        search: str,
+        limit: int | None,
+        upto: int | None,
+        who: str,
+    ) -> Any:
+        """A column's values with their counts, on the view entering step `upto` (or the whole view):
+        the filter form's checklist and the agent's column_values."""
+        ws = self.ws
+        if not column_name:
+            raise ValueError("Name a column: ?column=<name>.")
+        wanted = max(1, min(VALUES_MAX, limit or VALUES_LIMIT))
+        key = view_key(info, grid.steps, grid.settings, upto) + f":values:{column_name}:{wanted}:{search}"
+
+        def compute(cur: SqlSession) -> Any:
+            compiled = ws.compiled(cur, grid, info)
+            columns = compiled.columns_at(upto)
+            match = next((c for c in columns if c.name == column_name), None)
+            if match is None:
+                shown = ", ".join(c.name for c in columns)
+                raise ValueError(f"No column {column_name!r} in this view. Its columns: {shown}.")
+
+            def run() -> Any:
+                with ws.views.reading(cur, info, grid.steps, grid.settings, upto) as rows:
+                    return column_values(cur, rows, match, search, wanted)
+
+            return self._cached(key, run)
+
+        return await ws.grid_query(grid, None, AGENT if who == "agent" else INTERACTIVE, compute)

@@ -41,6 +41,7 @@ from swissarmybench.domain.export import (
     ExportError,
     ExportOptions,
     Provenance,
+    markdown_table,
     neutralize,
 )
 from swissarmybench.domain.steps import type_family
@@ -654,7 +655,23 @@ def write(
         return excel(reader, columns, options, provenance, row_count)
     if options.format == "parquet":
         return parquet(reader, options, provenance)
+    if options.format == "md":
+        return markdown(reader, columns, options)
     return b"".join(delimited(reader, columns, options))
+
+
+def markdown(reader: pa.RecordBatchReader, columns: tuple[Column, ...], options: ExportOptions) -> bytes:
+    """The rows as a Markdown pipe table (Copy as Markdown): each cell the delimited export's text."""
+    text_columns = [type_family(c.type) == "text" for c in columns]
+    rows: list[list[str]] = []
+    for batch in reader:
+        texts = [
+            [_text_value(v, options, text_columns[i]) for v in col.to_pylist()]
+            for i, col in enumerate(batch.columns)
+        ]
+        rows += [list(row) for row in zip(*texts, strict=True)]
+    numeric = [type_family(c.type) == "number" for c in columns]
+    return markdown_table([c.name for c in columns], rows, numeric).encode(options.encoding)
 
 
 def save(folder: Path, file_name: str, data: bytes, overwrite: bool) -> tuple[str, bool]:
