@@ -11,6 +11,7 @@ GET  /powerbi/live                         Edit in Power BI Desktop: the running
 GET  /powerbi/live/model                   the open model's metadata (names only)
 POST /powerbi/live/plan                    {changes?}: the dry run (none sent: our relationships and measures)
 POST /powerbi/live/apply                   the same, made (each change audited; the agent's on Allow)
+POST /powerbi/opened                       {path}: a Power BI file opened with the app, offered on its page
 GET  /powerbi/page                         the Power BI page, as data
 GET  /powerbi/panel                        the same, drawn by the base's generic panel; POST {choice, value}
 | {action}
@@ -73,6 +74,9 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         body = await read_json(r) if r.method == "POST" else {}
         return await project.panel(body, actor(r))
 
+    async def opened(r: Request) -> Any:
+        return project.opened(await read_json(r))
+
     async def page(r: Request) -> Any:
         return await project.page()
 
@@ -87,6 +91,7 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         Route("/powerbi/source", door(switch), methods=["PUT"]),
         Route("/powerbi/registration", door(registration), methods=["GET", "PUT"]),
         Route("/powerbi/page", door(page)),
+        Route("/powerbi/opened", door(opened), methods=["POST"]),
         Route("/powerbi/panel", door(panel), methods=["GET", "POST"]),
     ]
 

@@ -71,6 +71,7 @@ class PowerBIProject:
         self.live = live
         self.registrations = registrations
         self.last_import: dict[str, Any] | None = None
+        self.pending: str | None = None  # a .pbix/.pbit/.pbip opened with the app or dropped on a window
 
     # ===== C: the .pbix file connection =====
 
@@ -601,6 +602,7 @@ class PowerBIProject:
         except Exception as error:  # said on the page, in place
             said = [{"text": str(error).splitlines()[0][:300], "tone": "error"}]
         page = await self.page()
+        offered = self._offered(page["project"])
         if not page["project"]:
             lines = [
                 {
@@ -608,7 +610,11 @@ class PowerBIProject:
                     "tone": "",
                 }
             ]
-            return {"lines": said + lines, "switches": [], "actions": []}
+            return {
+                "lines": said + offered["lines"] + ([] if offered["lines"] else lines),
+                "switches": [],
+                "actions": offered["actions"],
+            }
         source = page["source"]
         regs = [{"value": "", "label": "Choose…"}] if not page["registration"] else []
         regs += [{"value": r, "label": r} for r in page["registrations"]]
@@ -651,12 +657,66 @@ class PowerBIProject:
                     "options": regs,
                 },
             ],
-            "lines": said + lines,
+            "lines": said + offered["lines"] + lines,
             "switches": [],
-            "actions": [{"id": a["id"], "label": a["label"], "note": a["note"]} for a in page["actions"]],
+            "actions": offered["actions"]
+            + [{"id": a["id"], "label": a["label"], "note": a["note"]} for a in page["actions"]],
         }
 
+    def opened(self, body: Any) -> dict[str, Any]:
+        """A Power BI file opened with the app (`swissarmybench open report.pbix`, Open with) or dropped on a
+        window: offered on the Power BI page (never handed to the default program). The page to show."""
+        path = str(body.get("path") or "") if isinstance(body, dict) else ""
+        if not path.lower().endswith((".pbix", ".pbit", ".pbip")):
+            raise ValueError("Send the path of a .pbix, .pbit or .pbip.")
+        self.pending = path
+        return {
+            "page": "/workspace?open=powerbi",
+            "offered": self._offered(self.base.sab_projects.current is not None),
+        }
+
+    def _offered(self, project: bool) -> dict[str, Any]:
+        """What the opened file is offered for: no project open, Make a Power BI project for it; one open,
+        Import its model or Use its pages on our model."""
+        if not self.pending:
+            return {"lines": [], "actions": []}
+        name = Path(self.pending).name
+        pbix = self.pending.lower().endswith(".pbix")
+        if not project:
+            actions = (
+                [{"id": "open:import", "label": "Make a Power BI project for it", "primary": True}]
+                if pbix
+                else []
+            )
+            words = f"{name} was opened." + ("" if pbix else " A project is made from a .pbix.")
+            return {"lines": [{"text": words, "tone": "ok"}], "actions": actions}
+        actions = [{"id": "open:pages", "label": "Use its pages on our model"}]
+        if pbix:
+            actions.insert(0, {"id": "open:model", "label": "Import its model"})
+        return {"lines": [{"text": f"{name} was opened.", "tone": "ok"}], "actions": actions}
+
     async def _panel_action(self, action: str, who: str) -> list[dict[str, str]]:
+        if action.startswith("open:") and self.pending:
+            path, self.pending = self.pending, None
+            if action == "open:import":
+                done = await self.import_project({"path": path}, who)
+                return [{"text": f"Made the Power BI project {done['project']}.", "tone": "ok"}]
+            if action == "open:model":
+                name = f"{Path(path).stem} file"
+                await self.add_file_connection({"name": name, "path": path}, who)
+                joined = await self.file_relationships(name, who)
+                return [
+                    {
+                        "text": f"Added {name}: its tables, and {joined['relationships']} relationships.",
+                        "tone": "ok",
+                    }
+                ]
+            return [
+                {
+                    "text": "On the ERD page: Export to Power BI…, then Use an existing report's pages.",
+                    "tone": "",
+                }
+            ]
         if action == "fix:not_published" or action == "fix:dataset":
             found = await self._published()
             state = self._state()

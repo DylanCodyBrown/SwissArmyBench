@@ -230,6 +230,22 @@ def page_actions(on: list[ModuleType]) -> list[dict[str, str]]:
     return out
 
 
+def opens() -> dict[str, str]:
+    """The files the on extensions open: each one's OPENS, {".suffix": a route}."""
+    out: dict[str, str] = {}
+    for module in enabled():
+        raw = getattr(module, "OPENS", None)
+        for suffix, route in raw.items() if isinstance(raw, dict) else ():
+            if (
+                isinstance(suffix, str)
+                and suffix.startswith(".")
+                and isinstance(route, str)
+                and route.startswith("/")
+            ):
+                out.setdefault(suffix.lower(), route)
+    return out
+
+
 def modes() -> list[dict[str, Any]]:
     """Every project type's mode: the base's first, then each on extension's (its MODE); each with the on
     extensions' inline completion providers."""

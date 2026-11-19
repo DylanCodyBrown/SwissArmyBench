@@ -251,7 +251,9 @@ def open_target(target: str, path: Path, browser: bool = False) -> int:
     file = Path(target).expanduser()
     if file.name.lower().endswith(".sab") or not file.exists():
         return open_project(target, path, browser=browser)  # says why, in one line
-    kind = rules.file_kind(file.name, file.is_dir(), (file / ".sab").is_dir())
+    from swissarmybench import extensions
+
+    kind = rules.file_kind(file.name, file.is_dir(), (file / ".sab").is_dir(), tuple(extensions.opens()))
     if kind == rules.PROJECT:
         return open_project(target, path, browser=browser)
     if not kind:

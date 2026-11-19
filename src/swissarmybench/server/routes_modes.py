@@ -28,6 +28,11 @@ def routes(modes: Modes) -> list[BaseRoute]:
     async def areas(request: Request) -> Response:
         return json_response({"areas": modes.areas()})
 
+    async def opens(request: Request) -> Response:
+        from swissarmybench import extensions
+
+        return json_response({"opens": extensions.opens()})
+
     async def gates(request: Request) -> Response:
         return json_response(modes.gates())
 
@@ -36,5 +41,6 @@ def routes(modes: Modes) -> list[BaseRoute]:
         Route("/app/modes", every),
         Route("/app/areas", areas),
         Route("/app/gates", gates),
+        Route("/app/opens", opens),
         Route("/app/gates", with_body(modes.set_gates), methods=["POST"]),
     ]

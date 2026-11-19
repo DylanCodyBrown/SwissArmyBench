@@ -33,6 +33,8 @@ PAGE_ACTIONS: list[dict[str, str]] = [
 ]
 SECRET_PATHS: tuple[str, ...] = ()
 PROJECT_TYPE = "powerbi"
+# The files this extension opens when one is opened with the app or dropped on a window (never their program).
+OPENS: dict[str, str] = {".pbix": "/powerbi/opened", ".pbit": "/powerbi/opened", ".pbip": "/powerbi/opened"}
 # The rail's Power BI area (GET /app/areas): its page drawn from data (`panel`), never named in web/.
 RAIL: list[dict[str, str]] = [
     {"area": "powerbi", "name": "Power BI", "icon": "powerbi", "panel": "/powerbi/panel"}

@@ -181,6 +181,8 @@ NOT_COMMANDS = {
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
     "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",
     "/library/notices": "the page's once-only notices, taken by it: library_info shows them to the agent",
+    "/app/opens": "the files an on extension opens, asked by `swissarmybench open` and a file dropped on a "
+    "window (app plumbing; the agent passes a path to the extension's own command)",
     "/lifecycle/closed": "the desktop app's own word that its last window closed (app plumbing): "
     "app_lifecycle reads the server's life",
     "/session": "the page's cookie (page plumbing): the agent keeps the Bearer token",

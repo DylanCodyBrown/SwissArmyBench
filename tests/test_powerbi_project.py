@@ -1,7 +1,7 @@
 """The Power BI project (extensions/powerbi): a .pbix read with pbixray (faked behind its interface: tests/
-powerbi_pbix_fake.py), the .pbix file connection (C), the import as a project (B), To finish setting up (H)
-and
-Read Power BI from (E). The published dataset is found through tests/powerbi_standin.py. Made-up data only."""
+powerbi_pbix_fake.py), the .pbix file connection (C), the import as a project (B), To finish setting up (H),
+Read Power BI from (E), the gates (F) and the app registration (G). The published dataset is found through
+tests/powerbi_standin.py. Made-up data only."""
 
 from __future__ import annotations
 
@@ -341,3 +341,20 @@ def test_a_pbix_imported_as_a_project_ready_to_work(tmp_path: Path, standin: mad
         code = client.app.state.ctx.connections.blade("SalesDb")[0].code  # type: ignore[attr-defined]
         assert 'os.environ["BI_SECRET"]' in code and "BI_TENANT" in code and 'sign_in="app_secret"' in code
         assert ok(client.get("/powerbi/registration", headers=AGENT))["registration"] == "Contoso BI"
+
+
+def test_a_power_bi_file_opened_with_the_app_is_offered_on_its_page(tmp_path: Path) -> None:
+    from swissarmybench.domain import desktop
+
+    assert desktop.file_kind("Sales.pbix", False, False, (".pbix",)) == desktop.EXTENSION
+    assert desktop.file_kind("Sales.pbix", False, False) == ""  # no extension on: not opened
+    pbix = fake.fake_pbix(tmp_path)
+    with make_client(tmp_path) as client:
+        client.app.state.ctx.powerbi_project.reader = fake.reader  # type: ignore[attr-defined]
+        opens = ok(client.get("/app/opens", headers=AGENT))["opens"]
+        assert opens[".pbix"] == "/powerbi/opened"
+        shown = ok(client.post("/powerbi/opened", json={"path": str(pbix)}, headers=AUTH))
+        assert shown["page"] == "/workspace?open=powerbi"
+        panel = ok(client.get("/powerbi/panel", headers=AUTH))
+        assert [a["label"] for a in panel["actions"]] == ["Make a Power BI project for it"]
+        assert panel["lines"][0]["text"] == "Sales model.pbix was opened."

@@ -388,6 +388,9 @@ TABLE_SUFFIXES: tuple[str, ...] = (
 NOTEBOOK_SUFFIXES: tuple[str, ...] = (".ipynb",)
 BLADE_SUFFIX = ".blade.py"
 TABLE, NOTEBOOK, BLADE, PROJECT = "table", "notebook", "blade", "project"
+EXTENSION = (
+    "extension"  # a file an on extension opens (its OPENS: suffix -> route), never the default program
+)
 CANNOT_OPEN = (
     "{name}: Swiss Army Bench opens CSV, TSV, Parquet, JSON, Arrow and Excel files, notebooks (.ipynb), "
     "blades (.blade.py) and project folders."
@@ -407,7 +410,7 @@ def read_file_path(value: Any) -> str:
     return text
 
 
-def file_kind(name: str, is_folder: bool, has_sab: bool) -> str:
+def file_kind(name: str, is_folder: bool, has_sab: bool, claimed: tuple[str, ...] = ()) -> str:
     """What opening a file with the app does: a project (a folder with .sab/, or any folder: it is asked to
     become one), a table, a notebook (the Workbench) or a blade; "" when the app does not open it."""
     if is_folder:
@@ -419,6 +422,8 @@ def file_kind(name: str, is_folder: bool, has_sab: bool) -> str:
         return NOTEBOOK
     if lowered.endswith(TABLE_SUFFIXES):
         return TABLE
+    if claimed and lowered.endswith(tuple(s.lower() for s in claimed)):
+        return EXTENSION
     return ""
 
 
