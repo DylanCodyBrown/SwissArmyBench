@@ -156,12 +156,49 @@ def routes(services: Any) -> list[Any]:
         services.agent.approvals,
         registrations=services.app_registrations.names,
     )
+    from pathlib import Path
+
+    from swissarmybench_powerbi.adapters import live_link as live_files
+    from swissarmybench_powerbi.services.live_link import LiveLink
+
+    state_dir = Path(services.settings.state_dir)
+
+    def target() -> str | None:
+        try:
+            return str(project.state()["target"])
+        except Exception:  # no Power BI project open
+            return None
+
+    def ours() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        try:
+            state = project.state()
+        except Exception:
+            return [], []
+        return list(state.get("relationships", [])), list(state.get("measures", []))
+
+    live = LiveLink(
+        services.ws,
+        live_files.discover,
+        lambda port: live_files.TomModel(port, state_dir),
+        target,
+        ours,
+        services.agent.approvals,
+        live_files.windows,
+    )
+    project.live = live
+    services.powerbi_live = live  # tests hand it a fake
     services.app_registrations.query_hints = project.query_hints
     services.powerbi_project = project  # tests hand it a fake reader
-    return door.routes(service) + routes_project.routes(project)
+    return door.routes(service) + routes_project.routes(project) + routes_project.live_routes(live)
 
 
 def commands() -> dict[str, Any]:
     from swissarmybench_powerbi.commands import COMMANDS
 
     return COMMANDS
+
+
+async def stop(services: Any) -> None:
+    live = getattr(services, "powerbi_live", None)
+    if live is not None:
+        live.stop()

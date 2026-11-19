@@ -119,3 +119,44 @@ def powerbi_app_registration(a: dict[str, Any]) -> Any:
         return api.call("GET", "/powerbi/registration")
     body = {"registration": a["registration"], "dry_run": bool(a.get("dry_run"))}
     return api.call("PUT", "/powerbi/registration", body, timeout=200)
+
+
+@command(
+    "powerbi_edit_files",
+    "Edit in Power BI Desktop (Windows): the running Desktops and their open files; Live or Not open for the "
+    "project's .pbix",
+)
+def powerbi_edit_files(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/powerbi/live?asked=1")
+
+
+@command(
+    "powerbi_edit_model",
+    "The model open in Power BI Desktop: tables, columns, measures, relationships (no rows)",
+)
+def powerbi_edit_model(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/powerbi/live/model")
+
+
+@command(
+    "powerbi_edit_plan",
+    "The dry run of changes to the model open in Power BI Desktop, each in words and whether it can go (no "
+    "changes: our relationships and measures)",
+    opt(
+        "changes",
+        "[{kind: measure_add|measure_change|measure_delete|relationship_add|relationship_delete|"
+        "calculated_column|calculated_table|calculation_group, table, name, expression, ...}]",
+        "json",
+    ),
+)
+def powerbi_edit_plan(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/powerbi/live/plan", {"changes": a.get("changes") or []})
+
+
+@command(
+    "powerbi_edit_apply",
+    "Make the changes in the model open in Power BI Desktop (asks the user first; each change audited)",
+    opt("changes", "As powerbi_edit_plan's (none: our relationships and measures).", "json"),
+)
+def powerbi_edit_apply(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/powerbi/live/apply", {"changes": a.get("changes") or []}, timeout=200)

@@ -7,6 +7,10 @@ POST /powerbi/file-connection/{name}/relationships   the file's relationships in
 GET  /powerbi/setup                        To finish setting up; POST: one row's fix
 GET  /powerbi/source                       Read Power BI from; PUT {source}: switched, the grids read again
 GET  /powerbi/registration                 the project's app registration; PUT {registration, dry_run?}
+GET  /powerbi/live                         Edit in Power BI Desktop: the running Desktops, Live or Not open
+GET  /powerbi/live/model                   the open model's metadata (names only)
+POST /powerbi/live/plan                    {changes?}: the dry run (none sent: our relationships and measures)
+POST /powerbi/live/apply                   the same, made (each change audited; the agent's on Allow)
 GET  /powerbi/page                         the Power BI page, as data
 GET  /powerbi/panel                        the same, drawn by the base's generic panel; POST {choice, value}
 | {action}
@@ -22,6 +26,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench_powerbi.services.live_link import LiveLink
 from swissarmybench_powerbi.services.project import PowerBIProject
 
 
@@ -83,4 +88,25 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         Route("/powerbi/registration", door(registration), methods=["GET", "PUT"]),
         Route("/powerbi/page", door(page)),
         Route("/powerbi/panel", door(panel), methods=["GET", "POST"]),
+    ]
+
+
+def live_routes(live: LiveLink) -> list[BaseRoute]:
+    async def status(r: Request) -> Any:
+        return await live.status(r.query_params.get("asked") in ("1", "true"))
+
+    async def model(r: Request) -> Any:
+        return await live.model()
+
+    async def plan(r: Request) -> Any:
+        return await live.plan(await read_json(r))
+
+    async def apply(r: Request) -> Any:
+        return await live.apply(await read_json(r), actor(r))
+
+    return [
+        Route("/powerbi/live", door(status)),
+        Route("/powerbi/live/model", door(model)),
+        Route("/powerbi/live/plan", door(plan), methods=["POST"]),
+        Route("/powerbi/live/apply", door(apply), methods=["POST"]),
     ]

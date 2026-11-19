@@ -306,6 +306,9 @@ class PowerBIProject:
 
     # ===== E: Read Power BI from =====
 
+    def state(self) -> dict[str, Any]:
+        return self._state()
+
     def _state(self) -> dict[str, Any]:
         current = self.base.sab_projects.current
         if current is None:
