@@ -3537,3 +3537,14 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   copy warning silenced there) and written batch by batch.
 - Not checked: the desktop app's Qt WebEngine (Chromium only); the screen-reader reading of the hidden tab
   close buttons (they reach the keyboard by focus-within).
+- The whole suite with Chromium in one process (1 h 01 min, other builders' suites running beside it): 4,751
+  passed, 58 skipped, 18 failed. Mine and fixed: the Power Apps notebook rules' test expected DuckDB's own
+  `pg_tables` as a candidate (now none); the tour test on Projects looked for Tour beside the bubble (the
+  bubble is the one button now); the grid tab bar's rules first reached the Workbench's tabs too (they share
+  `.tab-item`: now scoped to `.tabs-row`); test_ui's tab close now hovers first (another tab's close shows on
+  hover). Not mine: test_variable_refs_page (2) and test_workbench_page's key vault (psycopg and
+  azure-identity are not installed here: the missing-package prompt covers the form), test_copilot_page's
+  private project (fails before this branch too), and test_workbench_groups, test_panels_page, test_tour,
+  test_table_cells_page, test_text_cells_page, test_scm_page, test_html_cells_page, test_workbench_page's first
+  save and test_apis / test_structures_routes, which pass alone or fail the same on the branch's base under load
+  (test_workbench_groups 3 runs on each: the same flakes).
