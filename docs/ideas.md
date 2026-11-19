@@ -5806,13 +5806,13 @@ The survey of the desktop app (read only) listed small fixes; each was checked b
   disk, Reload (POST /datasets/{name}/reload: read again in place, its grids and steps kept), Not now (the stamp
   taken as it is now: said again only on the next change). Never reloaded by itself; a file that is gone is not
   said. The agent: `tabs_reload` (`not_now`).
-## A variable anywhere a value is typed: `${NAME}` (the owner, 2026-11-18; Phase A built, branch variable-refs)
+## A variable anywhere a value is typed: `${NAME}` (the owner, 2026-11-18; built, branch variable-refs)
 
 The owner: "everything in a connection should have the option for a env variable ... a reserved char that allows
 us to use env variable almost anywhere in the app" (like SSRS's expressions); "The drop downs were for the
 connections ... they take up space when a ${ could be used"; "Let's do it. ${ it is". The rules: design
-principle 12.7. Phase A (the rules, the backend, the agent) is built; Phase B (the forms: one box, `${` offers the
-variables, the preview line, the tour's card) waits for the loading branch.
+principle 12.7. Phase A (the rules, the backend, the agent) and Phase B (the forms: one box, `${` offers the
+variables, the line under the box, the tour's card; 2026-11-19) are built.
 
 - **The rules (domain/variable_refs.py, standard library only):** a reference is `${` + NAME + `}` or
   `${NAME:-default}` (the default literal up to the first `}`: no nesting); `$${NAME}` is the text; anything else
@@ -5860,3 +5860,41 @@ variables, the preview line, the tour's card) waits for the loading branch.
 - **Not built here:** a reference in DAX; a structure's saved path kept as the typed text; static API headers
   (an API has none beside its sign-in); Streamlit pages and data.py inherit the connection's code, so they read
   `os.environ` already; a `%%sql` cell's export as a script keeps the cell's text.
+
+### Phase B: the forms (2026-11-19)
+
+- **One box, web/src/variableBox.ts:** `variableBox(input)` makes any text box a variable box: typing `${`
+  lists the variables under it (GET /variables: the name and its source in words, a vault's name with it; never
+  a value), filtered as the name is typed; arrows, Enter or Tab pick, Escape closes; the last row is New
+  variable… (with the typed name). A `{x}` button on the box opens the same list at the caret. Under the box,
+  `previewLine()`: POST /variables/resolve's value (a secret as dots), or the one error (errorNote.ts) with Set
+  it; nothing when the box names no variable; drawn again on `variables_changed`. The box is an ARIA combobox
+  pattern (aria-autocomplete, aria-controls, aria-activedescendant) without the role, so the boxes keep their
+  textbox role and their labels.
+- **Set it and New variable… open the Add variable form in place** (web/src/variableLinks.ts: a dialog with the
+  Variables page's three fields), not the Variables page itself: a half-filled connection form is kept, and
+  the box that asked puts the new name in. errorNote.ts gives every refusal with `missing_variables` its Set it.
+- **Where:** every connection form field (connectionsWindow.ts: the "from" pickers and the password's source,
+  vault and entry pickers gone; certificate and keystore paths take `${NAME:-path}`; a number's box is text
+  with a numeric keyboard), a Python connection's variables (each listed with its line; the source pickers and
+  typed values gone: the Variables page keeps them; a mapping saved before stays as it was), Add API's base
+  address, a blade's settings (the import's fill-in), Run settings' Arguments.
+- **Passwords:** one box holds `${NAME}` alone, or a typed password (shown as dots, a reference as text). A
+  typed one is used for Test as it is and, on Save, kept as a keyring variable named after the connection and
+  its label (`WAREHOUSE_PASSWORD`), the code then asking for it; amber while typed (the keyring works only
+  here). `${NAME}` mixed with other text in a password box is refused in words (a password is never partly a
+  variable). A key vault's secret is its variable's name; a vault that loads every secret runs first when one is
+  missing, as before.
+- **A connection's code changes one at a time:** leaving one box for another sent two changes at once, and the
+  second could start from the code before the first (a password renamed while Encryption changed). They now go
+  in turn, and a setting's place in the code is read again when a rename moved it.
+- **A Python connection's variable a vault gives** runs that vault first (adapters/blades.py providers), as a
+  setting's variable already did, now that no mapping is saved with the connection.
+- **The Variables page** shows a connection's use with its box: `Warehouse · Server`.
+- **The tour:** a card after Variables, "Using a variable": it opens a made-up PostgreSQL form, puts
+  `${WAREHOUSE_HOST}` in its Server box and lights the box; the form is never saved and closing the tour goes
+  back past it. Its clue: "Typed into a box, it reads its value from this computer at the moment it is used."
+- **Not changed:** Run settings' per-variable sources (a scheduled run's own environment: a different thing
+  from a box's text); Add API's sign-in settings and the values typed for Try it (an API's own variables,
+  kept in the keyring on Add, as before); the file chooser's folder box (it moves the picker, it is not a
+  saved value).

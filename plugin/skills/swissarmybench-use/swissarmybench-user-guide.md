@@ -923,6 +923,17 @@ fills in its own.
   the app's settings give the value.
 - Passwords you had saved for a connection became variables once, in this computer's keyring
   (Sales DB's password as `SALES_DB_PASSWORD`), its connection's file backed up first.
+- **Picking one:** type `${` in a box and the variables are listed under it, each with where its value comes
+  from (Plain value, This computer's keyring, Key vault · Team vault), never a secret's value; the arrows and
+  Enter pick one, Escape closes. The small `{x}` button on a box opens the same list. **New variable…** at the
+  list's foot adds one with the name you typed, without leaving the form.
+- **Under the box**, what it reads on this computer: the value (a secret as dots), or the message with Set it.
+- **A password box** holds a variable on its own (`${WAREHOUSE_PASSWORD}`) or a password typed there; a typed
+  one is kept, on Save, as a keyring variable named after the connection (`WAREHOUSE_PASSWORD`), said in amber
+  while it is typed because it works only on this computer. A key vault's secret is a variable too: type its
+  variable's name. There are no "comes from" lists beside the boxes: where a value comes from is set once, on
+  the Variables page, for every place that uses it.
+- The Variables page lists each variable's uses by box: `Warehouse · Server`.
 
 ### Your connections in DuckDB SQL
 

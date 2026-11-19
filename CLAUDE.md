@@ -152,7 +152,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   each computer, never stored resolved; a connection field is written into its code as `os.environ["NAME"]`, SQL
   binds it as a parameter, `$${NAME}` is the text; each connection's own saved password became a keyring
   variable once at start (`backup/before-variables-<date>/`), and `variable_refs.json` marks the one-time list
-  of saved text that now names a variable.
+  of saved text that now names a variable. Every form's box is one box (web/src/variableBox.ts: `${` lists the
+  variables, `{x}`, the line under it; no source, vault or entry pickers beside a field).
   **Launch Claude (the owner, 2026-11-16):** on the user's click only (403 for the agent), the state
   folder's `claude/<project>/` is written (CLAUDE.md, .mcp.json, .claude/settings.json: metadata only, no
   row, value or secret); once a launch made it, its **context.md** (the app's live picture: connections,
@@ -811,6 +812,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,
                          its form and the Insert a snippet… picker;
+                         variableBox.ts `${NAME}` in any box (12.7): typing `${` lists the variables (names and
+                         sources in words), `{x}` the same, the line under the box (previewLine: the value, a secret
+                         masked, or the one error with Set it); variableLinks.ts Set it's and New variable…'s Add
+                         variable form, over the page;
                          fileChooser.ts picks real paths: the system's own dialog first (GET /dialogs, POST
                          /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
                          recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package

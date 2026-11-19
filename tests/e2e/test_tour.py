@@ -8,8 +8,10 @@ two made-up tables are staged and closed again, and the game still ends it."""
 
 from __future__ import annotations
 
+import os
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -17,6 +19,9 @@ from playwright.sync_api import Browser, Locator, Page, expect
 
 from swissarmybench.client import push_client
 from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
+
+
+SHOTS = os.environ.get("SWISSARMYBENCH_TOUR_SHOTS")
 
 
 def datasets(server: dict[str, Any]) -> set[str]:
@@ -89,6 +94,15 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
             tour,
             page.locator('.area-page[data-page="connections"]').get_by_role("button", name="Add connection"),
         )
+        # A variable in a box: a made-up PostgreSQL form, its Server holding the reference, lit up.
+        to_word(page, tour, "Using a variable")
+        expect(tour.locator(".tour-code")).to_have_text("${WAREHOUSE_HOST}")
+        connections = page.locator('.area-page[data-page="connections"]')
+        server_box = connections.get_by_label("Server", exact=True)
+        expect(server_box).to_have_value("${WAREHOUSE_HOST}")
+        lights_up(tour, connections.locator('.field[data-setting="server"] .variable-box-row'))
+        if SHOTS:
+            page.screenshot(path=str(Path(SHOTS) / "tour-using-a-variable.png"))
         # The grids: its orders table in front, its tab lit up.
         to_word(page, tour, "Grid")
         expect(page.locator('.area-page[data-page="connections"]')).to_be_hidden()
@@ -122,6 +136,7 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         expect(tour).to_have_count(0)
         expect(row).to_be_visible()
         expect(page.locator('.area-page[data-page="settings"]:visible')).to_have_count(0)
+        expect(page.locator('.area-page[data-page="connections"]:visible')).to_have_count(0)  # its form gone
         expect(tabs.filter(has_text="tour_")).to_have_count(1)
         expect(tabs.filter(has_text="tour_orders")).to_have_text("tour_orders")
         deadline = time.monotonic() + 5

@@ -27,11 +27,12 @@
 
 import { api, token } from "./api";
 import { button, h, icon, recall, remember } from "./dom";
-import { here, historyDepth, layerShown, returnTo, runArea } from "./nav";
+import { here, historyDepth, layerShown, returnTo, runArea, visit, withParams } from "./nav";
 import { activateGrid, contextOf, splitPair, splitWith, unsplit } from "./panes";
 
-/** Where a card takes the user: a rail's area, the tour's orders table, or the two side by side. */
-type Place = { area: string } | { grid: "orders" | "pair" };
+/** Where a card takes the user: a rail's area, the tour's orders table, the two side by side, or a new
+ *  connection's form (its type) with `text` typed into one of its boxes (a setting's name). */
+type Place = { area: string } | { grid: "orders" | "pair" } | { form: string; setting: string; text: string };
 
 interface Stop {
   icon: string;
@@ -96,6 +97,15 @@ export const STOPS: readonly Stop[] = [
     clue: "Names for settings and passwords, the values kept out of your code.",
     place: { area: "variables" },
     target: [page("variables", ".variables-add"), page("variables", ".area-page-head")],
+  },
+  {
+    icon: "variables",
+    word: "Using a variable",
+    line: "A dollar sign and a brace around a variable's name, typed into any box in the app (a connection's server or password, an API's address, a file path, a setting, a SQL query), always reads that variable from the Variables page at the moment it is used. The value stays out of shared files, and each computer fills in its own. Type a dollar sign and a brace to pick one.",
+    clue: "Typed into a box, it reads its value from this computer at the moment it is used.",
+    place: { form: "postgres", setting: "server", text: "${WAREHOUSE_HOST}" },
+    target: [page("connections", '.field[data-setting="server"] .variable-box-row')],
+    code: "${WAREHOUSE_HOST}",
   },
   {
     icon: "data",
@@ -505,6 +515,18 @@ export function openTour(): void {
     if (!to) return;
     if ("area" in to) {
       runArea(to.area);
+      return;
+    }
+    if ("form" in to) {
+      // A made-up connection's form, never saved: the tour's close goes back past it (returnTo).
+      visit(withParams({ open: "connections", at: "form", type: to.form, name: null }));
+      const box = `.area-page[data-page="connections"] .field[data-setting="${to.setting}"] input`;
+      if (!(await until(() => !!visible([box]), 5000))) return;
+      const input = visible([box]) as HTMLInputElement;
+      if (input.value !== to.text) {
+        input.value = to.text;
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      }
       return;
     }
     const staged = await staging;
