@@ -18,8 +18,9 @@ checker, so what you run is what the user would.
    (`columns` by slot key, `options` by option key). Its cards land on the Analyze board, as the user's do,
    and `result` holds the numbers. A table that does not fit is refused with why and the form as it stands
    (`plan`). `analyze_plan` shows the picks and the sentence without running.
-- `analyze_tables`: the toolbar and the open tables; `table` is a grid id or a table's name, and defaults to
-  the one Analyze last used. `analyze_column(table, column)`: the analyses a column fits.
+- `analyze_tables`: the toolbar and the open tables; `table` is a grid id, a table's name, or a
+  connection's table by its DuckDB SQL name (`[Warehouse].orders`: read whole into a table of its own,
+  refused past the read limit with how to narrow it), and defaults to the one Analyze last used. `analyze_column(table, column)`: the analyses a column fits.
 
 ## Make it fit: fixes are grid steps
 - A fix (`analyze_check`'s `fixes`) is one plain sentence with its count and `steps`: text read as numbers

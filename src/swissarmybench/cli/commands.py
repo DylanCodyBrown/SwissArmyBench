@@ -2187,7 +2187,7 @@ def analyze_fix(a: dict[str, Any]) -> Any:
     "the Analyze board (as the user's do) and `result` holds the numbers. A table that does not fit is "
     "refused with why and the form (`plan`); apply_fixes adds the steps it needs first.",
     req("analysis", "The analysis's id (analyze_contracts)."),
-    opt("table", "Grid id or table name (default: the one Analyze last used)."),
+    opt("table", "Grid id, table name or [Connection].table (default: the one Analyze last used)."),
     opt("columns", "{slot: column or [columns]}.", "json"),
     opt("options", "{option: value}.", "json"),
     opt("apply_fixes", "Add the fixes the table needs (grid steps) and then run.", "bool"),

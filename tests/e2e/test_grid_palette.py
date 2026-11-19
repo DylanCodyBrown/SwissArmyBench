@@ -66,11 +66,11 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
         missing = [pair for pair in on_page if (pair[0], pair[1]) not in titles]
         assert not missing, f"buttons with no command: {missing}"
         assert ("Application", "Not now") not in titles  # the tour bubble's dismiss is not a command
-        # And what has no button of its own: the Analyze menu's entries, the tabs, the cell's menu.
+        # And what has no button of its own here: the Analyze page's analyses, the tabs, the cell's menu.
         for wanted in (
-            ("Analyze", "Odds…"),
-            ("Analyze", "Regression…"),
-            ("Analyze", "Forecast…"),
+            ("Analyze", "How likely is each value? (odds)"),
+            ("Analyze", "Predict a number (regression)"),
+            ("Analyze", "What comes next? (forecast)"),
             ("Tabs", "Go to Analyze"),
             ("Tabs", "Go to palette_other"),
             ("Tabs", "Compare palette_orders with…"),
@@ -107,9 +107,12 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
         expect(page.locator(".nav-rail [data-area='analyze']")).to_have_attribute("aria-current", "page")
         palette(page, "go to palette_orders")
         expect(page.locator(".tab-item.active .tab-label")).to_have_text("palette_orders")
+        # An analysis from the palette: Analyze comes to the front with its form open beside the board.
         palette(page, "analyze outliers")
-        expect(page.locator("dialog").get_by_label("Column", exact=True)).to_be_visible()
-        page.keyboard.press("Escape")
+        expect(page.locator(".nav-rail [data-area='analyze']")).to_have_attribute("aria-current", "page")
+        expect(page.locator("#ai-panel .analyze-side h2")).to_have_text("Find unusual values", timeout=20000)
+        expect(page.locator("#ai-panel .analyze-side .analyze-table-name")).to_contain_text("palette_orders")
+        palette(page, "go to palette_orders")
         palette(page, "compare palette_orders with")
         expect(page.locator("dialog .compare-dialog")).to_be_visible(timeout=20000)
     finally:

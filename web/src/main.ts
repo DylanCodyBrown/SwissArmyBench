@@ -33,7 +33,7 @@ import { api, connect, failure, gridId, onNotice, openedWith, requireSession, to
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
-import { onFindData, onOpenAnalyze } from "./analyzePage";
+import { analyzeParts, onFindData, onOpenAnalyze } from "./analyzePage";
 import { openFindData } from "./gridCommands";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
@@ -336,6 +336,7 @@ async function start(): Promise<void> {
   // its Change… finds a connection's table with the Data Explorer (Find data…).
   onOpenAnalyze(() => { if (currentView() !== "agent") showAgentView(); });
   onFindData(() => openFindData());
+  analyzeParts(); // its list of analyses is read now: the palette offers them before Analyze is first shown
   mountErd($("#erd-view"));
   // Before the panes: a built table's pane gets its query tray as the pane is made.
   mountQueryTab($("#query-view"));

@@ -335,7 +335,8 @@ function head(label: string, name: string): HTMLElement {
 // ===== the table line =====
 
 function tableLine(label: string, rows: number | null, current: string | null): HTMLElement {
-  const words = label ? `${label}${rows === null ? "" : ` · ${formatCount(rows)} row${rows === 1 ? "" : "s"}`}` : "No table is open";
+  const none = toolbar?.tables.length ? "Pick a table" : "No table is open";
+  const words = label ? `${label}${rows === null ? "" : ` · ${formatCount(rows)} row${rows === 1 ? "" : "s"}`}` : none;
   return h(
     "div",
     { class: "analyze-table" },
@@ -343,6 +344,13 @@ function tableLine(label: string, rows: number | null, current: string | null): 
     h("span", { class: "analyze-table-name", title: words }, words),
     button("Change", (event) => changeTable(event, current), { class: "ghost analyze-change" }),
   );
+}
+
+/** The table line when the form could not be read: the table by its name when it is still open (a step of
+ * it is broken), else that one is to be picked; Change is there either way (never a dead end). */
+function lostTable(grid: string | null): HTMLElement {
+  const still = toolbar?.tables.find((t) => t.grid === grid) ?? null;
+  return tableLine(still?.label ?? "", null, still?.grid ?? null);
 }
 
 function changeTable(event: MouseEvent, current: string | null): void {
@@ -436,7 +444,7 @@ async function replan(columns?: Record<string, unknown>, options?: Record<string
     if (mine !== seq) return;
     plan = null;
     await loadToolbar(true);
-    clear(side, head(labelOf(asked.analysis), nameOf(asked.analysis)), errors, tableLine("", null, null));
+    clear(side, head(labelOf(asked.analysis), nameOf(asked.analysis)), errors, lostTable(asked.table));
     // Never a dead end (8.13): what is wrong in one sentence, and Change (another table, or Find data…).
     showError(errors, e, { dismiss: false, agent: false });
   }
@@ -500,12 +508,14 @@ function chip(slot: SlotPlan): HTMLElement {
     h("span", { class: "chip-label", title: slot.words }, slot.label),
     h("span", { class: "chips" }, h("span", { class: `chip${value ? "" : " empty"}` }, select)),
     slot.said ? h("span", { class: "chip-said" }, slot.said) : null,
-    ...(slot.cautions ?? []).map((c) => h("span", { class: "chip-caution" }, icon("warning"), sentenceCase(c))),
+    ...(slot.cautions ?? []).map((c) => h("span", { class: "chip-caution" }, icon("warning"), withStop(c))),
   );
 }
 
 const whyOf = (r: { name: string; why: string }): string => (r.why.startsWith(`${r.name} `) ? r.why.slice(r.name.length + 1) : r.why);
 const sentenceCase = (text: string): string => (text ? `${text[0]!.toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}` : text);
+/** A reason as a sentence: its stop added, its first word left as it is (it is often a column's name). */
+const withStop = (text: string): string => (text && !/[.!?]$/.test(text) ? `${text}.` : text);
 
 function optionField(option: OptionPlan): HTMLElement {
   if (!plan) return h("span");
@@ -712,7 +722,7 @@ async function drawColumns(): Promise<void> {
   } catch (e) {
     if (mine !== seq) return;
     await loadToolbar(true);
-    clear(side, title, errors, tableLine("", null, null));
+    clear(side, title, errors, lostTable(asked.table));
     showError(errors, e, { dismiss: false, agent: false });
   }
 }
@@ -765,7 +775,7 @@ async function drawCheck(): Promise<void> {
     if (mine !== seq || mode !== asked) return;
     asked.table = found.grid;
     const others = found.ranked.filter((r) => !found.top.includes(r) && !found.top.some((t) => t.analysis === r.analysis));
-    const big = found.top.map((r) => bigButton(r.label, r.name, sentenceCase(r.reason), r.button, () => oneClick(found.grid, r.analysis, null, r.status === "fixes")));
+    const big = found.top.map((r) => bigButton(r.label, r.name, withStop(r.reason), r.button, () => oneClick(found.grid, r.analysis, null, r.status === "fixes")));
     const warnings = found.notes.filter((n) => n.level === "warn");
     clear(
       side,
@@ -789,7 +799,7 @@ async function drawCheck(): Promise<void> {
                 "li",
                 { "data-analysis": r.analysis, "data-status": r.status },
                 r.status === "no" ? h("span", { class: "analyze-ranked-label" }, r.label) : h("button", { type: "button", class: "link", onclick: () => openAnalysis(r.analysis, { table: found.grid }) }, r.label),
-                h("small", {}, sentenceCase(r.reason)),
+                h("small", {}, withStop(r.reason)),
               ),
             ),
           ),
@@ -800,7 +810,7 @@ async function drawCheck(): Promise<void> {
   } catch (e) {
     if (mine !== seq) return;
     await loadToolbar(true);
-    clear(side, title, errors, tableLine("", null, null));
+    clear(side, title, errors, lostTable(asked.table));
     showError(errors, e, { dismiss: false, agent: false });
   }
 }

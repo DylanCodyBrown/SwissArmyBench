@@ -50,7 +50,7 @@ def test_right_click_and_send_buttons_put_details_in_the_sandbox(
         page.locator(".ag-header-cell[col-id='size'] .sab-header-name").click(button="right")
         page.get_by_role("menuitem", name="Distinct values to Analyze").click()
         expect(toast).to_contain_text("On the Analyze board")
-        sandbox_has("Profile of units", "Profile of units (chart)", "Distinct values of size")
+        sandbox_has("Profile of units", "Profile of units (chart)", "Odds: size")
 
         page.locator(".ag-header-cell[col-id='price'] .sab-header-name").click(button="right")
         page.get_by_role("menuitem", name="Profile…").click()

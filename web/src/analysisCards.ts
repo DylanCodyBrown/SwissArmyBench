@@ -1,8 +1,8 @@
 /**
- * analysisCards.ts: an analysis result as Analyze cards that read as a report (Plans/sandbox-report.plan.md,
- * S1): a note (a title, the verdict, a table of the key rows, the key numbers in bold, the cautions) and a
- * Plotly chart beside it, the two sized to share one row. Charts name the theme's colors ("theme:accent"),
- * which lazy/plotly.ts resolves when it draws, so they look right in every theme.
+ * analysisCards.ts: what the grid page sends to the Analyze board by hand, as cards that read as a report: a
+ * column's profile, the whole table's, a value, a row (a note, and a Plotly chart beside it where there is one).
+ * An analysis's own cards are made on the server (domain/analysis_cards.py), for the page, the agent and Python
+ * alike. Charts name the theme's colors ("theme:accent"), which lazy/plotly.ts resolves when it draws.
  */
 
 export interface SandboxCard {
@@ -16,7 +16,6 @@ const number = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
 const whole = new Intl.NumberFormat("en-US");
 export const fmt = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "number" ? (Number.isInteger(v) ? whole.format(v) : number.format(v)) : String(v));
 const pct = (v: number | null | undefined): string => (v === null || v === undefined ? "" : `${(100 * v).toFixed(v < 0.1 ? 1 : 0)}%`);
-const pText = (p: number): string => (p < 0.0001 ? "< 0.0001" : p.toFixed(4));
 /** A cell's text: a bar inside a value would end the cell early. */
 const cell = (v: unknown): string => fmt(v).replace(/\|/g, "\\|").replace(/\n/g, " ");
 

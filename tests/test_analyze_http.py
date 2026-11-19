@@ -539,6 +539,47 @@ def test_a_category_with_one_value_fits_nothing_and_says_why(app: TestClient) ->
     assert refused.status_code == 409 and refused.json()["error"] == "Region has only one value."
 
 
+def test_a_connections_table_is_analysed_through_the_connection_tables_contract(tmp_path: Path) -> None:
+    from tests.fake_keyring import memory_keyring
+    from tests.test_connection_tables import sqlite_connection
+
+    made = [(i, ("North", "South", "East")[i % 3], float(10 + (i * 37) % 900)) for i in range(1, 601)]
+    with memory_keyring(), make_client(tmp_path) as client:
+        sqlite_connection(
+            client, tmp_path, "Shop", {"orders": ("order_id INTEGER, region TEXT, amount REAL", made)}
+        )
+        plan = ok(post(client, "/analyze/plan", {"analysis": "outliers", "table": "[Shop].orders"}))
+        assert plan["dataset"] == "Shop_orders" and plan["rows"] == 600  # every row, not a first-rows cut
+        assert plan["columns"] == {"column": "amount"}
+        ran = ok(post(client, "/analyze/run", {"analysis": "outliers", "table": "[Shop].orders"}, AGENT))
+        assert ran["dataset"] == "Shop_orders" and ran["cards"]
+        assert len(ok(client.get("/grids", headers=AUTH))["grids"]) == 1  # read once, then the open table
+        refused = post(
+            client, "/analyze/run", {"analysis": "outliers", "table": "[Shop].orders; DROP TABLE x"}
+        )
+        assert refused.status_code == 400
+        missing = post(client, "/analyze/plan", {"analysis": "outliers", "table": "[Shop].nothing"})
+        assert missing.status_code in (400, 404) and missing.json()["error"]
+
+
+def test_a_huge_connection_table_is_refused_at_the_read_limit_in_plain_words(tmp_path: Path) -> None:
+    from tests.fake_keyring import memory_keyring
+    from tests.test_connection_tables import sqlite_connection
+
+    made = [(i, "North" if i % 3 else "South", 1.0) for i in range(1, 15_001)]
+    with memory_keyring(), make_client(tmp_path, max_connection_query_rows=10_000) as client:
+        sqlite_connection(
+            client, tmp_path, "Big", {"orders": ("order_id INTEGER, region TEXT, amount REAL", made)}
+        )
+        started = time.monotonic()
+        refused = post(client, "/analyze/run", {"analysis": "fit", "table": "[Big].orders"})
+        assert time.monotonic() - started < 30 and refused.status_code == 400
+        assert (
+            "[Big].orders has 15,000 rows" in refused.text and "Add a WHERE that narrows it" in refused.text
+        )
+        assert board(client) == [] and ok(client.get("/grids", headers=AUTH))["grids"] == []
+
+
 def test_a_huge_table_is_stopped_at_the_time_limit_in_plain_words_not_a_hang(tmp_path: Path) -> None:
     with make_client(tmp_path, query_timeout_seconds=0.0) as client:
         grid = grid_id(push(client, "orders", orders()))

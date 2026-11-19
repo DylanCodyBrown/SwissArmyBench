@@ -253,7 +253,7 @@ def test_check_this_table_suggests_three_each_one_click(
     first = big.filter(has_text="Spot the trend and the seasons")
     expect(first.locator(".analyze-big-verb")).to_have_text("Read when as dates and run")
     expect(first.locator(".analyze-big-reason")).to_have_text(
-        "When holds dates: a trend and seasons can show."
+        "when holds dates: a trend and seasons can show."
     )
     first.click()  # its fix applied in that click, then run: the cards land
     expect(panel.locator(".analyze-board .card").first).to_contain_text("Time series", timeout=30000)

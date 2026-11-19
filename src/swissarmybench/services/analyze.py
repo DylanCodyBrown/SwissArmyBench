@@ -216,6 +216,27 @@ class Analyze:
             )
         return grid, info
 
+    async def _open(self, body: dict[str, Any], who: str) -> tuple[Grid, DatasetInfo]:
+        """The table a request names: an open one (its grid id or name), or a connection's table by its
+        DuckDB SQL name (`[Warehouse].orders`), read through the connection-tables contract into a table
+        of its own (every row, counted first and refused past the limit in plain words) and kept open."""
+        table = body.get("table")
+        if not isinstance(table, str) or not table.lstrip().startswith("["):
+            return self._find(table, body.get("front"))
+        named = table.strip()
+        if len(named) > 300 or any(ch in named for ch in ";\n\r") or "--" in named or "/*" in named:
+            raise ValueError("Name a connection's table as [Connection].table.")
+        name = (
+            "_".join(part for part in "".join(ch if ch.isalnum() else " " for ch in named).split()) or "table"
+        )
+        already = self.ws.grids.first_for(name)
+        if already is not None and self.ws.store.get(name) is not None:
+            return self._find(already.id)
+        # The text is one SELECT for the "+" tab's own guard (domain/sql_guard.py), which refuses the rest.
+        select = f"SELECT * FROM {named}"  # noqa: S608
+        opened = await self._datasets.build_from_query(self._datasets.free_name(name), select, False, who)
+        return self._find(str(opened["grid"]))
+
     def _others(self, grid: Grid) -> list[dict[str, Any]]:
         return [
             {"grid": g.id, "label": self._label(g)}
@@ -368,7 +389,7 @@ class Analyze:
         if not isinstance(body, dict):
             raise ValueError('Send {"analysis": "benford", "table": a grid id or a table name}.')
         c = self._contract(body.get("analysis"))
-        grid, info = self._find(body.get("table"), body.get("front"))
+        grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who)
         columns, options, remembered = self._given(body, info.name, c.id)
         plan = Z.plan(c, info.name, rows, facts, columns, options, self._others(grid))
@@ -397,7 +418,7 @@ class Analyze:
             raise ValueError('Send {"table": a grid id or a table name}, with "analysis" for one analysis.')
         if body.get("analysis") not in (None, ""):
             return await self.plan(body | {"remember": False}, who)
-        grid, info = self._find(body.get("table"), body.get("front"))
+        grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who)
         ranked = Z.rank(info.name, rows, facts, self._others(grid))
         return {
@@ -415,7 +436,7 @@ class Analyze:
         no column, every column of the table with what fits it."""
         if not isinstance(body, dict):
             raise ValueError('Send {"table": a grid id or a table name, "column": name}.')
-        grid, info = self._find(body.get("table"), body.get("front"))
+        grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who)
         base = {"grid": grid.id, "dataset": info.name, "table_label": self._label(grid), "rows": rows}
         if body.get("column") in (None, ""):
@@ -488,7 +509,7 @@ class Analyze:
                 'Send {"analysis", "table", "fixes": [a fix\'s id, ...]} (analyze_check lists them).'
             )
         c = self._contract(body.get("analysis"))
-        grid, info = self._find(body.get("table"), body.get("front"))
+        grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who)
         columns, options, _ = self._given(body | {"remember": False}, info.name, c.id)
         plan = Z.plan(c, info.name, rows, facts, columns, options, self._others(grid))
@@ -533,7 +554,7 @@ class Analyze:
         if body.get("sample"):
             sample = await self.open_sample(c.id, who)
             body = body | {"table": sample["grid"], "columns": sample["columns"], "remember": False}
-        grid, info = self._find(body.get("table"), body.get("front"))
+        grid, info = await self._open(body, who)
         rows, facts = await self.facts(grid, info, who, token)
         columns, options, _ = self._given(body, info.name, c.id)
         others = self._others(grid)

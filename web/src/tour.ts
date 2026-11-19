@@ -173,17 +173,9 @@ export const STOPS: readonly Stop[] = [
     target: ['.ribbon-group[aria-label^="Table tools"] [aria-label="Profile"]'],
   },
   {
-    icon: "fit",
-    word: "Analyze",
-    line: "Statistics on the table in front: odds, outliers, fit tests, regression, time series and forecasts. Each asks a few questions in a short form, and its results go to Analyze or copy as Python. Click Analyze in the Table row.",
-    clue: "Odds, outliers, fit tests, regression and forecasts on the table in front.",
-    place: { grid: "orders" },
-    target: ['.ribbon [aria-label="Analyze"]'],
-  },
-  {
     icon: "columns",
     word: "Compare",
-    line: "Two tables side by side, matched row by row on the keys you pick. See what matches, what is on one side only and which values differ, then check that the totals tie out. Drag one tab onto another, or right-click a tab and choose Compare with.",
+    line: "Two tables side by side, matched row by row on the keys you pick. See what matches, what is on one side only and which values differ. Drag one tab onto another, or right-click a tab and choose Compare with.",
     clue: "Two tables side by side, row by row.",
     place: { grid: "pair" },
     target: ['.ribbon-group[aria-label^="Compare tools"]', ".tabs-row"],
@@ -253,7 +245,7 @@ export const STOPS: readonly Stop[] = [
   {
     icon: "image",
     word: "Analyze",
-    line: "Every analysis across the top, in everyday words: the table is already picked, so you usually only press Run. Each result lands on the board below, with charts, notes and your own cards; save it as a dashboard or print it. Click Analyze on the rail.",
+    line: "Every analysis across the top, in everyday words: odds, outliers, fit tests, regression, forecasts, tie-outs. The table is already picked, so you usually only press Run. Each result lands on the board below, with charts, notes and your own cards; save it as a dashboard or print it. Click Analyze on the rail.",
     clue: "Every analysis in one place; each result lands on the board.",
     place: { area: "analyze" },
     target: ["#ai-panel .analyze-toolbar", "#ai-panel"],

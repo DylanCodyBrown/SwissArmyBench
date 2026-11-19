@@ -3499,7 +3499,18 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   not read as a date); `TRY_CAST('2024-01-05 10:30:00' AS DATE)` reads; `TRY_CAST('nan' AS DOUBLE)` and
   `'inf'` read as numbers, so the number reading keeps only finite ones; `try_strptime` with one format reads
   one style only.
-- **Not checked:** a connection's table picked through Find data… in a browser against a real database (the
-  form takes any open table, and a connection's table opens as one through the connection-tables contract,
-  whose limit is its own tests'); the desktop app's window; Edge (the tests ran in Chromium here); very wide
+- **A connection's table:** `[Shop].orders` named as the table reads it whole through the connection-tables
+  contract into a table of its own (600 rows, not a first-rows cut), once; past the read limit it is refused
+  with the contract's own words ("[Big].orders has 15,000 rows ... Add a WHERE that narrows it") and nothing
+  is opened.
+- **Whole suite (Chromium):** 4762 passed, 46 skipped, 7 failed, 1 error in 39 minutes. Two were this work's
+  (tests/test_themes.py still called the old theme routes: fixed, passing). Four passed alone
+  (test_streamlit_page's two canvas tests, test_table_cells_page's maker that stays put, test_text_cells_page's
+  markdown starter) and so did test_workbench_page's fixture error. One fails alone and is not this work's:
+  test_beta_notes_page expects no app menu on a right-click in a text box, and the variable list's menu
+  (15e7d47, already on the branch this started from) shows one. test_tour's Steps card fails about one run in
+  three alone (the tour adds its sort step before the grid's tab exists: also from before this work).
+- **Not checked:** a connection's table picked through Find data… in a browser against a real database;
+  tests/e2e/test_real_world.py's use case 9 (rewritten for the Analyze page, but the test bed was not up, so
+  it was skipped); the desktop app's window; Edge (the tests ran in Chromium here); very wide
   tables (hundreds of columns) for the facts query's time.

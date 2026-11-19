@@ -155,9 +155,11 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         lights_up(tour, page.locator('.ribbon-group[aria-label^="Compare tools"]'))
         # Back: the previous card's place again (one table, no compare).
         page.keyboard.press("ArrowLeft")
-        expect(tour.locator(".tour-word")).to_have_text("Analyze")
+        expect(tour.locator(".tour-word")).to_have_text("Profile")
         expect(page.locator(".panes")).to_have_attribute("data-split", "off")
-        lights_up(tour, page.locator('.ribbon [aria-label="Analyze"]'))
+        lights_up(tour, page.locator('.ribbon-group[aria-label^="Table tools"] [aria-label="Profile"]'))
+        # The analyses are not on the grid any more: Analyze is its own card further on, at its toolbar.
+        expect(page.locator('.ribbon [aria-label="Analyze"]')).to_have_count(0)
         # The ERD, and a code area (another window): its rail icon, with the page left as it was.
         to_word(page, tour, "ERD")
         expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
