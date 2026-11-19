@@ -65,6 +65,10 @@ def grid_page(browser: Browser, url: str, **context: Any) -> Page:
     ).new_page()
     page.goto(url)
     expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
+    # The rows drawn (the status bar counts them once they are): pictures show a filled grid.
+    page.locator(".ag-row[row-index='0'] .ag-cell[col-id='crates']").hover()
+    expect(page.locator("#status")).to_contain_text("Rows ", timeout=20000)
+    page.mouse.move(5, 5)
     return page
 
 
