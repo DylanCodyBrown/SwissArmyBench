@@ -73,6 +73,7 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.client import blades_client, connection_use, standalone
+from swissarmybench.client.kernel_values import is_table
 from swissarmybench.client.push_client import ServerNotRunningError
 from swissarmybench.client.writes import quote
 from swissarmybench.domain import dataverse, lakes, variable_refs
@@ -190,12 +191,6 @@ def _duckdb() -> Any:
             f"A file or table's SQL runs in DuckDB in this Python: {sys.executable} -m pip install duckdb"
         ) from None
     return duckdb
-
-
-def _is_table(value: Any) -> bool:
-    """A DataFrame-like table (pandas, polars, Arrow): something DuckDB reads by its variable name."""
-    module = type(value).__module__.split(".")[0]
-    return module in ("pandas", "polars", "pyarrow") and hasattr(value, "columns")
 
 
 def _files_in(path: Path) -> list[Path]:
@@ -399,9 +394,7 @@ def open_connection(name: str, fresh: bool = True) -> Connection:
         _connections[" ".join(name.split()).casefold()] = found
     elif isinstance(value, (str, os.PathLike)):
         found = _open_files(label, value)
-    elif _is_table(value) or (
-        isinstance(value, dict) and value and all(_is_table(v) for v in value.values())
-    ):
+    elif is_table(value) or (isinstance(value, dict) and value and all(is_table(v) for v in value.values())):
         found = _open_tables(label, value, str(record.get("variable") or ""))
     elif dataverse.is_dataverse(record.get("dialect")) and _runs_sql(value):
         made = "a Dataverse environment: SQL on its read-only SQL endpoint (T-SQL, SELECT only)"
@@ -634,7 +627,7 @@ def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
             if (
                 isinstance(name, str)
                 and not name.startswith("_")
-                and _is_table(value)
+                and is_table(value)
                 and re.search(rf"(?<![\w.]){re.escape(name)}(?![\w])", sql)
             ):
                 con.register(name, value)

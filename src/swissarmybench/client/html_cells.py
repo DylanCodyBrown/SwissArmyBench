@@ -21,19 +21,11 @@ import json
 import sys
 from typing import Any
 
+from swissarmybench.client.kernel_values import namespace as _namespace
 from swissarmybench.domain import html_cells as rules
 
 _MISSING: Any = object()
 MIME: str = "application/vnd.swissarmybench.html-cell+json"
-
-
-def _namespace() -> dict[str, Any]:
-    ipython = sys.modules.get("IPython")
-    shell = ipython.get_ipython() if ipython is not None else None
-    if shell is not None:
-        return shell.user_ns  # type: ignore[no-any-return]
-    main = sys.modules.get("__main__")
-    return vars(main) if main is not None else {}
 
 
 def value_of(name: str, namespace: dict[str, Any] | None = None) -> dict[str, Any]:

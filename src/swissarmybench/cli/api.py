@@ -20,11 +20,10 @@ import os
 import socket
 import struct
 import time
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-from swissarmybench.renamed import env, home_state_folder
+from swissarmybench.client.push_client import info_file as info_file  # the server's connection file
 
 NOT_RUNNING = (
     "Swiss Army Bench isn't running. Start it with the swissarmybench command (installed with uv), or "
@@ -34,12 +33,6 @@ NOT_RUNNING = (
 
 class CommandError(Exception):
     """A command failed. The message is the plain-language reason, safe to show the agent."""
-
-
-def info_file() -> Path:
-    """The server's connection file; SWISSARMYBENCH_INFO overrides it (tests use this)."""
-    override = env("SWISSARMYBENCH_INFO")
-    return Path(override) if override else home_state_folder() / "server.json"
 
 
 def _info() -> dict[str, Any]:
