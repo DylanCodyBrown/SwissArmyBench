@@ -3657,3 +3657,43 @@ Not checked:
 - Now with a widget whose value is not JSON (a file upload, a data editor's edits): the pane sends plain values.
 - A page with dozens of containers (no speed measurement); Windows paths in a container's file round trip.
 - Clear this cache on a function imported from another module by another name.
+
+## The canvas's remaining work; Launch, builds and the Performance Analyzer (2026-11-19, branch canvas-rest)
+
+Checked:
+
+- **SQL and DAX blocks** (tests/test_canvas_queries.py): a block's code is the exporter's call (`query_cell`),
+  no magic line; page values read outside strings and comments; sab_queries.py's own text run with a stand-in
+  Streamlit: SQL bound in qmark, pyformat (`%` doubled) and named style, an injection attempt stays data in
+  SQLite; DAX literals for text (quotes doubled), numbers, booleans, blanks, dates, lists, never inside a
+  string; views (bar, metric, cache off) and check_view; the view in the app's file, read back byte for byte;
+  with Streamlit 1.67 (AppTest): a SQL block on SQLite and a DAX block on tests/powerbi_standin.py (a new FILTER
+  form) export, run, and a select feeds `WHERE region = ?` / the DAX filter (the rows change with the pick);
+  Play writes sab_queries.py; no password in it (the Power BI secret read from the environment by name).
+  The pane's query section, the Toolbox's SQL query and DAX query, the view over HTTP.
+- **Fragments** (tests/test_canvas_fragments.py): the rule (widgets feeding only their block; a form or the
+  sidebar; `import *`; a read before a make); the page's `@st.fragment` code compiles; AppTest with a
+  fragment-scoped rerun (the browser's RerunData): changing the fragment's slider reran it alone (a made-up
+  counter in session state stayed), a select that feeds another block reran the page.
+- **Launch and builds** (tests/test_canvas_launch.py): the wire reader on messages Streamlit's own classes
+  wrote (tests/golden/perf); the socket per rerun and its trigger; every hint's rule and its words; build.json
+  sorted and stable; what changed in words; compare; Restore's plans; over HTTP with the process stood in for:
+  a build's files (no Parquet, no timing lines), the run folder's (timed, the tables, sab_perf.py), a second
+  launch's changes, Compare, Restore, Stop; the analyzer records only while attached, its session, hints, Save
+  into the build, Pause.
+- **In the browser** (Chromium; tests/e2e/test_canvas_rest_page.py, test_launch_page.py with Streamlit 1.67):
+  a SQL block's pane (connection, the parameter's block), Show as a bar chart, the Toolbox's SQL query writes a
+  %%sql cell; the session state binding line; a shared property set on two sliders' cells; Uses opens the
+  Variables page at a name and a connection's card; Add to app from a live cell; each designer view light and
+  dark; Launch opens a window titled "orders · build 1"; the analyzer attached in its own window records a
+  widget's change as a rerun with its trigger, the slow block's 120 ms, the dataframe's message size, and says
+  the big table and the needless rerun; closing it stops the recording; Ctrl+F5 shows build 2 in the same
+  window; Compare in the Builds dialog shows the changed page.
+
+Not checked:
+
+- Edge and the desktop app's own window (window.open there opens a desktop window: not driven here).
+- A real Power BI or SQL Server behind a query block (stand-ins and SQLite only); `${NAME}` in a block's query.
+- The analyzer's file reads and outside requests on a real app (their patching is in sab_perf.py; no test drives
+  a page that makes them); a fragment's own reruns in the page's records (the socket sees them).
+- Builds trimmed by a setting (the rule is tested; no Settings switch).
