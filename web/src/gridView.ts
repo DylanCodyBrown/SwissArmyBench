@@ -24,8 +24,15 @@
  *          [COPY]            -> Ctrl+C -> copySelection()  (server-built tab-separated text)
  */
 import {
-  AllCommunityModule,
+  CellStyleModule,
+  ColumnApiModule,
+  ColumnAutoSizeModule,
+  InfiniteRowModelModule,
   ModuleRegistry,
+  RenderApiModule,
+  RowApiModule,
+  RowStyleModule,
+  ScrollApiModule,
   createGrid,
   type ColDef,
   type GridApi,
@@ -45,7 +52,19 @@ import { gridRowHeight, gridTheme, gridZoom, headerProfiles, onHeaderProfilesCha
 import { openValueViewer } from "./valueViewer";
 import { errorHere, errorNote } from "./errorNote";
 
-ModuleRegistry.registerModules([AllCommunityModule]);
+// Only the modules the grids use (the core brings the client-side row model queryTab.ts's empty grid
+// uses, sorting, resizing, pinned columns, header components and keyboard focus). A missing one makes
+// AG Grid log "error #200" in the console; the browser tests fail on it (tests/e2e/conftest.py).
+ModuleRegistry.registerModules([
+  InfiniteRowModelModule, // the rows, asked of the server by windows
+  CellStyleModule, // cellClass, cellClassRules
+  RowStyleModule, // getRowClass
+  ColumnAutoSizeModule, // autoSizeColumns
+  ColumnApiModule, // getColumn, column state, visibility, displayed columns
+  RowApiModule, // displayed rows, redrawRows
+  ScrollApiModule, // ensure*Visible, pixel ranges
+  RenderApiModule, // refreshCells, refreshHeader
+]);
 
 const MARKER = "__sab_marker";
 const FILLER = "__sab_filler";

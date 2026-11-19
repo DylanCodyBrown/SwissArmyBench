@@ -11,7 +11,15 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from playwright.sync_api import Browser, BrowserContext, Page, Playwright, expect, sync_playwright
+from playwright.sync_api import (
+    Browser,
+    BrowserContext,
+    ConsoleMessage,
+    Page,
+    Playwright,
+    expect,
+    sync_playwright,
+)
 
 E2E = Path(__file__).resolve().parent
 # What a browser test waits for at most: an expect and a page's action alike. Playwright's own five
@@ -60,6 +68,16 @@ class _Shared:
 
 _SHARED = _Shared()
 
+# AG Grid's errors in any page's console (a module the page did not register says "error #200"): every
+# context and page the tests make is listened to, and no_ag_grid_errors fails the test that saw one
+# (gridView.ts registers only the modules it uses).
+AG_GRID_ERRORS: list[str] = []
+
+
+def _ag_grid_error(message: ConsoleMessage) -> None:
+    if message.type == "error" and "AG Grid" in message.text:
+        AG_GRID_ERRORS.append(message.text)
+
 
 class _BrowserHandle:
     """What the `browser` fixture hands out: the shared browser, whichever is running now, with each new
@@ -67,12 +85,14 @@ class _BrowserHandle:
 
     def new_context(self, **options: Any) -> BrowserContext:
         context = _SHARED.get().new_context(**options)
+        context.on("console", _ag_grid_error)
         context.set_default_timeout(WAIT_MS)
         context.set_default_navigation_timeout(LOAD_MS)
         return context
 
     def new_page(self, **options: Any) -> Page:
         page = _SHARED.get().new_page(**options)
+        page.context.on("console", _ag_grid_error)
         page.context.set_default_timeout(WAIT_MS)
         page.context.set_default_navigation_timeout(LOAD_MS)
         return page
@@ -96,6 +116,16 @@ def pytest_runtest_teardown(item: pytest.Item, nextitem: pytest.Item | None) -> 
         _SHARED.stop()
     elif nextitem.path != item.path:
         _SHARED.close_contexts()
+
+
+@pytest.fixture(autouse=True)
+def no_ag_grid_errors() -> Iterator[None]:
+    """AG Grid logged no error in any page of the test (a missing module is "AG Grid: error #200")."""
+    AG_GRID_ERRORS.clear()
+    yield
+    seen = list(AG_GRID_ERRORS)
+    AG_GRID_ERRORS.clear()
+    assert not seen, f"AG Grid logged errors: {seen[:3]}"
 
 
 @pytest.fixture(autouse=True)
