@@ -159,6 +159,8 @@ export interface Inspected {
   cache?: CacheRow[];
   code?: string;
   query?: QueryInfo | null;
+  /** Its widgets feed only itself: the page runs it as an st.fragment. */
+  fragment?: boolean;
 }
 
 interface TablePreview {
@@ -794,7 +796,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
       { name: "Show as", category: "Appearance", words: "A table, a chart of its columns, or one value.", editor: how, set: shownAs !== "table" },
       ...(["bar", "line", "area"].includes(shownAs) ? [field("x", "X", view.x ?? "", "The column along the bottom."), { ...field("y", "Y", ys, "The column (or columns, by commas) drawn."), editor: boxInput(ys, "Y", (typed, input) => setView({ y: typed.includes(",") ? typed.split(",").map((t) => t.trim()).filter(Boolean) : typed.trim() }, input), { dataset: { field: "y" } }) }] : []),
       ...(shownAs === "metric" ? [field("column", "Column", view.column ?? "", "The column whose first value it shows."), field("label", "Label", view.label ?? "", "The words above the value.")] : []),
-      { name: "Cache", category: "Behavior", words: "Kept by Streamlit for the same query and values: a change of a value it reads asks again.", editor: cache, set: view.cache === false },
+      { name: "Cache", category: "Behaviour", words: "On by default: Streamlit keeps the result for the same query and values; a change of a value it reads asks again.", editor: cache, set: view.cache === false },
     ];
     const params = q.params.map((p) => {
       const el = link(p.block ? "link" : "warning", `{{ ${p.name} }}`, () => (p.block ? c.select(p.block) : p.document && p.cell ? host.goToCell(p.document, p.cell) : undefined), p.title ? `← ${p.title}` : "not on this page");
@@ -888,7 +890,14 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
           return select;
         })()
       : null;
-    const all = [...designRows(block, seen.block), ...(widget ? widgetRows(block.id, widget, seen.editable === true, where) : [])];
+    const reruns: Row = {
+      name: "Reruns",
+      category: "Behaviour",
+      words: seen.fragment ? "Its widgets feed only itself: the page runs it as an st.fragment, so a change of them reruns it alone." : "A change of its widgets reruns the whole page (another block reads what it makes, or it has none).",
+      editor: h("span", { class: "cp-reruns", dataset: { fragment: String(!!seen.fragment) } }, seen.fragment ? "Alone (fragment)" : "The whole page"),
+      set: !!seen.fragment,
+    };
+    const all = [...designRows(block, seen.block), ...(widgets.some((w) => w.widget) ? [reruns] : []), ...(widget ? widgetRows(block.id, widget, seen.editable === true, where) : [])];
     const streamlit = section("streamlit", "Streamlit", null, stateSection(block.id, widgets, seen.running), bindingsPart(block.id, widgets, seen.editable === true), cacheSection(block.id, seen.cache ?? [], seen.running));
     clear(
       body,

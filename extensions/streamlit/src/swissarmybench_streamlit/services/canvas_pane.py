@@ -328,7 +328,13 @@ class CanvasPane:
         if query is not None:
             uses |= {"connections": [query["connection"]], "dataset": query["dataset"]}
             uses |= {"query_tables": query["tables"], "dataset_tables": query["dataset_tables"]}
+        codes = {b.id: c for b in page.blocks if (c := linked.code(b.key)) is not None}
+        alone = rules.fragment_blocks(
+            page.blocks, {i: rules.facts(c) for i, c in codes.items()}, codes, page.containers
+        )
         return answer | {
+            # Its widgets feed only itself: the page runs it as an st.fragment (a change reruns it alone).
+            "fragment": block.id in alone,
             "query": query,
             "problem": read.problem,
             "editable": kind == "code" and read.problem is None,

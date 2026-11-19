@@ -271,6 +271,7 @@ def test_the_toolbox_and_a_dropped_elements_cell(
         "name": "Slider 1",
         "variable": "slider_1",
         "element": "slider",
+        "kind": "code",
     }
     # A data element shows an open table.
     frame = _ok(client.post(f"/streamlit/apps/{app}/toolbox", headers=AUTH, json={"element": "dataframe"}))

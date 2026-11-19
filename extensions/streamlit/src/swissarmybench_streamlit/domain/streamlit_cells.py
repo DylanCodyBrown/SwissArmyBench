@@ -1355,6 +1355,7 @@ class PageCode:
     problems: tuple[str, ...]  # what the page says instead of running a block
     # (block, name): a name a block reads whose maker is not on the page, given its default instead
     defaulted: tuple[tuple[str, str], ...] = ()
+    fragments: tuple[str, ...] = ()  # the blocks that run as st.fragment (`fragment_blocks`)
 
 
 @dataclass(frozen=True)
@@ -1505,6 +1506,7 @@ def page_code(
     record: bool = False,
     trace: str | None = None,
     containers: Sequence[Container] = (),
+    fragments: bool = True,
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -1526,7 +1528,8 @@ def page_code(
     block that reads one gets its default, written once above the blocks. `record`: each block also
     writes its error into st.session_state (a test of the page reads them: domain/controllers.py).
     `trace`: the page's id, while it plays in the app: after each block runs, its names' values are
-    noted for the lineage overlay (TRACE_MODULE), and its error when it fails.
+    noted for the lineage overlay (TRACE_MODULE), and its error when it fails. `fragments`: a block whose
+    widgets feed only itself runs as an st.fragment (`fragment_blocks`): its widget reruns it alone.
     """
     known = [b for b in placed if b.key in pieces]
     found = {b.id: facts(pieces[b.key].code) for b in known}
@@ -1564,6 +1567,13 @@ def page_code(
         if table in named and table not in used:
             used.append(table)
     problems: list[str] = []
+    parts = (
+        fragment_blocks(
+            placed, {k: v for k, v in found.items()}, {b.id: pieces[b.key].code for b in known}, containers
+        )
+        if fragments
+        else set()
+    )
     out: list[str] = [f"# {title}"]
     if record:
         out += ["import streamlit as st", "", f"st.session_state[{RECORD!r}] = {{}}", ""]
@@ -1625,6 +1635,8 @@ def page_code(
             text = f"st.caption({notes[block_id]!r})\n{text}"
         if not runs_something(text):
             text = "pass"
+        part = b.id in parts
+        start = len(out)
         out.append(f"with _slot_{b.id}:")
         noted = ""
         if trace is not None:
@@ -1644,10 +1656,96 @@ def page_code(
                 out.append(f"        {noted}, _error)")
         else:
             out.append(indented(text))
+        if part:
+            # A fragment: its widgets rerun only it (st.fragment), drawn in its own slot.
+            out[start] = f"@st.fragment\ndef _sab_part_{b.id}():"
+            out.append(f"\n\nwith _slot_{b.id}:\n    _sab_part_{b.id}()")
         out.append("")
     return PageCode(
-        "\n".join(out).rstrip("\n") + "\n", tuple(used), ordered.order, tuple(problems), tuple(defaulted)
+        "\n".join(out).rstrip("\n") + "\n",
+        tuple(used),
+        ordered.order,
+        tuple(problems),
+        tuple(defaulted),
+        tuple(i for i in ordered.order if i in parts),
     )
+
+
+def has_widgets(code: str) -> bool:
+    """The code calls one of Streamlit's input widgets (st.slider, a column's .selectbox...)."""
+    try:
+        tree = ast.parse(body(code))
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in WIDGETS
+        for n in ast.walk(tree)
+    )
+
+
+def _fits_a_function(code: str) -> bool:
+    """The code can run as a function's body unchanged: no return, yield, global, nonlocal or `import *`."""
+    try:
+        tree = ast.parse(body(code))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda | ast.ClassDef):
+            continue
+        if isinstance(node, ast.Return | ast.Yield | ast.YieldFrom | ast.Global | ast.Nonlocal | ast.Await):
+            if not _inside_function(tree, node):
+                return False
+        if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+            return False
+    return True
+
+
+def _inside_function(tree: ast.AST, target: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) and node is not target:
+            if any(child is target for child in ast.walk(node)):
+                return True
+    return False
+
+
+def fragment_blocks(
+    placed: Sequence[Block],
+    found: Mapping[str, Facts],
+    codes: Mapping[str, str],
+    containers: Sequence[Container] = (),
+) -> set[str]:
+    """The blocks of a page that may run as an st.fragment (the research's first item, 2026-11-19): a block
+    whose widgets only feed itself reruns alone. A block qualifies when it calls an input widget, no other
+    block on the page reads a name it makes (a widget that feeds other blocks keeps the whole-page rerun),
+    it does not read a name it also makes, it does not sit in a form or the sidebar (Streamlit keeps a
+    fragment's widgets out of both), and its code runs as a function's body unchanged."""
+    boxes = {c.id: c for c in containers}
+    readers: dict[str, set[str]] = {}
+    for b in placed:
+        mine = found.get(b.id)
+        if mine is not None:
+            for name in mine.reads:
+                readers.setdefault(name, set()).add(b.id)
+    chosen: set[str] = set()
+    for b in placed:
+        mine, code = found.get(b.id), codes.get(b.id)
+        if mine is None or code is None or mine.problem or not has_widgets(code):
+            continue
+        makes = {n for n in mine.makes if n not in PROVIDED}
+        if any(readers.get(name, set()) - {b.id} for name in makes) or makes & set(mine.reads):
+            continue
+        holder, seen = b.parent, 0
+        walled = False
+        while holder and seen <= MAX_DEPTH:
+            box = boxes.get(holder)
+            if box is None:
+                break
+            walled = walled or box.kind in ("form", "sidebar")
+            holder, seen = box.parent, seen + 1
+        if walled or not _fits_a_function(code):
+            continue
+        chosen.add(b.id)
+    return chosen
 
 
 def makers(codes: Mapping[int, str], order: Sequence[int]) -> dict[int, Facts]:
