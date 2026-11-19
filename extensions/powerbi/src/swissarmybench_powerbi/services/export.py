@@ -1,6 +1,6 @@
 """Export to Power BI… on the ERD page (the owner, 2026-11-19: "Make a powerbi desktop file with our model
 exported an option on the erd page"): the model's tables, relationships and each table's Power Query as a
-Power BI Project. Rules in domain/powerbi_export.py (the files) and domain/power_query.py (each source's M).
+Power BI Project. Rules in domain/export.py (the files) and domain/power_query.py (each source's M).
 
   plan    what the dialog shows: the tables the ERD shows, each going or not (why, and its fix: Include its
           rows), its notes (steps not carried, a type as text, Only works on your machine), the relationships
@@ -25,8 +25,6 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import portability
-from swissarmybench.domain import power_query as pq
-from swissarmybench.domain import powerbi_export as rules
 from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain.blades import Blade, BladeCodeError, detect_settings
 from swissarmybench.domain.codegen import variable_name, view_query
@@ -37,6 +35,8 @@ from swissarmybench.domain.table_cells import Origin
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.relationships import Asker, Models
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
+from swissarmybench_powerbi.domain import export as rules
+from swissarmybench_powerbi.domain import power_query as pq
 
 MAX_TABLES: int = 200
 

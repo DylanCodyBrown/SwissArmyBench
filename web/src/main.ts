@@ -51,6 +51,7 @@ import { openCompareDialog } from "./compareDialog";
 // them, so they load here even with no button of theirs on the page.
 import "./settingsWindow";
 import "./connectionsWindow";
+import "./powerbiExport"; // the Power BI extension's ERD dialog (a plug-in: its button only while it is on)
 import { pulse, setFollower, setGoer, type Entry, type Target } from "./sessionPage";
 import { highlightRelationships } from "./erdView";
 import { showInSandbox } from "./sandboxShow";

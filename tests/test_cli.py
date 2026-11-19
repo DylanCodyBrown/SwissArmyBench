@@ -129,8 +129,6 @@ NOT_COMMANDS = {
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
     "/analyze/land": "sab.analyze's own: a result Python computed on a DataFrame, put on the board (the "
     "agent runs an analysis with analyze_run, which lands its cards itself)",
-    "/powerbi/open": "Open in Power BI Desktop starts a program on the user's screen: the user's click (like "
-    "Show in folder)",
     "/relationships/tangs": "the old name of /relationships/sets (a tang until 2026-11-17), one release",
     "/relationships/tang": "the old name of /relationships/set (a tang until 2026-11-17), one release",
     "/projects": "a project type's scaffold alone, not opened (an extension's own New): project_new makes "
@@ -201,6 +199,7 @@ NOT_COMMANDS = {
     "/accounting/{}": "the Accounting extension is not on here: its door says so (extensions_install)",
     "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
     "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
+    "/powerbi/{}": "the Power BI extension is not on here: its door says so (extensions_install)",
     "/git/{}": "the Git extension is not on here: its door says so (extensions_install)",
     "/team/pull": "the Team box's Pull: github_pull (the team library's folder) is the same",
     "/team/push": "the Team box's Push: github_push (the team library's folder) is the same",
@@ -751,8 +750,7 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # 86,000 (2026-11-19): the Analyze page's ten: analyze_contracts, _tables, _check, _plan, _column, _fix,
     # _run, _cancel, _runs (a result's inputs, math, code, grid) and _sample; analyze_shape and
     # analyze_defaults went (the checker answers both).
-    # 86,300 (2026-11-19): erd_export_powerbi (Export to Power BI…).
-    assert size < 86_300, f"the tool list is {size} characters"
+    assert size < 86_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

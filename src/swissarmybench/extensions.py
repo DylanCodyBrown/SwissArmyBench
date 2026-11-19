@@ -64,6 +64,9 @@ BASE_MODE: dict[str, Any] = {
     # The editors' inline completion (ghost text): each on extension's INLINE_COMPLETION, in every mode, as
     # data: {id, name, languages, complete, cancel, event, status, toggle} (routes the editor calls).
     "inline_completion": [],
+    # Buttons an on extension adds to a base page (its PAGE_ACTIONS), in every mode, as data: {page, id,
+    # label, icon, title}; the page runs its plug-in of that id (web/src/pageActions.ts), never naming it.
+    "page_actions": [],
 }
 # A Streamlit app, for beginners: a base project with its app's canvas (until the Streamlit extension brings
 # its own project type, whose mode then says it). `make` is what New project sends for it.
@@ -177,6 +180,21 @@ def inline_completions(on: list[ModuleType]) -> list[dict[str, Any]]:
     return out
 
 
+_ACTION_FIELDS = ("page", "id", "label", "icon", "title")
+
+
+def page_actions(on: list[ModuleType]) -> list[dict[str, str]]:
+    """The buttons the on extensions add to the base's pages (their PAGE_ACTIONS), read loosely: one with no
+    page, id or label is left out."""
+    out: list[dict[str, str]] = []
+    for module in on:
+        raw = getattr(module, "PAGE_ACTIONS", None)
+        for action in raw if isinstance(raw, list | tuple) else ():
+            if isinstance(action, dict) and all(action.get(k) for k in ("page", "id", "label")):
+                out.append({k: str(action.get(k) or "") for k in _ACTION_FIELDS})
+    return out
+
+
 def modes() -> list[dict[str, Any]]:
     """Every project type's mode: the base's first, then each on extension's (its MODE); each with the on
     extensions' inline completion providers."""
@@ -187,8 +205,10 @@ def modes() -> list[dict[str, Any]]:
         if mode is not None and mode["type"] not in {m["type"] for m in out}:
             out.append(mode)
     providers = inline_completions(on)
+    actions = page_actions(on)
     for mode in out:
         mode["inline_completion"] = [dict(p) for p in providers]
+        mode["page_actions"] = [dict(a) for a in actions]
     return out
 
 

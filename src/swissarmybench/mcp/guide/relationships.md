@@ -27,14 +27,6 @@ compare by themselves; the ERD draws the model of the open tables.
   draw only the tables it uses (open, in .sab/project.json, or named in its documents' code) and a join
   only when both ends are; `scope=all` draws everything. `relationships_scope`: which tables are used,
   which hidden, by connection. The model keeps every relationship either way.
-- `erd_export_powerbi`: Export to Power BI… as the ERD page does it: the tables (default: the ERD's), their
-  relationships and each table's Power Query as a Power BI Project in the open project's `powerbi/` (no
-  project: a zip in the export folder). `dry_run=true` says what would go: each table going or not and why
-  (a source Power Query cannot read: `include_rows` sends its rows as Parquet, and waits for the user's
-  Allow), the steps carried as the source's own SQL or not, the relationships made inactive (Power BI keeps
-  one active path between two tables) or left out (two-column joins, types that differ). A `${NAME}` is a
-  Power Query parameter; no password or secret is ever written. Opening it in Power BI Desktop is the
-  user's click.
 
 ## Compare (two grids side by side)
 - `compare_grids`: matched, left-only and right-only counts, without touching the page.

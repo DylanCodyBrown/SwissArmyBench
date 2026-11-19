@@ -14,10 +14,10 @@ import pytest
 from examples.sample_store import TRUE_RELATIONSHIPS, make_store
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import power_query as pq
-from swissarmybench.domain import powerbi_export as rules
 from swissarmybench.domain.relationships import Relationship
 from swissarmybench.domain.table_cells import Origin
+from swissarmybench_powerbi.domain import export as rules
+from swissarmybench_powerbi.domain import power_query as pq
 from tests.conftest import AGENT, AUTH, make_client
 from tests.fake_keyring import memory_keyring
 
@@ -27,7 +27,8 @@ TABLES = ("regions", "stores", "customers", "orders", "calendar")
 
 
 @pytest.fixture(autouse=True)
-def vault() -> Iterator[None]:
+def vault(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit,powerbi")
     with memory_keyring():
         yield
 
@@ -537,3 +538,29 @@ def test_the_agents_export_with_rows_waits_for_the_users_allow(tmp_path: Path) -
         assert not (tmp_path / "Store analysis" / "powerbi").exists()
         without = ok(client.post("/powerbi/export", json={"tables": ["regions"]}, headers=AGENT))
         assert without["written"]
+
+
+def test_the_erds_button_is_the_extensions_page_action_as_data(monkeypatch: pytest.MonkeyPatch) -> None:
+    from swissarmybench import extensions
+
+    actions = extensions.modes()[0]["page_actions"]
+    assert actions == [
+        {
+            "page": "erd",
+            "id": "powerbi_export",
+            "label": "Export to Power BI…",
+            "icon": "export",
+            "title": "These tables and their relationships as a Power BI Project",
+        }
+    ]
+    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit")
+    assert all(m["page_actions"] == [] for m in extensions.modes())
+
+
+def test_with_the_extension_off_its_door_says_which_it_needs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SWISSARMYBENCH_EXTENSIONS", "streamlit")
+    with make_client(tmp_path) as client:
+        refused = client.post("/powerbi/plan", json={}, headers=AUTH)
+        assert refused.status_code >= 400 and "Power BI" in refused.text

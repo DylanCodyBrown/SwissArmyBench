@@ -1,4 +1,4 @@
-"""Export to Power BI… (services/powerbi_export.py), for the ERD page and the agent (`erd_export_powerbi`).
+"""Export to Power BI… (services/export.py), for the ERD page and the agent (`powerbi_export`).
 
 POST /powerbi/plan    {"tables"?, "name"?, "include_rows"?}: what goes, what not and why, the relationships
 POST /powerbi/export  the same body: written into the open project's powerbi/ (JSON), or with no project a
@@ -14,7 +14,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import actor, error_response, json_response, read_json
-from swissarmybench.services.powerbi_export import PowerBIExport
+from swissarmybench_powerbi.services.export import PowerBIExport
 
 
 def routes(export: PowerBIExport) -> list[BaseRoute]:

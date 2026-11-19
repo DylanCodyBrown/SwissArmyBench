@@ -147,6 +147,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "writing": "Writing data: which connections write, the Write starters, a dry run first",
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
     "powerapps": "Power Apps (an extension): code apps with pa and pac, sources, connectors, Run live, Push",
+    "powerbi": "Power BI (an extension): the model exported as a Power BI Project from the ERD",
     "git": "Git (an extension): GitHub sync of the meta store and shared projects, Source Control, the graph",
 }
 
@@ -1212,19 +1213,6 @@ def add_erd(a: dict[str, Any]) -> Any:
         {"kind": "diagram", "title": a.get("title") or "Relationships", "body": drawn["mermaid"]},
     )
     return {"card": card["card"], "tables": drawn["tables"]}
-
-
-@command(
-    "erd_export_powerbi",
-    "The model as a Power BI Project in the project's powerbi/ (none open: a zip); what went, what not, why",
-    opt("tables", "Comma-separated tables (default: the ERD's)."),
-    opt("name", "File name (default: the project's)."),
-    opt("include_rows", "Comma-separated tables whose rows go as Parquet (asks the user)."),
-    opt("dry_run", "true: only say what would go.", "bool"),
-)
-def erd_export_powerbi(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("tables", "name", "include_rows") if a.get(k)}
-    return api.call("POST", "/powerbi/plan" if a.get("dry_run") else "/powerbi/export", body)
 
 
 # ===== catalog: a source database's tables and columns (names and types, never values) =====

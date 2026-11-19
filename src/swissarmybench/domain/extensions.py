@@ -89,6 +89,15 @@ CATALOG: tuple[Extension, ...] = (
         tools=("powerapps_",),
     ),
     Extension(
+        "powerbi",
+        "Power BI",
+        "Your model as a Power BI Desktop file: tables, relationships and each table's Power Query.",
+        ("Export to Power BI… on the ERD page", "Each table's Power Query", "One active path between tables"),
+        "available",
+        "swissarmybench-powerbi",
+        tools=("powerbi_",),
+    ),
+    Extension(
         "copilot",
         "GitHub Copilot",
         "GitHub Copilot's code completion in the Workbench's notebook cells and scripts.",

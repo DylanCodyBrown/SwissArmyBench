@@ -1,4 +1,4 @@
-"""Export to Power BI's files (domain/powerbi_export.py makes their bytes): the export's folder in the open
+"""Export to Power BI's files (domain/export.py makes their bytes): the export's folder in the open
 project (`powerbi/`), each file written atomically and only when its bytes change, an earlier export's stale
 files removed, the zip of the same folder for a download, and the .pbip opened with its program on the user's
 click (else its folder shown).

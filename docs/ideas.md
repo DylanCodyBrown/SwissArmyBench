@@ -6155,5 +6155,10 @@ SAB builds the dataset (tables and relationships); the user builds the report in
 - **Open in Power BI Desktop** (Windows, when .pbip has a program) or Show its folder: the user's click only.
 - Release note (pending): "Export to Power BI… on the ERD page: your tables, relationships and each table's
   Power Query as a Power BI Project that Power BI Desktop opens with a double-click."
-- Later phases asked for on 2026-11-19 (the report swap, the import, a .pbix file connection, Edit in Power BI
-  Desktop, the Power BI extension and its gated project type): see the branch's report for what was built.
+- **The Power BI extension** (the owner, 2026-11-19: the Power BI work is an extension): extensions/powerbi
+  (swissarmybench-powerbi), available in the Extensions catalog. The base gained one generic seam: an on
+  extension's PAGE_ACTIONS ({page, id, label, icon, title}) in every mode's `page_actions`; the ERD draws them
+  and a click runs the web plug-in registered under that id (web/src/pageActions.ts). The agent's command is
+  `powerbi_export` (its own prefix, its guide topic powerbi.md).
+- Later phases asked for on 2026-11-19 (the report swap, the import, a .pbix file connection by pbixray, Edit in
+  Power BI Desktop, the gated Power BI project type): not built on this branch yet.

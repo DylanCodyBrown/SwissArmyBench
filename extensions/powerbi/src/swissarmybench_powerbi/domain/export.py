@@ -26,8 +26,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain.power_query import MText, parameter_line
 from swissarmybench.domain.relationships import Relationship
+from swissarmybench_powerbi.domain.power_query import MText, parameter_line
 
 NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _-]{0,63}$")
 FOLDER: str = "powerbi"  # inside the open project

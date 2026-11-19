@@ -53,6 +53,7 @@ No prefix: `guide`, `commands`, `health`.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
-  streamlit, projects, library, accounting, powerapps, git, writing, privacy. Also swissarmybench://guide/<topic>.
+  streamlit, projects, library, accounting, powerapps, powerbi, git, writing, privacy. Or
+  swissarmybench://guide/<topic>.
 - swissarmybench://analyze/contracts: each analysis's contract; then `analyze_run`.
-- `commands(match="word")`: every tool's exact arguments.
+- `commands(match="word")`: each tool's arguments.

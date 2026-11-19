@@ -45,6 +45,10 @@ if COPILOT_SRC not in sys.path:
 POWERAPPS_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerapps" / "src")
 if POWERAPPS_SRC not in sys.path:
     sys.path.insert(0, POWERAPPS_SRC)
+# The Power BI extension, the same way (tests/test_powerbi*.py turn it on).
+POWERBI_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "powerbi" / "src")
+if POWERBI_SRC not in sys.path:
+    sys.path.insert(0, POWERBI_SRC)
 # The Git extension, the same way (tests/test_scm*.py turn it on).
 SCM_SRC = str(Path(__file__).resolve().parents[1] / "extensions" / "git" / "src")
 if SCM_SRC not in sys.path:

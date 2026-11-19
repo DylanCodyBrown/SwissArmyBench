@@ -7,15 +7,51 @@ With SWISSARMYBENCH_SHOTS set to a folder, the test also saves screenshots there
 
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import pytest
 from playwright.sync_api import Browser, expect
 
 from swissarmybench.renamed import env
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_ui import browser, call  # noqa: F401
+from tests.e2e.test_ui import server as plain_server  # noqa: F401
 
 SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(scope="module")
+def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
+    """The app with the Power BI extension on (from this checkout: SWISSARMYBENCH_EXTENSIONS)."""
+    tmp = tmp_path_factory.mktemp("powerbi")
+    source = str(ROOT / "extensions" / "powerbi" / "src")
+    env_ = os.environ | {
+        "SWISSARMYBENCH_INFO": str(tmp / "server.json"),
+        "SWISSARMYBENCH_STATE": str(tmp / "state"),
+        "SWISSARMYBENCH_CLAUDE_DIR": str(tmp / "claude"),
+        "SWISSARMYBENCH_EXTENSIONS": "streamlit,powerbi",
+        "PYTHONPATH": os.pathsep.join([source, os.environ.get("PYTHONPATH", "")]).strip(os.pathsep),
+    }
+    process = subprocess.Popen([sys.executable, "-m", "swissarmybench.server", "--port", "0"], env=env_)
+    for _ in range(150):
+        try:
+            info = json.loads((tmp / "server.json").read_text())
+            break
+        except (OSError, ValueError):
+            time.sleep(0.1)
+    else:
+        process.kill()
+        raise AssertionError("server did not start")
+    yield info | {"tmp": tmp}
+    process.terminate()
+    process.wait(timeout=20)
 
 
 def made_up_project(server: dict[str, Any]) -> Path:
@@ -98,4 +134,16 @@ def test_export_to_power_bi_from_the_erd(browser: Browser, server: dict[str, Any
     )
     if SHOTS:
         dialog.screenshot(path=str(Path(SHOTS) / "powerbi-export-done.png"))
+    context.close()
+
+
+def test_without_the_extension_the_erd_has_no_power_bi_button(
+    browser: Browser, plain_server: dict[str, Any]
+) -> None:
+    made_up_project(plain_server)
+    context = browser.new_context(viewport={"width": 1200, "height": 800})
+    page = context.new_page()
+    page.goto(f"http://127.0.0.1:{plain_server['port']}/workspace?view=erd#token={plain_server['token']}")
+    expect(page.get_by_role("button", name="Manage relationships")).to_be_visible(timeout=20000)
+    expect(page.get_by_role("button", name="Export to Power BI…")).to_have_count(0)
     context.close()

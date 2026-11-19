@@ -8,12 +8,16 @@
  *   -> Export: written into the open project's powerbi/ (Open in Power BI Desktop, else Show its folder), or a
  *   zip download with no project open. The one loading state (loading.ts) and the one error (errorNote.ts).
  *
+ * A plug-in of the Power BI extension: the ERD draws its button from the mode's page_actions (pageActions.ts) only
+ * while the extension is on.
+ *
  * ROUTING: POST /powerbi/plan, POST /powerbi/export, POST /powerbi/open (services/powerbi_export.py)
  */
 import { api, downloadPost } from "./api";
 import { button, clear, h, openDialog } from "./dom";
 import { busy, loadingBlock } from "./loading";
 import { errorHere } from "./errorNote";
+import { registerPageAction } from "./pageActions";
 import { saveBlob } from "./profileView";
 
 interface PlannedTable {
@@ -54,6 +58,8 @@ interface Plan {
 }
 
 const words = (r: PlannedRelationship): string => `${r.from}.${r.from_columns.join(", ")} → ${r.to}.${r.to_columns.join(", ")}`;
+
+registerPageAction("powerbi_export", (tables) => openPowerBIExport(Array.isArray(tables) ? (tables as string[]) : []));
 
 /** Open the dialog for these tables (the ERD's own). */
 export function openPowerBIExport(tables: string[]): void {
