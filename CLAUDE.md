@@ -156,7 +156,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   GitHub on the user's Clone, Pull, Push and Commit only (`sync.json` in the state folder: links, never a file's
   content or the token); see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
-  itself; Settings' Check for updates turns it off (`update.json`). The desktop app's and updates' small state
+  itself; its on/off is a hidden setting (`update.json`, the agent's `app_update_check on`), and Settings shows only
+  **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
   files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
   (its Qt WebEngine profile: cookies, local storage, cache; `windows.json`, each kind of window's place),
   `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
@@ -986,7 +987,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
                          Point these at <name> (the cells that named the old one, ticked);
                          updates.ts the status bars' "Update available" (Update to X, What's new) and
-                         Settings' Check for updates; desktopApp.ts is the page in the desktop app (window.sabApp:
+                         Settings' Click here to update (only while one is available); desktopApp.ts is the page in the desktop app (window.sabApp:
                          the browser's keys are the app's there, Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+Shift+T;
                          closeWindow); fileChanged.ts a table whose file changed on disk (its tab's dot, its
                          pane's Changed on disk: Reload, Not now);

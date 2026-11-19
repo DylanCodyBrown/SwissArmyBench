@@ -1,5 +1,5 @@
 /**
- * updates.ts: "Update available" in the status bars, Settings' "Check for updates", Update to X. [SHARED]
+ * updates.ts: "Update available" in the status bars, Settings' "Click here to update", Update to X. [SHARED]
  *
  * The owner (2026-11-16): "we should add a button that appears in the tray saying an update is available
  * and you can right click to update". The tray is gone (2026-11-18); the grid page's and the
@@ -10,7 +10,7 @@
  *   [FAILED MARK]  the last update's failure, said once, with its reason
  *   [UPDATE]       always warns of the restart first (and what would be lost: unsaved documents, kernels), then the
  *                  app stops, installs the version and starts again; this page's link ends with it
- *   [SETTINGS]     Check for updates, kept across restarts
+ *   [SETTINGS]     Click here to update, only while an update is available
  *
  * ROUTING: GET/PUT /updates, POST /updates/install; the `update_changed` and `app_updating` notices
  */
@@ -194,28 +194,28 @@ export async function checkNow(): Promise<void> {
   else toast(`${s?.current ?? "This"} is the newest version.`);
 }
 
-/** Settings' Updates: the Check for updates button, and the switch for the check every six hours (the server's,
- *  kept across restarts). */
+/** Settings' Updates (the owner, 2026-11-19: "Check for updates should be changed to Click here to update and
+ *  should only show when an update is available, and 6 hours is a hidden setting not needed in settings"): one
+ *  button, only while a newer version exists; the check every six hours runs by itself (the server's switch stays,
+ *  off the screen). The button warns of the restart first, as the top-right corner does. */
 export function updatesSection(): HTMLElement {
-  const box = h("input", { type: "checkbox", class: "update-switch", checked: true }) as HTMLInputElement;
+  const go = button("Click here to update", () => void startUpdate(), { icon: "import", class: "update-now" });
+  const section = h(
+    "fieldset",
+    { class: "fieldset updates-fieldset", hidden: true },
+    h("legend", {}, icon("import"), "Updates"),
+    h("div", { class: "updates-row" }, go),
+  );
   const draw = (): void => {
-    box.checked = state?.check !== false;
+    const s = state;
+    const show = !!s?.available && !!s.version && !s.updating;
+    section.hidden = !show;
+    if (show) go.title = `Update to ${s?.version}: Swiss Army Bench restarts once it is updated`;
   };
-  box.addEventListener("change", () => void setCheck(box.checked));
   onUpdates(draw);
   void loadUpdates().then(draw);
-  const checking = button("Check for updates", () => {
-    checking.disabled = true;
-    void checkNow().finally(() => {
-      checking.disabled = false;
-    });
-  }, { icon: "import", class: "primary update-check-now" });
-  return h(
-    "fieldset",
-    { class: "fieldset updates-fieldset" },
-    h("legend", {}, icon("import"), "Updates"),
-    h("div", { class: "updates-row" }, checking, h("label", { class: "check" }, box, "Check every six hours")),
-  );
+  draw();
+  return section;
 }
 
 export async function setCheck(on: boolean): Promise<void> {
@@ -232,8 +232,5 @@ export function updateCommands(): Command[] {
   return [
     { id: "app.update", group: "Application", title: `Update to ${state?.version ?? "the new version"}`, when: available, whyNot: "no update is available", run: () => startUpdate() },
     { id: "app.whatsNew", group: "Application", title: "What's new", when: available, whyNot: "no update is available", run: () => whatsNew() },
-    { id: "app.checkForUpdatesNow", group: "Application", title: "Check for updates", run: () => checkNow() },
-    { id: "app.checkForUpdatesOn", group: "Application", title: "Check for updates every six hours", when: () => state?.check === false, whyNot: "it is on", run: () => setCheck(true) },
-    { id: "app.checkForUpdatesOff", group: "Application", title: "Stop checking for updates every six hours", when: () => state?.check !== false, whyNot: "it is off", run: () => setCheck(false) },
   ];
 }

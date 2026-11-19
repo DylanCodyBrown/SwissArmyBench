@@ -65,7 +65,7 @@ password.
 - The one request that leaves the computer, by the owner's call: the update check (PyPI's JSON, then
   GitHub's latest release), at start and every six hours, carrying nothing but itself.
 - `app_update_check` reads the version running, the latest and whether an update is available; `now`
-  asks again; `on` sets Settings' Check for updates (off: nothing is sent).
+  asks again; `on` sets the hidden switch for the six-hourly check (off: nothing is sent; Settings no longer shows it).
 - `app_update` updates to the offered version: it waits for the user's Allow (the prompt names unsaved
   documents and running kernels), then the app stops, installs it with uv and starts again. Your
   connection ends with it; `health` says when it is back. A failure starts the old version, and

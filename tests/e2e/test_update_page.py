@@ -131,54 +131,28 @@ def test_the_top_right_button_warns_of_the_restart_then_updates(
         page.context.close()
 
 
-def test_settings_check_for_updates_turns_it_off_and_on(
+def test_settings_click_here_to_update_shows_only_when_an_update_is_available(
     browser: Browser, server: dict[str, Any], release_list: StandIn
 ) -> None:
-    release_list.answer = pypi(__version__, "9.9.9")
-    call(server, "PUT", "/updates", {"check": True})
+    """The owner (2026-11-19): "Check for updates should be changed to Click here to update and should only show
+    when an update is available, and 6 hours is a hidden setting not needed in settings"."""
+    release_list.answer = pypi(__version__)
     call(server, "POST", "/updates/check")
     page = grid_page(browser, server)
     try:
-        mark = page.locator(".update-corner")
-        expect(mark).to_be_visible()
         page.locator(".nav-rail [data-area='settings']").click()
-        switch = page.get_by_label("Check every six hours")
-        expect(switch).to_be_checked()
-        shot(page, "update-settings.png", full_page=False)
-        release_list.requests.clear()
-        switch.uncheck()
-        expect(mark).to_be_hidden()
-        assert call(server, "GET", "/updates")["check"] is False
-        call(server, "POST", "/updates/check")
-        assert release_list.requests == []  # off: nothing is sent
-        switch.check()
-        expect(mark).to_be_visible()
-    finally:
-        call(server, "PUT", "/updates", {"check": True})
-        page.context.close()
-
-
-def test_settings_check_for_updates_checks_and_starts_the_update(
-    browser: Browser, server: dict[str, Any], release_list: StandIn
-) -> None:
-    """The owner (2026-11-16): "check for updates should be a button that launches the update"."""
-    release_list.answer = pypi(__version__)
-    call(server, "PUT", "/updates", {"check": False})  # the six-hourly check off: the button still asks
-    page = grid_page(browser, server)
-    try:
-        page.locator(".nav-rail [data-area='settings']").click()
-        check = page.get_by_role("button", name="Check for updates")
-        release_list.requests.clear()
-        check.click()
-        expect(page.locator(".toast", has_text="is the newest version")).to_be_visible()
-        assert release_list.requests  # asked, though the switch is off
-        # A newer one: the same click starts the update, after the restart's warning (2026-11-18); this copy
-        # runs from source, so it says so.
+        expect(page.locator(".updates-fieldset")).to_be_hidden()
+        assert page.get_by_role("button", name="Check for updates").count() == 0
+        assert page.get_by_label("Check every six hours").count() == 0
+        # A newer one arrives: the button shows, live; its click warns of the restart first.
         release_list.answer = pypi(__version__, "9.9.9")
-        check.click()
+        call(server, "POST", "/updates/check")
+        go = page.get_by_role("button", name="Click here to update")
+        expect(go).to_be_visible()
+        shot(page, "update-settings.png", full_page=False)
+        go.click()
         warning = page.get_by_role("dialog", name="Update to 9.9.9")
         warning.get_by_role("button", name="Update and restart").click()
         expect(page.locator(".toast", has_text="not installed with uv")).to_be_visible()
     finally:
-        call(server, "PUT", "/updates", {"check": True})
         page.context.close()

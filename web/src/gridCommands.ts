@@ -87,7 +87,7 @@ function commands(): Command[] {
   out.push({ id: "application.zoom-reset", group: "Application", title: "Zoom 100%", keys: "Ctrl+0", run: () => setGridZoom(1) });
   out.push({ id: "application.find-data", group: "Application", title: "Find data…", keys: "Ctrl+K", run: () => openFindData() });
   out.push(...betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
-  out.push(...updateCommands()); // Update to X, What's new, Check for updates
+  out.push(...updateCommands()); // Update to X, What's new
   out.push(...claudeCommands()); // Launch Claude
   // The ribbon's rows, each under its own name; the Analyze button is its menu's entries.
   for (const row of document.querySelectorAll<HTMLElement>(".ribbon .ribbon-group")) {

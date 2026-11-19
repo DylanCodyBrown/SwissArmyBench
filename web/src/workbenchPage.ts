@@ -3251,7 +3251,7 @@ const COMMANDS: Command[] = [
 ];
 registerCommands(COMMANDS);
 registerCommands(betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
-registerCommands(updateCommands()); // Update to X, What's new, Check for updates
+registerCommands(updateCommands()); // Update to X, What's new
 registerCommands(claudeCommands()); // Launch Claude (Claude Code, Claude Desktop)
 // No token and no good cookie (a bookmark after a restart): the page says how to open the app.
 void requireSession();

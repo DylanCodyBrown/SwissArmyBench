@@ -543,8 +543,9 @@ Origin; no telemetry, no outbound calls but one: the update check.
 - The one exception, by the owner's call (2026-11-16, "we should add a button that appears in the tray
   saying an update is available"): at start and every six hours the server asks PyPI's JSON for
   `swissarmybench` (GitHub's latest release if PyPI cannot be read) which version is the latest. The
-  request carries nothing but itself (no identifiers, no data); Settings' "Check for updates" turns it
-  off, and then nothing is sent.
+  request carries nothing but itself (no identifiers, no data). Its off switch is hidden (`update.json`; the
+  owner, 2026-11-19: "6 hours is a hidden setting not needed in settings"); off, nothing is sent. Settings shows
+  only **Click here to update**, and only while an update is available.
 - The token stays (any website could otherwise call 127.0.0.1), but the user never sees or handles it
   (the owner's call, 2026-11-16). A page opened with `#token=` keeps it in the tab and clears the
   address bar, and trades it once at `/session` for a cookie: `sab_<port>`, HttpOnly (no script reads

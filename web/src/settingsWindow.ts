@@ -19,7 +19,7 @@
  *          [TEAM]                 the Team box (first after Theme): Join a team…, Start a team…, the Joined row
  *                                 (Pull, Push, …), Advanced (the two folders), the local projects folder
  *                                 -> library.ts (the sign-in step: scmPage.ts teamSignIn)
- *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
+ *          [UPDATES]              Click here to update (only while one is available) -> updates.ts
  *          [EXTENSIONS]           each on extension's own panel (its switches, sign-in) -> extensionPanel.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
  *                                 Export beta log…, Clear the log -> betaNotes.ts

@@ -857,7 +857,8 @@ X asks first only when notebooks have unsaved changes or kernels are running, an
 the app stops, a small helper installs the version with `uv tool install --force
 "swissarmybench[server]==X"` (the app's windows close: the helper ends the app by `desktop.json`), and the new
 version's app opens. If it fails, the old
-version starts again and says why. **Settings, Updates, Check for updates** turns the check off (kept).
+version starts again and says why. While an update is available, **Settings, Updates** shows **Click here to update** (it warns that the app
+restarts first); otherwise Settings shows nothing about updates.
 The agent has `app_update_check` and `app_update` (which waits for your Allow).
 
 ## Extensions
