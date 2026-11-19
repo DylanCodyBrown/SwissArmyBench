@@ -227,7 +227,8 @@ def test_duckdb_errors_reach_the_agent_in_full(client: TestClient, monkeypatch: 
         json={"sql": "SELECT count(*) FROM grid WHERE CAST(region AS INTEGER) > 0"},
         headers=AGENT,
     )
-    assert failed.status_code == 400 and "North" in failed.text and failed.text.startswith("DuckDB:")
+    assert failed.status_code == 400 and "North" in failed.text
+    assert failed.json()["error"].startswith("DuckDB:")
     steps(client, grid, [{"kind": "sql", "params": {"sql": "SELECT CAST(region AS INTEGER) AS n FROM grid"}}])
     with pytest.raises(Exception) as caught:
         tool("row_read", {"grid": grid, "format": "csv"})

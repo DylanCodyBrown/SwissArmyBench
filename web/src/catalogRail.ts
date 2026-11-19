@@ -368,7 +368,7 @@ export function mountRail(host: RailHost): Rail {
         { class: "blade-text" },
         h("button", { class: "blade-name", type: "button", onclick: () => openBlade(starter.name) }, starter.name),
         // Its kinds run only on this computer: said, amber (the owner, 2026-11-17).
-        starter.local?.length ? h("span", { class: "connection-card-local starter-local", title: starter.local.map((n) => n.words).join("\n") }, icon("warning"), "Only works on your machine") : null,
+        starter.local?.length ? h("span", { class: "connection-card-local starter-local" }, errorMark("Only works on your machine", { level: "warning", title: starter.local.map((n) => n.words).join("\n") })) : null,
       ),
       button("Copy as your own", () => void copyAsOwn(starter.name).then((made) => made && void loadBlades().then(() => openBlade(made))), { icon: "copy", iconOnly: true, class: "ghost" }),
     );

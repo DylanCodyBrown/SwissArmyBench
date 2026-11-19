@@ -686,7 +686,9 @@ class BladeService:
         (the one shape: the blade's or connection's feature, the package, the app's Python)."""
         # The one refusal shape (9.5): the first sentence, where (the blade or connection), the whole
         # message folded as details, Install now when a module is missing.
-        content: dict[str, Any] = refusals.shape(message, where=name if name and name != "Untitled" else None)
+        what, said = refusals.run_failure(message)
+        where = name if name and name != "Untitled" else None
+        content: dict[str, Any] = refusals.shape(what, where=where, details=said)
         if missing_module:
             pip, _ = pip_name(missing_module)
             content["fixes"] = [refusals.install(install_command([pip], self._python))]

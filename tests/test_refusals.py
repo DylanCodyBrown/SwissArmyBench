@@ -40,6 +40,18 @@ def test_a_long_message_keeps_one_sentence_and_folds_the_rest_into_details() -> 
     assert refusals.shape("No grid g9.", where="g9") == {"error": "No grid g9.", "where": "g9"}
 
 
+def test_a_run_that_failed_says_its_sentence_and_keeps_the_source_s_words() -> None:
+    said = "Shop failed: OperationalError: unable to open database file (line 5)"
+    assert refusals.run_failure(said) == (
+        "Shop failed: unable to open database file.",
+        "OperationalError: unable to open database file (line 5)",
+    )
+    assert refusals.run_failure("SHOP_HOST is not set on this computer.") == (
+        "SHOP_HOST is not set on this computer.",
+        None,
+    )
+
+
 def test_fixes_name_an_action_the_page_knows() -> None:
     assert refusals.set_variable("SHOP_HOST") == {
         "label": "Set it",

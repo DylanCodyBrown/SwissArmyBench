@@ -18,6 +18,7 @@ Standard library only.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # What a fix does, as the page reads it (web/src/errorNote.ts):
@@ -82,6 +83,22 @@ def first_sentence(message: str, limit: int = 240) -> str:
         return line
     stop = line[:limit].rfind(". ")
     return line[: stop + 1] if stop > 40 else line[: limit - 1] + "…"
+
+
+_RUN_FAILED = re.compile(
+    r"^(?P<what>.+?) failed: (?P<kind>\w+): (?P<said>.+?)(?P<line> \(line \d+\))?$", re.S
+)
+
+
+def run_failure(message: str) -> tuple[str, str | None]:
+    """A blade's or connection's run that failed (adapters/blade_run.py's "Shop failed: OperationalError:
+    unable to open database file (line 5)") as the shape's sentence ("Shop failed: unable to open database
+    file.") and the source's own words ("OperationalError: unable to open database file (line 5)")."""
+    found = _RUN_FAILED.match(message.strip())
+    if not found or "\n" in found["said"]:
+        return message, None
+    said = found["said"].rstrip(".")
+    return f"{found['what']} failed: {said}.", f"{found['kind']}: {found['said']}{found['line'] or ''}"
 
 
 def shape(

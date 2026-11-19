@@ -23,7 +23,7 @@ import { button, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy } from "./loading";
 import { projectTypes, type ProjectType, typeCard } from "./projectTypes";
-import { errorHere } from "./errorNote";
+import { errorHere, errorToast } from "./errorNote";
 
 export interface ProjectTable {
   name: string;
@@ -86,6 +86,24 @@ const listeners: ((state: ProjectState) => void)[] = [];
 let timer: number | null = null;
 let loading: Promise<ProjectState> | null = null;
 let askedShown: string | null = null;
+/** The autosave failure this window last said (each is said once; a save that works clears it). */
+let autosaveTold: string | null = null;
+
+/** Autosave is the server's own work (no place on screen asked for it): a failure is errorToast, with Show going
+ *  to the project's group (Save, Autosave) on the Grids page, and Save now (9.5). */
+function tellAutosave(read: ProjectState): void {
+  const failed = read.project?.autosave_error ?? null;
+  const key = failed && read.project ? `${read.project.folder}\n${failed}` : null;
+  if (key && key !== autosaveTold) {
+    const name = read.project!.name;
+    errorToast(
+      { what: `Autosave could not save ${name}.`, where: read.project!.folder, details: failed! },
+      () => void import("./nav").then((nav) => nav.go(nav.withParams({ open: null, view: "grids" }, nav.HOME_URL), "push")),
+      { fixes: [{ label: "Save now", icon: "save", run: () => void saveProject().catch((e: unknown) => errorToast(e)) }] },
+    );
+  }
+  autosaveTold = key;
+}
 
 export function projectState(): ProjectState {
   return state;
@@ -101,6 +119,7 @@ export async function loadProject(): Promise<ProjectState> {
     (read) => {
       loading = null;
       state = read;
+      tellAutosave(read);
       for (const listener of listeners) listener(state);
       return state;
     },

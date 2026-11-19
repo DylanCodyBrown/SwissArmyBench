@@ -56,7 +56,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
-import { clearError, errorHere, errorMark, errorNote, showError } from "./errorNote";
+import { clearError, errorHere, errorMark, errorNote, showError, warningNote } from "./errorNote";
 import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
@@ -101,10 +101,11 @@ interface LocalNote {
   words: string;
 }
 
-/** The notes as the form, the card's detail and the export say them: amber, one line each. */
+/** The notes as the form, the card's detail and the export say them: the one warning (errorNote.ts, 9.5), each
+ *  in its own words ("Only works on your machine: ..."). */
 function localNotes(notes: LocalNote[] | undefined, extra = ""): HTMLElement | null {
   if (!notes?.length) return null;
-  return h("div", { class: `local-only ${extra}`.trim(), role: "note" }, ...notes.map((n) => h("p", {}, icon("warning"), n.words)));
+  return h("div", { class: `local-only ${extra}`.trim() }, ...notes.map((n) => warningNote({ what: n.words, dismiss: false, agent: false })));
 }
 
 interface Form {
@@ -647,7 +648,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-marks" }, statusPill(c)),
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
           c.about?.length ? h("span", { class: "connection-card-about" }, c.about[0]) : null,
-          c.local?.length ? h("span", { class: "connection-card-local", title: c.local.map((n) => n.words).join("\n") }, icon("warning"), c.local[0]!.words) : null,
+          c.local?.length ? h("span", { class: "connection-card-local" }, errorMark(c.local[0]!.words, { level: "warning", title: c.local.map((n) => n.words).join("\n") })) : null,
         ),
       );
     const groups: [string, (c: Card) => boolean][] = [

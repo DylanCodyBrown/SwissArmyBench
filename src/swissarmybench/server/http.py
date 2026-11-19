@@ -102,6 +102,12 @@ def json_response(content: Any, status_code: int = 200, max_bytes: int | None = 
     return Response(body, status_code=status_code, media_type="application/json")
 
 
+def _refused(content: dict[str, Any], status_code: int) -> Response:
+    """A refusal's JSON, its words as they read (UTF-8, not \\u escapes): the agent reads them too."""
+    body = json.dumps(jsonable(content), separators=(",", ":"), ensure_ascii=False)
+    return Response(body, status_code=status_code, media_type="application/json")
+
+
 def error_response(error: Exception) -> Response:
     """Map the engine's error types to HTTP status codes with plain-language messages. An error that is
     not one of a use case's outcomes goes to the beta log too (redacted: server/beta_requests.py)."""
@@ -132,12 +138,12 @@ def refusal(
     """A refusal in the one shape (design principle 9.5; domain/refusals.py): {"error", "where", "fixes",
     "details"} and the fields a page or the agent already reads. Every route's error answers this way."""
     body = refusals.shape(what, where=where, fixes=fixes, details=details, **kept)
-    return json_response(body, status_code=status_code)
+    return _refused(body, status_code=status_code)
 
 
 def error_as(error: Exception, status_code: int) -> Response:
     """`error` answered with `status_code` in the one shape (a route that picks its own status)."""
-    return json_response(refusals.of(error), status_code=status_code)
+    return _refused(refusals.of(error), status_code=status_code)
 
 
 def _error_response(error: Exception) -> Response:
@@ -145,7 +151,7 @@ def _error_response(error: Exception) -> Response:
     # What a use case ended in besides its answer (services/workspace.py).
     for outcome, code in ((Refused, 403), (NotFound, 404), (TimedOut, 408), (Conflict, 409)):
         if isinstance(error, outcome):
-            return json_response(refusals.of(error), status_code=code)
+            return _refused(refusals.of(error), status_code=code)
     if isinstance(error, MissingPackagesError):  # the page's prompt and the agent read the same shape
         command = error.missing.get("command") if isinstance(error.missing, dict) else None
         return refusal(
@@ -155,7 +161,7 @@ def _error_response(error: Exception) -> Response:
             missing=error.missing,
         )
     if isinstance(error, MissingVariables):  # 12.7 and 9.5: "NAME is not set on this computer", Set it
-        return json_response(error.to_json(), status_code=422)
+        return _refused(error.to_json(), status_code=422)
     if isinstance(error, DatasetTooLargeError | BodyTooLargeError):
         status = 413
     elif isinstance(error, DatasetLimitError | GridLimitError | StaleRequestError):
@@ -173,7 +179,7 @@ def _error_response(error: Exception) -> Response:
         said = str(error)
         return refusal(f"Could not read the SQL: {said.splitlines()[0][:300]}", 400, details=said)
     message = "A newer request replaced this one." if isinstance(error, StaleRequestError) else str(error)
-    return json_response(refusals.of(error, message or type(error).__name__), status_code=status)
+    return _refused(refusals.of(error, message or type(error).__name__), status_code=status)
 
 
 class BodyTooLargeError(ValueError):

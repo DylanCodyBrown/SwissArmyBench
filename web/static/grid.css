@@ -10245,44 +10245,20 @@ body.has-rail .area-page {
 .connection-card-local {
   display: flex;
   grid-column: 1 / -1;
-  gap: 4px;
-  align-items: flex-start;
-  color: var(--warn);
+  min-width: 0;
   font-size: 12px;
-  line-height: 1.35;
-}
-
-.connection-card-local svg,
-.local-only svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  margin-top: 1px;
 }
 
 .local-only {
   margin: 6px 0;
-  padding: 6px 10px;
-  border-left: 3px solid var(--warn);
-  border-radius: 4px;
-  background: var(--warn-soft);
-  color: var(--fg);
-  font-size: 13px;
 }
 
-.local-only p {
-  display: flex;
-  gap: 6px;
-  align-items: flex-start;
+.local-only > .error-note {
   margin: 0;
 }
 
-.local-only p + p {
+.local-only > .error-note + .error-note {
   margin-top: 4px;
-}
-
-.local-only svg {
-  color: var(--warn);
 }
 
 .connection-about {
@@ -15965,6 +15941,13 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+}
+
+/* A note inside a card or a drawing's slot keeps its own height (the slot may stretch its children). */
+.card .error-note {
+  align-self: start;
+  height: auto;
+  width: 100%;
 }
 
 /* errorToast: the same note in a toast (work with no place on screen), opaque over the page. */

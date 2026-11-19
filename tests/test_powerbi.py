@@ -1021,7 +1021,7 @@ def test_import_its_relationships_merges_into_the_current_model(
     # Several datasets and none named: refused, naming them.
     unnamed = client.post("/connections/Finance/relationships", json={}, headers=AGENT)
     assert unnamed.status_code == 400
-    assert unnamed.text == (
+    assert unnamed.json()["error"] == (
         "Finance has several datasets: name the one to import. It has: Sales model, Budget model, "
         "Broken model."
     )
