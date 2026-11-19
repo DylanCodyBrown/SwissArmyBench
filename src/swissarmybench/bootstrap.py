@@ -1188,6 +1188,8 @@ def bootstrap(
         lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
         projects.type_of,
         extension_modules.areas,
+        sab_projects.setting,
+        sab_projects.set_setting,
     )
 
     def saved_dashboards() -> list[dict[str, Any]]:

@@ -35,7 +35,7 @@ SECRET_PATHS: tuple[str, ...] = ()
 PROJECT_TYPE = "powerbi"
 # The rail's Power BI area (GET /app/areas): its page drawn from data (`panel`), never named in web/.
 RAIL: list[dict[str, str]] = [
-    {"area": "powerbi", "name": "Power BI", "icon": "chart", "panel": "/powerbi/panel"}
+    {"area": "powerbi", "name": "Power BI", "icon": "powerbi", "panel": "/powerbi/panel"}
 ]
 # The Power BI project (the owner, 2026-11-19): its target is one .pbix; it keeps some features closed to stay
 # simple (`areas`: the features open in it; missing: all, as for every other type).

@@ -3619,6 +3619,18 @@ def app_mode(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "app_gates",
+    "The features the open project's type keeps closed (your tools stay open); every=true or false is "
+    "Settings' Open every feature in this project",
+    opt("every", "true: open every feature in this project; false: keep its type's gates.", "bool"),
+)
+def app_gates(a: dict[str, Any]) -> Any:
+    if a.get("every") is None:
+        return api.call("GET", "/app/gates")
+    return api.call("POST", "/app/gates", {"every": bool(a["every"])})
+
+
+@command(
     "app_panels",
     "The panels' switches in Settings (all on at each start); with set, turn some off or on",
     opt("set", '{"workbench.console": false, "grid.ribbon": true}', "json"),

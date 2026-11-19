@@ -57,6 +57,8 @@ import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, t
 import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
+import { panelAreas } from "./extensionArea"; // an extension's area drawn from its data (GET /app/areas)
+import { firstOpen, isClosed, loadGates, onGates, showGateLine } from "./gates";
 
 export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
@@ -93,8 +95,10 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
 const LAYERS: readonly Area[] = ["projects", "settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "scm", "data"];
-const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area);
-const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name);
+// The areas an on extension names with a page drawn from data (extensionArea.ts), each its own layer.
+const DATA_AREAS = new Set<string>();
+const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area) || DATA_AREAS.has(name ?? "");
+const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name) || DATA_AREAS.has(String(name));
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
 const areaOfKind = (kind: string | null): Area | null => AREAS.find((a) => a.kind === kind)?.area ?? null;
 
@@ -150,6 +154,10 @@ function pageUrl(area: Area): string {
  *  that shows the area moves here, or this tab goes to it; `newWindow` (right-click, Ctrl+click, a middle
  *  click) opens it in a window of its own instead. */
 export function goArea(area: Area, newWindow = false): void {
+  if (isClosed(area)) {
+    showGateLine(area); // a feature this project's type keeps closed: one line, Open every feature
+    return;
+  }
   const k = kindOfArea(area);
   if (newWindow) {
     if (k) newKindWindow(k);
@@ -209,6 +217,7 @@ function onKey(e: KeyboardEvent): void {
 }
 
 function item(area: (typeof AREAS)[number]): HTMLButtonElement {
+  // (an extension's data area is drawn the same way: its icon and name are the backend's)
   const grids = area.area === "grids";
   const element = h(
     "button",
@@ -258,6 +267,28 @@ export function mountNavRail(page: PageKind): void {
   document.body.classList.add("has-rail");
   draw(new URL(location.href));
   onAddress(draw);
+  // An extension's areas drawn from data, before Session (their pages registered as layers).
+  void panelAreas().then((found) => {
+    const before = items.find((i) => i.dataset.area === "session") ?? null;
+    for (const area of found) {
+      if (items.some((i) => i.dataset.area === area.area)) continue;
+      DATA_AREAS.add(area.area);
+      const made = item({ area: area.area as Area, name: area.name, icon: area.icon });
+      items.splice(before ? items.indexOf(before) : items.length, 0, made);
+      toolbar.insertBefore(made, before);
+    }
+    draw(new URL(location.href));
+    const named = new URL(location.href).searchParams.get("open");
+    if (named && DATA_AREAS.has(named) && hasLayer(named)) openLayer(named); // its address, opened now
+  });
+  // A project type's gates: its closed areas hidden here; an address that names one says so in one line.
+  onGates(() => {
+    for (const i of items) i.toggleAttribute("data-gated", isClosed(i.dataset.area ?? ""));
+    const now = currentArea(new URL(location.href));
+    if (now && isClosed(now)) showGateLine(now);
+  });
+  void loadGates();
+  firstOpen(() => goArea("settings"));
   // The Session icon's count, and its name with the count for a screen reader.
   const session = items.find((i) => i.dataset.area === "session");
   onUnseen((n) => {

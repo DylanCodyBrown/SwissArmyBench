@@ -583,6 +583,126 @@ class PowerBIProject:
             ],
         }
 
+    async def panel(self, body: Any, who: str) -> dict[str, Any]:
+        """The Power BI page drawn by the base's generic panel (web/src/extensionPanel.ts): GET ({}) its data;
+        POST {choice, value} (Read Power BI from, App registration) or {action}."""
+        body = body if isinstance(body, dict) else {}
+        said: list[dict[str, str]] = []
+        try:
+            if body.get("choice") == "source":
+                await self.set_source({"source": body.get("value")}, who)
+            elif body.get("choice") == "registration":
+                await self.registration({"registration": body.get("value")}, who)
+            elif body.get("action"):
+                said = await self._panel_action(str(body["action"]), who)
+        except Exception as error:  # said on the page, in place
+            said = [{"text": str(error).splitlines()[0][:300], "tone": "error"}]
+        page = await self.page()
+        if not page["project"]:
+            lines = [
+                {
+                    "text": "Open a Power BI project, or make one from a .pbix (New project, Power BI).",
+                    "tone": "",
+                }
+            ]
+            return {"lines": said + lines, "switches": [], "actions": []}
+        source = page["source"]
+        regs = [{"value": "", "label": "Choose…"}] if not page["registration"] else []
+        regs += [{"value": r, "label": r} for r in page["registrations"]]
+        regs.append({"value": "none", "label": "None (sign in as you)"})
+        rows = [
+            {
+                "id": r["id"],
+                "text": r["words"],
+                "tone": "warn",
+                "action": {"id": f"fix:{r['id']}", "label": r["fix"]["label"]},
+            }
+            for r in page["to_finish"]
+        ]
+        lines = [{"text": f"{Path(str(page['target'])).name} · {page['status']}", "tone": "ok"}]
+        if source["note"]:
+            lines.append({"text": source["note"], "tone": "warn"})
+        if page["registration"] in (None, "none"):
+            lines.append({"text": "Only works on your machine: signed in as you.", "tone": "warn"})
+        lines += [
+            {
+                "text": f"{m['name']}{f' ({m["folder"]})' if m.get('folder') else ''} = {m['expression']}",
+                "tone": "",
+            }
+            for m in page["measures"]
+        ]
+        return {
+            "heading": "To finish setting up",
+            "rows": rows,
+            "choices": [
+                {
+                    "id": "source",
+                    "label": "Read Power BI from",
+                    "value": source["source"],
+                    "options": source["choices"],
+                },
+                {
+                    "id": "registration",
+                    "label": "App registration",
+                    "value": page["registration"] or "",
+                    "options": regs,
+                },
+            ],
+            "lines": said + lines,
+            "switches": [],
+            "actions": [{"id": a["id"], "label": a["label"], "note": a["note"]} for a in page["actions"]],
+        }
+
+    async def _panel_action(self, action: str, who: str) -> list[dict[str, str]]:
+        if action == "fix:not_published" or action == "fix:dataset":
+            found = await self._published()
+            state = self._state()
+            pick, _ = rules.find_dataset(self.reader(str(state["target"])), found, None)
+            if pick is None:
+                return [
+                    {
+                        "text": "No single published dataset matches: name it with powerbi_setup_status.",
+                        "tone": "warn",
+                    }
+                ]
+            await self.fix({"action": "dataset"} | pick, who)
+            return [{"text": f"Found {pick['dataset']} in {pick['connection']}.", "tone": "ok"}]
+        if action.startswith("fix:connection:"):
+            return [{"text": "Set it on this computer: Settings, Team, Set up this computer.", "tone": ""}]
+        if action == "fix:registration":
+            return [{"text": "Choose it above.", "tone": ""}]
+        if action == "refresh":
+            plan_ = await self.plan({"path": self._state()["target"]})
+            model = plan_.model
+            words = f"{len(plan_.tables)} tables, {len(model.measures)} measures, "
+            words += f"{len(model.relationships)} relationships"
+            return [{"text": f"Read the file again: {words}.", "tone": "ok"}]
+        if action == "edit":
+            if self.live is None:
+                return [
+                    {
+                        "text": "Edit in Power BI Desktop needs Power BI Desktop on this computer (Windows).",
+                        "tone": "warn",
+                    }
+                ]
+            return [{"text": "See the dry run: powerbi_edit_plan, then Apply.", "tone": ""}]
+        if action == "export":
+            done = await self.base.powerbi_export.export({}, who)
+            return [
+                {
+                    "text": f"Exported: {done.get('folder') or done.get('file') or 'the Power BI Project'}.",
+                    "tone": "ok",
+                }
+            ]
+        if action == "pages":
+            return [
+                {
+                    "text": "On the ERD page: Export to Power BI…, then Use an existing report's pages.",
+                    "tone": "",
+                }
+            ]
+        return [{"text": f"{action} is not an action here.", "tone": "error"}]
+
     def check_conflict(self) -> None:
         if self.base.sab_projects.current is None:
             raise Conflict("Open a project first.")

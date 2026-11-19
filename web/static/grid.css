@@ -17656,3 +17656,15 @@ body:has(> .tour) > .context-menu {
   outline: 2px dashed var(--kind-app);
   outline-offset: -2px;
 }
+
+/* gates.ts: a feature the project's type keeps closed (its rail item hidden; one line on a way in). */
+.nav-rail-item[data-gated] { display: none; }
+.gate-line {
+  position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px;
+  background: var(--surface, var(--bg)); color: var(--fg); border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+.extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
+.extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }

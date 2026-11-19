@@ -307,6 +307,30 @@ def test_a_pbix_imported_as_a_project_ready_to_work(tmp_path: Path, standin: mad
         page = ok(client.get("/powerbi/page", headers=AGENT))
         assert page["project"] and page["actions"][0]["label"] == "Refresh from the file"
 
+        # F: the gates: the features this project type keeps closed, the first-open pop-up once, the switch.
+        gates = ok(client.get("/app/gates", headers=AGENT))
+        closed = {c["area"] for c in gates["closed"]}
+        assert {"analyze", "scripts", "apps", "blades", "apis", "structures"} <= closed
+        assert not closed & {"powerbi", "grids", "erd", "notebooks", "connections", "settings", "projects"}
+        assert gates["line"] == "This Power BI project keeps {feature} closed."
+        assert gates["first_open"].startswith(
+            "This Power BI project keeps some features closed to stay simple: "
+        )
+        assert "Analyze" in gates["first_open"]
+        assert ok(client.post("/app/gates", json={"seen": True}, headers=AUTH))["first_open"] is None
+        opened = ok(client.post("/app/gates", json={"every": True}, headers=AGENT))
+        assert opened["closed"] == [] and opened["open"] is None and opened["every"]
+        assert ok(client.post("/app/gates", json={"every": False}, headers=AGENT))["closed"]
+        areas = {a["area"]: a for a in ok(client.get("/app/areas", headers=AGENT))["areas"]}
+        assert areas["powerbi"]["panel"] == "/powerbi/panel"
+        panel = ok(client.get("/powerbi/panel", headers=AGENT))
+        assert [c["id"] for c in panel["choices"]] == ["source", "registration"]
+        assert panel["actions"][0]["note"] and panel["rows"]
+        moved = ok(
+            client.post("/powerbi/panel", json={"choice": "source", "value": "published"}, headers=AGENT)
+        )
+        assert moved["choices"][0]["value"] == "published"
+
         # G: the project's app registration: a dry run lists the Microsoft sources it re-points.
         reg = {"name": "Contoso BI", "tenant": "BI_TENANT", "client": "BI_CLIENT", "secret": "BI_SECRET"}
         ok(client.post("/app-registrations", json=reg, headers=AGENT))

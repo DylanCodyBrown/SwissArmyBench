@@ -469,7 +469,9 @@ class StandIn:
             self.requests.append({"what": "groups", "authorization": authorization})
             if authorization != f"Bearer {TOKEN}":
                 return 401, _refusal("TokenExpired")
-            workspaces = [] if self.not_a_member else [{"id": WORKSPACE, "name": "Finance", "type": "Workspace"}]
+            workspaces = (
+                [] if self.not_a_member else [{"id": WORKSPACE, "name": "Finance", "type": "Workspace"}]
+            )
             return 200, {"value": workspaces}
         found = re.fullmatch(r"/v1\.0/myorg/groups/([^/]+)/datasets", path)
         self.requests.append({"what": "datasets", "path": path, "authorization": authorization})

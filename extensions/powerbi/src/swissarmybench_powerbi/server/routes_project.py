@@ -8,6 +8,8 @@ GET  /powerbi/setup                        To finish setting up; POST: one row's
 GET  /powerbi/source                       Read Power BI from; PUT {source}: switched, the grids read again
 GET  /powerbi/registration                 the project's app registration; PUT {registration, dry_run?}
 GET  /powerbi/page                         the Power BI page, as data
+GET  /powerbi/panel                        the same, drawn by the base's generic panel; POST {choice, value}
+| {action}
 """
 
 from __future__ import annotations
@@ -62,6 +64,10 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         body = await read_json(r) if r.method == "PUT" else {}
         return await project.registration(body, actor(r))
 
+    async def panel(r: Request) -> Any:
+        body = await read_json(r) if r.method == "POST" else {}
+        return await project.panel(body, actor(r))
+
     async def page(r: Request) -> Any:
         return await project.page()
 
@@ -76,4 +82,5 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         Route("/powerbi/source", door(switch), methods=["PUT"]),
         Route("/powerbi/registration", door(registration), methods=["GET", "PUT"]),
         Route("/powerbi/page", door(page)),
+        Route("/powerbi/panel", door(panel), methods=["GET", "POST"]),
     ]
