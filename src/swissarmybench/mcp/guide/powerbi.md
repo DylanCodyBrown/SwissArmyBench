@@ -25,16 +25,25 @@ which extension it needs.
   the published dataset (a thin report's own, else one named like the file; several or none: pass `dataset`),
   the .pbix file connection, data.ipynb (a `%%sql` and a `%%dax` cell per table), relationships into the ERD,
   measures and each table's M kept in `.sab/powerbi.json`. Without `dry_run` it makes it (the user's Allow).
+  `powerbi_export` then writes that round trip: an untouched table's M byte for byte, a table whose notebook
+  `%%sql` cell changed as the new native query, the measures with their folders and formats.
   Every table opens twice: `<Table>_Source` and `<Table>_PowerBI`, with a Compare between them.
 - `powerbi_setup_status`: the To finish setting up rows and their fixes (`action`: dataset, not_published,
   registration); passwords and sign-ins are the user's (Set up this computer).
-- `powerbi_source(source=published|local)`: where the `_PowerBI` grids read; the file is the fallback, said.
+- `powerbi_source(source=published|local)`: what the project's ONE dataset connection (named after the model)
+  reads: the `_PowerBI` grids, DuckDB SQL `[Sales model].Sales` (`steps_run_sql`, a `%%sql` cell), a
+  `%%dax 'Sales model'` cell and the Compares all follow it with no code change; the file is the fallback, said
+  (it answers whole tables only: `EVALUATE 'Sales'`).
 - `powerbi_file(name, path)`: a .pbix as a read-only connection (pbixray), "as of" its last refresh.
 - `app_registration_add` (three VARIABLE names, never values), `app_registration_check` (an access report:
-  read-only calls, kept as names and marks), `powerbi_app_registration(registration, dry_run)` re-points the
-  project's Microsoft sources (the user's Allow).
+  read-only calls, kept as names and marks: Power BI's workspaces and datasets, Azure SQL's databases and a
+  SELECT TOP 0 per table, Dataverse's WhoAmI and roles, SharePoint's site, lists and libraries, a lake's path),
+  `powerbi_app_registration(registration, dry_run)` re-points the project's Microsoft sources (Azure SQL, SQL
+  Server with Entra, Dataverse, SharePoint, OneLake, Data Lake; the user's Allow). A connection's part is
+  `GET /connections/{name}/access` (its Access section) and one line in context.md's Connections.
 - `powerbi_edit_files`, `powerbi_edit_model`, `powerbi_edit_plan`, `powerbi_edit_apply`: Edit in Power BI
   Desktop (Windows): our relationships and measures, measures, calculated columns and tables, calculation
   groups; a dry run first; Apply waits for the user's Allow. A refresh or a table's Power Query is refused: export
   a Power BI Project instead.
-- `app_gates`: the features a project type keeps closed (a Power BI project's); your tools stay open.
+- `app_gates`: the features a project type keeps closed (a Power BI project's); your tools stay open (the
+  user's palette, New entries and addresses show the one line instead). context.md's Project says them.

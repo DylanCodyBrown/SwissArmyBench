@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from swissarmybench.domain.blades import detect_settings
+from swissarmybench.domain.connection_tables import Pushed
 from swissarmybench.domain.relationships import Model
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_powerbi.domain import pbix_file as pf
@@ -27,6 +28,10 @@ PROJECT_TYPE = "powerbi"
 SOURCE_KEY = "powerbi_source"
 REGISTRATION_KEY = "powerbi_registration"
 SOURCE_WORDS = {"published": "Published", "local": "Local", "file": "the file"}
+# The connection kinds an app registration signs in (re-pointed by the project's App registration).
+MICROSOFT_TEMPLATES = frozenset(
+    {"sqlserver", "azuresql", "dataverse", "sharepoint", "sharepoint_docs", "datalake", "onelake", "delta"}
+)
 
 
 class Reader(Protocol):
@@ -40,11 +45,16 @@ class Files(Protocol):
 
 
 class LiveSource(Protocol):
-    """E's Local source: DAX over the live link to the target (services/live_link.py)."""
+    """E's Local source (DAX over the live link to the target) and the page's Edit in Power BI Desktop (its
+    dry run and Apply): services/live_link.py."""
 
     def open_file(self) -> str | None: ...
 
     async def evaluate(self, dax: str) -> Any: ...
+
+    async def plan(self, body: Any) -> dict[str, Any]: ...
+
+    async def apply(self, body: Any, who: str) -> dict[str, Any]: ...
 
 
 def _settings_of(code: str) -> dict[str, str]:
@@ -71,6 +81,10 @@ class PowerBIProject:
         self.live = live
         self.registrations = registrations
         self.last_import: dict[str, Any] | None = None
+        # Edit in Power BI Desktop's dry run shown on the Power BI page (each change listed, Apply), until
+        # applied or put away; and a plug-in the page opens right there (another report's pages).
+        self.review: dict[str, Any] | None = None
+        self._opens: dict[str, Any] | None = None
         self.pending: str | None = None  # a .pbix/.pbit/.pbip opened with the app or dropped on a window
 
     # ===== C: the .pbix file connection =====
@@ -220,8 +234,8 @@ class PowerBIProject:
                 await base.models.apply(Model(name="Power BI file", relationships=tuple(joins)), who)
             except Exception as error:
                 problems.append({"what": "relationships", "why": str(error)})
-        # 6. the data notebook
-        cells = rules.notebook_cells(plan_, dataset_connection or None)
+        # 6. the data notebook: its %%dax cells name the project's one dataset connection (E resolves it)
+        cells = rules.notebook_cells(plan_, rules.dataset_name(state))
         await asyncio.to_thread(
             self.files.write_text, str(Path(folder) / "data.ipynb"), rules.notebook_json(cells)
         )
@@ -296,14 +310,36 @@ class PowerBIProject:
                 pair["in_power_bi_error"] = str(error).splitlines()[0][:200]
             if pair["source"] and pair["in_power_bi"]:
                 try:
+                    keys = self._compare_keys(state, t.name)
                     made = await self.base.compares.create(
-                        {"left": pair["source"], "right": pair["in_power_bi"], "keys": []}, who
+                        {"left": pair["source"], "right": pair["in_power_bi"], "keys": keys}, who
                     )
-                    pair["compare"] = made.get("id")
+                    pair["compare"] = made.get("compare")
                 except Exception as error:  # Compare is one click on the page: said, never in the way
                     pair["compare_error"] = str(error).splitlines()[0][:200]
             out.append(pair)
         return out
+
+    def _compare_keys(self, state: Mapping[str, Any], table: str) -> list[list[str]]:
+        """The Compare's key: a column both grids have that a relationship names, else their first shared
+        column (matched in any case)."""
+        names = rules.grid_names(table)
+        found = [self.base.ws.store.get(n) for n in names]
+        if any(f is None for f in found):
+            raise NotFound(f"{table}'s two grids are not both open.")
+        left = [c.name for c in found[0].columns]
+        right = {c.name.casefold(): c.name for c in found[1].columns}
+        shared = [c for c in left if c.casefold() in right]
+        joined = {
+            str(r.get(side + "_column", ""))
+            for r in state.get("relationships", [])
+            for side in ("from", "to")
+            if r.get(side + "_table") == table
+        }
+        keys = [c for c in shared if c in joined] or shared[:1]
+        if not keys:
+            raise NotFound(f"{table}'s two grids share no column to compare by.")
+        return [[keys[0], right[keys[0].casefold()]]]
 
     # ===== E: Read Power BI from =====
 
@@ -320,6 +356,18 @@ class PowerBIProject:
         if not text:
             raise NotFound("This project was not made from a .pbix (it has no .sab/powerbi.json).")
         return dict(json.loads(text))
+
+    def kept(self) -> tuple[dict[str, Any] | None, str | None]:
+        """The round trip's two inputs for part 1's export: .sab/powerbi.json and data.ipynb's text as it is
+        now (saved); (None, None) outside a Power BI project made from a .pbix."""
+        current = self.base.sab_projects.current
+        if current is None:
+            return None, None
+        try:
+            state = self._state()
+        except NotFound:
+            return None, None
+        return state, self.files.read_text(str(Path(current.folder) / "data.ipynb"))
 
     def _write_state(self, state: Mapping[str, Any]) -> None:
         current = self.base.sab_projects.current
@@ -399,6 +447,54 @@ class PowerBIProject:
         where = {"schema": pf.SCHEMA, "table": table, "as": name}
         return (await self.base.connections.open_table(str(state["file_connection"]), where, who)).get("grid")
 
+    # ===== E everywhere: the project's one dataset connection name =====
+
+    def aliases(self) -> dict[str, Any]:
+        """The open Power BI project's dataset connection name (the model's) resolving through Read Power BI
+        from: what DuckDB SQL `[Sales model].Sales`, a `%%dax Sales model` cell and the grids read."""
+        try:
+            state = self._state()
+        except Exception:  # no Power BI project open
+            return {}
+        return {rules.dataset_name(state): DatasetAlias(self)}
+
+    async def read_table(self, table: str) -> Any:
+        """One model table, whole, through what Read Power BI from answers now (an Arrow table)."""
+        state = self._state()
+        effective, _ = self._effective(state, str(self.base.sab_projects.setting(SOURCE_KEY) or "published"))
+        most = self.base.ws.settings.max_connection_query_rows
+        if effective == "local" and self.live is not None:
+            return await self.live.evaluate("EVALUATE '" + table.replace("'", "''") + "'")
+        if effective == "published":
+            ds = state["dataset"]
+            place = {"database": "", "schema": str(ds["dataset"]), "table": table}
+            connection = str(ds["connection"])
+        else:
+            place = {"database": "", "schema": pf.SCHEMA, "table": table}
+            connection = str(state["file_connection"])
+        read = await self.base.connections.read_for_query(connection, place, Pushed(), most)
+        return read.table
+
+    async def dax(self, query: str) -> Any:
+        """DAX through what Read Power BI from answers now. The file answers whole tables only."""
+        state = self._state()
+        effective, _ = self._effective(state, str(self.base.sab_projects.setting(SOURCE_KEY) or "published"))
+        if effective == "local" and self.live is not None:
+            return await self.live.evaluate(query)
+        if effective == "published":
+            ds = state["dataset"]
+            read = await self.base.connections.read_query(
+                str(ds["connection"]), query, {"dataset": str(ds["dataset"])}
+            )
+            return read.table
+        table = rules.table_of(query)
+        if table is None:
+            raise Refused(
+                "The .pbix file answers whole tables only (EVALUATE 'Sales'): publish it, or open it in "
+                "Power BI Desktop and read from Local."
+            )
+        return await self.read_table(table)
+
     # ===== H: To finish setting up =====
 
     async def to_finish(self) -> list[dict[str, Any]]:
@@ -463,7 +559,7 @@ class PowerBIProject:
                 blade = self.base.connections.blade(name)[0]
             except Exception:  # noqa: S112 (gone)
                 continue
-            if blade.template in ("sqlserver", "azuresql", "dataverse", "sharepoint", "datalake", "onelake"):
+            if blade.template in MICROSOFT_TEMPLATES:
                 out.append(name)
         return out
 
@@ -506,26 +602,15 @@ class PowerBIProject:
         return {"registration": name, "changes": changes, "to_finish": await self.to_finish()}
 
     async def _repoint(self, name: str, reg: Any, who: str) -> None:
-        """A SQL Server connection made to sign in with the registration's variables."""
-        from swissarmybench.domain import sql_server
-        from swissarmybench.domain.blades import apply_settings
+        """A Microsoft connection (Azure SQL or SQL Server with Entra, Dataverse, SharePoint, OneLake, Data
+        Lake) made to sign in with the registration's variables: its kind's app-registration code, its place
+        settings kept (domain/app_registrations.py signed_in_with)."""
+        from swissarmybench.domain import app_registrations as registrations
 
         blade = self.base.connections.blade(name)[0]
-        if blade.template not in ("sqlserver", "azuresql"):
+        code = registrations.signed_in_with(str(blade.template or ""), blade.code, reg)
+        if code is None:
             return
-        settings = _settings_of(blade.code)
-        code = sql_server.code("app_secret", "my-server")
-        found = {s.name: s.id for s in detect_settings(code)}
-        values = {
-            "server": settings.get("server", ""),
-            "database": settings.get("database", ""),
-            "tenant_id": "${" + reg.tenant + "}",
-            "client_id": "${" + reg.client + "}",
-        }
-        filled = {found[k]: {"text": v} for k, v in values.items() if k in found and v}
-        code = apply_settings(code, filled).replace('secret("client secret")', f'os.environ["{reg.secret}"]')
-        if "import os\n" not in code:
-            code = "import os\n" + code
         body = {
             "name": name,
             "kind": blade.kind,
@@ -592,6 +677,7 @@ class PowerBIProject:
         POST {choice, value} (Read Power BI from, App registration) or {action}."""
         body = body if isinstance(body, dict) else {}
         said: list[dict[str, str]] = []
+        self._opens = None
         try:
             if body.get("choice") == "source":
                 await self.set_source({"source": body.get("value")}, who)
@@ -642,6 +728,8 @@ class PowerBIProject:
         ]
         return {
             "heading": "To finish setting up",
+            "review": self.review,
+            "open": self._opens,
             "rows": rows,
             "choices": [
                 {
@@ -748,7 +836,36 @@ class PowerBIProject:
                         "tone": "warn",
                     }
                 ]
-            return [{"text": "See the dry run: powerbi_edit_plan, then Apply.", "tone": ""}]
+            planned = await self.live.plan({})
+            changes = planned["changes"]
+            self.review = {
+                "id": "edit",
+                "heading": "Edit in Power BI Desktop: the dry run",
+                "items": [
+                    {"text": c["words"], "tone": "ok" if c["ok"] else "warn"}
+                    | ({"why": c["why"]} if c.get("why") else {})
+                    for c in changes
+                ],
+                "apply": {
+                    "id": "edit:apply",
+                    "label": "Apply",
+                    "disabled": not any(c["ok"] for c in changes),
+                },
+                "cancel": {"id": "edit:cancel", "label": "Cancel"},
+                "empty": "Nothing to change: the open model has our relationships and measures.",
+            }
+            return []
+        if action == "edit:cancel":
+            self.review = None
+            return []
+        if action == "edit:apply":
+            if self.live is None:
+                raise Conflict("Edit in Power BI Desktop needs Power BI Desktop on this computer (Windows).")
+            done = await self.live.apply({}, who)  # the agent's waits for the user's Allow
+            self.review = None
+            n = len(done["applied"])
+            words = f"Applied {n} change{'' if n == 1 else 's'} to the open model in Power BI Desktop."
+            return [{"text": words, "tone": "ok"}]
         if action == "export":
             done = await self.base.powerbi_export.export({}, who)
             return [
@@ -758,14 +875,32 @@ class PowerBIProject:
                 }
             ]
         if action == "pages":
-            return [
-                {
-                    "text": "On the ERD page: Export to Power BI…, then Use an existing report's pages.",
-                    "tone": "",
-                }
-            ]
+            # The export dialog with its report part, right there on the page (the ERD's plug-in).
+            tables = [str(t["name"]) for t in self._state().get("tables", []) if t.get("name")]
+            self._opens = {"plugin": "powerbi_report_pages", "context": tables}
+            return []
         return [{"text": f"{action} is not an action here.", "tone": "error"}]
 
     def check_conflict(self) -> None:
         if self.base.sab_projects.current is None:
             raise Conflict("Open a project first.")
+
+
+class DatasetAlias:
+    """The project's dataset connection name, as the base's connection tables take it (services/hooks.py)."""
+
+    def __init__(self, project: PowerBIProject) -> None:
+        self._project = project
+
+    def words(self) -> str:
+        return str(self._project.source()["words"])
+
+    async def tables(self) -> list[str]:
+        state = self._project.state()
+        return [str(t["name"]) for t in state.get("tables", []) if t.get("name")]
+
+    async def read(self, table: str) -> Any:
+        return await self._project.read_table(table)
+
+    async def dax(self, query: str) -> Any:
+        return await self._project.dax(query)

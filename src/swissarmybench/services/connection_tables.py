@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -30,6 +30,7 @@ from swissarmybench.services.workspace import Workspace
 
 MAX_KEPT: int = 64  # reads kept for the session (the oldest goes first)
 MAX_OPEN_ALL: int = 200  # tables Open all opens at once
+ALIAS = "alias"  # a project's dataset connection name, resolved through its setting (services/hooks.py)
 
 
 class Places(Protocol):
@@ -95,9 +96,12 @@ class ConnectionTables:
         catalogs: Places,
         loading: Loading,
         to_bytes: Callable[[Any], bytes] = lambda table: b"",
+        aliases: Callable[[], Mapping[str, Any]] = lambda: {},
     ) -> None:
         self.ws = ws
         self._to_bytes = to_bytes  # a table as an Arrow IPC stream (adapters/datasets.py)
+        # A project's dataset connection names resolving through its own setting (services/hooks.py).
+        self._aliases = aliases
         self._connections = connections
         self._catalogs = catalogs
         self._loading = loading
@@ -109,11 +113,38 @@ class ConnectionTables:
     # ===== which connections, and what kind =====
 
     def names(self) -> list[str]:
-        """Every saved connection's name (a key vault's too, so naming one in SQL says it has no tables)."""
-        return [str(c["name"]) for c in self._connections.listing()["connections"]]
+        """Every saved connection's name (a key vault's too, so naming one in SQL says it has no tables),
+        and the open project's dataset connection names (an alias resolving through its setting)."""
+        saved = [str(c["name"]) for c in self._connections.listing()["connections"]]
+        taken = {n.casefold() for n in saved}
+        return saved + [a for a in self._aliases() if a.casefold() not in taken]
+
+    def alias(self, name: str) -> tuple[str, Any] | None:
+        """A dataset connection name that resolves through the open project's setting (not a saved one)."""
+        if any(
+            str(c["name"]).casefold() == name.casefold() for c in self._connections.listing()["connections"]
+        ):
+            return None
+        for key, value in self._aliases().items():
+            if key.casefold() == name.casefold():
+                return key, value
+        return None
+
+    async def alias_dax(self, name: str, query: str) -> tuple[Any, str]:
+        """DAX on the project's dataset connection, through what it reads now: the rows and its words."""
+        found = self.alias(name)
+        if found is None:
+            raise LookupError(f"No dataset connection is named {name!r} in the open project.")
+        key, alias = found
+        table = await alias.dax(query)
+        self.ws.audit.write("app", "dataset_alias_dax", key, rows=int(table.num_rows))
+        return table, str(alias.words())
 
     def kind(self, name: str) -> tuple[str, str]:
         """A connection's saved name and its tables kind (domain/connection_tables.py TABLE_KINDS)."""
+        aliased = self.alias(name)
+        if aliased is not None:
+            return aliased[0], ALIAS
         blade, _ = self._connections.blade(name)
         found = rules.tables_kind(
             blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
@@ -127,7 +158,10 @@ class ConnectionTables:
 
     async def places(self, name: str) -> list[Place]:
         """A connection's tables (its catalog, loaded now when it is not yet)."""
-        saved, _ = self.kind(name)
+        saved, kind = self.kind(name)
+        alias = self.alias(saved) if kind == ALIAS else None
+        if alias is not None:
+            return [Place("", "", t) for t in await alias[1].tables()]
         found = await self._catalogs.places(saved)
         if found is None:
             await self._loading.ready(saved)
@@ -145,10 +179,11 @@ class ConnectionTables:
         columns, filters, a safe LIMIT), or the session's read of it by the same request to the source:
         the read, and whether it was kept from before. Never the connection's first rows only: past the
         query limit (settings) it is refused, with how to narrow it."""
-        saved, _ = self.kind(name)
+        saved, kind = self.kind(name)
         sent = pushed or rules.Pushed()
+        alias = self.alias(saved) if kind == ALIAS else None
         key = (
-            saved.casefold(),
+            (saved + (" · " + str(alias[1].words()) if alias else "")).casefold(),
             place.database.casefold(),
             place.schema.casefold(),
             place.table.casefold(),
@@ -160,7 +195,14 @@ class ConnectionTables:
                 self._kept.move_to_end(key)
                 return kept, True
         most = self.ws.settings.max_connection_query_rows
-        read = await self._connections.read_for_query(saved, place.to_json(), sent, most)
+        if alias is not None:  # read whole, through what the alias reads now
+            table = await alias[1].read(place.table)
+            shown = int(table.num_rows)
+            if shown > most:
+                raise BladeError(rules.too_many(saved, place.table, shown, most, False))
+            read = TableRead(place.table, table, None, shown, shown, saved, dax=True)
+        else:
+            read = await self._connections.read_for_query(saved, place.to_json(), sent, most)
         async with self._lock:
             self._next += 1
             kept = Kept(f"r{self._next}", saved, place, read, time.time(), sent)
@@ -181,6 +223,10 @@ class ConnectionTables:
     async def arrow(self, read_id: str) -> bytes:
         """A kept read as an Arrow IPC stream, for a Workbench kernel's DuckDB (client/sql_cell.py)."""
         table = self.kept(read_id).read.table
+        found: bytes = await self.ws.workers.run(BACKGROUND, self._to_bytes, table)
+        return found
+
+    async def to_arrow(self, table: Any) -> bytes:
         found: bytes = await self.ws.workers.run(BACKGROUND, self._to_bytes, table)
         return found
 

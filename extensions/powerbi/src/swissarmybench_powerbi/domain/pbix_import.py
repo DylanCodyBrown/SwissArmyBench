@@ -9,7 +9,7 @@ file (domain/pbix_file.py) planned into a project ready to work. Pure rules; the
               Power BI workspace connections reach; several or none: asked, never guessed
   [TABLES]    per model table a Source read (its back-end connection's table or native query; its Power Query
               steps after the navigation said, not translated) and an In Power BI read (the dataset)
-  [NOTEBOOK]  data.ipynb: per table a `%%sql <connection>` cell and a `%%dax <dataset connection>/<dataset>`
+  [NOTEBOOK]  data.ipynb: per table a `%%sql <connection>` cell and a `%%dax <the project's dataset>`
   cell
   [KEEP]      .sab/powerbi.json: the measures, display folders, formats and each table's original M (part 1's
               export writes an untouched table's M back byte for byte)
@@ -26,6 +26,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import notebooks as nb
 from swissarmybench.domain import variable_refs as refs
 from swissarmybench_powerbi.domain import pbix_file as pf
 from swissarmybench_powerbi.domain import power_query as pq
@@ -263,26 +264,27 @@ def find_dataset(
 
 
 def notebook_cells(plan_: ImportPlan, dataset_connection: str | None) -> list[dict[str, Any]]:
-    """data.ipynb's cells: per table its `%%sql` Source cell and its `%%dax` cell, each named after it."""
+    """data.ipynb's cells: per table its `%%sql` Source cell and its `%%dax` cell, each named after it. The
+    `%%dax` cell names the project's one dataset connection (named after the model), which reads what Read
+    Power BI from says (Published, Local, the file) with no change to the cell."""
     cells: list[dict[str, Any]] = [
         {
             "kind": "markdown",
             "source": f"# {plan_.project}\nEach table read from its source, and as Power BI has it.",
         }
     ]
-    dataset = plan_.dataset["dataset"] if plan_.dataset else ""
     for t in plan_.tables:
         sql = t.source_sql()
         if t.connection and sql:
             cells.append(
-                {"kind": "code", "source": f"%%sql {t.connection}\n{sql}", "name": f"{t.name} source"}
+                {"kind": "code", "source": f"{nb.sql_line(t.connection)}\n{sql}", "name": f"{t.name} source"}
             )
-        if dataset_connection and dataset:
+        if dataset_connection:
             dax = "EVALUATE " + "'" + t.name.replace("'", "''") + "'"
             cells.append(
                 {
                     "kind": "code",
-                    "source": f"%%dax {dataset_connection}/{dataset}\n{dax}",
+                    "source": f"{nb.dax_line(dataset_connection)}\n{dax}",
                     "name": f"{t.name} in Power BI",
                 }
             )
@@ -319,6 +321,23 @@ def notebook_json(cells: Sequence[Mapping[str, Any]]) -> str:
     return json.dumps(book, indent=1, ensure_ascii=False) + "\n"
 
 
+def dataset_name(state: Mapping[str, Any]) -> str:
+    """The project's one dataset connection name: the model's (kept at import), else its file's."""
+    kept = str(state.get("dataset_name") or "")
+    if kept:
+        return kept
+    target = str(state.get("target") or "").replace("\\", "/").rsplit("/", 1)[-1]
+    return target.rsplit(".", 1)[0] if "." in target else target
+
+
+def table_of(dax: str) -> str | None:
+    """The table a whole-table DAX query reads (EVALUATE 'Sales', EVALUATE Sales), else None."""
+    found = re.fullmatch(r"\s*EVALUATE\s+(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_]*))\s*;?\s*", dax, re.I)
+    if found is None:
+        return None
+    return found.group(1).replace("''", "'") if found.group(1) else found.group(2)
+
+
 def changed_query(source: str) -> str | None:
     """A Source cell's SQL (its text after the %%sql line), for the round trip."""
     lines = source.splitlines()
@@ -336,11 +355,14 @@ def state_json(
     plan_: ImportPlan, target: str, dataset_connection: str, file_connection: str
 ) -> dict[str, Any]:
     """The kept state: the target, the connections named, each table's original M (and its Source SQL's
-    digest, so a changed notebook query is told), measures with folders and formats, relationships."""
+    digest, so a changed notebook query is told), its columns, measures with folders and formats,
+    relationships."""
+    columns = {t.name: t.columns for t in plan_.model.tables}
     return {
         "format": FORMAT,
         "target": target,
         "dataset_connection": dataset_connection,
+        "dataset_name": plan_.model.name,
         "file_connection": file_connection,
         "dataset": plan_.dataset,
         "source": "published" if plan_.dataset else "file",
@@ -353,6 +375,7 @@ def state_json(
                 "m": t.m,
                 "sql": t.source_sql(),
                 "sql_digest": digest(t.source_sql()),
+                "columns": [[c.name, pbi_type(c.type)] for c in columns.get(t.name, ())],
             }
             | ({"why": t.why} if t.why else {})
             for t in plan_.tables
@@ -379,14 +402,126 @@ def round_trip_m(
     return "query", current_sql
 
 
-def with_native_query(m: str, query: str) -> str:
+_PBI_TYPES = (
+    ("int", "int64"),
+    ("float", "double"),
+    ("decimal", "decimal"),
+    ("datetime", "dateTime"),
+    ("date", "dateTime"),
+    ("bool", "boolean"),
+)
+
+
+def pbi_type(pandas_type: str) -> str:
+    """Power BI's data type for pbixray's pandas type name (int64, float64, datetime64[ns], bool, string)."""
+    t = pandas_type.strip().lower()
+    for start, kind in _PBI_TYPES:
+        if t.startswith(start):
+            return kind
+    return "string"
+
+
+def notebook_queries(ipynb: str | None) -> dict[str, str]:
+    """data.ipynb's Source cells as they are now: the table -> its `%%sql` cell's SQL (the cell named
+    "<Table> source"). A notebook that does not read says nothing (every table's M is kept)."""
+    if not ipynb:
+        return {}
+    try:
+        book = json.loads(ipynb)
+    except ValueError:
+        return {}
+    out: dict[str, str] = {}
+    for cell in book.get("cells", []) if isinstance(book, dict) else []:
+        if not isinstance(cell, dict) or cell.get("cell_type") != "code":
+            continue
+        name = str(((cell.get("metadata") or {}).get("swissarmybench") or {}).get("name") or "")
+        if not name.endswith(" source"):
+            continue
+        raw = cell.get("source", "")
+        sql = changed_query("".join(raw) if isinstance(raw, list) else str(raw))
+        if sql is not None:
+            out[name[: -len(" source")]] = sql
+    return out
+
+
+@dataclass(frozen=True)
+class RoundTrip:
+    """A model table as part 1's export writes it back: its columns, its M and how it came ("kept": the
+    original byte for byte; "query": the notebook's changed query as a native query)."""
+
+    name: str
+    columns: tuple[tuple[str, str], ...]
+    m: pq.MText
+    how: str
+
+    def words(self) -> str:
+        if self.how == "kept":
+            return "its Power Query as the .pbix had it"
+        return "its notebook query changed: it goes as a native query"
+
+
+def _named(m: str, parameters: Iterable[str]) -> tuple[str, ...]:
+    return tuple(p for p in parameters if re.search(rf"(?<![A-Za-z0-9_]){re.escape(p)}(?![A-Za-z0-9_])", m))
+
+
+def round_trip_tables(state: Mapping[str, Any], queries: Mapping[str, str]) -> list[RoundTrip]:
+    """Every kept table that can go back: an untouched one with its M byte for byte, one whose notebook
+    query changed with the new native query; a calculated table (no M) stays out."""
+    values = {str(k): str(v) for k, v in (state.get("parameters") or {}).items()}
+    parameters = sorted(values)
+    out: list[RoundTrip] = []
+    for kept in state.get("tables", []):
+        name = str(kept.get("name") or "")
+        if not name:
+            continue
+        how, text = round_trip_m(kept, queries.get(name))
+        if how == "none":
+            continue
+        columns = tuple((str(c[0]), str(c[1])) for c in kept.get("columns") or [] if len(c) == 2)
+        original = str(kept.get("m") or "")
+        if how == "query":
+            rebuilt = native_m(original, text, values) if original else None
+            if rebuilt is not None:
+                out.append(RoundTrip(name, columns, rebuilt, how))
+                continue
+            how, text = "kept", original  # no connector call to put the query on: its M stays
+        if text:
+            out.append(RoundTrip(name, columns, pq.MText(text, _named(text, parameters)), how))
+    return out
+
+
+def kept_measures(state: Mapping[str, Any]) -> list[dict[str, str]]:
+    """The kept measures with their display folders and formats, in the export's Measure's fields."""
+    return [
+        {
+            "table": str(m.get("table") or ""),
+            "name": str(m.get("name") or ""),
+            "expression": str(m.get("expression") or ""),
+            "format_string": str(m.get("format") or ""),
+            "display_folder": str(m.get("folder") or ""),
+            "description": str(m.get("description") or ""),
+        }
+        for m in state.get("measures", [])
+        if isinstance(m, dict) and m.get("table") and m.get("name")
+    ]
+
+
+def native_m(m: str, query: str, parameters: Mapping[str, str] = {}) -> pq.MText | None:
     """The original M with its source's navigation replaced by the native query (Sql.Database's Query option,
-    else Value.NativeQuery on the source): the connector call and its arguments kept."""
-    read = pq.read_source(m)
+    else Value.NativeQuery on the source): the connector call and its arguments kept, a Power Query parameter
+    still named. None: the M has no connector call we read."""
+    read = pq.read_source(m, parameters)
     if read.source is None:
-        return m
-    rebuilt = pq.m_for(pq.MSource(read.source.kind, read.source.settings, read.source.database, query=query))
-    return rebuilt.text
+        return None
+    try:
+        return pq.m_for(pq.MSource(read.source.kind, read.source.settings, read.source.database, query=query))
+    except pq.PowerQueryError:
+        return None
+
+
+def with_native_query(m: str, query: str, parameters: Mapping[str, str] = {}) -> str:
+    rebuilt = native_m(m, query, parameters)
+    return m if rebuilt is None else rebuilt.text
 
 
 # ===== To finish setting up (H) =====

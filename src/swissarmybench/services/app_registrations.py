@@ -40,6 +40,20 @@ class Probe(Protocol):
 
     def can_query(self, token: str, workspace: str, dataset: str, table: str) -> None: ...
 
+    def ready(self, kind: str) -> str: ...
+
+    def kind_token(self, kind: str, tenant: str, client: str, secret: str, scope: str) -> str: ...
+
+    def sql(
+        self, token: str, server: str, database: str, tables: list[str]
+    ) -> tuple[list[str], dict[str, str]]: ...
+
+    def dataverse(self, token: str, url: str) -> list[str]: ...
+
+    def sharepoint(self, token: str, site_url: str) -> tuple[list[str], list[str]]: ...
+
+    def lake(self, token: str, account: str, filesystem: str, directory: str) -> None: ...
+
 
 class AppRegistrations:
     def __init__(
@@ -59,6 +73,8 @@ class AppRegistrations:
         self._computer = computer
         # Tables worth one COUNTROWS, per dataset name (an extension's hint: a Power BI project's tables).
         self.query_hints: Callable[[], dict[str, str]] = dict
+        # A connection's tables from its loaded catalog ((database, schema, table)), for SELECT TOP 0.
+        self.tables_of: Callable[[str], Any] | None = None
 
     def get(self, name: str) -> rules.Registration:
         found = next((r for r in self._files.all() if r.name.casefold() == str(name or "").casefold()), None)
@@ -125,15 +141,24 @@ class AppRegistrations:
         missing = [v for v in reg.variables() if not values.get(v)]
         items: list[rules.Access] = []
         identity: dict[str, Any] = {}
-        users = [(n, k) for n, k, code in self._connections() if rules.uses(code, reg)]
+        coded = [(n, k, code) for n, k, code in self._connections() if rules.uses(code, reg)]
+        users = [(n, k) for n, k, _code in coded]
         if missing:
             why = f"{', '.join(missing)} {'has' if len(missing) == 1 else 'have'} no value on this computer"
             items.append(rules.Access("Sign-in", reg.name, None, why, "Set it on the Variables page"))
         else:
             items += await asyncio.to_thread(self._powerbi, reg, values, identity, users)
-        for connection, kind in users:
-            if kind != "powerbi":
-                reason = rules.NOT_CHECKED_KINDS.get(kind, "this kind of connection is not checked yet")
+        for connection, kind, code in coded:
+            if kind in rules.CHECKED_KINDS and not missing:
+                settings = await self._settings(code)
+                tables = await self._tables(connection) if kind == "sqlserver" else []
+                items += await asyncio.to_thread(self._kind, reg, values, connection, kind, settings, tables)
+            elif kind != "powerbi":
+                reason = (
+                    "its registration's variables have no value on this computer"
+                    if kind in rules.CHECKED_KINDS
+                    else rules.NOT_CHECKED_KINDS.get(kind, "this kind of connection is not checked yet")
+                )
                 items.append(rules.Access("Connection", connection, None, reason, connection=connection))
         report = rules.Report(
             reg.name,
@@ -152,6 +177,113 @@ class AppRegistrations:
         )
         await self.ws.live.broadcast({"type": "app_registration_checked", "registration": reg.name})
         return {"registration": reg.to_json(), "report": report.to_json()}
+
+    async def _settings(self, code: str) -> dict[str, str]:
+        """The connection's place settings by their keys, each `${NAME}` resolved on this computer."""
+        from swissarmybench.domain import variable_refs as refs
+        from swissarmybench.domain.blades import detect_settings
+
+        try:
+            texts = {s.key: s.text for s in detect_settings(code) if s.text is not None}
+        except Exception:  # code the reader does not follow: nothing to name
+            return {}
+        names = sorted({n for t in texts.values() for n in refs.names(t)})
+        values = await self._values(names) if names else {}
+        out: dict[str, str] = {}
+        for key, text in texts.items():
+            try:
+                out[key] = refs.resolve(text, values.get)
+            except Exception:  # noqa: S112 (a variable not set here: that setting is left out)
+                continue
+        return out
+
+    async def _tables(self, connection: str) -> list[str]:
+        if self.tables_of is None:
+            return []
+        try:
+            found = await self.tables_of(connection)
+        except Exception:  # no catalog loaded: no table to try
+            return []
+        return [".".join(p for p in (s, t) if p) for _d, s, t in (found or [])][:20]
+
+    def _kind(
+        self,
+        reg: rules.Registration,
+        values: dict[str, str],
+        connection: str,
+        kind: str,
+        settings: dict[str, str],
+        tables: list[str],
+    ) -> list[rules.Access]:
+        """One Microsoft connection's read-only check, signed in as the registration with its kind's scope."""
+        area = rules.AREAS.get(kind, kind)
+        place = rules.place_words(kind, settings) or connection
+
+        def item(target: str, ok: bool | None, reason: str = "", fix: str = "") -> rules.Access:
+            return rules.Access(area, target, ok, reason, fix, connection)
+
+        why = self._probe.ready(kind)
+        if why:
+            return [item(place, None, why)]
+        scope = rules.scope_for(kind, settings)
+        try:
+            token = self._probe.kind_token(
+                kind, values[reg.tenant], values[reg.client], values[reg.secret], scope
+            )
+        except rules.Refused as error:
+            return [
+                item(place, False, rules.sign_in_refused(error.status, error.said), "Set its variables again")
+            ]
+        except OSError as error:
+            return [item(place, None, f"Microsoft's sign-in could not be reached ({error})")]
+        try:
+            if kind == "sqlserver":
+                databases, refused = self._probe.sql(
+                    token, settings.get("server", ""), settings.get("database", ""), tables
+                )
+                out = [
+                    item(place, True),
+                    item("databases it sees: " + (", ".join(databases[:8]) or "none"), True),
+                ]
+                for table in tables:
+                    if table in refused:
+                        reason, fix = rules.refused_words(kind, 0, refused[table])
+                        out.append(item(table, False, reason, "Grant it SELECT on the table"))
+                    else:
+                        out.append(item(table, True))
+                return out
+            if kind == "dataverse":
+                roles = self._probe.dataverse(token, settings.get("url", ""))
+                if not roles:
+                    return [
+                        item(place, True),
+                        item(
+                            "its security roles",
+                            False,
+                            "it has no security role",
+                            "Give the application user a security role",
+                        ),
+                    ]
+                return [item(place, True), item("roles: " + ", ".join(roles), True)]
+            if kind in ("sharepoint", "sharepoint_docs"):
+                lists, libraries = self._probe.sharepoint(token, settings.get("site_url", ""))
+                return [
+                    item(place, True),
+                    item("lists: " + (", ".join(lists[:8]) or "none"), True),
+                    item("libraries: " + (", ".join(libraries[:8]) or "none"), True),
+                ]
+            where = rules.lake_place(kind, settings)
+            if where is None:
+                return [item(place, None, "not an Azure path: the registration does not sign it in")]
+            self._probe.lake(token, *where)
+            return [item(place, True)]
+        except rules.Refused as error:
+            if error.status == rules.NOT_HERE:
+                return [item(place, None, error.said)]
+            reason, fix = rules.refused_words(kind, error.status, error.said)
+            return [item(place, False, reason, fix)]
+        except OSError as error:
+            return [item(place, None, f"it could not be reached from this computer ({error})")]
 
     def _powerbi(
         self,

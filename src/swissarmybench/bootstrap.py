@@ -28,7 +28,7 @@ from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
-from swissarmybench.adapters.app_registrations import PowerBIProbe, RegistrationFiles
+from swissarmybench.adapters.app_registrations import MicrosoftProbe, RegistrationFiles
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
@@ -714,7 +714,12 @@ def bootstrap(
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
     # What a connection is: its tables, listed and read one way for every kind; DuckDB SQL names them.
     connection_tables = ConnectionTablesService(
-        ws, connections, catalogs, catalog_loading, table_reader.table_to_arrow_stream
+        ws,
+        connections,
+        catalogs,
+        catalog_loading,
+        table_reader.table_to_arrow_stream,
+        aliases=lambda: hooks.dataset_aliases(),
     )
     datasets.connection_sql = connection_tables
     connection_swap = ConnectionSwap(
@@ -856,10 +861,11 @@ def bootstrap(
     app_registrations = AppRegistrations(
         ws,
         RegistrationFiles(lambda: library_folder.root, library_folder.ensure),
-        PowerBIProbe(),
+        MicrosoftProbe(),
         variables.values,
         every_connection,
     )
+    app_registrations.tables_of = catalogs.places  # Azure SQL's SELECT TOP 0 on its catalog's tables
     datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
     structures.variables = variables
     api_explorer.variables = variables
@@ -1187,6 +1193,7 @@ def bootstrap(
         documents=lambda: project_scope.documents()["documents"],
         context_md=context_md,
     )
+    context_md.access = app_registrations.access
     modes = Modes(
         extension_modules.modes,
         lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
@@ -1195,6 +1202,7 @@ def bootstrap(
         sab_projects.setting,
         sab_projects.set_setting,
     )
+    context_md.gates = modes.gates
 
     def saved_dashboards() -> list[dict[str, Any]]:
         """The open project's saved dashboards: each one's name and its last version's cards."""

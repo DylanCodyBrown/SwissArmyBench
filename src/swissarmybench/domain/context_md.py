@@ -137,6 +137,9 @@ class ConnectionFacts:
     writes: bool | None = (
         None  # its Write starters write to it, or it is read-only (domain/write_capability.py)
     )
+    # Its access as each app registration's last report says, one line each ("Contoso BI: ✓ 3, ✗ 1 (...),
+    # checked 2026-11-19 10:04"); none: no registration signs it in.
+    access: tuple[str, ...] = ()
 
     @property
     def naming(self) -> str:
@@ -262,6 +265,8 @@ class State:
     variables: tuple[VariableFacts, ...] = ()
     documents: tuple[DocumentFacts, ...] = ()
     windows: tuple[str, ...] = ()  # each window's line, in words (names as code)
+    gates: tuple[str, ...] = ()  # the features the open project's type keeps closed (names); () all open
+    gated_type: str = ""  # that type's name ("Power BI")
     index: str = ""  # mcp/index.md
     guide: Mapping[str, str] = field(default_factory=dict)  # topic -> its text
 
@@ -283,6 +288,11 @@ def _project(s: State) -> list[str]:
         lines.append(
             f"- Its folder (the project: notebooks, scripts, apps; the app's own in .sab/): {code(s.folder)}"
         )
+    if s.gates:
+        lines.append(
+            f"- Gates: this {s.gated_type or 'project'} project keeps closed {', '.join(s.gates)} on the "
+            "user's screens (your tools stay open; `app_gates` opens every feature)"
+        )
     return lines
 
 
@@ -298,6 +308,8 @@ def _connection(c: ConnectionFacts, trims: set[str]) -> list[str]:
         lines.append(f"  - last error: {code(c.error)}")
     if c.needs:
         lines.append(f"  - needs a password source for {', '.join(code(n) for n in c.needs)}")
+    for line in c.access:
+        lines.append(f"  - access: {line}")
     if c.kind == "vault":
         return lines
     lines.append(f"  - in DuckDB SQL: {c.rule()}")

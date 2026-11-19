@@ -37,6 +37,7 @@ from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.relationships import Asker, Models
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 from swissarmybench_powerbi.domain import export as rules
+from swissarmybench_powerbi.domain import pbix_import as import_rules
 from swissarmybench_powerbi.domain import power_query as pq
 from swissarmybench_powerbi.domain import report_swap as swap
 
@@ -77,6 +78,12 @@ class ReportUse:
     info: dict[str, Any]
     files: dict[str, bytes]
     measures: list[rules.Measure]
+
+
+class Kept(Protocol):
+    """A Power BI project's kept state (.sab/powerbi.json) and its data.ipynb's text; (None, None) without."""
+
+    def __call__(self) -> tuple[Mapping[str, Any] | None, str | None]: ...
 
 
 class RowWriter(Protocol):
@@ -151,6 +158,12 @@ def _kind(blade: Blade) -> str | None:
     return pq.TEMPLATE_KINDS.get(str(blade.template or ""))
 
 
+def _measures(kept: list[rules.Measure], brought: list[rules.Measure]) -> list[rules.Measure]:
+    """The kept measures, then another report's brought ones not already there (by table and name)."""
+    have = {(m.table.casefold(), m.name.casefold()) for m in kept}
+    return kept + [m for m in brought if (m.table.casefold(), m.name.casefold()) not in have]
+
+
 def _extension(path: str) -> str:
     return posixpath.splitext(path.replace("\\", "/").lower())[1]
 
@@ -169,6 +182,7 @@ class PowerBIExport:
         writer: RowWriter,
         approvals: Asker,
         read_report: ReportReader | None = None,
+        kept: Kept | None = None,
     ) -> None:
         self.ws = ws
         self._models = models
@@ -181,6 +195,8 @@ class PowerBIExport:
         self._writer = writer
         self._approvals = approvals
         self._read_report = read_report
+        # A Power BI project's .sab/powerbi.json and its data.ipynb's text (the round trip), set once built.
+        self.kept = kept
         # A report dropped on the page (no path: the browser's drop), kept in memory until the next one.
         self._uploads: dict[str, tuple[str, bytes]] = {}
 
@@ -382,9 +398,44 @@ class PowerBIExport:
         plans = await self._plans(
             self._wanted(body.get("tables")), self._rows_wanted(body.get("include_rows"))
         )
+        plans, _ = await self._round_trip(plans)
         answer = self._answer(name, plans)
         used = await self._report(body, plans)
         return answer | ({"report": used.info} if used is not None else {})
+
+    # ===== the round trip: a Power BI project's own tables and measures back as the .pbix had them =====
+
+    async def _round_trip(self, plans: list[TablePlan]) -> tuple[list[TablePlan], list[rules.Measure]]:
+        """In a project made from a .pbix: each kept table in place of its two grids (_Source, _PowerBI),
+        its M byte for byte or its changed notebook query as a native query, and the kept measures."""
+        if self.kept is None:
+            return plans, []
+        try:
+            state, notebook = await asyncio.to_thread(self.kept)
+        except Exception:  # not a Power BI project: the export as before
+            return plans, []
+        if not state:
+            return plans, []
+        trips = import_rules.round_trip_tables(state, import_rules.notebook_queries(notebook))
+        by = {p.name: p for p in plans}
+        mine: set[str] = set()
+        made: list[TablePlan] = []
+        for t in trips:
+            pair = import_rules.grid_names(t.name)
+            mine |= {t.name, *pair}
+            columns = t.columns
+            if not columns:  # an older state: the Source grid's columns
+                grid = next((by[g] for g in pair if g in by and by[g].columns), None)
+                columns = grid.columns if grid is not None else ()
+            target = posixpath.basename(str(state.get("target") or "").replace("\\", "/")) or "the .pbix"
+            plan = TablePlan(t.name, source=target, columns=columns, m=t.m)
+            plan.notes.append(t.words())
+            if not columns:
+                plan.goes, plan.why = False, "its columns are not known: open its Source grid"
+            made.append(plan)
+        rest = [p for p in plans if p.name not in mine]
+        measures = [rules.Measure(**m) for m in import_rules.kept_measures(state)]
+        return made + rest, measures
 
     # ===== another report's pages =====
 
@@ -464,6 +515,7 @@ class PowerBIExport:
         plans = await self._plans(
             self._wanted(body.get("tables")), self._rows_wanted(body.get("include_rows"))
         )
+        plans, kept_measures = await self._round_trip(plans)
         with_rows = [p for p in plans if p.rows]
         if who == "agent" and with_rows:
             detail = "\n".join(
@@ -500,7 +552,7 @@ class PowerBIExport:
             tables,
             planned,
             parameters,
-            used.measures if used is not None else (),
+            _measures(kept_measures, used.measures if used is not None else []),
             used.files if used is not None else None,
         )
         files = dict(package.files)

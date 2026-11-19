@@ -201,10 +201,10 @@ def test_the_dataset_is_asked_when_not_one() -> None:
 
 def test_the_notebook_has_a_sql_and_a_dax_cell_per_table() -> None:
     plan = rules.plan(fake.MODEL, "Sales model", [], [{"connection": "Finance", "dataset": "Sales model"}])
-    cells = rules.notebook_cells(plan, "Finance")
+    cells = rules.notebook_cells(plan, "Sales model")
     named = {c.get("name"): c["source"] for c in cells}
     assert named["Sales source"] == "%%sql SalesDb\nSELECT * FROM dbo.Sales"
-    assert named["Product in Power BI"] == "%%dax Finance/Sales model\nEVALUATE 'Product'"
+    assert named["Product in Power BI"] == "%%dax 'Sales model'\nEVALUATE 'Product'"
     book = json.loads(rules.notebook_json(cells))
     assert book["nbformat"] == 4 and book["cells"][1]["metadata"]["swissarmybench"]["name"] == "Sales source"
 
@@ -263,7 +263,7 @@ def test_a_pbix_imported_as_a_project_ready_to_work(tmp_path: Path, standin: mad
         state = json.loads((folder / ".sab" / "powerbi.json").read_text())
         assert state["measures"][0]["folder"] == "KPIs" and state["tables"][0]["m"] == fake.SALES_M
         book = json.loads((folder / "data.ipynb").read_text())
-        assert any("%%dax Finance/Sales model" in "".join(c["source"]) for c in book["cells"])
+        assert any("%%dax 'Sales model'" in "".join(c["source"]) for c in book["cells"])
         names = {c["name"] for c in ok(client.get("/connections", headers=AUTH))["connections"]}
         assert {"SalesDb", "Ops", "Sales model file", "Finance"} <= names
         variables = ok(client.get("/variables", headers=AUTH))

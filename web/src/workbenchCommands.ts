@@ -13,6 +13,7 @@
 import { api } from "./api";
 import { recordAction } from "./betaNotes";
 import { h } from "./dom";
+import { areaOfCommand, gated } from "./gates";
 
 export interface Command {
   /** The name the agent uses: "run.file", "cell.insertBelow". */
@@ -28,6 +29,8 @@ export interface Command {
   when?: () => boolean;
   /** What to say when it cannot run now. */
   whyNot?: string;
+  /** The area it belongs to, for a project type's gates (gates.ts areaOfCommand finds the base's own). */
+  area?: string;
   /** For the agent only (a read the user sees on screen anyway): left out of the palette. */
   agentOnly?: boolean;
   /** `from.agent`: the agent asked (workbench_window), so what writes the user's rows to disk is sent
@@ -57,6 +60,8 @@ export async function runCommand(id: string, args: Record<string, unknown> = {},
   const command = registry.get(id) ?? source().find((c) => c.id === id);
   if (!command) throw new Error(`No command "${id}". The command "commands" lists them.`);
   if (command.when && !command.when()) throw new Error(`"${command.title}" cannot run now: ${command.whyNot ?? "it does not apply to what is open"}.`);
+  // A feature this project's type keeps closed: its one line instead (the agent's tools stay open).
+  if (!agent && gated(command.area ?? areaOfCommand(id))) return undefined;
   recordAction(agent ? `agent:${id}` : id);
   return command.run(args, { agent });
 }
@@ -242,6 +247,7 @@ export function openPalette(): void {
     void Promise.resolve()
       .then(() => {
         if (c.when && !c.when()) return undefined;
+        if (gated(c.area ?? areaOfCommand(c.id))) return undefined; // closed in this project: its line
         recordAction(c.id);
         noteRecent(c.id);
         return c.run({}, { agent: false });

@@ -6528,3 +6528,53 @@ Built in the extension (backend and data); the base gained only generic seams.
 
 Release notes: Power BI projects from a .pbix; the .pbix connection; app registrations with access reports; Read
 Power BI from Published or Local; project types that keep features closed; Edit in Power BI Desktop (Windows).
+
+## The Power BI extension, part 3: what part 2 left (2026-11-19, the owner's calls; built, branch powerbi-3)
+
+Part 2's "not wired yet" and "left out" lines, each built:
+
+- **The round trip:** part 1's export reads `.sab/powerbi.json` and data.ipynb (`PowerBIProject.kept`, set on
+  `PowerBIExport.kept`): each kept table goes in place of its two grids, an untouched one with its M byte for byte,
+  one whose `<Table> source` `%%sql` cell changed with the new native query (Sql.Database's Query option, else
+  Value.NativeQuery; its Power Query parameters still named); the measures with their display folders and formats
+  (another report's brought measures added after them, by table and name). The import now keeps each table's
+  columns and types (pbixray's pandas types as Power BI's); an older state takes its Source grid's columns. A
+  calculated table (no M) stays out. Rules: `pbix_import.round_trip_tables`, `notebook_queries`, `kept_measures`.
+- **The switch reaches everything:** the project has ONE dataset connection name, the model's (`dataset_name`),
+  which is not a saved connection but resolves through Read Power BI from. A generic base seam,
+  `hooks.dataset_aliases`: connection tables list and read it (DuckDB SQL `[Sales model].Customer`: Published reads
+  the workspace's dataset, Local Power BI Desktop's open model by DAX, else the file; a read is kept per source, so
+  a switch reads again), and a kernel's `%%dax 'Sales model'` cell (client/sql_cell.py asks
+  `GET /connections/sql/alias`, then sends its DAX to `POST /connections/sql/alias/dax`, Arrow back, the source's
+  words printed). The import scaffolds its `%%dax` cells against that name. The file answers whole tables only
+  (`EVALUATE 'Sales'`), refused in words otherwise. Compares follow because the `_PowerBI` grids are read again in
+  place (the grid kept); the import's Compare now names its key (a relationship's column both grids have, else the
+  first shared) and keeps its id (it read a key that was never there).
+- **The Access section drawn** (web/src/connectionAccess.ts): on a connection card's detail, each registration that
+  signs it in: its one line, when and on which computer it was checked, each item (✓, ✗ with reason and fix, not
+  checked with why), Check again. A registration's sign-in is part of each connection's section. context.md's
+  Connections says each connection's access in one line, its Project the gates of the open project.
+- **The other Microsoft kinds checked, read-only** (adapters MicrosoftProbe): Azure SQL (mssql-python with the token:
+  the databases it sees, SELECT TOP 0 on its catalog's tables; no driver here: not checked, said), Dataverse
+  (WhoAmI, its security roles' names), SharePoint (the site, its lists' and libraries' names), OneLake and Data
+  Lake (one listing of the named path; a Delta root on abfss:// too). Re-pointing (`signed_in_with`) makes any of
+  those kinds sign in with the registration: its kind's app-registration starter, its place settings carried by
+  their keys (a `${NAME}` kept), the secret as `os.environ[...]`. A folder, S3 or on-premises kind is left alone.
+- **Gates everywhere:** the palette (Command.area, else `areaOfCommand` by id) and the Workbench's New entries
+  (`gatedRun`) show the one line instead of running; the agent's commands are never gated. An address that lands
+  on a closed area is covered by the line (a popover beside the rail, so a page layer shown before it is covered
+  too). The tour on a gated project is its greeting then the mode's own cards.
+- **The Power BI page's actions:** Edit in Power BI Desktop shows its dry run on the page (the generic panel's
+  `review`: each change, Apply, Cancel; the agent's Apply waits for the user's Allow); Use another report's pages
+  opens the export dialog right there with its report part first (the panel's `open`: a plug-in by id,
+  pageActions.ts openPlugin).
+- **mcp/index.md:** Power BI's key tools and app registrations' access in the table (trimmed elsewhere to stay
+  under 4,000 characters); the powerbi guide topic says the round trip, the switch, the access report and gates.
+
+Not done: grid titles saying the source ("Sales model · Local") beyond the status words; the Workbench's status
+bar showing it.
+
+Release notes: a Power BI project's export writes its original Power Query back (a changed notebook query as a
+native query); its one dataset connection follows Read Power BI from in SQL, DAX cells and Compare; a connection's
+Access section; access reports for Azure SQL, Dataverse, SharePoint and the lakes; closed features stay closed in
+the palette, the New menu and the tour; Edit in Power BI Desktop's dry run on the Power BI page.

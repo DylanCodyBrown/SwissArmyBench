@@ -62,7 +62,7 @@ import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 import { panelAreas } from "./extensionArea"; // an extension's area drawn from its data (GET /app/areas)
-import { firstOpen, isClosed, loadGates, onGates, showGateLine } from "./gates";
+import { firstOpen, isClosed, loadGates, onGates, removeGateCover, showGateLine } from "./gates";
 
 export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
@@ -193,6 +193,13 @@ export function goArea(area: Area, newWindow = false): void {
   }
   // Another page shows it: this tab goes there (the Workbench asks first when an edit is unsaved).
   location.assign(withToken(pageUrl(area)));
+}
+
+/** An address on a closed area: its page covered by the one line (not seen behind it); elsewhere, no cover. */
+function coverIfClosed(url: URL): void {
+  const now = currentArea(url);
+  if (now && isClosed(now)) showGateLine(now, true);
+  else removeGateCover();
 }
 
 function draw(url: URL): void {
@@ -336,6 +343,7 @@ export function mountNavRail(page: PageKind): void {
   document.body.classList.add("has-rail");
   draw(new URL(location.href));
   onAddress(draw);
+  onAddress(coverIfClosed);
   // An extension's areas drawn from data, before Session (their pages registered as layers).
   void panelAreas().then((found) => {
     const before = items.find((i) => i.dataset.area === "session") ?? null;
@@ -351,8 +359,7 @@ export function mountNavRail(page: PageKind): void {
   // A project type's gates: its closed areas hidden here; an address that names one says so in one line.
   onGates(() => {
     for (const i of items) i.toggleAttribute("data-gated", isClosed(i.dataset.area ?? ""));
-    const now = currentArea(new URL(location.href));
-    if (now && isClosed(now)) showGateLine(now);
+    coverIfClosed(new URL(location.href));
   });
   void loadGates();
   firstOpen(() => goArea("settings"));
