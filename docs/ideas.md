@@ -6339,3 +6339,58 @@ as typed: the value is the page's); `${NAME}` in an exported SQL query (the scri
 setting in Settings for the number of builds kept (the service takes `keep`; the default keeps every one);
 Restore for an app opened without a window (refused with the fix); the analyzer for Play (it attaches to a
 launch); window titles from a page settings title (the settings' title wins).
+
+## A first run, empty pages and the layout: feel-c (the owner, 2026-11-19: approved from the feel survey; built, branch feel-c)
+
+Survey items 7, 8, 9, 12, 13 and 15.
+
+- **Empty pages lead somewhere** (web/src/emptyState.ts): Connections, Variables, Session and a kind's landing page in
+  the Workbench (Notebooks, Scripts, Apps) show their icon, one sentence, the primary button (Add connection, Add
+  variable, Launch Claude, New notebook / script / Streamlit app) and **Try it with sample data**: the made-up
+  sample store (domain/sample_data.py: customers, products, orders; the same rows every time; orders join both)
+  opened under free names (POST /samples/store, `datasets_sample`), then the grids. Variables has no sample
+  (tables are not variables); in the Workbench the sample is followed by a new document of that kind, so its
+  Tables group lists them. A new notebook's first Python cell, empty, says "Shift+Enter runs · %%sql for DuckDB
+  SQL · drag a table here" faintly (Monaco's placeholder: gone at the first key).
+- **The finder draws at once** (relationshipsDialog.ts): Find relationships adds the confident joins (80% or
+  more) straight away, with one Undo in the toast in place of Accept the ticked joins, and draws them as the ERD
+  (Mermaid, the same lazy drawing) beside the list as a side panel; a row's tick adds or takes out that join
+  (each with Undo). The confidence bars are green when sure and grey otherwise, never the brand red. Draw diagram
+  (to Analyze) stays in the foot; erdView.ts is not changed.
+- **Add connection** (connectionsWindow.ts): the back button and the crumb at the top (as a connection's detail
+  has them), a search box focused on arrival (type to filter by name, id or group; Enter opens the first left;
+  "No connection type matches."), and the kinds this browser opened last first in their own group (localStorage,
+  a convenience: no duplicated tile, so each tile stays one).
+- **Projects** has **Open a file…** and **Paste data** beside New project and Open project… (openFile.ts
+  pasteData: a box a copied table is pasted into; it opens as a grid at once, named pasted_<time>). **Ctrl+K**
+  (dataExplorer.ts) puts the results used last first as **Recently used** while nothing is typed (each taken
+  out of its kind's group, keys only, in localStorage), and its foot says the keys (↑ ↓ move · Enter opens ·
+  Esc closes). Recent notebooks are not in Ctrl+K: it finds data, and the Notebooks page lists them.
+- **The rail's names** (rail.ts): the rail shows each area's name beside its icon (176px) until the user turns it
+  off: the toggle at its foot (Icons only / Show names) or the right-click menu. This computer's choice, kept in
+  the state folder's `rail.json` (GET/PUT /rail, `app_rail`), every window following (`rail_changed`); the last
+  one is also remembered in the page so it opens without a jump. Under 900px wide the rail is the icons alone,
+  whatever the switch. The icon rail itself looks as before.
+- **Close a project from Projects** (the owner, 2026-11-19: "I should be able to close a project from the project
+  home"; projectExplorer.ts): while a project is open, its card (marked Open) and the page's top line ("<name>
+  is open") each carry **Close project**: projectFile.ts's close as before (unsaved changes asked about; Autosave
+  saves first); the Projects page stays and the Open mark goes. The agent's is `project_close` (already there).
+- **Layout** (gridView.ts, grid.css, ribbon.ts): a short table's columns grow in proportion to fill the width
+  (at most four times their own; a column the user drags or Auto width stops it for that grid); the
+  Application row takes no band while it is empty (no project open); the Table row's tools that fold to an icon
+  say what they do in their tooltip. None of them has a key of its own today, so no key is named (feel-b's
+  shortcuts overlay is where keys are added).
+
+**Release notes (pending):**
+
+- **Every empty page leads somewhere:** one line of what it holds, the button that fills it, and **Try it with
+  sample data**, which opens three made-up tables (customers, products, orders) to play with.
+- **The rail shows its names** beside the icons; **Icons only** at its foot (or a right-click) brings back the slim
+  rail, and the choice is remembered.
+- **Projects:** **Open a file…** and **Paste data** sit beside New project, so a file or a copied table opens
+  without making a project first.
+- **Find relationships** adds the joins it is sure of straight away and draws them, with **Undo**.
+- **Add connection** has a search box and the kinds you used last first.
+- **Ctrl+K** shows what you used last first, and the keys at its foot.
+- A short table fills the window's width, and the empty Application row is gone.
+- **Close a project from Projects:** the open project is named at the top with **Close project**, and its card has one too.

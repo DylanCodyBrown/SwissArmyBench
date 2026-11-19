@@ -10,6 +10,7 @@
   POST   /datasets/{name}/drop?filename=&sheet=   a file dropped on the page: its bytes, read in memory
   POST   /files/dropped-sheets?filename=          a dropped workbook's sheet names (its bytes)
   POST   /datasets/{name}/paste         tab-separated text copied from Excel
+  POST   /samples/store                 the made-up sample store (customers, products, orders)
   POST   /grids/reopen                  Ctrl+Shift+T: the last closed tab again, its steps kept (tabs_reopen)
   POST   /datasets/{name}/reload        {"not_now"?} its file changed on disk: read again (tabs_reload)
   POST   /datasets/{name}/query         {"sql": "SELECT ...", "replace": bool} the "+" tab's table
@@ -165,6 +166,12 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    async def sample(request: Request) -> Response:
+        try:
+            return json_response(await datasets.open_sample(actor(request)))
+        except Exception as error:
+            return error_response(error)
+
     async def reload(request: Request) -> Response:
         try:
             body = await read_json(request) if (await request.body()) else {}
@@ -211,6 +218,7 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
         Route("/datasets/{name}", delete_dataset, methods=["DELETE"]),
         Route("/datasets/{name}/load", load, methods=["POST"]),
         Route("/datasets/{name}/paste", paste, methods=["POST"]),
+        Route("/samples/store", sample, methods=["POST"]),
         Route("/datasets/{name}/rename", rename, methods=["POST"]),
         Route("/grids/reopen", reopen, methods=["POST"]),
         Route("/datasets/{name}/reload", reload, methods=["POST"]),

@@ -12,7 +12,7 @@ import threading
 from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
-from swissarmybench.domain import variable_refs
+from swissarmybench.domain import sample_data, variable_refs
 from swissarmybench.domain.datasets import DatasetError, DatasetInfo, Opened, mib, quote, validate_name
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.sql_guard import SqlRefused, guard
@@ -360,6 +360,17 @@ class DatasetService:
         while name.lower() in taken:
             name, n = f"{wanted}_{n}", n + 1
         return name
+
+    async def open_sample(self, who: str) -> dict[str, Any]:
+        """The made-up sample store (domain/sample_data.py) as open tables, each under a free name: the
+        empty pages' Try it with sample data."""
+        opened: list[dict[str, Any]] = []
+        for table in sample_data.store():
+            name = self.free_name(table.name)
+            rows = [list(row) for row in table.rows]
+            stored = await self.store_rows(name, list(table.columns), rows, who, table.dates, "records")
+            opened.append({"name": name, "grid": stored["grid"], "rows": len(rows)})
+        return {"tables": opened}
 
     # ===== a file, pasted text =====
 

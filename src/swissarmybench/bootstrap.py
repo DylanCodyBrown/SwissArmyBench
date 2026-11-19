@@ -1307,7 +1307,7 @@ def bootstrap(
         variables=variables,
         explorer=explorer,
         connection_swap=connection_swap,
-        navigation=Navigation(ws),
+        navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if audit_log else None)),
         script_runs=script_runs,
         kind_colours=kind_colours,
         connection_colours=connection_colours,

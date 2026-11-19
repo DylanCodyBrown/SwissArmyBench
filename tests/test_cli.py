@@ -745,7 +745,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # on the app canvas", "a canvas as flexible as WinForms and WPF"): canvas_inspect, _table, _set_default,
     # _set_property, _bind, _add_handler, _set_cache, _state_set, _cache_clear, _toolbox, and the designer's
     # canvas_add, _container, _arrange and _outline.
-    assert size < 96_000, f"the tool list is {size} characters"
+    # +300 (2026-11-19): a first run's datasets_sample (Try it with sample data) and app_rail (the
+    # rail's names).
+    assert size < 96_300, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

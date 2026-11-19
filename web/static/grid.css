@@ -2786,6 +2786,15 @@ body.agent-view .titlebar {
   border-top: 0;
 }
 
+/* An Application row with nothing in it (no project open) takes no band (the owner, 2026-11-19). */
+.app-row:not(:has(.ribbon-tools > :not([hidden]))) {
+  display: none;
+}
+
+.app-row:not(:has(.ribbon-tools > :not([hidden]))) + .ribbon {
+  border-top: 1px solid var(--border);
+}
+
 .app-row .ribbon-btn {
   padding: 3px 7px;
   border-color: transparent;
@@ -3417,6 +3426,52 @@ body.agent-view .titlebar {
   width: var(--share, 0%);
   border-radius: 3px;
   background: var(--accent);
+}
+
+/* The finder's confidence: green when sure, a quiet grey otherwise (the brand red read as an error). */
+.confidence.sure span {
+  background: var(--ok);
+}
+
+.confidence.unsure span {
+  background: var(--muted);
+}
+
+/* The joins found: the diagram drawn at once, the list beside it as a side panel (relationshipsDialog.ts). */
+.rel-found {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 12px;
+  align-items: start;
+}
+
+.rel-found-diagram {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  max-height: 60vh;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.rel-found-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.rel-found-list {
+  max-height: 60vh;
+  margin: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .rel-found {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .rel-table tr.run-holds .rel-col-check,
@@ -4565,6 +4620,38 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 6px;
   margin-bottom: 14px;
+}
+
+/* Paste data (openFile.ts pasteData): the box a copied table is pasted into. */
+.paste-box {
+  width: min(560px, 80vw);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+/* Add connection's search (type to filter the tiles; Enter opens the first). */
+.connection-type-find {
+  margin-bottom: 6px;
+}
+
+.connection-type-search {
+  width: min(420px, 100%);
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.connection-type-search:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+
+.connection-types[hidden],
+.connection-type[hidden] {
+  display: none;
 }
 
 /* The type picker (2026-11-16): each type's own icon beside its name, tinted by its group (the theme's
@@ -10073,6 +10160,168 @@ body.has-rail {
   display: flex;
 }
 
+/* The rail's names (rail.ts showNames; on until turned off, the owner 2026-11-19): a wider rail, each
+   icon where it was and its name beside it; the hover tip only for the keys. The toggle at the foot. */
+.nav-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.nav-rail-items {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.nav-rail-name {
+  display: none;
+}
+
+html.rail-names {
+  --rail-w: 176px;
+}
+
+html.rail-names .nav-rail-item,
+html.rail-names .nav-rail-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 12px 0 18px;
+}
+
+html.rail-names .nav-rail-mark {
+  padding-left: 17px;
+}
+
+html.rail-names .nav-rail-name {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.rail-names .nav-rail-item .nav-rail-tip {
+  display: none;
+}
+
+html.rail-names .nav-rail-item:has(.nav-rail-tip kbd):hover .nav-rail-tip,
+html.rail-names .nav-rail-item:has(.nav-rail-tip kbd):focus-visible .nav-rail-tip {
+  display: flex;
+}
+
+html.rail-names .nav-rail-count {
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+}
+
+.nav-rail-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 100%;
+  height: 30px;
+  margin-bottom: 4px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nav-rail-toggle .icon-svg {
+  width: 16px;
+  height: 16px;
+}
+
+html.rail-names .nav-rail-toggle {
+  padding-left: 22px;
+  font-size: 12px;
+}
+
+.nav-rail-toggle:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.nav-rail-toggle:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -3px;
+}
+
+/* An empty page that leads somewhere (emptyState.ts): its icon, one sentence, the primary button and
+   Try it with sample data. */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 460px;
+  margin: 48px auto;
+  padding: 0 16px;
+  color: var(--fg);
+  text-align: center;
+  list-style: none;
+}
+
+.empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.empty-state-icon .icon-svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.5;
+}
+
+.empty-state-line {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* A narrow window keeps its width for the work: the icons alone, whatever the switch says. */
+@media (max-width: 900px) {
+  html.rail-names {
+    --rail-w: 60px;
+  }
+
+  html.rail-names .nav-rail-item,
+  html.rail-names .nav-rail-toggle {
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+
+  html.rail-names .nav-rail-name {
+    display: none;
+  }
+
+  html.rail-names .nav-rail-item:hover .nav-rail-tip,
+  html.rail-names .nav-rail-item:focus-visible .nav-rail-tip {
+    display: flex;
+  }
+}
+
 @media (forced-colors: active) {
   .nav-rail {
     border-right-color: CanvasText;
@@ -12717,6 +12966,22 @@ g.follow-pulse > path:first-of-type {
   font-size: 0.82em;
 }
 
+/* Find data's foot: the keys, quiet, on the left (the buttons stay right). */
+.ex-keys {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ex-keys kbd {
+  margin-right: 2px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font: inherit;
+}
+
 .ex-offers:empty {
   display: none;
 }
@@ -13987,6 +14252,21 @@ dialog.find-data .dialog-body {
   font-size: 1.02em;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The project open now, at the top of Projects, with its Close project (projectExplorer.ts closeOpen). */
+.explorer-open-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 10px 0 0;
+}
+
+.explorer-card .explorer-close {
+  justify-self: start;
+  align-self: flex-start;
+  margin-top: 4px;
 }
 
 .explorer-open-mark {

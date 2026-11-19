@@ -84,6 +84,44 @@ async function openDropped(file: File): Promise<void> {
   }
 }
 
+/** Paste data… (the Projects page, 2026-11-19): a box to paste a copied table into (Ctrl+V); it opens as a
+ *  grid at once, named pasted_<time> as the page's own Ctrl+V names it. */
+export function pasteData(): void {
+  const { body, foot, close } = openDialog("Paste data");
+  const box = h("textarea", {
+    class: "paste-box",
+    rows: 8,
+    placeholder: "Copy a table in Excel or a web page, then press Ctrl+V here",
+    "aria-label": "Pasted table",
+  }) as HTMLTextAreaElement;
+  const send = async (text: string): Promise<void> => {
+    if (!text.trim()) return errorHere("Paste a table first: rows on lines, columns split by tabs or commas.", {}, box);
+    const now = new Date();
+    const stamp = [now.getHours(), now.getMinutes(), now.getSeconds()].map((n) => String(n).padStart(2, "0")).join("");
+    try {
+      const taken = new Set((await api<{ datasets: { name: string }[] }>("/datasets")).datasets.map((d) => d.name));
+      let name = `pasted_${stamp}`;
+      for (let n = 2; taken.has(name); n += 1) name = `pasted_${stamp}_${n}`;
+      const response = await fetch(`/datasets/${name}/paste`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: text });
+      if (!response.ok) throw await failure(response);
+      close();
+    } catch (e) {
+      errorHere(e, {}, box);
+    }
+  };
+  // A paste of a table opens it straight away; typed text waits for Open.
+  box.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text/plain") ?? "";
+    if (!text.includes("\n")) return;
+    e.preventDefault();
+    box.value = text;
+    void send(text);
+  });
+  body.append(box);
+  foot.append(button("Cancel", close), button("Open", () => void send(box.value), { class: "primary", icon: "grids" }));
+  box.focus();
+}
+
 /** The folder button beside "+". */
 export function openFileButton(): HTMLButtonElement {
   return button("Open file…", () => void openFile(), { icon: "folder", iconOnly: true, class: "ghost tab-new" });

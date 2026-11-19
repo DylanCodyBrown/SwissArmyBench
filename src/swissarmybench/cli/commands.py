@@ -323,6 +323,14 @@ def paste(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "datasets_sample",
+    "Open the made-up sample store: customers, products, orders (Try it with sample data)",
+)
+def datasets_sample(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/samples/store")
+
+
+@command(
     "tabs_new_query",
     "New table from a query (the + tab): one SELECT over the open tables, each read as its grid shows it. "
     "Opens a grid on the result.",
@@ -4561,6 +4569,17 @@ def app_audit(a: dict[str, Any]) -> Any:
 def app_navigate(a: dict[str, Any]) -> Any:
     keys = ("to", "window", "new_window")
     return api.call("POST", "/navigate", {k: a[k] for k in keys if a.get(k) is not None})
+
+
+@command(
+    "app_rail",
+    "The rail's names beside its icons (on by default); labels sets it",
+    opt("labels", "true: names; false: icons only.", "bool"),
+)
+def app_rail(a: dict[str, Any]) -> Any:
+    if a.get("labels") is not None:
+        return api.call("PUT", "/rail", {"labels": a["labels"]})
+    return api.call("GET", "/rail")
 
 
 @command("app_shutdown", "Stop the server (the grids close; this MCP stops answering until it starts again)")

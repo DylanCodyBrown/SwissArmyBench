@@ -160,7 +160,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
   files: `desktop.json` (the app's process id and its 127.0.0.1 channel's port and key, owner-only), `desktop/`
   (its Qt WebEngine profile: cookies, local storage, cache; `windows.json`, each kind of window's place),
-  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
+  `update_failed.json` (read once, then gone); `follow.json` (Follow the agent on or off); `rail.json` (the rail's names on or off); `library.json` (the library folder's path, when Settings moved it); `extensions.json` (a preinstalled extension the user removed, and the version its bring-back was tried at); `dialogs.json` (the file picker's recent folders per kind of pick: paths only).
   **Variables (the owner, 2026-11-16/17):** the library's, never in a project: `variables.toml` (names, sources,
   plain values that may be shared), `local/variables.toml` (values marked this computer only), a secret's
   value in the keyring only; the values are set in the server's environment while it runs. **`${NAME}` anywhere
@@ -481,7 +481,10 @@ src/swissarmybench/
                          the wheel on this version's GitHub release, Install's and Remove's plan
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
-    navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
+    navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice; the rail's
+                         names (on until turned off: rail.json)
+    sample_data.py       the made-up sample store (customers, products, orders that join them): Try it with
+                         sample data on every empty page (POST /samples/store, datasets_sample)
     desktop.py           the desktop app's rules: what loads inside (the app's origin) and what goes to the system's
                          browser or is refused, named-window reuse (sab-home), each kind of window's place, pages
                          named without the token, the app's command line, its channel's messages (open, file,
@@ -605,7 +608,8 @@ src/swissarmybench/
     modes.py             project modes: the open project's type (.sab/project.json) to its mode (canvases,
                          families, languages, cell kinds, tool group, export); GET /app/mode, app_mode; the rail's
                          areas the on extensions add (GET /app/areas: their RAIL, and the footer's mark route)
-    navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself)
+    navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself);
+                         the rail's names switch (GET/PUT /rail, rail.json, rail_changed; app_rail)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
     kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
                          restarts (kind_colours.json)
@@ -903,6 +907,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package
                          prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
                          Not now, no nagging this session), used by every place that finds one;
+                         emptyState.ts an empty page that leads somewhere (one sentence, the primary button, Try
+                         it with sample data: Connections, Variables, Session, the Workbench's landing pages);
                          loading.ts the one loading state (design principles 8.12, 2026-11-18): busy(host, words,
                          work, {abort, onCancel, errorIn}) gates an element (inert, aria-busy, a cover over its box
                          after 150 ms with a spinner, the words at the body's size, the time after 3 s, Cancel, the

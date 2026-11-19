@@ -26,6 +26,8 @@ import { button, h, icon, recall, remember } from "./dom";
 import { dismissDialog, go, homeWindow, HOME_URL, layerOpened, layerShown, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { loadingBlock } from "./loading";
 import { errorHere, errorNote, errorToast } from "./errorNote";
+import { emptyState } from "./emptyState";
+import { launchClaude } from "./claudeLaunch";
 
 export interface Target {
   place: "grid" | "dataset" | "card" | "relationship" | "connection" | "blade" | "cell" | "document" | "area";
@@ -356,7 +358,18 @@ function drawSession(): void {
     );
     const kept = entries.filter((e) => now === "both" || e.actor === now);
     if (!loaded) list.replaceChildren(h("li", {}, loadingBlock("Loading this session…")));
-    else if (!kept.length) list.replaceChildren(h("li", { class: "empty-note" }, now === "user" ? "Nothing yet." : "Nothing from the agent yet."));
+    else if (!kept.length)
+      list.replaceChildren(
+        h(
+          "li",
+          {},
+          emptyState({
+            icon: "session",
+            line: now === "user" ? "What you open, change and make this session shows here, each line a link back to it." : "What your agent opens, changes and makes this session shows here, each line a link back to it.",
+            action: { label: "Launch Claude", icon: "claude", run: () => launchClaude() },
+          }),
+        ),
+      );
     else list.replaceChildren(...kept.map(entryRow));
     setUnseen(0);
   };

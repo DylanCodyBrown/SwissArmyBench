@@ -31,6 +31,7 @@ import { append, button, h, icon, toast } from "./dom";
 import { loadingBlock } from "./loading";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { errorHere, errorNote } from "./errorNote";
+import { emptyState } from "./emptyState";
 
 type Source = "vault" | "value" | "keyring" | "env" | "missing";
 
@@ -219,7 +220,11 @@ function drawVariables(at?: string): void {
     );
     const groups = GROUPS.filter((g) => (source === null || g.source === source) && counts.get(g.source));
     if (!groups.length) {
-      list.replaceChildren(h("p", { class: "empty-note" }, listing.variables.length ? "No match." : "No variables yet."));
+      list.replaceChildren(
+        listing.variables.length
+          ? h("p", { class: "empty-note" }, "No match.")
+          : emptyState({ icon: "variables", line: "A variable is a value typed once, such as a server's name or a password, then written ${NAME} in any box.", action: { label: "Add variable", icon: "plus", run: () => showForm(null) }, sample: false }),
+      );
     } else {
       list.replaceChildren(
         ...groups.map((g) =>

@@ -41,7 +41,12 @@ def test_find_accept_check_and_share_a_set(browser: Browser, server: dict[str, A
         expect(suggestions).to_have_count(10, timeout=60000)
         expect(dialog.locator(".suggestion", has_text="ship_date")).to_contain_text("inactive")
         expect(dialog.locator(".suggestion input:checked")).to_have_count(10)
-        dialog.get_by_role("button", name="Accept the ticked joins").click()
+        # Added at once (no Accept step), drawn beside the list; Undo takes them out, a tick adds one back.
+        expect(dialog.locator(".rel-found-diagram svg")).to_be_visible(timeout=30000)
+        page.locator(".toast", has_text="Added 10 joins").get_by_role("button", name="Undo").click()
+        expect(dialog.locator(".suggestion input:checked")).to_have_count(0, timeout=20000)
+        expect(dialog.locator(".rel-table tbody tr")).to_have_count(0)
+        dialog.get_by_role("button", name="Find again").click()
         current = dialog.locator(".rel-table tbody tr")
         expect(current).to_have_count(10, timeout=20000)
         expect(dialog.locator(".suggestion.known")).to_have_count(10, timeout=60000)  # now in use

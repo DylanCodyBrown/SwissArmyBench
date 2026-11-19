@@ -133,14 +133,14 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     page = home_page(browser, orchard)
     base = f"http://127.0.0.1:{server['port']}"
     # Every area, in the rail's order, each named (the tip is not read twice: aria-hidden).
-    buttons = rail(page).get_by_role("button")
+    buttons = rail(page).get_by_role("toolbar").get_by_role("button")  # the names toggle sits below
     expect(buttons).to_have_count(len(AREAS))
     assert [buttons.nth(i).get_attribute("data-area") for i in range(len(AREAS))] == AREAS
     for i, name in enumerate(NAMES):
         expect(buttons.nth(i)).to_have_accessible_name(name)
     expect(current(page)).to_have_attribute("data-area", "grids")
-    # 60px (the owner, 2026-11-18: larger), nothing under it: the tabs and first column follow it.
-    assert right_edge(page) <= 60.5
+    # 60px (the owner, 2026-11-18), 176px with its names (on by default, 2026-11-19); nothing under it.
+    assert right_edge(page) <= 176.5
     for selector in (".tabbar", ".tabs-row", ".ag-header-cell:visible"):
         assert left_of(page, selector) >= right_edge(page) - 0.5, selector
     # The mark is the rail's first item, its red square kept; the icons 24px so more fit (2026-11-18).
@@ -206,9 +206,19 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
 
 
 def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
-    browser: Browser, orchard: str
+    browser: Browser, server: dict[str, Any], orchard: str
 ) -> None:
+    # The icons alone (the names beside them are on by default: the tip is for the icon rail).
+    call(server, "PUT", "/rail", {"labels": False})
+    try:
+        keyboard_and_tips(browser, orchard)
+    finally:
+        call(server, "PUT", "/rail", {"labels": True})
+
+
+def keyboard_and_tips(browser: Browser, orchard: str) -> None:
     page = home_page(browser, orchard)
+    expect(page.locator("html")).not_to_have_class(re.compile(r"\brail-names\b"))
     # One stop in the Tab order: the current area's.
     stops = [area(page, a).get_attribute("tabindex") for a in AREAS]
     assert stops == ["0" if a == "grids" else "-1" for a in AREAS]  # the current area's (the grids)
