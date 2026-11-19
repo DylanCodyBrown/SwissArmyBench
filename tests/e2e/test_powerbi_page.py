@@ -66,7 +66,7 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
 
     # The form: the workspace's id and the sign-in. No dataset is asked for.
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="Power BI workspace").click()
     expect(dialog.get_by_role("combobox", name="Sign in")).to_have_value("0")  # the app registration first
     dialog.get_by_role("textbox", name="Name").fill("Finance")

@@ -66,7 +66,7 @@ def test_a_connection_is_added_with_a_form_tested_and_saved(
 ) -> None:
     page = open_grid(browser, orders_url)
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="CSV file").click()
     # Browse… lists the folder through the server: a real path, which a browser's own picker hides.
     page.get_by_role("button", name="Browse…").click()
@@ -106,7 +106,7 @@ def test_a_file_connection_is_named_after_a_typed_path_and_tested_before_it_is_n
     page = open_grid(browser, orders_url)
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="CSV file").click()
     name = dialog.get_by_role("textbox", name="Name", exact=True)
     expect(name).to_have_value("")
@@ -188,7 +188,7 @@ def test_a_missing_package_is_asked_for_in_the_users_face_and_installed(
     asked = stand_in_missing(page, installed)
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="Trino").click()
     prompt = page.locator("dialog.missing-packages")
     expect(prompt.locator("h2")).to_have_text(f"Install {MADE_UP}?")
@@ -214,7 +214,7 @@ def test_not_now_leaves_a_reminder_and_does_not_ask_again(browser: Browser, orde
     asked = stand_in_missing(page, installed)
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="Trino").click()
     prompt = page.locator("dialog.missing-packages")
     expect(prompt).to_be_visible()
@@ -246,7 +246,7 @@ def test_every_database_form_reads_in_one_order_and_labels_its_password_box(
     page = open_grid(browser, orders_url)
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
 
     def labels() -> list[str]:
         """The form's visible field labels, top to bottom then left to right."""
@@ -359,7 +359,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         expect(dialog.locator(".area-page-title")).to_contain_text("Azure Key Vault", timeout=20000)
         # A password is one box (12.7): typing a dollar-brace offers the vault's variable, by name and source.
         page.locator(".nav-rail [data-area='connections']").click()
-        page.get_by_role("button", name="Add connection").click()
+        page.get_by_role("button", name="Add connection").first.click()
         page.locator(".connection-type", has_text="PostgreSQL").click()
         password = dialog.get_by_label("Password", exact=True)
         password.click()

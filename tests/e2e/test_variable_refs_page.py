@@ -112,7 +112,7 @@ def open_app(browser: Browser, server: dict[str, Any], dark: bool = False) -> Pa
 def postgres_form(page: Page) -> Any:
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="PostgreSQL").click()
     expect(dialog.get_by_label("Server", exact=True)).to_be_visible()
     return dialog
@@ -129,9 +129,10 @@ def test_a_connection_made_of_references_tests_saves_and_opens_a_table(
     call(server, "PUT", "/variables", secret, agent=True)
     page = open_app(browser, server)
     dialog = postgres_form(page)
-    # No source pickers beside a box: one box each, and a {x} button on it.
+    # No source pickers beside a box, and no insert button on it (the owner, 2026-11-19): one box each.
     expect(dialog.get_by_role("combobox", name="Password comes from")).to_have_count(0)
     expect(dialog.get_by_role("combobox", name="Server from")).to_have_count(0)
+    expect(dialog.get_by_role("button", name="Insert a variable")).to_have_count(0)
     dialog.get_by_label("Name", exact=True).fill("Warehouse")
 
     # Typing ${ offers the variables: their names and where each comes from, never a value.
@@ -157,11 +158,12 @@ def test_a_connection_made_of_references_tests_saves_and_opens_a_table(
     dialog.get_by_label("Database", exact=True).fill(postgres["database"])
     dialog.get_by_label("User", exact=True).fill(postgres["user"])
 
-    # The password: the same list from its {x} button; the line masked, never the value.
+    # The password: the same list from its right-click, Insert variable…; the line masked, never the value.
     password = dialog.get_by_label("Password", exact=True)
     box = password.locator("xpath=ancestor::span[contains(@class,'variable-box')]")
-    box.get_by_role("button", name="Insert a variable").click()
-    listed = dialog.get_by_role("listbox", name="Variables")
+    password.click(button="right")
+    page.locator(".context-menu").get_by_role("menuitem", name="Insert variable…").click()
+    listed = page.get_by_role("listbox", name="Variables")
     expect(listed).to_be_visible()
     listed.get_by_role("option", name="WAREHOUSE_PASSWORD This computer's keyring").click()
     expect(password).to_have_value(PASSWORD)
