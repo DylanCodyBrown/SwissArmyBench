@@ -12,7 +12,7 @@ from swissarmybench.services.workspace import Conflict, Workspace
 
 # Said when no window of that kind is open, with how to open one.
 NOT_OPEN: dict[str, str] = {
-    "home": "No home window is open: the tray's Open, or `swissarmybench open`, opens it.",
+    "home": "No home window is open: the app's launcher, or `swissarmybench open`, opens it.",
     "catalog": "No blades page is open: the home page's Blades and catalog opens it.",
     "workbench": "No Workbench window is open: the home page's Workbench tab opens it.",
 }

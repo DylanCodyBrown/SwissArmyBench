@@ -19,6 +19,7 @@ import type { SandboxCard } from "./analysisCards";
 import { button, closeDialogs, h, icon, toast } from "./dom";
 import { sentToast } from "./sandboxShow";
 import { state } from "./state";
+import { busyClick } from "./loading";
 
 export interface ResultActions {
   /** The analysis's name for the server (odds, predictors, outliers, fit_test) and the request it ran. */
@@ -107,7 +108,7 @@ export function resultButtons(actions: ResultActions): HTMLButtonElement[] {
   const out = [
     button("Send to Visualizations", () => void toSandbox(actions), { icon: "image" }),
   ];
-  if (actions.rows) out.push(button("Open as grid", () => void toGrid(actions), { icon: "rows" }));
+  if (actions.rows) out.push(button("Open as grid", busyClick("Opening…", () => toGrid(actions)), { icon: "rows" }));
   if (actions.result) {
     const result = actions.result;
     out.push(button("Show the math", () => void showTheMath(actions.analysis, result()), { icon: "steps", title: "Step by step, to Visualizations" }));

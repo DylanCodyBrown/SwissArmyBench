@@ -43,6 +43,7 @@ import { mountBeta } from "./betaNotes";
 import { loadPanels } from "./panels";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
+import { mountFileChanged } from "./fileChanged";
 import { openCompareDialog } from "./compareDialog";
 // Settings and Connections are layers the rail opens (open=settings, open=connections): their modules register
 // them, so they load here even with no button of theirs on the page.
@@ -384,6 +385,7 @@ async function start(): Promise<void> {
   mountOpenMenu();
   mountFileDrop(); // a file dropped anywhere opens as a grid
   mountGridCommands(); // Ctrl+Shift+P: every action of this page, by name
+  mountFileChanged(); // a table's file changed on disk: Reload or Not now
   // This page shows every grid as a tab, so a push while it is open adds a tab, not a window.
   // Each (re)connect fetches the agent's requests already waiting: one made before the socket was
   // open never reached this page as a notice.

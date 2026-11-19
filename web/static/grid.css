@@ -43,6 +43,10 @@ html[data-theme="light"] {
   /* Kind colours: app pages violet, notebooks blue, scripts green (domain/kind_colours.py holds the
      same; Settings may choose others). A thin edge or a mark beside the icon, never a background. */
   --kind-app: #7b3fc4; --kind-notebook: #1f63b0; --kind-script: #2b7238;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(255, 255, 255, 0.72);
+  --busy-spin: #525c66;
+  --busy-track: #c8d0d8;
 }
 
 html[data-theme="dark"] {
@@ -77,6 +81,10 @@ html[data-theme="dark"] {
   --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
   --cat-5: #e3b341; --cat-6: #39c5cf; --cat-7: #a99cf0; --cat-8: #b1bac4;
   --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(18, 21, 24, 0.72);
+  --busy-spin: #a2acb6;
+  --busy-track: #343c45;
 }
 
 /* High contrast themes aim for 7:1 text, thick always-visible focus, strong borders. */
@@ -112,6 +120,10 @@ html[data-theme="hc-light"] {
   --cat-1: #0033a0; --cat-2: #8a3b00; --cat-3: #005c00; --cat-4: #7a0066;
   --cat-5: #4d4000; --cat-6: #004d57; --cat-7: #9e0000; --cat-8: #2b2b2b;
   --kind-app: #5a1a9e; --kind-notebook: #0a4a94; --kind-script: #0d5a1d;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(255, 255, 255, 0.85);
+  --busy-spin: #000000;
+  --busy-track: #c0c0c0;
 }
 
 html[data-theme="hc-dark"] {
@@ -146,6 +158,10 @@ html[data-theme="hc-dark"] {
   --cat-1: #8cc8ff; --cat-2: #ffb870; --cat-3: #7dff7d; --cat-4: #ff9ae0;
   --cat-5: #ffd400; --cat-6: #6ff1ff; --cat-7: #ff9a9a; --cat-8: #e0e0e0;
   --kind-app: #d4bfff; --kind-notebook: #a3cdff; --kind-script: #8ff09a;
+  /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
+  --busy-cover: rgba(0, 0, 0, 0.85);
+  --busy-spin: #ffffff;
+  --busy-track: #4d4d4d;
 }
 
 /* Before theme.ts runs (or if it never does), follow the system. */
@@ -156,6 +172,7 @@ html[data-theme="hc-dark"] {
     --fg: #e8ecef; --muted: #a2acb6; --border: #343c45; --border-strong: #707b86;
     --accent: #ff6b73; --accent-fg: #1c0a0c; --accent-soft: #3d1c21; --focus: #c4ccd4;
     --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
+    --busy-cover: rgba(18, 21, 24, 0.72); --busy-spin: #a2acb6; --busy-track: #343c45;
   }
 }
 
@@ -1647,6 +1664,9 @@ dialog::backdrop {
     --changed: Canvas;
     --selected: Highlight;
     --row-hover: Canvas;
+    --busy-cover: Canvas;
+    --busy-spin: CanvasText;
+    --busy-track: Canvas;
   }
 
   .btn[aria-pressed="true"] {
@@ -4662,19 +4682,6 @@ dialog.missing-packages {
 .missing-packages .missing-error {
   max-height: 180px;
   overflow: auto;
-}
-.missing-packages .spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: missing-spin 0.8s linear infinite;
-}
-@keyframes missing-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 .missing-reminder {
   display: inline-flex;
@@ -15791,4 +15798,194 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
 .github-fieldset .scm-token-row .monaco-button,
 .github-fieldset .monaco-button {
   width: auto;
+}
+
+/* ===== the loading state (loading.ts, 2026-11-18): one for every page and window =====
+   busy(): the cover over exactly the gated element's box, the words in the body's size on a raised panel;
+   loadingBlock(): an empty area's placeholder; busyButton(): a button's own spinner. Nothing shows for the
+   first 150 ms (loading.ts holds it back), so quick work never flickers. With reduced motion the spinner
+   stands still (the rule above stops every animation) and the time taken still counts. */
+.busy-cover {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--busy-cover);
+  pointer-events: auto;
+  cursor: progress;
+}
+.busy-panel,
+.loading-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--fg);
+  font-size: calc(13px * var(--ui-zoom, 1));
+  font-weight: normal;
+}
+.busy-panel {
+  max-width: calc(100% - 16px);
+  padding: 8px 12px;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  cursor: default;
+}
+.loading-block {
+  box-sizing: border-box;
+  min-height: 120px;
+  width: 100%;
+  padding: 12px;
+}
+.loading-block.inline {
+  display: inline-flex;
+  min-height: 0;
+  width: auto;
+  padding: 0;
+}
+.loading-block:not([data-shown]) > * {
+  visibility: hidden;
+}
+.busy-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.busy-words {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.busy-elapsed {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.busy-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--busy-track);
+  border-top-color: var(--busy-spin);
+  border-radius: 50%;
+  animation: busy-spin 0.8s linear infinite;
+}
+.btn.busy,
+.btn.busy:disabled {
+  cursor: progress;
+  opacity: 1; /* busy, not unavailable: its words stay readable (8.12) */
+}
+.busy-cover.tall {
+  align-items: flex-start;
+  padding-top: 96px;
+}
+.btn.busy .busy-spinner {
+  width: 13px;
+  height: 13px;
+}
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===== the one error component (errorNote.ts, design principles 9.5, 2026-11-18) =====
+   An icon and a word (Error, Warning), what happened, where, the fixes, Details folded with Copy, Send to the
+   agent; the error token's colour (the warning's for a warning), the body text's size. */
+.error-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  color: var(--fg);
+  background: var(--error-soft);
+  border: 1px solid var(--error);
+  border-left-width: 4px;
+  border-radius: 6px;
+  font-size: calc(13px * var(--ui-zoom, 1));
+  font-weight: normal;
+  text-align: left;
+}
+.error-note.warning {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+}
+.error-note-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.error-note-icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--error);
+}
+.error-note-word {
+  flex: none;
+  color: var(--error);
+}
+.error-note.warning :is(.error-note-icon, .error-note-word) {
+  color: var(--warn);
+}
+.error-note-what {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.error-note-close {
+  flex: none;
+  margin: -4px -6px -4px 0;
+}
+.error-note-where {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.error-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.error-note-details > summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+.error-note-text {
+  max-height: 220px;
+  margin: 6px 0;
+  padding: 6px 8px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* fileChanged.ts: a table whose file changed on disk (its tab's dot, its pane's bar: Reload, Not now) */
+.tab-changed {
+  width: 7px;
+  height: 7px;
+  margin-inline-start: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: none;
+}
+.disk-slot:empty {
+  display: none;
+}
+.file-changed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warn-soft);
+  font-size: 13px;
 }

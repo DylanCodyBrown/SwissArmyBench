@@ -82,7 +82,7 @@ class GridService:
         grid = ws.grids.create(dataset)
         ws.audit.write(who, "open_grid", dataset, grid=grid.id)
         await ws.live.broadcast({"type": "grid_shown", "grid": grid.id, "dataset": dataset})
-        # Nothing shows it yet: VS Code opens the workspace, as for a push.
+        # Nothing shows it yet: VS Code opens the workspace, else the desktop app, as for a push.
         shown = ws.live.shown_or_opening(grid.id) or await ws.live.ask_opener(ws.addresses.workspace(grid))
         return {
             "grid": grid.id,
@@ -133,6 +133,15 @@ class GridService:
 
     async def close(self, grid_id: str) -> dict[str, Any] | None:
         """Close the grid (the dataset stays). None when there is no such grid."""
+        found = self.ws.grids.get(grid_id)
+        if found is not None:
+            # Ctrl+Shift+T brings it back (tabs_reopen).
+            info = self.ws.store.get(found.dataset)
+            origin = self._origin_of(found.dataset)
+            path = origin.path if origin.kind == "file" else None
+            self.ws.grids.remember_closed(
+                found, info.serial if info else -1, path, origin.sheet if path else None
+            )
         grid = self.ws.grids.close(grid_id)
         if grid is None:
             return None

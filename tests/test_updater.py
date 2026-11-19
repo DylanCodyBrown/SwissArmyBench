@@ -68,6 +68,14 @@ class FakeOps:
         self.did.append(f"end {pid}")
         self.ended = True
 
+    ended = False
+    quits = False  # the app quits when asked over its channel
+
+    def quit(self, record: str) -> bool:
+        self.did.append(f"quit {Path(record).name}")
+        self.ended = self.ended or self.quits
+        return self.quits
+
     def fetch(self, url: str, folder: str) -> str:
         if self.fetch_fails:
             raise OSError(f"{url.rsplit('/', 1)[-1]}: HTTP Error 404: Not Found")
@@ -293,7 +301,6 @@ def test_the_helper_upgrades_a_uv_tool_and_the_new_version_starts(tmp_path: Path
         | {
             "SWISSARMYBENCH_INFO": str(state / "server.json"),
             "SWISSARMYBENCH_STATE": str(state),
-            "SWISSARMYBENCH_TRAY": "0",
             "SWISSARMYBENCH_UPDATE_FEED": "none",
             "SWISSARMYBENCH_OPEN": "0",
             "BROWSER": "true",  # webbrowser opens nothing
@@ -369,7 +376,47 @@ def test_the_desktop_app_is_ended_and_the_install_goes_on() -> None:
 
     ops = App({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
     assert updater.run(made, ops) == "updated"
-    assert ops.did[0] == "end 200" and ops.notes == []
+    # Asked to quit first (over its channel); it did not, so it was ended.
+    assert ops.did[:2] == ["quit desktop.json", "end 200"] and ops.notes == []
+
+
+def test_the_desktop_app_is_asked_to_quit_before_any_kill() -> None:
+    """The app quits cleanly when asked (each window's place kept, the server told): nothing is ended."""
+    made = plan() | {"wait_pids": [100], "end_pids": [200]}
+
+    class App(FakeOps):
+        ended = False
+        quits = True
+
+        def alive(self, pid: int) -> bool:
+            return pid == 200 and not self.ended
+
+    ops = App({"install": [(0, "")], "check": [(0, "0.0.2")]}, ["0.0.2"])
+    assert updater.run(made, ops) == "updated"
+    assert ops.did[0] == "quit desktop.json" and not any(d.startswith("end") for d in ops.did)
+
+
+def test_the_helpers_quit_speaks_the_apps_channel(tmp_path: Path) -> None:
+    """SystemOps.quit (standard library only: it runs as a copy) sends what the app's channel reads."""
+    from swissarmybench.adapters.desktop import Listener, new_key
+    from swissarmybench.domain import desktop as shell_rules
+
+    heard: list[dict[str, Any]] = []
+    key = new_key()
+
+    def handle(said: dict[str, Any]) -> dict[str, Any]:
+        heard.append(said)
+        return {"ok": True}
+
+    listener = Listener(key, handle)
+    try:
+        record = tmp_path / "desktop.json"
+        record.write_text(json.dumps(shell_rules.record(4321, listener.port, key)), encoding="utf-8")
+        assert updater.SystemOps().quit(str(record)) is True
+        assert heard == [{"quit": True}]
+        assert updater.SystemOps().quit(str(tmp_path / "none.json")) is False
+    finally:
+        listener.close()
 
 
 def test_an_app_that_cannot_be_ended_is_said() -> None:

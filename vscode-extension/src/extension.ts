@@ -5,13 +5,11 @@
 import { spawn } from "child_process";
 import * as fs from "fs";
 import * as vscode from "vscode";
-import { ChromeDeps, openInChrome } from "./core/chrome";
 import { ensureRunning, NOT_INSTALLED, serverPython, workspaceUrl } from "./vscode/server";
-import { serverModule } from "./core/paths";
+import { openCommand, serverModule } from "./core/paths";
 
 export function activate(ctx: vscode.ExtensionContext): void {
   const log = vscode.window.createOutputChannel("Swiss Army Bench");
-  const chrome: ChromeDeps = { spawn, exists: fs.existsSync };
 
   // ===== THE TOOLS: the uv tool install's MCP server, offered to VS Code =====
   const changed = new vscode.EventEmitter<void>();
@@ -31,24 +29,28 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
   );
 
-  // ===== THE BUTTON: start Swiss Army Bench if it is not running, and open it =====
+  // ===== THE BUTTON: Swiss Army Bench opened, as its launcher does: the desktop app (started with its server when it
+  // is not open; its home window forward when it is), the browser where the app cannot run =====
+  const viaBrowser = async (): Promise<void> => {
+    const info = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: "Swiss Army Bench" },
+      () => ensureRunning(),
+    );
+    await vscode.env.openExternal(vscode.Uri.parse(workspaceUrl(info)));
+  };
   const open = async (): Promise<void> => {
     try {
-      const info = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Window, title: "Swiss Army Bench" },
-        () => ensureRunning(),
-      );
+      const python = serverPython();
+      if (!python) throw new Error(NOT_INSTALLED);
       changed.fire(); // installed now, if it was not when VS Code started
-      const url = workspaceUrl(info);
-      // The setting under its old name too (SwissArmyGrid's, before the rename), for one release.
-      const own =
-        vscode.workspace.getConfiguration("swissarmybench").get<string>("chromePath", "") ||
-        vscode.workspace.getConfiguration("swissarmygrid").get<string>("chromePath", "");
-      const opened = await openInChrome(url, chrome, process.platform, process.env, own);
-      if (!opened.ok) {
-        log.appendLine(opened.message);
-        await vscode.env.openExternal(vscode.Uri.parse(url));
-      }
+      const { command, args } = openCommand(python, process.platform, fs.existsSync);
+      // Detached with its output dropped: closing VS Code never closes the app.
+      const child = spawn(command, args, { detached: true, windowsHide: true, stdio: "ignore", env: { ...process.env } });
+      child.once("error", (error) => {
+        log.appendLine(`${command} could not start: ${error.message}`);
+        viaBrowser().catch((failed) => void vscode.window.showErrorMessage((failed as Error).message));
+      });
+      child.unref();
     } catch (error) {
       log.appendLine(String(error));
       void vscode.window.showErrorMessage((error as Error).message);

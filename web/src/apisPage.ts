@@ -34,6 +34,7 @@ import { showAddApi } from "./addApi";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
+import { busy, busyClick, loadingBlock } from "./loading";
 import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { mountText, mountTree, type Part, pathText, type Value } from "./structureTree";
@@ -247,7 +248,7 @@ function drawPage(): void {
       h("div", { class: "api-card-source muted" }, c.source.kind === "address" ? c.source.address : c.source.kind === "file" ? c.source.address : c.source.kind === "form" ? "Made with the form" : "Pasted", read ? ` · read ${read}` : ""),
       c.problem ? h("p", { class: "status-error" }, c.problem) : null,
       h("div", { class: "api-card-actions" },
-        button("Refresh", () => void refresh(c.name), { icon: "reset" }),
+        button("Refresh", busyClick("Refreshing…", (b) => busy(b.closest<HTMLElement>(".api-card") ?? b, `Reading ${c.name} again…`, refresh(c.name))), { icon: "reset" }),
         c.source.kind === "address" ? h("label", { class: "autosave-switch" }, check, h("span", {}, "Check for changes")) : null,
         button("Rename", () => rename(c.name), { icon: "rename" }),
         button("Copy folder", () => void navigator.clipboard.writeText((c.file ?? "").replace(/[\\/][^\\/]*$/, "")).then(() => toast("Copied the folder's path")), { icon: "folder" }),
@@ -270,14 +271,14 @@ function drawPage(): void {
       rows.length ? h("section", { class: `api-diff-${kind}` }, h("h3", {}, `${title} (${rows.length})`), h("ul", {}, ...rows.map((r) => h("li", {}, badge(r.method), h("code", {}, r.path), h("span", { class: "muted" }, ` ${r.id}`), r.changes ? h("ul", { class: "api-diff-notes" }, ...r.changes.map((c) => h("li", {}, c))) : null)))) : null;
     box.append(...[group("Added", d.added, "added"), group("Removed", d.removed, "removed"), group("Changed", d.changed, "changed")].filter((x): x is HTMLElement => x !== null));
     if (d.base_url) box.append(h("p", {}, "Its base address changed."));
-    buttons.append(button("Not now", () => close()), button("Apply", async () => {
-      const done = await call(`/apis/${encodeURIComponent(name)}/refresh/apply`, "POST", {});
+    buttons.append(button("Not now", () => close()), button("Apply", busyClick("Applying…", async () => {
+      const done = await busy(box, `Applying ${name}'s changes…`, call(`/apis/${encodeURIComponent(name)}/refresh/apply`, "POST", {}));
       close();
       if (done) {
         toast(`${name} is up to date.`);
         void showCards();
       }
-    }, { class: "primary" }));
+    }), { class: "primary" }));
   };
 
   const rename = (name: string): void => {
@@ -452,8 +453,8 @@ function drawPage(): void {
       h("summary", {}, "The DuckDB query"),
       sql,
       h("div", { class: "api-conversion-actions" },
-        button("Save the query", () => void save(false), { icon: "save" }),
-        button("Make it again", () => void save(true), { class: "ghost", title: "From the rows path and the header" }),
+        button("Save the query", busyClick("Saving…", () => save(false)), { icon: "save" }),
+        button("Make it again", busyClick("Making…", () => save(true)), { class: "ghost", title: "From the rows path and the header" }),
       ),
     );
   };
@@ -539,7 +540,7 @@ function drawPage(): void {
     asTable.addEventListener("change", () => (queryBox.hidden = !asTable.checked));
     const result = h("div", { class: "api-send-result", role: "status" });
     const send = async (): Promise<void> => {
-      result.replaceChildren(h("p", { class: "hint" }, "Sending…"));
+      result.replaceChildren(loadingBlock(`Calling ${op.id}…`, { height: "48px" }));
       const done = await call<{ status: number; ms: number; structure: string; said: string; suggest_table: { records: string } | null }>(`/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}`, "POST", { inputs: values(), ...(op.body ? { body } : {}) });
       if (!done) {
         result.replaceChildren();
@@ -567,10 +568,10 @@ function drawPage(): void {
         h("p", { class: "muted api-signin" }, icon("key"), `Sign-in (${got.auth}) is the API blade's: never shown here.`),
         op.body ? h("section", { class: "api-body" }, h("h3", {}, "Body"), h("div", { class: "api-body-split" }, treeHost, h("div", { class: "api-body-text" }, text.element)), problems) : "",
         h("div", { class: "api-author-actions" },
-          button("Send", () => void send(), { icon: "play", class: "primary api-send" }),
+          button("Send", busyClick("Sending…", send), { icon: "play", class: "primary api-send" }),
           h("label", { class: "autosave-switch" }, asTable, h("span", {}, "Return as table")),
           h("label", { class: "api-records" }, h("span", {}, "Rows at"), records),
-          button("Save as web call", () => void save(), { icon: "save" }),
+          button("Save as web call", busyClick("Saving…", save), { icon: "save" }),
           button("Back", () => showOperation(got, op, right), { class: "ghost" }),
         ),
         queryBox,
@@ -660,7 +661,7 @@ function drawPage(): void {
         h("div", { class: "api-author-actions" },
           h("label", { class: "autosave-switch" }, batch, h("span", {}, "One call for many rows")),
           button("Dry run", () => void run(true), { icon: "eye", class: "primary api-dry-run" }),
-          button("Send", () => void run(false), { icon: "play", class: "api-write-send" }),
+          button("Send", busyClick("Sending…", () => run(false)), { icon: "play", class: "api-write-send" }),
           button("Save as web call", async () => {
             const saved = await call<{ blade: string }>(`/apis/${encodeURIComponent(got.name)}/calls/${encodeURIComponent(op.id)}/write`, "PUT", { mapping: mapping(), batch: batch.checked, table: table.value });
             if (saved) toast(`Saved ${saved.blade}.`);
@@ -677,7 +678,7 @@ function drawPage(): void {
   watchLayerDialog(element, "apis", [], () => {
     if (shownPage === element) shownPage = null;
   });
-  body.append(h("p", { class: "hint" }, "Loading…"));
+  body.append(loadingBlock("Loading the APIs…"));
   void showCards();
 }
 

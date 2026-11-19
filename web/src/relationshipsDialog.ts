@@ -32,6 +32,7 @@ import { append, button, clear, h, icon, openDialog, showMenu, toast, type MenuI
 import { showAgentView } from "./panes";
 import { saveBlob } from "./profileView";
 import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
+import { busyClick, loadingBlock } from "./loading";
 
 interface SavedSet {
   name: string;
@@ -282,7 +283,7 @@ export function openRelationships(startFinding = false): void {
                 h(
                   "span",
                   { class: "row-actions" },
-                  button("Check", () => void run(t.name), { icon: "play", class: "ghost", title: "Check against the open tables" }),
+                  button("Check", busyClick("Checking…", () => run(t.name)), { icon: "play", class: "ghost", title: "Check against the open tables" }),
                   button("Apply", () => void apply(t.name), { class: "primary", title: "Merge into the joins in use" }),
                   button(`More for ${t.name}`, (e) => setMenu(t, e.currentTarget as HTMLElement), { icon: "more", iconOnly: true, class: "ghost", title: "Rename, export, delete" }),
                 ),
@@ -366,7 +367,7 @@ export function openRelationships(startFinding = false): void {
   }
 
   async function find(): Promise<void> {
-    clear(findHost, h("h3", { id: "rel-find" }, "Find relationships"), h("p", { class: "hint", role: "status" }, "Looking…"));
+    clear(findHost, h("h3", { id: "rel-find" }, "Find relationships"), loadingBlock("Looking for relationships among the open tables…"));
     let found: { tables: string[]; suggestions: Suggestion[]; keys: Record<string, string[]>; seconds: number };
     try {
       found = await api("/relationships/find", "POST", {});
@@ -652,7 +653,7 @@ export function openRelationships(startFinding = false): void {
         ? h("div", { class: "rel-scroll" }, h("table", { class: "small rel-table" }, header(), h("tbody", {}, ...rows)))
         : h("p", { class: "hint" }, "No joins in use yet."),
       keys.length ? h("p", { class: "hint rel-keys" }, "Keys: ", ...keys.map(([t, spec], i) => [i ? " · " : "", h("strong", {}, t), ` (${(spec.primary_key ?? []).join(", ")})`]).flat()) : null,
-      model.relationships.length ? h("div", { class: "row-actions" }, button("Check against the open tables", () => void run(), { icon: "play" })) : null,
+      model.relationships.length ? h("div", { class: "row-actions" }, button("Check against the open tables", busyClick("Checking…", () => run()), { icon: "play" })) : null,
     );
     for (const b of currentHost.querySelectorAll<HTMLButtonElement>(".rel-tools > button:not([aria-pressed])")) b.disabled = !picked.length;
     if (focused) {

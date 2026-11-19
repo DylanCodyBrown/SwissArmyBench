@@ -181,7 +181,7 @@ class Updates:
     async def _tell(self) -> None:
         await self._live.broadcast({"type": "update_changed", **self.state()})
 
-    # ===== start at sign-in =====
+    # ===== Update to X =====
 
     async def install(self, body: Any, who: str) -> dict[str, Any]:
         """Update to the offered version: {"version"?, "confirmed"?}. The user's always first answers

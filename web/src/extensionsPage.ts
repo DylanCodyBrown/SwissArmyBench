@@ -18,6 +18,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog } from "./dom";
 import { extensionPanel } from "./extensionPanel";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
+import { busyClick } from "./loading";
 
 /** The page's name, in one place: the rail, the title. */
 export const EXTENSIONS = "Extensions";
@@ -142,11 +143,11 @@ function drawPage(): void {
         h("p", { class: "extension-stage", role: "status" }, stageWords(ext.name, here.action)),
       );
     } else if (ext.status === "available") {
-      const go = button("Install", () => void change(ext, "install", go), { icon: "import", class: "primary extension-install" });
+      const go = button("Install", busyClick("Installing…", () => change(ext, "install", go)), { icon: "import", class: "primary extension-install" });
       go.disabled = changing !== null;
       foot.append(go);
     } else if (ext.status === "installed") {
-      const go = button("Remove", () => void change(ext, "remove", go), { icon: "trash", class: "extension-remove" });
+      const go = button("Remove", busyClick("Removing…", () => change(ext, "remove", go)), { icon: "trash", class: "extension-remove" });
       go.disabled = changing !== null;
       foot.append(go);
     }

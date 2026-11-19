@@ -25,6 +25,7 @@
 import { api, errorText } from "./api";
 import { connectionDot } from "./connectionColours";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
+import { busyClick, loadingBlock } from "./loading";
 
 /** A result as the Explorer has it (dataExplorer.ts's ExplorerResult, kept loose here to avoid a cycle). */
 export interface BrowseResult {
@@ -332,7 +333,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
 
   function fill(node: Node, kids: HTMLElement, depth: number): void {
     if (node.lazy && !node.children?.length) {
-      clear(kids, h("li", { class: "db-loading", role: "none" }, "Loading…"));
+      clear(kids, h("li", { class: "db-loading", role: "none" }, loadingBlock(`Loading ${node.label}…`, { inline: true })));
       const lazy = node.lazy;
       node.lazy = undefined;
       void lazy().then(
@@ -396,7 +397,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     drawActions(own);
     // A detail opened before the Workbench said what is in front (Insert's target) gets its buttons again then.
     redrawActions = () => drawActions(ctx.actions(r, under));
-    const body = h("div", { class: "db-detail-body" }, h("p", { class: "hint" }, "Loading…"));
+    const body = h("div", { class: "db-detail-body" }, loadingBlock("Loading…"));
     clear(detail, head, actions, under, body);
     const columnsTable = (rows: { name: string; type?: string | null; nullable?: unknown }[]): HTMLElement =>
       h(
@@ -425,7 +426,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       const d = await tableDetail(r);
       if (selectedKey !== node.key) return;
       if (d.relationships && r.connection && r.place)
-        actions.append(button("Import its relationships", () => void importRelationships(d.connection, d.place.schema), { icon: "diagram", class: "small line" }));
+        actions.append(button("Import its relationships", busyClick("Reading…", () => importRelationships(d.connection, d.place.schema)), { icon: "diagram", class: "small line" }));
       clear(
         body,
         h("section", {}, h("h3", {}, "SQL name"), h("div", { class: "db-sql-row" }, h("code", { class: "db-sql" }, d.sql), button("Copy SQL name", () => copy(d.sql), { icon: "copy", iconOnly: true, class: "ghost small" }))),

@@ -19,6 +19,7 @@ import hashlib
 import json
 import secrets
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -160,12 +161,49 @@ class Grid:
             self._running.pop(ticket, None)
 
 
+CLOSED_KEPT: int = 20  # closed tabs remembered for Ctrl+Shift+T (this session only)
+
+
+@dataclass(frozen=True)
+class ClosedTab:
+    """A grid that was closed, as the session knows it (Ctrl+Shift+T, tabs_reopen): its table (by name and
+    the store's serial, so another table of the same name is never taken for it), its steps and settings, and
+    the file it was read from, when it was (a closed table is read again from it)."""
+
+    dataset: str
+    serial: int
+    steps: tuple[Step, ...]
+    settings: ViewSettings
+    path: str | None = None
+    sheet: str | None = None
+
+
 class GridRegistry:
     """In-memory map of grid id to grid."""
 
     def __init__(self, max_grids: int) -> None:
         self._grids: dict[str, Grid] = {}
         self._max_grids = max_grids
+        self._closed: list[ClosedTab] = []
+
+    def remember_closed(
+        self, grid: Grid, serial: int, path: str | None = None, sheet: str | None = None
+    ) -> None:
+        """A grid closing: kept to reopen (the newest CLOSED_KEPT)."""
+        tab = ClosedTab(grid.dataset, serial, tuple(grid.steps), grid.settings, path, sheet)
+        self._closed = [*self._closed, tab][-CLOSED_KEPT:]
+
+    def take_closed(self, serial_of: Callable[[str], int | None]) -> ClosedTab | None:
+        """The newest closed tab that can come back, taken off the list: its table still open (the same
+        serial: `serial_of(name)`), or closed with a file to read again while its name is free. None when
+        none can."""
+        for at in range(len(self._closed) - 1, -1, -1):
+            tab = self._closed[at]
+            now = serial_of(tab.dataset)
+            if now == tab.serial or (now is None and tab.path):
+                del self._closed[at]
+                return tab
+        return None
 
     def create(
         self, dataset: str, steps: list[Step] | None = None, settings: ViewSettings | None = None

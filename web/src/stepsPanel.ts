@@ -16,6 +16,7 @@
  */
 import { api, clientId, grid, query, type StepJson } from "./api";
 import { button, clear, formatCount, h, toast } from "./dom";
+import { loadingBlock } from "./loading";
 import { KIND_LABELS, editStep } from "./stepForms";
 import { state } from "./state";
 
@@ -211,7 +212,7 @@ interface CodeResult {
 /** What the user pastes into their own Python: one DuckDB query over their table by its variable
  * name ("Copy as SQL"), or `import duckdb` plus the one line that runs it ("Copy as Python"). */
 async function renderCode(body: HTMLElement): Promise<void> {
-  const status = h("span", { class: "hint" }, "Verifying…");
+  const status = h("span", {}, loadingBlock("Verifying the code…", { inline: true }));
   const pre = h("pre", { class: "mono" });
   let result: CodeResult | null = null;
   const copyText = (text: string, what: string): void =>

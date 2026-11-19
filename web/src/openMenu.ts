@@ -26,6 +26,7 @@
  */
 import { api, onNotice, type Budget, type Notice } from "./api";
 import { button, closeDialogs, formatCount, h, openDialog, toast } from "./dom";
+import { loadingBlock } from "./loading";
 
 interface Dataset {
   name: string;
@@ -176,8 +177,8 @@ function datasetBlock(title: string, id: string, datasets: Dataset[]): HTMLEleme
 export function showTables(): void {
   const { dialog, body } = openDialog("Tables", true);
   body.classList.add("open-dialog");
-  const budget = h("p", { class: "hint", id: "tables-budget", role: "status" }, "Loading…");
-  const tables = h("div", { class: "open-tables" });
+  const budget = h("p", { class: "hint", id: "tables-budget", role: "status" });
+  const tables = h("div", { class: "open-tables" }, loadingBlock("Loading the tables…"));
   const status = h("p", { class: "hint", role: "status" });
   const list = h("div", { class: "open-sessions" });
   body.append(budget, tables, h("section", { class: "open-session", id: "python-sessions" }, h("header", {}, h("strong", {}, "Python sessions")), status, list));

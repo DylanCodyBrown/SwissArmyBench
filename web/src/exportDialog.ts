@@ -14,6 +14,7 @@ import { button, h, openDialog, toast } from "./dom";
 import { saveBlob } from "./profileView";
 import { selection, shownTotal } from "./gridView";
 import { state } from "./state";
+import { busyClick } from "./loading";
 
 export function openExport(): void {
   const info = state.info;
@@ -126,5 +127,5 @@ export function openExport(): void {
       error.textContent = e instanceof ApiError ? e.message : String(e);
     }
   };
-  foot.append(button("Cancel", close), button("Save to export folder", () => void exportNow(true), { icon: "save", title: "~\\.swissarmybench\\exports" }), button("Download", () => void exportNow(false), { icon: "export", class: "primary" }));
+  foot.append(button("Cancel", close), button("Save to export folder", busyClick("Saving…", () => exportNow(true)), { icon: "save", title: "~\\.swissarmybench\\exports" }), button("Download", busyClick("Exporting…", () => exportNow(false)), { icon: "export", class: "primary" }));
 }

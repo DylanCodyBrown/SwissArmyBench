@@ -16,6 +16,7 @@
 
 import { api } from "./api";
 import { button, h, icon, openDialog, toast } from "./dom";
+import { loadingBlock, markBusy } from "./loading";
 
 export interface Missing {
   feature: string;
@@ -153,16 +154,18 @@ export function promptInstall(missing: Missing, options: PromptOptions = {}): Pr
     const go = button("Install now", () => void run(), { class: "primary", icon: "import", title: missing.command });
     const run = async (): Promise<void> => {
       busy = true;
-      go.disabled = later.disabled = true;
+      later.disabled = true;
+      const restore = markBusy(go, "Installing…"); // the one loading state (loading.ts)
       dialog.classList.add("busy");
       failed.hidden = true;
       state.className = "missing-state";
-      state.replaceChildren(h("span", { class: "spinner", "aria-hidden": "true" }), `Installing ${listed(missing.packages)}…`);
+      state.replaceChildren(loadingBlock(`Installing ${listed(missing.packages)}…`, { inline: true }));
       try {
         await (options.install ?? intoApp)(missing);
       } catch (error) {
         busy = false;
-        go.disabled = later.disabled = false;
+        restore();
+        later.disabled = false;
         dialog.classList.remove("busy");
         state.className = "missing-state status-error";
         state.replaceChildren("The install failed.");

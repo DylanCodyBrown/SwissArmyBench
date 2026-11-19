@@ -100,10 +100,15 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     assert said["download_dialog"] == ["Save", "orders.csv"]
     assert said["download_text"].splitlines()[:2] == ["order_id,region,amount", "1,North,120.5"]
     assert said["download_status"] == "Saved orders.csv" and said["download_show_in_folder"]
-    # window.print(): Print to PDF, named for the page.
+    # window.print(): Print to PDF, named for the page; the page's @page size (Letter landscape), its print
+    # layout held until the shell's afterprint once the PDF was written (the Save dialog took 2 s).
     assert (
         said["print_dialog"][0] == "Print to PDF" and said["pdf_head"] == "%PDF-" and said["pdf_size"] > 1000
     )
+    assert said["page_knows_the_app"] is True
+    assert [round(float(n)) for n in said["pdf_mediabox"]] == [0, 0, 792, 612]
+    assert said["afterprint"] == "[true]"
+    assert said["windows_at_start"] == 1
     # Outside addresses: the system's browser (stood in), never a window of the shell's.
     assert said["outside"] == [
         "https://example.com/release-notes",
@@ -129,6 +134,15 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     # Open in browser: the page in the system's browser (stood in), with the token as the launch has it.
     assert said["open_in_browser"].endswith("/catalog") and said["open_in_browser_has_token"]
     assert said["catalog_reused"]
+    # Files: handed over the channel and dropped on a window, each read by its real path.
+    assert said["file_answer"] == {"ok": True} and said["file_origin"] == "file"
+    assert said["drop_accepted"] and said["drop_origin"] == "file"
+    assert said["opened_files"] == ["regions.csv", "drop_me.csv"]
+    # The browser's keys are the app's: Ctrl+Tab, Ctrl+W a tab (the window stays), Ctrl+Shift+T it again;
+    # the Workbench's F5 is its own; Ctrl+W with no document closes the window.
+    assert said["ctrl_tab_moved"] and said["ctrl_w_closed_tab"] and said["ctrl_w_kept_window"]
+    assert said["ctrl_shift_t_reopened"] and said["workbench_f5_kept_page"] is True
+    assert said["ctrl_w_closed_empty_window"]
     # The profile in the state folder: cookies and local storage kept there.
     assert {"Cookies", "Local Storage"} <= set(said["profile_folder"])
     # Every window closed: the app told the server, and the server stopped.
@@ -180,11 +194,13 @@ def test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows
         assert launch.open_page(page_address(server, "/workbench"), info)
         wait(lambda: "workbench" in {w["kind"] for w in launch.status(info)["windows"]})
         assert first.poll() is None
-        # The app ends (its windows with it): the server follows, once its grace is over (no request here
-        # asks it anything meanwhile: the connection file is only read).
-        if first.poll() is None:
-            first.terminate()
-            first.wait(30)
+        # `swissarmybench stop`'s quit, over the channel: every window closed (each one's place kept), the
+        # server told, the app ended; the server follows.
+        # (quit_app's own wait sees this test's child as a zombie until it is reaped: the message, then wait.)
+        assert launch.tell({"quit": True}, info) == {"ok": True}
+        assert first.wait(30) == 0
+        places = json.loads((tmp_path / "state" / "desktop" / "windows.json").read_text(encoding="utf-8"))
+        assert {"home", "catalog", "workbench"} <= set(places)
         from swissarmybench.server.lifecycle import read_info as connection
 
         wait(lambda: connection(info) is None, 60)

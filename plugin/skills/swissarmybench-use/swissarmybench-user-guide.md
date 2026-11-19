@@ -41,8 +41,25 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 - **Links** to anything that is not the app open in your browser. **Downloads** ask where to save (the system's
   Save dialog), then the window's bottom line shows the progress and **Show in folder**. **Print to PDF**
   (Visualizations' button, or Ctrl+P) asks where to save the PDF.
-- **Keys:** F11 full screen, F12 the developer tools, Alt+Left and Alt+Right back and forward, F5 reload,
-  Ctrl+W closes the window (a page with unsaved work asks first).
+- **Keys:** F11 full screen, F12 the developer tools, Alt+Left and Alt+Right back and forward, F5 reload
+  (in the Workbench F5 runs). In the app the browser's tab keys are the app's: **Ctrl+W** closes the tab in
+  front (a table's, or the Workbench's document), and the window once no tab is left (a page with unsaved work
+  asks first); **Ctrl+T** opens a new query tab (a new notebook in the Workbench), **Ctrl+N** a new query (a
+  new notebook in the Workbench); **Ctrl+Tab** and **Ctrl+Shift+Tab** go round the tabs; **Ctrl+Shift+T**
+  reopens the last table you closed, with its steps (a table you closed altogether is read again from its
+  file). The command palette (Ctrl+Shift+P) lists them. In a browser these keys stay the browser's.
+- **Open with:** the installers offer Swiss Army Bench for .csv, .parquet, .xlsx and .ipynb files (and
+  .blade.py; on Windows that is every .py file), without making it their default; on Linux and macOS it is the
+  default for a blade (.blade.py). `swissarmybench open orders.csv` does the same from a terminal. The file
+  goes to the app that is open (never a second one): a table opens as a grid (read by its path, so a project
+  reads it again), a notebook in the Workbench, a blade of your library on its page, a folder as a project.
+- **Drop a file on a window** from your file explorer: it opens the same way, by its real path. (In a browser a
+  dropped file is uploaded, as before.)
+- **Changed on disk:** a table read from a file is watched. When the file changes, its tab shows a dot and the
+  table says **Changed on disk** with **Reload** (read again, its steps kept) and **Not now** (said again when
+  the file changes again). It never reloads by itself.
+- **Stop it from a terminal:** `swissarmybench stop` closes the app's windows (without asking about unsaved
+  work: it is your word), keeps where each window was, and stops the server.
 - **Install:** the installer adds the app to the Start menu (`-DesktopShortcut` adds one on the desktop too),
   Applications or the applications menu, and opens it once. `install.sh --uninstall` (or `install.ps1
   -Uninstall`) removes it; your projects and settings stay. The app needs about 650 MB more than the browser

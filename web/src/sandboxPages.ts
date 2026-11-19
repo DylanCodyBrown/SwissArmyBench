@@ -127,8 +127,10 @@ export async function printPages(paper: Paper, ready: () => Promise<void>, done:
       };
       window.addEventListener("afterprint", after);
       window.print();
-      // Some browsers print without firing afterprint; never leave the page in print mode.
-      setTimeout(after, 1500);
+      // Some browsers print without firing afterprint; never leave the page in print mode. The desktop app's
+      // print() returns at once (its Save dialog and the PDF come after) and it fires afterprint once the PDF
+      // is written: the layout and its @page size are held until then.
+      setTimeout(after, "sabApp" in window ? 10 * 60_000 : 1500);
     });
   } finally {
     style.remove();
