@@ -253,14 +253,25 @@ def main(folder: Path, shots: Path | None) -> int:
         wait(lambda: True, 1.5)  # Chromium lets go of the closed window's name a moment later
         places = json.loads((info_file.parent / "desktop" / "windows.json").read_text(encoding="utf-8"))
         results["remembered"] = places.get("workbench")
-        results["reopen_said"] = js(
-            home,
-            "(() => { const w = window.open('/workbench', 'swissarmybench-workbench');"
-            " return w === null ? 'null' : (w.closed ? 'closed' : 'open'); })()",
-        )
-        again = wait(
-            lambda: next((w for w in shell.windows.values() if w.kind == "workbench"), None), 30, "wb2"
-        )
+        # On a busy machine Chromium can hold the name longer than that: the open is asked again, up to
+        # three times, until the new window is there.
+        again: Any = None
+        for attempt in range(3):
+            results["reopen_said"] = js(
+                home,
+                "(() => { const w = window.open('/workbench', 'swissarmybench-workbench');"
+                " return w === null ? 'null' : (w.closed ? 'closed' : 'open'); })()",
+            )
+            try:
+                again = wait(
+                    lambda: next((w for w in shell.windows.values() if w.kind == "workbench"), None),
+                    10 if attempt < 2 else 30,
+                    "wb2",
+                )
+                break
+            except TimeoutError:
+                if attempt == 2:
+                    raise
         wait(lambda: again.placed, 10, "placed")
         g = again.geometry()
         results["reopened_at"] = [g.x(), g.y(), g.width(), g.height()]
