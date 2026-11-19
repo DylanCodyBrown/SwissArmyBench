@@ -157,7 +157,10 @@ def test_app_mode_has_the_streamlit_cells(browser: Browser, server: dict[str, An
     window(server, "file.newApp")
     cells = page.locator(".wb-mode-left .wb-st")
     expect(cells).to_be_visible(timeout=20000)
-    expect(cells.locator(".wb-st-cell .wb-data-label")).to_have_text(["Region filter"], timeout=20000)
+    # Grouped by document: an earlier test's open project lists its own cells (its SQL cells as Queries,
+    # 2026-11-19), so this notebook's group is the one read.
+    views = cells.locator(".wb-st-doc").filter(has=page.locator(".wb-st-doc-name", has_text="views"))
+    expect(views.locator(".wb-st-cell .wb-data-label")).to_have_text(["Region filter"], timeout=20000)
     # Starters is the other left panel (one a side).
     window(server, "data.starters", show=True)
     expect(page.locator(".wb-mode-left .wb-mode-starters")).to_be_visible()
