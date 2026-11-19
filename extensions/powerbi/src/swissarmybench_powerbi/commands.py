@@ -105,3 +105,17 @@ def powerbi_source(a: dict[str, Any]) -> Any:
     if a.get("source"):
         return api.call("PUT", "/powerbi/source", {"source": a["source"]})
     return api.call("GET", "/powerbi/source")
+
+
+@command(
+    "powerbi_app_registration",
+    "The Power BI project's app registration: none sent, what it is; registration (a name or none) re-points "
+    "its Microsoft sources after a dry run (dry_run=true: only the list), then checks its access",
+    opt("registration", "An app registration's name, or none (sign in as you)."),
+    opt("dry_run", "true: only what would change.", "bool"),
+)
+def powerbi_app_registration(a: dict[str, Any]) -> Any:
+    if not a.get("registration"):
+        return api.call("GET", "/powerbi/registration")
+    body = {"registration": a["registration"], "dry_run": bool(a.get("dry_run"))}
+    return api.call("PUT", "/powerbi/registration", body, timeout=200)

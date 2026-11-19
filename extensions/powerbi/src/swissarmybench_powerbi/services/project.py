@@ -432,15 +432,104 @@ class PowerBIProject:
         elif action == "not_published":
             state["not_published"] = True
         elif action == "registration":
-            name = body.get("registration")
-            if name != "none" and name not in self.registrations():
-                raise NotFound(f"{name} is not an app registration here.")
-            await self.base.sab_projects.set_setting(REGISTRATION_KEY, name, who)
+            return await self.registration({"registration": body.get("registration")}, who)
         else:
             raise ValueError("Send an action: dataset, not_published or registration.")
         await asyncio.to_thread(self._write_state, state)
         self.base.ws.audit.write(who, "powerbi_setup", str(action))
         return {"to_finish": await self.to_finish()}
+
+    # ===== G: the project's app registration =====
+
+    def query_hints(self) -> dict[str, str]:
+        """A table of the project's published dataset worth one COUNTROWS in an access report."""
+        try:
+            state = self._state()
+        except NotFound:
+            return {}
+        dataset = (state.get("dataset") or {}).get("dataset")
+        tables = [str(t["name"]) for t in state.get("tables", [])]
+        return {str(dataset): tables[0]} if dataset and tables else {}
+
+    def _microsoft_connections(self, state: Mapping[str, Any]) -> list[str]:
+        names = {str(t.get("connection")) for t in state.get("tables", []) if t.get("connection")}
+        out = []
+        for name in sorted(names):
+            try:
+                blade = self.base.connections.blade(name)[0]
+            except Exception:  # noqa: S112 (gone)
+                continue
+            if blade.template in ("sqlserver", "azuresql", "dataverse", "sharepoint", "datalake", "onelake"):
+                out.append(name)
+        return out
+
+    async def registration(self, body: Any, who: str) -> dict[str, Any]:
+        """Get ({}), or set {"registration": name | "none", "dry_run"?}: the Microsoft sources the import made
+        re-pointed to sign in with its variables after a dry run; one set otherwise keeps its own sign-in."""
+        body = body if isinstance(body, dict) else {}
+        state = self._state()
+        current = self.base.sab_projects.setting(REGISTRATION_KEY)
+        if "registration" not in body:
+            return {"registration": current, "registrations": self.registrations()}
+        name = str(body.get("registration") or "")
+        if name != "none" and name not in self.registrations():
+            raise NotFound(f"{name} is not an app registration in the library.")
+        own = set(state.get("own_sign_in", []))
+        changes = [
+            {"connection": c, "change": "keeps its own sign-in" if c in own else f"signs in with {name}"}
+            for c in self._microsoft_connections(state)
+        ]
+        if name == "none":
+            changes = [
+                {"connection": c["connection"], "change": "keeps its sign-in (as you)"} for c in changes
+            ]
+        if body.get("dry_run"):
+            return {"dry_run": True, "registration": name, "changes": changes}
+        repoints = name != "none" and any(c["change"].startswith("signs in with") for c in changes)
+        asked = f"Sign in with {name}"
+        if repoints and who == "agent" and not await self.approvals.ask(name, "powerbi_registration", asked):
+            raise Refused("The user declined: the app registration was not changed.")
+        await self.base.sab_projects.set_setting(REGISTRATION_KEY, name, who)
+        if name != "none":
+            reg = self.base.app_registrations.get(name)
+            for change in changes:
+                if change["connection"] not in own:
+                    await self._repoint(change["connection"], reg, who)
+            try:
+                await self.base.app_registrations.check(name, who)  # G: checked after the setting changes
+            except Exception as error:  # the report says what it can; a failure is said, never in the way
+                changes.append({"connection": "", "change": f"the access check did not run: {error}"})
+        return {"registration": name, "changes": changes, "to_finish": await self.to_finish()}
+
+    async def _repoint(self, name: str, reg: Any, who: str) -> None:
+        """A SQL Server connection made to sign in with the registration's variables."""
+        from swissarmybench.domain import sql_server
+        from swissarmybench.domain.blades import apply_settings
+
+        blade = self.base.connections.blade(name)[0]
+        if blade.template not in ("sqlserver", "azuresql"):
+            return
+        settings = _settings_of(blade.code)
+        code = sql_server.code("app_secret", "my-server")
+        found = {s.name: s.id for s in detect_settings(code)}
+        values = {
+            "server": settings.get("server", ""),
+            "database": settings.get("database", ""),
+            "tenant_id": "${" + reg.tenant + "}",
+            "client_id": "${" + reg.client + "}",
+        }
+        filled = {found[k]: {"text": v} for k, v in values.items() if k in found and v}
+        code = apply_settings(code, filled).replace('secret("client secret")', f'os.environ["{reg.secret}"]')
+        if "import os\n" not in code:
+            code = "import os\n" + code
+        body = {
+            "name": name,
+            "kind": blade.kind,
+            "template": blade.template,
+            "dialect": blade.dialect,
+            "code": code,
+        }
+        await self.base.connections.save(body, name, who)
 
     # ===== F: the page, as data =====
 

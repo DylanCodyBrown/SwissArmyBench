@@ -407,6 +407,8 @@ class StandIn:
 
     def __init__(self, port: int = 0) -> None:
         self.requests: list[dict[str, Any]] = []
+        self.not_a_member = False  # GET /groups answers no workspace (an access report test)
+        self.tenant_setting_off = False  # executeQueries refused as the tenant setting does
         self.view_forms = True
         self.info_forms = True
         self.models: list[MadeUpModel] = list(MODELS)  # a test may leave one dataset, or add many
@@ -461,7 +463,14 @@ class StandIn:
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
 
     def listing(self, path: str, authorization: str) -> tuple[int, dict[str, Any]]:
-        """GET .../groups/{workspace}/datasets: the workspace's datasets, names and ids."""
+        """GET .../groups/{workspace}/datasets: its datasets; GET /v1.0/myorg/groups:
+        the workspaces the caller is a member of (none while `not_a_member`)."""
+        if path.split("?")[0] == "/v1.0/myorg/groups":
+            self.requests.append({"what": "groups", "authorization": authorization})
+            if authorization != f"Bearer {TOKEN}":
+                return 401, _refusal("TokenExpired")
+            workspaces = [] if self.not_a_member else [{"id": WORKSPACE, "name": "Finance", "type": "Workspace"}]
+            return 200, {"value": workspaces}
         found = re.fullmatch(r"/v1\.0/myorg/groups/([^/]+)/datasets", path)
         self.requests.append({"what": "datasets", "path": path, "authorization": authorization})
         if found is None:
@@ -470,7 +479,7 @@ class StandIn:
             return 401, _refusal("TokenExpired")
         if found.group(1) != WORKSPACE:
             return 404, _refusal("PowerBIEntityNotFound")
-        listed = [
+        listed: list[dict[str, Any]] = [
             {"id": m.id, "name": m.name, "isRefreshable": True, "configuredBy": "made.up@example.com"}
             for m in self.models
         ]
@@ -504,6 +513,8 @@ class StandIn:
         self.requests.append({"what": "query", "dax": dax, "authorization": authorization, "body": sent})
         if authorization != f"Bearer {TOKEN}":
             return 401, _refusal("TokenExpired")
+        if self.tenant_setting_off:  # the tenant setting off for service principals: Power BI's own refusal
+            return 401, _refusal("PowerBINotAuthorizedException", "API is not accessible for application")
         model = next((m for m in self.models if m.id == found.group(2)), None)
         if found.group(1) != WORKSPACE or model is None:
             return 404, _refusal("PowerBIEntityNotFound")

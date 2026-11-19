@@ -306,3 +306,14 @@ def test_a_pbix_imported_as_a_project_ready_to_work(tmp_path: Path, standin: mad
         ]
         page = ok(client.get("/powerbi/page", headers=AGENT))
         assert page["project"] and page["actions"][0]["label"] == "Refresh from the file"
+
+        # G: the project's app registration: a dry run lists the Microsoft sources it re-points.
+        reg = {"name": "Contoso BI", "tenant": "BI_TENANT", "client": "BI_CLIENT", "secret": "BI_SECRET"}
+        ok(client.post("/app-registrations", json=reg, headers=AGENT))
+        asked = {"registration": "Contoso BI", "dry_run": True}
+        dry = ok(client.put("/powerbi/registration", json=asked, headers=AGENT))
+        assert dry["changes"] == [{"connection": "SalesDb", "change": "signs in with Contoso BI"}]
+        ok(client.put("/powerbi/registration", json={"registration": "Contoso BI"}, headers=AUTH))
+        code = client.app.state.ctx.connections.blade("SalesDb")[0].code  # type: ignore[attr-defined]
+        assert 'os.environ["BI_SECRET"]' in code and "BI_TENANT" in code and 'sign_in="app_secret"' in code
+        assert ok(client.get("/powerbi/registration", headers=AGENT))["registration"] == "Contoso BI"

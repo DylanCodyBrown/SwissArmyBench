@@ -149,7 +149,14 @@ def routes(services: Any) -> list[Any]:
     from swissarmybench_powerbi.server import routes_project
     from swissarmybench_powerbi.services.project import PowerBIProject
 
-    project = PowerBIProject(services, pbix_reader.read, StateFiles(), services.agent.approvals)
+    project = PowerBIProject(
+        services,
+        pbix_reader.read,
+        StateFiles(),
+        services.agent.approvals,
+        registrations=services.app_registrations.names,
+    )
+    services.app_registrations.query_hints = project.query_hints
     services.powerbi_project = project  # tests hand it a fake reader
     return door.routes(service) + routes_project.routes(project)
 

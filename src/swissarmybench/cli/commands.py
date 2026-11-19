@@ -3924,6 +3924,54 @@ def team_leave(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "app_registration_list",
+    "The library's app registrations: their three variable names, the connections using each, the last check",
+    opt("name", "One registration: it and its last access report."),
+    opt("connection", "A connection's Access section instead."),
+)
+def app_registration_list(a: dict[str, Any]) -> Any:
+    if a.get("connection"):
+        return api.call("GET", f"/connections/{quote(str(a['connection']), safe='')}/access")
+    if a.get("name"):
+        return api.call("GET", f"/app-registrations/{quote(str(a['name']), safe='')}")
+    return api.call("GET", "/app-registrations")
+
+
+@command(
+    "app_registration_add",
+    "Add an app registration to the library: its name and the VARIABLES holding its tenant id, client id and "
+    "client secret (names only; remove=true takes it away)",
+    req("name", "Its name."),
+    opt("tenant", "The variable holding its tenant id."),
+    opt("client", "The variable holding its client id."),
+    opt("secret", "The variable holding its client secret (a keyring or vault variable)."),
+    opt("remove", "true: remove it from the library.", "bool"),
+)
+def app_registration_add(a: dict[str, Any]) -> Any:
+    if a.get("remove"):
+        return api.call("POST", "/app-registrations/remove", {"name": a["name"]})
+    body = {k: a[k] for k in ("name", "tenant", "client", "secret") if a.get(k)}
+    return api.call("POST", "/app-registrations", body)
+
+
+def _registration_check(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/app-registrations/{quote(str(a['name']), safe='')}/check", {}, timeout=200)
+
+
+command(
+    "app_registration_test",
+    "Test an app registration: its access report made now (read-only calls; never a token or a row kept)",
+    req("name", "The registration."),
+)(_registration_check)
+command(
+    "app_registration_check",
+    "Check again what an app registration reaches: workspaces, datasets, each connection using it; kept as "
+    "names and marks",
+    req("name", "The registration."),
+)(_registration_check)
+
+
+@command(
     "catalog_shared",
     "The shared catalog (the library's catalog/): each connection's tables, their state and the projects using them",
     opt("search", "Words in a connection's or table's name."),

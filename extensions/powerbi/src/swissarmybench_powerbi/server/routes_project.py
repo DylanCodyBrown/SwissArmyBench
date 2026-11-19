@@ -6,6 +6,7 @@ GET  /powerbi/file-connection/{name}       its card: path, tables, "as of", read
 POST /powerbi/file-connection/{name}/relationships   the file's relationships into the model and the ERD
 GET  /powerbi/setup                        To finish setting up; POST: one row's fix
 GET  /powerbi/source                       Read Power BI from; PUT {source}: switched, the grids read again
+GET  /powerbi/registration                 the project's app registration; PUT {registration, dry_run?}
 GET  /powerbi/page                         the Power BI page, as data
 """
 
@@ -57,6 +58,10 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
     async def switch(r: Request) -> Any:
         return await project.set_source(await read_json(r), actor(r))
 
+    async def registration(r: Request) -> Any:
+        body = await read_json(r) if r.method == "PUT" else {}
+        return await project.registration(body, actor(r))
+
     async def page(r: Request) -> Any:
         return await project.page()
 
@@ -69,5 +74,6 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         Route("/powerbi/setup", door(fix), methods=["POST"]),
         Route("/powerbi/source", door(source)),
         Route("/powerbi/source", door(switch), methods=["PUT"]),
+        Route("/powerbi/registration", door(registration), methods=["GET", "PUT"]),
         Route("/powerbi/page", door(page)),
     ]

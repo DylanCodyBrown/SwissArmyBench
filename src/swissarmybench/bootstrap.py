@@ -28,6 +28,7 @@ from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
+from swissarmybench.adapters.app_registrations import PowerBIProbe, RegistrationFiles
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
@@ -109,6 +110,7 @@ from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.analyze import Analyze
 from swissarmybench.services.api_explorer import Explorer as ApiExplorer
 from swissarmybench.services.apis import Apis
+from swissarmybench.services.app_registrations import AppRegistrations
 from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
 from swissarmybench.services.catalog_loading import CatalogLoading
@@ -238,6 +240,7 @@ class Services:
     library_setup: LibrarySetup
     team: Team
     shared_catalog: SharedCatalog
+    app_registrations: AppRegistrations
     script_runs: ScriptRuns
     beta: BetaLog
     updates: Updates
@@ -833,6 +836,26 @@ def bootstrap(
         vault_values=vault_values,
     )
     connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
+
+    def every_connection() -> list[tuple[str, str, str]]:
+        """(name, kind, code) of each connection: an app registration's users (they read its variables)."""
+        out = []
+        for row in connections.listing()["connections"]:
+            try:
+                blade = blade_store.get(str(row["name"]))
+            except Exception:  # noqa: S112 (one that cannot be read is not counted)
+                continue
+            kind = "powerbi" if blade.dialect == "dax" else str(blade.template or row.get("connection") or "")
+            out.append((blade.name, "sqlserver" if kind == "azuresql" else kind, blade.code))
+        return out
+
+    app_registrations = AppRegistrations(
+        ws,
+        RegistrationFiles(lambda: library_folder.root, library_folder.ensure),
+        PowerBIProbe(),
+        variables.values,
+        every_connection,
+    )
     datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
     structures.variables = variables
     api_explorer.variables = variables
@@ -1287,6 +1310,7 @@ def bootstrap(
         library_setup=library_setup,
         team=team,
         shared_catalog=shared_catalog,
+        app_registrations=app_registrations,
         keys=key_finder,
         compares=compares,
         tie_out=tie_out,
