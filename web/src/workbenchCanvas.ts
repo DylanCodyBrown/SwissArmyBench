@@ -32,6 +32,7 @@
  *
  * ROUTING: /streamlit/apps/{app}... (routes_streamlit.py); the `streamlit_changed` notice
  */
+import { launchControls } from "./canvasLaunch";
 import { agentApi, api, ApiError } from "./api";
 import { pageTabs, resizeGrip } from "./canvasKit";
 import type { CodePlan } from "./canvasPane";
@@ -235,6 +236,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
 
   const top = h("div", { class: "cv-top" });
   const tools = h("span", { class: "cv-tools" });
+  // Launch, Stop, the Performance Analyzer and Builds (canvasLaunch.ts): Visual Studio's F5.
+  const launcher = launchControls({ app: () => id, saved: () => !!host.path() });
   const notes = h("div", { class: "cv-notes" });
   const board = h("div", { class: "cv-board", role: "list", "aria-label": "Blocks" });
   const live = h("div", { class: "cv-live" });
@@ -530,7 +533,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     testButton.disabled = !!testing || busy || !page?.blocks.length;
     if (testing) markBusy(testButton, "Testing…");
     clear(top, tabs);
-    clear(tools, modes, testButton, ...(mode === "live" ? previewTools() : editTools()), exportButton, saveAsButton);
+    clear(tools, modes, testButton, ...(mode === "live" ? previewTools() : editTools()), exportButton, saveAsButton, launcher.element);
+    launcher.refresh();
   }
 
   // ===== App mode: Edit's tools, Play's preview =====
@@ -1434,6 +1438,12 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
   });
 
   element.addEventListener("keydown", (e) => {
+    // F5: Launch with the Performance Analyzer; Ctrl+F5: Launch (Visual Studio's keys).
+    if (e.key === "F5" && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      void launcher.launch(!(e.ctrlKey || e.metaKey));
+      return;
+    }
     const typing = !!(e.target as HTMLElement).closest("input, textarea, select");
     if (e.key === "Escape" && selectedIds.length && !typing) select(null);
     if (typing || !(e.ctrlKey || e.metaKey) || e.altKey) return;
