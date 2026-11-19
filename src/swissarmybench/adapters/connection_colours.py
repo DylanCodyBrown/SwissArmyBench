@@ -9,9 +9,10 @@ folder): nothing is ever written.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from pathlib import Path
+
+from swissarmybench.adapters.atomic_files import write_atomic
 
 
 class ColoursFile:
@@ -38,7 +39,4 @@ class ColoursFile:
         if path is None or (path.is_file() and self.read() == text):
             return
         self._made()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(path.name + ".tmp")
-        temporary.write_text(text, encoding="utf-8", newline="\n")
-        os.replace(temporary, path)
+        write_atomic(path, text, newline="\n")

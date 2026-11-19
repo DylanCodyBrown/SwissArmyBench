@@ -16,13 +16,13 @@ from __future__ import annotations
 import base64
 import json
 import os
-import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench_git.domain import sync as rules
 
 TIMEOUT_SECONDS: float = 30.0
@@ -371,11 +371,7 @@ class SyncLinks:
         self._held = json.loads(json.dumps(data))
         if self.path is None:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        text = json.dumps(data, indent=1, sort_keys=True) + "\n"
-        temporary = self.path.with_suffix(".tmp")
-        temporary.write_text(text, encoding="utf-8")
-        os.replace(temporary, self.path)
+        write_atomic(self.path, json.dumps(data, indent=1, sort_keys=True) + "\n")
 
 
 class SyncFolder:
@@ -431,16 +427,7 @@ class SyncFolder:
         return (self.full(folder) / rel).is_file()
 
     def write(self, folder: str, rel: str, data: bytes) -> None:
-        target = self.full(folder) / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        handle, temporary = tempfile.mkstemp(dir=target.parent, prefix=".sab-sync-")
-        try:
-            with os.fdopen(handle, "wb") as out:
-                out.write(data)
-            os.replace(temporary, target)
-        except BaseException:
-            Path(temporary).unlink(missing_ok=True)
-            raise
+        write_atomic(self.full(folder) / rel, data)
 
     def remove(self, folder: str, rel: str) -> None:
         root = self.full(folder)

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import queue
 import threading
 import time
@@ -22,6 +21,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from swissarmybench.adapters.atomic_files import replacing
 
 QUEUE_SIZE = 2000
 README = (
@@ -195,8 +196,7 @@ class BetaFiles:
         if not target.parent.is_dir():
             raise ValueError("That folder does not exist.")
         self.flush()
-        partial = target.with_name(f".{target.name}.{os.getpid()}.partial")
-        with self._disk:
+        with self._disk, replacing(target) as partial:
             parts = self._parts()
             shots = self._pictures() if pictures else []
             with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -206,7 +206,6 @@ class BetaFiles:
                 archive.writestr("notes.json", json.dumps(notes, ensure_ascii=False, indent=1, default=str))
                 for shot in shots:
                     archive.write(shot, f"pictures/{shot.name}")
-        os.replace(partial, target)
         return {"path": str(target), "files": len(parts), "notes": len(notes), "pictures": len(shots)}
 
 

@@ -19,6 +19,7 @@ from collections.abc import Callable, Mapping, MutableMapping
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.adapters.blades import KEYRING_SERVICE, BladeStore
 from swissarmybench.domain import library
 
@@ -59,10 +60,7 @@ class VariableFiles:
         if not path.is_file() and key == "local" and not (data or {}).get("values"):
             return  # no local value: no local file
         self._made()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        part = path.with_name(path.name + ".part")
-        part.write_text(text, encoding="utf-8", newline="\n")
-        part.replace(path)
+        write_atomic(path, text, newline="\n")
 
     def read(self) -> tuple[Any, Any]:
         return self._read(self.shared, "shared"), self._read(self.local, "local")

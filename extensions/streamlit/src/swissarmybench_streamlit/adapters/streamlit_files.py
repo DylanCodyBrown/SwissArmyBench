@@ -13,6 +13,7 @@ import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import html_cells
 
 PREFIX: str = "swissarmybench-streamlit-"
@@ -57,15 +58,8 @@ class AppFiles:
         for `keep` (the version before this one: a page that is running just now may still read it)."""
         root = Path(folder)
         for name, text in files.items():
-            target = root / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            data = text.encode("utf-8")
-            if target.is_file() and target.read_bytes() == data:
-                continue
             # Whole or not at all: a page is never read half written.
-            partial = target.with_name(target.name + ".part")
-            partial.write_bytes(data)
-            os.replace(partial, target)
+            write_atomic(root / name, text.encode("utf-8"), if_changed=True)
         for old in root.glob("*.py"):
             if old.name not in files and old.name not in keep:
                 old.unlink(missing_ok=True)
@@ -77,11 +71,7 @@ class AppFiles:
             os.utime(target)
 
     def write_table(self, folder: str, name: str, data: bytes) -> None:
-        target = Path(folder) / "data" / f"{name}.parquet"
-        target.parent.mkdir(parents=True, exist_ok=True)
-        partial = target.with_name(target.name + ".part")
-        partial.write_bytes(data)
-        os.replace(partial, target)
+        write_atomic(Path(folder) / "data" / f"{name}.parquet", data)
 
     def read(self, folder: str, name: str) -> str | None:
         """A small file the live app wrote in its folder (its session's state); None: not there yet."""

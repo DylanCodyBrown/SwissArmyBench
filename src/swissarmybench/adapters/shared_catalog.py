@@ -11,10 +11,10 @@ take them out.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from pathlib import Path
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import shared_catalog as rules
 
 Stamp = tuple[int, int]  # (modified time in nanoseconds, size)
@@ -66,11 +66,7 @@ class CatalogFiles:
         except OSError:
             pass
         self._made()
-        folder.mkdir(parents=True, exist_ok=True)
-        part = path.with_name(path.name + ".tmp")
-        part.write_bytes(data)
-        os.replace(part, path)
-        return True
+        return write_atomic(path, data)
 
     def remove(self, name: str) -> bool:
         folder = self.folder

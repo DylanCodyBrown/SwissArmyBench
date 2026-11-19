@@ -10,16 +10,15 @@ services/apis.py the use case).
 
 from __future__ import annotations
 
-import os
 import shutil
 import sys
-import tempfile
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import apis
 from swissarmybench.domain.packages import MissingPackagesError, missing_packages
 
@@ -106,16 +105,7 @@ class ApiFiles:
 
     def write(self, path: str, text: str) -> None:
         """Written whole or not at all (a file beside it, then moved into place)."""
-        file = Path(path)
-        file.parent.mkdir(parents=True, exist_ok=True)  # an API's own folder in the library
-        handle, temporary = tempfile.mkstemp(prefix=f".{file.stem}-", suffix=file.suffix, dir=file.parent)
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as out:
-                out.write(text)
-            os.replace(temporary, file)
-        except BaseException:
-            Path(temporary).unlink(missing_ok=True)
-            raise
+        write_atomic(Path(path), text, newline="\n")  # an API's own folder in the library made
 
     def clients(self, folder: str) -> dict[str, str]:
         """The API_*.py files in a folder, by module name, with their text."""

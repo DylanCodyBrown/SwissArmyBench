@@ -11,12 +11,11 @@ table    a list of records as an Arrow table for Open as grid (a column of mixed
 from __future__ import annotations
 
 import json
-import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import structures as rules
 from swissarmybench.domain.packages import MissingPackagesError, missing_packages
 from swissarmybench.domain.structures import StructureError
@@ -42,17 +41,7 @@ class StructureFiles:
             raise StructureError(f"{file.name} is not text (UTF-8).") from None
 
     def write(self, path: str, text: str) -> None:
-        file = Path(path).expanduser()
-        if not file.parent.is_dir():
-            file.parent.mkdir(parents=True, exist_ok=True)
-        handle, temporary = tempfile.mkstemp(prefix=f".{file.stem}-", suffix=".saving", dir=file.parent)
-        try:
-            with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as out:
-                out.write(text)
-            os.replace(temporary, file)
-        except BaseException:
-            Path(temporary).unlink(missing_ok=True)
-            raise
+        write_atomic(Path(path).expanduser(), text, newline="\n")
 
     def join(self, folder: str, name: str) -> str:
         return str(Path(folder) / name)

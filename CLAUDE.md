@@ -663,6 +663,9 @@ src/swissarmybench/
     packs.py             list packs, make a marketplace, add saved blades and relationship sets to an editable pack
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
+    atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
+                         the file's own; if_changed), replacing (the same for a writer that needs a path: a
+                         zip) and JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py)
     database.py          the locked DuckDB, the priority worker pool, DuckDB's own SQL grammar
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
     views.py             the view cache and windows

@@ -33,6 +33,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import library
 from swissarmybench.domain.blade_tables import with_header
@@ -172,13 +173,8 @@ class BladeStore:
         text = self.text_of(blade)
         if not (target.is_file() and target.read_text(encoding="utf-8") == text):
             self._made()
-            root.mkdir(parents=True, exist_ok=True)
-            temporary = target.with_name(target.name + ".tmp")
             # Only this user may read it: a blade's code can name servers and accounts.
-            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
-                handle.write(text)
-            os.replace(temporary, target)
+            write_atomic(target, text, mode=0o600, newline="\n")
         if own is not None and own != target:
             own.unlink(missing_ok=True)  # it changed kind (a connection now a vault): its old file goes
         return target
@@ -186,10 +182,7 @@ class BladeStore:
     @staticmethod
     def _write_file(blade: Blade) -> None:
         """A folder blade goes back into its own file, as a portable blade."""
-        path = Path(blade.path or "")
-        temporary = path.with_name(path.name + ".tmp")
-        temporary.write_text(write_blade(blade.to_json()), encoding="utf-8")
-        os.replace(temporary, path)
+        write_atomic(Path(blade.path or ""), write_blade(blade.to_json()))
 
     # ===== favourites =====
 
@@ -425,13 +418,7 @@ class BladeStore:
                 if taken is not None:
                     raise BladeError(f"A blade named {taken.name!r} already exists. Pick another name.")
             written = (b"\xef\xbb\xbf" if bom else b"") + with_header(text, after.to_json()).encode("utf-8")
-            temporary = path.with_name(path.name + ".tmp")
-            descriptor = os.open(
-                temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, path.stat().st_mode & 0o777
-            )
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(written)
-            os.replace(temporary, path)
+            write_atomic(path, written)  # the file's own mode kept
             self._seen.pop(str(path), None)
             if renamed:
                 for secret in blade.secrets:

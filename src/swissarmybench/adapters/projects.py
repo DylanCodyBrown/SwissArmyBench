@@ -14,6 +14,8 @@ import zipfile
 from collections.abc import Callable
 from pathlib import Path
 
+from swissarmybench.adapters.atomic_files import replacing, write_atomic
+
 MAX_TEXT_BYTES: int = 20_000_000
 
 
@@ -73,12 +75,9 @@ class ProjectFiles:
         if not root.is_dir():
             raise FileNotFoundError(f"The folder {root} is not there.")
         file = root / name
-        file.parent.mkdir(parents=True, exist_ok=True)
         if file.is_file() and not os.access(file, os.W_OK):
             raise PermissionError(f"{file} is read-only.")
-        partial = file.with_name(f".{file.name}.saving")
-        partial.write_bytes(text.encode("utf-8"))
-        os.replace(partial, file)
+        write_atomic(file, text.encode("utf-8"))
         return str(file)
 
     def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]:
@@ -127,13 +126,7 @@ class ProjectFiles:
             raise FileNotFoundError(f"The folder {target.parent} is not there.")
         if target.is_dir():
             raise FileNotFoundError(f"{target} is a folder: name a zip file.")
-        partial = target.with_name(f".{target.name}.saving")
-        try:
-            with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as out:
-                for name in sorted(files):
-                    out.writestr(name, files[name].encode("utf-8"))
-            os.replace(partial, target)
-        except BaseException:
-            partial.unlink(missing_ok=True)
-            raise
+        with replacing(target) as partial, zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as out:
+            for name in sorted(files):
+                out.writestr(name, files[name].encode("utf-8"))
         return str(target), sorted(files)

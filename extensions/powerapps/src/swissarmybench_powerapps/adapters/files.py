@@ -11,6 +11,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
+
 MAX_FILES = 5000
 MAX_READ = 2_000_000
 _SKIP = frozenset({"node_modules", ".git", "dist", ".vite", ".turbo"})
@@ -48,11 +50,7 @@ class ProjectFiles:
 
     def write(self, folder: str, relative: str, text: str) -> str:
         path = self._inside(folder, relative)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handle, temporary = tempfile.mkstemp(dir=path.parent, prefix=".sab-", suffix=".tmp")
-        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as out:
-            out.write(text)
-        os.replace(temporary, path)
+        write_atomic(path, text, newline="\n")
         return str(path)
 
     def listing(self, folder: str) -> list[str]:

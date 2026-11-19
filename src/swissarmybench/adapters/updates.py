@@ -12,6 +12,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import JsonFile
+
 MAX_ANSWER_BYTES: int = 8 * 1024 * 1024
 TIMEOUT_SECONDS: float = 15.0
 
@@ -35,23 +37,19 @@ class UpdateSwitchFile:
 
     def __init__(self, path: Path | None) -> None:
         self.path = path
+        self._file = JsonFile(path, indent=None)
         self._held: bool | None = None
 
     def read(self) -> bool | None:
         if self.path is None or not self.path.is_file():
             return self._held
-        try:
-            on = json.loads(self.path.read_text(encoding="utf-8")).get("check")
-        except (OSError, ValueError, AttributeError):
-            return None
+        said = self._file.read()
+        on = said.get("check") if isinstance(said, dict) else None
         return on if isinstance(on, bool) else None
 
     def write(self, on: bool) -> None:
         self._held = on
-        if self.path is None:
-            return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({"check": on}) + "\n", encoding="utf-8")
+        self._file.write({"check": on})
 
 
 def take_failure_note(path: Path | None) -> dict[str, Any] | None:

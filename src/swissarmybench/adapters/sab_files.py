@@ -17,7 +17,6 @@ from __future__ import annotations
 import io
 import json
 import os
-import secrets
 import shutil
 from pathlib import Path
 from typing import Any
@@ -25,6 +24,7 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain.project_scope import APP_FOLDER, app_entry
 from swissarmybench.domain.sab_files import (
     APP_GITIGNORE,
@@ -150,10 +150,7 @@ class SabArchive:
         target = (root / check_entry(relative)).resolve()
         if not target.is_relative_to(root):
             raise SabError(f"{relative[:80]} is outside the project.")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        partial = target.with_name(f".{target.name}.{secrets.token_hex(4)}.saving")
-        partial.write_bytes(body)
-        os.replace(partial, target)
+        write_atomic(target, body)
         return str(target)
 
     @staticmethod
@@ -201,14 +198,7 @@ class SabArchive:
                 return False
             if not os.access(target, os.W_OK):
                 raise PermissionError(f"{target} is read-only.")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        partial = target.with_name(f".{target.name}.{secrets.token_hex(4)}.saving")
-        try:
-            partial.write_bytes(body)
-            os.replace(partial, target)
-        except BaseException:
-            partial.unlink(missing_ok=True)
-            raise
+        write_atomic(target, body)
         return True
 
     def remove_state(self, folder: str, relative: str) -> bool:
@@ -352,10 +342,7 @@ class RecentProjects:
         if self._file is None:
             self._memory = listed
             return
-        self._file.parent.mkdir(parents=True, exist_ok=True)
-        partial = self._file.with_name(f".{self._file.name}.saving")
-        partial.write_text(json.dumps(listed, indent=1), encoding="utf-8")
-        os.replace(partial, self._file)
+        write_atomic(self._file, json.dumps(listed, indent=1))
 
     def all(self) -> list[dict[str, Any]]:
         """Each one with whether its folder is still there."""

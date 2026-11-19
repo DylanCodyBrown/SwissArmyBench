@@ -25,6 +25,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import JsonFile as JsonFile  # its old place, still read
+from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain.datasets import validate_name
 from swissarmybench.domain.library import OLD_TANGS, RELATIONSHIP_SETS
 from swissarmybench.domain.relationships import (
@@ -193,28 +195,6 @@ class ThemeFiles:
 # ===== a preference: one small JSON file =====
 
 
-class JsonFile:
-    """One small JSON file of the user's choices (None: no file, so nothing is ever written: a test's
-    server without a state folder)."""
-
-    def __init__(self, path: Path | None) -> None:
-        self.path = path
-
-    def read(self) -> Any:
-        if self.path is None or not self.path.is_file():
-            return None
-        try:
-            return json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
-
-    def write(self, data: Any) -> None:
-        if self.path is None:
-            return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
-
-
 # ===== the connection file =====
 # The connection file clients read to find the running server (plan section 4).
 #
@@ -238,16 +218,11 @@ def info_file_path() -> Path:
 def write_info_file(path: Path, info: dict[str, Any]) -> None:
     """Write the connection file atomically, so a client never reads a half-written one.
 
-    The temp file is always a new one (O_EXCL, never through a symlink): reusing one left behind
-    kept that file's mode, and the rename gave it to the connection file, token and all."""
+    The temp file is always a new one (O_EXCL, never through a symlink) and the file owner-only:
+    reusing one left behind kept that file's mode, and the rename gave it to the connection file,
+    token and all."""
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    temp: Path = path.with_suffix(".tmp")
-    temp.unlink(missing_ok=True)  # a leftover from a crash, or anything else in the way
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    descriptor: int = os.open(temp, flags, 0o600)
-    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps(info))
-    temp.replace(path)
+    write_atomic(path, json.dumps(info), mode=0o600)
 
 
 def remove_info_file(path: Path, token: str | None = None) -> None:
