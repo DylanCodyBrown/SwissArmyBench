@@ -109,7 +109,7 @@ def test_the_variables_page(browser: Browser, own_server: dict[str, Any]) -> Non
         # A key vault's entry: the vault and the secret's name, never a value; used by the connection.
         vaulted = rows.filter(has=page.locator(".variable-name", has_text="WAREHOUSE_PASSWORD"))
         expect(vaulted.locator(".variable-value")).to_have_text("Team vault · warehouse-password")
-        expect(vaulted.locator(".variable-use")).to_have_text("Warehouse")
+        expect(vaulted.locator(".variable-use")).to_have_text("Warehouse · Password")  # the box it fills
         expect(vaulted.locator(".variable-show")).to_have_count(0)
         if dark:
             shot(page, "variables-dark")

@@ -27,11 +27,46 @@ def datasets(server: dict[str, Any]) -> set[str]:
     return {d["name"] for d in call(server, "GET", "/datasets")["datasets"]}
 
 
+PRACTICE = "TOUR_WAREHOUSE_HOST"
+
+
+def variables(server: dict[str, Any]) -> set[str]:
+    return {v["name"] for v in call(server, "GET", "/variables")["variables"]}
+
+
+def practise(page: Page, tour: Locator, how: str) -> None:
+    """A hands-on card: Next waits; a variable put in by typing (`type`) or the right-click menu (`menu`)."""
+    box = tour.locator(".tour-practice input")
+    expect(box).to_be_focused()
+    expect(tour.get_by_role("button", name="Next")).to_be_disabled()
+    page.keyboard.press("ArrowRight")  # the box's own key: still here
+    expect(tour.locator(".tour-practice")).to_have_attribute("data-practice", how)
+    listed = page.get_by_role("listbox", name="Variables")
+    if how == "type":
+        box.press_sequentially("${TOUR_W")
+        expect(listed.get_by_role("option").first).to_contain_text(PRACTICE)
+        box.press("Enter")
+    else:
+        box.click(button="right")
+        page.locator(".context-menu").get_by_role("menuitem", name="Insert variable…").click()
+        listed.get_by_role("option", name=re.compile(PRACTICE)).click()
+    expect(box).to_have_value("${" + PRACTICE + "}")
+    expect(tour.locator(".tour-practice-said")).to_have_text("It worked. Here it reads:")
+    expect(tour.locator(".tour-practice .variable-preview")).to_have_text("warehouse.example.com")
+    if SHOTS:
+        page.screenshot(path=str(Path(SHOTS) / f"tour-practice-{how}.png"))
+    tour.get_by_role("button", name="Next").click()
+
+
 def to_word(page: Page, tour: Locator, word: str) -> None:
-    """Next (the Right key) until the card says `word`."""
+    """Next (the Right key) until the card says `word`; the hands-on cards done on the way."""
     for _ in range(40):
-        if tour.locator(".tour-word").inner_text() == word:
+        now = tour.locator(".tour-word").inner_text()
+        if now == word:
             return
+        if now in ("Type it", "Right-click it"):
+            practise(page, tour, "type" if now == "Type it" else "menu")
+            continue
         page.keyboard.press("ArrowRight")
     raise AssertionError(f"no card {word!r}")
 
@@ -102,6 +137,9 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         lights_up(tour, connections.locator('.field[data-setting="server"] .variable-box-row'))
         if SHOTS:
             page.screenshot(path=str(Path(SHOTS) / "tour-using-a-variable.png"))
+        # Hands on: type it, then right-click it, with a made-up variable the tour adds for itself.
+        to_word(page, tour, "Data Catalog")
+        assert PRACTICE in variables(server)
         # The grids: its orders table in front, its tab lit up.
         to_word(page, tour, "Grid")
         expect(page.locator('.area-page[data-page="connections"]')).to_be_hidden()
@@ -143,6 +181,9 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
             time.sleep(0.1)
         assert "tour_orders" in datasets(server)
         assert not datasets(server) & {"tour_orders_2", "tour_customers"}
+        while PRACTICE in variables(server) and time.monotonic() < deadline + 5:
+            time.sleep(0.1)
+        assert PRACTICE not in variables(server)  # its made-up variable gone too
 
         # Again, to the end: the game, then the Projects page with the tables gone.
         page.reload()

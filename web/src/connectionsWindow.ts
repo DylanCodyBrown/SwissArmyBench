@@ -1094,7 +1094,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           const input = h("input", { type: named ? "text" : "password", class: "mono", autocomplete: "new-password", "aria-label": label(s), spellcheck: false, value: named, placeholder: saved[s] ? "Saved" : vaultOnly ? "${VARIABLE}" : "" }) as HTMLInputElement;
           // A reference reads as text; a typed password stays hidden.
           // A typed one is kept in this computer's keyring: said, amber, while it is typed (the portability rule).
-          const note = h("span", { class: "password-note" });
+          const note = h("div", { class: "password-note" });
           const typedHere = (): void => {
             input.type = input.value.includes("${") ? "text" : "password";
             const local = input.value !== "" && !namesVariable(input.value) && form.keyring_note;

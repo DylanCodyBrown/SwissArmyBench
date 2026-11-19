@@ -19,7 +19,7 @@ import { h } from "./dom";
 import { clearError, showError } from "./errorNote";
 import { addVariable } from "./variableLinks";
 
-interface Offered {
+export interface Offered {
   name: string;
   words: string;
   secret: boolean;
@@ -48,7 +48,12 @@ onNotice((n) => {
   }
 });
 
-function variables(): Promise<Offered[]> {
+/** The list read again next time (a variable just added here, before its notice arrives). */
+export function forgetVariables(): void {
+  offered = null;
+}
+
+export function variables(): Promise<Offered[]> {
   offered ??= api<{ variables: (Offered & { vault?: string })[] }>("/variables").then(
     // The source in words (a vault's own name with it), never a value.
     (r) => r.variables.map((v) => ({ name: v.name, words: v.vault ? `${v.words} · ${v.vault}` : v.words, secret: v.secret })),
@@ -120,7 +125,9 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
   input.setAttribute("autocomplete", "off");
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-controls", id);
-  const list = h("ul", { id, class: "variable-list", role: "listbox", hidden: true, "aria-label": `Variables${options.label ? ` for ${options.label}` : ""}` });
+  // The box keeps its own name (the {x} button sits inside its label); the list is "Variables" (one shows at a time).
+  if (options.label && !input.hasAttribute("aria-label")) input.setAttribute("aria-label", options.label);
+  const list = h("ul", { id, class: "variable-list", role: "listbox", hidden: true, "aria-label": "Variables" });
   const insert = h("button", { type: "button", class: "btn icon variable-insert", title: "Insert a variable", "aria-label": "Insert a variable" }, "{x}") as HTMLButtonElement;
   let items: Offered[] = [];
   let active = 0;

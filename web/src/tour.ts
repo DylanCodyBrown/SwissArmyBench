@@ -28,6 +28,7 @@
 import { api, token } from "./api";
 import { button, h, icon, recall, remember } from "./dom";
 import { here, historyDepth, layerShown, returnTo, runArea, visit, withParams } from "./nav";
+import { forgetVariables, namesVariable, previewLine } from "./variableBox";
 import { activateGrid, contextOf, splitPair, splitWith, unsplit } from "./panes";
 
 /** Where a card takes the user: a rail's area, the tour's orders table, the two side by side, or a new
@@ -49,7 +50,16 @@ interface Stop {
   code?: string;
   /** Shown only when this says so (an extension's area). */
   when?: () => boolean;
+  /** A hands-on card: a practice box in the card, done once a variable is put in by typing (`type`) or by the
+   *  right-click menu's Insert variable… (`menu`); Next waits for it, Skip, Back and Escape never do. */
+  practice?: "type" | "menu";
 }
+
+/** The made-up variable the practice boxes offer, added for the tour when this computer has none of that name
+ *  and removed when it ends (like its tables). */
+const PRACTICE_VARIABLE = "TOUR_WAREHOUSE_HOST";
+const PRACTICE_VALUE = "warehouse.example.com";
+const HINT_MS = 8000;
 
 const rail = (area: string): string => `.nav-rail [data-area="${area}"]`;
 const page = (key: string, selector: string): string => `.area-page[data-page="${key}"] ${selector}`;
@@ -101,11 +111,25 @@ export const STOPS: readonly Stop[] = [
   {
     icon: "variables",
     word: "Using a variable",
-    line: "A dollar sign and a brace around a variable's name, typed into any box in the app (a connection's server or password, an API's address, a file path, a setting, a SQL query), always reads that variable from the Variables page at the moment it is used. The value stays out of shared files, and each computer fills in its own. Type a dollar sign and a brace to pick one.",
+    line: "A dollar sign and a brace around a variable's name, typed into any box in the app (a connection's server or password, an API's address, a file path, a setting, a SQL query), always reads that variable from the Variables page at the moment it is used. The value stays out of shared files, and each computer fills in its own. Type a dollar sign and a brace, or right-click a box, to insert one.",
     clue: "Typed into a box, it reads its value from this computer at the moment it is used.",
     place: { form: "postgres", setting: "server", text: "${WAREHOUSE_HOST}" },
     target: [page("connections", '.field[data-setting="server"] .variable-box-row')],
     code: "${WAREHOUSE_HOST}",
+  },
+  {
+    icon: "edit",
+    word: "Type it",
+    line: "Your turn. Type a dollar sign and an opening brace into this box, then pick a variable from the list that opens.",
+    clue: "",
+    practice: "type",
+  },
+  {
+    icon: "variables",
+    word: "Right-click it",
+    line: "Or right-click inside any box and choose Insert variable… from the menu. Try it here.",
+    clue: "",
+    practice: "menu",
   },
   {
     icon: "data",
@@ -422,8 +446,15 @@ export function openTour(): void {
     else opened.push(t);
   }).catch(() => null); // no tables (a refused paste): the cards that need them say "not here"
 
+  // The practice cards' variable: added when the first of them shows and this computer has none of its name.
+  let practiceVariable: Promise<boolean> | null = null;
+  const stageVariable = (): Promise<boolean> =>
+    (practiceVariable ??= api<{ variables: { name: string }[] }>("/variables")
+      .then((r) => (r.variables.some((v) => v.name === PRACTICE_VARIABLE) ? false : api("/variables", "PUT", { name: PRACTICE_VARIABLE, value: PRACTICE_VALUE, from: "value" }).then(() => true)))
+      .catch(() => false));
   const close = (): void => {
     if (closed) return;
+    void practiceVariable?.then((made) => made && api(`/variables/${PRACTICE_VARIABLE}`, "DELETE").catch(() => undefined));
     closed = true;
     serial += 1;
     root.remove();
@@ -440,8 +471,12 @@ export function openTour(): void {
   };
   const onResize = (): void => place();
   const onKey = (event: KeyboardEvent): void => {
+    const typing = event.target instanceof HTMLInputElement && card.contains(event.target);
+    const listOpen = !!document.querySelector(".variable-float, .context-menu");
+    if (listOpen && ["Escape", "ArrowUp", "ArrowDown", "Enter", "Tab"].includes(event.key)) return; // the list's
+    if (typing && ["ArrowLeft", "ArrowRight", "Enter"].includes(event.key)) return; // the box's own keys
     if (event.key === "Escape") close();
-    else if (event.key === "ArrowRight" && index < stops.length) show(index + 1);
+    else if (event.key === "ArrowRight" && index < stops.length && !card.querySelector(".tour-actions button.primary:disabled")) show(index + 1);
     else if (event.key === "ArrowLeft" && index > 0 && index < stops.length) show(index - 1);
     else if (event.key === "Enter" && !card.contains(event.target as Node) && focusing) focusing.click();
     else return;
@@ -533,6 +568,43 @@ export function openTour(): void {
     if (staged) await toGrids(staged, to.grid === "pair");
   };
 
+  /** A practice box for a hands-on card: done once it holds a variable; a hint after a while. */
+  const practiceBox = (how: "type" | "menu", next: HTMLButtonElement, mine: number): HTMLElement => {
+    next.disabled = true;
+    // The box opens once the made-up variable is there, so the list always has one to pick.
+    const box = h("input", { type: "text", class: "mono", "aria-label": "Server", spellcheck: false, autocomplete: "off", disabled: true }) as HTMLInputElement;
+    void stageVariable().then(() => {
+      forgetVariables();
+      box.disabled = false;
+      if (mine === serial && !done) box.focus();
+    });
+    const said = h("p", { class: "tour-practice-said", role: "status" });
+    const { line, show: shown } = previewLine();
+    let done = false;
+    box.addEventListener("input", () => {
+      if (done || !namesVariable(box.value)) return;
+      done = true;
+      said.textContent = "It worked. Here it reads:";
+      said.classList.remove("tour-hint");
+      void shown(box.value);
+      next.disabled = false;
+      focusing = next;
+    });
+    // A page the last card opened may still take the focus as it settles: the box keeps it for a moment.
+    const keep = (event: FocusEvent): void => {
+      const to = event.target as Element | null;
+      if (mine === serial && !done && to && !card.contains(to) && !to.closest(".variable-float, .context-menu, dialog")) box.focus();
+    };
+    document.addEventListener("focusin", keep);
+    window.setTimeout(() => document.removeEventListener("focusin", keep), 2500);
+    window.setTimeout(() => {
+      if (done || mine !== serial) return;
+      said.textContent = how === "type" ? "Type a dollar sign, then an opening brace." : "Right-click inside the box.";
+      said.classList.add("tour-hint");
+    }, HINT_MS);
+    return h("div", { class: "tour-practice", "data-practice": how }, h("label", { class: "field" }, h("span", {}, "Server"), box), said, line);
+  };
+
   const show = (at: number): void => {
     index = at;
     const mine = ++serial;
@@ -546,6 +618,7 @@ export function openTour(): void {
       h("h2", { class: "tour-word" }, stop.word),
       h("p", { class: "tour-line" }, stop.line),
       stop.code ? h("code", { class: "tour-code" }, stop.code) : "",
+      stop.practice ? practiceBox(stop.practice, next, mine) : "",
       missing,
       dots(at),
       h(
@@ -557,7 +630,8 @@ export function openTour(): void {
       ),
     );
     focusing = next;
-    next.focus();
+    const practice = card.querySelector<HTMLInputElement>(".tour-practice input");
+    (practice ?? next).focus();
     if (!stop.target) {
       aim(null);
       void goTo(stop);

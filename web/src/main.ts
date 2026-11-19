@@ -75,6 +75,10 @@ import { mountStepsStrip } from "./stepsStrip";
 import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
 import { setGridZoom, stepZoom } from "./theme";
+import { installVariableAnywhere } from "./variableAnywhere";
+
+// A variable in any box: typing ${ lists them, right-click inserts one (12.7).
+installVariableAnywhere();
 
 const panelParam = new URLSearchParams(location.search).get("panel");
 const popout = panelParam === "steps";

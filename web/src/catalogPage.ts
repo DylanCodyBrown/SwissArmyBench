@@ -25,6 +25,10 @@ import { mountNavRail } from "./rail";
 import "./settingsWindow"; // the rail's Settings opens here too (open=settings)
 
 watchTheme();
+import { installVariableAnywhere } from "./variableAnywhere";
+
+// A variable in any box: typing ${ lists them, right-click inserts one (12.7).
+installVariableAnywhere();
 
 const detail = document.getElementById("detail") as HTMLElement;
 const liveNote = document.querySelector<HTMLElement>(".cat-live");

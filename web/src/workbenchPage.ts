@@ -105,6 +105,10 @@ import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
 import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
+import { installVariableAnywhere } from "./variableAnywhere";
+
+// A variable in any box: typing ${ lists them, right-click inserts one (12.7).
+installVariableAnywhere();
 
 watchTheme();
 

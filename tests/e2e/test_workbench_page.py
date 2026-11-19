@@ -364,7 +364,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         password = dialog.get_by_label("Password", exact=True)
         password.click()
         password.press_sequentially("${CRM")
-        offered = dialog.get_by_role("listbox", name="Variables for Password")
+        offered = dialog.get_by_role("listbox", name="Variables")
         expect(offered.get_by_role("option").first).to_contain_text("CRM_KEY")
         expect(offered.get_by_role("option").first).to_contain_text("Key vault · Azure Key Vault")
         expect(dialog).not_to_contain_text("made-up")
