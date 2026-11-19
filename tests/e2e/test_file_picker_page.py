@@ -258,9 +258,9 @@ def test_the_system_dialog_is_used_and_the_page_picker_never_shows(
         assert page.locator(".tab-item[data-grid]").count() == tabs
         # Settings' Local projects folder: a folder pick, the path sent on.
         page.locator('.nav-rail [data-area="settings"]').click()
-        projects = page.locator(".projects-folder-fieldset")
-        projects.get_by_role("button", name="Change…").first.click()
-        expect(projects.locator(".projects-local code")).to_have_text(
+        projects = page.locator(".team-fieldset")
+        projects.locator(".team-local-change").click()
+        expect(projects.locator(".projects-local")).to_have_text(
             str(server["home"] / "Documents"), timeout=10000
         )
         assert asked[-1]["mode"] == "folder" and asked[-1]["title"] == "The local projects folder"

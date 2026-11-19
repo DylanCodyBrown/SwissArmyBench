@@ -1,7 +1,7 @@
 # ruff: noqa: F811, E501
 """The Git extension's pages in a real browser, against GitHub stood in for on 127.0.0.1 (tests/github_standin.py;
 real GitHub is never reached): the rail's Source Control icon only while the extension is on; Settings' GitHub
-section (sign in with a token, clone a repository into the meta store folder, its status words); the Source
+section's replacement, the Team box, is tests/e2e/test_team_page.py's; the Source
 Control page (the changes with VS Code's letters, Stage Changes, Commit with Ctrl+Enter, the graph's rows and
 lanes, a commit's files, Monaco's diff editor, F7 to the next change, Inline View); the footer's mark when the
 open project is out of sync and gone after Pull; a shared card's Pull and a conflict shown. Made-up data only.
@@ -137,30 +137,10 @@ def test_settings_sign_in_clone_and_the_source_control_page(
     meta.mkdir()
     page = open_page(browser, server)
     expect(page.locator('.nav-rail [data-area="scm"]')).to_be_visible()
-    # Settings' GitHub section: sign in with a token.
-    page.locator('.nav-rail [data-area="settings"]').click()
-    section = page.locator(".github-fieldset")
-    expect(section).to_be_visible()
-    section.get_by_label("Personal access token").fill(TOKEN)
-    section.get_by_role("button", name="Use Token").click()
-    expect(section.locator(".github-account")).to_contain_text("made-up-analyst")
-    shot(page, "settings-github-signed-in")
-    # Clone a repository… into the meta store folder: the quick pick, the folder, the page's own picker.
-    section.locator('.github-folder[data-which="library"]').get_by_role(
-        "button", name="Clone a repository…"
-    ).click()
-    quick = page.locator(".scm-quick-input")
-    quick.get_by_role("option", name=REPO).click()
-    page.locator(".scm-quick-input").get_by_role("option", name="Meta store folder").click()
-    chooser = page.locator(".file-chooser")
-    chooser.get_by_role("textbox", name="Folder").fill(str(meta))
-    chooser.get_by_role("textbox", name="Folder").press("Enter")
-    chooser.get_by_role("button", name="Choose this folder").click()
-    expect(section.locator('.github-folder[data-which="library"] .github-words')).to_have_text(
-        "Up to date", timeout=20000
-    )
+    # Signed in and cloned (Settings' Team box does it with one repository: tests/e2e/test_team_page.py).
+    call(server, "POST", "/git/sign-in/token", {"token": TOKEN})
+    call(server, "POST", "/git/clone", {"which": "library", "repository": REPO, "folder": str(meta)})
     assert (meta / "notes" / "q3.md").read_text() == "Q3 close\n"
-    shot(page, "settings-github-cloned")
 
     # The Source Control page: a change here, its letter, Stage Changes, Commit with Ctrl+Enter.
     (meta / "notes" / "close.md").write_text("one\nTWO\nthree\nfour\nfive\n")

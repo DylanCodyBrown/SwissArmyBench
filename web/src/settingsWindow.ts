@@ -16,9 +16,9 @@
  *          [KIND COLOURS]         app pages, notebooks, scripts: a colour each -> kindColours.ts (the
  *                                 server's, for every window; kept across restarts)
  *          [SESSION]              Follow the agent (kept across restarts; the user's switch) -> sessionPage.ts
- *          [LIBRARY]              the library folder: where, Change…, Default, what is in it -> library.ts
- *          [GITHUB]               signed in, each folder's repository and sync words, Clone, Connect, Pull, Push
- *                                 (shown while the backend names a Source Control area) -> scmPage.ts
+ *          [TEAM]                 the Team box (first after Theme): Join a team…, Start a team…, the Joined row
+ *                                 (Pull, Push, …), Advanced (the two folders), the local projects folder
+ *                                 -> library.ts (the sign-in step: scmPage.ts teamSignIn)
  *          [UPDATES]              Check for updates (kept across restarts) -> updates.ts
  *          [EXTENSIONS]           each on extension's own panel (its switches, sign-in) -> extensionPanel.ts
  *          [BETA]                 Beta mode (the beta log and Leave a note…, kept across restarts),
@@ -28,9 +28,7 @@
 import { betaSection } from "./betaNotes";
 import { extensionSettings } from "./extensionPanel";
 import { updatesSection } from "./updates";
-import { librarySection } from "./library";
-import { githubSettingsSection } from "./scmPage";
-import { projectsFolderSection } from "./projectExplorer";
+import { teamSection } from "./library";
 import { claudeSection } from "./claudeLaunch";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, toast } from "./dom";
@@ -164,9 +162,7 @@ function drawSettings(): void {
       h("legend", {}, icon("sun"), "Theme"),
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
-    librarySection(),
-    githubSettingsSection(),
-    projectsFolderSection(),
+    teamSection(),
     panelsSection(),
     kindColoursSection(),
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.

@@ -110,12 +110,13 @@ def test_the_library_in_the_page(browser: Browser, own_server: dict[str, Any]) -
 
     # Settings' Library: where it is, what is in it.
     page.locator('.nav-rail [data-area="settings"]').click()
-    section = page.locator(".library-fieldset")
+    section = page.locator(".team-fieldset")
     expect(section).to_be_visible()
-    expect(section.locator(".library-folder code")).to_have_text(str(library))
-    expect(section.locator(".library-counts")).to_contain_text("1 connections · 1 key vaults")
-    expect(section.get_by_role("button", name="Change…")).to_be_visible()
-    expect(section.get_by_role("button", name="Default")).to_have_count(0)
+    section.locator(".team-advanced summary").click()
+    row = section.locator(".library-row")
+    expect(row.locator(".library-folder-path")).to_have_text(str(library))
+    expect(row.get_by_role("button", name="Change…")).to_be_visible()
+    expect(row.get_by_role("button", name="Default")).to_have_count(0)
     section.scroll_into_view_if_needed()
     shot(page, "library-settings")
 

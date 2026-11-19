@@ -473,46 +473,57 @@ async function install(extension: string): Promise<void> {
 
 export { baseName };
 
-/** Settings' Local projects folder (where New project puts projects) and Shared projects folder (none by
- *  default: a folder pushed and pulled with Git, like the meta store). */
-export function projectsFolderSection(): HTMLElement {
-  const body = h("div", { class: "projects-folder-settings" });
+interface Folders {
+  folder: string;
+  default_folder: string;
+  shared_folder: string | null;
+}
+
+/** Settings' local projects folder, one row in the Team box (library.ts): "New projects go in <folder> ·
+ *  Change…" (Default when moved). It is not a team thing: a team's projects are the shared ones. */
+export function localProjectsRow(): HTMLElement {
+  const row = h("p", { class: "team-local-projects" });
   const draw = async (): Promise<void> => {
-    let read: { folder: string; default_folder: string; shared_folder: string | null };
-    try {
-      read = await api<{ folder: string; default_folder: string; shared_folder: string | null }>("/projects/folder");
-    } catch (e) {
-      body.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
-      return;
-    }
-    const use = (body_: Record<string, unknown>): void =>
-      void api("/projects/folder", "POST", body_).then(
-        () => void draw(),
-        (e: Error) => toast(e.message, "error"),
-      );
-    body.replaceChildren(
-      h("h4", { class: "projects-folder-label" }, "Local projects folder"),
-      h("p", { class: "library-folder projects-local" }, h("code", { class: "mono" }, read.folder)),
-      h(
-        "div",
-        { class: "row" },
-        button("Change…", () => void chooseFile({ title: "The local projects folder", mode: "folder", start: read.folder }).then((f) => f && use({ folder: f })), { icon: "folder" }),
-        read.folder === read.default_folder ? null : button("Default", () => use({ default: true }), { class: "ghost", title: read.default_folder }),
-      ),
-      h("h4", { class: "projects-folder-label" }, "Shared projects folder"),
-      h("p", { class: "hint" }, "A folder you push and pull with Git, like the meta store."),
-      h("p", { class: "library-folder projects-shared" }, read.shared_folder ? h("code", { class: "mono" }, read.shared_folder) : h("span", { class: "hint" }, "None")),
-      h(
-        "div",
-        { class: "row" },
-        button(read.shared_folder ? "Change…" : "Choose…", () => void chooseFile({ title: "The shared projects folder", mode: "folder", start: read.shared_folder ?? read.folder }).then((f) => f && use({ which: "shared", folder: f })), { icon: "folder" }),
-        read.shared_folder ? button("None", () => use({ which: "shared", default: true }), { class: "ghost" }) : null,
-      ),
+    const read = await api<Folders>("/projects/folder").catch((e: Error) => {
+      row.replaceChildren(h("span", { class: "status-error" }, e.message));
+      return null;
+    });
+    if (!read) return;
+    const use = (body: Record<string, unknown>): void => void api("/projects/folder", "POST", body).then(() => void draw(), (e: Error) => toast(e.message, "error"));
+    row.replaceChildren(
+      "New projects go in ",
+      h("code", { class: "mono projects-local" }, read.folder),
+      " · ",
+      h("button", { type: "button", class: "link team-local-change", onclick: () => void chooseFile({ title: "The local projects folder", mode: "folder", start: read.folder }).then((f) => f && use({ folder: f })) }, "Change…"),
+      read.folder === read.default_folder ? "" : " · ",
+      read.folder === read.default_folder ? "" : h("button", { type: "button", class: "link", title: read.default_folder, onclick: () => use({ default: true }) }, "Default"),
     );
   };
   void draw();
   onNotice((n) => {
-    if (n.type === "projects_changed" && body.isConnected) void draw();
+    if (n.type === "projects_changed" && row.isConnected) void draw();
   });
-  return h("fieldset", { class: "fieldset projects-folder-fieldset" }, h("legend", {}, icon("project"), "Projects folders"), body);
+  return row;
+}
+
+/** The Team box's Advanced fold (library.ts): the shared projects folder as its own path, Change… and None,
+ *  for a team that keeps its projects in a second repository or a folder synced another way. */
+export function sharedProjectsRow(): HTMLElement {
+  const row = h("div", { class: "team-advanced-row projects-shared-row" });
+  const draw = async (): Promise<void> => {
+    const read = await api<Folders>("/projects/folder").catch(() => null);
+    if (!read) return;
+    const use = (body: Record<string, unknown>): void => void api("/projects/folder", "POST", body).then(() => void draw(), (e: Error) => toast(e.message, "error"));
+    row.replaceChildren(
+      h("span", { class: "team-advanced-label" }, "Shared projects folder"),
+      read.shared_folder ? h("code", { class: "mono projects-shared" }, read.shared_folder) : h("span", { class: "hint projects-shared" }, "None"),
+      button("Change…", () => void chooseFile({ title: "The shared projects folder", mode: "folder", start: read.shared_folder ?? read.folder }).then((f) => f && use({ which: "shared", folder: f })), { icon: "folder", class: "small line" }),
+      ...(read.shared_folder ? [button("None", () => use({ which: "shared", default: true }), { class: "ghost small" })] : []),
+    );
+  };
+  void draw();
+  onNotice((n) => {
+    if ((n.type === "projects_changed" || n.type === "team_changed") && row.isConnected) void draw();
+  });
+  return row;
 }
