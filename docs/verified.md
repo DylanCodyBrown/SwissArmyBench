@@ -3937,3 +3937,43 @@ schema, power_query, dax_tables, relationships, dax_measures, m_parameters, meta
 part from a real file; a real Power BI Desktop (port files, the PowerShell CIM query, pythonnet and TOM's edits);
 a real tenant's service principal (its token's claims, executeQueries' refusals); `swissarmybench open report.pbix`
 through the desktop app's channel.
+
+
+## The Power BI extension, part 3 (2026-11-19, branch powerbi-3)
+
+Checked here (Linux, Chromium), all with made-up data and stand-ins:
+- The round trip (tests/test_powerbi_round_trip.py): a .pbix imported through pbixray's fake, one table's `%%sql`
+  cell changed in data.ipynb, then the export: the untouched tables' partition M byte for byte (the TMDL's four
+  tabs of indent taken off), the changed one's `Sql.Database(..., [Query="..."])`, a PostgreSQL source's native
+  query through `Value.NativeQuery` with its Power Query parameter still named, the measure with its display
+  folder and format, the parameter's value in expressions.tmdl.
+- The switch (tests/test_powerbi_switch.py): `[Sales model].Customer` read through the workspace stand-in
+  (tests/powerbi_standin.py) while Published and through the live link's fake while Local (read again, not the
+  kept read); a kernel's `%%dax` connection (client/sql_cell.py over the test client) sends its DAX to the app
+  and prints the source; a Compare between a pasted table and `Customer_PowerBI` keeps its grid and counts the
+  Local rows after the switch; the file's DAX beyond a whole table refused in words.
+- The Access section and context.md (tests/e2e/test_connection_access_page.py in Chromium, test_context_md.py,
+  test_app_registrations.py): a wrong secret's refusal, the right one with Check again, the line in context.md.
+- The other kinds (tests/test_app_registration_kinds.py): Azure SQL against tests/test_sql_server.py's
+  mssql-python stand-in (the token struct, sys.databases, SELECT TOP 0 * FROM [dbo].[Sales], a refused table);
+  Dataverse's WhoAmI and its roles (the stand-in gained systemusers(...)/systemuserroles_association); SharePoint's
+  site, lists and libraries and the Data Lake and OneLake listings against tests/lake_standins.py (a missing path
+  said); each kind's code re-pointed to an app registration with its place kept. With no mssql-python installed
+  (as here) Azure SQL is "not checked", said.
+- Gates and the Power BI page (tests/e2e/test_powerbi_gates_everywhere.py, test_powerbi_page_actions.py, unit
+  test_powerbi_page_actions.py): an address on a closed area covered (the page's middle is the cover), the
+  palette's and the New menu's New script showing the line and making nothing, the mode's tour cards; Edit in
+  Power BI Desktop's dry run on the page, Apply (the agent's waited for Allow, declined, nothing changed), Cancel;
+  Use another report's pages opening the export dialog with its report part first.
+
+Not checked: Microsoft's real services (a tenant's Azure SQL with an Entra user, Dataverse's application user and
+roles, Graph's Sites.Selected, a storage account's data role) and a real Power BI Desktop; the desktop app's Qt
+WebEngine (the cover is a popover: Chromium 114+, which Qt WebEngine 6.12 is).
+
+The whole suite with Chromium (load average about 14 from the other builders): unit `-n 4`: 4,707 passed, 42
+skipped, 1 failed (test_performance's million-row targets: passes alone); browser `-n 2`: 372 passed, 15 skipped,
+20 failed. Five passed when run again; the other 15 fail the same on this branch's base (its tree built and run
+here): test_tour, test_ui's keyboard and Application row, test_sandbox's card resize, test_workbench_feedback's
+New and Open, and nine that click "Add connection" on an empty Connections page, which now has two such buttons
+(the page head's and the empty state's: test_workbench_page's three connection tests, test_navigation_page,
+test_errors_page's warning, test_sql_server_page, test_variable_refs_page's two, test_powerbi_page).
