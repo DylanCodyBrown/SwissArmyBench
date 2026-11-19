@@ -1185,9 +1185,13 @@ def test_forced_colors_mode(browser: Browser, orders_url: str) -> None:
 def test_keyboard_only_reaches_the_toolbar_and_grid(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url)
     # The rail comes first, one stop (its current area, Grids; the mark is the rail's first item since
-    # 2026-11-18, reached with the arrows); then the tab bar's tabs themselves.
+    # 2026-11-18, reached with the arrows); then the toggle at its foot (Icons only, while it shows the
+    # names: 2026-11-19); then the tab bar's tabs themselves.
     page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.getAttribute('aria-label')") == "Grids"
+    assert page.evaluate("document.activeElement.closest('.nav-rail') !== null")
+    page.keyboard.press("Tab")
+    assert page.evaluate("document.activeElement.textContent.trim()") in ("Icons only", "Show names")
     assert page.evaluate("document.activeElement.closest('.nav-rail') !== null")
     page.keyboard.press("Tab")
     assert page.evaluate("document.activeElement.getAttribute('role')") == "tab"
@@ -2384,21 +2388,36 @@ def test_a_step_forms_fields_share_a_row(browser: Browser, orders_url: str) -> N
     page.close()
 
 
-def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser, orders_url: str) -> None:
-    page = open_grid(browser, orders_url, width=1440)
+def test_the_application_row_sits_above_the_ribbon_on_every_tab(
+    browser: Browser, server: dict[str, Any], tmp_path: Path
+) -> None:
+    assert not call(server, "GET", "/project")["project"]
+    # A grid of its own: closing the project below closes the tables it took in.
+    url = push_client.push(orders_frame(), name="orchard_orders", new_grid=True)
+    page = open_grid(browser, url, width=1440)
     app = page.locator(".app-row")
-    expect(app).to_be_visible()
-    expect(app.locator(".ribbon-caption strong")).to_have_text("Application")
-    # Settings, Connections and the blades page are the rail's (rail.ts); the tour is the Start page's.
-    expect(app.locator(".tour-btn")).to_have_count(0)
     # With no project open it is empty, so it takes no band (2026-11-19): the Table row comes first.
     expect(app).to_be_hidden()
     expect(page.locator(".ribbon .ribbon-group").first.locator(".ribbon-caption strong")).to_have_text(
         "Table"
     )
+    # A project open fills it: the Application row, above the ribbon.
+    call(server, "POST", "/project/new", {"path": str(tmp_path / "orchard")})
+    try:
+        expect(app).to_be_visible()
+        expect(app.locator(".ribbon-caption strong")).to_have_text("Application")
+        # Settings, Connections and the blades page are the rail's (rail.ts); the tour is the Start page's.
+        expect(app.locator(".tour-btn")).to_have_count(0)
+        ribbon = page.locator(".ribbon .ribbon-group").first
+        assert app.bounding_box()["y"] < ribbon.bounding_box()["y"]  # type: ignore[index]
+    finally:
+        call(server, "POST", "/project/close", {"discard": True})
+    expect(app).to_be_hidden()
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
     # On the Analyze tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
     page.locator(".nav-rail [data-area='analyze']").click()
     expect(page.locator(".ribbon")).to_be_hidden()
     expect(page.locator(".statusbar").get_by_role("button", name="Zoom out", exact=True)).to_be_visible()
     page.close()
+    with contextlib.suppress(urllib.error.HTTPError):  # closed with the project already, as a rule
+        call(server, "DELETE", f"/grids/{grid_of(url)}")
