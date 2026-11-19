@@ -33,8 +33,8 @@ def shot(page: Page, name: str, target: Any = None) -> None:
 def add_sqlite_form(page: Page, name: str, path: Path) -> Any:
     """The Connections page's Add connection, SQLite, its name and its file typed in."""
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").first.click()
     dialog = page.locator(".area-page[data-page='connections']")
+    dialog.get_by_role("button", name="Add connection").first.click()  # the heading's
     dialog.locator(".connection-type", has_text="SQLite").first.click()
     dialog.get_by_role("textbox", name="Name", exact=True).fill(name)
     box = dialog.get_by_role("textbox", name="Path", exact=True)
@@ -138,14 +138,13 @@ def test_only_works_on_your_machine_is_the_warning(browser: Browser, server: dic
     for dark in (False, True):
         page = home(browser, server, dark=dark)
         page.locator(".nav-rail [data-area='connections']").click()
-        page.get_by_role("button", name="Add connection").first.click()
         dialog = page.locator(".area-page[data-page='connections']")
+        dialog.get_by_role("button", name="Add connection").first.click()  # the heading's
         dialog.locator(".connection-type", has_text="SQL Server").first.click()
         sign_in = dialog.get_by_role("combobox", name="Sign in")
         expect(sign_in).to_be_visible(timeout=30000)
         prompt = page.locator("dialog.missing-packages")
-        page.wait_for_timeout(1000)
-        if prompt.count():  # its driver is not in this Python: Not now
+        if dialog.locator(".install-note").count():  # its driver is not in this Python: the prompt, Not now
             prompt.get_by_role("button", name="Not now").click()
         # A sign-in that works only here (Windows integrated): the amber warning, its words kept.
         options = sign_in.locator("option").all_text_contents()
