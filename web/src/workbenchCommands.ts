@@ -94,6 +94,126 @@ export async function answerAgent(notice: { id?: string; command?: string; args?
   await api(`/workbench/window/${encodeURIComponent(notice.id)}`, "POST", body).catch(() => undefined);
 }
 
+// ===== recently used: the palette lists them first (this browser's convenience only) =====
+
+const RECENT_KEY = "sab.palette.recent";
+const RECENT_MAX = 8;
+
+function recentIds(): string[] {
+  try {
+    const kept = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]") as unknown;
+    return Array.isArray(kept) ? kept.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function noteRecent(id: string): void {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...recentIds().filter((x) => x !== id)].slice(0, RECENT_MAX)));
+  } catch {
+    // No storage (a private window): the list keeps its own order.
+  }
+}
+
+/** The commands in the palette's order: the recently used first (most recent first), then the rest as
+ *  the page gives them; one entry per group and title (a button found twice is listed once). */
+export function paletteOrder(list: Command[]): Command[] {
+  const seen = new Set<string>();
+  const unique = list.filter((c) => {
+    const key = `${c.group}\u0000${c.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const recent = recentIds();
+  const rank = (c: Command): number => {
+    const at = recent.indexOf(c.id);
+    return at < 0 ? RECENT_MAX : at;
+  };
+  return unique.map((c, i) => ({ c, i })).sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i).map(({ c }) => c);
+}
+
+// ===== Keyboard shortcuts (? and Ctrl+/): the same list, every command that has keys, by group =====
+
+/** Whether a key press belongs to what has the focus (a text box, an editor), not to the page. */
+function typing(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("input, textarea, select, [contenteditable]:not([contenteditable=false]), .monaco-editor") !== null;
+}
+
+let shortcutsOpen: HTMLElement | null = null;
+
+export function openShortcuts(): void {
+  if (shortcutsOpen) return;
+  const back = document.activeElement as HTMLElement | null;
+  const groups = new Map<string, Command[]>();
+  for (const c of paletteOrder(allCommands())) {
+    if (c.agentOnly || !c.keys) continue;
+    const list = groups.get(c.group) ?? [];
+    if (!list.some((x) => x.keys === c.keys && x.title === c.title)) list.push(c);
+    groups.set(c.group, list);
+  }
+  const filter = h("input", { type: "search", class: "wb-palette-input", placeholder: "Find a shortcut", "aria-label": "Find a shortcut", "data-no-variables": "" }) as HTMLInputElement;
+  const body = h("div", { class: "shortcuts-groups" });
+  const draw = (): void => {
+    const words = filter.value.toLowerCase().split(/\s+/).filter(Boolean);
+    body.replaceChildren(
+      ...[...groups.entries()].map(([group, list]) => {
+        const rows = list.filter((c) => words.every((w) => `${group} ${c.title} ${c.keys}`.toLowerCase().includes(w)));
+        if (!rows.length) return null;
+        return h(
+          "section",
+          { class: "shortcuts-group" },
+          h("h3", {}, group),
+          h("dl", {}, ...rows.flatMap((c) => [h("dt", {}, ...String(c.keys).split(" ").map((k) => h("kbd", {}, k))), h("dd", {}, c.title)])),
+        );
+      }).filter((x): x is HTMLElement => x !== null),
+    );
+    if (!body.childElementCount) body.append(h("p", { class: "hint" }, "No shortcut matches."));
+  };
+  const close = (): void => {
+    shade.remove();
+    shortcutsOpen = null;
+    back?.focus?.();
+  };
+  const box = h(
+    "div",
+    { class: "wb-palette shortcuts", role: "dialog", "aria-modal": "true", "aria-label": "Keyboard shortcuts" },
+    h("div", { class: "shortcuts-head" }, h("h2", {}, "Keyboard shortcuts"), h("button", { type: "button", class: "ghost icon-only", "aria-label": "Close", title: "Close (Escape)", onclick: () => close() }, "×")),
+    filter,
+    body,
+  );
+  const shade = h("div", { class: "wb-palette-shade" }, box);
+  filter.addEventListener("input", draw);
+  box.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    close();
+  });
+  shade.addEventListener("mousedown", (e) => {
+    if (e.target === shade) close();
+  });
+  document.body.append(shade);
+  shortcutsOpen = shade;
+  draw();
+  filter.focus();
+}
+
+/** ? (outside a text box) and Ctrl+/ (outside an editor, where it comments a line) show the shortcuts. */
+export function mountShortcutKeys(): void {
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || e.altKey || typing(e.target)) return;
+    const question = e.key === "?" && !e.ctrlKey && !e.metaKey;
+    const slash = (e.ctrlKey || e.metaKey) && (e.key === "/" || e.code === "Slash");
+    if (!question && !slash) return;
+    if (document.querySelector("dialog[open]")) return; // a dialog's own keys
+    e.preventDefault();
+    document.querySelector(".menu")?.remove();
+    openShortcuts();
+  });
+}
+
 // ===== the palette =====
 
 let open: HTMLElement | null = null;
@@ -123,13 +243,14 @@ export function openPalette(): void {
       .then(() => {
         if (c.when && !c.when()) return undefined;
         recordAction(c.id);
+        noteRecent(c.id);
         return c.run({}, { agent: false });
       })
       .catch((e: Error) => import("./errorNote").then((m) => m.errorHere(e)));
   };
   const draw = (): void => {
     const words = input.value.toLowerCase().split(/\s+/).filter(Boolean);
-    shown = allCommands().filter((c) => !c.agentOnly && words.every((w) => `${c.group} ${c.title} ${c.keys ?? ""}`.toLowerCase().includes(w)));
+    shown = paletteOrder(allCommands()).filter((c) => !c.agentOnly && words.every((w) => `${c.group} ${c.title} ${c.keys ?? ""}`.toLowerCase().includes(w)));
     at = Math.min(at, Math.max(0, shown.length - 1));
     list.replaceChildren(
       ...shown.map((c, i) => {
@@ -139,6 +260,8 @@ export function openPalette(): void {
           { role: "option", id: `wb-cmd-${i}`, class: `wb-palette-item${i === at ? " active" : ""}${off ? " off" : ""}`, "aria-selected": String(i === at), "aria-disabled": off ? "true" : undefined, title: off ? c.whyNot : undefined },
           h("span", { class: "wb-palette-group" }, c.group),
           h("span", { class: "wb-palette-title" }, c.title),
+          // Why it cannot run now, said in the row (not only in a tooltip).
+          off && c.whyNot ? h("span", { class: "wb-palette-why" }, c.whyNot) : null,
           c.keys ? h("kbd", {}, c.keys) : null,
         );
         row.addEventListener("mousedown", (e) => {

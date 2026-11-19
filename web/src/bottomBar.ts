@@ -74,15 +74,25 @@ function render(): void {
   if (state.previewUpto !== null) rows.textContent += ` · previewing after step ${state.previewUpto}`;
   // Excel's status bar: Count is non-blank cells; Average and Sum cover the number cells.
   const s = state.selection;
-  const n = (v: number): string => v.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  // Sum and Average to the columns' scale (a whole-number column's Sum has no decimals; an Average two);
+  // an id column (order_id) is counted only: its Sum would mean nothing (feel-b, 2026-11-19).
   selection.textContent = s
     ? [
         s.kind === "rows" ? `${formatCount(s.rows)} row${s.rows === 1 ? "" : "s"} selected` : s.kind === "all" ? "All selected" : `${formatCount(s.cells)} cell${s.cells === 1 ? "" : "s"} selected`,
         `Count ${formatCount(s.count)}`,
-        ...(s.mean !== null && s.sum !== null ? [`Average ${n(s.mean)}`, `Sum ${n(s.sum)}`] : []),
+        ...(s.mean !== null && s.sum !== null ? [`Average ${scaled(s.mean, s.digits?.mean ?? 2)}`, `Sum ${scaled(s.sum, s.digits?.sum ?? 2)}`] : []),
       ].join(" · ")
     : "";
   renderMeter(info.budget);
+}
+
+/** A number with `digits` after the point (grouped); a small fraction keeps four significant digits, so
+ *  0.0034 never reads 0.00. */
+export function scaled(value: number, digits: number): string {
+  if (value !== 0 && Math.abs(value) < 1 && digits > 0 && Math.abs(value) < 10 ** -digits * 10) {
+    return value.toLocaleString(undefined, { maximumSignificantDigits: 4 });
+  }
+  return value.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 export function renderMeter(budget: Budget): void {

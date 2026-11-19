@@ -34,7 +34,7 @@ import { mountExplorer } from "./dataExplorer";
 import { openData } from "./dataPage";
 import { button, openDialog, toast } from "./dom";
 import { openVariables } from "./variablesPage";
-import { openPalette, setCommandSource, type Command } from "./workbenchCommands";
+import { mountShortcutKeys, openPalette, openShortcuts, setCommandSource, type Command } from "./workbenchCommands";
 import { errorHere } from "./errorNote";
 
 /** The keys the page already has, shown beside the command they run. */
@@ -81,31 +81,21 @@ function commands(): Command[] {
   const out: Command[] = [];
   const active = activeContext();
   const onGrid = !document.body.classList.contains("agent-view");
-  // The Application row is on every tab.
-  // The tour bubble's two buttons are a one-time offer, not commands (Tour is already in the row).
-  out.push(...buttonsOf("Application", document, ".app-row button", (b) => b.closest(".tour-bubble") !== null));
-  out.push({ id: "application.zoom-reset", group: "Application", title: "Zoom 100%", keys: "Ctrl+0", run: () => setGridZoom(1) });
-  out.push({ id: "application.find-data", group: "Application", title: "Find data…", keys: "Ctrl+K", run: () => openFindData() });
-  out.push(...betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
-  out.push(...updateCommands()); // Update to X, What's new, Check for updates
-  out.push(...claudeCommands()); // Launch Claude
-  // The ribbon's rows, each under its own name; the Analyze button is its menu's entries.
+  // The table's own commands lead (the ribbon's rows, the steps, the cell in front); the application's,
+  // beta's and updates' come after (the palette puts the recently used first of all: paletteOrder).
+  // The ribbon's rows, each under its own name; the Analyze button is its menu's entries. The
+  // Transformations row is the steps strip: its buttons are listed once, as Steps.
   for (const row of document.querySelectorAll<HTMLElement>(".ribbon .ribbon-group")) {
     const name = row.querySelector(".ribbon-caption strong")?.textContent?.trim() ?? "Table";
-    out.push(...buttonsOf(name, row, "button", (b) => b.getAttribute("aria-haspopup") === "menu"));
+    out.push(...buttonsOf(name, row, "button", (b) => b.getAttribute("aria-haspopup") === "menu" || b.closest(".steps-strip") !== null));
   }
   out.push(...buttonsOf("Steps", document, ".steps-strip button", (b) => b.classList.contains("steps-count")));
-  // The Analyze page's analyses, from its own list (8.3: one list feeds the toolbar, the palette, the agent).
-  out.push(...analysisEntries().map(([label, open]): Command => ({ id: `analyze.${slug(label)}`, group: "Analyze", title: label, run: open })));
-  // Tabs: where to go, what to open, and the table in front.
-  out.push(
-    { id: "tabs.analyze", group: "Tabs", title: "Go to Analyze", run: () => showAgentView() },
-    { id: "tabs.erd", group: "Tabs", title: "Go to ERD", run: () => showErdView() },
-    { id: "tabs.workbench", group: "Tabs", title: "Open the Workbench", run: () => openWorkbench() },
-    ...gridList().map(({ id, label }): Command => ({ id: `tabs.go.${id}`, group: "Tabs", title: `Go to ${label}`, run: () => { showGridView(); void activateGrid(id); } })),
-    ...buttonsOf("Tabs", document, ".tabs-row > button"),
-  );
-  out.push(...tabKeys());
+  // The cell in front: what its right-click menu offers.
+  if (onGrid && active) {
+    const cell = focusedCell();
+    out.push(...cellCommands().map(([title, run]): Command => ({ id: `cell.${slug(title)}`, group: "Cell", title, keys: KEYS[`Cell: ${title}`], when: () => cell !== null, whyNot: "Click a cell first", run })));
+  }
+  // Tabs: the table in front, where to go, what to open.
   if (active) {
     const many = gridList().length > 1;
     out.push(
@@ -114,11 +104,28 @@ function commands(): Command[] {
       { id: "tabs.close", group: "Tabs", title: `Close ${active.dataset}`, keys: "Delete", run: () => void closeGrid(active.id) },
     );
   }
-  // The cell in front: what its right-click menu offers.
-  if (onGrid && active) {
-    const cell = focusedCell();
-    out.push(...cellCommands().map(([title, run]): Command => ({ id: `cell.${slug(title)}`, group: "Cell", title, keys: KEYS[`Cell: ${title}`], when: () => cell !== null, whyNot: "Click a cell first", run })));
-  }
+  out.push(
+    ...gridList().map(({ id, label }): Command => ({ id: `tabs.go.${id}`, group: "Tabs", title: `Go to ${label}`, run: () => { showGridView(); void activateGrid(id); } })),
+    { id: "tabs.analyze", group: "Tabs", title: "Go to Analyze", run: () => showAgentView() },
+    { id: "tabs.erd", group: "Tabs", title: "Go to ERD", run: () => showErdView() },
+    { id: "tabs.workbench", group: "Tabs", title: "Open the Workbench", run: () => openWorkbench() },
+    ...buttonsOf("Tabs", document, ".tabs-row > button"),
+  );
+  out.push(...tabKeys());
+  // The Application row is on every tab.
+  // The tour bubble's two buttons are a one-time offer, not commands (Tour is already in the row).
+  out.push(...buttonsOf("Application", document, ".app-row button", (b) => b.closest(".tour-bubble") !== null));
+  out.push({ id: "application.zoom-reset", group: "Application", title: "Zoom 100%", keys: "Ctrl+0", run: () => setGridZoom(1) });
+  out.push({ id: "application.find-data", group: "Application", title: "Find data…", keys: "Ctrl+K", run: () => openFindData() });
+  out.push(
+    { id: "help.palette", group: "Help", title: "Show every command", keys: "Ctrl+Shift+P", run: () => openPalette() },
+    { id: "help.shortcuts", group: "Help", title: "Keyboard shortcuts", keys: "?", run: () => openShortcuts() },
+  );
+  // The Analyze page's analyses, from its own list (8.3: one list feeds the toolbar, the palette, the agent).
+  out.push(...analysisEntries().map(([label, open]): Command => ({ id: `analyze.${slug(label)}`, group: "Analyze", title: label, run: open })));
+  out.push(...claudeCommands()); // Launch Claude
+  out.push(...updateCommands()); // Update to X, What's new, Check for updates
+  out.push(...betaCommands()); // beta mode on or off, Leave a note…, Export beta log…
   return out;
 }
 
@@ -240,6 +247,7 @@ export function openFindData(): void {
 export function mountGridCommands(): void {
   setCommandSource(commands);
   mountAppKeys();
+  mountShortcutKeys(); // ? and Ctrl+/: the keyboard shortcuts
   document.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
       event.preventDefault();

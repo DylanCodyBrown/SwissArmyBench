@@ -20,6 +20,7 @@ import { api, grid, query, type ColumnInfo, type StepJson } from "./api";
 import { button, h, isBoolType, isDateType, isNumericType, isTextType, openDialog } from "./dom";
 import { state } from "./state";
 import { errorHere, showError } from "./errorNote";
+import { loadingBlock } from "./loading";
 
 type Params = Record<string, unknown>;
 interface Form {
@@ -92,17 +93,129 @@ function splitList(raw: string): string[] {
   return raw.split(/\r?\n|,/).map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
+// ===== the filter's checklist: a column's values with their counts (Excel's filter) =====
+
+interface ValueCount {
+  value: unknown;
+  count: number;
+}
+
+interface Checklist {
+  element: HTMLElement;
+  /** Show the values of this column (the ticks kept are the ones still among its values). */
+  load: (column: string) => void;
+  picked: () => unknown[];
+}
+
+const keyOf = (v: unknown): string => JSON.stringify(v);
+const shownValue = (v: unknown): string => (typeof v === "string" ? (v === "" ? "(empty text)" : v) : String(v));
+
+/** A search box over a column's values, each with its row count and a tick (GET /grids/{id}/values). The
+ * ticks stay as the search changes; the values ticked when the form opened are listed first. */
+function valuesChecklist(upto: number | undefined, initial: unknown[]): Checklist {
+  const picked = new Map<string, unknown>(initial.map((v) => [keyOf(v), v]));
+  let column = "";
+  let asked = 0;
+  let shown: ValueCount[] = [];
+  let timer = 0;
+  const search = h("input", { type: "search", class: "filter-values-search", placeholder: "Search values", "aria-label": "Search values", "data-no-variables": "" }) as HTMLInputElement;
+  const all = h("input", { type: "checkbox", "aria-label": "Select every value shown" }) as HTMLInputElement;
+  const list = h("div", { class: "filter-values-list", role: "group", "aria-label": "Values" });
+  const foot = h("div", { class: "filter-values-foot hint", role: "status" });
+  const element = h("div", { class: "filter-values" }, search, h("label", { class: "check filter-values-all" }, all, h("span", {}, "Select all")), list, foot);
+
+  const syncAll = (): void => {
+    const on = shown.filter((v) => picked.has(keyOf(v.value))).length;
+    all.checked = shown.length > 0 && on === shown.length;
+    all.indeterminate = on > 0 && on < shown.length;
+  };
+  const tell = (more: boolean, blanks: number): void => {
+    const words = [`${picked.size.toLocaleString()} selected`];
+    if (more) words.push("more values: search to find one");
+    if (blanks) words.push(`${blanks.toLocaleString()} blank (the condition "is blank")`);
+    foot.textContent = words.join(" · ");
+  };
+  const draw = (values: ValueCount[], more: boolean, blanks: number): void => {
+    // Ticked values not in this answer stay listed while the search is empty, so a step being edited shows them.
+    const extra = search.value ? [] : [...picked.entries()].filter(([k]) => !values.some((v) => keyOf(v.value) === k)).map(([, value]) => ({ value, count: 0 }));
+    shown = [...extra, ...values];
+    list.replaceChildren(
+      ...shown.map((v) => {
+        const box = h("input", { type: "checkbox", checked: picked.has(keyOf(v.value)) }) as HTMLInputElement;
+        box.addEventListener("change", () => {
+          if (box.checked) picked.set(keyOf(v.value), v.value);
+          else picked.delete(keyOf(v.value));
+          syncAll();
+          tell(more, blanks);
+        });
+        return h("label", { class: "check filter-value" }, box, h("span", { class: "filter-value-text" }, shownValue(v.value)), h("span", { class: "filter-value-count" }, v.count ? v.count.toLocaleString() : ""));
+      }),
+    );
+    if (!shown.length) list.append(h("p", { class: "hint filter-values-none" }, search.value ? "No value holds that text." : "No values."));
+    syncAll();
+    tell(more, blanks);
+  };
+  const fetchValues = async (): Promise<void> => {
+    if (!column) return;
+    const mine = ++asked;
+    if (!list.childElementCount) list.replaceChildren(loadingBlock("Reading the values…", { height: "120px" }));
+    try {
+      const got = await api<{ values: ValueCount[]; more: boolean; blanks: number }>(`${state.base}/values${query({ column, search: search.value || undefined, upto })}`);
+      if (mine !== asked) return;
+      draw(got.values, got.more, got.blanks);
+    } catch (e) {
+      if (mine !== asked) return;
+      list.replaceChildren();
+      showError(list, e);
+    }
+  };
+  search.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void fetchValues(), 200);
+  });
+  // Enter in the search box searches at once (the form's own Enter would add the step).
+  search.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    e.stopPropagation();
+    window.clearTimeout(timer);
+    void fetchValues();
+  });
+  all.addEventListener("change", () => {
+    for (const v of shown) {
+      if (all.checked) picked.set(keyOf(v.value), v.value);
+      else picked.delete(keyOf(v.value));
+    }
+    for (const box of list.querySelectorAll<HTMLInputElement>("input[type=checkbox]")) box.checked = all.checked;
+    syncAll();
+    tell(false, 0);
+  });
+  return {
+    element,
+    load: (name: string) => {
+      if (name === column) return;
+      if (column) picked.clear(); // another column: its own values
+      column = name;
+      search.value = "";
+      list.replaceChildren();
+      void fetchValues();
+    },
+    picked: () => [...picked.values()],
+  };
+}
+
 // ===== one form per kind =====
 
-function filterForm(columns: ColumnInfo[], p: Params): Form {
+function filterForm(columns: ColumnInfo[], p: Params, upto?: number): Form {
   const column = columnSelect(columns, p.column);
   const op = h("select", { "aria-label": "Condition" });
   const value = h("input", { type: "text", "aria-label": "Value" });
   const high = h("input", { type: "text", "aria-label": "Upper value" });
-  const values = h("textarea", { rows: "4", "aria-label": "Values, one per line" });
+  const checklist = valuesChecklist(upto, Array.isArray(p.values) ? p.values : []);
   const valueField = field("Value", value);
   const highField = field("To", high);
-  const valuesField = field("Values", values);
+  // A div, not a label: the checklist holds a box of its own for each value.
+  const valuesField = h("div", { class: "field filter-values-field" }, h("span", {}, "Values"), checklist.element);
   const colType = (): string => columns.find((c) => c.name === column.value)?.type ?? "VARCHAR";
 
   const fillOps = (keep?: string): void => {
@@ -118,14 +231,16 @@ function filterForm(columns: ColumnInfo[], p: Params): Form {
     valueField.hidden = ["blank", "not_blank", "true", "false", "in", "not_in"].includes(o);
     highField.hidden = !["between", "date_between"].includes(o);
     valuesField.hidden = !["in", "not_in"].includes(o);
+    if (!valuesField.hidden) checklist.load(column.value);
     valueField.querySelector("span")!.textContent = ["between", "date_between"].includes(o) ? "From" : "Value";
   };
-  column.addEventListener("change", () => fillOps());
+  // A new filter on a text or number column starts on its values to tick (Excel's way); a date's on a range.
+  const startOp = (): string | undefined => (["text", "number"].includes(family(colType())) ? "in" : undefined);
+  column.addEventListener("change", () => fillOps(startOp()));
   op.addEventListener("change", show);
-  fillOps(typeof p.op === "string" ? p.op : undefined);
+  fillOps(typeof p.op === "string" ? p.op : startOp());
   value.value = String(p.value ?? p.low ?? "");
   high.value = String(p.high ?? "");
-  values.value = Array.isArray(p.values) ? p.values.join("\n") : "";
   show();
 
   return {
@@ -138,7 +253,8 @@ function filterForm(columns: ColumnInfo[], p: Params): Form {
         out.low = numberOrText(value.value, fam === "number");
         out.high = numberOrText(high.value, fam === "number");
       } else if (["in", "not_in"].includes(o)) {
-        out.values = splitList(values.value).map((v) => numberOrText(v, fam === "number"));
+        out.values = checklist.picked();
+        if (!(out.values as unknown[]).length) throw new Error("Tick at least one value.");
       } else if (!["blank", "not_blank", "true", "false"].includes(o)) {
         out.value = numberOrText(value.value, fam === "number");
       }
@@ -385,7 +501,7 @@ function sqlForm(_columns: ColumnInfo[], params: Params): Form {
   };
 }
 
-const FORMS: Record<string, (columns: ColumnInfo[], params: Params) => Form> = {
+const FORMS: Record<string, (columns: ColumnInfo[], params: Params, upto?: number) => Form> = {
   filter: filterForm,
   sort: sortForm,
   columns: columnsForm,
@@ -409,7 +525,7 @@ export function editStep(kind: string, index?: number, preset: Params = {}): voi
   }
   const existing = index !== undefined ? info.steps[index] : undefined;
   const entering = info.stage_columns[Math.min(index ?? info.steps.filter((s) => !s.params.header).length, info.stage_columns.length - 1)] ?? info.columns;
-  const form = FORMS[kind]?.(entering, { ...preset, ...(existing?.params ?? {}) });
+  const form = FORMS[kind]?.(entering, { ...preset, ...(existing?.params ?? {}) }, index);
   if (!form) return;
   const { body, foot, close } = openDialog(`${existing ? "Edit" : "Add"} step: ${KIND_LABELS[kind] ?? kind}`);
   const error = h("div", { class: "form-error" });

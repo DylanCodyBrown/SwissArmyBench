@@ -15,9 +15,9 @@
  * Copy as SQL and Copy as Python left this strip (the steps window's Code tab has them).
  */
 import { api, token } from "./api";
-import { button, clear, h, icon } from "./dom";
+import { button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick } from "./loading";
-import { state } from "./state";
+import { state, type PageState } from "./state";
 import type { GridInfo } from "./api";
 import { errorHere, errorMark } from "./errorNote";
 
@@ -65,12 +65,25 @@ function render(): void {
     info.step_error ? errorMark(`Step ${info.step_error.index + 1}: ${info.step_error.message}`) : null,
     disabledUnless(info.can_undo, button("Undo", () => void state.undo().catch(failed), { icon: "back", iconOnly: true, class: "ghost", title: info.can_undo ? "Undo the last step change (Ctrl+Z)" : "Nothing to undo" })),
     disabledUnless(info.can_redo, button("Redo", () => void state.redo().catch(failed), { icon: "forward", iconOnly: true, class: "ghost", title: info.can_redo ? "Redo (Ctrl+Y)" : "Nothing to redo" })),
-    disabledUnless(info.steps.length > 0, button("Clear the steps", () => void state.saveSteps([]).catch(failed), { icon: "trash", iconOnly: true, class: "ghost" })),
+    disabledUnless(info.steps.length > 0, button("Clear the steps", () => void thenUndo(`Cleared ${info.steps.length === 1 ? "the step" : `${info.steps.length} steps`}`, () => state.saveSteps([])).catch(failed), { icon: "trash", iconOnly: true, class: "ghost" })),
     button("View steps", openStepsWindow, { icon: "steps", class: "ghost" }),
   );
 }
 
 const failed = (e: Error): void => errorHere(e);
+
+/** After a move that takes something away (a column removed, a step removed, the steps cleared): it says
+ *  so, with Undo, which takes back that grid's last step change (its own grid, whichever is in front then). */
+export function undoToast(message: string, grid: PageState = state): void {
+  toast(message, "info", { label: "Undo", run: () => void grid.undo().catch(failed) });
+}
+
+/** Run a step change that takes something away, then say so with Undo (nothing said if it failed). */
+async function thenUndo(message: string, change: () => Promise<unknown>): Promise<void> {
+  const grid = state;
+  await change();
+  undoToast(message, grid);
+}
 
 function disabledUnless(usable: boolean | undefined, btn: HTMLButtonElement): HTMLButtonElement {
   btn.disabled = !usable;
@@ -88,7 +101,7 @@ function stepsCount(label: string, steps: GridInfo["steps"]): HTMLElement {
         "li",
         { class: s.enabled === false ? "off" : "" },
         h("span", { class: "steps-words" }, `${s.description ?? s.kind}${s.enabled === false ? " (off)" : ""}`),
-        button(`Remove: ${s.description ?? s.kind}`, () => void state.stepOp({ op: "delete", id: s.id }).catch(failed), { icon: "close", iconOnly: true, class: "ghost small" }),
+        button(`Remove: ${s.description ?? s.kind}`, () => void thenUndo(`Removed the step: ${s.description ?? s.kind}`, () => state.stepOp({ op: "delete", id: s.id })).catch(failed), { icon: "close", iconOnly: true, class: "ghost small" }),
       ),
     ),
   );
