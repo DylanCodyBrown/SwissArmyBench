@@ -91,9 +91,14 @@ class ConnectionService:
         return {"connections": found}  # each with its code_name (the blades list names them)
 
     def _write_starters(self) -> list[dict[str, Any]]:
-        """The starter pack's Write starters (each names the connection kinds it writes to)."""
-        families = self._blades.starters()["families"]
-        return [b for f in families if f["family"] == write_capability.WRITE_FAMILY for b in f["blades"]]
+        """The starter pack's Write starters (each names the connection kinds it writes to): what
+        write_capability reads of each, from the starters as they are (not their summaries: a listing
+        asks on every call)."""
+        return [
+            {"name": b.name, "family": b.family, "kind": b.kind, "tags": list(b.tags)}
+            for b in self._blades.starter_blades()
+            if b.family == write_capability.WRITE_FAMILY
+        ]
 
     def needs_passwords(self, name: str) -> list[str]:
         """The passwords a connection asks for that nothing on this computer gives (names only)."""

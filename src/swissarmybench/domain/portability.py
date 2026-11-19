@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 from swissarmybench.domain import sql_server
@@ -155,14 +156,19 @@ def check(
 ) -> list[LocalOnly]:
     """What a connection leans on that only this computer has, in order, each once: its kind, its code's
     sign-in and files (`sign_in` False: the kind's alone, as a form says it before a sign-in is
-    picked), where its passwords come from (`passwords`: each one's source, "keyring" among them)."""
+    picked), where its passwords come from (`passwords`: each one's source, "keyring" among them). Kept by
+    its inputs: a form's ways hold SQL Server's whole runtime, read by a dozen patterns each time."""
+    return list(_check(code or "", str(template or ""), tuple(str(p) for p in passwords), sign_in))
+
+
+@lru_cache(maxsize=1024)
+def _check(code: str, kind: str, passwords: tuple[str, ...], sign_in: bool) -> tuple[LocalOnly, ...]:
     found: list[LocalOnly] = []
 
     def add(item: LocalOnly) -> None:
         if all(f.key != item.key for f in found):
             found.append(item)
 
-    kind = str(template or "")
     if kind in KINDS:
         add(KINDS[kind])
     if kind in FILE_KINDS and not _CLOUD.search(code or ""):
@@ -177,9 +183,9 @@ def check(
                 add(rule)
         if _FILE_SETTING.search(code or ""):
             add(FILE_SETTING)
-    if any(str(p) == "keyring" for p in passwords):
+    if "keyring" in passwords:
         add(KEYRING)
-    return found
+    return tuple(found)
 
 
 _NOT_KINDS = frozenset({"write", "files"})

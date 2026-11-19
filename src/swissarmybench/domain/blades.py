@@ -27,7 +27,8 @@ import re
 import tomllib
 import zipfile
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from typing import Any
 
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
@@ -117,7 +118,16 @@ def _top_level_names(statements: list[ast.stmt]) -> list[str]:
 
 
 def read_code(code: str, label: str = "the blade") -> BladeCode:
-    """What the code makes, asks for and imports."""
+    """What the code makes, asks for and imports. Kept by the text (a listing reads every blade's code each
+    time, ast's walk the most of its cost); each call gets lists of its own."""
+    found = _read_code(code, label)
+    return BladeCode(
+        found.variable, list(found.assigned), list(found.secrets), list(found.imports), list(found.calls)
+    )
+
+
+@lru_cache(maxsize=2048)
+def _read_code(code: str, label: str) -> BladeCode:
     tree = parse_code(code, label)
     assigned = _top_level_names(tree.body)
     imported_names: set[str] = set()
@@ -174,6 +184,11 @@ def _function_params(code: str, name: str) -> int | None:
 
 def import_lines(code: str) -> list[str]:
     """The code's top-level import statements, as written (for adding to a script's top)."""
+    return list(_import_lines(code))
+
+
+@lru_cache(maxsize=1024)
+def _import_lines(code: str) -> tuple[str, ...]:
     tree = parse_code(code)
     lines = code.splitlines()
     found: list[str] = []
@@ -181,7 +196,7 @@ def import_lines(code: str) -> list[str]:
         if isinstance(statement, ast.Import | ast.ImportFrom):
             end = statement.end_lineno or statement.lineno
             found.append("\n".join(lines[statement.lineno - 1 : end]))
-    return found
+    return tuple(found)
 
 
 def missing_imports(script: str, wanted: list[str]) -> list[str]:
@@ -828,10 +843,12 @@ def _call_name(node: ast.Call) -> str:
 def detect_settings(code: str) -> list[Setting]:
     """Every setting in the code, in the order it is written. Raises BladeCodeError for code that is
     not Python."""
-    return [f.setting for f in _detect(code)]
+    return [replace(f.setting, suggestions=list(f.setting.suggestions)) for f in _detect(code)]
 
 
-def _detect(code: str) -> list[_Found]:
+@lru_cache(maxsize=1024)
+def _detect(code: str) -> tuple[_Found, ...]:
+    """Every setting with where it is. Kept by the text: read only (detect_settings hands out copies)."""
     tree = parse_code(code)
     lines = _lines(code)
     starts = _offsets(code)
@@ -1020,7 +1037,7 @@ def _detect(code: str) -> list[_Found]:
                     _char(lines, starts, node.lineno, node.col_offset),
                     _char(lines, starts, node.end_lineno, node.end_col_offset),
                 )
-    return sorted(found.values(), key=lambda f: f.start)
+    return tuple(sorted(found.values(), key=lambda f: f.start))
 
 
 def _pairs(text: str, least: int = 2) -> bool:

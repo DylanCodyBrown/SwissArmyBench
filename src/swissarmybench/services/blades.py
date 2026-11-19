@@ -796,6 +796,10 @@ class BladeService:
 
     # ===== the starter pack, copies, and snippets =====
 
+    def starter_blades(self) -> list[Blade]:
+        """The built-in starter pack's blades as they are (no summary)."""
+        return self._blades.starters()
+
     def starters(self) -> dict[str, Any]:
         """The built-in starter pack, by family (Power BI, Excel, Files, DAX, HTML, Streamlit, Components):
         each blade's summary, a snippet's language and placeholders, and the sab.blade line of the others."""
