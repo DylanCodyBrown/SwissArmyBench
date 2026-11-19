@@ -56,11 +56,12 @@ from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 from swissarmybench_streamlit.domain import app_settings as page_settings
-from swissarmybench_streamlit.domain import controllers
+from swissarmybench_streamlit.domain import controllers, designer
 from swissarmybench_streamlit.domain import streamlit_cells as rules
 from swissarmybench_streamlit.domain.app_settings import AppSettings
 from swissarmybench_streamlit.domain.streamlit_cells import (
     Block,
+    Container,
     Facts,
     Fallback,
     Key,
@@ -483,7 +484,13 @@ class StreamlitApps:
 
     @staticmethod
     def _layout(page: Page) -> str:
-        return json.dumps([[b.id, b.document, b.cell, b.row, b.column, b.w, b.h] for b in page.blocks])
+        blocks = [
+            [b.id, b.document, b.cell, b.row, b.column, b.w, b.h, b.parent, b.slot] for b in page.blocks
+        ]
+        boxes = [
+            [c.id, c.kind, c.row, c.column, c.w, c.h, c.parent, c.slot, c.props] for c in page.containers
+        ]
+        return json.dumps([blocks, boxes] if boxes else blocks, sort_keys=True)
 
     # ===== state =====
 
@@ -574,6 +581,7 @@ class StreamlitApps:
                 elsewhere=rules.elsewhere(page, found, where),
                 gone=gone,
                 fallbacks=fallen,
+                containers=page.containers,
             )
             placed = [
                 controllers.Placed(
@@ -637,7 +645,13 @@ class StreamlitApps:
                     "order": list(made.order),
                     "tables": list(made.tables),
                     "problems": list(made.problems),
-                    "rows": [[b.id for b in row] for row in rules.rows(page.blocks)],
+                    "rows": rules.grids(page).get("", []),
+                    # Each grid's rows of ids: "" the page's own, "c1:0" a container's slot.
+                    "grids": rules.grids(page),
+                    "containers": [
+                        c.to_json() | {"title": c.title, "slots": c.slots, "slot_names": c.slot_names()}
+                        for c in page.containers
+                    ],
                     "out_of_date": stale,
                     "address": f"{app.base}/page-{page.id}" if running and page.id in app.laid else None,
                 }
@@ -838,20 +852,31 @@ class StreamlitApps:
         await self._changed(app)
         return self._state(app)
 
-    def _moved(self, page: Page, block: Block, body: dict[str, Any]) -> None:
-        """A block's place as asked: {"row", "column"}; with "insert" a new row is made at `row` (the
-        rows from there move down). Then the grid settles."""
+    def _moved(self, page: Page, block: Block | Container, body: dict[str, Any]) -> None:
+        """An item's place as asked: {"row", "column"}; with "insert" a new row is made at `row` (the
+        rows from there move down); {"parent": a container's id or null, "slot"} puts it into a container
+        (or back on the page), after the last item there unless a place is said. Then the grids settle."""
+        if "parent" in body or "slot" in body:
+            parent, slot = rules.check_nesting(
+                page, block, body.get("parent", block.parent), body.get("slot", 0)
+            )
+            if (parent, slot) != (block.parent, block.slot):
+                block.parent, block.slot = None, -1  # out of every grid while its place is found
+                there = [i for i in page.items() if (i.parent, i.slot) == (parent, slot)]
+                block.row, block.column = rules.free_place(there, block.w)
+                block.parent, block.slot = parent, slot
         if "column" in body:
             block.column = rules.check_column(body["column"])
         if "row" in body:
             row = rules.check_row(body["row"])
             if body.get("insert") is True:
-                for other in page.blocks:
-                    if other is not block and other.row >= row:
+                for other in page.items():
+                    same = (other.parent, other.slot) == (block.parent, block.slot)
+                    if other is not block and same and other.row >= row:
                         other.row += 1
             block.row = row
-        # The moved block keeps the place it was given: a neighbour it would lie on goes below.
-        rules.settle(page.blocks, block)
+        # The moved item keeps the place it was given: a neighbour it would lie on goes below.
+        rules.settle_page(page, block)
 
     def _place(self, app: App, page: Page, body: dict[str, Any]) -> Block:
         document, cell = rules.check_link(body.get("document"), body.get("cell"))
@@ -870,17 +895,58 @@ class StreamlitApps:
                 "or HTML cell."
             )
         width = rules.check_width(body.get("w", rules.DEFAULT_WIDTH))
-        row, column = rules.free_place(page.blocks, width)
         taken = [b.id for p in app.pages for b in p.blocks]
-        block = Block(
-            rules.next_id("b", taken), document, cell, row, column, width, rules.check_rows(body.get("h"))
-        )
+        block = Block(rules.next_id("b", taken), document, cell, 1, 1, width, rules.check_rows(body.get("h")))
+        self._put(page, block, body)
         page.blocks.append(block)
-        if "row" in body or "column" in body:
-            self._moved(page, block, body if "row" in body else body | {"row": row})
-        else:
-            rules.settle(page.blocks)
+        self._settled(page, block, body)
         return block
+
+    @staticmethod
+    def _put(page: Page, item: Block | Container, body: dict[str, Any]) -> None:
+        """A new item's container and slot ({"parent", "slot"}) and its free place there."""
+        item.parent, item.slot = rules.check_nesting(page, item, body.get("parent"), body.get("slot", 0))
+        there = [i for i in page.items() if (i.parent, i.slot) == (item.parent, item.slot)]
+        item.row, item.column = rules.free_place(there, item.w)
+
+    def _settled(self, page: Page, item: Block | Container, body: dict[str, Any]) -> None:
+        place: dict[str, Any] = {k: body[k] for k in ("row", "column", "insert") if k in body}
+        if "row" in place or "column" in place:
+            self._moved(page, item, place if "row" in place else place | {"row": item.row})
+        else:
+            rules.settle_page(page)
+
+    async def add_container(self, app_id: str, page_id: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """A layout container on a page: {"kind": columns | tabs | expander | container | form | sidebar |
+        popover, "props"?: its own properties, "name"?, "parent"?, "slot"?, "row"?, "column"?, "insert"?,
+        "w"?, "h"?}. Blocks are then placed into it ({"parent", "slot"})."""
+        app = self._app(app_id, canvas=True)
+        page = self._page(app, page_id)
+        if not isinstance(body, dict):
+            raise StreamlitError('Send {"kind": "columns", "props": {"widths": [2, 1]}}.')
+        kind = body.get("kind")
+        props = rules.check_props(kind, body.get("props") or {})
+        if len(page.containers) >= rules.MAX_CONTAINERS:
+            raise Conflict(f"A page holds at most {rules.MAX_CONTAINERS} containers.")
+        if kind == "sidebar" and any(c.kind == "sidebar" for c in page.containers):
+            raise Conflict(f"{page.name} already has its sidebar.")
+        taken = [i.id for p in app.pages for i in p.items()]
+        box = Container(
+            rules.next_id("c", taken),
+            str(kind),
+            w=rules.check_width(body.get("w", rules.COLUMNS)),
+            h=rules.check_rows(body.get("h")),
+            props=props,
+            name=rules.check_name(body["name"]) if body.get("name") else "",
+        )
+        if kind != "sidebar":
+            self._put(page, box, body)
+        elif body.get("parent"):
+            rules.check_nesting(page, box, body.get("parent"))
+        page.containers.append(box)
+        self._settled(page, box, body if kind != "sidebar" else {})
+        done = await self._laid_out(app, who, "streamlit_add_container", f"{box.title} on {page.name}")
+        return done | {"page": page.id, "container": box.id}
 
     async def add_page(self, app_id: str, body: Any, who: str = "user") -> dict[str, Any]:
         """A new page {"name"?}; with {"document", "cell"} that cell is placed on it at once."""
@@ -929,8 +995,9 @@ class StreamlitApps:
         )
         return done | {"page": page.id, "block": block.id}
 
-    def _block(self, page: Page, block_id: str) -> Block:
-        block = next((b for b in page.blocks if b.id == block_id), None)
+    def _block(self, page: Page, block_id: str) -> Block | Container:
+        """A block of the page, or one of its containers, by its id."""
+        block = page.find(block_id)
         if block is None:
             raise NotFound(f"The page {page.name} has no block {block_id}.")
         return block
@@ -944,28 +1011,88 @@ class StreamlitApps:
         page = self._page(app, page_id)
         block = self._block(page, block_id)
         if not isinstance(body, dict):
-            raise StreamlitError('Send {"row", "column"}, {"w", "h"} or {"page"}.')
+            raise StreamlitError('Send {"row", "column"}, {"w", "h"}, {"parent", "slot"} or {"page"}.')
+        for flag in ("hidden", "locked"):
+            if flag in body:
+                if not isinstance(body[flag], bool):
+                    raise StreamlitError(f"{flag} is true or false.")
+                setattr(block, flag, body[flag])
+        moves = [k for k in ("row", "column", "insert", "w", "h", "parent", "slot", "page") if k in body]
+        if block.locked and moves:
+            raise Conflict(f"{block_id} is locked: unlock it to move or size it.")
+        if isinstance(block, Container):
+            if "props" in body:
+                block.props = rules.check_props(block.kind, body["props"], block.props)
+            if "name" in body:
+                block.name = rules.check_name(body["name"]) if body["name"] else ""
+            if "page" in body:
+                raise StreamlitError("A container stays on its page: move its blocks.")
         if "w" in body:
             block.w = rules.check_width(body["w"])
         if "h" in body:
             block.h = rules.check_rows(body["h"])
         target = page
-        if isinstance(body.get("page"), str) and body["page"] != page.id:
+        if isinstance(block, Block) and isinstance(body.get("page"), str) and body["page"] != page.id:
             target = self._page(app, body["page"])
             page.blocks.remove(block)
-            rules.settle(page.blocks)
-            block.row, block.column = rules.free_place(target.blocks, block.w)
+            rules.settle_page(page)
+            block.parent, block.slot = None, 0
+            top = [i for i in target.items() if i.parent is None]
+            block.row, block.column = rules.free_place(top, block.w)
             target.blocks.append(block)
-        self._moved(target, block, body)
+        self._moved(target, block, {k: v for k, v in body.items() if k != "page"})
         return await self._laid_out(app, who, "streamlit_change_block", f"{block_id} on {target.name}")
+
+    async def arrange(self, app_id: str, page_id: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """Arrange several items of a page as one change: {"blocks": [ids], "how": left | right | centre |
+        top | bottom | same_width | same_height | distribute} (the first id is the one the others follow);
+        {"how": "reset"}: Reset layout (every block back on the page, the containers gone)."""
+        app = self._app(app_id, canvas=True)
+        page = self._page(app, page_id)
+        if not isinstance(body, dict) or not isinstance(body.get("how"), str):
+            raise StreamlitError('Send {"blocks": ["b1", "b2"], "how": "left"}.')
+        how = body["how"]
+        if how == "reset":
+            designer.reset_layout(page)
+            changed = [b.id for b in page.blocks]
+        else:
+            ids = body.get("blocks")
+            if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+                raise StreamlitError('Send the blocks to arrange: {"blocks": ["b1", "b2"], "how": "left"}.')
+            changed = designer.arrange([self._block(page, i) for i in dict.fromkeys(ids)], how)
+        rules.settle_page(page)
+        done = await self._laid_out(app, who, "streamlit_arrange", f"{how} on {page.name}")
+        return done | {"page": page.id, "changed": changed}
+
+    def outline(self, app_id: str, page_id: str | None = None) -> dict[str, Any]:
+        """The Document Outline: each page as a tree (containers, their slots, blocks), in reading order."""
+        app, _, pieces, _, _ = self.canvas_parts(app_id)
+        pages = [self._page(app, page_id)] if page_id else app.pages
+        said = []
+        for page in pages:
+            titles = {
+                b.id: pieces[b.key].name if b.key in pieces else _where(b.document, b.cell)
+                for b in page.blocks
+            }
+            said.append({"id": page.id, "name": page.name, "tree": designer.outline(page, titles)})
+        return {"app": app.id, "pages": said}
 
     async def remove_block(
         self, app_id: str, page_id: str, block_id: str, who: str = "user"
     ) -> dict[str, Any]:
         app = self._app(app_id, canvas=True)
         page = self._page(app, page_id)
-        page.blocks.remove(self._block(page, block_id))
-        rules.settle(page.blocks)
+        gone = self._block(page, block_id)
+        if isinstance(gone, Container):
+            # A container taken off the page leaves what it held: it comes up to where the container was.
+            for held in page.items():
+                if held.parent == gone.id:
+                    held.parent, held.slot = gone.parent, gone.slot
+                    held.row = gone.row if gone.kind != "sidebar" else rules.MAX_PLACED
+            page.containers.remove(gone)
+        else:
+            page.blocks.remove(gone)
+        rules.settle_page(page)
         return await self._laid_out(app, who, "streamlit_remove_block", f"{block_id} from {page.name}")
 
     # ===== run =====
@@ -1016,6 +1143,7 @@ class StreamlitApps:
                     imports=given,
                     fallbacks=self.fallbacks(page, linked),
                     trace=page.id,
+                    containers=page.containers,
                 )
                 name = f"page_{page.id}_{stamp}.py"
                 # What the session holds (the State panel), and what the property pane asked of it (Now).

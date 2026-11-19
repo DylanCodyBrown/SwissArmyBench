@@ -668,6 +668,9 @@ class ContainerKind:
     params: tuple[Param, ...]
     slots: str = "one"  # one, widths (a slot a column), labels (a slot a tab)
 
+    def param(self, name: str) -> Param | None:
+        return next((p for p in self.params if p.name == name), None)
+
     def to_json(self) -> dict[str, Any]:
         return {
             "id": self.kind,

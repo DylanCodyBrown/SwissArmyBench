@@ -224,7 +224,10 @@ def test_the_apps_file_is_small_readable_and_reads_back() -> None:
         ("p1", "Sales overview", 3),
         ("p2", "Détails", 0),
     ]
-    assert [b.to_json() for b in pages[0].blocks] == [
+    assert [
+        {k: v for k, v in b.to_json().items() if k not in ("parent", "slot", "hidden", "locked")}
+        for b in pages[0].blocks
+    ] == [
         {
             "id": "b1",
             "document": "/work/apps/sales.ipynb",
@@ -265,7 +268,7 @@ def test_the_apps_file_is_small_readable_and_reads_back() -> None:
     with pytest.raises(rules.StreamlitError, match="not a Streamlit app's file"):
         rules.read_app('{"cells": []}')
     with pytest.raises(rules.StreamlitError, match="newer"):
-        rules.read_app('{"swissarmybench": "streamlit-app", "version": 2, "pages": []}')
+        rules.read_app('{"swissarmybench": "streamlit-app", "version": 3, "pages": []}')
     with pytest.raises(rules.StreamlitError, match="cell's own number"):
         rules.read_app(APP.replace('"cell": 4', '"cell": "four"'))
     assert notebooks.kind_of("/work/Sales.STAPP.json") == "app" and rules.is_app("x.stapp.json")

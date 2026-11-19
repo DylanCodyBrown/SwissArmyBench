@@ -288,6 +288,11 @@ def streamlit_block_place(a: dict[str, Any]) -> Any:
     opt("w", "Its width in columns, 2 to 12.", "int"),
     opt("h", "Its height in 40-pixel rows; 0: its content's.", "int"),
     opt("to_page", "Another page's id, to send it there."),
+    opt("parent", 'A container\'s id, to put it inside ("": back on the page).'),
+    opt("slot", "Which of the container's slots (a column, a tab), from 0.", "int"),
+    opt("hidden", "Hidden while designing.", "bool"),
+    opt("locked", "Locked: the designer does not move or size it.", "bool"),
+    opt("props", 'A container\'s own properties: {"widths": [2, 1]}, {"labels": ["A", "B"]}...', "json"),
 )
 def streamlit_block_change(a: dict[str, Any]) -> Any:
     body: dict[str, Any] = {k: a[k] for k in ("row", "column", "insert", "w") if a.get(k) is not None}
@@ -295,6 +300,9 @@ def streamlit_block_change(a: dict[str, Any]) -> Any:
         body["h"] = a["h"] or None
     if a.get("to_page"):
         body["page"] = a["to_page"]
+    if a.get("parent") is not None:
+        body["parent"] = a["parent"] or None
+    body |= {k: a[k] for k in ("slot", "hidden", "locked", "props") if a.get(k) is not None}
     path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}"
     return api.call("PATCH", path, body)
 
@@ -496,3 +504,68 @@ def canvas_toolbox(a: dict[str, Any]) -> Any:
             raise CommandError("Send app with element: the cell's names are free of that app's.")
         return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/toolbox", {"element": a["element"]})
     return api.call("GET", "/streamlit/toolbox")
+
+
+@command(
+    "canvas_container",
+    "Add a layout container to a page: columns, tabs, expander, container, form, sidebar or popover (blocks "
+    "go inside with streamlit_block_change parent, slot)",
+    req("app", "The app's id."),
+    req("page", "The page's id."),
+    req("kind", "columns, tabs, expander, container, form, sidebar or popover."),
+    opt(
+        "props",
+        'Its properties (canvas_toolbox lists them): {"widths": [2, 1]}, {"label": "Details"}.',
+        "json",
+    ),
+    opt("parent", "A container to put it inside."),
+    opt("slot", "Which of that container's slots, from 0.", "int"),
+    opt("row", "Its row, from 1.", "int"),
+    opt("column", "The column it starts in, 1 to 12.", "int"),
+    opt("w", "Its width in columns (default 12).", "int"),
+)
+def canvas_container(a: dict[str, Any]) -> Any:
+    body = {
+        k: a[k] for k in ("kind", "props", "parent", "slot", "row", "column", "w") if a.get(k) is not None
+    }
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/containers", body)
+
+
+@command(
+    "canvas_arrange",
+    "Arrange several blocks as one change: left, right, centre, top, bottom, same_width, same_height, "
+    "distribute; or reset (Reset layout)",
+    req("app", "The app's id."),
+    req("page", "The page's id."),
+    req("how", "How (reset needs no blocks)."),
+    opt("blocks", 'The blocks\' ids, the first the one the others follow: ["b1", "b2"].', "json"),
+)
+def canvas_arrange(a: dict[str, Any]) -> Any:
+    body = {"how": a["how"]} | ({"blocks": a["blocks"]} if a.get("blocks") is not None else {})
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/arrange", body)
+
+
+@command(
+    "canvas_outline",
+    "The Document Outline: a page as a tree (containers, their slots, blocks) in reading order",
+    req("app", "The app's id."),
+    opt("page", "One page's id (default: every page)."),
+)
+def canvas_outline(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/outline", params={"page": a.get("page")})
+
+
+@command(
+    "canvas_add",
+    "Add a Toolbox element to the front canvas: a named cell in the app notebook and its block (as a drop)",
+    req("element", "The element's id (canvas_toolbox lists them): slider, selectbox, bar_chart..."),
+    opt("parent", "A container to put it inside."),
+    opt("slot", "Which of that container's slots, from 0.", "int"),
+    opt("row", "Its row, from 1.", "int"),
+    opt("column", "The column it starts in, 1 to 12.", "int"),
+)
+def canvas_add(a: dict[str, Any]) -> Any:
+    return _window(
+        "canvas.add",
+        {k: a[k] for k in ("element", "parent", "slot", "row", "column") if a.get(k) is not None},
+    )

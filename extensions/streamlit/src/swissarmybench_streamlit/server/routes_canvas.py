@@ -9,6 +9,11 @@ window and the agent (the golden rule: each has its canvas_* command).
   POST  /streamlit/apps/{app}/pages/{page}/blocks/{block}/code
                                                  a change to its cell's code as a plan (before, after, the
                                                  characters that differ); {"apply": true}: the window makes it
+  POST  /streamlit/apps/{app}/pages/{page}/containers   {"kind", "props"?, "parent"?, "slot"?, ...}: a layout
+                                                 container (columns, tabs, expander, container, form, sidebar,
+                                                 popover); blocks go into it by PATCH …/blocks/{id} {"parent"}
+  POST  /streamlit/apps/{app}/pages/{page}/arrange      {"blocks", "how"}: align, same size, distribute; reset
+  GET   /streamlit/apps/{app}/outline?page=      the Document Outline: each page as a tree
   POST  /streamlit/apps/{app}/now                the RUNNING app only: {"key", "value"} sets session state,
                                                  {"key", "forget": true}, {"clear": a cached function or "*"}
 """
@@ -69,7 +74,27 @@ def routes(pane: CanvasPane, apps: StreamlitApps) -> list[BaseRoute]:
             await apps.now(request.path_params["app"], await body_of(request), actor(request))
         )
 
+    async def add_container(request: Request) -> Response:
+        params = request.path_params
+        return json_response(
+            await apps.add_container(params["app"], params["page"], await body_of(request), actor(request))
+        )
+
+    async def arrange(request: Request) -> Response:
+        params = request.path_params
+        return json_response(
+            await apps.arrange(params["app"], params["page"], await body_of(request), actor(request))
+        )
+
+    async def outline(request: Request) -> Response:
+        return json_response(
+            apps.outline(request.path_params["app"], request.query_params.get("page") or None)
+        )
+
     return [
+        Route("/streamlit/apps/{app}/pages/{page}/containers", safely(add_container), methods=["POST"]),
+        Route("/streamlit/apps/{app}/pages/{page}/arrange", safely(arrange), methods=["POST"]),
+        Route("/streamlit/apps/{app}/outline", safely(outline)),
         Route("/streamlit/toolbox", safely(toolbox)),
         Route("/streamlit/apps/{app}/toolbox", safely(new_cell), methods=["POST"]),
         Route("/streamlit/apps/{app}/inspect", safely(inspect)),
