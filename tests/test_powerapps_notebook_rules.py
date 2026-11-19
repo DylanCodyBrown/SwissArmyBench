@@ -100,7 +100,7 @@ def test_an_error_is_the_panels_detail() -> None:
     sql = rules.error_detail(DENO_CATALOG, 3, "select * from missing_table", sql=True)["chain"][0]
     assert sql["frames"] == [] and sql["title"] == "DuckDB could not run the query"
     assert sql["sql"]["line"] == 1 and sql["sql"]["missing"] == "missing_table"
-    assert sql["sql"]["candidates"] == ["pg_tables"]
+    assert "candidates" not in sql["sql"]  # DuckDB's own pg_tables is no guess of the user's (feel-a)
 
 
 # ===== data.ts =====
