@@ -16,7 +16,7 @@
  * makes no sense: search and filter boxes (type=search, role=searchbox, or a label or placeholder that starts
  * with Search, Filter or Find) and any box marked `data-no-variables` (with its children).
  */
-import { button, h, showMenu } from "./dom";
+import { h, showMenu } from "./dom";
 import { typingName, variables, type Offered } from "./variableBox";
 import { addVariable } from "./variableLinks";
 import { errorHere } from "./errorNote";
@@ -236,5 +236,4 @@ export function installVariableAnywhere(): void {
   };
 }
 
-/** For a page that wants a button for it (unused by the forms, which have variableBox's {x}). */
-export const insertVariableButton = (box: Box): HTMLElement => button("Insert variable", () => void openList(box, "insert"), { icon: "variables", iconOnly: true, class: "ghost small" });
+

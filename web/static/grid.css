@@ -16086,12 +16086,6 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
   flex: 1 1 auto;
   min-width: 0;
 }
-.variable-insert {
-  flex: none;
-  padding: 0 6px;
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 12px;
-}
 .variable-list {
   position: absolute;
   top: calc(100% - 2px);

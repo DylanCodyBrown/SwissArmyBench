@@ -7,7 +7,8 @@
  *     typing `${`      the variables offered under the box (their names and their source as a word, never a
  *                      value), filtered as the name is typed; the arrows, Enter or Tab pick one, Escape closes;
  *                      the last row New variable… (the Add variable form with the typed name)
- *     {x}              a small button on the box: the same list, its pick put in at the caret
+ *     (no button: the owner, 2026-11-19, "I have buttons everywhere to insert variables and they need to go";
+ *     right-click's Insert variable… stays, from variableAnywhere.ts)
  *     the line under   what the box reads on this computer (a secret masked, never its value); a name not set
  *                      is the one error (errorNote.ts) with Set it; nothing when the box names no variable
  *   `$${NAME}` is the text itself: never offered, never read.
@@ -39,10 +40,16 @@ export interface VariableBoxOptions {
 }
 
 let offered: Promise<Offered[]> | null = null;
+let offeredAt = 0;
 const refreshers = new Set<() => void>();
+// The list is read again whenever it opens (kept two seconds, so one keystroke's lookups share a read): a vault saved
+// or mapped in another window, or a variable added there, shows at once (the owner, 2026-11-19: "I added my vault
+// and mapped variables and I can't use them anywhere with ${, they don't show up"). Vaults are blades and
+// connections, so their notices count too.
+const FRESH_MS = 2000;
 
 onNotice((n) => {
-  if (n.type === "variables_changed") {
+  if (n.type === "variables_changed" || n.type === "blades_changed" || n.type === "connections_changed") {
     offered = null;
     for (const refresh of refreshers) refresh();
   }
@@ -54,6 +61,8 @@ export function forgetVariables(): void {
 }
 
 export function variables(): Promise<Offered[]> {
+  if (offered && Date.now() - offeredAt > FRESH_MS) offered = null;
+  if (!offered) offeredAt = Date.now();
   offered ??= api<{ variables: (Offered & { vault?: string })[] }>("/variables").then(
     // The source in words (a vault's own name with it), never a value.
     (r) => r.variables.map((v) => ({ name: v.name, words: v.vault ? `${v.words} · ${v.vault}` : v.words, secret: v.secret })),
@@ -125,13 +134,12 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
   input.setAttribute("autocomplete", "off");
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-controls", id);
-  // The box keeps its own name (the {x} button sits inside its label); the list is "Variables" (one shows at a time).
+  // The box keeps its own name; the list is "Variables" (one shows at a time).
   if (options.label && !input.hasAttribute("aria-label")) input.setAttribute("aria-label", options.label);
   const list = h("ul", { id, class: "variable-list", role: "listbox", hidden: true, "aria-label": "Variables" });
-  const insert = h("button", { type: "button", class: "btn icon variable-insert", title: "Insert a variable", "aria-label": "Insert a variable" }, "{x}") as HTMLButtonElement;
   let items: Offered[] = [];
   let active = 0;
-  // Where a pick goes: replacing the name typed after `${` (typed) or at the caret ({x}).
+  // Where a pick goes: replacing the name typed after `${` (typed) or at the caret.
   let mode: "typed" | "button" = "typed";
 
   const close = (): void => {
@@ -217,12 +225,8 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
       close();
     }
   });
-  // Away from the box (not to its own {x}): the list closes.
+  // Away from the box: the list closes.
   input.addEventListener("blur", () => setTimeout(() => document.activeElement !== input && close(), 150));
-  insert.addEventListener("click", () => {
-    input.focus();
-    void open("button");
-  });
 
   // ----- the line under the box: what it reads here -----
   const shown = previewLine();
@@ -236,5 +240,5 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
   input.addEventListener("change", schedule);
   void preview();
 
-  return h("span", { class: "variable-box" }, h("span", { class: "variable-box-row" }, input, insert), list, line);
+  return h("span", { class: "variable-box" }, h("span", { class: "variable-box-row" }, input), list, line);
 }

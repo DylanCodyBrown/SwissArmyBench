@@ -119,3 +119,38 @@ def test_a_sql_cell_offers_the_variables_and_a_python_cell_does_not(
         expect(floating(workbench)).to_have_count(0)
     finally:
         workbench.close()
+
+
+def test_a_vault_saved_after_the_page_opened_offers_its_variables_at_once(
+    browser: Browser, orders_url: str, server: dict[str, Any], region: str
+) -> None:
+    """The owner (2026-11-19): "I added my vault and mapped variables and I can't use them anywhere with a
+    dollar-brace, they don't show up": the list was read once per window and never again. Now a vault saved
+    anywhere shows in an open window's list, and the boxes have no {x} button any more."""
+    page = open_grid(browser, orders_url)
+    page.locator('.nav-rail [data-area="variables"]').click()
+    variables = page.locator('.area-page[data-page="variables"]')
+    variables.get_by_role("button", name="Add variable").click()
+    value = variables.locator(".variables-form").get_by_label("Value")
+    expect(variables.locator(".variable-insert")).to_have_count(0)
+    # The list read once (the plain variable only)...
+    value.press_sequentially("${")
+    offered = page.get_by_role("listbox", name="Variables")
+    expect(offered.get_by_role("option", name=f"{NAME} Plain value")).to_be_visible()
+    value.fill("")
+    # ...then a vault is saved elsewhere (here: by the API, as another window would).
+    vault = {
+        "name": "Made-up vault",
+        "kind": "vault",
+        "code": "def get(name):\n    return 'made-up'",
+        "variable": "get",
+        "vault_mapping": [{"env": "SHOP_VAULT_KEY", "secret": "shop-vault-key"}],
+    }
+    call(server, "POST", "/blades", vault)
+    try:
+        value.press_sequentially("${SHOP_V")
+        expect(offered.get_by_role("option").first).to_contain_text("SHOP_VAULT_KEY")
+        expect(offered.get_by_role("option").first).to_contain_text("Made-up vault")
+    finally:
+        call(server, "DELETE", "/blades/Made-up%20vault")
+        page.close()
