@@ -16,7 +16,9 @@ from playwright.sync_api import Browser, BrowserContext, Page, Playwright, expec
 E2E = Path(__file__).resolve().parent
 # What a browser test waits for at most: an expect and a page's action alike. Playwright's own five
 # seconds for an expect failed tests on a busy machine (a parallel run, other work) that pass alone.
+# A page's load keeps Playwright's 30 s (a busy machine's first load of the page's scripts is slow).
 WAIT_MS = 15_000
+LOAD_MS = 30_000
 expect.set_options(timeout=WAIT_MS)
 
 
@@ -66,11 +68,13 @@ class _BrowserHandle:
     def new_context(self, **options: Any) -> BrowserContext:
         context = _SHARED.get().new_context(**options)
         context.set_default_timeout(WAIT_MS)
+        context.set_default_navigation_timeout(LOAD_MS)
         return context
 
     def new_page(self, **options: Any) -> Page:
         page = _SHARED.get().new_page(**options)
         page.context.set_default_timeout(WAIT_MS)
+        page.context.set_default_navigation_timeout(LOAD_MS)
         return page
 
     def __getattr__(self, name: str) -> Any:
