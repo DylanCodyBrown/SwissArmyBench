@@ -746,9 +746,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # tabs_reload (a file changed on disk: Reload, steps kept).
     # 83,400 (2026-11-18): the variable references (12.7) added variables_resolve and variables_uses;
     # 84,200 (2026-11-19): the Team box's four (team_status, _join, _start, _leave).
-    # 86,600 (2026-11-19): the Analyze page's ten: analyze_contracts, _tables, _check, _plan, _column, _fix,
-    # _run, _cancel, _runs (a result's inputs, math, code, grid) and _sample.
-    assert size < 86_600, f"the tool list is {size} characters"
+    # 86,000 (2026-11-19): the Analyze page's ten: analyze_contracts, _tables, _check, _plan, _column, _fix,
+    # _run, _cancel, _runs (a result's inputs, math, code, grid) and _sample; analyze_shape and
+    # analyze_defaults went (the checker answers both).
+    assert size < 86_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

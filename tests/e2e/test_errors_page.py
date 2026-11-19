@@ -173,7 +173,7 @@ def test_a_card_that_cannot_be_drawn_says_so_in_the_card(browser: Browser, serve
                 color_scheme="dark" if dark else "light",
                 device_scale_factor=2,
             )
-            page.locator(".nav-rail [data-area='visualizations']").click()
+            page.locator(".nav-rail [data-area='analyze']").click()
             card = page.locator(".card", has_text="Made-up flow")
             note = card.locator(".error-note")
             expect(note).to_contain_text("This diagram could not be drawn", timeout=30000)

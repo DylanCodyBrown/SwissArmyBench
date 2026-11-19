@@ -211,6 +211,93 @@ def test_tie_out_picks_two_tables_and_makes_no_compare_on_the_grid_page(app: Tes
     assert keys["columns"] == {"other": None} and keys["cards"]
 
 
+# ===== Yours: an analysis blade through the same form =====
+
+BY_REGION = """import pandas as pd
+
+
+def analyze(df: pd.DataFrame, columns: list[str]) -> list:
+    column = columns[0] if columns else "region"
+    counts = df[column].value_counts().rename_axis(column).reset_index(name="rows")
+    return [f"## {len(df)} rows by {column}", counts]
+"""
+DECLARED = """CONTRACT = {
+    "label": "Which regions carry the amounts?",
+    "one_row_per": "one row per order",
+    "slots": [
+        {"key": "group", "label": "Group", "accepts": ["category"], "hints": ["region"]},
+        {"key": "amount", "label": "Amounts", "accepts": ["number"], "hints": ["amount"]},
+    ],
+}
+
+
+def analyze(df, columns):
+    group, amount = columns
+    totals = df.groupby(group)[amount].sum().reset_index()
+    return [f"## {amount} by {group}", totals]
+"""
+
+
+def save_blade(client: TestClient, name: str, code: str) -> None:
+    body = {"name": name, "kind": "analysis", "code": code, "variable": "analyze"}
+    assert client.post("/blades", json=body, headers=AUTH).status_code == 200
+
+
+def test_your_own_analysis_is_on_the_toolbar_with_a_contract_read_from_its_code(
+    app: TestClient, table: str
+) -> None:
+    from tests.fake_keyring import memory_keyring
+
+    with memory_keyring():
+        save_blade(app, "By region", BY_REGION)
+        save_blade(app, "Totals", DECLARED)
+        save_blade(app, "Whole table", "def analyze(df):\n    return f'## {len(df)} rows'\n")
+        save_blade(app, "Broken", "CONTRACT = {'slots': 'nope'}\ndef analyze(df):\n    return 'x'\n")
+        mine = [a for a in ok(app.get("/analyze", headers=AUTH))["analyses"] if a["group"] == "Yours"]
+        assert [a["id"] for a in mine] == ["blade:By region", "blade:Totals", "blade:Whole table"]
+        derived = ok(app.get("/analyze/contracts/blade:By region", headers=AGENT))
+        assert derived["slots"][0]["key"] == "columns" and derived["slots"][0]["count"] == "any"
+        assert derived["sample"]["columns"] == ["row_id", "columns"]
+        assert ok(app.get("/analyze/contracts/blade:Whole table", headers=AUTH))["slots"] == []
+        declared = ok(app.get("/analyze/contracts/blade:Totals", headers=AUTH))
+        assert declared["label"] == "Which regions carry the amounts?"
+        assert [s["accepts"] for s in declared["slots"]] == [["category"], ["number"]]
+        broken = app.get("/analyze/contracts/blade:Broken", headers=AUTH)
+        assert broken.status_code == 400
+        assert broken.json()["error"] == "Broken's CONTRACT cannot be read: CONTRACT's slots is a list."
+        ids = [c["id"] for c in ok(app.get("/analyze/contracts", headers=AUTH))["contracts"]]
+        assert ids[-3:] == ["blade:By region", "blade:Totals", "blade:Whole table"]
+        # the same form: the declared slots are picked by the same checker, and its cards land
+        plan = ok(post(app, "/analyze/plan", {"analysis": "blade:Totals", "table": table}))
+        assert plan["columns"] == {"group": "region", "amount": "amount"}
+        assert plan["sentence"] == "Run Which regions carry the amounts? on 240 rows of orders."
+        ran = ok(post(app, "/analyze/run", {"analysis": "blade:Totals", "table": table}))
+        cards = board(app)
+        assert [c["id"] for c in cards] == ran["cards"] and [c["kind"] for c in cards] == ["note", "table"]
+        assert cards[0]["title"] == "Totals" and cards[0]["body"] == "## amount by region"
+        assert cards[0]["analysis"]["actions"] == ["again"] and cards[1]["columns"] == ["region", "amount"]
+        chosen = {"analysis": "blade:By region", "table": table, "columns": {"columns": ["late"]}}
+        assert ok(post(app, "/analyze/run", chosen))["columns"] == {"columns": ["late"]}
+        assert board(app)[0]["body"] == "## 240 rows by late"
+        tried = ok(post(app, "/analyze/run", {"analysis": "blade:Totals", "sample": True}))
+        assert tried["dataset"] == "sample_totals" and tried["columns"] == {
+            "group": "group",
+            "amount": "amount",
+        }
+
+
+def test_your_own_analysis_that_fails_says_why_in_the_one_shape(app: TestClient, table: str) -> None:
+    from tests.fake_keyring import memory_keyring
+
+    with memory_keyring():
+        save_blade(app, "Breaks", "def analyze(df):\n    return df['nowhere']\n")
+        broke = post(app, "/analyze/run", {"analysis": "blade:Breaks", "table": table})
+        assert broke.status_code == 422 and "KeyError" in broke.text and broke.json()["error"]
+        assert board(app) == []
+        missing = post(app, "/analyze/run", {"analysis": "blade:Nobody", "table": table})
+        assert missing.status_code in (400, 404)
+
+
 # ===== refusals: one shape, the form sent back =====
 
 
@@ -336,6 +423,37 @@ def test_what_can_i_do_with_a_column(app: TestClient, table: str) -> None:
     assert by_name["order_id"]["analyses"] == [] and by_name["amount"]["type"] == "number"
     assert len(by_name["region"]["preview"]) == 3
     assert post(app, "/analyze/column", {"table": table, "column": "nope"}).status_code == 400
+
+
+def test_the_data_shape_check_is_the_checkers_wide_tables_identifiers_and_benfords_range(
+    app: TestClient, table: str
+) -> None:
+    """The old Data shape rules, folded into the one checker (no second copy)."""
+    n = 60
+    wide = pa.table(
+        {
+            "region": ["West", "North", "East"] * 20,
+            "jan_sales": [10.0 + i % 7 for i in range(n)],
+            "feb_sales": [11.0 + i % 5 for i in range(n)],
+            "mar_sales": [12.0 + i % 3 for i in range(n)],
+        }
+    )
+    grid = grid_id(push(app, "wide_sales", wide))
+    checked = ok(post(app, "/analyze/check", {"table": grid}))
+    assert checked["notes"][0]["level"] == "warn" and "looks wide" in checked["notes"][0]["text"]
+    assert "jan_sales" in checked["notes"][0]["text"]
+    ran = ok(post(app, "/analyze/run", {"analysis": "check", "table": grid}))
+    assert "This table looks wide" in board(app)[0]["body"] and ran["result"]["suggested"]
+    benford = ok(post(app, "/analyze/check", {"table": grid, "analysis": "benford"}, AGENT))
+    cautions = benford["slots"][0]["cautions"]
+    assert any("narrow range: Benford's law needs values from 10s to 1,000s" in c for c in cautions)
+    odds = ok(
+        post(app, "/analyze/check", {"table": table, "analysis": "odds", "columns": {"column": "order_id"}})
+    )
+    assert odds["refused"] == ["every row has a different order_id: an identifier tells nothing"]
+    assert (
+        post(app, f"/grids/{grid}/shape-check", {"analysis": "odds"}).status_code == 404
+    )  # the old route went
 
 
 # ===== the edge cases =====

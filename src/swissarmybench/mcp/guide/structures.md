@@ -23,7 +23,7 @@ Structures page: a tree and its text, steps replayed on the original (never chan
 
 ## Making things of it
 - `structures_open_as_grid(structure, path)`: the list of records there as a grid (a table: SQL and the
-  Analyze menu work on it); its origin is the structure, and through it the API call.
+  the Analyze page work on it); its origin is the structure, and through it the API call.
 - `structures_save(structure)` to its file; with `name`, `format`, `folder` or `path`: Save as (the
   project's `structures/` folder by default). TOML cannot hold a null: it says so.
 - `structures_lineage(structure)`: the call (inputs and body as sent, when; a sign-in input hidden) or

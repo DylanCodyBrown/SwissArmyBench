@@ -23,7 +23,7 @@ compare by themselves; the ERD draws the model of the open tables.
 - Deleting a connection (`blades_delete`) takes the relationships its tables held out of the ones in
   use (its answer says how many); saved sets stay.
 - A Power BI dataset's own relationships, or a SQL Server database's foreign keys: `connections_import_relationships` (topic connections).
-- `erd_text`: the model as Mermaid. `erd_draw`: a diagram card in Visualizations. With a project open both
+- `erd_text`: the model as Mermaid. `erd_draw`: a diagram card on the Analyze board. With a project open both
   draw only the tables it uses (open, in .sab/project.json, or named in its documents' code) and a join
   only when both ends are; `scope=all` draws everything. `relationships_scope`: which tables are used,
   which hidden, by connection. The model keeps every relationship either way.

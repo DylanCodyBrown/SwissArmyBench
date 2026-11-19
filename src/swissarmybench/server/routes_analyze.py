@@ -40,6 +40,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.refusals import try_again
+from swissarmybench.server.blade_runner import RefreshError
 from swissarmybench.server.http import actor, error_response, json_response, read_json, refusal
 from swissarmybench.services.analyze import Analyze, DoesNotFit
 
@@ -53,6 +54,8 @@ def routes(analyze: Analyze) -> list[BaseRoute]:
                 return json_response(await work(request))
             except DoesNotFit as error:
                 return refusal(str(error), 409, where=error.where, fixes=[try_again()], plan=error.plan)
+            except RefreshError as error:  # your own analysis failed in its child process: why, the install
+                return json_response(analyze.blade_failure(str(error), error.missing_module), status_code=422)
             except Exception as error:
                 return error_response(error)
 

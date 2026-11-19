@@ -12,7 +12,7 @@ section 15 is the checklist to run against every new screen.
 
 **1.1 One job, one screen's worth of work.** Every feature should cut the switching between tools the
 user would otherwise pan across.
-- Example: the grid, the code (the Workbench) and the dashboard (Visualizations) each sit on their own
+- Example: the grid, the code (the Workbench) and the dashboard (Analyze) each sit on their own
   screen and stay in step through the server.
 - The owner (2026-11-12): "I created SAG to make python to duckdb work easier instead of having to pan
   3 screens to work"
@@ -48,7 +48,7 @@ means, it fills it in.
 
 **2.3 Direct gestures where the thing is, a named command as well.** Drag, right-click and keys are
 shortcuts; every action also has a button or a palette entry.
-- Example: drag a connection into a cell; right-click a cell to send it to Visualizations; Open as grid
+- Example: drag a connection into a cell; right-click a cell to send it to the Analyze board; Open as grid
   on a catalog table's right-click menu, also a command.
 - The owner (2026-11-13): "you can even right click an individual cell and send that value to the
   sandbox"
@@ -133,7 +133,7 @@ word. A button with nothing to act on is disabled, its tooltip giving the reason
 contextual row (Compare) only when it applies. On a tab without a table the ribbon hides and the
 Application row stays.
 
-**5.2 The tab strip.** Fixed app tabs first (Visualizations, ERD, Workbench), then one tab per open
+**5.2 The tab strip.** Fixed app tabs first (Analyze, ERD, Workbench), then one tab per open
 document, then "+" to make a new one. The open tab is bold with a 2px accent line on its top edge.
 Tabs are 32px high, 90 to 240px wide, long names cut with an ellipsis. Drag to reorder; drag one tab
 onto another to show the two side by side. A tab's right-click menu holds what can be done with it
@@ -302,7 +302,7 @@ button is disabled. A tooltip that repeats the label goes.
 not "Rels"). Names people say as they are stay (SQL, CSV, PDF, Excel, Python, and ERD: the owner asked for
 it by name, 2026-11-16: "Relationship should jsut be ERD").
 
-**7.5 Buttons are verbs in sentence case:** "Add connection", "Send to Visualizations", "Show these rows". A
+**7.5 Buttons are verbs in sentence case:** "Add connection", "Send to Analyze", "Show these rows". A
 button that opens a form ends with "…" ("Filter…", "Browse…").
 
 **7.6 Messages say what happened, in the user's words, once.** "Saved", "Sent to the agent"; "The
@@ -366,12 +366,20 @@ by itself; nothing runs code until the user starts it.
 - Example: a connection that signs in through a browser window loads its catalog on first use, never at
   start-up; a kernel starts on the first Run; copied code waits for the user to paste it.
 
-**8.7 Every result can go three places.** To the dashboard, to a new table (when it is a table), or as
-code for the user's own notebook; "Show the math" beside them. Anything that shows details (a profile, a
-value, an overlay) can go to the dashboard.
-- The owner (2026-11-13): "the results can go to the sandbox by choice or if the result is a grid then
-  it can get sent to a grid but if the user wants just the python code to create the analysis they can
-  also just choose to push the code to the terminal"
+**8.7 Every analysis lands on the Analyze board by itself; a table can open as a grid; code is a card
+action.** An analysis is run on the Analyze page, and its cards (a report-style note and its chart) appear
+on the board at once, newest at the top, brought into view and briefly marked: there is no "send" step. On
+the result's card: Show the math, Open as grid (when it is a table), Copy code (the analysis as Python for
+the user's own notebook), the hand-offs to the next tool (8.8), Run again (its form reopens filled) and
+Remove. The agent's run and Python's (`sab.analyze`) land the same cards. Anything else that shows details
+on another page (a profile, a value, a row) can still be sent to the board by hand.
+- The owner (2026-11-19): "Let's move the analyze from the table bar to the visualizations pane and then
+  rename the visualizations pane Analyze" / "Every analysis should automatically push to the analysis
+  visualization area. That's the whole point of moving it here."
+- Before (the owner, 2026-11-13): "the results can go to the sandbox by choice or if the result is a grid
+  then it can get sent to a grid but if the user wants just the python code to create the analysis they
+  can also just choose to push the code to the terminal": the grid and the code stay; the choice to send
+  went.
 
 **8.8 Tools hand off to each other.** Separate tools with hand-off buttons, not one long guided path.
 - Example: odds hands to the fit test, find predictors to regression, regression to forecast, the
@@ -402,7 +410,7 @@ in one module, so no screen invents its own.
 - **Titles name the place, the page first:** "Workbench · sales.ipynb", "Blades · Warehouse › sales ›
   orders" (the product's name never: 7.8).
 - **No dead ends:** an empty or error state offers the way back or home.
-- **The rail: the areas, the same on every page and window** (web/src/rail.ts): Grids, Visualizations,
+- **The rail: the areas, the same on every page and window** (web/src/rail.ts): Grids, Analyze,
   ERD, Notebooks, Scripts, Apps, Blades, Connections, and Settings pinned at the bottom; 48px of
   icons down the left, each named in a tip on hover and focus, the code areas in their kind colours.
   The current area is marked (a bar on its left edge, `aria-current`). A rail click is a navigation
@@ -432,6 +440,45 @@ every page and window (web/src/loading.ts), never a page's own.
 - **Cancel where the work can stop.** An error stays in the gated part with the fix (9), not only in a toast.
 - **No flicker:** work that ends in a moment shows no cover; an empty area that is filling in keeps the
   content's height, so nothing jumps.
+
+**8.13 Analyze is stupid simple** (the owner, 2026-11-19: "This will mean that the user will need to pick
+tables and columns because the table context will no longer be there. Remember this is the most complicated
+part of this application: make it stupid simple."). The Analyze page's toolbar has a button for every
+analysis; each opens one form beside the board (never a dialog over it), and that form asks as little as it
+can:
+- **The table is already picked:** the grid in front, else the one Analyze last used, on one line with its
+  steps and rows ("orders, with 2 steps · 12,400 rows") and Change.
+- **The columns are picked by the app when it is obvious** (the only one that fits; else the likeliest by its
+  name: amount, total, price for money; date, created, month for time), shown as chips with why ("the only
+  date column"). A chip offers only the columns that fit; the ones that do not are listed with the reason.
+- **One question at a time, everyday words first, the technical name second:** "Do the first digits look
+  natural?" then "Benford's law", on the buttons too.
+- **Options hide behind "More options", all defaulted.** Above the fold: the table line, the chips, one
+  sentence of what will run ("Test whether amount follows Benford's first-digit law, on 12,400 rows of
+  orders."), Run.
+- **Column-first:** "What can I do with a column?" shows only the analyses that fit it, as big one-click
+  buttons; "Check this table" suggests three, one click each.
+- **The last columns and options come back** per table and analysis.
+- **Never a dead end:** what is missing, in one sentence, and Change (another table, or Find data…).
+- **Each analysis has one data contract that the form, the column picking, the sample and the agent all
+  read** (the owner: "We need a data structure contract format for each analysis with a clear definition of
+  what types of data columns and what format the data has to be in; then present that to the agent, and
+  mock up a sample to include in each analysis input window"). The contract is data
+  (domain/analysis_contracts.py): the slots (plain words, the kinds accepted, how many, the checks), the
+  table's shape ("one row per order"), the options, what it makes, a format version. One checker
+  (domain/analyze.py) answers for every door; "What your data should look like" shows the contract's
+  made-up sample with the slots' columns marked, and "Try it on this sample" runs on it. An analysis blade
+  declares its own (a CONTRACT dictionary in its code, read and never run).
+- **When the data does not fit, Analyze says how to make it fit, as steps you can see and undo, and which
+  analysis suits the data best** (the owner: "and even suggestions for the current data to get the best
+  analysis"). A fix is one plain sentence with its count ("Read amount as numbers: 1,240 of 1,250 values
+  are numbers (10 become blank).") and Apply; it is the grid's own steps (DuckDB over the user's table),
+  never applied by itself, undone in the steps strip, and the original rows never change. "Check this
+  table" ranks every analysis: fits now, fits after its fixes ("Read when as dates and run": the fix is
+  applied in that click), or does not, with a one-line reason.
+- The grid page has no analysis on it: no Analyze menu, no Fit test or Outliers on a column's header, no
+  Tie-out on the Compare row. Compare stays (it is a view of two grids), and so do a column's quick Profile
+  and the plain "Send to Analyze" of a profile, a value or a row.
 
 ## 9. Errors
 

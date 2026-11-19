@@ -88,9 +88,7 @@ def browser() -> Iterator[Browser]:
         # actions (milliseconds, 350 by default when headed).
         headed = os.environ.get("SAB_HEADED") == "1"
         slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
-        instance = p.chromium.launch(
-            executable_path="/opt/pw-browsers/chromium", headless=not headed, slow_mo=slow
-        )
+        instance = p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
         yield instance
         instance.close()
 
@@ -139,8 +137,8 @@ def open_steps(browser: Browser, grid_url: str) -> Page:
 
 
 def open_agent(page: Page) -> Locator:
-    """Visualizations tab (the first tab): Visualizations lives only there."""
-    page.locator(".nav-rail [data-area='visualizations']").click()
+    """Analyze tab (the first tab): Analyze lives only there."""
+    page.locator(".nav-rail [data-area='analyze']").click()
     return page.locator("#ai-panel")
 
 
@@ -635,7 +633,7 @@ def test_chart_card_draws_zooms_and_cross_filters(browser: Browser, orders_url: 
     expect(page.locator("dialog .expanded-chart svg")).to_be_visible(timeout=15000)
     page.locator("dialog").get_by_role("button", name="Close", exact=True).last.click()
     page.locator(".card .chart svg path.mark-rect, .card .chart svg .mark-rect path").first.click()
-    # On the Visualizations tab the status bar names the tab, then the grid the click filtered.
+    # On the Analyze tab the status bar names the tab, then the grid the click filtered.
     expect(page.locator("#status")).to_contain_text("orders: 1,250 of", timeout=15000)
 
 
@@ -822,7 +820,7 @@ def test_agent_panel_lives_only_in_the_agent_tab(browser: Browser, orders_url: s
     expect(page.locator("#ai-panel")).to_be_hidden()  # the grid gets the full width
     panel = open_agent(page)
     expect(panel).to_be_visible()
-    # One zoom for the page, Visualizations included: it has no zoom of its own, and follows the
+    # One zoom for the page, Analyze included: it has no zoom of its own, and follows the
     # status bar's (beside Beta: on every page and tab, the owner, 2026-11-17).
     expect(panel.locator(".zoom-control")).to_have_count(0)
     size = "getComputedStyle(document.querySelector('#ai-panel-body')).fontSize"
@@ -1292,8 +1290,8 @@ def test_the_cells_right_click_keeps_rows_with_the_selected_value(browser: Brows
     menu = page.get_by_role("menu")
     expect(menu.get_by_role("menuitem")).to_have_text(
         [
-            "Send value to Visualizations",
-            "Send the row to Visualizations",
+            "Send value to Analyze",
+            "Send the row to Analyze",
             "Keep these",
             "Exclude these",
             "View value",
@@ -1670,13 +1668,13 @@ def test_the_agent_tab_comes_first_and_holds_the_panel(browser: Browser, server:
     push_client.push(second_tab, new_grid=True)
     url = push_client.push(first_tab, new_grid=True)
     page = open_grid(browser, url)
-    # Visualizations is the rail's (2026-11-16): no tab of its own, so the grids come first.
+    # Analyze is the rail's (2026-11-16): no tab of its own, so the grids come first.
     expect(page.locator(".tabs-row .tab-agent")).to_have_count(0)
     expect(page.locator(".tabs-row .tab-item:visible").first).to_have_attribute("data-grid", re.compile(".+"))
-    # the rail's Visualizations: an icon, so it's easy to find
-    expect(page.locator(".nav-rail [data-area='visualizations'] svg")).to_be_visible()
+    # the rail's Analyze: an icon, so it's easy to find
+    expect(page.locator(".nav-rail [data-area='analyze'] svg")).to_be_visible()
     open_agent(page)
-    expect(page.locator("#ai-panel-title")).to_have_text("Visualizations")
+    expect(page.locator("#ai-panel-title")).to_have_text("Analyze")
     expect(page.locator("#ai-panel .tabs")).to_have_count(0)  # one panel, no inner tabs
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     # One sandbox for every table: no table picker.
@@ -2301,8 +2299,8 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     table_row = page.locator(".ribbon .ribbon-group").first
     assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
-    # On the Visualizations tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
-    page.locator(".nav-rail [data-area='visualizations']").click()
+    # On the Analyze tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
+    page.locator(".nav-rail [data-area='analyze']").click()
     expect(page.locator(".ribbon")).to_be_hidden()
     expect(page.locator(".statusbar").get_by_role("button", name="Zoom out", exact=True)).to_be_visible()
     page.close()

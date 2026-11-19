@@ -46,6 +46,7 @@ from swissarmybench.services.analysis import (
     run_outliers,
     run_predictors,
 )
+from swissarmybench.services.blades import BladeService
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.datasets import DatasetService
 from swissarmybench.services.grids import GridService
@@ -106,6 +107,7 @@ class Analyze:
         tie_out: TieOut,
         key_finder: KeyFinder,
         cards: Cards,
+        blades: BladeService,
     ) -> None:
         self.ws = ws
         self._grids = grids
@@ -114,6 +116,7 @@ class Analyze:
         self._tie_out = tie_out
         self._key_finder = key_finder
         self._cards = cards
+        self._blades = blades
         self._runs: OrderedDict[str, Run] = OrderedDict()
         self._facts: OrderedDict[str, tuple[int, list[Z.Facts]]] = OrderedDict()
         self._lock = threading.Lock()
@@ -123,15 +126,55 @@ class Analyze:
 
     # ===== the toolbar, the contracts, the tables =====
 
+    def _mine(self) -> list[C.Contract]:
+        """The analysis blades' contracts (the toolbar's Yours): one whose CONTRACT cannot be read is left
+        out here and says why when it is asked for by name."""
+        found: list[C.Contract] = []
+        for listed in self._blades.analyses()["analyses"]:
+            try:
+                found.append(self._contract(f"{C.BLADE}{listed['name']}"))
+            except (ValueError, LookupError):
+                continue
+        return found
+
+    def _contract(self, analysis: Any) -> C.Contract:
+        """An analysis's contract: a built-in's by its id, an analysis blade's (blade:<name>) read from
+        its code (domain/analysis_contracts.py blade_contract: never run)."""
+        if isinstance(analysis, str) and analysis.startswith(C.BLADE):
+            blade = self._blades.analysis_blade(analysis.removeprefix(C.BLADE))
+            try:
+                return C.blade_contract(blade.name, blade.description, blade.code)
+            except C.ContractError as error:
+                raise Z.AnalyzeError(f"{blade.name}'s CONTRACT cannot be read: {error}") from error
+        return Z.contract(analysis)
+
+    def _sample(self, c: C.Contract) -> dict[str, Any]:
+        return C.sample(c.id) if c.id in C.BY_ID else C.generic_sample(c)
+
     def catalog(self) -> dict[str, Any]:
-        return Z.catalog()
+        """The toolbar: the built-in analyses by group, then your own (the analysis blades)."""
+        found = Z.catalog()
+        found["analyses"] += [
+            {
+                "id": c.id,
+                "group": c.group,
+                "label": c.label,
+                "name": c.name,
+                "get": c.get,
+                "two_tables": False,
+            }
+            for c in self._mine()
+        ]
+        return found
 
     def contracts(self, analysis: Any = None) -> dict[str, Any]:
-        """Every contract with its made-up sample, or one."""
+        """Every contract with its made-up sample (your own analyses' too), or one."""
         if analysis in (None, ""):
-            return C.every()
-        c = Z.contract(analysis)
-        return c.to_json() | {"sample": C.sample(c.id)}
+            every = C.every()
+            every["contracts"] += [c.to_json() | {"sample": self._sample(c)} for c in self._mine()]
+            return every
+        c = self._contract(analysis)
+        return c.to_json() | {"sample": self._sample(c)}
 
     def _label(self, grid: Grid) -> str:
         steps = len([s for s in grid.steps if s.enabled])
@@ -324,13 +367,13 @@ class Analyze:
         """{"analysis", "table"?, "front"?, "columns"?, "options"?}: the form, planned."""
         if not isinstance(body, dict):
             raise ValueError('Send {"analysis": "benford", "table": a grid id or a table name}.')
-        c = Z.contract(body.get("analysis"))
+        c = self._contract(body.get("analysis"))
         grid, info = self._find(body.get("table"), body.get("front"))
         rows, facts = await self.facts(grid, info, who)
         columns, options, remembered = self._given(body, info.name, c.id)
-        plan = Z.plan(c.id, info.name, rows, facts, columns, options, self._others(grid))
+        plan = Z.plan(c, info.name, rows, facts, columns, options, self._others(grid))
         if remembered and (plan.gone or plan.refused):  # what was remembered no longer fits: start afresh
-            plan = Z.plan(c.id, info.name, rows, facts, None, None, self._others(grid))
+            plan = Z.plan(c, info.name, rows, facts, None, None, self._others(grid))
             remembered = False
         await self._counted(grid, info, who, plan)
         return self._planned(plan, grid, info, remembered)
@@ -394,15 +437,14 @@ class Analyze:
     async def open_sample(self, analysis: Any, who: str) -> dict[str, Any]:
         """A contract's made-up sample as open tables (Try it on this sample): its grid, the second
         table's for a two-table analysis, and the columns each slot takes."""
-        c = Z.contract(analysis)
-        sample = C.sample(c.id)
+        c = self._contract(analysis)
+        sample = self._sample(c)
+        dates = tuple(sample.get("dates") or ())
 
         async def store(part: dict[str, Any]) -> str:
             columns = list(part["columns"])
             rows = [[row[name] for name in columns] for row in part["rows"]]
-            stored = await self._datasets.store_rows(
-                part["name"], columns, rows, who, C.SAMPLE_DATES, "records"
-            )
+            stored = await self._datasets.store_rows(part["name"], columns, rows, who, dates, "records")
             return str(stored["grid"])
 
         other = await store(sample["other"]) if sample.get("other") else None
@@ -445,11 +487,11 @@ class Analyze:
             raise ValueError(
                 'Send {"analysis", "table", "fixes": [a fix\'s id, ...]} (analyze_check lists them).'
             )
-        c = Z.contract(body.get("analysis"))
+        c = self._contract(body.get("analysis"))
         grid, info = self._find(body.get("table"), body.get("front"))
         rows, facts = await self.facts(grid, info, who)
         columns, options, _ = self._given(body | {"remember": False}, info.name, c.id)
-        plan = Z.plan(c.id, info.name, rows, facts, columns, options, self._others(grid))
+        plan = Z.plan(c, info.name, rows, facts, columns, options, self._others(grid))
         by_id = {f.id: f for f in plan.fixes}
         unknown = [str(i)[:60] for i in body["fixes"] if i not in by_id]
         if unknown:
@@ -476,7 +518,7 @@ class Analyze:
         needs (grid steps); `sample` runs it on the contract's made-up sample (opened as a table)."""
         if not isinstance(body, dict):
             raise ValueError('Send {"analysis": "benford", "table": a grid id or a table name}.')
-        c = Z.contract(body.get("analysis"))
+        c = self._contract(body.get("analysis"))
         token = str(body.get("token") or "")[:60]
         if token:
             self._running[token] = (None, [False])
@@ -495,7 +537,7 @@ class Analyze:
         rows, facts = await self.facts(grid, info, who, token)
         columns, options, _ = self._given(body, info.name, c.id)
         others = self._others(grid)
-        plan = Z.plan(c.id, info.name, rows, facts, columns, options, others)
+        plan = Z.plan(c, info.name, rows, facts, columns, options, others)
         if body.get("apply_fixes") and not plan.ready:
             needed = Z.needed_fixes(plan)
             if needed:
@@ -504,7 +546,7 @@ class Analyze:
                     slot = next(s for s in c.slots if s.key == fix.slot)
                     columns[fix.slot] = [fix.fills] if slot.many else fix.fills
                 rows, facts = await self.facts(grid, info, who, token)
-                plan = Z.plan(c.id, info.name, rows, facts, columns, options, others)
+                plan = Z.plan(c, info.name, rows, facts, columns, options, others)
         if plan.gone or plan.refused or not plan.ready:
             await self._counted(grid, info, who, plan)
             if plan.gone:
@@ -536,14 +578,24 @@ class Analyze:
             who,
             time.time(),
         )
-        made = K.cards_for(c.id, result, request, info.name)
         actions = ["again"]
-        if c.route in PROVEN:
-            actions.append("math")
-        if K.result_rows(c.id, result, request):
-            actions.append("grid")
-        if c.route in A.CODE_ARGUMENTS:
-            actions.append("code")
+        if c.id.startswith(C.BLADE):  # your own analysis: the cards it returned, as they are
+            made = [
+                dict(card)
+                | {"title": str(card.get("title") or (result.get("title") if at == 0 else "") or "")}
+                for at, card in enumerate(result.get("cards") or [])
+                if isinstance(card, dict)
+            ]
+            if not made:
+                raise Conflict(f"{c.label} returned nothing to show.", where=c.label)
+        else:
+            made = K.cards_for(c.id, result, request, info.name)
+            if c.route in PROVEN:
+                actions.append("math")
+            if K.result_rows(c.id, result, request):
+                actions.append("grid")
+            if c.route in A.CODE_ARGUMENTS:
+                actions.append("code")
         landed = await self._cards.land(
             made,
             info.name,
@@ -573,7 +625,7 @@ class Analyze:
         are made here, as every run's are; its code and Run again need a table of that name open."""
         if not isinstance(body, dict) or not isinstance(body.get("result"), dict):
             raise ValueError('Send {"analysis", "dataset", "request": {...}, "result": {...}}.')
-        c = Z.contract(body.get("analysis"))
+        c = self._contract(body.get("analysis"))
         asked = body.get("request")
         request: dict[str, Any] = asked if isinstance(asked, dict) else {}
         dataset = str(body.get("dataset") or "data")[:200]
@@ -618,6 +670,10 @@ class Analyze:
         self.ws.audit.write(who, "analyze_run", dataset, analysis=c.id, cards=len(landed), run=run.id)
         return run.inputs() | {"cards": landed, "actions": actions}
 
+    def blade_failure(self, message: str, missing_module: str | None) -> dict[str, Any]:
+        """Your own analysis's failed run in the one shape (the install when a module is missing)."""
+        return self._blades.run_failure(message, missing_module)
+
     def _next(self, run: Run) -> list[dict[str, Any]]:
         try:
             return K.next_steps(run.analysis, run.result, run.body)
@@ -637,6 +693,9 @@ class Analyze:
         """The analysis itself: the same run_* function its own route and swissarmybench.stats call."""
         on = self._on_view
         result: dict[str, Any]
+        if c.id.startswith(C.BLADE):
+            name = c.id.removeprefix(C.BLADE)
+            return dict(await self._blades.analyze(name, grid, info, {"columns": request["columns"]}, who))
         if c.id in ("benford", "fit", "together"):
             reference = None
             if request.get("expected") == "grid":
@@ -733,7 +792,7 @@ class Analyze:
     def math(self, run_id: Any) -> dict[str, Any]:
         """Show the math: the result's own numbers worked through (domain/proofs.py)."""
         run = self.get(run_id)
-        c = Z.contract(run.analysis)
+        c = self._contract(run.analysis)
         if c.route not in PROVEN:
             raise NotFound(f"{c.label.rstrip('?…')} has no math to show.")
         result = run.result["fit"] if run.analysis == "whatif" else run.result
@@ -758,7 +817,7 @@ class Analyze:
         """Copy code: the analysis as Python for a notebook (the steps as checked SQL, then the
         swissarmybench.stats call that ran)."""
         run = self.get(run_id)
-        c = Z.contract(run.analysis)
+        c = self._contract(run.analysis)
         if c.route not in A.CODE_ARGUMENTS:
             raise NotFound(f"{c.label.rstrip('?…')} has no code to copy.")
         grid, info = self._find(run.grid)

@@ -40,7 +40,7 @@ AREAS = [
     "notebooks",
     "scripts",
     "apps",
-    "visualizations",
+    "analyze",
     "session",
     "extensions",
     "settings",
@@ -58,7 +58,7 @@ NAMES = [
     "Notebooks",
     "Scripts",
     "Apps",
-    "Visualizations",
+    "Analyze",
     "Session",
     "Extensions",
     "Settings",
@@ -160,16 +160,16 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     shot(page, "rail-home")
 
     # A click is a move like any other: pushed, so Back and Forward walk the areas, and a reload keeps one.
-    area(page, "visualizations").click()
+    area(page, "analyze").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(page).to_have_url(f"{base}/workspace?view=visualizations")
-    expect(current(page)).to_have_attribute("data-area", "visualizations")
+    expect(page).to_have_url(f"{base}/workspace?view=analyze")
+    expect(current(page)).to_have_attribute("data-area", "analyze")
     area(page, "erd").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
     expect(current(page)).to_have_attribute("data-area", "erd")
     page.go_back()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(current(page)).to_have_attribute("data-area", "visualizations")
+    expect(current(page)).to_have_attribute("data-area", "analyze")
     page.go_forward()
     expect(current(page)).to_have_attribute("data-area", "erd")
     page.reload()
@@ -196,8 +196,8 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     expect(page.locator(".area-page")).to_have_count(0)
     expect(current(page)).to_have_attribute("data-area", "grids")
 
-    # Grids from Visualizations: the grids, as the mark goes.
-    area(page, "visualizations").click()
+    # Grids from Analyze: the grids, as the mark goes.
+    area(page, "analyze").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     area(page, "grids").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
@@ -287,10 +287,10 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     page.go_back()
     expect(current(page)).to_have_attribute("data-area", "scripts")
 
-    # Visualizations, from the Workbench: this tab goes home, at Visualizations.
-    area(page, "visualizations").click()
+    # Analyze, from the Workbench: this tab goes home, at Analyze.
+    area(page, "analyze").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
-    expect(current(page)).to_have_attribute("data-area", "visualizations")
+    expect(current(page)).to_have_attribute("data-area", "analyze")
     # Blades: this tab goes to the blades page, Blades marked; Settings opens there; ERD comes home.
     area(page, "blades").click()
     expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
@@ -314,7 +314,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     other = clicked.value
     expect(other).to_have_url(re.compile(r"/workbench\?kind=script"), timeout=20000)
     other.close()
-    area(page, "visualizations").click(button="right")
+    area(page, "analyze").click(button="right")
     with page.context.expect_page() as popped:
         page.get_by_role("menuitem", name="Open in a new window").click()
     sandbox = popped.value

@@ -20,7 +20,7 @@
  *
  * ROUTING: Ctrl+Shift+P -> openPalette() <- setCommandSource(commands)
  */
-import { analysisEntries } from "./analyzeMenu";
+import { analysisEntries } from "./analyzePage";
 import { betaCommands } from "./betaNotes";
 import { updateCommands } from "./updates";
 import { claudeCommands } from "./claudeLaunch";
@@ -93,11 +93,10 @@ function commands(): Command[] {
   for (const row of document.querySelectorAll<HTMLElement>(".ribbon .ribbon-group")) {
     const name = row.querySelector(".ribbon-caption strong")?.textContent?.trim() ?? "Table";
     out.push(...buttonsOf(name, row, "button", (b) => b.getAttribute("aria-haspopup") === "menu"));
-    if (row.querySelector("button[aria-haspopup='menu']") && shown(row)) {
-      out.push(...analysisEntries().map(([label, open]): Command => ({ id: `analyze.${slug(label)}`, group: "Analyze", title: label, run: open })));
-    }
   }
   out.push(...buttonsOf("Steps", document, ".steps-strip button", (b) => b.classList.contains("steps-count")));
+  // The Analyze page's analyses, from its own list (8.3: one list feeds the toolbar, the palette, the agent).
+  out.push(...analysisEntries().map(([label, open]): Command => ({ id: `analyze.${slug(label)}`, group: "Analyze", title: label, run: open })));
   // Tabs: where to go, what to open, and the table in front.
   out.push(
     { id: "tabs.analyze", group: "Tabs", title: "Go to Analyze", run: () => showAgentView() },

@@ -3,12 +3,13 @@
  * the click was; this says what can be done there.
  *
  *   [CELL]    Send value to Analyze, Send the row to Analyze, Keep these, Exclude these, View value, Copy
- *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Analyze, Distinct values to Analyze, Profile, and the Analyze entries for it
+ *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Analyze, Distinct values to
+ *             Analyze, Profile. The analyses themselves are the Analyze page's (the owner, 2026-11-19)
  */
-import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisCards";
-import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
+import { rowCards, valueCards } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
-import { api, grid } from "./api";
+import { api, gridId } from "./api";
+import { sentToast } from "./sandboxShow";
 import { showMenu, type MenuItem } from "./dom";
 import { cellValue, copySelection, focusedCell, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
 import { openColumnProfile, profileToSandbox } from "./profileView";
@@ -24,10 +25,12 @@ function rowValues(click: CellClick): Record<string, unknown> {
   return Object.fromEntries(viewColumns().map((c) => [c.name, click.data[c.name] ?? null]));
 }
 
+/** A column's values and how often each shows up, on the Analyze board: the page's own count (the odds
+ * analysis with no outcome), so its cards are the ones Analyze makes. */
 async function distinctToSandbox(column: string): Promise<void> {
   try {
-    const counted = await api<OddsCardInput>(`${grid}/odds`, "POST", { column });
-    await sendCards(oddsCards(counted).map((card) => ({ ...card, title: card.title.replace(/^Odds: /, "Distinct values of ") })));
+    const ran = await api<{ cards: string[] }>("/analyze/run", "POST", { analysis: "odds", table: gridId, columns: { column, outcome: "" } });
+    sentToast("On the Analyze board: a note and its chart.", { card: ran.cards[0] });
   } catch (e) {
     errorHere(e);
   }
@@ -89,11 +92,6 @@ export function mountContextMenus(): void {
       ["image", "Profile to Analyze", () => void profileToSandbox(column)],
       ["tag", "Distinct values to Analyze", () => void distinctToSandbox(column)],
       ["profile", "Profile…", () => openColumnProfile(column)],
-      "-",
-      ["tag", "Odds…", () => void openOdds(column)],
-      ["fit", "Fit test…", () => void openFitTest(chosen.length ? chosen : [column])],
-      ["outliers", "Outliers…", () => void openOutliers(column)],
-      ["profile", "Find what predicts it…", () => void openPredictors(column)],
     ]);
   });
 }

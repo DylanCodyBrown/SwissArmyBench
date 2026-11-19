@@ -24,6 +24,7 @@ a caution (the column is offered, the caution said).
 
 from __future__ import annotations
 
+import ast
 import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any
@@ -733,6 +734,130 @@ def contract(contract_id: Any) -> Contract:
     return found
 
 
+# ===== your own analyses: an analysis blade's contract =====
+
+BLADE = "blade:"  # an analysis blade's id on the toolbar: blade:<its name>
+ANY_COLUMN: tuple[str, ...] = ("number", "whole", "date", "category", "yesno")
+
+
+class ContractError(ValueError):
+    """A declared contract that is not one: said with what is wrong."""
+
+
+def from_json(raw: Any, contract_id: str, label: str, get: str) -> Contract:
+    """A contract a blade declares (its CONTRACT dictionary): {"label"?, "name"?, "get"?, "one_row_per"?,
+    "rows_min"?, "slots": [{"key", "label"?, "words"?, "accepts": [kinds], "count"?: one | many | optional
+    | any, "hints"?: [words]}]}. Each slot's columns reach the blade's `columns`, in slot order."""
+    if not isinstance(raw, dict):
+        raise ContractError("CONTRACT is a dictionary.")
+    slots: list[Slot] = []
+    listed = raw.get("slots", [])
+    if not isinstance(listed, list):
+        raise ContractError("CONTRACT's slots is a list.")
+    for entry in listed:
+        if not isinstance(entry, dict) or not isinstance(entry.get("key"), str) or not entry["key"]:
+            raise ContractError('Each slot is {"key": "amount", "accepts": ["number"]}.')
+        key = entry["key"]
+        accepts = entry.get("accepts") or list(ANY_COLUMN)
+        if not isinstance(accepts, list) or not accepts or not all(k in ANY_COLUMN for k in accepts):
+            raise ContractError(f"Slot {key}'s accepts is a list of {', '.join(ANY_COLUMN)}.")
+        count = entry.get("count", "one")
+        if count not in COUNTS:
+            raise ContractError(f"Slot {key}'s count is one of {', '.join(COUNTS)}.")
+        hints = entry.get("hints") or []
+        if not isinstance(hints, list) or not all(isinstance(w, str) for w in hints):
+            raise ContractError(f"Slot {key}'s hints is a list of words.")
+        if any(s.key == key for s in slots):
+            raise ContractError(f"Two slots are called {key}.")
+        words = entry.get("words") or " or ".join(f"a {KINDS[k]} column" for k in accepts)
+        slots.append(
+            Slot(
+                key,
+                str(entry.get("label") or key.replace("_", " ").capitalize())[:60],
+                str(words)[:200],
+                tuple(accepts),
+                count,
+                (NOT_ID,) if entry.get("not_identifier") else (),
+                tuple(w.lower() for w in hints),
+                (key,),
+            )
+        )
+    rows_min = raw.get("rows_min", 1)
+    if isinstance(rows_min, bool) or not isinstance(rows_min, int) or rows_min < 0:
+        raise ContractError("CONTRACT's rows_min is a whole number.")
+    return Contract(
+        contract_id,
+        "Yours",
+        str(raw.get("label") or label)[:120],
+        str(raw.get("name") or "your analysis")[:60],
+        str(raw.get("get") or get or "What your own analysis returns: notes, tables, pictures, figures.")[
+            :300
+        ],
+        tuple(slots),
+        (),
+        Table(rows_min, rows_min, str(raw.get("one_row_per") or "whatever your analysis expects")[:200]),
+        Output(("note", "table", "plotly")),
+        "",
+        {"rows": 8},
+    )
+
+
+def blade_contract(name: str, description: str, code: str) -> Contract:
+    """An analysis blade's contract, read from its code and never by running it: the CONTRACT dictionary
+    it declares at its top level (a literal), else what its `analyze` function takes: a `columns`
+    parameter is one slot of any columns, none or more; without it, the table alone."""
+    contract_id = f"{BLADE}{name}"
+    try:
+        tree = ast.parse(code or "")
+    except SyntaxError:
+        tree = ast.Module(body=[], type_ignores=[])
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if any(isinstance(t, ast.Name) and t.id == "CONTRACT" for t in node.targets):
+            try:
+                declared = ast.literal_eval(node.value)
+            except (ValueError, SyntaxError) as error:
+                raise ContractError("CONTRACT is a plain dictionary of text, numbers and lists.") from error
+            return from_json(declared, contract_id, name, description)
+    takes = False
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == "analyze":
+            takes = any(a.arg == "columns" for a in [*node.args.args, *node.args.kwonlyargs])
+    slots = [{"key": "columns", "label": "Columns", "count": "any", "words": "the columns it looks at"}]
+    return from_json({"slots": slots if takes else []}, contract_id, name, description)
+
+
+def generic_sample(c: Contract) -> dict[str, Any]:
+    """A made-up sample for a contract that has none of its own (a blade's): one column per slot, named
+    by the slot's key, of the first kind it accepts; an id column first."""
+    columns = ["row_id"] + [s.key for s in c.slots if not s.table]
+    kinds = {s.key: s.accepts[0] for s in c.slots if not s.table}
+    rows: list[dict[str, Any]] = []
+    for i in range(int(c.sample.get("rows") or 8)):
+        row: dict[str, Any] = {"row_id": f"R-{1001 + i}"}
+        for key, kind in kinds.items():
+            if kind == "date":
+                row[key] = (dt.date(2026, 1, 5) + dt.timedelta(days=9 * i)).isoformat()
+            elif kind == "whole":
+                row[key] = 2 + (i * 7) % 5
+            elif kind == "number":
+                row[key] = _WIDE[i % len(_WIDE)]
+            elif kind == "yesno":
+                row[key] = "yes" if i % 3 == 0 else "no"
+            else:
+                row[key] = _REGIONS[(i * 3 + i // 4) % 4]
+        rows.append(row)
+    return {
+        "name": "sample_" + "".join(ch if ch.isalnum() else "_" for ch in c.id.removeprefix(BLADE)).lower(),
+        "made_up": True,
+        "columns": columns,
+        "rows": rows,
+        "slots": {s.key: [s.key] for s in c.slots if not s.table},
+        "dates": [key for key, kind in kinds.items() if kind == "date"],
+    }
+
+
 # ===== the made-up sample, built from the contract =====
 
 SAMPLE_DATES: tuple[str, ...] = ("order_month", "order_date")  # the sample columns that are dates
@@ -803,6 +928,7 @@ def sample(contract_id: str) -> dict[str, Any]:
     constraint; each slot's column named in "slots" so the form can highlight and label it."""
     c = BY_ID[contract_id]
     plan = c.sample
+    dates = [name for name in plan.get("columns") or () if name in SAMPLE_DATES]
 
     def build(columns: tuple[str, ...], n: int) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -821,6 +947,7 @@ def sample(contract_id: str) -> dict[str, Any]:
         "columns": list(columns),
         "rows": build(columns, n),
         "slots": {s.key: list(s.sample) for s in c.slots if s.accepts != ("any",)},
+        "dates": dates,
     }
     if plan.get("other"):
         other = tuple(plan["other"])

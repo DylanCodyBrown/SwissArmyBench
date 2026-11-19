@@ -422,43 +422,6 @@ def test_stats_works_on_a_plain_dataframe() -> None:
     assert stats.chi_square_p(3.841458820694124, 1) == pytest.approx(0.05)
 
 
-def test_the_data_shape_check_spots_wide_tables_identifiers_and_benford_ranges(client: TestClient) -> None:
-    rng = np.random.default_rng(5)
-    wide = pa.table(
-        {
-            "region": ["West", "North", "East"] * 20,
-            "jan_sales": rng.uniform(10, 20, 60),
-            "feb_sales": rng.uniform(10, 20, 60),
-            "mar_sales": rng.uniform(10, 20, 60),
-        }
-    )
-    grid = grid_id(push(client, "wide_sales", wide))
-
-    def notes(analysis: str, columns: list[str]) -> list[tuple[str, str]]:
-        response = client.post(
-            f"/grids/{grid}/shape-check", json={"analysis": analysis, "columns": columns}, headers=AUTH
-        )
-        assert response.status_code == 200, response.text
-        return [(n["level"], n["text"]) for n in response.json()["notes"]]
-
-    found = notes("odds", ["region"])
-    assert found[0][0] == "warn" and "looks wide" in found[0][1] and "jan_sales" in found[0][1]
-    assert ("ok", "region: 3 values: fine.") in found
-    benford = notes("fit_test", ["jan_sales"])
-    assert any(
-        level == "warn" and "Benford needs several orders of magnitude" in text for level, text in benford
-    )
-    order_grid = grid_id(push(client, "shape_orders", orders(), "?new_grid=1"))
-    ids = client.post(
-        f"/grids/{order_grid}/shape-check", json={"analysis": "odds", "columns": ["order_id"]}, headers=AGENT
-    ).json()
-    assert any("an identifier" in n["text"] for n in ids["notes"])
-    amounts = client.post(
-        f"/grids/{order_grid}/shape-check", json={"analysis": "fit_test", "columns": ["amount"]}, headers=AUTH
-    ).json()
-    assert any("orders of magnitude: suits a Benford test" in n["text"] for n in amounts["notes"])
-
-
 # ===== what a form starts on: never an identifier =====
 
 
@@ -492,45 +455,3 @@ def test_every_row_different_makes_whole_numbers_and_text_identifiers_but_not_me
     assert not A.is_identifier("day", "DATE", filled=500, distinct=500)
     assert not A.is_identifier("units", "INTEGER", filled=12, distinct=12)  # too few rows to tell
     assert not A.is_identifier("order_id", "DATE")  # a date is never one, whatever its name
-
-
-def test_the_forms_defaults_skip_identifiers() -> None:
-    columns = [
-        ("order_id", "BIGINT"),
-        ("ticket", "BIGINT"),
-        ("region", "VARCHAR"),
-        ("units", "INTEGER"),
-        ("price", "DOUBLE"),
-        ("day", "DATE"),
-    ]
-    counts = {"ticket": (500, 500), "units": (500, 40), "region": (500, 4), "order_id": (500, 480)}
-    found = A.form_defaults(columns, counts)
-    assert found == {
-        "identifiers": ["order_id", "ticket"],
-        "number": "units",
-        "column": "units",
-        "predictors": ["region", "units", "price", "day"],
-    }
-    # No number column that is not an identifier: the first other column, and no number.
-    only = A.form_defaults([("id", "BIGINT"), ("region", "VARCHAR")], {})
-    assert only["number"] is None and only["column"] == "region"
-    # Nothing but identifiers: the first column, since a form needs one.
-    assert A.form_defaults([("id", "BIGINT")], {})["column"] == "id"
-
-
-def test_a_grids_form_defaults_follow_its_view(client: TestClient, orders_grid: str) -> None:
-    found = client.get(f"/grids/{orders_grid}/analysis-defaults", headers=AGENT)
-    assert found.status_code == 200, found.text
-    assert found.json() == {
-        "identifiers": ["order_id"],
-        "number": "units",
-        "column": "units",
-        "predictors": ["region", "office", "size", "units", "price", "late", "amount"],
-    }
-    # A step that leaves units out: the view's next number column.
-    client.post(
-        f"/grids/{orders_grid}/steps",
-        json={"steps": [{"kind": "columns", "params": {"keep": ["order_id", "region", "price", "amount"]}}]},
-        headers=AUTH,
-    )
-    assert client.get(f"/grids/{orders_grid}/analysis-defaults", headers=AUTH).json()["number"] == "price"

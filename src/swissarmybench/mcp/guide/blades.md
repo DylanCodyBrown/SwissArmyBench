@@ -29,7 +29,7 @@ folder), never in the app (the owner, 2026-11-17): the app shows it read-only.
 - `blades_pin`, `blades_delete`, `blades_folders` (folders searched for `.blade.py` files),
   `blades_export` (portable text, no secrets), `blades_import` (without apply: a review; nothing runs).
 - Analysis blades: `def analyze(df, columns): ...` returning markdown, a DataFrame or a figure; they
-  show in the Analyze menu. `blades_analyses` lists them, `blades_run_analysis` runs one on a grid.
+  show on the Analyze toolbar (Yours). `blades_analyses` lists them, `blades_run_analysis` runs one on a grid.
 
 ## Starters (read-only, shipped with the app)
 - `blades_starters`: the pack by family: Power BI (refresh a dataset, its status, parameters...), Excel

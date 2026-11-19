@@ -40,7 +40,7 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
   run `swissarmybench open --browser`: the same app in a browser tab, on the same server.
 - **Links** to anything that is not the app open in your browser. **Downloads** ask where to save (the system's
   Save dialog), then the window's bottom line shows the progress and **Show in folder**. **Print to PDF**
-  (Visualizations' button, or Ctrl+P) asks where to save the PDF.
+  (Analyze's button, or Ctrl+P) asks where to save the PDF.
 - **Keys:** F11 full screen, F12 the developer tools, Alt+Left and Alt+Right back and forward, F5 reload
   (in the Workbench F5 runs). In the app the browser's tab keys are the app's: **Ctrl+W** closes the tab in
   front (a table's, or the Workbench's document), and the window once no tab is left (a page with unsaved work
@@ -98,7 +98,7 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 
 The page has these parts:
 
-- **Tab bar.** Each open grid has its own tab (Visualizations, ERD and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
+- **Tab bar.** Each open grid has its own tab (Analyze, ERD and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
 - **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
 - **Application row.** Above the ribbon, on every tab: the project's group (its name, Save, Save as…, Close, **Autosave**) and **Zoom**. The **Tour** (a guided walk down the rail: it opens each place in turn and lights up the control it is talking about, with two small made-up tables it opens to show things on and closes again at the end, then a quick game; Escape stops it and brings you back) is on the **Projects** page (the red mark at the top of the rail); on your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
@@ -109,15 +109,15 @@ The page has these parts:
 
 ### Getting around
 
-- **The rail** down the left of every page and window has an icon for each area, in the order you work: first the red mark (**Projects**), then where the data comes from (**Connections**, **APIs**, **Variables**, **Data**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), nested data (**Structures**), tools (**Blades**), building (**Notebooks**, **Scripts**, **Apps**: the Streamlit canvas), presenting (**Visualizations**), then the log (**Session**), and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - **Every icon lands on a page**, in the tab you are in: Grids, Visualizations and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
+- **The rail** down the left of every page and window has an icon for each area, in the order you work: first the red mark (**Projects**), then where the data comes from (**Connections**, **APIs**, **Variables**, **Data**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), nested data (**Structures**), tools (**Blades**), building (**Notebooks**, **Scripts**, **Apps**: the Streamlit canvas), presenting (**Analyze**), then the log (**Session**), and **Settings** at the bottom. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+  - **Every icon lands on a page**, in the tab you are in: Grids, Analyze and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
-  - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Visualizations, ERD, the Workbench, Settings, Connections and Blades are the rail's.
+  - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Analyze, ERD, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top of the rail, on every page and window) takes you home: the **Projects** page, every project as a card (see Projects: a folder, below), with New project, Open project… and the Tour. It is a page of its own: the grids' page is only your grids, and with no table open it shows the ways to bring one in (Open a file…, Paste, Query, your connections), a project open or not. From the Workbench, the blades page or the Key Finder window the mark brings the grids' window to the front showing Projects (and opens it if you closed it). **Alt+Home** does the same. The app opens on Projects when no table and no project is open.
 - **The browser's Back and Forward** (Alt+Left, Alt+Right, or your mouse's back button) move between what you looked at: the tabs, the Settings and Connections pages, a connection's detail and its forms, a kind's page of documents, a blade's screen. Back closes the dialog on top first, and walks out of Connections one form at a time, so it never leaves the app by surprise. An agent's question (Allow or Deny) stays until you answer it.
-- **Reload** (F5 on the grid page) keeps what you were looking at, Visualizations, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
+- **Reload** (F5 on the grid page) keeps what you were looking at, Analyze, a table or a Connections form, because each is in the address. Bookmark one to come straight back to it.
 - **Back buttons** say where they go ("← Connections", "← Add connection", "← sales"), and a place two levels deep shows its trail, each step a link: **Connections › Add connection › PostgreSQL**.
-- **The browser tab** names the place: the table's name, "Visualizations", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
+- **The browser tab** names the place: the table's name, "Analyze", "Workbench · sales.ipynb", "Blades · Warehouse › sales › orders".
 
 ### Choosing a file or folder
 
@@ -137,7 +137,7 @@ An agent never opens a file dialog on your screen: it passes paths to its comman
 A project is a **folder**: its notebooks, scripts, apps and structures are ordinary files you can open in
 any editor, and the whole folder can be a Git repository (share it, review it, branch it). The app keeps
 its own state beside them in a hidden **.sab** folder (plain text that reads well in a diff): the open
-tables with where each came from and its steps, Visualizations and its saved dashboards, the
+tables with where each came from and its steps, Analyze and its saved dashboards, the
 relationships, and where your windows were. Run `swissarmybench open <folder>` to open one from a
 terminal (it starts the app when it is not running).
 
@@ -180,7 +180,7 @@ terminal (it starts the app when it is not running).
   again: the first Save asks **Keep its rows** for each one (off unless you tick it). Kept rows go into
   `.sab/data/`, which the project's `.gitignore` leaves out: data is sensitive. Remove that line to
   commit them on purpose. No password, token or secret is ever written.
-- **The project's own:** its documents, tables and grids, Structures, Visualizations and its saved
+- **The project's own:** its documents, tables and grids, Structures, Analyze and its saved
   dashboards. Your connections, APIs, key vaults, blades and variables are your **library** (below), and
   every project has them. In the Workbench, **In this project…** lists its documents, and **Import…**
   copies notebooks, scripts or apps in from another project (its folder) or a single file.
@@ -246,7 +246,7 @@ Open **Settings** with the cog at the bottom of the rail (or the Workbench's **�
 
 ![The Settings window: the theme, the setup prompt with its copy button.](images/02-preferences.png)
 
-Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, Visualizations included.
+Two settings sit beside what they change. **Column profiles in the headers** (each column's distinct count, blanks and a small histogram) is the small button in the grid's top-left corner, above the row numbers. **Zoom** is in the Application row and covers the whole page, Analyze included.
 
 The "Connect an agent" box holds a prompt you can copy into Claude Code or another agent that has a shell. It tells that agent how to add the Swiss Army Bench MCP server.
 
@@ -270,9 +270,9 @@ Scrolling sideways is free: the view stops wherever you leave it, even in the mi
 
 ### Ribbon tools
 
-The Table row holds the tools for the whole view: matching, Filter, Sort, Choose columns, Rename, Group by, Distinct rows, Keep first rows, Clean text, Auto width, Profile, Analyze, Key Finder, Relationships and Export.
+The Table row holds the tools for the whole view: matching, Filter, Sort, Choose columns, Rename, Group by, Distinct rows, Keep first rows, Clean text, Auto width, Profile, Key Finder, Relationships and Export.
 
-The Column row acts on the selected column. It has Sort A to Z and Z to A, Filter, Rename, Auto width, Remove, Keep only, Clean text, Bucket, Categorize, Group by and Profile; Fit test and Outliers for a column are in the Analyze menu and on the column header's right-click menu. Right-click a cell to keep or exclude rows with the selected cell's value, see the full value or copy.
+The Column row acts on the selected column. It has Sort A to Z and Z to A, Filter, Rename, Auto width, Remove, Keep only, Clean text, Bucket, Categorize, Group by and Profile. Right-click a cell to keep or exclude rows with the selected cell's value, see the full value or copy.
 
 ### Filter steps
 
@@ -312,44 +312,9 @@ Profile in the Table row profiles every column at once, with the type, blank cou
 
 ![The whole-view profile: one row per column with its type, blanks, distinct count and minimum.](images/08-table-profile.png)
 
-### Fit test
+### The analyses are on the Analyze page
 
-Select one or more columns, then **Fit test** in the Analyze menu (or on the column header's right-click menu). It asks: could the difference between what a column holds and what you expect be chance? (Pearson's chi-square goodness of fit.) Pick what you expect:
-
-- **Even:** every value as likely (regions, weekdays, shifts).
-- **First digit** or **first two digits (Benford's law):** in natural amounts (invoices, expenses, populations) about 30% start with 1 and under 5% with 9. Numbers someone made up rarely do. The result also gives Nigrini's conformity rating, from close conformity to nonconformity.
-- **Another grid's spread:** this month's values against last month's, or a sample against the whole.
-- **Together** (two columns): are they related? Region and late delivery, say.
-
-Each column gets a verdict in words, the chi-square number, the p-value and an effect size. With many rows even a tiny difference is "certain", so read the effect (negligible, small, medium, large) to see whether it matters. The bars show each value's count, the tick the expected count, and values far off are shaded. A column with more than 200 different values needs bucketing first (or the Benford test, for amounts).
-
-### Outliers
-
-Select one column, then **Outliers** in the Column row:
-
-- **Amount** (number columns): values far from the rest. **Robust** (the default) measures distance from the median, so a few wild values cannot drag the average along and hide themselves. **Quartile fences** is Tukey's box-plot rule; **mean and standard deviation** is the classic z-score. **How far out** sets the line (3.5, 1.5 and 3 by default). **Within each** judges every vendor, store or month on its own, so a normal amount for one is not hidden by another.
-- **Frequency** (any column): values seen far more often or far more rarely than values usually are. A rare one is often a misspelling (Nrth among thousands of Norths); a common one, a copy or a default (the same amount forty times). Ordinary chance (990 against 1,000) is not flagged.
-
-**Show these rows** adds a step that keeps just the outliers, with the fences written in it as numbers, so the grid shows them in their usual order; **Exclude these** adds one that leaves them out (rows with a blank stay). Undo either like any step. An outlier is a question, not proof: look at the rows before you decide.
-
-### The Analyze menu
-
-**Analyze** in the Table row opens analyses that hand off to each other, so you can go from "what is in this column" to "what predicts this metric":
-
-- **Odds:** pick a column. Each value's share of the rows, "1 in N", and its odds on any one row. Add an **outcome** (late, a refund, an amount above a line) and each value gets its rate of it against every other value and an **odds ratio** with its 95% range: "West: late 46% of the time, against 15% elsewhere: 4.85 times the odds (4.16 to 5.65)". Rows whose range leaves out 1 are shaded: those values really differ. A star marks values with under 30 rows (rough). Number columns are cut into equal-sized ranges. **Test together** hands the column and the outcome to the fit test.
-- **Find predictors:** pick a target (a number or a category). Every other column (or the ones you tick) is tested together with it by chi-square, numbers in equal-sized ranges, and ranked by strength (Cramér's V: none, weak, moderate, strong). Number pairs also get their straight-line correlation. Identifiers and dates are skipped with the reason, and two columns that say the same thing are marked, so a regression gets only one. **Test together** on a row opens the fit test for that pair.
-- **Fit test** and **Outliers**, as above.
-
-- **Regression:** a target and its predictors (Find predictors' **Regression with these** fills them in). A number target gets a linear regression: how much it moves with each predictor, the others held steady, with a 95% range, how much of it the model explains (R-squared) and its typical miss. A yes/no target (tick Yes/no and say what counts as yes: late, or above 1000) gets a logistic one, whose effects are odds ratios. Categories are compared with their commonest value. **What if** predicts for values you type, with the range a new row would fall in. **Add predicted column** and **Add miss column** add steps with the fitted formula; **Check the misses** adds the miss column and opens Outliers on it: the rows the model cannot explain. A regression shows what goes together, not what causes what.
-
-- **Time series:** a date column, a metric and how to total it per period (sum, average, or a count of rows; day, week, month, quarter or year), optionally one line per value of a category. In words: the trend ("went from about 1,076 to 1,976 a month"), the season ("December runs 31% above a typical month"), the periods that stand out (a spike or a dip against their neighbours, with **Show these rows**), where the level stepped and stayed, and how much one period carries into the next. The chart marks each. **Forecast…** carries the same choices over.
-- **Forecast:** how many periods ahead, and optional predictors (their average per period), each with its future: its last value, its own trend, or a value you give. The trend, the season and any step in the level go forward, with an 80% and a 95% range. It first holds back the last periods and forecasts them from the rest, and says how far off it was: the miss it earns, not one it fits. A last period that is not over yet (its rows stop early in it, as a table read in the middle of a month) is left out of both, and the words say so. A forecast is a range: it assumes the past pattern goes on.
-
-Each form has a **Data shape** panel: a made-up table in the shape the analysis needs (long: one row per order, the category and the outcome as columns), one that does not work and why (already counted, wide with one column per month, numbers stored as text), tips, and a check of your grid ("region: 4 values: fine", "this table looks wide"). It can go to Visualizations too.
-
-The forms never start on an identifier column (one whose name ends in id or key, or where every row holds a different whole number or text): Odds, Fit test, Find predictors, Outliers and Regression start on the first number column that is not one, Time series and Forecast start on the row count, and a regression starts with every column but its target and the identifiers ticked. A column you selected first is used as it is.
-
-Every result has four buttons: **Send to Visualizations** (the result in words, as a note; the window stays open, and the toast's **Show** closes it and goes to the card), **Open as grid** (the result's table as a new grid: the window closes and the new tab is in front), **Show the math** (every number on screen worked out step by step: the test or model by name, each formula with the result's own numbers put in, and a line of Python to redo it with scipy or statsmodels, as a note in Visualizations; the what-if estimate and the tie-out have it too) and **Copy code** (the analysis as Python on the clipboard: the grid's steps as checked SQL, then one `swissarmybench.stats` call, the same code the window ran, so the numbers match; paste it into Jupyter or any Python).
+The grid page has no analysis on it any more (the fit test, outliers, odds, find predictors, regression, time series, forecast and tie-out moved): see **Analyze** below. A column's quick **Profile** stays here, and so do **Profile to Analyze** and **Distinct values to Analyze** on a column header's right-click menu.
 
 ### Auto width
 
@@ -369,7 +334,7 @@ Double-click a cell that holds a long text or a JSON value, or press Enter or F2
 
 Export in the Table row writes the grid as CSV, text, Excel or Parquet. The file is built from the grid's steps, so it matches what you see. Choose a download or the export folder.
 
-The zoom control in the Application row changes the text and row size of the whole page: the grid, the ribbon and Visualizations. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
+The zoom control in the Application row changes the text and row size of the whole page: the grid, the ribbon and Analyze. Ctrl+= and Ctrl+- step the zoom, and Ctrl+0 resets it to 100%.
 
 ## Comparing two tables
 
@@ -408,68 +373,144 @@ The Compare row in the ribbon switches the mode.
 - **Anti join** shows only the keys with no match on the other side. Choose both sides, only the left table or only the right table.
 - **Cross compare** keeps each grid on its own rows. Click a row on one side to filter the other side to that key.
 - **Diff** lines the two grids up as Outer join does and keeps only the rows that differ: a changed cell in a column both tables have (names matched ignoring letter case, the keys left out), or a key on one side only. Changed cells are marked on both sides. The Compare row says how many matched rows differ and has a button per changed column with its count ("price 280"): click one to see only the rows where that column changed, and again to go back. **How values compare…** sets a tolerance for numbers (an amount, or a percentage of the left value), whether text ignores spaces at either end (on) and letter case (off), and which columns are compared; a blank equals a blank, and an empty text is a blank. **Every row** goes back to Outer join.
-- **Tie-out…** answers "do these two tables add up the same?". Tick the columns to group by (a shared text column with few values, such as region, starts ticked) and the totals (every shared number column), and how far apart still counts as equal (an amount, or a percentage of the left total). The report has one row per group: rows on each side, each total on each side, the difference and its percentage, and **ties** or **off**. Groups that are off come first, the largest first, and a grand total ends it; a group on one side only is off by its whole total. Columns match by name ignoring letter case, and values meet the way compare keys do (" North" meets "North", 42 meets 42.0). Each side is read as its grid shows it, after its steps. **Click a group** to filter both grids to its rows. **Send to Visualizations** keeps it as a note and a table; **Download CSV** saves it. A grand total that ties can still hide groups whose differences cancel out: the words say so.
+- **Tie-out** (do these two tables add up the same?) is an analysis now: **Do two tables add up the same?** on the Analyze page.
 - The ribbon's counts (matched, only on one side) follow each grid's steps.
 - In **Diff**, each side shows only its key and the columns that differ, so the changes are in front of you; **Only differing columns** in the Compare row (on to start) switches every column back on. Both halves scroll sideways together and start at the first column that differs; a column's own button takes both halves to it.
 - A compare survives a reload of the page: the two grids come back side by side, in the same mode.
 - **Stop compare** returns to two independent grids. The side-by-side view stays, with no keys.
 
-## Visualizations
+## Analyze
 
-Visualizations (the rail's second icon; it was called the Sandbox) is one dashboard for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (a note added here, or anything from Python) says where it came from, and stays when grids close.
+Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when grids close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
 To add a chart, press Add chart. Choose the table, the chart type, the column for the X axis, the aggregate (such as sum) and the column for the Y axis. To add a note, press Add note, give it a title and write its text in Markdown.
 
-![Visualizations with a bar chart of summed quantity by product and a note with a title and a short list.](images/16-analysis-sandbox.png)
+![The Analyze board with a bar chart of summed quantity by product and a note with a title and a short list.](images/16-analysis-sandbox.png)
 
 Clicking a bar in a chart filters the grid to that value. Each card has a pin, a zoom button for a larger view, and a remove button.
 
-### Visualizations as a report
+### Running an analysis
+
+The toolbar has a button for every analysis, by group, each with its everyday question and its technical name under it:
+
+| Group | Button | What you get |
+|---|---|---|
+| Describe | **What can I do with a column?** | The table's columns; pick one and only the analyses that fit it show, as big buttons that run in one click. |
+| Describe | **What is in this table?** (profile) | Every column's type, blanks, different values and range, in one table. |
+| Describe | **Check this table** (data shape check) | The three analyses that suit the table best, each one click, and every other one with why it fits or not. |
+| Test | **Do the first digits look natural?** (Benford's law) | In natural amounts about 30% start with 1 and under 5% with 9; numbers someone made up rarely do. With Nigrini's conformity rating. |
+| Test | **Is each value as common as expected?** (fit test) | Whether some values turn up more or less often than they should: every value equally common, or as common as in another open table. |
+| Test | **Are these two related?** (chi-square test) | Whether two columns go together, and the combinations furthest from chance. |
+| Test | **Find unusual values** (outliers) | Values far from the rest (robust by default; within each vendor, store or month if you say), or values seen far too often or too rarely. **Show these rows** and **Exclude these** on the result add the step. |
+| Test | **How likely is each value?** (odds) | Each value's share and odds; with a yes/no outcome, each value's rate of it against the rest and its odds ratio with a 95% range. |
+| Test | **What explains this?** (find predictors) | Every other column ranked by how much it tells about this one (Cramér's V), identifiers and dates skipped, columns that say the same thing marked. |
+| Model | **Predict a number** (regression) | How much each column moves the target, the others held steady, with ranges; a yes/no target gets a logistic one (odds ratios). |
+| Model | **What if…?** (what-if) | The prediction for one row you describe, with its range. |
+| Time | **Spot the trend and the seasons** (time series) | The trend, the season, the periods that stand out and where the level stepped. |
+| Time | **What comes next?** (forecast) | The periods ahead with 80% and 95% ranges, checked on the last periods held back. |
+| Compare | **Do two tables add up the same?** (tie-out) | Per group, whether both tables' rows and totals match, and which groups are off. |
+| Compare | **Which columns join two tables?** (Key Finder) | The column pairs that share values, how much of each side, and the table's likely key. |
+| Yours | each of your analysis blades | Your own analysis, run on the table (see Analysis blades). |
+
+A button opens its form in a panel **beside** the board, so the board stays in view. The form asks as little as it can:
+
+- **The table is already picked**: the grid you came from, else the one Analyze last used, on one line with its steps and rows ("orders, with 2 steps · 12,400 rows"). **Change** picks another open table, or **Find data…** for a connection's.
+- **The columns are picked for you** and shown as chips, each saying why ("the only date column", "the likeliest, by its name"). Open a chip to pick another: it lists only the columns that fit, each with its type and a few of its values, and under **Does not fit** every other column with the reason ("region: is a text column: amounts needs a number column"). An identifier (a name ending in id or key, or a different value on every row) is never offered as a measure.
+- **One sentence says what will run**: "Test whether amount follows Benford's first-digit law, on 12,400 rows of orders."
+- **Run.** The form is covered while it runs, with **Cancel**; an error stays in the form, in the same shape as everywhere else.
+- **More options** holds everything else, each with its default and one line of what it means.
+- The columns and options you last ran come back the next time you open that analysis on that table.
+
+![An analysis's form beside the board: the table line, the columns as chips, one sentence and Run.](images/analyze-form.png)
+
+**Every result lands on the board by itself**: its note (the verdict in words, the key rows as a table, the cautions) and its chart appear at the top, come into view and are briefly outlined. There is no Send step. Under the result's note:
+
+- **Show the math**: every number worked out step by step, as a note beside it.
+- **Open as grid**: the result's table in a tab of its own.
+- **Copy code**: the analysis as Python for a notebook (the grid's steps as DuckDB SQL, then one `swissarmybench.stats` call), on the clipboard.
+- **The next tool**: "Predict it from these", "Test the two together", "What comes next?", "Show these rows".
+- **Run again…**: the form reopens filled with what it ran with; change something and run.
+
+### What your data should look like
+
+Each analysis has a **data contract**: which kinds of column it takes (a number, a whole number, a date, a text category, a yes/no), how many, what each must be (not an identifier, at least two values, values spanning 10s to 1,000s for Benford's law) and how the table is shaped ("one row per order, not totals"). **What your data should look like**, folded at the foot of the form, shows it: the shape in a sentence, each slot in plain words, and a small made-up table with the slots' columns marked. **Try it on this sample** opens that sample as a table and runs the analysis on it, so you can see what comes out before you bring your own data.
+
+### Make it fit
+
+When the table does not fit, the form says what is missing in one sentence and how to make it fit:
+
+- **Read amount as numbers**: a text column whose values are numbers ("1,240 of 1,250 values are numbers (10 become blank)").
+- **Read when as dates**: a text column of dates, read in one style for the whole column (year-month-day, month/day/year or day/month/year); when both of the last two read every value, both are offered and you choose.
+- **Group ordered by month**: a date column as a category of months.
+- **Keep the 10 most common**, the rest called Other: a text column with too many different values.
+- **Leave out rows with no value**, **Keep amounts above zero**.
+- **Make a yes/no column**: from Y/N, yes/no, true/false and 1/0 in any spelling, or from one value of a text column ("late, or not").
+- **Total amount by month** or **per customer** (for Find unusual values: unusual months or customers instead of unusual rows).
+
+Each says how many rows it touches and has **Apply**. Nothing is applied by itself. A fix is added to the table as its own **steps**, which you see in the steps strip and can undo there; your original rows never change. **Check this table** ranks every analysis for the table: fits now, fits after its fixes (the button says so: "Read when as dates and run" applies the fix and runs in that one click), or does not fit, with the reason.
+
+![Make it fit: what is missing in one sentence, and the fix with Apply.](images/analyze-make-it-fit.png)
+
+### Analyze as a report
 
 - **Move a card** by dragging its title bar onto another card (the left half puts it before, the right half after), or with Move earlier and Move later in its **⋯** menu.
 - **Notes** are markdown: headings, **tables** (`| Region | Late |` rows under a `|---|---:|` rule; numbers line up right), lists, `code`, and `>` cautions. Double-click a note (or Edit note in its menu) to change it, an analysis's note too: add your own reading of the result.
-- **Page view** shows Visualizations as **letter** or **letter landscape** pages, edges drawn, cards in their order; a card never splits across pages, and **Start a new page here** (in a card's menu) begins a page with it. Notes grow on paper so no text is cut.
+- **Page view** shows Analyze as **letter** or **letter landscape** pages, edges drawn, cards in their order; a card never splits across pages, and **Start a new page here** (in a card's menu) begins a page with it. Notes grow on paper so no text is cut.
 - **Print to PDF** prints exactly those pages: choose Save as PDF in the print dialog. A dark theme prints on light paper.
-- **Export markdown** saves all of Visualizations as one `.md` file: every note as its markdown, tables as markdown tables, every chart and diagram as a picture inside the file. Ready to keep, or to hand to an AI model to help read it.
+- **Export markdown** saves all of Analyze as one `.md` file: every note as its markdown, tables as markdown tables, every chart and diagram as a picture inside the file. Ready to keep, or to hand to an AI model to help read it.
 
-### Visualizations' theme
+### Analyze's theme
 
-Visualizations can wear a theme of its own, apart from the grid's: pick one from the theme menu in its toolbar. Its cards, charts, Page view, the PDF and the markdown export's pictures all take it; the grid keeps the app's theme. There are twenty: **high contrast light and dark** and **colourblind-safe light and dark** (Okabe and Ito's eight colours) first, then Steel light and dark (the app's own), Paper (made to print), Ink, Arctic, Sand, Meadow, Rose, Mint, Sunrise, Graphite, Midnight, Forest, Slate, Plum and Carbon. **Theme: follow the app** goes back to the app's theme (and prints on light paper as before).
+Analyze can wear a theme of its own, apart from the grid's: pick one from the theme menu in its toolbar. Its cards, charts, Page view, the PDF and the markdown export's pictures all take it; the grid keeps the app's theme. There are twenty: **high contrast light and dark** and **colourblind-safe light and dark** (Okabe and Ito's eight colours) first, then Steel light and dark (the app's own), Paper (made to print), Ink, Arctic, Sand, Meadow, Rose, Mint, Sunrise, Graphite, Midnight, Forest, Slate, Plum and Carbon. **Theme: follow the app** goes back to the app's theme (and prints on light paper as before).
 
 Every theme is readable: text stands at least 7:1 against its background, quieter text 4.5:1, and chart colours and lines 3:1. **Import theme** takes a theme file of your own (`{"name": "Harbour", "dark": false, "tokens": {"bg": "#f4f8fb", "fg": "#14202b", "accent": "#0b6e99", "cat": ["#0b6e99", "#c2410c"]}}`): colours left out come from the light or dark base, and any colour too faint for its place is darkened (or lightened) just enough. Imported themes are kept until you remove one (**Remove this theme**, beside the picker while an imported theme is chosen; the 20 built-in themes stay); **Export theme** saves the one in use as a file to share or start from. An agent can propose a theme too: it shows marked as proposed, and **Keep this theme** keeps it. A saved dashboard remembers its theme.
 
 ### Saved dashboards
 
-**Dashboards…** in Visualizations' toolbar saves Visualizations under a name: every card as it is drawn now, its size and place, a chart's points and a query table's rows included, so the dashboard opens even when its tables are gone. Saving again under the same name adds a version (the last 60 are kept); **History** lists them, newest first, with their cards, and **Open this version** brings one back. Opening replaces the cards on Visualizations (it asks first). A chart or query whose table is open draws live on it; one whose table isn't shows what it showed when saved ("As saved") and turns live by itself once that table is pushed again. Nothing is saved unless you press Save; dashboards live in your Swiss Army Bench folder (`~/.swissarmybench/dashboards`). An agent can list a dashboard's versions, never save, open or delete one.
+**Dashboards…** on the Analyze board' toolbar saves Analyze under a name: every card as it is drawn now, its size and place, a chart's points and a query table's rows included, so the dashboard opens even when its tables are gone. Saving again under the same name adds a version (the last 60 are kept); **History** lists them, newest first, with their cards, and **Open this version** brings one back. Opening replaces the cards on Analyze (it asks first). A chart or query whose table is open draws live on it; one whose table isn't shows what it showed when saved ("As saved") and turns live by itself once that table is pushed again. Nothing is saved unless you press Save; dashboards live in your Swiss Army Bench folder (`~/.swissarmybench/dashboards`). An agent can list a dashboard's versions, never save, open or delete one.
 
-### Sending things to Visualizations
+### Sending things to the Analyze board
 
-Anything that shows details can go to Visualizations, as a readable note and, where there is one, a chart beside it:
+Anything that shows details can go to the Analyze board, as a readable note and, where there is one, a chart beside it:
 
-- **Every Analyze result** (odds, fit test, find predictors, outliers, regression): **Send to Visualizations**.
-- **Right-click a cell**: Send value to Visualizations, Send the row to Visualizations (each column and its value), Keep these, Exclude these, View value, Copy.
-- **Right-click a column header**: Profile to Visualizations (its numbers, most common values and a histogram), Distinct values to Visualizations, Profile, and the Analyze entries for that column.
-- **Send to Visualizations** also sits on the column profile, the whole-table profile, the value viewer and the Key Finder.
+- **Every analysis** lands by itself: there is nothing to send.
+- **Right-click a cell**: Send value to the Analyze board, Send the row to the Analyze board (each column and its value), Keep these, Exclude these, View value, Copy.
+- **Right-click a column header**: Profile to the Analyze board (its numbers, most common values and a histogram), Distinct values to the Analyze board (the Analyze page's own count of them), Profile.
+- **Send to Analyze** also sits on the column profile, the whole-table profile, the value viewer and the Key Finder.
 
-### From Python: sab.visualizations
+### From Python: sab.analyze
 
-`sab.visualizations(thing, "Title")` puts anything visual from your own Python in Visualizations:
+`sab.analyze(thing, "Title")` puts anything visual from your own Python on the Analyze board:
 
 ```python
-sab.visualizations(fig)  # matplotlib or seaborn: a picture
-sab.visualizations(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
-sab.visualizations(chart)  # Altair: drawn as Vega-Lite
-sab.visualizations(dot)  # a graphviz Digraph
-sab.visualizations(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
-sab.visualizations("## Findings\n- North leads")  # Markdown: a note
-sab.visualizations("chart.png")  # a file: a picture, .md, .mmd, .dot
-sab.visualizations(text, kind="mermaid")  # Mermaid, DOT or ECharts text
-sab.visualizations(fig, key="monthly", size=(8, 10))
+sab.analyze(fig)  # matplotlib or seaborn: a picture
+sab.analyze(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
+sab.analyze(chart)  # Altair: drawn as Vega-Lite
+sab.analyze(dot)  # a graphviz Digraph
+sab.analyze(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
+sab.analyze("## Findings\n- North leads")  # Markdown: a note
+sab.analyze("chart.png")  # a file: a picture, .md, .mmd, .dot
+sab.analyze(text, kind="mermaid")  # Mermaid, DOT or ECharts text
+sab.analyze(fig, key="monthly", size=(8, 10))
 ```
 
 `key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing. `sab.sandbox(...)`, its old name, still works for this release (with a warning).
+
+`sab.analyze` also runs every analysis, by the same contracts and the same checker as the page:
+
+```python
+sab.analyze.benford(invoices)  # the columns picked as the page picks them
+sab.analyze.odds(orders, column="region", outcome="late")
+sab.analyze.forecast(sales, horizon=3)  # options by their names
+sab.analyze.tie_out("orders", other="ledger")  # an open table by its name runs in the app
+sab.analyze.check(orders)  # which analyses suit this table, and its fixes
+sab.analyze.contract("benford")  # the analysis's data contract
+sab.analyze.sample("benford")  # its made-up sample, as a DataFrame
+```
+
+On a DataFrame the analysis runs in your own Python (the function `swissarmybench.stats` has, so the numbers are the page's) and returns a plain dictionary; when the app is running its cards land on the board too (`board=False` keeps them off). A table that does not fit raises `ValueError` with what is missing and how to make it fit. `sab.visualizations` is the old name of the card call: it works for one release, with a warning.
 
 ### How an agent sees the grids
 
@@ -509,13 +550,13 @@ A saved set of relationships is a **relationship set** (it was called a tang unt
 
 Relationship sets also come in packs (see Blades): an installed pack's sets are listed marked **Pack**, and **Add to pack** shares yours through the team's repository.
 
-Draw diagram adds a copy of the diagram to Visualizations; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the set uses. An agent can do all of this for you too (its delete of a saved set waits for your Allow).
+Draw diagram adds a copy of the diagram to the Analyze board; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the set uses. An agent can do all of this for you too (its delete of a saved set waits for your Allow).
 
 ## The ERD tab
 
 With a project open, the ERD draws only the tables the project uses: the open tables, the project's tables, and the tables its notebooks and scripts name (a `%%sql` or `%%dax` cell, `sab.sql`, `sab.read`, `[Connection].table`). A join is drawn when both its tables are used. **Tables in this project** (the default) and **All tables** switch between them, and beside them it says how many are not drawn ("34 more tables from FI-Atlas are not used in this project."). Nothing is removed: importing forty foreign keys keeps all forty, and **All tables** draws them. The Relationships window's **In use now** has the same switch. With no project open, the ERD draws the open tables as before.
 
-The ERD (on the rail, after Visualizations; it was called the Diagram) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
+The ERD (on the rail, after Analyze; it was called the Diagram) draws the keys and joins between the open tables as an entity relationship diagram: one box per table holding only its key columns (PK for a primary key, FK for a column a join uses), with crow's-foot lines showing one-to-many and one-to-one joins. A line's label is the join's note, such as an outlier or a caveat about how it matches; joins without one carry no text. In a star schema the central table is drawn in the middle, with its spokes above and below it.
 
 ![The ERD tab with no relationships yet, offering Find relationships, Import relationships and Manage relationships.](images/18-erd-empty.png)
 
@@ -581,8 +622,8 @@ their own, run in an IPython kernel on this computer.
 - **The status bar** is for the document in front: its kernel (click for Interrupt and Restart; it
   says its state only while it is not ready), its environment, the cursor, and **Console** and
   **Variables**, which open the console under the groups and Variables on the right. Both start
-  closed; running a script opens the console. A picture or chart a run draws has **Send to Visualizations**:
-  Visualizations is where they gather. Splitters can be dragged, or focused and moved with the arrow keys.
+  closed; running a script opens the console. A picture or chart a run draws has **Send to Analyze**:
+  Analyze is where they gather. Splitters can be dragged, or focused and moved with the arrow keys.
 - **Running a script:** F5 runs the file as Python would (`__name__ == "__main__"`, `sys.argv`,
   multiprocessing), saving it first. Ctrl+Enter (or Shift+Enter, F9) runs the whole statement at the
   cursor, a `for` block or a function, then moves to the next one. Run to here and Run from here are in
@@ -837,7 +878,7 @@ The rail's **Structures** icon (after APIs) is for nested data, as Grids are for
 
 - Each open structure is a tab. Its **tree** and its **text** sit side by side (or one of them). Click a node to see its path (`$.orders[3].lines`; **Copy path**). **Search** marks the words and unfolds the way to them.
 - **Steps**, as a grid's: **Pick** (the tree becomes that branch), **Filter…** a list on a field, **Sort…**, **Flatten** a list of records (dotted keys), **Add key…**, **Rename key…**, **Set value…**, **Remove**; a double click in the tree sets a value or renames a key. Each step is in the strip (× removes it); **Undo** and **Redo**. The original is never changed until **Save**; while there are steps the text shows their result and is read-only.
-- **Open as grid**: a list of records at any path becomes a table (SQL and the Analyze menu work on it).
+- **Open as grid**: a list of records at any path becomes a table (SQL and the Analyze page work on it).
 - **Save** writes its file; **Save as** picks JSON, YAML, XML or TOML (TOML has no null: it says so) and goes in the project's `structures/` folder, which is the project's own and opens again with it. YAML needs PyYAML (the app offers to install it). XML with a DOCTYPE or an entity is refused.
 - An API's answer has **Run again** (the same call, your steps kept), **Return as table…** on a list, and **Lineage**: the call (what was sent, and when), the structure, each step, each grid made from it, and the notebook and script cells that read it.
 - In code: `sab.structure("gates")` is a saved structure's value, `sab.structure_table("payload", "$.orders")` its records as a DataFrame.
@@ -990,10 +1031,10 @@ GROUP BY ALL
 
 ## Session: what the agent made
 
-The rail's **Session** icon (after Connections) is this session's log of what the agent made or changed: a grid opened, a step added or removed, a card on Visualizations, a relationship on the ERD, a connection or blade saved, a notebook's cell, an export (and your Allow), a project saved. Each line says when, what in plain words, and where (the area); click it to go to that thing (the grid, the card, the relationship, the connection, the notebook at its cell). It fills in live as the agent works, newest first.
+The rail's **Session** icon (after Connections) is this session's log of what the agent made or changed: a grid opened, a step added or removed, a card on Analyze, a relationship on the ERD, a connection or blade saved, a notebook's cell, an export (and your Allow), a project saved. Each line says when, what in plain words, and where (the area); click it to go to that thing (the grid, the card, the relationship, the connection, the notebook at its cell). It fills in live as the agent works, newest first.
 
 - **The agent / Me / Both**: whose actions are listed (the agent's by default). Your choice is remembered in this browser.
-- **Follow the agent** (a switch here and in Settings, on unless you turn it off; kept across restarts): each thing the agent does comes to the front in the grids' window: a relationship it adds opens the ERD with the new line highlighted, a card opens Visualizations scrolled to the card, a step brings its grid back with the steps count pulsing. A cell it adds in the Workbench is scrolled to and highlighted there. The highlight is a soft pulse in the theme's accent (a still outline if your system asks for reduced motion).
+- **Follow the agent** (a switch here and in Settings, on unless you turn it off; kept across restarts): each thing the agent does comes to the front in the grids' window: a relationship it adds opens the ERD with the new line highlighted, a card opens Analyze scrolled to the card, a step brings its grid back with the steps count pulsing. A cell it adds in the Workbench is scrolled to and highlighted there. The highlight is a soft pulse in the theme's accent (a still outline if your system asks for reduced motion).
 - **Never while you type**: if you are typing in a box, have a dialog open, or are reading Session, Settings or Connections, nothing moves; the move waits until you leave the box, and the Session icon shows a count of what arrived.
 - **Follow off**: nothing moves at all; the entries arrive on the Session page and the icon counts them until you open it.
 - Only names and counts are in the log (tables, columns, files, connections): never a cell value, a query's text or a password. It is kept in memory for this session; the audit log on disk is the full record. The agent can read the log (`app_session`) but cannot turn Follow on or off.
@@ -1027,7 +1068,7 @@ columns appear as `table#1`, `col#3`.
 - **The blade's screen** shows its code read-only, with its colours and line numbers, as tall as the code (up to about 70% of the window, then it scrolls). **Show its file** opens your file manager at it. A starter's screen has **Copy as your own** instead. What you change on the screen (its **Name**, **Description**, **Tags** and **Its table is called**) is written into the file's header only: the code's bytes stay as you wrote them.
 - **Its table is called:** a blade whose result is a table (a function or code that makes a DataFrame) has a table name of its own, kept in its file (`table = "monthly_sales"`), so it travels with the library's Git repository. As you type, the line under it says **available**, or why not: **orders is already a table**, **Warehouse is a connection**, **monthly_sales is Monthly sales's table**, or **not a valid name** (1 to 64 letters, digits, `_` or `-`; not a word DuckDB's SQL keeps for itself). Save refuses a taken name with the same words. Left empty, the table is called what its code makes. In a notebook, `sab.blade(...)` makes its result (a function's, each time it is called) the variable of that name, so `%%sql SELECT * FROM monthly_sales` works, and the Variables panel and the Open list show it by that name; the Data Explorer lists it under that name too.
 - **Passwords** go in the code as `secret("password")`. Type the value on the blade's screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
-- **Analysis blades** are your own analyses: the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Visualizations**.
+- **Analysis blades** are your own analyses: the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Analyze**.
 - **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable (key vaults are added on the Variables page). **Secret blades** keep only variable names: you type the values once per session.
 - **Packages:** the blade's screen lists the packages the code needs that are missing. A missing one is asked for as the blade opens (**Install now**, **Not now**), and **Install <package>** asks again; they go into the grid server's Python.
 - **A connection's tables are always listed.** On a connection's screen, **How its tables are listed** (folded) shows the query that lists them, read-only; a connection saved before without one uses its starter's. Drag a blade into a script or a cell for its `sab.blade` line (on a line of its own, after the line you drop it on).

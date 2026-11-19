@@ -96,26 +96,30 @@ What a grid page does:
 - **Packs:** blades and relationship sets a team keeps in a GitHub repository that is also a Claude Code
   plugin marketplace. Install a pack with `/plugin install` and its blades and sets show up, marked with the
   pack; `/plugin marketplace update` brings the team's latest.
-- **Analyze** (the Table row): analyses that hand off to each other, to help predict a metric. **Odds**:
+- **Analyze** (its own page on the rail): a toolbar of every analysis and one guided form beside the board.
+  The table is already picked, the columns are picked for you as chips (only the ones that fit are offered,
+  the rest listed with why), one sentence says what will run, and the result lands on the board by itself.
+  **Check this table** suggests the three analyses that suit a table; **Make it fit** proposes the steps
+  that would (text read as numbers or dates, a yes/no column...), applied only on your click; each form
+  shows a made-up sample of the data it needs. The analyses hand off to each other. **Odds**:
   how often each value shows up, and with an outcome, each value's odds of it against the rest ("West:
   late 46% of the time, against 15% elsewhere: 4.85 times the odds"). **Find predictors**: every column
   tested against a target by chi-square, ranked by strength, with the pairs that say the same thing.
-  **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof in Visualizations:
+  **Fit test** and **Outliers** (below). **Show the math** on any result puts its proof on the Analyze board:
   each formula with the result's own numbers, worked to the values shown. Every result can go to
-  Visualizations, open as a grid, or go to the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
+  Analyze, open as a grid, or go to the notebook as Python (`swissarmybench.stats`, the same code the window ran). **Regression**: linear or
   logistic (odds ratios), effects in words with ranges, what-if predictions, predicted and miss columns,
-  and Check the misses (outliers of what the model cannot explain). Each form has a **Data shape**
-  cheat sheet: a made-up table in the shape it needs, one that does not work, and a check of your grid.
+  and the miss column for outliers of what the model cannot explain.
   **Time series**: a metric per period from a date column, its trend, its season in words ("December
   runs 31% above a typical month"), the periods that stand out (Show these rows), steps in the level and
   how much one period predicts the next. **Forecast**: trend, season and steps carried forward with 80%
   and 95% ranges, predictors each with their own future, and the miss it earns on held-back periods.
-- **Visualizations as a report:** results arrive as a readable note (with real tables) and a chart side by
+- **Analyze as a report:** results arrive as a readable note (with real tables) and a chart side by
   side; drag cards to arrange them, edit any note, see it as letter or landscape pages, **Print to PDF**,
   or **Export markdown** (one file, charts embedded as pictures, ready for an AI model). Right-click a
   cell or a header to send a value, a row, a profile or distinct values; every details window has
-  Send to Visualizations.
-- **Fit test and outliers:** select columns and ask whether their values spread as expected (chi-square
+  Send to Analyze.
+- **Fit test and outliers** (on the Analyze page): ask whether a column's values spread as expected (chi-square
   against even shares, Benford's law on the first one or two digits, another grid's spread, or two
   columns together), with the verdict in words and an effect size; or find the outliers in a column, by
   amount (robust median fences, Tukey's quartiles or z-scores, within each vendor or month if you like)
@@ -133,7 +137,7 @@ What a grid page does:
   sides ticked, and compare keeps both grids aligned row by row (outer, anti, cross, or diff: only
   the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
   lists every table: open, closed (each with Open) and in your Python sessions.
-- **Visualizations** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
+- **Analyze** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
   result tables, Mermaid and Graphviz diagrams, Plotly and ECharts figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
   wheel zoom, and clicking a bar filters the grid. The page loads nothing from the internet: figures
@@ -157,7 +161,7 @@ What a grid page does:
 - **Jupyter and Python in the terminal** are where code goes: drag a blade, table or column from the
   blades page into a cell or an editor for its line, query or name.
 - **Themes:** light, dark, high contrast light and high contrast dark, following the system by
-  default; Windows forced colors are supported. One zoom for the whole page, Visualizations
+  default; Windows forced colors are supported. One zoom for the whole page, Analyze
   included: Ctrl+= and Ctrl+-.
 
 The design is [Plans/swissarmybench-build-plan.md](Plans/swissarmybench-build-plan.md); what has
@@ -190,7 +194,7 @@ The old names still work for this release, and go in the next one:
   existing `~/SwissArmyGrid` Workbench folder stays your folder while there is no `~/SwissArmyBench`.
 - `SWISSARMYBENCH_*` variables are read first, then the old `SWISSARMYGRID_*` ones.
 - Passwords saved in the system keyring under the old name are found, and copied to the new name on their
-  first read. The page's remembered settings (theme, zoom, Visualizations' card sizes) are read from their
+  first read. The page's remembered settings (theme, zoom, Analyze's card sizes) are read from their
   old keys when the new ones are empty.
 
 The installers remove the old `swissarmygrid` uv tool before installing the new one, which brings the old
@@ -198,8 +202,14 @@ commands with it; by hand, that is `uv tool uninstall swissarmygrid`, then the i
 VS Code extension too: the new one finds the new install (and still finds an old one). The GitHub
 repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
 
+**Visualizations is now Analyze, and the analyses live there** (the owner, 2026-11-19): the rail's Analyze page has a
+toolbar of every analysis and one guided form beside the board; every result lands on the board by itself, and
+the grid page has no analysis on it. Each analysis has a data contract the form, the agent (`analyze_contracts`,
+`analyze_check`, `analyze_run`) and Python (`sab.analyze.benford(df)`) share. The old names work for one
+release: `?view=visualizations`, `visualizations_*` and `sandbox_*` tools, `sab.visualizations` (a warning).
+
 **The Sandbox is now Visualizations, and the Diagram is the ERD** (the owner, 2026-11-16): the rail, the
-pages' titles, the menus (Send to Visualizations) and the help. The old names work for one release too:
+pages' titles, the menus (Send to Analyze) and the help. The old names work for one release too:
 `sab.sandbox(...)` (a DeprecationWarning; write `sab.visualizations(...)`), the agent's `sandbox_*` commands
 (each runs its `visualizations_*` one, by `sab` and by an MCP call; only the new names are listed),
 `app_navigate` to `sandbox` or `diagram`, `app_snapshot` of `sandbox`, the addresses `?view=sandbox` and
@@ -336,7 +346,7 @@ of `http://127.0.0.1:<port>/workspace` works; with no cookie the page says to op
 
 A project is a folder: its notebooks, scripts, apps and structures are ordinary files at its top, so it can
 be a Git repository and shared like one. The app's own state is a hidden `.sab/` folder beside them
-(`project.json`: each table's source and steps, the tabs and windows; Visualizations and its saved
+(`project.json`: each table's source and steps, the tabs and windows; Analyze and its saved
 dashboards; the relationships), plain JSON that reads well in a diff. Open it on any computer: each table
 is read again from its source (a connection by name, never a password; a file inside the project first),
 and one that cannot come back offers its fix (Add connection, Find orders.csv). A pasted or pushed table's
@@ -572,12 +582,12 @@ sab.blades(search="orders-function-app")  # by name, description or tag
 sab.blades(tag="sales")
 ```
 
-Visualizations can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
+Analyze can wear its own theme (the grid keeps the app's): twenty built in, high contrast and
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
 `sab.visualizations(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
-figure, a picture, a DataFrame's first rows, Markdown text or a file in Visualizations; the same `key`
+figure, a picture, a DataFrame's first rows, Markdown text or a file on the Analyze board; the same `key`
 replaces the card in place when the cell runs again.
 
 - **Kinds:** SQL connection (with its dialect), other (any code), vault (Azure Key Vault, AWS,
@@ -585,7 +595,7 @@ replaces the card in place when the cell runs again.
   environment variable), secret (variable names only; the values are typed each session) and
   **analysis**: your own analysis, `def analyze(df, columns): ...` over the grid's rows as a pandas
   DataFrame, returning markdown, a table or a figure. It shows under **Your analyses** in the Analyze
-  menu, runs in a child process like Refresh, and its result can go to Visualizations. Three starters.
+  menu, runs in a child process like Refresh, and its result can go to the Analyze board. Three starters.
 - **Secrets:** `secret("password")` in a blade's code. Its value is kept in the operating system's
   vault (Windows Credential Manager, macOS Keychain), never in the blade's file; an environment
   variable of the same name works too.
@@ -734,7 +744,7 @@ It asks the running server and never starts one (`SWISSARMYBENCH_COMPLETE=0` tur
 ## The agent commands: `sab` and the MCP server
 
 **The golden rule: everything you can do, the agent can do too** (215 commands, each an MCP tool):
-grids and steps, analyses, Visualizations and dashboards, connections and blades (made, changed, tested,
+grids and steps, analyses, Analyze and dashboards, connections and blades (made, changed, tested,
 refreshed), packs and relationship sets, and the Workbench (open and save notebooks and scripts, start
 kernels and run code in them, read their variables, make environments). It acts directly, no prompts,
 with two exceptions: its exports still wait for your Allow (and it cannot answer an approval), and no
@@ -767,7 +777,7 @@ run it:
 opened, an export approval asked for), so an agent can work alongside the user instead of polling.
 
 `app_snapshot` returns a PNG of the page as the user sees it (the whole window, or the ribbon, grid,
-steps strip or Visualizations). The server draws nothing: it asks the open page, which draws itself with
+steps strip or Analyze). The server draws nothing: it asks the open page, which draws itself with
 html-to-image and uploads the picture, and the server hands it to the agent without writing it to disk.
 The MCP returns it as image content; `sab app_snapshot` saves it and prints the path. It shows real
 cell values, and each one is written to the audit log.
@@ -818,7 +828,7 @@ with a Qt WebEngine view, every window on one persistent profile in `~/.swissarm
   a frame that would load from elsewhere is refused. The clipboard is granted to the app's origin; every other
   permission is denied.
 - **Downloads** ask with the system's Save dialog, then show their progress and **Show in folder**;
-  `window.print()` (Visualizations' Print to PDF) and Ctrl+P save a PDF where you say.
+  `window.print()` (Analyze's Print to PDF) and Ctrl+P save a PDF where you say.
 - **Keys:** F11 full screen, F12 the developer tools (a window of their own), Alt+Left/Right back and forward,
   F5 reload, Ctrl+W close the window (its page asked first: unsaved work says so), Ctrl+Shift+B or the
   right-click menu's **Open in browser**: the page in the browser.

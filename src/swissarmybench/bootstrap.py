@@ -1252,7 +1252,7 @@ def bootstrap(
         grids=grid_service,
         profiles=Profiles(ws),
         analysis=analysis,
-        analyze=Analyze(ws, grid_service, datasets, analysis, tie_out, key_finder, cards),
+        analyze=Analyze(ws, grid_service, datasets, analysis, tie_out, key_finder, cards, blades),
         regression=Regression(ws),
         timeseries=TimeSeries(ws),
         sql=SqlBox(ws, datasets, table_reader),

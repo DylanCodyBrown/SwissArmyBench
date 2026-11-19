@@ -33,6 +33,8 @@ import { api, connect, failure, gridId, onNotice, openedWith, requireSession, to
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
+import { onFindData, onOpenAnalyze } from "./analyzePage";
+import { openFindData } from "./gridCommands";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, closeDialogs, h, toast } from "./dom";
@@ -53,7 +55,7 @@ import { pulse, setFollower, setGoer, type Entry, type Target } from "./sessionP
 import { highlightRelationships } from "./erdView";
 import { showInSandbox } from "./sandboxShow";
 import type { Move } from "./nav";
-import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, viewingLanding } from "./panes";
+import { activateGrid, activeContext, addGrid, contextOf, contextsOf, currentView, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, viewingLanding } from "./panes";
 import { mountStart } from "./startView";
 import { mountProjectsPage } from "./projectsPage";
 import { loadProject } from "./projectFile";
@@ -330,6 +332,10 @@ async function start(): Promise<void> {
   mountBottomBar($(".statusbar"));
   void loadPanels(); // a panel turned off in Settings is gone (grid.css, by <body>'s class)
   mountAiPanel(workspace, $("#ai-panel"), $(".splitter"));
+  // An analysis's form opened from anywhere (the palette, a card's Run again) brings Analyze to the front;
+  // its Change… finds a connection's table with the Data Explorer (Find data…).
+  onOpenAnalyze(() => { if (currentView() !== "agent") showAgentView(); });
+  onFindData(() => openFindData());
   mountErd($("#erd-view"));
   // Before the panes: a built table's pane gets its query tray as the pane is made.
   mountQueryTab($("#query-view"));

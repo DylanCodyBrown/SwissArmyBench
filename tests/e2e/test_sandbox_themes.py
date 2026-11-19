@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""Visualizations' own theme in the browser: chosen from its toolbar, applied to Visualizations only (the grid
+"""Analyze's own theme in the browser: chosen from its toolbar, applied to Analyze only (the grid
 keeps the app's), a theme file imported and made readable, and back to following the app."""
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ def test_the_sandbox_takes_a_theme_of_its_own(
     )
     try:
         call(server, "POST", "/cards", {"kind": "note", "title": "Themed note", "body": "Some **words**."})
-        page.locator(".nav-rail [data-area='visualizations']").click()
-        picker = page.get_by_label("Visualizations theme")
+        page.locator(".nav-rail [data-area='analyze']").click()
+        picker = page.get_by_label("Board theme")
         picker.select_option("hc-dark")
         body = page.locator("#ai-panel-body")
         expect(body).to_have_attribute("data-sandbox-theme", "hc-dark", timeout=20000)
@@ -59,26 +59,24 @@ def test_the_sandbox_takes_a_theme_of_its_own(
         expect(page.locator("#ai-panel-body")).not_to_have_attribute(
             "data-sandbox-theme", "custom-harbour-test", timeout=20000
         )
-        expect(page.get_by_label("Visualizations theme")).to_have_value("app")
-        expect(
-            page.get_by_label("Visualizations theme").locator("option[value='custom-harbour-test']")
-        ).to_have_count(0)
-        assert all(
-            t["id"] != "custom-harbour-test" for t in call(server, "GET", "/visualizations/themes")["themes"]
+        expect(page.get_by_label("Board theme")).to_have_value("app")
+        expect(page.get_by_label("Board theme").locator("option[value='custom-harbour-test']")).to_have_count(
+            0
         )
-        page.get_by_label("Visualizations theme").select_option("hc-dark")
+        assert all(t["id"] != "custom-harbour-test" for t in call(server, "GET", "/analyze/themes")["themes"])
+        page.get_by_label("Board theme").select_option("hc-dark")
         expect(page.locator("#ai-panel-body")).to_have_attribute(
             "data-sandbox-theme", "hc-dark", timeout=20000
         )
         expect(page.get_by_role("button", name="Remove this theme")).to_have_count(0)
-        page.get_by_label("Visualizations theme").select_option("app")
+        page.get_by_label("Board theme").select_option("app")
         expect(page.locator("#ai-panel-body")).not_to_have_attribute(
             "data-sandbox-theme", "hc-dark", timeout=20000
         )
     finally:
         page.close()
-        call(server, "PUT", "/visualizations/theme", {"theme": "app"})
+        call(server, "PUT", "/analyze/theme", {"theme": "app"})
         try:  # the page's Remove took it, unless the test stopped before that
-            call(server, "DELETE", "/visualizations/themes/custom-harbour-test")
+            call(server, "DELETE", "/analyze/themes/custom-harbour-test")
         except Exception:  # noqa: S110 (already removed)
             pass

@@ -66,7 +66,6 @@ IDENTIFIER_WORDS = frozenset({"id", "ids", "key", "uuid", "guid"})
 # Words that make a *number* column a code and not a measure (as text such a column is a label).
 CODE_WORDS = frozenset({"number", "no", "num", "nr", "code", "zip", "postcode", "phone"})
 IDENTIFIER_MIN_ROWS = 20  # fewer filled rows than this: every row being different says nothing
-IDENTIFIER_SAMPLE_ROWS = 10_000  # form_defaults' callers count this many of a view's rows
 
 
 def _name_words(name: str) -> list[str]:
@@ -98,36 +97,6 @@ def is_identifier(
     if last in IDENTIFIER_WORDS or (family == "number" and last in CODE_WORDS):
         return True
     return every_row_different(duckdb_type, filled, distinct)
-
-
-def identifier_counts_query(relation: str, columns: list[tuple[str, str]]) -> tuple[list[str], str]:
-    """(the columns whose values could make them identifiers, the query counting each one's filled
-    and different values over the relation's first IDENTIFIER_SAMPLE_ROWS rows: two numbers a column,
-    in order). No such column: no query."""
-    enough = IDENTIFIER_MIN_ROWS + 1
-    names = [name for name, kind in columns if every_row_different(kind, enough, enough)]
-    if not names:
-        return [], ""
-    parts = ", ".join(f"count({quote(n)}), count(DISTINCT {quote(n)})" for n in names)
-    return names, f"SELECT {parts} FROM (SELECT * FROM {relation} LIMIT {IDENTIFIER_SAMPLE_ROWS})"
-
-
-def form_defaults(columns: list[tuple[str, str]], counts: dict[str, tuple[int, int]]) -> dict[str, Any]:
-    """What an analysis form starts on, from the view's (name, type) columns and each one's (filled,
-    different) counts where known: the identifiers, the first number column that is not one (`number`),
-    the column a form with any column starts on (`column`: that number, else the first column that is
-    not an identifier, else the first), and a regression's starting predictors (every column but the
-    identifiers; the form leaves out its target)."""
-    ids = [name for name, kind in columns if is_identifier(name, kind, *counts.get(name, (None, None)))]
-    rest = [(name, kind) for name, kind in columns if name not in ids]
-    number = next((name for name, kind in rest if type_family(kind) == "number"), None)
-    first = rest[0][0] if rest else (columns[0][0] if columns else None)
-    return {
-        "identifiers": ids,
-        "number": number,
-        "column": number or first,
-        "predictors": [name for name, _ in rest],
-    }
 
 
 # ===== Benford's law =====
@@ -772,34 +741,14 @@ def analysis_code(
     return f"{call}\n{variable}", imports
 
 
-# ===== the Data shape check: does the grid suit the analysis? =====
+# ===== a wide table (one measure across months): the Data shape check's note (domain/analyze.py) =====
 
-SHAPE_ANALYSES: tuple[str, ...] = ("odds", "fit_test", "predictors", "outliers")
 SERIES_PATTERNS: tuple[tuple[str, str], ...] = (
     ("month", r"(?:^|[^a-z])(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)(?:[a-z]*)(?:[^a-z]|$)"),
     ("quarter", r"(?:^|[^a-z0-9])q[1-4](?:[^0-9]|$)"),
     ("year", r"(?:^|[^0-9])(19|20)\d\d(?:[^0-9]|$)"),
     ("week", r"(?:^|[^a-z])(w|wk|week)_?\d{1,2}(?:[^0-9]|$)"),
 )
-
-
-def shape_query(relation: str, columns: list[tuple[str, bool]]) -> str:
-    """Rows, then for each (name, is_number): rows with a value, different values, and for numbers the
-    lowest, the lowest above zero (what Benford reads) and the highest. One pass."""
-    parts = ["count(*)"]
-    for name, number in columns:
-        c = quote(name)
-        parts += [f"count({c})", f"count(DISTINCT {c})"]
-        if number:
-            x = f"CAST({c} AS DOUBLE)"
-            parts += [
-                f"min({x}) FILTER (WHERE isfinite({x}))",
-                f"min({x}) FILTER (WHERE isfinite({x}) AND {x} > 0)",
-                f"max({x}) FILTER (WHERE isfinite({x}))",
-            ]
-        else:
-            parts += ["NULL", "NULL", "NULL"]
-    return f"SELECT {', '.join(parts)} FROM {relation}"
 
 
 def wide_series(columns: list[tuple[str, str]]) -> tuple[str, list[str]] | None:
@@ -811,132 +760,6 @@ def wide_series(columns: list[tuple[str, str]]) -> tuple[str, list[str]] | None:
         if len(found) >= 3:
             return kind, found
     return None
-
-
-def _orders(low: float | None, high: float | None) -> float | None:
-    if low is None or high is None or low <= 0 or high <= 0:
-        return None
-    return math.log10(high / low)
-
-
-def shape_notes(
-    analysis: str,
-    rows: int,
-    columns: dict[str, tuple[str, int, int, float | None, float | None, float | None]],
-    selected: list[str],
-) -> list[dict[str, str]]:
-    """Plain notes on whether the grid suits the analysis. `columns`: name -> (family, rows with a
-    value, different values, lowest, lowest above zero, highest). `selected`: the columns the form is
-    set to (for odds the column then the outcome's column; for find predictors the target then the
-    candidates)."""
-    if analysis not in SHAPE_ANALYSES:
-        raise AnalysisError(f"No data shape for {analysis!r}.")
-    notes: list[dict[str, str]] = []
-
-    def ok(text: str) -> None:
-        notes.append({"level": "ok", "text": text})
-
-    def warn(text: str) -> None:
-        notes.append({"level": "warn", "text": text})
-
-    wide = wide_series([(name, info[0]) for name, info in columns.items()])
-    if wide:
-        kind, names = wide
-        shown = ", ".join(names[:4]) + ("..." if len(names) > 4 else "")
-        warn(
-            f"This table looks wide: {len(names)} number columns ({shown}) are one measure across {kind}s. "
-            f"These analyses want one row per {kind} (long): unpivot it in the notebook first."
-        )
-    if rows < 30:
-        warn(f"Only {rows:,} rows: the results will be rough.")
-    else:
-        ok(f"{rows:,} rows.")
-
-    def blanks(name: str, filled: int) -> None:
-        if rows and filled < rows:
-            share = 100 * (rows - filled) / rows
-            (warn if share >= 20 else ok)(f"{name}: {share:.0f}% blank (left out).")
-
-    def as_category(name: str, role: str = "") -> None:
-        family, filled, distinct, *_ = columns[name]
-        label = f"{name}{role}"
-        blanks(name, filled)
-        if family in ("date", "timestamp"):
-            warn(f"{label}: a date; use Time series, or bucket it by month first.")
-        elif distinct == filled and filled > 20:
-            warn(f"{label}: every row different (an identifier): each value would show up once.")
-        elif family == "number" and distinct > 12:
-            ok(f"{label}: a number with {distinct:,} values: it is cut into equal-sized ranges.")
-        elif distinct > MAX_CATEGORIES:
-            warn(f"{label}: {distinct:,} different values: group them first (Categorize).")
-        elif distinct < 2:
-            warn(f"{label}: one value only: nothing to compare.")
-        else:
-            ok(f"{label}: {distinct:,} values: fine.")
-
-    chosen = [name for name in selected if name in columns]
-    if not chosen:
-        warn("Pick a column to check it.")
-        return notes
-    if analysis == "odds":
-        as_category(chosen[0])
-        if len(chosen) > 1:
-            family, filled, distinct, *_ = columns[chosen[1]]
-            blanks(chosen[1], filled)
-            ok(f"{chosen[1]} (the outcome): {distinct:,} values.")
-    elif analysis == "fit_test":
-        for name in chosen:
-            family, filled, distinct, lowest, low, high = columns[name]
-            if family == "number":
-                blanks(name, filled)
-                orders = _orders(low, high)
-                if lowest is not None and lowest <= 0:
-                    ok(f"{name}: has zero or negative values: Benford reads the first digit of the others.")
-                if orders is None:
-                    warn(f"{name}: no values above zero: nothing for Benford to read.")
-                elif orders >= 2:
-                    ok(f"{name}: spans {orders:.1f} orders of magnitude: suits a Benford test.")
-                else:
-                    warn(
-                        f"{name}: runs only from {short_number(low or 0)} to {short_number(high or 0)}: "
-                        "Benford needs several orders of magnitude."
-                    )
-                if distinct > MAX_CATEGORIES:
-                    ok(f"{name}: too many values for an even test as it is: bucket it, or use Benford.")
-            else:
-                as_category(name)
-    elif analysis == "predictors":
-        as_category(chosen[0], " (the target)")
-        usable = [n for n in chosen[1:]] or [n for n in columns if n != chosen[0]]
-        ids = [
-            n
-            for n in usable
-            if columns[n][2] == columns[n][1] and columns[n][1] > 20 and columns[n][0] != "number"
-        ]
-        dates = [n for n in usable if columns[n][0] in ("date", "timestamp")]
-        ok(f"{len(usable) - len(ids) - len(dates):,} candidate columns to test.")
-        if ids or dates:
-            ok(f"Skipped: {', '.join([*ids, *dates][:6])} (identifiers and dates).")
-    else:  # outliers
-        family, filled, distinct, lowest, _, high = columns[chosen[0]]
-        blanks(chosen[0], filled)
-        if family == "number":
-            ok(
-                f"{chosen[0]}: {filled:,} numbers, "
-                f"from {short_number(lowest or 0)} to {short_number(high or 0)}."
-            )
-        else:
-            ok(
-                f"{chosen[0]}: not a number: Frequency (values seen too often or too rarely) works; "
-                "Amount does not."
-            )
-        if len(chosen) > 1:
-            groups = columns[chosen[1]][2]
-            each = filled / groups if groups else 0
-            (warn if each < 5 else ok)(
-                f"Within each {chosen[1]}: {groups:,} groups, about {each:,.0f} values each."
-            )
-    return notes
 
 
 def whole_view_queries(relation: str) -> tuple[str, str]:

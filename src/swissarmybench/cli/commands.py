@@ -2055,31 +2055,6 @@ def analyze_predict(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "analyze_shape",
-    "Does the grid suit an analysis (odds, fit_test, predictors, outliers)? Notes on a wide table, "
-    "few rows, blanks, identifiers, bucketing, Benford's range."
-    "(one column per month), few rows, blanks, identifiers, numbers that will be bucketed, Benford's range.",
-    req("grid", "Grid id."),
-    req("analysis", "odds, fit_test, predictors or outliers."),
-    opt("columns", "The columns it would use.", "list"),
-)
-def analyze_shape(a: dict[str, Any]) -> Any:
-    body = {"analysis": a["analysis"], "columns": a.get("columns") or []}
-    return api.call("POST", f"/grids/{_q(a['grid'])}/shape-check", body)
-
-
-@command(
-    "analyze_defaults",
-    "What the analysis forms start on in this grid's view: its identifier columns (by name, or every row "
-    "a different whole number or text), the first number column that is not one, and a regression's "
-    "starting predictors. Never analyse an identifier as a measure.",
-    req("grid", "Grid id."),
-)
-def analyze_defaults(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/grids/{_q(a['grid'])}/analysis-defaults")
-
-
-@command(
     "analyze_time_series",
     "A metric per period from a date column: trend, season in words, periods that stand out (with a step "
     "showing their rows), steps in the level, memory, growth.",
@@ -4869,6 +4844,10 @@ OLD_ARGS: dict[tuple[str, str], str] = {
 
 # Commands that went, one release: an old call says why instead of "unknown".
 GONE_NAMES: dict[str, str] = {
+    "analyze_shape": "analyze_shape went (2026-11-19): analyze_check(table, analysis) says whether a table suits "
+    "an analysis, from its contract: what fits each slot, what is missing, the fixes.",
+    "analyze_defaults": "analyze_defaults went (2026-11-19): analyze_plan(analysis, table) gives the columns a "
+    "form starts on (never an identifier), and analyze_check each column's fit.",
     "app_autostart": "app_autostart went (2026-11-18): there is no tray and no start at sign-in any more; the "
     "server runs while the app is open (app_lifecycle says when it stops).",
 }

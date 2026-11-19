@@ -211,44 +211,7 @@ def run_predictors(cur: SqlSession, relation: str, view: Columns, body: dict[str
     }
 
 
-def run_shape(cur: SqlSession, relation: str, view: Columns, body: dict[str, Any]) -> dict[str, Any]:
-    """{"analysis", "columns": [...]}: plain notes on whether the grid suits the analysis (the Data
-    shape panel's check): wide tables, few rows, blanks, identifiers, numbers to bucket, Benford's range."""
-    analysis = body.get("analysis")
-    selected = body.get("columns") or []
-    if not isinstance(analysis, str) or not isinstance(selected, list):
-        raise A.AnalysisError('Send {"analysis": "odds", "columns": [...]}.')
-    flags = [(c.name, _is_number(c)) for c in view]
-    row = cur.execute(A.shape_query(relation, flags)).fetchone() or ()
-    rows = int(row[0]) if row else 0
-    columns = {
-        c.name: (
-            type_family(c.type),
-            int(row[1 + 5 * i]),
-            int(row[2 + 5 * i]),
-            row[3 + 5 * i],
-            row[4 + 5 * i],
-            row[5 + 5 * i],
-        )
-        for i, c in enumerate(view)
-    }
-    return {"notes": A.shape_notes(analysis, rows, columns, [str(s) for s in selected])}
-
-
-def run_defaults(cur: SqlSession, relation: str, view: Columns) -> dict[str, Any]:
-    """form_defaults for a view: the columns whose values could make them identifiers (whole numbers
-    and text) are counted over its first IDENTIFIER_SAMPLE_ROWS rows, in one pass."""
-    columns = [(c.name, c.type) for c in view]
-    counted, query = A.identifier_counts_query(relation, columns)
-    counts: dict[str, tuple[int, int]] = {}
-    if query:
-        row = cur.execute(query).fetchone() or ()
-        counts = {name: (int(row[2 * i]), int(row[2 * i + 1])) for i, name in enumerate(counted)}
-    return A.form_defaults(columns, counts)
-
-
 RUNS: dict[str, Callable[[SqlSession, str, Columns, dict[str, Any]], dict[str, Any]]] = {
-    "shape": run_shape,
     "outliers": run_outliers,
     "odds": run_odds,
     "predictors": run_predictors,
@@ -316,12 +279,6 @@ class Analysis:
         )
         self.ws.audit.write(who, analysis, info.name, column=body.get("column") or body.get("target"))
         return dict(result)
-
-    async def defaults(self, grid: Grid, info: DatasetInfo, who: str) -> dict[str, Any]:
-        """What the analysis forms start on in this view (domain/analysis.py form_defaults): never an
-        identifier. Whole-number and text columns are counted over the view's first rows."""
-        result: dict[str, Any] = await self._on_view(grid, info, who, run_defaults)
-        return result
 
     async def code(
         self, analysis: str, grid: Grid, info: DatasetInfo, body: dict[str, Any]

@@ -22,9 +22,7 @@
  */
 import { button, clear, h, isDateType, isNumericType, isTextType, openDialog, toast } from "./dom";
 import { changeCompare, currentCompare, onCompareChange, stopCompare, type CompareInfo } from "./compare";
-import { analyzeButton } from "./analyzeMenu";
 import { openCompareDialog } from "./compareDialog";
-import { openTieOut } from "./tieOutDialog";
 import { openExport } from "./exportDialog";
 import { openKeyFinderWindow } from "./keyFinder";
 import { autoSizeColumns, cellValue, focusedCell, selectedValues, selection, viewColumns } from "./gridView";
@@ -156,7 +154,6 @@ function render(): void {
       tool("Clean text", "clean", () => editStep("transform")),
       tool("Auto width", "columns", () => autoSizeColumns()),
       tool("Profile", "profile", () => void openTableProfile()),
-      analyzeButton(),
       tool("Key Finder", "zoom", () => openKeyFinderWindow(), { title: "Find likely join keys" }),
       tool("Relationships", "crown", () => openRelationships(), { title: "Keys and joins" }),
       tool("Export", "export", () => openExport()),
@@ -222,7 +219,6 @@ function compareGroup(): HTMLElement | null {
         })
       : null,
     cmp?.mode === "diff" ? tool("How values compare…", "settings", () => openDiffOptions(cmp)) : null,
-    tool("Tie-out…", "check", () => cmp && void openTieOut(cmp, pair), { disabled: noKeys }),
     tool("Stop compare", "close", () => void stopCompare(), { disabled: noKeys }),
     note,
   );
