@@ -842,6 +842,10 @@ src/swissarmybench/
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
+                         lazyPages.ts the rail's pages that load when first opened (APIs, Structures, Code App,
+                         Source Control, Extensions: their names, whether a plug-in page is on, stand-in layers
+                         (nav.ts registerLazyLayer), the shared cards' sync, what is heard before a page opens);
+                         tourButton.ts the Projects page's Tour button (tour.ts loads on its first press);
                          nav.ts is getting around on every page and window (design principle 8.11): the mark
                          (the rail's first item: home, the Projects page; another window brings the home window,
                          named sab-home, forward showing Projects; Alt+Home),
@@ -900,7 +904,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          tour.ts is the first-time tour (on the Projects page only: a card per
                          place in the rail's order that goes there and lights up the real control,
                          two made-up tables staged and closed again, back to where it started; then
-                         a matching game; nav.ts returnTo);
+                         a matching game; nav.ts returnTo; loaded when first opened);
                          catalogRail.ts (the blades list; the catalog tree only where a page gives it a
                          place: the Workbench's "+ Table") is the blades page's (catalogPage.ts,
                          static/catalog.html: no catalog panel since 2026-11-17); bladeEditor.ts is the
@@ -1035,7 +1039,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          align, duplicate, zoom and Play's preview are in workbenchCanvas.ts
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
-web/static/              index.html, grid.css (all theme tokens), build/ (gitignored); design.html is the
+web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, catalog,
+                         workbench, perf) split on its own (chunks/<page>-<hash>.js: what loads when first
+                         opened), lazy/* and the workers as before, grid.css minified into build/grid.css
+web/static/              index.html, grid.css (all theme tokens; the pages load build/grid.css), build/
+                         (gitignored); design.html is the
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright; e2e/conftest.py

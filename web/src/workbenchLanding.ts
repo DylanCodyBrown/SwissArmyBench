@@ -77,7 +77,6 @@ const KINDS: ["data" | "app" | "", string][] = [
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 const folderOf = (path: string): string => path.slice(0, Math.max(0, path.length - baseName(path).length - 1));
-const plural = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
 /** SEAM (project-scope): the documents of a kind that are not open here. Today the Workbench's recent
  *  files of that kind; the open project's documents list replaces this one function. */
@@ -128,25 +127,6 @@ export function mountLanding(host: LandingHost): Landing {
           h("span", { class: "wb-landing-where" }, doc.path ? folderOf(doc.path) : ""),
         ),
         open ? h("span", { class: "badge" }, "Open") : null,
-      ),
-    );
-
-  /** A table's transformations: "query_1 · 2 steps", then each step in words. Read-only. */
-  const tableCard = (table: LandingTable): HTMLElement =>
-    h(
-      "li",
-      {},
-      h(
-        "button",
-        { type: "button", class: "wb-landing-card wb-landing-table", "data-table": table.name, title: `${table.name}'s transformations`, onclick: () => host.showTable(table.name) },
-        h("span", { class: "wb-landing-icon", "aria-hidden": "true" }, icon("steps")),
-        h(
-          "span",
-          { class: "wb-landing-text" },
-          h("strong", {}, table.name, h("span", { class: "wb-landing-count" }, ` · ${table.steps.length ? plural(table.steps.length, "step") : "no steps"}`)),
-          table.problem ? h("span", { class: "wb-landing-where wb-landing-problem" }, table.problem) : null,
-          table.steps.length ? h("ol", { class: "wb-landing-steps" }, ...table.steps.map((s) => h("li", {}, s))) : null,
-        ),
       ),
     );
 

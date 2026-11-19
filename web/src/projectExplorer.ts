@@ -21,13 +21,13 @@
  * ROUTING: GET /projects/explorer, POST /projects/sort | explained | rename | remove | locate | show | delete,
  *          POST /extensions/install; the project's own: projectFile.ts
  */
-import { api, onNotice } from "./api";
+import { api, onNotice, onNoticeWhile } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { loadingBlock } from "./loading";
 import { baseName, closeProject, copyProject, newProject, onProject, openProject, projectState, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
-import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
+import { cardActions, cardWords, sharedSync } from "./lazyPages";
 import { errorHere, errorMark } from "./errorNote";
 import { openFile, pasteData } from "./openFile";
 
@@ -455,7 +455,7 @@ const share = async (c: ProjectCard): Promise<void> => {
   await copyTo(c, "/projects/share", `${c.name} is shared`);
   // "Push it to GitHub now?" when the shared projects folder is connected.
   const shared = listing?.shared_folder;
-  if (shared) await offerPush(`${shared.replace(/[\\/]+$/, "")}/${c.name}`, c.name);
+  if (shared) await (await import("./scmPage")).offerPush(`${shared.replace(/[\\/]+$/, "")}/${c.name}`, c.name);
 };
 const copyLocal = (c: ProjectCard): Promise<void> => copyTo(c, "/projects/copy-local", `A local copy of ${c.name} is made`);
 
@@ -519,8 +519,8 @@ export function localProjectsRow(): HTMLElement {
     );
   };
   void draw();
-  onNotice((n) => {
-    if (n.type === "projects_changed" && row.isConnected) void draw();
+  onNoticeWhile(row, (n) => {
+    if (n.type === "projects_changed") void draw();
   });
   return row;
 }
@@ -541,8 +541,8 @@ export function sharedProjectsRow(): HTMLElement {
     );
   };
   void draw();
-  onNotice((n) => {
-    if ((n.type === "projects_changed" || n.type === "team_changed") && row.isConnected) void draw();
+  onNoticeWhile(row, (n) => {
+    if (n.type === "projects_changed" || n.type === "team_changed") void draw();
   });
   return row;
 }

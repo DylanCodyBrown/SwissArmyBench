@@ -24,7 +24,7 @@
  * ROUTING: GET /explorer/search  GET /explorer/browse  POST /connections/{name}/open|preview|catalog
  *          GET /grids/{id}/rows  POST /workbench/window {command: "cell.insertBelow" | "explorer.insert"}
  */
-import { api, errorText, onNotice, token } from "./api";
+import { api, onNoticeWhile, token } from "./api";
 import { DROP_TYPE } from "./catalogRail";
 import { queryInNotebook } from "./connectionTree";
 import { type BrowseAnswer, mountBrowse } from "./dataBrowse";
@@ -32,7 +32,7 @@ import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { openConnections } from "./connectionsWindow";
 import { busyButton, busyClick, loadingBlock } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
-import { openStructures } from "./structuresPage";
+import { openStructures } from "./lazyPages";
 import type { Part } from "./structureTree";
 import { errorHere, errorNote } from "./errorNote";
 
@@ -664,8 +664,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
     }
   });
 
-  onNotice((notice) => {
-    if (!element.isConnected) return;
+  onNoticeWhile(element, (notice) => {
     const watched = ["catalogs_changed", "blades_changed", "dataset_updated", "dataset_closed", "dataset_renamed", "grid_shown", "grid_closed", "variables_changed"];
     // The Data page also follows a catalog's loading (its status) and Structures.
     if (browse) watched.push("catalog_loading", "structures_changed");

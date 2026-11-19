@@ -27,13 +27,12 @@
  * · POST /library/notices · POST /extensions/install · PUT /variables · PUT /blades/{name}/secrets · notices
  * team_changed, sync_changed, library_changed, library_notice, catalog_changed
  */
-import { api, onNotice } from "./api";
+import { api, onNotice, onNoticeWhile } from "./api";
 import { button, h, icon, openDialog, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openLayer } from "./nav";
 import { localProjectsRow, sharedProjectsRow } from "./projectExplorer";
-import { teamSignIn } from "./scmPage";
 import { errorHere, errorNote } from "./errorNote";
 
 type Action = "join" | "start";
@@ -154,8 +153,8 @@ function setupChecklist(host: HTMLElement): (check?: boolean) => Promise<void> {
       ),
     );
   };
-  onNotice((n) => {
-    if (host.isConnected && (n.type === "library_changed" || n.type === "variables_changed" || n.type === "blades_changed")) void draw();
+  onNoticeWhile(host, (n) => {
+    if ((n.type === "library_changed" || n.type === "variables_changed" || n.type === "blades_changed")) void draw();
   });
   return draw;
 }
@@ -212,7 +211,7 @@ export function openTeamFlow(action: Action): void {
     const at = !s.sync_on ? "install" : !s.signed_in ? "sign_in" : action === "join" ? "pick" : "name";
     mark(at);
     if (at === "install") install(s);
-    else if (at === "sign_in") page.replaceChildren(teamSignIn(s, () => void next()));
+    else if (at === "sign_in") void import("./scmPage").then(({ teamSignIn }) => page.replaceChildren(teamSignIn(s, () => void next())));
     else if (at === "pick") void pick();
     else void name(s);
   };
@@ -409,8 +408,7 @@ export function teamSection(): HTMLElement {
     }
   };
   void draw(true);
-  onNotice((n) => {
-    if (!main.isConnected) return;
+  onNoticeWhile(main, (n) => {
     if (n.type === "team_changed" || n.type === "sync_changed" || n.type === "library_changed") void draw();
   });
   return h("fieldset", { class: "fieldset team-fieldset" }, h("legend", {}, icon("user"), "Team"), main, localProjectsRow(), advanced);

@@ -77,7 +77,6 @@ import { editStep } from "./stepForms";
 import { mountStepsStrip } from "./stepsStrip";
 import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
-import { setGridZoom, stepZoom } from "./theme";
 import { installVariableAnywhere } from "./variableAnywhere";
 import { errorHere, errorNote, errorToast } from "./errorNote";
 
@@ -407,13 +406,14 @@ async function start(): Promise<void> {
     if (live) void loadApprovals();
     if (again) void resyncGrids().catch(() => undefined);
   }, { workspace: "1" });
-  await openGrids(gridId || openedWith.get("grid"));
   // The app's start (/workspace and nothing more) with no table and no project: the Projects page, as the
   // Start view was (the desktop app and `swissarmybench open` load /workspace: domain/desktop.py HOME_PAGE).
+  // The project is read alongside the grids (the read mountProject started, not a second one).
+  const bareStart = opened.pathname === "/workspace" && !opened.search && !gridId && !openedWith.get("grid");
+  const projectRead = bareStart ? loadProject().catch(() => null) : null;
+  await openGrids(gridId || openedWith.get("grid"));
   let startsOnProjects = false;
-  if (opened.pathname === "/workspace" && !opened.search && !gridList().length && !gridId && !openedWith.get("grid")) {
-    startsOnProjects = !(await loadProject().catch(() => null))?.project;
-  }
+  if (projectRead && !gridList().length) startsOnProjects = !(await projectRead)?.project;
   // A compare this page was showing before a reload comes back with its split.
   await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();

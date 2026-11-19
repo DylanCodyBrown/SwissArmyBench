@@ -34,7 +34,7 @@ import { connectionLabel, onConnectionChange, openConnectionChooser } from "./sw
 import { editStep } from "./stepForms";
 import { undoToast } from "./stepsStrip";
 import { matchingSummary, openTextMatching } from "./textMatching";
-import { gridZoom, onThemeChange, stepZoom } from "./theme";
+import { onThemeChange } from "./theme";
 import { errorHere } from "./errorNote";
 
 let host: HTMLElement;

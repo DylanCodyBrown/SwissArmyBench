@@ -3977,3 +3977,47 @@ here): test_tour, test_ui's keyboard and Application row, test_sandbox's card re
 New and Open, and nine that click "Add connection" on an empty Connections page, which now has two such buttons
 (the page head's and the empty state's: test_workbench_page's three connection tests, test_navigation_page,
 test_errors_page's warning, test_sql_server_page, test_variable_refs_page's two, test_powerbi_page).
+
+## Page speed and size, the overnight optimisation pass (2026-11-19, branch opt-page)
+- **What a page loads at its start** (release build, bytes; measured from esbuild's metafiles: the entry and
+  every chunk it imports, `node build.mjs --release` with SAB_METAFILE):
+
+  | Page | Before | After |
+  |---|---|---|
+  | grid page (main.js) | 1,753,463 | 1,181,813 (137,548 more only when a lazy page opens) |
+  | Workbench | 801,192 | 685,139 |
+  | Blades page (catalog) | 372,004 | 257,549 |
+  | Performance Analyzer (perf) | 125,684 | 125,061 |
+  | grid.css as served | 345,553 (source) | 247,242 (build/grid.css, minified; the source 340,419) |
+
+  AG Grid's eight modules (gridView.ts) took 437 KB off main.js; the lazy pages (lazyPages.ts: APIs,
+  Structures, Code App, Source Control, Extensions; the tour; html-to-image) the rest. lazy/* and the workers
+  are unchanged.
+- **First load in Chromium** (tests/e2e's server, 7 loads each, median; the same build/grid.css both times):
+  the grid page's first row 402 -> 317 ms (load event 170 -> 128 ms), the Projects page 335 -> 292 ms (load
+  event 246 -> 130 ms), the Workbench 422 -> 309 ms; the Blades page about the same (173 -> 189 ms, within
+  the noise). Scripts fetched: 1,712 -> 1,154 KB, 782 -> 669 KB, 363 -> 252 KB.
+- **AG Grid's modules:** every browser test fails on an AG Grid error in any page's console (conftest.py's
+  no_ag_grid_errors; checked by leaving CellStyleModule out: seven grid tests failed on "error #200").
+- **grid.css:** every element's computed style on eleven pages (a grid, Projects, Settings, Connections,
+  Variables, Data Catalog, Extensions, Analyze, the ERD, the Workbench, Blades), light and dark, compared in
+  Chromium: the same before and after the dead classes and the folded rules, and the same from the minified
+  build/grid.css (a throwaway test, not kept). 16 of 25 repeated selectors folded (the others have a rule of
+  the same specificity between them that sets a moved property, or are the palette's: another branch).
+- **Order of the modules' top-level code:** the per-page split keeps each page's modules but runs the shared
+  chunks first; the pairs whose order changed were listed and read: notice listeners for different notices,
+  `storage` and `message` listeners for different messages, registerLayer's insertion order (only one layer
+  is open at a time). Nothing that depends on another's order.
+- **Not done:** item 11 (Monaco's languages trimmed): the Source Control diff colours any file by Monaco's
+  whole language list (createDiffViewer) and Markdown's fenced code uses the others, so dropping them would
+  change what is shown. connectionsWindow.ts stays eager (main.ts, the Workbench, the Data Explorer, the
+  Variables and Session pages call it at once).
+- **The suite (Chromium, this branch):** unit 4,667 passed, 3 failed, 32 skipped (-n 4): test_performance's sort
+  target under the other branches' load (884 ms; passes alone otherwise), test_workbench's busy reader and
+  test_desktop_shell pass alone. Browser 360 passed, 23 failed, 15 skipped (-n 2); alone 19 still fail, and 17
+  of those fail the same with origin's scripts swapped in (the "Add connection" pair on the Connections page,
+  psycopg not installed, the tour's practice box, the keyboard and Application row tests, variable references,
+  a Python connection, the Analyze board's resize); the other two (test_workbench_page's Not now, the Power
+  BI page) pass and fail by turns on this branch alone, on the same "Add connection" pair.
+- **Not checked:** Edge and the desktop app (Chromium here); `npm run watch` started (it builds and waits)
+  but not edited under.

@@ -15,7 +15,6 @@
  *          [PICTURE]           -> POST /snapshots/{id}?width=&height=   (image/png)
  *          [FAILURE]           -> POST /snapshots/{id}/error            (the reason, as text)
  */
-import { toBlob } from "html-to-image";
 import { onNotice, token, type Notice } from "./api";
 
 /** The areas an agent may ask for, and the element each one is. Keep in step with AREAS in
@@ -48,6 +47,7 @@ async function answer(id: string, area: string, scale: number): Promise<void> {
     const width = Math.round(area === "app" ? window.innerWidth : box.width);
     const height = Math.round(area === "app" ? window.innerHeight : box.height);
     if (width < 2 || height < 2) throw new Error(`The "${area}" area is not showing right now.`);
+    const { toBlob } = await import("html-to-image");
     const blob = await toBlob(element, {
       width,
       height,

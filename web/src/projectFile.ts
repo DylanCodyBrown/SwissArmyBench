@@ -415,18 +415,6 @@ export async function saveProject(): Promise<ProjectState | null> {
   return loadProject();
 }
 
-/** Keep its rows… : the project's pasted tables, each ticked or not (any time, not only once). */
-export async function keepRows(): Promise<ProjectState | null> {
-  await loadProject();
-  const project = state.project;
-  const tables = project?.tables.filter((t) => t.needs_rows) ?? [];
-  if (!project || !tables.length) return null;
-  const chosen = await chooseRows(tables, "Keep rows", "Save");
-  if (chosen === null) return null;
-  await api("/project/save", "POST", { keep_rows: chosen });
-  return loadProject();
-}
-
 /** Copy project to…: a new folder (saved first); its kept rows only on a tick. `folder`: a project that is
  *  not open (the Project Explorer's card). */
 export async function copyProject(folder?: string): Promise<string | null> {

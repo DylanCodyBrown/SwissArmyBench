@@ -17,7 +17,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { dismissDialog, registerLayer, setOverTitle, visit, withParams } from "./nav";
 import { explorerInto, mountExplorer } from "./projectExplorer";
 import type { ProjectState } from "./projectFile";
-import { tourButton } from "./tour";
+import { tourButton } from "./tourButton";
 
 /** The page's name, in one place: the rail, the title. */
 export const PROJECTS = "Projects";

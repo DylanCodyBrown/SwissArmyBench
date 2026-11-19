@@ -11,9 +11,8 @@
  * first Run until the last queued run ends (two runs sent at once run one after the other).
  */
 import { api, ApiError, token } from "./api";
-import { toast } from "./dom";
 import type { Output, OutputArea } from "./workbenchOutputs";
-import { errorHere, problemsHere } from "./errorNote";
+import { problemsHere } from "./errorNote";
 
 export type { Output } from "./workbenchOutputs";
 export { drawOutputs } from "./workbenchOutputs";

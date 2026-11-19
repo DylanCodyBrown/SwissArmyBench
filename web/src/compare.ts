@@ -332,7 +332,7 @@ function unlockSideways(): void {
 
 // ===== the shared scrollbar between two aligned grids =====
 
-let shared: { bar: HTMLElement; spacer: HTMLElement; timer: number; left: Context; right: Context; unlock: () => void } | null = null;
+let shared: { bar: HTMLElement; spacer: HTMLElement; sizes: ResizeObserver; left: Context; right: Context; unlock: () => void } | null = null;
 
 const viewportOf = (ctx: Context): HTMLElement | null => ctx.view?.host.querySelector<HTMLElement>(".ag-grid-viewport") ?? null;
 
@@ -344,13 +344,18 @@ function showSharedScroll(left: Context, right: Context): void {
   if (!shared) {
     const spacer = h("div", { class: "center-scroll-spacer" });
     const bar = h("div", { class: "center-scroll", role: "scrollbar", "aria-label": "Scroll both grids", "aria-orientation": "vertical" }, spacer);
-    shared = { bar, spacer, timer: 0, left, right, unlock: () => {} };
-    // The row count (and so the scroll height) changes as windows load and steps change.
-    shared.timer = window.setInterval(fitSharedScroll, 250);
+    // Fitted again whenever the panes, the left grid's viewport or its rows' area change size: the row
+    // count (and so the scroll height) changes as windows load and steps change. Nothing runs while
+    // nothing changes, or while the compare is hidden.
+    shared = { bar, spacer, sizes: new ResizeObserver(() => fitSharedScroll()), left, right, unlock: () => {} };
   }
   shared.left = left;
   shared.right = right;
   panes.insertBefore(shared.bar, right.pane);
+  shared.sizes.disconnect();
+  shared.sizes.observe(panes);
+  const viewport = viewportOf(left);
+  if (viewport) for (const box of [viewport, ...viewport.children]) shared.sizes.observe(box);
   panes.dataset.aligned = "on";
   fitSharedScroll();
   // Lock the two grids and the bar: whichever scrolls, the others take its exact position.
@@ -390,7 +395,7 @@ function hideSharedScroll(): void {
   if (!shared) return;
   const panes = shared.bar.parentElement;
   if (panes) delete panes.dataset.aligned;
-  window.clearInterval(shared.timer);
+  shared.sizes.disconnect();
   shared.unlock();
   shared.bar.remove();
   shared = null;

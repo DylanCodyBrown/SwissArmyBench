@@ -75,12 +75,6 @@ export function showGridView(how: Move = "auto"): void {
   setView("grid", how);
 }
 
-/** Grids with no table open (startView.ts): the ways to bring data in, a project open or not (the projects
- *  are a page of their own: projectsPage.ts). */
-export function showGridsLanding(how: Move = "auto"): void {
-  setView("grids", how);
-}
-
 /** What the page shows: a grid, the query draft, Analyze, the ERD or the Grids landing. */
 export function currentView(): AppView {
   return view;

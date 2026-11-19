@@ -303,8 +303,29 @@ export function query(params: Record<string, string | number | undefined | null>
 type Listener = (notice: Notice) => void;
 const listeners: Listener[] = [];
 
-export function onNotice(listener: Listener): void {
+/** Hear every notice; the answer stops it. */
+export function onNotice(listener: Listener): () => void {
   listeners.push(listener);
+  return () => {
+    const at = listeners.indexOf(listener);
+    if (at >= 0) listeners.splice(at, 1);
+  };
+}
+
+/** Hear the notices while `element` is on the page: none reach it while it is off, and once it has been
+ *  on the page and is gone (its dialog or page closed), it stops hearing them for good. */
+export function onNoticeWhile(element: Element, listener: Listener): () => void {
+  let seen = element.isConnected;
+  if (!seen) requestAnimationFrame(() => (seen ||= element.isConnected));
+  const stop = onNotice((notice) => {
+    if (!element.isConnected) {
+      if (seen) stop();
+      return;
+    }
+    seen = true;
+    listener(notice);
+  });
+  return stop;
 }
 
 /** The live connection. `onState(live, again)` hears each open and close; `again` is true on an
@@ -364,7 +385,8 @@ export function connect(onState: (live: boolean, again: boolean) => void, who: R
         return;
       }
       // One listener's failure must not keep the notice from the others.
-      for (const listener of listeners) {
+      // A copy: a listener may stop hearing (onNoticeWhile) while the notice goes round.
+      for (const listener of [...listeners]) {
         try {
           listener(notice);
         } catch (error) {

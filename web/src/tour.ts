@@ -4,7 +4,7 @@
  * page and no where else"); until it has been opened once, a small "New here?" bubble sits beside it
  * (inline, so it never covers anything).
  *
- *   [TOUR]    the Projects page (the rail's mark) -> openTour()
+ *   [TOUR]    the Projects page (the rail's mark): tourButton.ts's button loads this module -> openTour()
  *   [GUIDED]  the owner, 2026-11-18: "the tutorial needs to move and highlight the item it is talking about,
  *             so the tutorial might need to stage a couple tables in the grid then remove them. it will need
  *             to navigate to pages as it goes and those descriptions could use a bit more detail". A card per
@@ -27,7 +27,8 @@
 
 import { tourCards } from "./gates";
 import { api, failure, token } from "./api";
-import { button, h, icon, recall, remember } from "./dom";
+import { button, h, icon } from "./dom";
+import { markSeen } from "./tourButton";
 import { here, historyDepth, layerShown, returnTo, runArea, visit, withParams } from "./nav";
 import { forgetVariables, namesVariable, previewLine } from "./variableBox";
 import { activateGrid, contextOf, splitPair, splitWith, unsplit } from "./panes";
@@ -286,35 +287,8 @@ export const STOPS: readonly Stop[] = [
 ];
 
 const ROUNDS = 5;
-const SEEN = "tour.seen";
 /** How long a card waits for its control before it says it is not here. */
 const WAIT_MS = 2500;
-
-/** The Projects page's Tour button, with the "New here?" bubble until the tour is opened once. While the bubble
- *  is there it is the one tour button (grid.css hides Tour beside it, feel-a: two said the same thing). */
-export function tourButton(): HTMLElement {
-  const btn = button("Tour", () => openTour(), {
-    icon: "help",
-    class: "ribbon-btn tour-btn",
-    title: "What everything means: a guided tour",
-  });
-  btn.setAttribute("aria-haspopup", "dialog");
-  if (recall(SEEN)) return btn;
-  const bubble = h(
-    "span",
-    { class: "tour-bubble" },
-    h("button", { type: "button", class: "tour-bubble-go", onclick: () => openTour() }, "New here? Take the tour"),
-    button("Not now", () => markSeen(), { icon: "close", iconOnly: true, class: "ghost" }),
-  );
-  btn.classList.add("tour-new");
-  return h("span", { class: "tour-slot" }, btn, bubble);
-}
-
-function markSeen(): void {
-  remember(SEEN, "1");
-  document.querySelectorAll(".tour-bubble").forEach((b) => b.remove());
-  document.querySelectorAll(".tour-new").forEach((b) => b.classList.remove("tour-new"));
-}
 
 /** The first visible element for any of `selectors`, in their order, or null. */
 function visible(selectors: readonly string[]): HTMLElement | null {

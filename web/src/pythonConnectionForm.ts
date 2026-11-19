@@ -17,7 +17,7 @@
  *          [PACKAGES]  POST /blades/inspect (what the boxes import); POST /blades/install
  *          [TEST]      POST /connections/test      [SAVE] POST /connections, PUT /connections/{name}
  */
-import { api, errorText } from "./api";
+import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { busy, busyClick } from "./loading";
 import { type Missing, promptForError, promptInstall, reminder } from "./missingPackages";

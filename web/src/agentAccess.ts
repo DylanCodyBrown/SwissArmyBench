@@ -8,8 +8,8 @@
  *
  * ROUTING: [APPROVAL POPUP]   Allow / Deny -> resolveApproval(id, approve)
  */
-import { api, query, type Notice } from "./api";
-import { button, clear, formatCount, h, icon, openDialog } from "./dom";
+import { api, type Notice } from "./api";
+import { button, clear, h, icon, openDialog } from "./dom";
 import { errorHere } from "./errorNote";
 
 interface Approval {

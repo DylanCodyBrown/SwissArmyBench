@@ -51,13 +51,12 @@ import { type Kind, loadKindColours } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, markIcon, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
 import { onUnseen } from "./sessionPage";
-import { APIS } from "./apisPage"; // the APIs page's layer, on every page with the rail
-import { STRUCTURES } from "./structuresPage"; // the Structures page's layer, the same
-import { CODE_APP, codeAppOn } from "./codeAppPage"; // the Power Apps extension's page (a plug-in: shown while it is on)
-import { SCM, scmOn } from "./scmPage"; // the Source Control page (a plug-in: shown while the backend names its area)
+// The APIs, Structures, Code App (a plug-in: shown while it is on), Source Control (a plug-in: shown while the
+// backend names its area) and Extensions pages' layers, on every page with the rail; each page loads when first
+// opened (lazyPages.ts).
+import { APIS, CODE_APP, codeAppOn, EXTENSIONS, SCM, scmOn, STRUCTURES } from "./lazyPages";
 import { canvasOn } from "./modes";
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
-import { EXTENSIONS } from "./extensionsPage"; // the Extensions page's layer, the same
 import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
@@ -228,8 +227,6 @@ function onKey(e: KeyboardEvent): void {
 }
 
 function item(area: (typeof AREAS)[number]): HTMLButtonElement {
-  // (an extension's data area is drawn the same way: its icon and name are the backend's)
-  const grids = area.area === "grids";
   const element = h(
     "button",
     {

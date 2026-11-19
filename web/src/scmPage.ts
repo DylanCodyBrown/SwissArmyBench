@@ -33,13 +33,12 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import type { DiffViewer } from "./lazy/codeEditor";
-import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
+import { cardActions, SCM, SCM_KEY, sharedSync } from "./lazyPages";
+import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { graph, INCOMING_ID, REF_COLOR, REMOTE_REF_COLOR, type HistoryItem, type Ref, type ViewModel, viewModels } from "./scmGraph";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorToast } from "./errorNote";
 
-export const SCM = "Source Control";
-const KEY = "scm";
 
 // ===== the backend's answers =====
 
@@ -65,13 +64,6 @@ interface Status { signed_in: boolean; account: string | null; device: boolean; 
 interface Diff { path: string; original: string; modified: string; original_label: string; modified_label: string; binary: boolean; added: boolean; deleted: boolean }
 
 // ===== whether it is on here =====
-
-let onAsked: Promise<boolean> | null = null;
-/** The rail's Source Control area: on when the backend names it. Asked once a page. */
-export function scmOn(): Promise<boolean> {
-  onAsked ??= api<{ areas: { area: string }[] }>("/app/areas").then((got) => got.areas.some((a) => a.area === KEY), () => false);
-  return onAsked;
-}
 
 // ===== codicons (Monaco's codicon font, loaded with the editor's stylesheet) =====
 
@@ -277,7 +269,7 @@ function dialog(message: string, detail: string, buttons: string[]): Promise<str
 let shownPage: PageElement | null = null;
 let redraw: (() => void) | null = null;
 
-registerLayer(KEY, {
+registerLayer(SCM_KEY, {
   isOpen: () => Boolean(shownPage?.open),
   open: () => drawPage(),
   show: () => undefined,
@@ -285,12 +277,6 @@ registerLayer(KEY, {
     if (shownPage) dismissDialog(shownPage);
   },
 });
-
-export function openScm(): void {
-  if (shownPage?.open) return;
-  layerOpened(KEY);
-  drawPage();
-}
 
 onNotice((n) => {
   if (n.type === "sync_changed" || n.type === "project_changed" || n.type === "projects_changed") redraw?.();
@@ -333,7 +319,7 @@ function ago(iso: string): string {
 interface Shown { which: string; path: string; commit?: string; conflict?: boolean; list: Resource[]; title: string }
 
 function drawPage(): void {
-  const { element, body, setHeading } = openAreaPage(KEY, SCM);
+  const { element, body, setHeading } = openAreaPage(SCM_KEY, SCM);
   shownPage = element;
   setOverTitle(SCM);
   setHeading(SCM);
@@ -1303,49 +1289,6 @@ export function teamSignIn(said: { device: boolean; token_steps: string[] }, don
 
 // ===== the Project Explorer's shared cards =====
 
-let cardStatus: Promise<Status | null> | null = null;
-let cardAsked = 0;
-/** The shared projects folder's sync, for the cards: asked when the Explorer draws, at most once a minute
- *  from GitHub (the backend keeps to that). */
-export function sharedSync(): Promise<Status | null> {
-  if (!cardStatus || Date.now() - cardAsked > 5000) {
-    cardAsked = Date.now();
-    cardStatus = scmOn().then((on) => (on ? api<Status>("/git?remote=1").catch(() => null) : null));
-  }
-  return cardStatus;
-}
-onNotice((n) => {
-  if (n.type === "sync_changed") cardStatus = null;
-});
-
-/** A shared card's words ("↑2 to push", "↓1 behind", "Conflicts: 1"), or null when up to date or not connected. */
-export function cardWords(status: Status | null, name: string): string | null {
-  const shared = status?.folders.find((f) => f.which === "shared");
-  if (!shared?.connected) return null;
-  const own = shared.projects?.[name] ?? { to_push: 0, conflicts: 0 };
-  if (own.conflicts) return `Conflicts: ${own.conflicts}`;
-  if (!shared.pulled) return "↓ Pull";
-  if (shared.behind) return `↓${shared.behind} behind`;
-  if (own.to_push) return `↑${own.to_push} to push`;
-  return null;
-}
-
-/** A shared card's Pull and Push (the shared projects folder's, Push scoped to the card's project). */
-export function cardActions(status: Status | null, path: string): { label: string; run: () => Promise<unknown> }[] {
-  const shared = status?.folders.find((f) => f.which === "shared");
-  if (!shared?.connected) return [];
-  const act = (route: string, data: unknown) => (): Promise<unknown> =>
-    api<{ words: string }>(route, "POST", data).then(
-      (d) => toast(d.words),
-      (e: Error) => errorToast(e),
-    );
-  return [
-    { label: "Pull", run: act("/git/pull", { which: "shared" }) },
-    { label: "Push", run: act("/git/push", { which: "shared", path }) },
-  ];
-}
-
-/** After Share: "Push it to GitHub now?" when the shared projects folder is connected. */
 export async function offerPush(path: string, name: string): Promise<void> {
   const status = await sharedSync();
   const shared = status?.folders.find((f) => f.which === "shared");
