@@ -230,7 +230,7 @@ class Settings:
     # Worker threads running DuckDB queries. Grid windows jump ahead of profiling, SQL and
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4
-    # The browser files: index.html, grid.css, and build/ from `npm run build`.
+    # The browser files: index.html and build/ from `npm run build` (the pages load build/grid.css).
     web_root: Path = field(default=_PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB)
     # Where the audit log and the other state files live (plan section 18, question 5: user folder for now).
     state_dir: Path = field(default_factory=_state_dir)

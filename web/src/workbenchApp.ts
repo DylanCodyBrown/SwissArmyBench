@@ -129,16 +129,35 @@ export function appPanels(frame: ModeFrame, canvas: () => CanvasView, host: AppH
     pane.setRows(rows);
     frame.redraw("state");
   };
+  // What was last drawn: a poll that reads the same draws nothing.
+  const drawn = (): string => JSON.stringify([live(), rows]);
+  let waitingToShow = false;
   const poll = (): void => {
     if (timer !== null) window.clearTimeout(timer);
     timer = null;
     if (!frame.isOpen("state") && !frame.isOpen("properties")) return;
     if (!live()) return;
-    timer = window.setTimeout(() => void fetchRows().then(() => {
-      timer = null;
-      draw();
-      poll();
-    }), 1500);
+    // Nothing is asked while the window is hidden; it goes on when the window shows again.
+    if (document.hidden) {
+      if (!waitingToShow) {
+        waitingToShow = true;
+        document.addEventListener("visibilitychange", function shown() {
+          if (document.hidden) return;
+          document.removeEventListener("visibilitychange", shown);
+          waitingToShow = false;
+          if (timer === null) poll();
+        });
+      }
+      return;
+    }
+    timer = window.setTimeout(() => {
+      const before = drawn();
+      void fetchRows().then(() => {
+        timer = null;
+        if (drawn() !== before) draw();
+        poll();
+      });
+    }, 1500);
   };
   const resetState = (): void => {
     canvas().resetState();

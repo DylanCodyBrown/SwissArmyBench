@@ -27,7 +27,7 @@
  * · POST /library/notices · POST /extensions/install · PUT /variables · PUT /blades/{name}/secrets · notices
  * team_changed, sync_changed, library_changed, library_notice, catalog_changed
  */
-import { api, onNotice } from "./api";
+import { api, onNotice, onNoticeWhile } from "./api";
 import { button, h, icon, openDialog, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
@@ -154,8 +154,8 @@ function setupChecklist(host: HTMLElement): (check?: boolean) => Promise<void> {
       ),
     );
   };
-  onNotice((n) => {
-    if (host.isConnected && (n.type === "library_changed" || n.type === "variables_changed" || n.type === "blades_changed")) void draw();
+  onNoticeWhile(host, (n) => {
+    if ((n.type === "library_changed" || n.type === "variables_changed" || n.type === "blades_changed")) void draw();
   });
   return draw;
 }
@@ -409,8 +409,7 @@ export function teamSection(): HTMLElement {
     }
   };
   void draw(true);
-  onNotice((n) => {
-    if (!main.isConnected) return;
+  onNoticeWhile(main, (n) => {
     if (n.type === "team_changed" || n.type === "sync_changed" || n.type === "library_changed") void draw();
   });
   return h("fieldset", { class: "fieldset team-fieldset" }, h("legend", {}, icon("user"), "Team"), main, localProjectsRow(), advanced);

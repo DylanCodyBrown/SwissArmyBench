@@ -21,7 +21,7 @@
  * ROUTING: GET /projects/explorer, POST /projects/sort | explained | rename | remove | locate | show | delete,
  *          POST /extensions/install; the project's own: projectFile.ts
  */
-import { api, onNotice } from "./api";
+import { api, onNotice, onNoticeWhile } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { loadingBlock } from "./loading";
@@ -519,8 +519,8 @@ export function localProjectsRow(): HTMLElement {
     );
   };
   void draw();
-  onNotice((n) => {
-    if (n.type === "projects_changed" && row.isConnected) void draw();
+  onNoticeWhile(row, (n) => {
+    if (n.type === "projects_changed") void draw();
   });
   return row;
 }
@@ -541,8 +541,8 @@ export function sharedProjectsRow(): HTMLElement {
     );
   };
   void draw();
-  onNotice((n) => {
-    if ((n.type === "projects_changed" || n.type === "team_changed") && row.isConnected) void draw();
+  onNoticeWhile(row, (n) => {
+    if (n.type === "projects_changed" || n.type === "team_changed") void draw();
   });
   return row;
 }
