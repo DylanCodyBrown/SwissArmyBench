@@ -32,6 +32,51 @@ PAGE_ACTIONS: list[dict[str, str]] = [
     }
 ]
 SECRET_PATHS: tuple[str, ...] = ()
+PROJECT_TYPE = "powerbi"
+# The rail's Power BI area (GET /app/areas): its page drawn from data (`panel`), never named in web/.
+RAIL: list[dict[str, str]] = [
+    {"area": "powerbi", "name": "Power BI", "icon": "chart", "panel": "/powerbi/panel"}
+]
+# The Power BI project (the owner, 2026-11-19): its target is one .pbix; it keeps some features closed to stay
+# simple (`areas`: the features open in it; missing: all, as for every other type).
+MODE: dict[str, Any] = {
+    "type": PROJECT_TYPE,
+    "name": "Power BI",
+    "deliverable": "a Power BI report",
+    "canvases": [],
+    "families": ["Power BI", "DAX"],
+    "languages": ["python"],
+    "cell_kinds": [],
+    "tools": ["powerbi_"],
+    "export": ["powerbi"],
+    "title": "Power BI",
+    "for_whom": "For anyone who works on a Power BI report and wants its data checked at the source.",
+    "explain": (
+        "Start from a .pbix: its connections, tables, relationships and measures come in ready to work. Each "
+        "table is read from its source and as Power BI has it, side by side, so you can compare them."
+    ),
+    "example": "Example: the sales report's numbers tied out to the warehouse before the month closes.",
+    "areas": [
+        "projects", "powerbi", "connections", "variables", "data",
+        "grids", "erd", "notebooks", "session", "settings",
+    ],
+    "first_open": (
+        "This Power BI project keeps some features closed to stay simple: {closed}. You can open them "
+        "any time "
+        "in Settings, Open every feature in this project."
+    ),
+    "tour": [
+        {"area": "powerbi", "words": "Your report: what it reads, what is left to set up, and its measures."},
+        {"area": "grids", "words": "Each table twice: from its source and as Power BI has it. Compare them."},
+        {"area": "erd", "words": "The report's relationships, active and inactive."},
+        {"area": "notebooks", "words": "data.ipynb: each table's SQL and DAX, one cell each."},
+    ],
+}  # fmt: skip
+
+
+def scaffold(name: str, data_names: list[str]) -> dict[str, Any]:
+    """A Power BI project's own files: none beyond data.ipynb (the import writes it, and powerbi.json)."""
+    return {"app": False, "files": {}, "requirements": []}
 
 
 def _erd(what: str) -> tuple[str, str, dict[str, Any]]:
@@ -99,7 +144,14 @@ def routes(services: Any) -> list[Any]:
         read_report=report_files.read,
     )
     services.powerbi_export = service  # tests
-    return door.routes(service)
+    from swissarmybench_powerbi.adapters import pbix_reader
+    from swissarmybench_powerbi.adapters.files import StateFiles
+    from swissarmybench_powerbi.server import routes_project
+    from swissarmybench_powerbi.services.project import PowerBIProject
+
+    project = PowerBIProject(services, pbix_reader.read, StateFiles(), services.agent.approvals)
+    services.powerbi_project = project  # tests hand it a fake reader
+    return door.routes(service) + routes_project.routes(project)
 
 
 def commands() -> dict[str, Any]:
