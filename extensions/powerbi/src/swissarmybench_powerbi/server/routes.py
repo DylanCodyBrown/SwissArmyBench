@@ -3,11 +3,14 @@
 POST /powerbi/plan    {"tables"?, "name"?, "include_rows"?}: what goes, what not and why, the relationships
 POST /powerbi/export  the same body: written into the open project's powerbi/ (JSON), or with no project a
                       zip download (the agent's zip is saved in the export folder: JSON)
+POST /powerbi/report  a dropped .pbix or .pbit's bytes (X-File-Name): kept in memory, its id for "report"
 POST /powerbi/open    {"path"}: the .pbip opened in Power BI Desktop or its folder shown (the user's click:
                       403 for the agent)
 """
 
 from __future__ import annotations
+
+from urllib.parse import unquote
 
 from starlette.requests import Request
 from starlette.responses import Response
@@ -37,6 +40,13 @@ def routes(export: PowerBIExport) -> list[BaseRoute]:
             )
         return json_response(done)
 
+    async def upload(request: Request) -> Response:
+        try:
+            name = unquote(request.headers.get("x-file-name", ""))
+            return json_response(export.upload(await request.body(), name))
+        except Exception as error:
+            return error_response(error)
+
     async def open_it(request: Request) -> Response:
         try:
             return json_response(export.open(await read_json(request), actor(request)))
@@ -46,5 +56,6 @@ def routes(export: PowerBIExport) -> list[BaseRoute]:
     return [
         Route("/powerbi/plan", plan, methods=["POST"]),
         Route("/powerbi/export", run, methods=["POST"]),
+        Route("/powerbi/report", upload, methods=["POST"]),
         Route("/powerbi/open", open_it, methods=["POST"]),
     ]

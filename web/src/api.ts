@@ -274,6 +274,17 @@ export async function download(path: string): Promise<{ blob: Blob; name: string
   return { blob: await response.blob(), name, message: response.headers.get("X-Export-Message") ?? "" };
 }
 
+/** A file's bytes POSTed as they are (a dropped file the server reads), its name in X-File-Name; JSON back. */
+export async function postBytes<T>(path: string, data: Blob, name: string): Promise<T> {
+  const response = await send(path, {
+    method: "POST",
+    headers: { ...headers(false), "Content-Type": "application/octet-stream", "X-File-Name": encodeURIComponent(name) },
+    body: data,
+  });
+  if (!response.ok) throw new ApiError(response.status, (await response.text()) || response.statusText);
+  return (await response.json()) as T;
+}
+
 /** A download made by a POST with a JSON body (Export to Power BI's zip): the bytes and the file name. */
 export async function downloadPost(path: string, body: unknown): Promise<{ blob: Blob; name: string }> {
   const response = await send(path, { method: "POST", headers: headers(true), body: JSON.stringify(body) });

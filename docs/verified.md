@@ -3551,3 +3551,15 @@ Not checked: **Microsoft's own TMDL reader** (TmdlSerializer.DeserializeDatabase
 Microsoft.AnalysisServices NuGet package): installing a .NET SDK in this container was refused, so no tool under
 tools/ was added. **Power BI Desktop opening the export**, and each kind's M against a real source, are still
 to be tried on the owner's computer.
+
+### Use an existing report's pages (2026-11-19, branch powerbi-export)
+
+Checked with made-up .pbit and .pbix files built in the tests from the documented structure (a zip: Report/Layout
+in UTF-16 LE, DataModelSchema as JSON, a DataModel part never opened): the fields of a table, a chart, a slicer
+and a page filter; the mapping by name and by hand; every reference rewritten (and a report measure's DAX);
+the model's measures brought along and an unmapped one said; unsafe zip entries refused; sizes capped; the
+dropped file's bytes unchanged; the ERD dialog's drop, a field mapped by hand and the export (Chromium).
+pbixray is not installed here: its adapter is tested only through its fallback sentence (pbixray absent); its
+interface (`PBIXRay(path).dax_measures`) follows its README. Not checked: **a real Power BI Desktop round trip**
+(a real .pbix's layout, the written report opened in Power BI Desktop), still to be tried on the owner's
+computer.

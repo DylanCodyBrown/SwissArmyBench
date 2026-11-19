@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -60,6 +61,7 @@ def made_up_project(server: dict[str, Any]) -> Path:
     for dataset in call(server, "GET", "/datasets")["datasets"]:
         call(server, "DELETE", f"/datasets/{dataset['name']}")
     folder = Path(server["tmp"]) / "Shop model"
+    shutil.rmtree(folder, ignore_errors=True)
     call(server, "POST", "/project/new", {"path": str(folder)})
     (folder / "data").mkdir()
     (folder / "data" / "orders.csv").write_text(
@@ -146,4 +148,58 @@ def test_without_the_extension_the_erd_has_no_power_bi_button(
     page.goto(f"http://127.0.0.1:{plain_server['port']}/workspace?view=erd#token={plain_server['token']}")
     expect(page.get_by_role("button", name="Manage relationships")).to_be_visible(timeout=20000)
     expect(page.get_by_role("button", name="Export to Power BI…")).to_have_count(0)
+    context.close()
+
+
+def test_drop_a_report_map_one_field_by_hand_and_export(browser: Browser, server: dict[str, Any]) -> None:
+    """A made-up .pbit dropped on the dialog: its fields mapped (one by hand), its pages in the export."""
+    import base64
+
+    from tests.test_powerbi_report_swap import pbit
+
+    folder = made_up_project(server)
+    sales = folder / "data" / "Sales.csv"
+    sales.write_text("Region,Amount,Channel\nN,10.5,web\nE,3.0,shop\n", encoding="utf-8")
+    call(server, "POST", "/datasets/Sales/load", {"path": str(sales)})
+    link = {"from": "Sales", "from_columns": ["Region"], "to": "regions", "to_columns": ["region_code"]}
+    call(
+        server,
+        "POST",
+        "/relationships",
+        {"model": {"name": "current", "relationships": [link]}, "replace": True},
+    )
+    base = f"http://127.0.0.1:{server['port']}"
+    context = browser.new_context(viewport={"width": 1400, "height": 1000}, device_scale_factor=2)
+    page = context.new_page()
+    page.goto(f"{base}/workspace?view=erd#token={server['token']}")
+    page.get_by_role("button", name="Export to Power BI…").click()
+    dialog = page.locator("dialog.pbi-export")
+    expect(dialog.locator(".pbi-drop")).to_be_visible(timeout=15000)
+    encoded = base64.b64encode(pbit()).decode()
+    dialog.locator(".pbi-drop").evaluate(
+        """(zone, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), (c) => c.charCodeAt(0));
+          const data = new DataTransfer();
+          data.items.add(new File([bytes], "Made-up sales.pbit"));
+          zone.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
+        }""",
+        encoded,
+    )
+    expect(dialog.locator(".pbi-report-head")).to_contain_text("Made-up sales.pbit", timeout=15000)
+    region = dialog.locator('.pbi-field[data-field="Sales.Region"] select')
+    expect(region).to_have_value("Sales.Region")
+    year = dialog.locator('.pbi-field[data-field="Calendar.Year"] select')
+    expect(year).to_have_value("")
+    year.select_option("regions.region_name")
+    expect(dialog.locator('.pbi-field[data-field="Calendar.Year"] select')).to_have_value(
+        "regions.region_name", timeout=10000
+    )
+    if SHOTS:
+        dialog.screenshot(path=str(Path(SHOTS) / "powerbi-report-mapping.png"))
+    dialog.get_by_role("button", name="Export", exact=True).click()
+    expect(dialog.locator(".pbi-written")).to_contain_text("Shop model.pbip", timeout=20000)
+    layout = (folder / "powerbi" / "Shop model.Report" / "report.json").read_text(encoding="utf-8")
+    assert "regions.region_name" in layout and "Calendar.Year" not in layout
+    tables = folder / "powerbi" / "Shop model.SemanticModel" / "definition" / "tables"
+    assert "measure 'Total Sales' = SUM(Sales[Amount])" in (tables / "Sales.tmdl").read_text(encoding="utf-8")
     context.close()

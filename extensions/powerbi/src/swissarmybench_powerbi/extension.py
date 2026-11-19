@@ -81,6 +81,7 @@ class _Files:
 
 
 def routes(services: Any) -> list[Any]:
+    from swissarmybench_powerbi.adapters import report_files
     from swissarmybench_powerbi.server import routes as door
     from swissarmybench_powerbi.services.export import PowerBIExport
 
@@ -95,6 +96,7 @@ def routes(services: Any) -> list[Any]:
         files=_Files(),
         writer=services.export_writer,
         approvals=services.agent.approvals,
+        read_report=report_files.read,
     )
     services.powerbi_export = service  # tests
     return door.routes(service)

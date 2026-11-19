@@ -17,6 +17,7 @@ variable's plain shareable value, else empty for the user to fill in; Power BI D
 
 from __future__ import annotations
 
+import asyncio
 import posixpath
 import re
 from collections.abc import Callable, Mapping
@@ -37,6 +38,7 @@ from swissarmybench.services.relationships import Asker, Models
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 from swissarmybench_powerbi.domain import export as rules
 from swissarmybench_powerbi.domain import power_query as pq
+from swissarmybench_powerbi.domain import report_swap as swap
 
 MAX_TABLES: int = 200
 
@@ -57,6 +59,24 @@ class Files(Protocol):
     def has_program(self, path: str) -> bool: ...
 
     def open_file(self, path: str) -> str: ...
+
+
+class ReportReader(Protocol):
+    """A dropped report read (adapters/report_files.py): by its path, or its uploaded bytes and name."""
+
+    def __call__(self, path: str | None = None, data: bytes | None = None, name: str = "") -> swap.Report: ...
+
+
+MAX_UPLOAD_BYTES: int = 512 * 1024 * 1024
+
+
+@dataclass
+class ReportUse:
+    """Another report's pages for the export: what the dialog shows, and what the export writes."""
+
+    info: dict[str, Any]
+    files: dict[str, bytes]
+    measures: list[rules.Measure]
 
 
 class RowWriter(Protocol):
@@ -148,6 +168,7 @@ class PowerBIExport:
         files: Files,
         writer: RowWriter,
         approvals: Asker,
+        read_report: ReportReader | None = None,
     ) -> None:
         self.ws = ws
         self._models = models
@@ -159,6 +180,9 @@ class PowerBIExport:
         self._files = files
         self._writer = writer
         self._approvals = approvals
+        self._read_report = read_report
+        # A report dropped on the page (no path: the browser's drop), kept in memory until the next one.
+        self._uploads: dict[str, tuple[str, bytes]] = {}
 
     # ===== which tables =====
 
@@ -358,7 +382,63 @@ class PowerBIExport:
         plans = await self._plans(
             self._wanted(body.get("tables")), self._rows_wanted(body.get("include_rows"))
         )
-        return self._answer(name, plans)
+        answer = self._answer(name, plans)
+        used = await self._report(body, plans)
+        return answer | ({"report": used.info} if used is not None else {})
+
+    # ===== another report's pages =====
+
+    def upload(self, data: bytes, name: str) -> dict[str, Any]:
+        """A report dropped on the page (the browser gives its bytes, not its path): kept in memory, by id."""
+        if len(data) > MAX_UPLOAD_BYTES:
+            raise ValueError("The file is too large to use.")
+        if not name.lower().endswith((".pbix", ".pbit")):
+            raise ValueError("Drop a .pbix or a .pbit (a .pbip: choose its file on this computer).")
+        self._uploads.clear()
+        key = f"u{len(data):x}{abs(hash(data[:4096])) % 10**8:x}"
+        self._uploads[key] = (name, data)
+        return {"upload": key, "file": name}
+
+    async def _report(self, body: Mapping[str, Any], plans: list[TablePlan]) -> ReportUse | None:
+        raw = body.get("report")
+        if not raw or self._read_report is None:
+            return None
+        if not isinstance(raw, dict):
+            raise ValueError('report is {"path": a .pbix, .pbit or .pbip} or {"upload": its id}.')
+        reader = self._read_report
+        if raw.get("upload"):
+            if raw["upload"] not in self._uploads:
+                raise NotFound("Drop the report again: the app keeps only the last one dropped.")
+            label, data = self._uploads[raw["upload"]]
+            report = await asyncio.to_thread(reader, None, data, label)
+        elif isinstance(raw.get("path"), str):
+            label = posixpath.basename(raw["path"].replace("\\", "/"))
+            report = await asyncio.to_thread(reader, raw["path"])
+        else:
+            raise ValueError('report is {"path": a .pbix, .pbit or .pbip} or {"upload": its id}.')
+        ours = {p.name: [c for c, _ in p.columns] for p in plans if p.goes}
+        fields = swap.fields_of(report.files)
+        bring = bool(body.get("bring_measures", True))
+        coming = [(m["table"], m["name"]) for m in (report.measures or [])] if bring else []
+        tables = {t.casefold(): t for t in ours}
+        names = [(tables[t.casefold()], m) for t, m in coming if t.casefold() in tables]
+        mapping = body.get("mapping")
+        if mapping is not None and not isinstance(mapping, dict):
+            raise ValueError('mapping is {"Table.Field": "Table.Field" or null}.')
+        mapped = swap.chosen(swap.propose(fields, ours, names), mapping)
+        brought, said = swap.bring_measures(report.measures or [], mapped, ours) if bring else ([], [])
+        files = swap.rewrite(report.files, mapped)
+        info = {
+            "file": label,
+            "ours": {t: sorted(cs) for t, cs in sorted(ours.items())},
+            "kind": report.source,
+            "pages": "PBIR" if any(p.startswith("definition/") for p in files) else "legacy layout",
+            "fields": [m.to_json() for m in mapped],
+            "measures": [m.name for m in brought],
+            "said": said + ([report.measures_note] if report.measures_note else []),
+        }
+        measures = [rules.Measure(m.table, m.name, m.expression, m.format, m.folder) for m in brought]
+        return ReportUse(info, files, measures)
 
     def _answer(self, name: str, plans: list[TablePlan]) -> dict[str, Any]:
         self._keys(plans)
@@ -396,6 +476,9 @@ class PowerBIExport:
         if not going:
             raise Refused("No table can go: tick Include its rows for a table Power Query cannot read.")
         answer = self._answer(name, plans)
+        used = await self._report(body, plans)
+        if used is not None:
+            answer |= {"report": used.info}
         folder = self._where(name)
         shared = self._shareable()
         parameters: dict[str, str] = {}
@@ -412,7 +495,14 @@ class PowerBIExport:
         tables = [
             rules.ExportTable(p.name, p.columns, p.m, frozenset(p.keys)) for p in going if p.m is not None
         ]
-        package = rules.build(name, tables, planned, parameters)
+        package = rules.build(
+            name,
+            tables,
+            planned,
+            parameters,
+            used.measures if used is not None else (),
+            used.files if used is not None else None,
+        )
         files = dict(package.files)
         if with_rows:
             files |= await self._rows(name, with_rows)

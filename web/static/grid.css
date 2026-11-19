@@ -3067,6 +3067,39 @@ body.agent-view .titlebar {
 .pbi-export .pbi-out li {
   color: var(--muted);
 }
+.pbi-export .pbi-drop {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0 10px;
+}
+.pbi-export .pbi-drop.over {
+  border-color: var(--accent);
+}
+.pbi-export .pbi-report-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.pbi-export .pbi-fields {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.pbi-export .pbi-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+.pbi-export .pbi-unmapped > span:first-child {
+  color: var(--warn);
+}
 .pbi-export .pbi-written {
   margin: 10px 0 6px;
   overflow-wrap: anywhere;

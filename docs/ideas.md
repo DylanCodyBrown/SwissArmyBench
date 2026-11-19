@@ -6160,5 +6160,17 @@ SAB builds the dataset (tables and relationships); the user builds the report in
   extension's PAGE_ACTIONS ({page, id, label, icon, title}) in every mode's `page_actions`; the ERD draws them
   and a click runs the web plug-in registered under that id (web/src/pageActions.ts). The agent's command is
   `powerbi_export` (its own prefix, its guide topic powerbi.md).
-- Later phases asked for on 2026-11-19 (the report swap, the import, a .pbix file connection by pbixray, Edit in
+- **Use an existing report's pages** (the owner, 2026-11-19: "replace a current Power BI report's model by dragging
+  and dropping a pbix into the app"): in the dialog, a drop zone and Choose file… (.pbix, .pbit, .pbip); the
+  report's pages, visuals, themes and bookmarks go into <Name>.Report/ pointed at our model (definition.pbir by
+  path). A .pbix/.pbit is read as a zip: Report/Layout (the legacy layout, UTF-16 LE) is written as report.json
+  (PBIR-Legacy, which definition.pbir 4.0 opens), or a PBIR definition/ folder as it is; StaticResources too.
+  DataModel is never opened. Every field the visuals, filters and slicers name (Entity/Property, a query's From
+  aliases, queryRef) is mapped by name in any case; unmatched ones get a picker or Leave it; a left field keeps
+  its name (its table follows the table's mapping). The report's own measures (modelExtensions) and the model's
+  measures (a .pbit's DataModelSchema, a .pbip's TMDL, a .pbix's through pbixray) are rewritten through the
+  mapping; a measure naming an unmapped column is said, not written. A browser drop sends the file's bytes
+  (POST /powerbi/report: kept in memory, the last one only); a chosen file goes by its path. The agent:
+  `powerbi_export` with `report`, `mapping` (and `dry_run` for the proposed mapping).
+- Later phases asked for on 2026-11-19 (the import, a .pbix file connection by pbixray, Edit in
   Power BI Desktop, the gated Power BI project type): not built on this branch yet.

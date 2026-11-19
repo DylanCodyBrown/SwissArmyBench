@@ -359,7 +359,8 @@ def build(
     expr = expressions_tmdl(parameters)
     if expr is not None:
         files[f"{definition}/expressions.tmdl"] = expr
-    files |= {f"{name}.Report/{path}": data for path, data in (report or smallest_report(name)).items()}
+    pages = dict(report) | {"definition.pbir": pbir(name)} if report is not None else smallest_report(name)
+    files |= {f"{name}.Report/{path}": data for path, data in pages.items()}
     return Package(files)
 
 
@@ -418,7 +419,8 @@ def pbir(name: str) -> bytes:
 
 def stale(name: str, existing: Iterable[str], package: Package) -> list[str]:
     """Files an earlier export left that this one does not write and Power BI would still read: a table no
-    longer ticked (definition/tables/), rows no longer kept (data/), the earlier report's pages. Paths under
+    longer ticked (definition/tables/), rows no longer kept (data/), the earlier report's files. Paths under
     the export's folder, '/' separated."""
-    mine = (f"{name}.SemanticModel/definition/", f"{name}.SemanticModel/data/", f"{name}.Report/definition/")
-    return sorted(p for p in existing if p.startswith(mine) and p not in package.files)
+    mine = (f"{name}.SemanticModel/definition/", f"{name}.SemanticModel/data/", f"{name}.Report/")
+    # Power BI Desktop's own files (.pbi/: its cache and settings) are never ours to remove.
+    return sorted(p for p in existing if p.startswith(mine) and "/.pbi/" not in p and p not in package.files)

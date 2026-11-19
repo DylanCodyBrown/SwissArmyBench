@@ -1150,15 +1150,23 @@ extensions/powerbi/       the Power BI extension (swissarmybench-powerbi; entry 
     domain/power_query.py Power Query (M) for a table's source, table driven (KINDS: SQL Server, PostgreSQL, MySQL,
                          Snowflake, Databricks, Oracle, Dataverse, SharePoint, CSV, Excel, Parquet, lakes); `${NAME}`
                          as parameters; a grid's steps as the source's SQL by sqlglot (or why not); M read back
+    domain/report_swap.py another report's pages: a .pbix/.pbit's report part read safely (Report/Layout in UTF-16,
+                         PBIR definition/, StaticResources; never DataModel), the fields its visuals, filters and
+                         slicers name, the mapping by name (any case), every reference rewritten, the model's
+                         measures (a .pbit's DataModelSchema, a .pbip's TMDL, a .pbix's through pbixray) brought
+                         along with their DAX rewritten, an unmapped one said
     domain/export.py     the model as a Power BI Project (.pbip): types, the relationships and the one-active-path
                          rule, TMDL and the PBIR files byte-stable (CRLF, uuid5 lineage tags), stale files
+    adapters/report_files.py a dropped report read (a zip's wanted parts only, a .pbip folder's files), a .pbix's
+                         measures by pbixray (imported there only; never its rows)
     adapters/files.py    the export's folder: written only when bytes change, stale files removed, the zip, the
                          .pbip opened with its program (Windows) or its folder shown
     services/export.py   plan (the ERD's tables, why one cannot go, Include its rows), export (the project's
                          powerbi/, or a zip; rows on the agent's Allow), open (the user's click)
-    server/routes.py     /powerbi/plan, /powerbi/export, /powerbi/open
+    server/routes.py     /powerbi/plan, /powerbi/export, /powerbi/report (a dropped file's bytes), /powerbi/open
 web/src/powerbiExport.ts (a plug-in) the ERD's Export to Power BI… dialog: the tables with ticks, why one cannot go
-                         and Include its rows, the relationships, Export, Open in Power BI Desktop or Show its folder
+                         and Include its rows, the relationships, Use an existing report's pages (drop or Choose
+                         file…; its fields mapped, a picker or Leave it), Export, Open in Power BI Desktop
 extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; entry point copilot =
                          swissarmybench_copilot.extension; no project type): Copilot's ghost text in the Workbench's
                          editors through GitHub's Copilot Language Server (npm @github/copilot-language-server,
