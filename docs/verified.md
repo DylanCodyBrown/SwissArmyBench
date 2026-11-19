@@ -3386,3 +3386,6 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   bar, Reload reads it again with the step kept, Not now keeps it.
 - **Not checked:** the Windows registry and the macOS bundle (their text only); a real Finder or Explorer Open
   with; a drop from a real file manager (a synthesized QDropEvent here); drag out (not built).
+- **Whole suite (Chromium; three other agents' suites running on the same machine):** 4446 passed, 46 skipped,
+  3 failed; all three passed alone: test_copilot_page's private project, test_table_cells_page's maker that
+  stays put, test_table_cells_live's cell run twice in a real kernel.
