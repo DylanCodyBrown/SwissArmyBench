@@ -8,7 +8,8 @@ beside them, plain and stable text that reads well in a diff:
     .sab/project.json        the format, the type, the tables (each with its source and its grids' steps),
                              the open tabs, the Workbench's documents and layout, the diagram, autosave;
                              sorted keys, no timestamp: a save that changes nothing changes no byte
-    .sab/visualizations.json the Analyze board as it was left (project.json's "analyze" names it) (its cards; what a chart showed redraws)
+    .sab/visualizations.json the Analyze board as it was left (project.json's "analyze" names it): its
+                             cards; what a chart showed redraws
     .sab/visualizations/     the saved dashboards (one JSON file each)
     .sab/model.json          the relationships (the ERD)
     .sab/data/<table>.parquet only the tables ticked "Keep its rows": ignored by Git (.sab/.gitignore and the

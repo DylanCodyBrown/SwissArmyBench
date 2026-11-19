@@ -106,6 +106,7 @@ from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services import explorer as explorer_providers
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
+from swissarmybench.services.analyze import Analyze
 from swissarmybench.services.api_explorer import Explorer as ApiExplorer
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.beta_log import BetaLog
@@ -185,6 +186,7 @@ class Services:
     grids: GridService
     profiles: Profiles
     analysis: Analysis
+    analyze: Analyze
     regression: Regression
     timeseries: TimeSeries
     sql: SqlBox
@@ -1237,14 +1239,20 @@ def bootstrap(
         start_grace=settings.life_start_grace_seconds,
     )
 
+    grid_service = GridService(ws, datasets.origins.get)
+    analysis = Analysis(ws, verifier)
+    key_finder = KeyFinder(ws)
+    tie_out = TieOut(compares)
+
     return Services(
         settings=settings,
         ws=ws,
         datasets=datasets,
         file_watch=file_watch,
-        grids=GridService(ws, datasets.origins.get),
+        grids=grid_service,
         profiles=Profiles(ws),
-        analysis=Analysis(ws, verifier),
+        analysis=analysis,
+        analyze=Analyze(ws, grid_service, datasets, analysis, tie_out, key_finder, cards),
         regression=Regression(ws),
         timeseries=TimeSeries(ws),
         sql=SqlBox(ws, datasets, table_reader),
@@ -1279,9 +1287,9 @@ def bootstrap(
         library_setup=library_setup,
         team=team,
         shared_catalog=shared_catalog,
-        keys=KeyFinder(ws),
+        keys=key_finder,
         compares=compares,
-        tie_out=TieOut(compares),
+        tie_out=tie_out,
         snapshots=Snapshots(ws),
         workbench_window=workbench_window,
         intellisense=intellisense,

@@ -176,10 +176,6 @@ def routes(cards: Cards) -> list[BaseRoute]:
         Route("/analyze/themes", add_theme, methods=["POST"]),
         Route("/analyze/themes/{theme_id}", remove_theme, methods=["DELETE"]),
         # The old addresses, one release (Visualizations is the Analyze page, 2026-11-19).
-        Route("/visualizations/themes", list_themes),
-        Route("/visualizations/theme", set_theme, methods=["PUT"]),
-        Route("/visualizations/themes", add_theme, methods=["POST"]),
-        Route("/visualizations/themes/{theme_id}", remove_theme, methods=["DELETE"]),
         Route("/dashboards", saved),
         Route("/dashboards", save, methods=["POST"]),
         Route("/dashboards/{name}", versions),

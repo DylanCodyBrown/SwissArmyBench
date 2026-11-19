@@ -68,9 +68,18 @@ def pair(title: str, markdown: str, figure: dict[str, Any] | None) -> list[Card]
     """A note and its chart, sized to sit side by side: the note five columns, the chart seven."""
     lines = markdown.count("\n") + 1
     h = max(7, min(18, math.ceil((lines * 23 + 60) / 52)))
-    cards: list[Card] = [{"kind": "note", "title": title, "body": markdown, "size": {"w": 5 if figure else 12, "h": h}}]
+    cards: list[Card] = [
+        {"kind": "note", "title": title, "body": markdown, "size": {"w": 5 if figure else 12, "h": h}}
+    ]
     if figure is not None:
-        cards.append({"kind": "plotly", "title": f"{title} (chart)", "body": json.dumps(figure), "size": {"w": 7, "h": h}})
+        cards.append(
+            {
+                "kind": "plotly",
+                "title": f"{title} (chart)",
+                "body": json.dumps(figure),
+                "size": {"w": 7, "h": h},
+            }
+        )
     return cards
 
 
@@ -101,7 +110,15 @@ def fit_cards(r: dict[str, Any], expected: str, pair_names: list[str] | None = N
         "",
         md_table(
             ["Chi-square", "Degrees of freedom", "p-value", "Rows", r["effect_name"]],
-            [[fmt(r["statistic"]), fmt(r["df"]), p_text(r["p"]), fmt(r["n"]), f"{fmt(r['effect_size'])} ({r['effect']})"]],
+            [
+                [
+                    fmt(r["statistic"]),
+                    fmt(r["df"]),
+                    p_text(r["p"]),
+                    fmt(r["n"]),
+                    f"{fmt(r['effect_size'])} ({r['effect']})",
+                ]
+            ],
             [True] * 5,
         ),
     ]
@@ -135,7 +152,10 @@ def fit_cards(r: dict[str, Any], expected: str, pair_names: list[str] | None = N
                     "x": x,
                     "y": [c["observed"] for c in shown],
                     "marker": {
-                        "color": ["theme:accent" if abs(c["residual"]) >= 2 else "theme:border-strong" for c in shown]
+                        "color": [
+                            "theme:accent" if abs(c["residual"]) >= 2 else "theme:border-strong"
+                            for c in shown
+                        ]
                     },
                 },
                 {
@@ -237,12 +257,14 @@ def odds_cards(r: dict[str, Any]) -> list[Card]:
     clear_values = [v for v in values if v.get("clear")]
     lines = [
         f"# Odds of {outcome} by {r['column']}",
-        f"{outcome}: **{pct(r.get('rate'))}** of {fmt(r['rows'])} rows. {(r.get('together') or {}).get('verdict', '')}",
+        f"{outcome}: **{pct(r.get('rate'))}** of {fmt(r['rows'])} rows. "
+        f"{(r.get('together') or {}).get('verdict', '')}",
     ]
     if top and top.get("clear"):
         lines += [
             "",
-            f"**{top['value']}: {outcome} {pct(top.get('rate'))} of the time, against {pct(top.get('rest_rate'))} "
+            f"**{top['value']}: {outcome} {pct(top.get('rate'))} of the time, against "
+            f"{pct(top.get('rest_rate'))} "
             f"elsewhere: {fmt(top.get('odds_ratio'))} times the odds.**",
         ]
 
@@ -255,7 +277,14 @@ def odds_cards(r: dict[str, Any]) -> list[Card]:
         md_table(
             [r["column"], "Rows", f"{outcome} rate", "Elsewhere", "Odds ratio", "95% range"],
             [
-                [bold(v), v["rows"], pct(v.get("rate")), pct(v.get("rest_rate")), fmt(v.get("odds_ratio")), f"{fmt(v.get('low'))} to {fmt(v.get('high'))}"]
+                [
+                    bold(v),
+                    v["rows"],
+                    pct(v.get("rate")),
+                    pct(v.get("rest_rate")),
+                    fmt(v.get("odds_ratio")),
+                    f"{fmt(v.get('low'))} to {fmt(v.get('high'))}",
+                ]
                 for v in values[:15]
             ],
             [False, True, True, True, True, True],
@@ -301,7 +330,15 @@ def odds_cards(r: dict[str, Any]) -> list[Card]:
             },
             "yaxis": {"automargin": True, "type": "category"},
             "shapes": [
-                {"type": "line", "x0": 1, "x1": 1, "yref": "paper", "y0": 0, "y1": 1, "line": {"color": "theme:fg", "width": 1, "dash": "dot"}}
+                {
+                    "type": "line",
+                    "x0": 1,
+                    "x1": 1,
+                    "yref": "paper",
+                    "y0": 0,
+                    "y1": 1,
+                    "line": {"color": "theme:fg", "width": 1, "dash": "dot"},
+                }
             ],
             "showlegend": False,
         },
@@ -311,7 +348,12 @@ def odds_cards(r: dict[str, Any]) -> list[Card]:
 
 # ===== find predictors =====
 
-_STRENGTH_COLOUR = {"strong": "theme:accent", "moderate": "theme:warn", "weak": "theme:muted", "none": "theme:border"}
+_STRENGTH_COLOUR = {
+    "strong": "theme:accent",
+    "moderate": "theme:warn",
+    "weak": "theme:muted",
+    "none": "theme:border",
+}
 
 
 def predictors_cards(r: dict[str, Any]) -> list[Card]:
@@ -321,12 +363,20 @@ def predictors_cards(r: dict[str, Any]) -> list[Card]:
     names = ", ".join(c["column"] for c in worth)
     lines = [
         f"# What goes with {target}",
-        f"**{names} {'goes' if len(worth) == 1 else 'go'} with {target}.**" if worth else f"**No column goes clearly with {target}.**",
+        f"**{names} {'goes' if len(worth) == 1 else 'go'} with {target}.**"
+        if worth
+        else f"**No column goes clearly with {target}.**",
         "",
         md_table(
             ["Column", "Strength", "Cramér's V", "Correlation", "Note"],
             [
-                [c["column"], c["strength"], fmt(c["v"]), "" if c.get("correlation") is None else fmt(c["correlation"]), f"says the same as {c['same_as']}" if c.get("same_as") else (c.get("note") or "")]
+                [
+                    c["column"],
+                    c["strength"],
+                    fmt(c["v"]),
+                    "" if c.get("correlation") is None else fmt(c["correlation"]),
+                    f"says the same as {c['same_as']}" if c.get("same_as") else (c.get("note") or ""),
+                ]
                 for c in candidates[:15]
             ],
             [False, False, True, True, False],
@@ -336,7 +386,7 @@ def predictors_cards(r: dict[str, Any]) -> list[Card]:
         keep = ", ".join(f"{p['keep']} (not {p['drop']})" for p in r["redundant"])
         lines += ["", f"For a regression keep one of each pair: {keep}."]
     if r.get("skipped"):
-        lines += ["", f"> Skipped: {'; '.join(f'{s['column']} ({s['reason']})' for s in r['skipped'])}."]
+        lines += ["", f"> Skipped: {'; '.join(f'{s["column"]} ({s["reason"]})' for s in r['skipped'])}."]
     bars = list(reversed(candidates[:15]))
     figure = {
         "data": [
@@ -360,7 +410,15 @@ def predictors_cards(r: dict[str, Any]) -> list[Card]:
             },
             "yaxis": {"automargin": True, "type": "category"},
             "shapes": [
-                {"type": "line", "x0": x, "x1": x, "yref": "paper", "y0": 0, "y1": 1, "line": {"color": "theme:border-strong", "width": 1, "dash": "dot"}}
+                {
+                    "type": "line",
+                    "x0": x,
+                    "x1": x,
+                    "yref": "paper",
+                    "y0": 0,
+                    "y1": 1,
+                    "line": {"color": "theme:border-strong", "width": 1, "dash": "dot"},
+                }
                 for x in (0.1, 0.2, 0.3)
             ],
             "showlegend": False,
@@ -383,7 +441,8 @@ def amount_cards(r: dict[str, Any], column: str, method: str) -> list[Card]:
     by = r.get("by")
     lines = [
         f"# Unusual values of {column}{f' within each {by}' if by else ''}",
-        f"**{fmt(total)} of {fmt(r['rows'])} values look out of place: {fmt(r['high'])} high, {fmt(r['low'])} low.**"
+        f"**{fmt(total)} of {fmt(r['rows'])} values look out of place: {fmt(r['high'])} high, "
+        f"{fmt(r['low'])} low.**"
         if total
         else f"**Nothing stands out among {fmt(r['rows'])} values.**",
         "",
@@ -392,14 +451,26 @@ def amount_cards(r: dict[str, Any], column: str, method: str) -> list[Card]:
     fences = r.get("fences") or []
     one = fences[0] if fences and not by else None
     if one and one.get("low_fence") is not None:
-        lines.append(f"Usual range: **{fmt(one['low_fence'])} to {fmt(one['high_fence'])}** (median {fmt(one['median'])}).")
+        lines.append(
+            f"Usual range: **{fmt(one['low_fence'])} to {fmt(one['high_fence'])}** (median "
+            f"{fmt(one['median'])})."
+        )
     if by and fences:
         lines += [
             "",
             f"#### {fmt(r['groups_flagged'])} of {fmt(r['groups'])} {by} values have outliers",
             md_table(
                 [by, "Values", "Usual range", "Low", "High"],
-                [[f.get("group") or "(blank)", f["rows"], f"{fmt(f['low_fence'])} to {fmt(f['high_fence'])}", f["low"], f["high"]] for f in fences[:10]],
+                [
+                    [
+                        f.get("group") or "(blank)",
+                        f["rows"],
+                        f"{fmt(f['low_fence'])} to {fmt(f['high_fence'])}",
+                        f["low"],
+                        f["high"],
+                    ]
+                    for f in fences[:10]
+                ],
                 [False, True, False, True, True],
             ),
         ]
@@ -410,7 +481,10 @@ def amount_cards(r: dict[str, Any], column: str, method: str) -> list[Card]:
             "#### The furthest out",
             md_table(
                 [*([by] if by else []), column, "Score"],
-                [[*([o.get("group") or "(blank)"] if by else []), o["value"], signed(o["score"])] for o in outliers[:10]],
+                [
+                    [*([o.get("group") or "(blank)"] if by else []), o["value"], signed(o["score"])]
+                    for o in outliers[:10]
+                ],
                 [*([False] if by else []), True, True],
             ),
         ]
@@ -418,9 +492,18 @@ def amount_cards(r: dict[str, Any], column: str, method: str) -> list[Card]:
     def y(group: Any) -> str:
         return str(group if group is not None else "(blank)") if by else "all"
 
-    groups = list(dict.fromkeys([*(y(f.get("group")) for f in fences), *(y(o.get("group")) for o in outliers)])) if by else ["all"]
+    groups = (
+        list(dict.fromkeys([*(y(f.get("group")) for f in fences), *(y(o.get("group")) for o in outliers)]))
+        if by
+        else ["all"]
+    )
     fenced = fences if by else fences[:1]
-    points = [v for f in fenced for v in (f.get("median"), f.get("low_fence"), f.get("high_fence")) if isinstance(v, (int, float))]
+    points = [
+        v
+        for f in fenced
+        for v in (f.get("median"), f.get("low_fence"), f.get("high_fence"))
+        if isinstance(v, (int, float))
+    ]
     points += [o["value"] for o in outliers]
     xaxis: dict[str, Any] = {"title": {"text": f"{column}: the usual range shaded"}}
     if points:
@@ -480,10 +563,12 @@ def frequency_cards(r: dict[str, Any], column: str) -> list[Card]:
     total = r["rarer"] + r["commoner"]
     lines = [
         f"# Values of {column} seen too often or too rarely",
-        f"**{fmt(total)} of {fmt(r['distinct'])} values stand out: {fmt(r['rarer'])} rarer and {fmt(r['commoner'])} "
+        f"**{fmt(total)} of {fmt(r['distinct'])} values stand out: {fmt(r['rarer'])} rarer and "
+        f"{fmt(r['commoner'])} "
         f"commoner than the usual {fmt(r['typical'])} rows per value.**"
         if total
-        else f"**Nothing stands out among {fmt(r['distinct'])} values (usually {fmt(r['typical'])} rows each).**",
+        else f"**Nothing stands out among {fmt(r['distinct'])} values (usually {fmt(r['typical'])} "
+        f"rows each).**",
     ]
     outliers = r.get("outliers") or []
     if outliers:
@@ -491,7 +576,10 @@ def frequency_cards(r: dict[str, Any], column: str) -> list[Card]:
             "",
             md_table(
                 ["Value", "Rows", "", "Score"],
-                [[o["value"], o["count"], "rarer" if o["score"] < 0 else "commoner", fmt(o["score"])] for o in outliers[:15]],
+                [
+                    [o["value"], o["count"], "rarer" if o["score"] < 0 else "commoner", fmt(o["score"])]
+                    for o in outliers[:15]
+                ],
                 [False, True, False, True],
             ),
         ]
@@ -518,7 +606,15 @@ def frequency_cards(r: dict[str, Any], column: str) -> list[Card]:
             "xaxis": {"type": "category", "title": {"text": column}},
             "yaxis": {"title": {"text": "Rows"}, "type": "log" if log else "linear"},
             "shapes": [
-                {"type": "line", "xref": "paper", "x0": 0, "x1": 1, "y0": typical, "y1": typical, "line": {"color": "theme:fg", "width": 1, "dash": "dot"}}
+                {
+                    "type": "line",
+                    "xref": "paper",
+                    "x0": 0,
+                    "x1": 1,
+                    "y0": typical,
+                    "y1": typical,
+                    "line": {"color": "theme:fg", "width": 1, "dash": "dot"},
+                }
             ],
             "annotations": [
                 {
@@ -546,9 +642,24 @@ def regression_cards(r: dict[str, Any]) -> list[Card]:
     terms = r["coefficients"][1:]
     f = r.get("fit") or {}
     fit = (
-        md_table(["R-squared", "Adjusted", "Typical miss", "Rows used"], [[fmt(f.get("r2")), fmt(f.get("adj_r2")), fmt(f.get("rmse")), fmt(r["n"])]], [True] * 4)
+        md_table(
+            ["R-squared", "Adjusted", "Typical miss", "Rows used"],
+            [[fmt(f.get("r2")), fmt(f.get("adj_r2")), fmt(f.get("rmse")), fmt(r["n"])]],
+            [True] * 4,
+        )
         if linear
-        else md_table(["Right", "Guessing", "McFadden R-squared", "Rows used"], [[pct(f.get("accuracy") or 0), pct(f.get("majority") or 0), fmt(f.get("pseudo_r2")), fmt(r["n"])]], [True] * 4)
+        else md_table(
+            ["Right", "Guessing", "McFadden R-squared", "Rows used"],
+            [
+                [
+                    pct(f.get("accuracy") or 0),
+                    pct(f.get("majority") or 0),
+                    fmt(f.get("pseudo_r2")),
+                    fmt(r["n"]),
+                ]
+            ],
+            [True] * 4,
+        )
     )
     what = r["target"] if linear else r.get("outcome")
 
@@ -565,16 +676,36 @@ def regression_cards(r: dict[str, Any]) -> list[Card]:
         "#### Each effect, the others held steady",
         md_table(
             ["Term", "In words", "Effect" if linear else "Odds ratio", "95% range", "p"],
-            [[b(c), c["words"], fmt(c["coefficient"] if linear else c.get("odds_ratio")), f"{fmt(c['low'])} to {fmt(c['high'])}", p_text(c["p"])] for c in terms[:15]],
+            [
+                [
+                    b(c),
+                    c["words"],
+                    fmt(c["coefficient"] if linear else c.get("odds_ratio")),
+                    f"{fmt(c['low'])} to {fmt(c['high'])}",
+                    p_text(c["p"]),
+                ]
+                for c in terms[:15]
+            ],
             [False, False, True, True, True],
         ),
     ]
     if r.get("references"):
-        lines += ["", f"Categories are compared with {', '.join(f'{k} = {v}' for k, v in r['references'].items())}."]
+        lines += [
+            "",
+            f"Categories are compared with {', '.join(f'{k} = {v}' for k, v in r['references'].items())}.",
+        ]
     if r.get("left_out"):
         n = r["left_out"]
-        lines += ["", f"{fmt(n)} row{'' if n == 1 else 's'} with a blank in a used column {'was' if n == 1 else 'were'} left out."]
-    lines += ["", "> It shows what goes together, not what causes what.", *(f"> {w}" for w in r.get("warnings") or [])]
+        lines += [
+            "",
+            f"{fmt(n)} row{'' if n == 1 else 's'} with a blank in a used column "
+            f"{'was' if n == 1 else 'were'} left out.",
+        ]
+    lines += [
+        "",
+        "> It shows what goes together, not what causes what.",
+        *(f"> {w}" for w in r.get("warnings") or []),
+    ]
     shown = list(reversed(terms[:20]))
 
     def point(c: dict[str, Any]) -> float:
@@ -607,13 +738,31 @@ def regression_cards(r: dict[str, Any]) -> list[Card]:
         ],
         "layout": BASE_LAYOUT
         | {
-            "xaxis": {"title": {"text": f"Effect on {r['target']} (per 1 unit, or against the reference)"}, "zeroline": True, "zerolinewidth": 2}
+            "xaxis": {
+                "title": {"text": f"Effect on {r['target']} (per 1 unit, or against the reference)"},
+                "zeroline": True,
+                "zerolinewidth": 2,
+            }
             if linear
-            else {"type": "log", "title": {"text": f"Odds ratio for {what} (log scale)"}, **_log_ticks([x for c in shown for x in (c["low"], c["high"])])},
+            else {
+                "type": "log",
+                "title": {"text": f"Odds ratio for {what} (log scale)"},
+                **_log_ticks([x for c in shown for x in (c["low"], c["high"])]),
+            },
             "yaxis": {"automargin": True, "type": "category"},
             "shapes": []
             if linear
-            else [{"type": "line", "x0": 1, "x1": 1, "yref": "paper", "y0": 0, "y1": 1, "line": {"color": "theme:fg", "width": 1, "dash": "dot"}}],
+            else [
+                {
+                    "type": "line",
+                    "x0": 1,
+                    "x1": 1,
+                    "yref": "paper",
+                    "y0": 0,
+                    "y1": 1,
+                    "line": {"color": "theme:fg", "width": 1, "dash": "dot"},
+                }
+            ],
             "showlegend": False,
         },
     }
@@ -628,13 +777,17 @@ def what_if_cards(fit: dict[str, Any], prediction: dict[str, Any], values: dict[
     shown = pct(estimate) if fit["kind"] != "linear" and isinstance(estimate, (int, float)) else fmt(estimate)
     lines = [
         f"# What if: {target}",
-        f"**About {shown}** (95% range {fmt(low)} to {fmt(high)})." if low is not None else f"**About {shown}.**",
+        f"**About {shown}** (95% range {fmt(low)} to {fmt(high)})."
+        if low is not None
+        else f"**About {shown}.**",
         "",
         md_table(["Column", "Set to"], [[k, v] for k, v in values.items()], [False, True]),
         "",
         "> From the regression on the same columns; it shows what goes together, not what causes what.",
     ]
-    return [{"kind": "note", "title": f"What if: {target}", "body": "\n".join(lines), "size": {"w": 5, "h": 8}}]
+    return [
+        {"kind": "note", "title": f"What if: {target}", "body": "\n".join(lines), "size": {"w": 5, "h": 8}}
+    ]
 
 
 # ===== time series and forecast =====
@@ -642,8 +795,28 @@ def what_if_cards(fit: dict[str, Any], prediction: dict[str, Any], values: dict[
 
 def _marker(x: str, text: str) -> tuple[dict[str, Any], dict[str, Any]]:
     return (
-        {"type": "line", "x0": x, "x1": x, "yref": "paper", "y0": 0, "y1": 1, "layer": "below", "line": {"color": "theme:muted", "width": 1, "dash": "dash"}},
-        {"x": x, "yref": "paper", "y": 1, "text": text, "showarrow": False, "xanchor": "left", "yanchor": "top", "xshift": 4, "font": {"size": 11, "color": "theme:muted"}, "bgcolor": "theme:bg/0.85"},
+        {
+            "type": "line",
+            "x0": x,
+            "x1": x,
+            "yref": "paper",
+            "y0": 0,
+            "y1": 1,
+            "layer": "below",
+            "line": {"color": "theme:muted", "width": 1, "dash": "dash"},
+        },
+        {
+            "x": x,
+            "yref": "paper",
+            "y": 1,
+            "text": text,
+            "showarrow": False,
+            "xanchor": "left",
+            "yanchor": "top",
+            "xshift": 4,
+            "font": {"size": 11, "color": "theme:muted"},
+            "bgcolor": "theme:bg/0.85",
+        },
     )
 
 
@@ -652,7 +825,10 @@ _UNIFIED = {"hovermode": "x unified", "hoverdistance": 30}
 
 def time_series_cards(r: dict[str, Any]) -> list[Card]:
     what, period = r["what"], r["period"]
-    lines = [f"# {what} by {period}", *((f"**{w}.**" if i == 0 else f"- {w}") for i, w in enumerate(r.get("words") or []))]
+    lines = [
+        f"# {what} by {period}",
+        *((f"**{w}.**" if i == 0 else f"- {w}") for i, w in enumerate(r.get("words") or [])),
+    ]
     if r.get("seasonal") and r.get("season_index"):
         multiplicative = r.get("multiplicative")
         lines += [
@@ -660,7 +836,15 @@ def time_series_cards(r: dict[str, Any]) -> list[Card]:
             "#### The season",
             md_table(
                 ["", f"Against a typical {period}" if multiplicative else "Difference"],
-                [[s["position"], f"{'+' if s['index'] >= 1 else ''}{(s['index'] - 1) * 100:.0f}%" if multiplicative else fmt(s["index"])] for s in r["season_index"]],
+                [
+                    [
+                        s["position"],
+                        f"{'+' if s['index'] >= 1 else ''}{(s['index'] - 1) * 100:.0f}%"
+                        if multiplicative
+                        else fmt(s["index"]),
+                    ]
+                    for s in r["season_index"]
+                ],
                 [False, True],
             ),
         ]
@@ -671,7 +855,15 @@ def time_series_cards(r: dict[str, Any]) -> list[Card]:
             "#### Lately",
             md_table(
                 [period, what, "Change", "Against a season ago"],
-                [[g["period"], g["value"], "" if g.get("change") is None else f"{g['change'] * 100:.1f}%", "" if g.get("season_ago") is None else f"{g['season_ago'] * 100:.1f}%"] for g in recent],
+                [
+                    [
+                        g["period"],
+                        g["value"],
+                        "" if g.get("change") is None else f"{g['change'] * 100:.1f}%",
+                        "" if g.get("season_ago") is None else f"{g['season_ago'] * 100:.1f}%",
+                    ]
+                    for g in recent
+                ],
                 [False, True, True, True],
             ),
         ]
@@ -682,13 +874,37 @@ def time_series_cards(r: dict[str, Any]) -> list[Card]:
     data: list[dict[str, Any]]
     if r.get("lines"):
         data = [
-            {"type": "scatter", "mode": "lines", "name": line["name"], "x": [p["period"] for p in line["points"]], "y": [p["value"] for p in line["points"]], "line": {"width": 1.8}}
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "name": line["name"],
+                "x": [p["period"] for p in line["points"]],
+                "y": [p["value"] for p in line["points"]],
+                "line": {"width": 1.8},
+            }
             for line in r["lines"]
         ]
     else:
         data = [
-            {"type": "scatter", "mode": "lines", "name": what, "x": x, "y": [p["value"] for p in points], "line": {"color": "theme:fg", "width": 1.5}, "hovertemplate": "%{y:,.4~r}<extra></extra>"},
-            {"type": "scatter", "mode": "lines", "name": "Trend", "x": x, "y": [p["trend"] for p in points], "line": {"color": "theme:accent", "width": 2.5, "shape": "spline", "smoothing": 0.6}, "opacity": 0.9, "hovertemplate": "Trend %{y:,.4~r}<extra></extra>"},
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "name": what,
+                "x": x,
+                "y": [p["value"] for p in points],
+                "line": {"color": "theme:fg", "width": 1.5},
+                "hovertemplate": "%{y:,.4~r}<extra></extra>",
+            },
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "name": "Trend",
+                "x": x,
+                "y": [p["trend"] for p in points],
+                "line": {"color": "theme:accent", "width": 2.5, "shape": "spline", "smoothing": 0.6},
+                "opacity": 0.9,
+                "hovertemplate": "Trend %{y:,.4~r}<extra></extra>",
+            },
         ]
     if r.get("anomalies"):
         data.append(
@@ -726,31 +942,78 @@ def forecast_cards(r: dict[str, Any]) -> list[Card]:
         "",
         md_table(
             [period, "Forecast", "80% range", "95% range"],
-            [[f["period"], f["estimate"], f"{fmt(f['low80'])} to {fmt(f['high80'])}", f"{fmt(f['low95'])} to {fmt(f['high95'])}"] for f in ahead[:12]],
+            [
+                [
+                    f["period"],
+                    f["estimate"],
+                    f"{fmt(f['low80'])} to {fmt(f['high80'])}",
+                    f"{fmt(f['low95'])} to {fmt(f['high95'])}",
+                ]
+                for f in ahead[:12]
+            ],
             [False, True, True, True],
         ),
     ]
     if r.get("predictors"):
 
         def said(p: dict[str, Any]) -> str:
-            how = {"value": f"set to {fmt(p.get('value'))}", "trend": "its own trend"}.get(p.get("future", ""), "its last value")
+            how = {"value": f"set to {fmt(p.get('value'))}", "trend": "its own trend"}.get(
+                p.get("future", ""), "its last value"
+            )
             return f"{p['column']} ({how})"
 
         lines += ["", f"Predictors: {', '.join(said(p) for p in r['predictors'])}."]
     fx = [f["period"] for f in ahead]
 
     def band(low: list[float], high: list[float], colour: str, name: str) -> dict[str, Any]:
-        return {"type": "scatter", "mode": "lines", "name": name, "x": fx + fx[::-1], "y": high + low[::-1], "fill": "toself", "fillcolor": colour, "line": {"width": 0}, "hoverinfo": "skip"}
+        return {
+            "type": "scatter",
+            "mode": "lines",
+            "name": name,
+            "x": fx + fx[::-1],
+            "y": high + low[::-1],
+            "fill": "toself",
+            "fillcolor": colour,
+            "line": {"width": 0},
+            "hoverinfo": "skip",
+        }
 
-    marks = ([_marker(r["check"]["from"], "Held back to test")] if r.get("check") else []) + ([_marker(fx[0], "Forecast")] if fx else [])
+    marks = ([_marker(r["check"]["from"], "Held back to test")] if r.get("check") else []) + (
+        [_marker(fx[0], "Forecast")] if fx else []
+    )
     history = r.get("history") or []
     figure = {
         "data": [
             band([f["low95"] for f in ahead], [f["high95"] for f in ahead], "theme:accent/0.12", "95% range"),
             band([f["low80"] for f in ahead], [f["high80"] for f in ahead], "theme:accent/0.24", "80% range"),
-            {"type": "scatter", "mode": "lines", "name": what, "x": [h["period"] for h in history], "y": [h["value"] for h in history], "line": {"color": "theme:fg", "width": 1.5}, "hovertemplate": "%{y:,.4~r}<extra></extra>"},
-            {"type": "scatter", "mode": "lines", "name": "The model's fit", "x": [h["period"] for h in history], "y": [h["fitted"] for h in history], "line": {"color": "theme:cat-2", "width": 1, "dash": "dot"}, "hovertemplate": "Fit %{y:,.4~r}<extra></extra>"},
-            {"type": "scatter", "mode": "lines+markers", "name": "Forecast", "x": fx, "y": [f["estimate"] for f in ahead], "line": {"color": "theme:accent", "width": 2.5}, "marker": {"size": 5, "color": "theme:accent"}, "hovertemplate": "Forecast %{y:,.4~r}<extra></extra>"},
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "name": what,
+                "x": [h["period"] for h in history],
+                "y": [h["value"] for h in history],
+                "line": {"color": "theme:fg", "width": 1.5},
+                "hovertemplate": "%{y:,.4~r}<extra></extra>",
+            },
+            {
+                "type": "scatter",
+                "mode": "lines",
+                "name": "The model's fit",
+                "x": [h["period"] for h in history],
+                "y": [h["fitted"] for h in history],
+                "line": {"color": "theme:cat-2", "width": 1, "dash": "dot"},
+                "hovertemplate": "Fit %{y:,.4~r}<extra></extra>",
+            },
+            {
+                "type": "scatter",
+                "mode": "lines+markers",
+                "name": "Forecast",
+                "x": fx,
+                "y": [f["estimate"] for f in ahead],
+                "line": {"color": "theme:accent", "width": 2.5},
+                "marker": {"size": 5, "color": "theme:accent"},
+                "hovertemplate": "Forecast %{y:,.4~r}<extra></extra>",
+            },
         ],
         "layout": BASE_LAYOUT
         | _UNIFIED
@@ -772,35 +1035,68 @@ def profile_cards(r: dict[str, Any], dataset: str) -> list[Card]:
     markdown = "\n".join(
         [
             f"# Profile of {dataset}",
-            f"**{fmt(r.get('rows'))} rows, {fmt(len(columns))} columns, {fmt(r.get('duplicate_rows'))} duplicate rows.**",
+            f"**{fmt(r.get('rows'))} rows, {fmt(len(columns))} columns, "
+            f"{fmt(r.get('duplicate_rows'))} duplicate rows.**",
             "",
             md_table(
                 ["Column", "Type", "Blank", "Blank %", "Different values", "Lowest", "Highest"],
-                [[c.get("column"), str(c.get("type", "")).lower(), c.get("blanks"), f"{c.get('blank_percent')}%", c.get("distinct"), c.get("min"), c.get("max")] for c in columns],
+                [
+                    [
+                        c.get("column"),
+                        str(c.get("type", "")).lower(),
+                        c.get("blanks"),
+                        f"{c.get('blank_percent')}%",
+                        c.get("distinct"),
+                        c.get("min"),
+                        c.get("max"),
+                    ]
+                    for c in columns
+                ],
                 [False, False, True, True, True, False, False],
             ),
         ]
     )
-    return [card | {"size": {"w": 12, "h": card["size"]["h"]}} for card in pair(f"Profile of {dataset}", markdown, None)]
+    return [
+        card | {"size": {"w": 12, "h": card["size"]["h"]}}
+        for card in pair(f"Profile of {dataset}", markdown, None)
+    ]
 
 
 def check_cards(notes: list[dict[str, str]], suggested: list[dict[str, Any]], dataset: str) -> list[Card]:
     lines = [f"# Check: {dataset}", ""]
     lines += [f"- {'⚠ ' if n['level'] == 'warn' else ''}{n['text']}" for n in notes]
     if suggested:
-        lines += ["", "#### What makes sense for this table", *(f"1. {s['label']} ({s['name']})" for s in suggested)]
-    return [{"kind": "note", "title": f"Check: {dataset}", "body": "\n".join(lines), "size": {"w": 6, "h": max(6, min(16, 3 + len(lines) // 2))}}]
+        lines += [
+            "",
+            "#### What makes sense for this table",
+            *(f"1. {s['label']} ({s['name']})" for s in suggested),
+        ]
+    return [
+        {
+            "kind": "note",
+            "title": f"Check: {dataset}",
+            "body": "\n".join(lines),
+            "size": {"w": 6, "h": max(6, min(16, 3 + len(lines) // 2))},
+        }
+    ]
 
 
 def tie_out_cards(r: dict[str, Any], left: str, right: str) -> list[Card]:
     columns, rows = tie_out_rows(r, left, right)
     note = (
-        f"# Tie-out: {left} and {right}\n\n**{r['words']}**\n\nGrouped by {', '.join(r.get('group_by') or []) or 'nothing (one total)'}; "
+        f"# Tie-out: {left} and {right}\n\n**{r['words']}**\n\nGrouped by "
+        f"{', '.join(r.get('group_by') or []) or 'nothing (one total)'}; "
         f"totals of {', '.join(r.get('measures') or []) or 'rows only'}."
     )
     return [
         {"kind": "note", "title": f"Tie-out: {left} and {right}", "body": note, "size": {"w": 4, "h": 7}},
-        {"kind": "table", "title": f"Tie-out by {', '.join(r.get('group_by') or []) or 'total'}", "columns": columns, "rows": rows[:100], "size": {"w": 8, "h": 10}},
+        {
+            "kind": "table",
+            "title": f"Tie-out by {', '.join(r.get('group_by') or []) or 'total'}",
+            "columns": columns,
+            "rows": rows[:100],
+            "size": {"w": 8, "h": 10},
+        },
     ]
 
 
@@ -839,12 +1135,38 @@ def key_finder_cards(r: dict[str, Any]) -> list[Card]:
     lines += [
         "",
         md_table(
-            [f"{source} column", "Table", "Column", "Relationship", f"Found from {source}", "Found from the other", "Shared values"],
-            [[p.get("source_column"), p.get("target_dataset"), p.get("target_column"), p.get("relationship"), share(p.get("source_found")), share(p.get("target_found")), p.get("shared")] for p in pairs[:15]],
+            [
+                f"{source} column",
+                "Table",
+                "Column",
+                "Relationship",
+                f"Found from {source}",
+                "Found from the other",
+                "Shared values",
+            ],
+            [
+                [
+                    p.get("source_column"),
+                    p.get("target_dataset"),
+                    p.get("target_column"),
+                    p.get("relationship"),
+                    share(p.get("source_found")),
+                    share(p.get("target_found")),
+                    p.get("shared"),
+                ]
+                for p in pairs[:15]
+            ],
             [False, False, False, False, True, True, True],
         ),
     ]
-    return [{"kind": "note", "title": f"Join columns for {source}", "body": "\n".join(lines), "size": {"w": 12, "h": min(16, 5 + min(15, len(pairs)))}}]
+    return [
+        {
+            "kind": "note",
+            "title": f"Join columns for {source}",
+            "body": "\n".join(lines),
+            "size": {"w": 12, "h": min(16, 5 + min(15, len(pairs)))},
+        }
+    ]
 
 
 # ===== every analysis, by its id =====
@@ -870,7 +1192,9 @@ def cards_for(analysis_id: str, result: dict[str, Any], body: dict[str, Any], da
     if analysis_id == "regression":
         return regression_cards(result)
     if analysis_id == "whatif":
-        return what_if_cards(result["fit"], result["prediction"], result["values"]) + regression_cards(result["fit"])
+        return what_if_cards(result["fit"], result["prediction"], result["values"]) + regression_cards(
+            result["fit"]
+        )
     if analysis_id == "time_series":
         return time_series_cards(result)
     if analysis_id == "forecast":
@@ -880,13 +1204,17 @@ def cards_for(analysis_id: str, result: dict[str, Any], body: dict[str, Any], da
     if analysis_id == "check":
         return check_cards(result.get("notes") or [], result.get("suggested") or [], dataset)
     if analysis_id == "tie_out":
-        return tie_out_cards(result, str(result.get("left_name") or "left"), str(result.get("right_name") or "right"))
+        return tie_out_cards(
+            result, str(result.get("left_name") or "left"), str(result.get("right_name") or "right")
+        )
     if analysis_id == "key_finder":
         return key_finder_cards(result)
     raise ValueError(f"No cards for {analysis_id!r}.")
 
 
-def result_rows(analysis_id: str, result: dict[str, Any], body: dict[str, Any]) -> list[dict[str, Any]] | None:
+def result_rows(
+    analysis_id: str, result: dict[str, Any], body: dict[str, Any]
+) -> list[dict[str, Any]] | None:
     """A result as rows for Open as grid, or None when it has no table to open."""
     if analysis_id in ("benford", "fit", "together", "fit_test"):
         listed = result.get("results") or [result]
@@ -898,20 +1226,43 @@ def result_rows(analysis_id: str, result: dict[str, Any], body: dict[str, Any]) 
     if analysis_id == "outliers":
         column = str(body.get("column") or "value")
         if result.get("look") == "frequency":
-            return [{column: o["value"], "rows": o["count"], "score": o["score"]} for o in result.get("outliers") or []]
+            return [
+                {column: o["value"], "rows": o["count"], "score": o["score"]}
+                for o in result.get("outliers") or []
+            ]
         by = result.get("by")
-        return [{**({by: o.get("group")} if by else {}), column: o["value"], "score": o["score"]} for o in result.get("outliers") or []]
+        return [
+            {**({by: o.get("group")} if by else {}), column: o["value"], "score": o["score"]}
+            for o in result.get("outliers") or []
+        ]
     if analysis_id == "odds":
         return [dict(v) for v in result.get("values") or []]
     if analysis_id == "predictors":
         return [
-            {"column": c["column"], "kind": c.get("kind"), "strength": c["strength"], "cramers_v": c["v"], "p": c.get("p"), "correlation": c.get("correlation"), "same_as": c.get("same_as"), "note": c.get("note")}
+            {
+                "column": c["column"],
+                "kind": c.get("kind"),
+                "strength": c["strength"],
+                "cramers_v": c["v"],
+                "p": c.get("p"),
+                "correlation": c.get("correlation"),
+                "same_as": c.get("same_as"),
+                "note": c.get("note"),
+            }
             for c in result.get("candidates") or []
         ]
     if analysis_id in ("regression", "whatif"):
         fit = result["fit"] if analysis_id == "whatif" else result
         return [
-            {"term": c["term"], "coefficient": c["coefficient"], "low": c["low"], "high": c["high"], "p": c["p"], **({"odds_ratio": c["odds_ratio"]} if "odds_ratio" in c else {}), "effect": c["words"]}
+            {
+                "term": c["term"],
+                "coefficient": c["coefficient"],
+                "low": c["low"],
+                "high": c["high"],
+                "p": c["p"],
+                **({"odds_ratio": c["odds_ratio"]} if "odds_ratio" in c else {}),
+                "effect": c["words"],
+            }
             for c in fit.get("coefficients") or []
         ]
     if analysis_id == "time_series":
@@ -921,7 +1272,9 @@ def result_rows(analysis_id: str, result: dict[str, Any], body: dict[str, Any]) 
     if analysis_id == "profile":
         return [dict(c) for c in result.get("columns") or []]
     if analysis_id == "tie_out":
-        columns, rows = tie_out_rows(result, str(result.get("left_name") or "left"), str(result.get("right_name") or "right"))
+        columns, rows = tie_out_rows(
+            result, str(result.get("left_name") or "left"), str(result.get("right_name") or "right")
+        )
         return [dict(zip(columns, r, strict=True)) for r in rows]
     if analysis_id == "key_finder":
         return [dict(p) for p in result.get("pairs") or []] or None
@@ -938,15 +1291,37 @@ def next_steps(analysis_id: str, result: dict[str, Any], body: dict[str, Any]) -
         if result.get("exclude_step"):
             out.append({"label": "Exclude these", "step": result["exclude_step"]})
     elif analysis_id == "predictors":
-        picks = [c["column"] for c in result.get("candidates") or [] if c["strength"] in ("strong", "moderate") and not c.get("same_as")]
+        picks = [
+            c["column"]
+            for c in result.get("candidates") or []
+            if c["strength"] in ("strong", "moderate") and not c.get("same_as")
+        ]
         if picks:
-            out.append({"label": "Predict it from these", "analysis": "regression", "columns": {"target": result["target"], "predictors": picks}})
+            out.append(
+                {
+                    "label": "Predict it from these",
+                    "analysis": "regression",
+                    "columns": {"target": result["target"], "predictors": picks},
+                }
+            )
         if picks:
-            out.append({"label": f"Test {result['target']} and {picks[0]} together", "analysis": "together", "columns": {"first": result["target"], "second": picks[0]}})
+            out.append(
+                {
+                    "label": f"Test {result['target']} and {picks[0]} together",
+                    "analysis": "together",
+                    "columns": {"first": result["target"], "second": picks[0]},
+                }
+            )
     elif analysis_id == "odds" and result.get("outcome"):
         outcome = (body.get("outcome") or {}).get("column")
         if outcome:
-            out.append({"label": "Test the two together", "analysis": "together", "columns": {"first": result["column"], "second": outcome}})
+            out.append(
+                {
+                    "label": "Test the two together",
+                    "analysis": "together",
+                    "columns": {"first": result["column"], "second": outcome},
+                }
+            )
     elif analysis_id in ("regression", "whatif"):
         fit = result["fit"] if analysis_id == "whatif" else result
         steps = fit.get("steps") or {}
@@ -957,5 +1332,11 @@ def next_steps(analysis_id: str, result: dict[str, Any], body: dict[str, Any]) -
     elif analysis_id == "time_series" and result.get("step"):
         out.append({"label": "Show the periods that stand out", "step": result["step"]})
     if analysis_id == "time_series":
-        out.append({"label": "What comes next?", "analysis": "forecast", "columns": {"date": body.get("date"), "metric": body.get("metric") or ""}})
+        out.append(
+            {
+                "label": "What comes next?",
+                "analysis": "forecast",
+                "columns": {"date": body.get("date"), "metric": body.get("metric") or ""},
+            }
+        )
     return out

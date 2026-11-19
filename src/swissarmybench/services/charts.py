@@ -276,6 +276,7 @@ _KEPT: tuple[str, ...] = (
     "origin",
     "dataset",
     "created_by",
+    "analysis",
 )
 
 
@@ -722,6 +723,43 @@ class Cards:
             card=card["id"],
         )
         return {"card": card["id"], "replaced": same is not None}
+
+    async def land(
+        self, made: list[Any], dataset: str, who: str, analysis: dict[str, Any], origin: str = ""
+    ) -> list[str]:
+        """An analysis result's cards put on the board by themselves (the owner, 2026-11-19: "Every
+        analysis should automatically push to the analysis visualization area"): at the top, the newest
+        run first, in the order made. They belong to no grid (what a run found stays when its table
+        closes) and carry `analysis`: the run, so a card can show its math, open as a grid, give its code
+        and run again. One notice names them, so the page scrolls to them and marks them."""
+        ws = self.ws
+        cards = [check_card(body) for body in made]
+        if not cards:
+            return []
+        top = min((c.get("order", 0.0) for c in self._cards.values()), default=1.0)
+        landed: list[str] = []
+        for at, card in enumerate(cards):
+            card |= {
+                "id": secrets.token_hex(4),
+                "key": None,
+                "grid": None,
+                "dataset": dataset,
+                "origin": _ORIGINS.get(origin or who, "Analyze"),
+                "pinned": False,
+                "new_page": False,
+                "created_by": who,
+                "created": time.time(),
+                "order": top - len(cards) + at,
+                "analysis": analysis | {"first": at == 0},
+            }
+            self._cards[card["id"]] = card
+            landed.append(card["id"])
+        await ws.live.broadcast({"type": "cards_updated", "grid": None, "landed": landed})
+        return landed
+
+    def of_run(self, run: str) -> list[str]:
+        """The cards a run landed that are still on the board."""
+        return [c["id"] for c in self._cards.values() if (c.get("analysis") or {}).get("run") == run]
 
     async def update(self, card: Card, body: Any, who: str) -> dict[str, Any]:
         """Change title, spec, body, sql, pinned, new_page (it starts a page in Page view), or its

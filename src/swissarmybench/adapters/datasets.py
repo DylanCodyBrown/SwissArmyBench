@@ -82,6 +82,27 @@ def split_json_to_arrow(payload: Any) -> pa.Table:
     return check_table(pa.Table.from_arrays(arrays, names=columns))
 
 
+def rows_to_arrow(columns: list[str], rows: list[list[Any]], dates: tuple[str, ...] = ()) -> pa.Table:
+    """Rows the app itself made (an analysis result, a contract's made-up sample) as a table: types from
+    the values; the columns named in `dates` hold ISO dates and become real dates. A column of mixed
+    values is kept as text rather than refused."""
+    import datetime as dt
+
+    arrays: list[pa.Array] = []
+    for index, column in enumerate(columns):
+        values: list[Any] = [row[index] for row in rows]
+        if column in dates:
+            values = [None if v in (None, "") else dt.date.fromisoformat(str(v)[:10]) for v in values]
+        try:
+            array: pa.Array = pa.array(values)
+        except (pa.ArrowInvalid, pa.ArrowTypeError):
+            array = pa.array([None if v is None else str(v) for v in values], pa.string())
+        if pa.types.is_null(array.type):
+            array = array.cast(pa.string())
+        arrays.append(array)
+    return check_table(pa.Table.from_arrays(arrays, names=columns))
+
+
 def table_to_arrow_stream(table: pa.Table) -> bytes:
     """A table as an Arrow IPC stream (a connection's table sent to a Workbench kernel's DuckDB)."""
     sink = pa.BufferOutputStream()

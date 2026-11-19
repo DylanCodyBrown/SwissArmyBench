@@ -19,9 +19,11 @@ HOST = {"Host": f"127.0.0.1:{PORT}"}
 def test_each_window_names_the_places_it_has() -> None:
     assert rules.place(None, "home") == {"window": "home", "to": "home"}
     assert rules.place("home", "back") == {"window": "home", "to": "back"}
-    assert rules.place("home", " visualizations ") == {"window": "home", "to": "visualizations"}
-    # The old names, one release (2026-11-16: the Sandbox is Visualizations, the Diagram the ERD).
-    assert rules.place("home", " sandbox ") == {"window": "home", "to": "visualizations"}
+    assert rules.place("home", " analyze ") == {"window": "home", "to": "analyze"}
+    # The old names, one release (2026-11-16: the Sandbox is Visualizations, the Diagram the ERD;
+    # 2026-11-19: Visualizations is Analyze).
+    assert rules.place("home", " sandbox ") == {"window": "home", "to": "analyze"}
+    assert rules.place("workbench", "visualizations") == {"window": "workbench", "to": "analyze"}
     assert rules.place("catalog", "diagram") == {"window": "catalog", "to": "erd"}
     # The Start view is the Projects page (the owner, 2026-11-18): its old name, one release.
     assert rules.place("home", "start") == {"window": "home", "to": "projects"}
@@ -62,7 +64,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "notebooks",
         "scripts",
         "apps",
-        "visualizations",
+        "analyze",
         "session",
         "extensions",
         "settings",
@@ -81,7 +83,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
             assert rules.place(window, code, False) == {"window": window, "to": code}
     assert rules.said(rules.place("home", "apps", True)) == "home window to apps, in a new window"
     with pytest.raises(rules.NavigationError, match="Only notebooks, scripts, apps open in a new window"):
-        rules.place("home", "visualizations", True)
+        rules.place("home", "analyze", True)
     with pytest.raises(rules.NavigationError, match="new_window is true or false"):
         rules.place("home", "apps", "yes")
 

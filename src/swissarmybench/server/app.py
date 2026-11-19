@@ -78,6 +78,7 @@ from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.server import (
     routes_agent,
     routes_analysis,
+    routes_analyze,
     routes_api_explorer,
     routes_apis,
     routes_beta_log,
@@ -287,6 +288,7 @@ def create_app(
             *routes_datasets.routes(ctx.datasets),
             *routes_grids.routes(ctx.grids, ctx.profiles, ctx.sql, ctx.exports, ctx.codes),
             *routes_analysis.routes(ctx.grids, ctx.analysis),
+            *routes_analyze.routes(ctx.analyze),
             *routes_regression.routes(ctx.grids, ctx.regression),
             *routes_timeseries.routes(ctx.grids, ctx.timeseries),
             *routes_agent.routes(ctx.agent, ctx.inbox),

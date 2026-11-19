@@ -93,6 +93,14 @@ def _grid(details: dict[str, Any], dataset: str) -> Target:
     return {"place": "grid", "grid": _name(grid), "dataset": dataset} if grid else _dataset(dataset)
 
 
+def _analysis(details: dict[str, Any]) -> str:
+    """An analysis by its everyday question (its contract's label), else its id."""
+    from swissarmybench.domain.analysis_contracts import BY_ID
+
+    found = BY_ID.get(str(details.get("analysis")))
+    return found.label if found else _name(details.get("analysis")) or "an analysis"
+
+
 def _dataset(dataset: str) -> Target:
     return {"place": "dataset", "dataset": dataset} if dataset else {"place": "area", "area": "grids"}
 
@@ -253,10 +261,19 @@ RULES: dict[str, Rule] = {
     "compare": lambda d, x: (f"Compared {d.replace(':', ' with ', 1)}", "grids", _area("grids")),
     "export": _export,
     "approval": _approval,
-    # Analyze: cards and dashboards.
+    # Analyze: a run (its cards land by themselves), a fix applied as steps, cards and dashboards.
+    "analyze_run": lambda d, x: (
+        f"Ran {_analysis(x)} on {d} ({_count(x.get('cards'), 'card')} on Analyze)",
+        "analyze",
+        _area("analyze"),
+    ),
+    "analyze_fix": lambda d, x: (
+        f"Made {d} fit {_analysis(x)} ({_count(x.get('fixes'), 'fix').replace('fixs', 'fixes')}, as steps)",
+        "analyze",
+        _grid(x, d),
+    ),
     "add_card": lambda d, x: (
-        f"{'Replaced' if x.get('replaced') else 'Added'} a {_name(x.get('kind')) or 'new'} card "
-        "on Analyze",
+        f"{'Replaced' if x.get('replaced') else 'Added'} a {_name(x.get('kind')) or 'new'} card on Analyze",
         "analyze",
         {"place": "card", "card": _name(x.get("card"))} if x.get("card") else _area("analyze"),
     ),

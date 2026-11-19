@@ -47,6 +47,7 @@ CLIENT_MODULES = (
     "swissarmybench.client.connection_use",
     "swissarmybench.client.standalone",
     "swissarmybench.client.visualizations_client",
+    "swissarmybench.client.analyze_client",
     "swissarmybench.client.completion",
     "swissarmybench.client.sql_cell",
     "swissarmybench.client.kernel_connections",

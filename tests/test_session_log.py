@@ -41,7 +41,13 @@ def test_each_kind_of_action_names_its_object() -> None:
     assert said("steps", "orders", grid="g3", steps=3)["what"] == "Set the steps of orders (3 steps)"
     assert said("open_grid", "orders", grid="g4")["target"]["grid"] == "g4"
     card = said("add_card", "orders", kind="chart", card="c7", replaced=False)
-    assert card["what"] == "Added a chart card on Visualizations" and card["area"] == "visualizations"
+    assert card["what"] == "Added a chart card on Analyze" and card["area"] == "analyze"
+    ran = said("analyze_run", "orders", analysis="benford", cards=2, grid="g3", run="r1")
+    assert ran["what"] == "Ran Do the first digits look natural? on orders (2 cards on Analyze)"
+    assert ran["area"] == "analyze" and ran["target"] == {"place": "area", "area": "analyze"}
+    fixed = said("analyze_fix", "orders", analysis="benford", fixes=1, grid="g3")
+    assert fixed["what"] == "Made orders fit Do the first digits look natural? (1 fix, as steps)"
+    assert fixed["target"] == {"place": "grid", "grid": "g3", "dataset": "orders"}
     assert card["target"] == {"place": "card", "card": "c7"}
     edge = said("relationships", None, added=["orders.customer_id -> customers.id"], removed=[])
     assert (

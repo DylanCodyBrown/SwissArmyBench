@@ -38,6 +38,10 @@ class TableReader(Protocol):
 
     def split_json_to_arrow(self, payload: Any) -> Any: ...
 
+    def rows_to_arrow(
+        self, columns: list[str], rows: list[list[Any]], dates: tuple[str, ...] = ()
+    ) -> Any: ...
+
     def load_file(self, path_text: str, max_bytes: int, sheet: str | None = None) -> tuple[Any, str]: ...
 
     def excel_sheets(self, path_text: str) -> list[str]: ...
@@ -333,6 +337,29 @@ class DatasetService:
         if process_id and self._processes.note_loaded(process_id, name):
             await ws.live.broadcast({"type": "processes_changed"})
         return result
+
+    async def store_rows(
+        self,
+        name: str,
+        columns: list[str],
+        rows: list[list[Any]],
+        who: str,
+        dates: tuple[str, ...] = (),
+        source_kind: str = "analysis",
+    ) -> dict[str, Any]:
+        """A table of rows the app itself made (an analysis result opened as a grid, a contract's made-up
+        sample), in a tab of its own. `name` is taken as given: the caller picks a free one."""
+        ws = self.ws
+        table = await ws.workers.run(INTERACTIVE, self._reader.rows_to_arrow, columns, rows, dates)
+        return await self.store_table(name, table, source_kind, True, who)
+
+    def free_name(self, wanted: str) -> str:
+        """`wanted`, or it with a number, so that no open table has the name."""
+        taken = {info.name.lower() for info in self.ws.store.all()}
+        name, n = wanted, 2
+        while name.lower() in taken:
+            name, n = f"{wanted}_{n}", n + 1
+        return name
 
     # ===== a file, pasted text =====
 

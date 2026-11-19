@@ -142,6 +142,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/domain/regression.py" = ["S608"]
 "src/swissarmybench/domain/timeseries.py" = ["S608"]
 "src/swissarmybench/domain/tieout.py" = ["S608"]
+"src/swissarmybench/domain/analyze.py" = ["S608"]
 "src/swissarmybench/domain/diff.py" = ["S608"]
 "src/swissarmybench/domain/proofs.py" = ["RUF001", "RUF003"]  # the proofs print real math signs (−, ×, ≤) for people to read
 "src/swissarmybench/services/charts.py" = ["S608"]

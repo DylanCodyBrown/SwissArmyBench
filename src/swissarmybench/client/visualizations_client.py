@@ -1,21 +1,24 @@
-"""`sab.visualizations(thing)`: put anything visual from Python into Visualizations, as a card of no table.
+"""`sab.analyze(thing)`: put anything visual from Python on the Analyze board, as a card of no table.
 
-    sab.visualizations(fig)                          # matplotlib or seaborn: a PNG picture
-    sab.visualizations(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
-    sab.visualizations(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
-    sab.visualizations(digraph)                      # graphviz: drawn from its DOT text
-    sab.visualizations(frame)                        # a DataFrame or Arrow table: its first 100 rows
-    sab.visualizations("## Findings\\n...")           # Markdown text: a note
-    sab.visualizations("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
-    sab.visualizations(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
+    sab.analyze(fig)                          # matplotlib or seaborn: a PNG picture
+    sab.analyze(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
+    sab.analyze(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
+    sab.analyze(digraph)                      # graphviz: drawn from its DOT text
+    sab.analyze(frame)                        # a DataFrame or Arrow table: its first 100 rows
+    sab.analyze("## Findings\\n...")           # Markdown text: a note
+    sab.analyze("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
+    sab.analyze(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
 
 `key="..."` names the card, so running the cell again replaces it in place (its size and position
 stay) instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Returns the card's
 id. It duck-types what it is given, so nothing here imports matplotlib, Plotly or pandas: standard
 library only, like the rest of the client.
 
-`sab.sandbox` is the old name (the Sandbox became Visualizations, the owner, 2026-11-16): it works for
-one release, with a DeprecationWarning, and goes with renamed.py.
+`sab.analyze` itself (the analyses, the contracts, the samples) is client/analyze_client.py; this
+module keeps its name and holds the card's making. `sab.visualizations` and `sab.sandbox` are the old
+names (the Sandbox became Visualizations, the owner, 2026-11-16; Visualizations became Analyze,
+2026-11-19): each works for one release, with a DeprecationWarning (sab.visualizations' once a session),
+and goes with renamed.py.
 """
 
 from __future__ import annotations
@@ -68,6 +71,9 @@ _TEXT_FILES: dict[str, str] = {
 }
 
 
+_warned: list[bool] = [False]
+
+
 def visualizations(
     thing: object,
     title: str | None = None,
@@ -76,7 +82,28 @@ def visualizations(
     size: tuple[int, int] | None = None,
     kind: str | None = None,
 ) -> str:
-    """Add `thing` to Visualizations (or replace the card named `key`). Returns the card's id."""
+    """The old name of `sab.analyze(thing)`, for one release (Visualizations is Analyze now): it warns
+    once a session, then adds the card as before."""
+    if not _warned[0]:
+        _warned[0] = True
+        warnings.warn(
+            "sab.visualizations is now sab.analyze: Visualizations is called Analyze. "
+            "The old name goes in the next release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    return add_card(thing, title, key=key, size=size, kind=kind)
+
+
+def add_card(
+    thing: object,
+    title: str | None = None,
+    *,
+    key: str | None = None,
+    size: tuple[int, int] | None = None,
+    kind: str | None = None,
+) -> str:
+    """Add `thing` to the Analyze board (or replace the card named `key`). Returns the card's id."""
     card = card_for(thing, kind)
     if title is not None:
         card["title"] = title
@@ -99,14 +126,14 @@ def sandbox(
     size: tuple[int, int] | None = None,
     kind: str | None = None,
 ) -> str:
-    """The old name of `visualizations`, for one release (the Sandbox is Visualizations now)."""
+    """The oldest name of `sab.analyze(thing)`, for one release (the Sandbox is Analyze now)."""
     warnings.warn(
-        "sab.sandbox is now sab.visualizations: the Sandbox is called Visualizations. "
+        "sab.sandbox is now sab.analyze: the Sandbox is called Analyze. "
         "The old name goes in the next release.",
         DeprecationWarning,
         stacklevel=2,
     )
-    return visualizations(thing, title, key=key, size=size, kind=kind)
+    return add_card(thing, title, key=key, size=size, kind=kind)
 
 
 def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
@@ -140,7 +167,7 @@ def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
     if table is not None:
         return table
     raise TypeError(
-        f"Can't put a {type(thing).__name__} in Visualizations. It takes a matplotlib, seaborn, Plotly, "
+        f"Can't put a {type(thing).__name__} on the Analyze board. It takes a matplotlib, seaborn, Plotly, "
         "Altair or graphviz figure, a PIL image, picture bytes, a DataFrame or Arrow table, Markdown "
         "text, a file path, or Mermaid, DOT or ECharts text with kind=."
     )

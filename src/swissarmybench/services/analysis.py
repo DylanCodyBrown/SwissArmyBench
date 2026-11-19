@@ -286,6 +286,12 @@ class Analysis:
         self.ws.audit.write(who, "fit_test", info.name, columns=columns, expected=kind)
         return dict(result)
 
+    async def reference(
+        self, ref: Any, columns: list[str], who: str
+    ) -> tuple[dict[str, Any], dict[str, float]]:
+        """Another grid's counts to test against (services/analyze.py asks for them too)."""
+        return await self._reference(ref, columns, who)
+
     async def _reference(
         self, ref: Any, columns: list[str], who: str
     ) -> tuple[dict[str, Any], dict[str, float]]:

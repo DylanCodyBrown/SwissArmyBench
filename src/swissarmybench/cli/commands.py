@@ -2116,6 +2116,158 @@ def analyze_forecast(a: dict[str, Any]) -> Any:
     )
 
 
+# ===== the Analyze page: every analysis by its contract (services/analyze.py) =====
+
+
+def _analyze_body(a: dict[str, Any], *keys: str) -> dict[str, Any]:
+    return {k: a[k] for k in keys if a.get(k) not in (None, "")}
+
+
+@command(
+    "analyze_contracts",
+    "Each analysis's data contract: its slots (the kinds of column each takes, how many, the checks), the "
+    "table's shape, options with defaults, what it makes, and a made-up sample. Read it, then analyze_run.",
+    opt(
+        "analysis",
+        "One analysis's id (omit for all): benford, fit, together, outliers, odds, predictors, "
+        "regression, whatif, time_series, forecast, tie_out, key_finder, profile, check.",
+    ),
+)
+def analyze_contracts(a: dict[str, Any]) -> Any:
+    if a.get("analysis"):
+        return api.call("GET", f"/analyze/contracts/{_q(a['analysis'])}")
+    return api.call("GET", "/analyze/contracts")
+
+
+@command(
+    "analyze_tables",
+    "The Analyze toolbar (each analysis, by group) and the open tables it can run on, with the one its "
+    "forms start on.",
+    values=True,
+)
+def analyze_tables(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/analyze")
+
+
+@command(
+    "analyze_check",
+    "Check this table: every analysis ranked for it (fits now, fits after its fixes, or not, with why) "
+    "and the three that suit it. With `analysis`: that one's check: per slot what fits and what does not "
+    "(and why), what is missing, and `fixes`, each with the steps (for steps_add) that make the table fit.",
+    opt("table", "Grid id or table name (default: the one Analyze last used)."),
+    opt("analysis", "One analysis's id."),
+    opt("columns", "{slot: column} to check instead of the app's picks.", "json"),
+    values=True,
+)
+def analyze_check(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/check", _analyze_body(a, "table", "analysis", "columns"))
+
+
+@command(
+    "analyze_plan",
+    "An analysis's form for a table, as the page shows it: each slot's pick (and why), the columns that "
+    "fit, the options and their defaults, and the sentence of what analyze_run would run.",
+    req("analysis", "The analysis's id (analyze_contracts)."),
+    opt("table", "Grid id or table name."),
+    opt("columns", "{slot: column or [columns]}.", "json"),
+    opt("options", "{option: value}.", "json"),
+    values=True,
+)
+def analyze_plan(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/plan", _analyze_body(a, "analysis", "table", "columns", "options"))
+
+
+@command(
+    "analyze_column",
+    "What can I do with a column? The analyses it fits (each runs with analyze_run); with no column, "
+    "every column of the table with its type and what fits it.",
+    opt("table", "Grid id or table name."),
+    opt("column", "Column name."),
+    values=True,
+)
+def analyze_column(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/column", _analyze_body(a, "table", "column"))
+
+
+@command(
+    "analyze_fix",
+    "Make it fit: add the named fixes' steps to the table (the user sees them in the steps strip and can "
+    "undo them), then the form again. The ids are analyze_check's `fixes`.",
+    req("analysis", "The analysis's id."),
+    req("fixes", "Fix ids.", "list"),
+    opt("table", "Grid id or table name."),
+    opt("columns", "{slot: column} already chosen.", "json"),
+)
+def analyze_fix(a: dict[str, Any]) -> Any:
+    fixes = a["fixes"]
+    body = _analyze_body(a, "analysis", "table", "columns") | {
+        "fixes": [fixes] if isinstance(fixes, str) else fixes
+    }
+    return api.call("POST", "/analyze/fix", body)
+
+
+@command(
+    "analyze_run",
+    "Run an analysis by its id: columns and options are picked by the app unless given. Its cards land on "
+    "the Analyze board (as the user's do) and `result` holds the numbers. A table that does not fit is "
+    "refused with why and the form (`plan`); apply_fixes adds the steps it needs first.",
+    req("analysis", "The analysis's id (analyze_contracts)."),
+    opt("table", "Grid id or table name (default: the one Analyze last used)."),
+    opt("columns", "{slot: column or [columns]}.", "json"),
+    opt("options", "{option: value}.", "json"),
+    opt("apply_fixes", "Add the fixes the table needs (grid steps) and then run.", "bool"),
+    opt("sample", "Run on the contract's made-up sample instead (opened as a table).", "bool"),
+    opt("token", "A name for this run, for analyze_cancel."),
+    values=True,
+)
+def analyze_run(a: dict[str, Any]) -> Any:
+    body = _analyze_body(a, "analysis", "table", "columns", "options", "token")
+    body |= {k: True for k in ("apply_fixes", "sample") if a.get(k)}
+    return api.call("POST", "/analyze/run", body)
+
+
+@command(
+    "analyze_cancel",
+    "Stop a run started with a token; nothing of it lands.",
+    req("token", "The run's token."),
+)
+def analyze_cancel(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/cancel", {"token": a["token"]})
+
+
+@command(
+    "analyze_runs",
+    "This session's runs, newest first; with `run` and `show`, a result's actions: inputs (Run again), "
+    "math (Show the math), code (Copy code) or grid (Open as grid: its table in a new tab).",
+    opt("run", "A run's id."),
+    opt("show", "inputs, math, code or grid."),
+    values=True,
+)
+def analyze_runs(a: dict[str, Any]) -> Any:
+    if not a.get("run"):
+        return api.call("GET", "/analyze/runs")
+    show = a.get("show") or "inputs"
+    if show not in ("inputs", "math", "code", "grid"):
+        raise CommandError("analyze_runs: show is inputs, math, code or grid.")
+    if show == "grid":
+        return api.call("POST", f"/analyze/runs/{_q(a['run'])}/grid", {})
+    if show == "math":
+        return api.call("GET", f"/analyze/runs/{_q(a['run'])}/math")
+    if show == "code":
+        return api.call("GET", f"/analyze/runs/{_q(a['run'])}/code")
+    return api.call("GET", f"/analyze/runs/{_q(a['run'])}")
+
+
+@command(
+    "analyze_sample",
+    "Open an analysis's made-up sample as a table (Try it on this sample): its grid and the columns each "
+    "slot takes.",
+    req("analysis", "The analysis's id."),
+)
+def analyze_sample(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/sample", {"analysis": a["analysis"]})
+
+
 @command(
     "row_limit",
     "Keep only the first n rows (a limit step).",
@@ -4700,10 +4852,10 @@ OLD_NAMES: dict[str, str] = (
     {f"{old}_{name}": f"analyze_{name}" for old in ("sandbox", "visualizations") for name in _BOARD_NAMES}
     | {"sandbox_code": "analyze_chart_code", "visualizations_code": "analyze_chart_code"}
     | {
-    "relationships_save_tang": "relationships_save_set",
-    "relationships_export_tang": "relationships_export_set",
-    "relationships_import_tang": "relationships_import_set",
-    "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
+        "relationships_save_tang": "relationships_save_set",
+        "relationships_export_tang": "relationships_export_set",
+        "relationships_import_tang": "relationships_import_set",
+        "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
     }
 )
 

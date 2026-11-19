@@ -39,7 +39,12 @@ KINDS: dict[str, str] = {
     "yesno": "yes/no",
     "any": "any column",
 }
-COUNTS: dict[str, str] = {"one": "exactly one", "many": "one or more", "optional": "optional (one or none)"}
+COUNTS: dict[str, str] = {
+    "one": "exactly one",
+    "many": "one or more",
+    "optional": "optional (one or none)",
+    "any": "optional (none, one or more)",
+}
 CHECKS: dict[str, str] = {
     "not_identifier": "not an identifier (a different value on every row tells nothing)",
     "distinct_min": "at least {n} different values",
@@ -48,7 +53,20 @@ CHECKS: dict[str, str] = {
     "some_positive": "values above zero",
     "spans_orders": "values above zero spanning {n} orders of magnitude (10s to 1,000s)",
     "filled_share": "at most {blank}% blank (blanks are left out)",
-    "periods_min": "dates covering at least {n} periods",
+    "periods_min": "dates on at least {n} different days",
+    "all_positive": "no zero or negative values (they are left out)",
+}
+# The fixes Analyze can propose when a table almost fits (domain/analyze.py builds each as grid steps).
+FIXES: dict[str, str] = {
+    "text_to_number": "a text column whose values are numbers, read as numbers",
+    "text_to_date": "a text column whose values are dates, read as dates",
+    "period_column": "a date column grouped by month, as a category",
+    "group_by_period": "the rows totalled per month (one row per month)",
+    "group_by_key": "the rows totalled per key (one row per customer, vendor...)",
+    "keep_positive": "only the rows above zero kept",
+    "top_n_other": "the ten most common values kept, the rest called Other",
+    "drop_blanks": "the rows with no value left out",
+    "yes_no": "a yes/no column made from Y/N, 1/0 or one value of a text column",
 }
 OUTPUT_CARDS: dict[str, str] = {"note": "a report-style note", "plotly": "a chart", "table": "a table"}
 
@@ -92,11 +110,20 @@ class Slot:
 
     @property
     def optional(self) -> bool:
-        return self.count == "optional"
+        return self.count in ("optional", "any")
 
     @property
     def many(self) -> bool:
-        return self.count == "many"
+        return self.count in ("many", "any")
+
+    @property
+    def required(self) -> bool:
+        return self.count in ("one", "many")
+
+    @property
+    def table(self) -> bool:
+        """A second table, not a column of this one."""
+        return self.accepts == ("any",)
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -176,6 +203,7 @@ class Contract:
     output: Output = field(default_factory=Output)
     route: str = ""  # the analysis it runs (Copy code and Show the math): fit_test, outliers...
     sample: dict[str, Any] = field(default_factory=dict)  # how the made-up sample is built
+    fixes: tuple[str, ...] = ()  # its own suggestions (FIXES), beside the ones every slot's checks bring
 
     @property
     def two_tables(self) -> bool:
@@ -193,6 +221,7 @@ class Contract:
             "slots": [s.to_json() for s in self.slots],
             "options": [o.to_json() for o in self.options],
             "output": self.output.to_json(),
+            "fixes": [{"kind": k, "words": FIXES[k]} for k in self.fixes],
         }
 
 
@@ -202,6 +231,7 @@ NOT_ID = Check("not_identifier")
 TWO = Check("distinct_min", n=2)
 FEW = Check("distinct_max", n=200)
 BLANKS = Check("filled_share", "should", blank=20)
+POSITIVE = Check("all_positive", "should")
 MONEY = ("amount", "total", "value", "price", "revenue", "cost", "sales", "spend", "paid", "balance", "fee")
 TIME = ("date", "created", "month", "day", "time", "at", "when", "period", "week", "year", "ordered")
 OUTCOME = (
@@ -212,8 +242,14 @@ GROUPS_WORDS = (
     "region", "category", "type", "status", "segment", "country", "state", "city", "group", "channel",
     "department", "vendor", "product", "store", "branch", "team", "kind", "class", "tier",
 )  # fmt: skip
-_PERIODS = (("auto", "Picked from the dates"), ("day", "Day"), ("week", "Week"), ("month", "Month"))
-_PERIODS += (("quarter", "Quarter"), ("year", "Year"))
+_PERIODS: tuple[tuple[str, str], ...] = (
+    ("auto", "Picked from the dates"),
+    ("day", "Day"),
+    ("week", "Week"),
+    ("month", "Month"),
+    ("quarter", "Quarter"),
+    ("year", "Year"),
+)
 _TOTALS = (("sum", "Add them up"), ("avg", "The average"), ("count", "Count the rows"))
 _YES = Option("yes", "Counts as yes", "Which value of the yes/no column counts as yes.", "", "text")
 _TARGET = Slot(
@@ -268,7 +304,9 @@ CONTRACTS: tuple[Contract, ...] = (
         "profile",
         "Every column's type, blanks, different values and range, in one table.",
         table=Table(rows_min=1, rows_should=1, one_row_per="any table"),
-        output=Output(("note",), (("column", "text"), ("type", "text"), ("blanks", "number"), ("distinct", "number"))),
+        output=Output(
+            ("note",), (("column", "text"), ("type", "text"), ("blanks", "number"), ("distinct", "number"))
+        ),
         sample={"rows": 8, "columns": ("order_id", "region", "amount", "order_date")},
     ),
     Contract(
@@ -293,7 +331,13 @@ CONTRACTS: tuple[Contract, ...] = (
                 "Amounts",
                 "a number column: the amounts to test",
                 ("number",),
-                checks=(NOT_ID, Check("some_positive"), Check("spans_orders", "should", n=2), BLANKS),
+                checks=(
+                    NOT_ID,
+                    Check("some_positive"),
+                    Check("spans_orders", "should", n=2),
+                    POSITIVE,
+                    BLANKS,
+                ),
                 hints=MONEY,
                 sample=("amount",),
             ),
@@ -307,8 +351,12 @@ CONTRACTS: tuple[Contract, ...] = (
                 choices=(("1", "The first digit"), ("2", "The first two digits")),
             ),
         ),
-        Table(rows_min=10, rows_should=300, one_row_per="one row per amount (an invoice, a payment), not totals"),
-        Output(table=(("value", "text"), ("observed", "number"), ("expected", "number"), ("residual", "number"))),
+        Table(
+            rows_min=10, rows_should=300, one_row_per="one row per amount (an invoice, a payment), not totals"
+        ),
+        Output(
+            table=(("value", "text"), ("observed", "number"), ("expected", "number"), ("residual", "number"))
+        ),
         "fit_test",
         {"rows": 12, "columns": ("invoice_id", "amount")},
     ),
@@ -340,7 +388,9 @@ CONTRACTS: tuple[Contract, ...] = (
             ),
         ),
         Table(rows_min=5, one_row_per="one row per thing counted (a shift, a ticket), not counts"),
-        Output(table=(("value", "text"), ("observed", "number"), ("expected", "number"), ("residual", "number"))),
+        Output(
+            table=(("value", "text"), ("observed", "number"), ("expected", "number"), ("residual", "number"))
+        ),
         "fit_test",
         {"rows": 14, "columns": ("ticket_id", "weekday")},
     ),
@@ -351,8 +401,24 @@ CONTRACTS: tuple[Contract, ...] = (
         "chi-square test",
         "Whether the two columns go together, and the combinations furthest from chance.",
         (
-            Slot("first", "First", "a column whose values repeat", ("category", "whole", "yesno"), checks=(NOT_ID, TWO, FEW, BLANKS), hints=GROUPS_WORDS, sample=("region",)),
-            Slot("second", "Second", "another column whose values repeat", ("category", "whole", "yesno"), checks=(NOT_ID, TWO, FEW, BLANKS), hints=OUTCOME, sample=("late",)),
+            Slot(
+                "first",
+                "First",
+                "a column whose values repeat",
+                ("category", "whole", "yesno"),
+                checks=(NOT_ID, TWO, FEW, BLANKS),
+                hints=GROUPS_WORDS,
+                sample=("region",),
+            ),
+            Slot(
+                "second",
+                "Second",
+                "another column whose values repeat",
+                ("category", "whole", "yesno"),
+                checks=(NOT_ID, TWO, FEW, BLANKS),
+                hints=OUTCOME,
+                sample=("late",),
+            ),
         ),
         table=Table(rows_min=5, one_row_per="one row per thing (an order), both columns on it"),
         output=Output(table=(("a", "text"), ("b", "text"), ("observed", "number"), ("expected", "number"))),
@@ -377,19 +443,31 @@ CONTRACTS: tuple[Contract, ...] = (
             ),
         ),
         (
-            Option("by", "Judge within each", "Judge each group by its own usual range (a vendor, a store, a month).", "", "column", (("", "The whole column"),)),
+            Option(
+                "by",
+                "Judge within each",
+                "Judge each group by its own usual range (a vendor, a store, a month).",
+                "",
+                "column",
+                (("", "The whole column"),),
+            ),
             Option(
                 "method",
                 "How to judge",
                 "Robust (the median) is the safe default: a few wild values cannot hide themselves.",
                 "robust",
-                choices=(("robust", "Robust: distance from the median"), ("iqr", "Quartile fences (Tukey)"), ("zscore", "Mean and standard deviation")),
+                choices=(
+                    ("robust", "Robust: distance from the median"),
+                    ("iqr", "Quartile fences (Tukey)"),
+                    ("zscore", "Mean and standard deviation"),
+                ),
             ),
         ),
         Table(rows_min=5, one_row_per="one row per value (an invoice line), not totals"),
         Output(table=(("value", "number"), ("score", "number"))),
         "outliers",
         {"rows": 9, "columns": ("invoice_id", "vendor", "unit_cost")},
+        ("group_by_period", "group_by_key"),
     ),
     Contract(
         "odds",
@@ -398,11 +476,39 @@ CONTRACTS: tuple[Contract, ...] = (
         "odds",
         "How often each value shows up; with an outcome, which values raise its odds.",
         (
-            Slot("column", "Column", "the column to count: each value's share and odds", ("category", "number", "yesno"), checks=(NOT_ID, TWO, BLANKS), hints=GROUPS_WORDS, sample=("region",)),
-            Slot("outcome", "Outcome", "optional: a yes/no column to count the odds of", ("yesno",), "optional", (Check("two_values"),), OUTCOME, ("late",)),
+            Slot(
+                "column",
+                "Column",
+                "the column to count: each value's share and odds",
+                ("category", "number", "yesno"),
+                checks=(NOT_ID, TWO, BLANKS),
+                hints=GROUPS_WORDS,
+                sample=("region",),
+            ),
+            Slot(
+                "outcome",
+                "Outcome",
+                "optional: a yes/no column to count the odds of",
+                ("yesno",),
+                "optional",
+                (Check("two_values"),),
+                OUTCOME,
+                ("late",),
+            ),
         ),
-        (_YES, Option("buckets", "Ranges for a number", "How many equal-sized ranges a number is cut into.", "", "number")),
-        Table(rows_min=5, one_row_per="one row per chance (an order), the category and the outcome as columns"),
+        (
+            _YES,
+            Option(
+                "buckets",
+                "Ranges for a number",
+                "How many equal-sized ranges a number is cut into.",
+                "",
+                "number",
+            ),
+        ),
+        Table(
+            rows_min=5, one_row_per="one row per chance (an order), the category and the outcome as columns"
+        ),
         Output(table=(("value", "text"), ("rows", "number"), ("share", "number"), ("odds_ratio", "number"))),
         "odds",
         {"rows": 12, "columns": ("order_id", "region", "late")},
@@ -414,11 +520,38 @@ CONTRACTS: tuple[Contract, ...] = (
         "find predictors",
         "Every other column ranked by how much it tells about this one.",
         (
-            Slot("target", "Explain", "the column to explain", ("category", "number", "yesno"), checks=(NOT_ID, TWO, BLANKS), hints=OUTCOME + GROUPS_WORDS, sample=("late",)),
-            Slot("candidates", "With", "optional: the columns that might explain it (every other one)", ("category", "number", "yesno"), "many", (NOT_ID, TWO, BLANKS), sample=("region", "size")),
+            Slot(
+                "target",
+                "Explain",
+                "the column to explain",
+                ("category", "number", "yesno"),
+                checks=(NOT_ID, TWO, BLANKS),
+                hints=OUTCOME + GROUPS_WORDS,
+                sample=("late",),
+            ),
+            Slot(
+                "candidates",
+                "With",
+                "optional: the columns that might explain it (every other one)",
+                ("category", "number", "yesno"),
+                "any",
+                (NOT_ID, TWO, BLANKS),
+                sample=("region", "size"),
+            ),
         ),
-        (Option("buckets", "Ranges for numbers", "How many equal-sized ranges numbers are cut into.", "", "number"),),
-        Table(rows_min=8, one_row_per="one row per thing predicted (an order), the target and every candidate as columns"),
+        (
+            Option(
+                "buckets",
+                "Ranges for numbers",
+                "How many equal-sized ranges numbers are cut into.",
+                "",
+                "number",
+            ),
+        ),
+        Table(
+            rows_min=8,
+            one_row_per="one row per thing predicted (an order), the target and every candidate as columns",
+        ),
         Output(table=(("column", "text"), ("strength", "text"), ("cramers_v", "number"), ("p", "number"))),
         "predictors",
         {"rows": 12, "columns": ("order_id", "region", "size", "late")},
@@ -431,8 +564,20 @@ CONTRACTS: tuple[Contract, ...] = (
         "How much each column moves the target, the others held steady.",
         (_TARGET, _PREDICTORS),
         (_YES,),
-        Table(rows_min=5, rows_should=50, one_row_per="one row per thing predicted (an order), every column on it"),
-        Output(table=(("term", "text"), ("coefficient", "number"), ("low", "number"), ("high", "number"), ("p", "number"))),
+        Table(
+            rows_min=5,
+            rows_should=50,
+            one_row_per="one row per thing predicted (an order), every column on it",
+        ),
+        Output(
+            table=(
+                ("term", "text"),
+                ("coefficient", "number"),
+                ("low", "number"),
+                ("high", "number"),
+                ("p", "number"),
+            )
+        ),
         "regression",
         {"rows": 10, "columns": ("order_id", "units", "region", "amount")},
     ),
@@ -442,10 +587,33 @@ CONTRACTS: tuple[Contract, ...] = (
         "What if…?",
         "what-if",
         "The prediction for one row you describe, with its range (each column starts at a typical value).",
-        (_TARGET, Slot(_PREDICTORS.key, _PREDICTORS.label, "one or more columns to set", _PREDICTORS.accepts, "many", _PREDICTORS.checks, sample=_PREDICTORS.sample)),
+        (
+            _TARGET,
+            Slot(
+                _PREDICTORS.key,
+                _PREDICTORS.label,
+                "one or more columns to set",
+                _PREDICTORS.accepts,
+                "many",
+                _PREDICTORS.checks,
+                sample=_PREDICTORS.sample,
+            ),
+        ),
         (_YES,),
-        Table(rows_min=5, rows_should=50, one_row_per="one row per thing predicted (an order), every column on it"),
-        Output(("note", "plotly")),
+        Table(
+            rows_min=5,
+            rows_should=50,
+            one_row_per="one row per thing predicted (an order), every column on it",
+        ),
+        Output(
+            table=(
+                ("term", "text"),
+                ("coefficient", "number"),
+                ("low", "number"),
+                ("high", "number"),
+                ("p", "number"),
+            )
+        ),
         "regression",
         {"rows": 10, "columns": ("order_id", "units", "region", "amount")},
     ),
@@ -489,8 +657,21 @@ CONTRACTS: tuple[Contract, ...] = (
         "tie-out",
         "Per group, whether both tables' rows and totals match, and which groups are off.",
         (Slot("other", "Against", "the table to tie out against", ("any",), sample=("ledger",)),),
-        (Option("tolerance", "Still ties within", "How far apart two totals may be and still tie.", 0, "number"),),
-        Table(rows_min=1, rows_should=1, one_row_per="both tables at the same grain", two_tables="columns of the same names: what to group by and the numbers to total"),
+        (
+            Option(
+                "tolerance",
+                "Still ties within",
+                "How far apart two totals may be and still tie.",
+                0,
+                "number",
+            ),
+        ),
+        Table(
+            rows_min=1,
+            rows_should=1,
+            one_row_per="both tables at the same grain",
+            two_tables="columns of the same names: what to group by and the numbers to total",
+        ),
         Output(("note", "table"), (("group", "text"), ("status", "text"))),
         "tie_out",
         {"rows": 8, "columns": ("region", "amount"), "other": ("region", "amount")},
@@ -501,9 +682,31 @@ CONTRACTS: tuple[Contract, ...] = (
         "Which columns join two tables?",
         "Key Finder",
         "The column pairs that share values, how much of each side, and this table's likely key.",
-        (Slot("other", "Against", "the table to join to (or every other open table)", ("any",), "optional", sample=("customers",)),),
-        (Option("ignore_case", "Ignore case", "Count Smith and SMITH as the same value.", "no", choices=(("no", "No"), ("yes", "Yes"))),),
-        Table(rows_min=1, rows_should=1, one_row_per="any two tables", two_tables="a column whose values the other table also has (a key)"),
+        (
+            Slot(
+                "other",
+                "Against",
+                "the table to join to (or every other open table)",
+                ("any",),
+                "optional",
+                sample=("customers",),
+            ),
+        ),
+        (
+            Option(
+                "ignore_case",
+                "Ignore case",
+                "Count Smith and SMITH as the same value.",
+                "no",
+                choices=(("no", "No"), ("yes", "Yes")),
+            ),
+        ),
+        Table(
+            rows_min=1,
+            rows_should=1,
+            one_row_per="any two tables",
+            two_tables="a column whose values the other table also has (a key)",
+        ),
         Output(("note",), (("source_column", "text"), ("target_column", "text"), ("shared", "number"))),
         "key_finder",
         {"rows": 8, "columns": ("order_id", "customer_id", "amount"), "other": ("customer_id", "region")},
@@ -514,17 +717,47 @@ BY_ID: dict[str, Contract] = {c.id: c for c in CONTRACTS}
 
 def every() -> dict[str, Any]:
     """Every contract as JSON, the toolbar's groups in order (analyze_contracts; the resource)."""
-    return {"format": FORMAT, "groups": list(GROUPS), "contracts": [c.to_json() for c in CONTRACTS]}
+    return {
+        "format": FORMAT,
+        "groups": list(GROUPS),
+        "kinds": dict(KINDS),
+        "fixes": dict(FIXES),
+        "contracts": [c.to_json() | {"sample": sample(c.id)} for c in CONTRACTS],
+    }
+
+
+def contract(contract_id: Any) -> Contract:
+    found = BY_ID.get(str(contract_id))
+    if found is None:
+        raise KeyError(f"No analysis {contract_id!r}: one of {', '.join(BY_ID)}.")
+    return found
 
 
 # ===== the made-up sample, built from the contract =====
 
+SAMPLE_DATES: tuple[str, ...] = ("order_month", "order_date")  # the sample columns that are dates
 _REGIONS = ("West", "North", "East", "South")
 _SIZES = ("small", "large", "medium")
 _WEEKDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 _VENDORS = ("Northwind", "Contoso", "Fabrikam")
 # Amounts that grew naturally: first digits mostly 1 and 2, spanning 10s to 10,000s (Benford's shape).
-_WIDE = (12.4, 148.0, 1890.5, 23.75, 310.0, 4520.0, 17.2, 1210.0, 260.3, 31.9, 11050.0, 1.95, 140.0, 2250.0, 19.8)
+_WIDE = (
+    12.4,
+    148.0,
+    1890.5,
+    23.75,
+    310.0,
+    4520.0,
+    17.2,
+    1210.0,
+    260.3,
+    31.9,
+    11050.0,
+    1.95,
+    140.0,
+    2250.0,
+    19.8,
+)
 
 
 def _column(name: str, i: int, n: int, row: dict[str, Any]) -> Any:
@@ -552,7 +785,9 @@ def _column(name: str, i: int, n: int, row: dict[str, Any]) -> Any:
         return (dt.date(2026, 1, 5) + dt.timedelta(days=9 * i)).isoformat()
     if name == "amount":
         if "units" in row:  # a model's target: the units times a price, a region's surcharge, a little noise
-            surcharge = {"West": 20.0, "North": 5.0, "East": 0.0, "South": 12.0}.get(row.get("region", ""), 0.0)
+            surcharge = {"West": 20.0, "North": 5.0, "East": 0.0, "South": 12.0}.get(
+                row.get("region", ""), 0.0
+            )
             return round(row["units"] * 12.5 + surcharge + ((i * 37) % 9 - 4), 2)
         if "order_month" in row:  # a series: a trend and a summer peak
             month = i % 12

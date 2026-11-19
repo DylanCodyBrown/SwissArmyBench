@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
+import warnings
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -82,7 +83,7 @@ def cards(client: TestClient) -> list[dict[str, Any]]:
     return shown
 
 
-def test_sab_visualizations_adds_a_card_of_no_table_and_a_key_replaces_it(
+def test_sab_analyze_adds_a_card_of_no_table_and_a_key_replaces_it(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def call(method: str, path: str, body: bytes | None = None, content_type: str = "") -> Any:
@@ -93,9 +94,11 @@ def test_sab_visualizations_adds_a_card_of_no_table_and_a_key_replaces_it(
         return response.json()
 
     monkeypatch.setattr(visualizations_client, "_call", call)
-    first = visualizations_client.visualizations(FakeFigure(), "Sales", key="sales-chart", size=(8, 12))
-    note = visualizations_client.visualizations("A note")
-    again = visualizations_client.visualizations(FakePlotly(), "Sales again", key="sales-chart")
+    import swissarmybench as sab
+
+    first = sab.analyze(FakeFigure(), "Sales", key="sales-chart", size=(8, 12))
+    note = sab.analyze("A note")
+    again = sab.analyze(FakePlotly(), "Sales again", key="sales-chart")
     assert again == first
     shown = {c["id"]: c for c in cards(client)}
     assert len(shown) == 2 and shown[note]["origin"] == "Python" and shown[note]["grid"] is None
@@ -108,7 +111,8 @@ def test_sab_visualizations_adds_a_card_of_no_table_and_a_key_replaces_it(
 def test_the_old_name_sab_sandbox_still_adds_a_card_with_a_warning(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The Sandbox became Visualizations (the owner, 2026-11-16): sab.sandbox works for one release."""
+    """The Sandbox became Visualizations (the owner, 2026-11-16) and Visualizations Analyze (2026-11-19):
+    sab.sandbox and sab.visualizations work for one release (sab.visualizations warns once a session)."""
     import swissarmybench as sab
 
     def call(method: str, path: str, body: bytes | None = None, content_type: str = "") -> Any:
@@ -119,10 +123,16 @@ def test_the_old_name_sab_sandbox_still_adds_a_card_with_a_warning(
         return response.json()
 
     monkeypatch.setattr(visualizations_client, "_call", call)
-    with pytest.warns(DeprecationWarning, match="sab.visualizations"):
+    with pytest.warns(DeprecationWarning, match="sab.sandbox is now sab.analyze"):
         card = sab.sandbox("An old note", key="old-name")
     assert [c["id"] for c in cards(client)] == [card]
-    assert "sandbox" not in sab.__all__ and "visualizations" in sab.__all__
+    monkeypatch.setattr(visualizations_client, "_warned", [False])
+    with pytest.warns(DeprecationWarning, match="sab.visualizations is now sab.analyze"):
+        assert sab.visualizations("The same note", key="old-name") == card
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # once a session: the second call says nothing
+        assert sab.visualizations("Again", key="old-name") == card
+    assert "sandbox" not in sab.__all__ and "visualizations" not in sab.__all__ and "analyze" in sab.__all__
 
 
 def test_cards_of_no_table_stay_when_grids_close_and_refuse_what_needs_a_grid(client: TestClient) -> None:
@@ -162,7 +172,7 @@ def test_a_vega_lite_card_is_inline_data_from_the_users_python_never_the_agents(
 def test_the_agent_adds_a_file_and_reads_the_formats(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from swissarmybench.cli import api, commands
 
-    assert "plotly" in commands.REGISTRY["visualizations_formats"].run({})["kinds"]
+    assert "plotly" in commands.REGISTRY["analyze_formats"].run({})["kinds"]
     (tmp_path / "plan.md").write_text("# Plan\n- one")
     sent: list[tuple[str, str, Any]] = []
 
@@ -171,7 +181,7 @@ def test_the_agent_adds_a_file_and_reads_the_formats(tmp_path: Path, monkeypatch
         return {"card": "x"}
 
     monkeypatch.setattr(api, "call", call)
-    commands.REGISTRY["visualizations_add"].run({"file": str(tmp_path / "plan.md"), "key": "plan"})
+    commands.REGISTRY["analyze_add"].run({"file": str(tmp_path / "plan.md"), "key": "plan"})
     assert sent == [("POST", "/cards", {"kind": "note", "body": "# Plan\n- one", "key": "plan", "title": ""})]
 
 
