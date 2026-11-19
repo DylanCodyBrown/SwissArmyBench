@@ -68,7 +68,7 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
     page = open_grid(browser, orders_url, height=1000, device_scale_factor=2)
     dialog = page.locator(".area-page[data-page='connections']")
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     group = dialog.locator("h3", has_text="Lakes and SharePoint")
     expect(group).to_be_visible()
     tiles = dialog.locator(".connection-types").nth(1).locator(".connection-type")

@@ -147,7 +147,7 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     page.locator(".nav-rail [data-area='connections']").click()
     expect(page).to_have_url(re.compile(r"open=connections"))
     expect(page).to_have_title("Connections")
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     expect(page).to_have_url(re.compile(r"open=connections&at=types"))
     expect(page).to_have_title("Connections › Add connection")
     expect(dialog.get_by_role("button", name="Back to Connections")).to_be_visible()

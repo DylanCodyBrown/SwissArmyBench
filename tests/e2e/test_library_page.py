@@ -138,7 +138,7 @@ def test_the_library_in_the_page(browser: Browser, own_server: dict[str, Any]) -
     connections = page.locator('.area-page[data-page="connections"]')
     expect(connections.locator('.connection-card[data-connection="Warehouse"]')).to_be_visible()
     expect(connections.locator('.connection-card[data-connection="Team vault"]')).to_have_count(0)
-    connections.get_by_role("button", name="Add connection").click()
+    connections.get_by_role("button", name="Add connection").first.click()
     expect(connections.locator(".connection-type").first).to_be_visible()
     expect(connections.locator("h3", has_text="Key vaults")).to_have_count(0)
     page.context.close()

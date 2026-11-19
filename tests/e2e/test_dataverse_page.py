@@ -59,7 +59,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
     # The form: the environment's address and the sign-in; the app registration comes first (it runs on a
     # Function App or a hosted Streamlit app too; as you, this machine's only, last: the owner, 2026-11-17).
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     tile = page.locator(".connection-type", has_text="Dataverse")
     expect(tile.locator("svg")).to_have_count(1)  # its own icon
     tile.click()

@@ -129,7 +129,9 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         expect(page.locator('.area-page[data-page="connections"]')).to_be_visible()
         lights_up(
             tour,
-            page.locator('.area-page[data-page="connections"]').get_by_role("button", name="Add connection"),
+            page.locator('.area-page[data-page="connections"] .area-page-actions').get_by_role(
+                "button", name="Add connection"
+            ),
         )
         # A variable in a box: a made-up PostgreSQL form, its Server holding the reference, lit up.
         to_word(page, tour, "Using a variable")

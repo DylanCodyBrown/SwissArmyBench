@@ -552,7 +552,8 @@ export function openTour(): void {
       // A made-up connection's form, never saved: the tour's close goes back past it (returnTo).
       visit(withParams({ open: "connections", at: "form", type: to.form, name: null }));
       const box = `.area-page[data-page="connections"] .field[data-setting="${to.setting}"] input`;
-      if (!(await until(() => !!visible([box]), 5000))) return;
+      // The first form loads its types first (1-3 s on a busy computer).
+      if (!(await until(() => !!visible([box]), 15000))) return;
       const input = visible([box]) as HTMLInputElement;
       if (input.value !== to.text) {
         input.value = to.text;

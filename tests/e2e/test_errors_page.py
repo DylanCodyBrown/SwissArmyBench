@@ -33,7 +33,7 @@ def shot(page: Page, name: str, target: Any = None) -> None:
 def add_sqlite_form(page: Page, name: str, path: Path) -> Any:
     """The Connections page's Add connection, SQLite, its name and its file typed in."""
     page.locator(".nav-rail [data-area='connections']").click()
-    page.get_by_role("button", name="Add connection").click()
+    page.get_by_role("button", name="Add connection").first.click()
     dialog = page.locator(".area-page[data-page='connections']")
     dialog.locator(".connection-type", has_text="SQLite").first.click()
     dialog.get_by_role("textbox", name="Name", exact=True).fill(name)
@@ -138,7 +138,7 @@ def test_only_works_on_your_machine_is_the_warning(browser: Browser, server: dic
     for dark in (False, True):
         page = home(browser, server, dark=dark)
         page.locator(".nav-rail [data-area='connections']").click()
-        page.get_by_role("button", name="Add connection").click()
+        page.get_by_role("button", name="Add connection").first.click()
         dialog = page.locator(".area-page[data-page='connections']")
         dialog.locator(".connection-type", has_text="SQL Server").first.click()
         sign_in = dialog.get_by_role("combobox", name="Sign in")
