@@ -1608,6 +1608,7 @@ const landing = mountLanding({
   },
   tables: async () => (await fetchTables()).map((t) => ({ name: t.name, steps: t.step_words ?? [], problem: t.problem })),
   showTable: (name) => void showTransformations(name).catch((e: Error) => errorHere(e)),
+  start: () => topStart(),
 });
 layout.source.append(groups.element, empty, landing.element);
 

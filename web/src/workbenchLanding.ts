@@ -24,6 +24,7 @@
  */
 import { api } from "./api";
 import { h, icon } from "./dom";
+import { emptyState } from "./emptyState";
 import { type Kind, kindIcon, notebookRole, notebookWord } from "./kindColours";
 
 export interface LandingDoc {
@@ -50,7 +51,16 @@ export interface LandingHost {
   tables: () => Promise<LandingTable[]>;
   /** A table card's click: its transformations, read-only. */
   showTable: (name: string) => void;
+  /** A new document of that kind (the top bar's New). */
+  start: (kind: Kind) => void;
 }
+
+/** An empty kind's one sentence (emptyState.ts). */
+const EMPTY_LINES: Record<Kind, string> = {
+  notebook: "A notebook mixes Python, DuckDB SQL and notes in cells, run one at a time, beside your open tables.",
+  script: "A script is plain Python run top to bottom, here or on a schedule, with your tables and connections.",
+  app: "A Streamlit app is pages of blocks, each one a notebook cell, played live and exported to run anywhere.",
+};
 
 export const KIND_TITLES: Record<Kind, { title: string; one: string }> = {
   notebook: { title: "Notebooks", one: "notebook" },
@@ -187,7 +197,17 @@ export function mountLanding(host: LandingHost): Landing {
       return;
     }
     if (tables.length) tablesHost.append(h("h2", { class: "wb-landing-section" }, `Your ${words.title.toLowerCase()}`));
-    if (!list.childElementCount) list.replaceWith(h("p", { class: "empty-note" }, `No ${words.title.toLowerCase()} yet`));
+    if (!list.childElementCount)
+      list.replaceWith(
+        emptyState({
+          icon: kindIcon(k),
+          line: EMPTY_LINES[k],
+          action: { label: `New ${words.one}`, icon: "plus", run: () => host.start(k) },
+          // The made-up tables, then a new document beside them (its Tables group lists them).
+          sample: k !== "app",
+          afterSample: () => host.start(k),
+        }),
+      );
   };
 
   return {

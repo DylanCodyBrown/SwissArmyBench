@@ -66,6 +66,7 @@ import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
 import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { pythonWorked, showPythonForm, tablePreview, type PythonForm, type PythonTested, type TablePreview } from "./pythonConnectionForm";
+import { emptyState } from "./emptyState";
 
 interface Field {
   id: string;
@@ -668,7 +669,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
               return these.length ? [h("h2", { class: "connection-group-title" }, title), h("ul", { class: "connection-cards", "aria-label": title }, ...these.map(card))] : [];
             }),
           )
-        : h("p", { class: "empty-note" }, "No connections"),
+        : emptyState({ icon: "plug", line: "A connection lists a database's or a folder's tables, so DuckDB SQL can read them by name.", action: { label: "Add connection", icon: "plus", run: () => move(TYPES, () => void showTypes()) } }),
       // APIs are not here (the owner, 2026-11-17); the line pointing to their page went: the rail has them
       // beside Connections ("its not needed", 2026-11-18).
     );

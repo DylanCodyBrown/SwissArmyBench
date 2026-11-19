@@ -198,6 +198,8 @@ type Undo = { kind: "delete"; data: CellData; at: number; filler: Cell | null } 
 
 const LANGUAGE: Record<CellKind, "python" | "sql" | "dax" | "markdown" | "html" | "typescript" | "tsx"> = { code: "python", sql: "sql", dax: "dax", markdown: "markdown", html: "html", typescript: "typescript", tsx: "tsx" };
 const KIND_NAMES: Record<CellKind, string> = { code: "Python", sql: "SQL", dax: "DAX", html: "HTML", markdown: "Markdown", typescript: "TypeScript", tsx: "TSX" };
+/** A new notebook's first Python cell, empty: how it works, in one faint line (gone at the first key). */
+const FIRST_HINT = "Shift+Enter runs · %%sql for DuckDB SQL · drag a table here";
 const KINDS: CellKind[] = ["code", "sql", "dax", "html", "markdown", "typescript", "tsx"];
 /** Kinds another kernel runs, offered only where the open project's mode names a route for them (modes.ts). */
 const ROUTED: CellKind[] = ["typescript", "tsx"];
@@ -1366,7 +1368,7 @@ export function notebookView(
         }),
         readOnly: cell.role === "transformations",
         cellLinks: { first: (n) => (byNumber(n) ? firstLine(sourceOf(byNumber(n)!)) : null), go: (n) => void goTo(n) },
-        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : cell.kind === "typescript" ? "TypeScript" : cell.kind === "tsx" ? "TSX: export default function ..." : undefined,
+        placeholder: cell.kind === "sql" ? "SQL" : cell.kind === "dax" ? "DAX" : cell.kind === "html" ? "HTML" : cell.kind === "typescript" ? "TypeScript" : cell.kind === "tsx" ? "TSX: export default function ..." : cell.kind === "code" && !cells.some((c) => c !== cell && c.kind === "code" && c.role !== "transformations" && sourceOf(c).trim()) ? FIRST_HINT : undefined,
         // By the cell's kind as it is now: Python from the kernel, SQL from the connection's catalog,
         // DAX from its dataset's part of the workspace's catalog.
         complete: (text, offset) =>

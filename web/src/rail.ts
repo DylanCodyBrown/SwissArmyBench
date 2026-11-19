@@ -35,13 +35,17 @@
  *   [ALWAYS]  No switch (the owner, 2026-11-16): the rail is the one way to the areas, so the top tabs and
  *             the Application row no longer repeat them.
  *   [AGENT]   app_navigate's areas run here (setAreaRunner), as a click would (new_window too).
+ *   [NAMES]   The rail with its names beside the icons (the owner, 2026-11-19: several glyphs are alike), on
+ *             until the user turns them off: the toggle at the rail's foot (Icons only / Show names) or the
+ *             right-click menu. This computer's choice (GET/PUT /rail, rail.json; app_rail), every window
+ *             follows (rail_changed); the last one is remembered here too so a page opens without a jump.
  *
  * Another window's area reaches the window that shows it as a message from this origin ({sab: "area"});
  * a window opened for it is given the area in its address (?view=analyze, ?open=settings, ?kind=script).
  * The Sandbox is Analyze and the Diagram the ERD (the owner, 2026-11-16): the old ?view=sandbox
  * and ?view=diagram still land there (panes.ts), and the address is replaced with the new word.
  */
-import { token } from "./api";
+import { api, onNotice, token } from "./api";
 import { h, icon } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, markIcon, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
@@ -224,6 +228,8 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
     area.area === "projects" ? markIcon() : icon(area.icon),
     // The Session icon: what the agent made that the user has not seen yet (sessionPage.ts).
     area.area === "session" ? h("span", { class: "nav-rail-count", "aria-hidden": "true", hidden: true }) : null,
+    // The name beside the icon while the rail shows its names (showNames).
+    h("span", { class: "nav-rail-name", "aria-hidden": "true" }, area.name),
     // The name, on hover and on focus (a `title` would show the same words a second time).
     h("span", { class: "nav-rail-tip", "aria-hidden": "true" }, area.name, area.keys ? h("kbd", {}, area.keys) : null),
   );
@@ -243,10 +249,71 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
     });
     element.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      openMenu(element, area.name, [{ label: "Open in a new window", icon: "popout", run: () => goArea(area.area, true) }], { beside: true });
+      openMenu(
+        element,
+        area.name,
+        [
+          { label: "Open in a new window", icon: "popout", run: () => goArea(area.area, true) },
+          { label: names ? "Icons only" : "Show names", icon: names ? "collapse" : "expand", run: () => void setRailNames(!names) },
+        ],
+        { beside: true },
+      );
     });
   }
   return element;
+}
+
+// ===== the rail's names =====
+
+const NAMES_KEY = "sab.railNames";
+let names = true;
+let toggle: HTMLButtonElement | null = null;
+
+function showNames(on: boolean): void {
+  names = on;
+  document.documentElement.classList.toggle("rail-names", on);
+  try {
+    localStorage.setItem(NAMES_KEY, on ? "1" : "0");
+  } catch {
+    /* no storage: the server's answer still holds */
+  }
+  if (toggle) {
+    const label = on ? "Icons only" : "Show names";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+    toggle.setAttribute("aria-expanded", String(on));
+    toggle.replaceChildren(icon(on ? "collapse" : "expand"), h("span", { class: "nav-rail-name", "aria-hidden": "true" }, label));
+  }
+  // The page's width changed: the grid, Monaco and the canvas measure again.
+  window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+}
+
+/** The rail with its names (true) or the icons alone; every window follows. */
+export async function setRailNames(on: boolean): Promise<void> {
+  showNames(on);
+  try {
+    showNames((await api<{ labels: boolean }>("/rail", "PUT", { labels: on })).labels);
+  } catch (error) {
+    errorHere(error);
+  }
+}
+
+function startNames(): void {
+  let kept: string | null = null;
+  try {
+    kept = localStorage.getItem(NAMES_KEY);
+  } catch {
+    /* no storage */
+  }
+  showNames(kept !== "0"); // a first run: the names
+  void api<{ labels: boolean }>("/rail")
+    .then((said) => {
+      if (said.labels !== names) showNames(said.labels);
+    })
+    .catch(() => undefined);
+  onNotice((notice) => {
+    if (notice.type === "rail_changed") showNames(Boolean((notice as unknown as { labels: boolean }).labels));
+  });
 }
 
 /** Each page's composition mounts the rail once (mountNavRail), right after mountNav. */
@@ -254,7 +321,9 @@ export function mountNavRail(page: PageKind): void {
   kind = page;
   items = AREAS.map(item);
   const toolbar = h("div", { class: "nav-rail-items", role: "toolbar", "aria-label": "Areas", "aria-orientation": "vertical", onkeydown: onKey }, ...items);
-  document.body.prepend(h("nav", { class: "nav-rail", "aria-label": "Areas" }, toolbar));
+  toggle = h("button", { type: "button", class: "nav-rail-toggle", onclick: () => void setRailNames(!names) });
+  document.body.prepend(h("nav", { class: "nav-rail", "aria-label": "Areas" }, toolbar, toggle));
+  startNames();
   document.body.classList.add("has-rail");
   draw(new URL(location.href));
   onAddress(draw);
