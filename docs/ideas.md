@@ -6126,3 +6126,34 @@ Left:
 - Forecast's predictors, a time series' split by a category and a fit test against given shares are not in
   the form (the lower-level tools have them).
 - Cancel stops a run's own queries; a tie-out or Key Finder in flight finishes unseen and lands nothing.
+
+## Export to Power BI… from the ERD page (the owner, 2026-11-19: "Make a powerbi desktop file with our model exported an option on the erd page"; built, branch powerbi-export)
+
+SAB builds the dataset (tables and relationships); the user builds the report in Power BI Desktop. Decisions:
+- **The file is a Power BI Project (.pbip)**, Microsoft's documented text format (never the binary .pbix): the
+  .pbip, `<Name>.SemanticModel/` (definition.pbism 5.0, TMDL: database, model, relationships, expressions,
+  tables/) and `<Name>.Report/` (definition.pbir 4.0 by path, the smallest PBIR report: one empty page). In
+  the open project's `powerbi/` (written only when bytes change; an earlier export's stale table files and
+  rows removed, so Power BI never reads a table no longer ticked); with no project, a zip of the same folder.
+  Byte-stable: sorted tables, CRLF (Power BI Desktop's own end of line), lineage tags uuid5 of the names.
+- **Types:** int64, double, decimal, string, dateTime, boolean; anything else string, said in the dialog.
+  Columns a key or join names are `summarizeBy: none`, other numbers `sum`.
+- **Relationships:** one column each side and the same type (else left out, said); the one-active-path rule by a
+  union-find over the active joins, strongest first (the evidence's percentage, then the model's order).
+- **Power Query:** one table-driven domain file (domain/power_query.py): SQL Server/Azure SQL, PostgreSQL,
+  MySQL/MariaDB, Snowflake, Databricks, Oracle, Dataverse's SQL endpoint, SharePoint lists, CSV/Excel/Parquet
+  files, Data Lake Parquet, Delta and OneLake Delta. A connection's settings are read from its code
+  (blades.detect_settings): `${NAME}` becomes a Power Query parameter (its value the variable's shareable plain
+  value, else empty); a user name or password is never a setting, so never written.
+- **Steps:** a database table's steps go as the source's own SQL (sqlglot from DuckDB), as a native query;
+  DuckDB's own SQL that sqlglot would pass through unchanged (GROUP BY ALL, SELECT * EXCLUDE/REPLACE, QUALIFY
+  where the dialect has none, COLUMNS) and unknown functions are refused and said: the table goes without its
+  steps. A file goes as it is (said).
+- **No source Power Query can read** (pasted, pushed, a "+" query, Python, an API, a Power BI dataset read with
+  DAX): Include its rows writes Parquet into `<Name>.SemanticModel/data/` (Git-ignored), read from a
+  `DataFolder` parameter; the agent's export with rows waits for the user's Allow.
+- **Open in Power BI Desktop** (Windows, when .pbip has a program) or Show its folder: the user's click only.
+- Release note (pending): "Export to Power BI… on the ERD page: your tables, relationships and each table's
+  Power Query as a Power BI Project that Power BI Desktop opens with a double-click."
+- Later phases asked for on 2026-11-19 (the report swap, the import, a .pbix file connection, Edit in Power BI
+  Desktop, the Power BI extension and its gated project type): see the branch's report for what was built.

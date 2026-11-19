@@ -14,6 +14,7 @@
  *          [SHARED MODELS]    Apply -> applyShared(name)
  *          [MANAGE]           -> relationshipsDialog.openRelationships()
  *          [FIND]             -> openRelationships(true): the window, its finder already running
+ *          [POWER BI]         Export to Power BI…: the tables drawn -> powerbiExport.ts
  *          [FOLLOW]           the agent added a relationship (Follow the agent, sessionPage.ts): its line
  *                             and its two tables pulse as the diagram draws it -> highlightRelationships()
  */
@@ -25,6 +26,7 @@ import { importRelationships, openRelationships } from "./relationshipsDialog";
 import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorHere, errorNote } from "./errorNote";
+import { openPowerBIExport } from "./powerbiExport";
 
 let host: HTMLElement;
 let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
@@ -154,7 +156,10 @@ async function render(): Promise<void> {
     // ===== DIAGRAM =====
     slot,
   );
-  actions.append(...sizing);
+  actions.append(
+    ...sizing,
+    button("Export to Power BI…", () => openPowerBIExport(covered), { icon: "export", title: "These tables and their relationships as a Power BI Project" }),
+  );
   try {
     // All tables: every table, the shared catalog's (the library's catalog/: a teammate's) among them.
     const erd = await api<{ mermaid: string }>(

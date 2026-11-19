@@ -274,6 +274,14 @@ export async function download(path: string): Promise<{ blob: Blob; name: string
   return { blob: await response.blob(), name, message: response.headers.get("X-Export-Message") ?? "" };
 }
 
+/** A download made by a POST with a JSON body (Export to Power BI's zip): the bytes and the file name. */
+export async function downloadPost(path: string, body: unknown): Promise<{ blob: Blob; name: string }> {
+  const response = await send(path, { method: "POST", headers: headers(true), body: JSON.stringify(body) });
+  if (!response.ok) throw new ApiError(response.status, await response.text());
+  const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1] ?? "export.zip";
+  return { blob: await response.blob(), name };
+}
+
 export function query(params: Record<string, string | number | undefined | null>): string {
   const pairs = Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "");
   return pairs.length ? "?" + new URLSearchParams(pairs.map(([k, v]) => [k, String(v)])).toString() : "";

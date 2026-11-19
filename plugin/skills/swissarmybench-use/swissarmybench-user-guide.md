@@ -569,6 +569,8 @@ With no relationships for the open tables it says so and offers these ways in:
 
 The diagram is fitted to the window as it is drawn, and follows the window's size. **Actual size** shows a large diagram at its own size (it then scrolls); **Fit** puts it back.
 
+**Export to Power BI…** makes the tables the ERD shows into a Power BI Project that Power BI Desktop opens with a double-click: each table with its columns and how it is read (its Power Query: from its database, file, lake, SharePoint list or Dataverse), and the relationships between them. You build the report in Power BI Desktop. The dialog lists the tables with a tick each; a table Power Query cannot read (pasted, or pushed from Python) says so, with **Include its rows** to send its rows with the model. A database table's steps go as the database's own SQL when they can (else the table goes as it is, said); a file is read as it is. Of two joins between the same tables, one stays active, as Power BI wants; a join on two columns, or between columns of different types, is left out and said. With a project open it is written into the project's `powerbi/` folder (shared in Git like the rest; Power BI's own cache is ignored), then **Open in Power BI Desktop** (on Windows) or **Show its folder**; with no project open it downloads as a zip. A `${NAME}` becomes a Power Query parameter; no password is ever written: Power BI Desktop asks for it.
+
 ## The Workbench
 
 The grid page's **Workbench** tab opens notebooks (`.ipynb`) and Python scripts (`.py`) in a window of

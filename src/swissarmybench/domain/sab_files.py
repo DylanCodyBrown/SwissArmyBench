@@ -548,6 +548,11 @@ GITIGNORE: str = """\
 # Remove this line to commit them on purpose.
 .sab/data/
 
+# Power BI Desktop's own cache and settings (Export to Power BI's powerbi/), and rows exported with the model.
+**/.pbi/localSettings.json
+**/.pbi/cache.abf
+**/*.SemanticModel/data/
+
 __pycache__/
 .ipynb_checkpoints/
 .venv/

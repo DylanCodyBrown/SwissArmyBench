@@ -299,6 +299,12 @@ src/swissarmybench/
     powerbi.py           a Power BI workspace: a dataset's name with its connection (Finance/Sales model),
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
+    power_query.py       Power Query (M) for a table's source, table driven (KINDS: SQL Server, PostgreSQL, MySQL,
+                         Snowflake, Databricks, Oracle, Dataverse, SharePoint, CSV, Excel, Parquet, lakes); `${NAME}`
+                         as parameters; a grid's steps as the source's SQL by sqlglot (or why not); a partition's M
+                         read back (read_source)
+    powerbi_export.py    the model as a Power BI Project (.pbip): types, the relationships and the one-active-path
+                         rule, TMDL and the PBIR files byte-stable (CRLF, uuid5 lineage tags), stale files
     blade_templates.py   Template: a starter connection's or blade's code and listing query (re-exported by blades.py)
     blade_tables.py      a table blade's own table name (names_table; the live check's answers: available, a table,
                          a connection, another blade's table, not a valid name), a connection's listing query from
@@ -620,6 +626,8 @@ src/swissarmybench/
     project_outline.py   the outline gathered (build) and written as ARCHITECTURE.md at the project's top, only
                          when its bytes change (write); seams: UsedTables.used(project) (the tables the project
                          uses) and Portability.verdict(connection) (default: "Not checked yet")
+    powerbi_export.py    Export to Power BI…: plan (the ERD's tables, why one cannot go, Include its rows), export
+                         (the project's powerbi/, or a zip; rows on the agent's Allow), open (the user's click)
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
                          query); a document's Tables group arranged; where each table came from
     hooks.py             what an extension hands the base's services once built (late binding): the documents
@@ -690,6 +698,8 @@ src/swissarmybench/
     extensions.py        the installed extensions: entry points under `swissarmybench.extensions`, read at start;
                          SWISSARMYBENCH_EXTENSIONS (tests and development only)
     projects.py          a project's folder: made, listed, its own files read and written, zipped
+    powerbi_files.py     Export to Power BI's folder: written only when bytes change, stale files removed, the zip,
+                         the .pbip opened with its program (Windows) or its folder shown
     sab_files.py         a project folder's .sab/ files (written atomically, only when their bytes change),
                          the scaffold's Git files, its documents listed, Copy project to;
                          recent_projects.json (folders)
@@ -720,7 +730,7 @@ src/swissarmybench/
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, explorer, library,
-                         shared_catalog, team). Every route serves
+                         shared_catalog, team, powerbi_export). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -821,7 +831,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
-                         areas (the owner, 2026-11-16); extensionsPage.ts the Extensions page (open=extensions,
+                         areas (the owner, 2026-11-16); powerbiExport.ts the ERD page's Export to Power BI… (the
+                         tables with ticks, why one cannot go and Include its rows, the relationships, Export, Open
+                         in Power BI Desktop or Show its folder); extensionsPage.ts the Extensions page (open=extensions,
                          above Settings: a card per extension, Install's progress through the restart);
                          library.ts Settings' Team box (Join a team…, Start a team…: one dialog of steps; the
                          Joined row: Pull, Push, …; Advanced: the two folders; Set up this computer) and the

@@ -24,7 +24,7 @@ import duckdb
 
 from swissarmybench import __version__
 from swissarmybench import extensions as extension_modules
-from swissarmybench.adapters import blade_run
+from swissarmybench.adapters import blade_run, powerbi_files
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
@@ -144,6 +144,7 @@ from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
+from swissarmybench.services.powerbi_export import PowerBIExport
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
@@ -225,6 +226,7 @@ class Services:
     project_explorer: ProjectExplorer
     project_scope: ProjectScope
     project_outline: ProjectOutline
+    powerbi_export: PowerBIExport
     script_exports: ScriptExports
     panels: Panels
     session_log: SessionLog
@@ -260,6 +262,21 @@ class Services:
     project_files: Any
     export_writer: Any
     process_event: Callable[..., None]
+
+
+class _PowerBIFiles:
+    """Export to Power BI's files (adapters/powerbi_files.py), its .pbip opened or its folder shown."""
+
+    existing = staticmethod(powerbi_files.existing)
+    write = staticmethod(powerbi_files.write)
+    remove = staticmethod(powerbi_files.remove)
+    zipped = staticmethod(powerbi_files.zipped)
+    save_zip = staticmethod(powerbi_files.save_zip)
+    has_program = staticmethod(powerbi_files.has_program)
+
+    @staticmethod
+    def open_file(path: str) -> str:
+        return powerbi_files.open_file(path, file_manager.show)
 
 
 def usage_documents(
@@ -1196,6 +1213,20 @@ def bootstrap(
     project_outline.used_tables = BothTables(project_tables.used, project_outline.used_tables)
     project_outline.portability = CardPortability(lambda: connection_usage.overview()["connections"])
 
+    # Export to Power BI… (the ERD page): the model as a Power BI Project in the open project's powerbi/.
+    powerbi_export = PowerBIExport(
+        ws,
+        models,
+        origins=datasets.origins.get,
+        connection=lambda name: connections.blade(name)[0],
+        shareable=variables.shareable,
+        project=lambda: sab_projects.state().get("project"),
+        used=project_tables.used,
+        files=_PowerBIFiles(),
+        writer=export_writer,
+        approvals=approvals,
+    )
+
     # The system's own file dialog on the user's click (server/dialog_runner.py), and the page's own picker's
     # quick places and recent folders per kind of pick (dialogs.json: paths only).
     def picker_places() -> list[dict[str, str]]:
@@ -1331,6 +1362,7 @@ def bootstrap(
         project_explorer=project_explorer,
         project_scope=project_scope,
         project_outline=project_outline,
+        powerbi_export=powerbi_export,
         # Export as one Python script: the document's cells, its connections' own code, ruff's check.
         script_exports=ScriptExports(
             ws,

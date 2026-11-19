@@ -3521,3 +3521,33 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
   toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
   test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
+
+## Export to Power BI (2026-11-19, branch powerbi-export)
+
+Microsoft's pages followed (fetched 2026-11-19 through Microsoft Learn):
+- https://learn.microsoft.com/en-us/power-bi/developer/projects/projects-overview (the .pbip, the default
+  .gitignore lines `**/.pbi/localSettings.json` and `**/.pbi/cache.abf`, UTF-8 without BOM, CRLF)
+- https://learn.microsoft.com/en-us/power-bi/developer/projects/projects-dataset (definition.pbism, TMDL needs
+  version 4.0 or above; the definition/ folder)
+- https://learn.microsoft.com/en-us/power-bi/developer/projects/projects-report (definition.pbir byPath, version
+  4.0; the PBIR definition/ folder: version.json, report.json, pages/)
+- https://learn.microsoft.com/en-us/rest/api/fabric/articles/item-management/definitions/semantic-model-definition
+  (definition.pbism's example: schema definitionProperties 1.0.0, version 5.0, qnaEnabled false)
+- https://learn.microsoft.com/en-us/rest/api/fabric/articles/item-management/definitions/report-definition
+  (report.json 3.1.0 with the CY25SU12 base theme, page.json 2.0.0, definition.pbir 2.0.0)
+- https://learn.microsoft.com/en-us/analysis-services/tmdl/tmdl-overview (TMDL: names quoted, tab indentation,
+  expressions, ref table ordering, parameters' meta record)
+- The JSON schemas at developer.microsoft.com/json-schemas/fabric/... (pbipProperties 1.0.0, versionMetadata
+  1.0.0, pagesMetadata 1.0.0, report 3.1.0, page 2.0.0, report definitionProperties 2.0.0, semanticModel
+  definitionProperties 1.0.0), saved in tests/golden/powerbi_schemas/: every JSON file the export writes is
+  validated against its schema (tests/test_powerbi_export.py).
+
+Checked: the unit tests (types, relationships and the one-active-path rule, each kind's M as golden text and read
+back, `${NAME}` as parameters, steps transpiled for SQL Server and PostgreSQL, DuckDB-only SQL refused,
+byte-stable files, stale files removed, no made-up secret in any written file, the rows tick and the agent's
+Allow), and the ERD page's dialog in Chromium (tests/e2e/test_powerbi_export_page.py).
+
+Not checked: **Microsoft's own TMDL reader** (TmdlSerializer.DeserializeDatabaseFromFolder in the
+Microsoft.AnalysisServices NuGet package): installing a .NET SDK in this container was refused, so no tool under
+tools/ was added. **Power BI Desktop opening the export**, and each kind's M against a real source, are still
+to be tried on the owner's computer.

@@ -109,6 +109,11 @@ class Variables:
     def _defined(self) -> list[rules.Defined]:
         return rules.read_defined(*self._kept.read())
 
+    def shareable(self) -> dict[str, str]:
+        """The plain values that may be shared (not this computer's only, never a keyring's): Export to Power
+        BI writes them as its parameters' values."""
+        return {d.name: d.value for d in self._defined() if d.origin == "value" and not d.local}
+
     def _write(self, defined: list[rules.Defined]) -> None:
         self._kept.write(rules.shared_json(defined), rules.local_json(defined))
 
