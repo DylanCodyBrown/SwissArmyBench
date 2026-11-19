@@ -83,8 +83,8 @@ export interface ScriptView {
   tables: () => TableReport[];
   runTable: (name: string) => Promise<boolean>;
   runOutOfDate: () => Promise<number>;
-  /** Go to the cell with this number (false: there is none). */
-  goTo: (number: number) => boolean;
+  /** Go to the cell with this number (false: there is none); `line`: that line of the cell, from 1. */
+  goTo: (number: number, line?: number | null) => boolean;
   foldTables: (folded: boolean, table?: string) => void;
   renameTable: (from: string, to: string) => void;
   /** Add an HTML cell after the cursor's cell (at the end without one), with the cursor in it. */
@@ -689,14 +689,15 @@ export function scriptView(
     return ok;
   };
 
-  const goTo = (number: number): boolean => {
+  const goTo = (number: number, line?: number | null): boolean => {
     const cell = outline.cells.find((c) => c.number === number);
     if (!cell || !editor) {
       errorHere(`There is no cell ${number} in this script.`);
       return false;
     }
     if (cell.grouped && outline.region) editor.unfold([outline.region[0], cell.line]);
-    editor.reveal(cell.line);
+    editor.reveal(cell.line + (line ?? 0));
+    if (line) editor.moveTo(cell.line + line);
     return true;
   };
 

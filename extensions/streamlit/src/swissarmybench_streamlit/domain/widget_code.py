@@ -102,12 +102,15 @@ def edits_between(before: str, after: str) -> tuple[Edit, ...]:
     )
 
 
-def _change(before: str, after: str, line: int | None = None, handler: str | None = None) -> Change:
+def _change(
+    before: str, after: str, line: int | None = None, handler: str | None = None, edits: Any = None
+) -> Change:
     try:
         ast.parse(after)
     except (SyntaxError, ValueError, RecursionError) as error:  # never written: the cell stays as it was
         raise CodeError(f"That change would not leave whole Python ({error}): nothing was changed.") from None
-    return Change(after, edits_between(before, after), line, handler)
+    made = tuple(sorted(edits, key=lambda e: e.start)) if edits is not None else edits_between(before, after)
+    return Change(after, made, line, handler)
 
 
 class _Source:
@@ -633,6 +636,11 @@ def _call(code: str, index: int) -> tuple[_Source, ast.Module, ast.Call, Widget]
     return src, tree, calls[index], _widget(src, calls[index], index, None, None)
 
 
+def _made(code: str, edits: list[Edit], line: int | None = None, handler: str | None = None) -> Change:
+    """The change these edits make: exactly them, nothing else."""
+    return _change(code, apply(code, edits), line, handler, edits)
+
+
 def _check_name(name: Any) -> str:
     if not isinstance(name, str) or not _NAME.match(name) or keyword.iskeyword(name):
         raise CodeError("A property is named as Streamlit names it: label, value, options, key...")
@@ -650,7 +658,7 @@ def set_argument(code: str, index: int, name: str, value: Any) -> Change:
     text = literal(value, now)
     if now is not None and now.source == text:
         return Change(code, ())
-    return _change(code, apply(code, _set(src, call, name, text, widget.by_position)))
+    return _made(code, _set(src, call, name, text, widget.by_position))
 
 
 def _not_plain(name: str, now: Value) -> str:
@@ -669,7 +677,7 @@ def reset_argument(code: str, index: int, name: str) -> Change:
     src, _, call, widget = _call(code, index)
     if name not in widget.arguments:
         return Change(code, ())
-    return _change(code, apply(code, _set(src, call, name, None, widget.by_position)))
+    return _made(code, _set(src, call, name, None, widget.by_position))
 
 
 def _import_edit(src: _Source, tree: ast.Module, module: str) -> list[Edit]:
@@ -717,7 +725,7 @@ def bind(code: str, index: int, name: str, kind: str, target: Any) -> Change:
         text = target
     if now is not None and now.source == text:
         return Change(code, ())
-    return _change(code, apply(code, [*_set(src, call, name, text, widget.by_position), *extra]))
+    return _made(code, [*_set(src, call, name, text, widget.by_position), *extra])
 
 
 # ===== events: a handler's stub =====
@@ -770,9 +778,7 @@ def add_handler(code: str, index: int, event: str | None = None, name: str | Non
     first = min([statement.lineno, *(d.lineno for d in getattr(statement, "decorator_list", []))])
     at = src.at(first, 0)
     stub = Edit(at, at, f"def {handler}():\n    pass\n\n\n")
-    return _change(
-        code, apply(code, [stub, *_set(src, call, event, handler, widget.by_position)]), first, handler
-    )
+    return _made(code, [stub, *_set(src, call, event, handler, widget.by_position)], first, handler)
 
 
 # ===== cache: a function's decorator =====

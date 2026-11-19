@@ -33,7 +33,8 @@
  * ROUTING: /streamlit/apps/{app}... (routes_streamlit.py); the `streamlit_changed` notice
  */
 import { agentApi, api, ApiError } from "./api";
-import { history, pageTabs, resizeGrip } from "./canvasKit";
+import { pageTabs, resizeGrip } from "./canvasKit";
+import type { CodePlan } from "./canvasPane";
 import { button, clear, h, icon, showMenu, toast } from "./dom";
 import { kindIcon, kindOfPath } from "./kindColours";
 import { busy as gate, markBusy } from "./loading";
@@ -77,6 +78,8 @@ export interface CanvasHost {
   lineage?: (page: string, block: string) => void;
   /** A block was selected (null: none): Properties follows. */
   selected?: (block: string | null) => void;
+  /** A change to a cell's code made again or taken back (Undo, Redo): in the open document, like typing. */
+  applyCode?: (plan: CodePlan) => Promise<boolean>;
   /** A starter dropped on the board (from App mode's Starters panel): written into a cell, then placed. */
   starter?: (name: string, where: { row: number; column: number; insert?: boolean } | undefined) => void;
 }
@@ -128,6 +131,14 @@ export interface CanvasView {
   page: () => CanvasPage | null;
   /** The blocks on the page that read what this block makes. */
   feeds: (block: string) => BlockState[];
+  /** The property pane changed a cell's code: Undo takes it back with the layout's changes. */
+  codeChanged: (plan: CodePlan) => void;
+  /** Every selected block (the first is the one Properties shows). */
+  selection: () => BlockState[];
+  /** Another page in front, a block of it selected. */
+  showPage: (page: string, block?: string) => void;
+  /** Move or size several blocks of the page in front, as one change. */
+  changeBlocks: (blocks: string[], body: Record<string, unknown>) => Promise<boolean>;
   /** Move or size a block of the page in front. */
   changeBlock: (block: string, body: Record<string, unknown>) => Promise<boolean>;
   settings: () => AppSettings;
@@ -160,7 +171,20 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
   let device: Device = "desktop";
   let previewTheme: "light" | "dark" | null = null;
   let freshSession = 0; // Reset state: the live page is opened again with a new session
-  const changes = history<SavedPage[]>(); // Undo and Redo (canvasKit.ts, shared with the Excel canvas)
+  // Undo and Redo, one history for everything the designer does: a layout change keeps the pages as they
+  // were; a change to a cell's code (the property pane's) keeps its plan, taken back in the document.
+  type Step = { pages: SavedPage[] } | { code: CodePlan };
+  const undos: Step[] = [];
+  const redos: Step[] = [];
+  const changes = {
+    push: (step: Step): void => {
+      undos.push(step);
+      if (undos.length > 50) undos.shift();
+      redos.length = 0;
+    },
+    canUndo: (): boolean => undos.length > 0,
+    canRedo: (): boolean => redos.length > 0,
+  };
   let id: string | null = null;
   let opening: Promise<string> | null = null;
   let pageId: string | null = null;
@@ -231,7 +255,7 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     const before = state ? savedPages(state.pages) : null;
     try {
       const done = await call(path, method, body);
-      if (before) changes.push(before);
+      if (before) changes.push({ pages: before });
       return done;
     } catch (e) {
       errorHere(e);
@@ -606,15 +630,30 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     }
   }
 
-  async function undo(): Promise<boolean> {
-    const back = state ? changes.undo(savedPages(state.pages)) : undefined;
-    return back ? replacePages(back) : false;
+  /** One step of the history taken from `from` and put on `to`: the pages put back, or a cell's code. */
+  async function step(from: Step[], to: Step[], back: boolean): Promise<boolean> {
+    const taken = from.pop();
+    if (!taken || !state) return false;
+    if ("pages" in taken) {
+      to.push({ pages: savedPages(state.pages) });
+      return replacePages(taken.pages);
+    }
+    const plan = taken.code;
+    const made: CodePlan = back ? { ...plan, before: plan.code, code: plan.before } : plan;
+    try {
+      if (!host.applyCode || !(await host.applyCode(made))) throw new Error(`${plan.where} could not be changed back.`);
+      to.push(taken);
+      drawTop();
+      return true;
+    } catch (e) {
+      errorHere(e);
+      drawTop();
+      return false;
+    }
   }
 
-  async function redo(): Promise<boolean> {
-    const again = state ? changes.redo(savedPages(state.pages)) : undefined;
-    return again ? replacePages(again) : false;
-  }
+  const undo = (): Promise<boolean> => step(undos, redos, true);
+  const redo = (): Promise<boolean> => step(redos, undos, false);
 
   const blockOf = (block?: string): { page: CanvasPage; block: BlockState } => {
     const page = current();
@@ -1054,6 +1093,28 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     selected: () => current()?.blocks.find((b) => b.id === selectedId) ?? null,
     select: (block) => select(block),
     page: current,
+    codeChanged: (plan) => {
+      changes.push({ code: plan });
+      drawTop();
+    },
+    selection: () => {
+      const one = current()?.blocks.find((b) => b.id === selectedId);
+      return one ? [one] : [];
+    },
+    showPage: (page, block) => {
+      if (!state?.pages.some((p) => p.id === page)) return;
+      pageId = page;
+      selectedId = null;
+      draw();
+      select(block ?? null);
+    },
+    changeBlocks: async (blocks, body) => {
+      const page = current();
+      if (!page) return false;
+      let ok = true;
+      for (const block of blocks) ok = !!(await change(`/pages/${page.id}/blocks/${block}`, "PATCH", body)) && ok;
+      return ok;
+    },
     feeds,
     changeBlock: async (block, body) => {
       const page = current();

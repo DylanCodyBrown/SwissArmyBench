@@ -119,6 +119,9 @@ class App:
     notes: list[str] = field(default_factory=list)  # what the last run could not do
     # Each page's last test (services/controllers.py): the page's code then, and what it found.
     tested: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # What the property pane asked of the running app (Now), numbered; gone when the app stops.
+    now: list[dict[str, Any]] = field(default_factory=list)
+    now_dropped: int = 0
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
     @property
@@ -691,6 +694,31 @@ class StreamlitApps:
         ]
         return {"app": app.id, "running": app.running(), "state": page_settings.state_rows(held, blocks)}
 
+    async def now(self, app_id: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """Now (the property pane): the RUNNING app only, never the cell's code. {"key", "value"} sets
+        st.session_state there, {"key", "forget": true} takes the key out, {"clear": a cached function's
+        name or "*"} empties that cache. The open page runs again with it. Only while Play runs."""
+        app = self._app(app_id, canvas=True)
+        asked = page_settings.check_now(body)
+        async with app.lock:
+            if not app.running() or app.folder is None:
+                raise Conflict("Play the page first: Now changes the running app.")
+            app.now.append({"n": len(app.now) + 1 + app.now_dropped} | asked)
+            if len(app.now) > page_settings.MAX_NOW:
+                app.now_dropped += len(app.now) - page_settings.MAX_NOW
+                app.now = app.now[-page_settings.MAX_NOW :]
+            app.generation += 1
+            files = {
+                page_settings.NOW_FILE: page_settings.now_file(app.now),
+                "app.py": f"{rules.ENTRY}# run {app.generation}\n",
+            }
+            self._files.write(app.folder, files, set(app.written))
+            self._files.touch(app.folder, "app.py")
+        what = "streamlit_cache_clear" if "clear" in asked else "streamlit_state_set"
+        detail = ", ".join(asked.get("clear") or asked.get("forget") or list(asked.get("set") or {}))
+        self.ws.audit.write(who, what, f"{app.title}: {detail}", app=app.id, title=app.title, detail=detail)
+        return {"app": app.id, "running": True, "made": asked}
+
     async def _changed(self, app: App) -> None:
         await self.ws.live.broadcast({"type": "streamlit_changed", "app": app.id})
 
@@ -990,7 +1018,12 @@ class StreamlitApps:
                     trace=page.id,
                 )
                 name = f"page_{page.id}_{stamp}.py"
-                files[name] = made.code + page_settings.STATE_TAIL  # what the session holds: the State panel
+                # What the session holds (the State panel), and what the property pane asked of it (Now).
+                files[name] = (
+                    made.code.replace(rules.LAYOUT_LINE, page_settings.NOW_HEAD + rules.LAYOUT_LINE, 1)
+                    + page_settings.STATE_TAIL
+                    + page_settings.NOW_TAIL
+                )
                 used += [t for t in made.tables if t not in used]
                 entry = {"kind": "page", "file": name, "title": page.name, "path": f"page-{page.id}"}
                 listed.append(entry | {"default": False})
@@ -1144,6 +1177,8 @@ class StreamlitApps:
             app.laid = {}
             app.marks = {}
             app.written = set()
+            app.now = []
+            app.now_dropped = 0
 
     async def stop(self, app_id: str, who: str = "user") -> dict[str, Any]:
         """Stop the app's Streamlit process and remove its temporary folder; its pages stay."""

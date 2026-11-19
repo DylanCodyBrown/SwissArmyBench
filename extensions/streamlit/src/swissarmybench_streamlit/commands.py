@@ -342,3 +342,157 @@ def streamlit_test(a: dict[str, Any]) -> Any:
 )
 def workbench_canvas_move_to_data(a: dict[str, Any]) -> Any:
     return _window("canvas.moveToData", {"block": a["block"]})
+
+
+# The canvas's property pane and designer (the owner, 2026-11-19): whatever is selected, what it uses, its
+# Streamlit state and cache. A change to a cell's CODE is made in its open document by the window that holds
+# the app (like typing; the editor's Undo takes it back): only the characters it names change. "Now" changes
+# the RUNNING app only.
+
+
+def _code_path(a: dict[str, Any]) -> str:
+    return f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}/code"
+
+
+_BLOCK = (req("app", "The app's id."), req("page", "The page's id."), req("block", "The block's id."))
+_WIDGET = opt("widget", "Which element of its cell, from 0 (canvas_inspect lists them; default 0).", "int")
+
+
+@command(
+    "canvas_inspect",
+    "The property pane: a block (properties, widgets, uses, used by, state, cache, exported code), a page, or "
+    "the app",
+    req("app", "The app's id."),
+    opt("page", "A page's id (without it: the app)."),
+    opt("block", "A block's id."),
+)
+def canvas_inspect(a: dict[str, Any]) -> Any:
+    asked = {"page": a.get("page"), "block": a.get("block")}
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/inspect", params=asked)
+
+
+@command(
+    "canvas_table",
+    "A table a block uses: its columns and types, its grid's steps in words, its first rows",
+    req("name", "The table's name as Python names it (canvas_inspect: uses.tables)."),
+)
+def canvas_table(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/tables/{_q(a['name'])}")
+
+
+@command(
+    "canvas_set_default",
+    "A widget's default (value=, index= or default= in its cell's code; a plain value only)",
+    *_BLOCK,
+    req("value", 'The default: 5, "North", ["a", "b"], true.', "json"),
+    _WIDGET,
+)
+def canvas_set_default(a: dict[str, Any]) -> Any:
+    body = {
+        "do": "set",
+        "widget": a.get("widget") or 0,
+        "name": "default",
+        "value": a["value"],
+        "apply": True,
+    }
+    return api.call("POST", _code_path(a), body)
+
+
+@command(
+    "canvas_set_property",
+    "A widget's property in its cell's code (label, options, key, help...): set to a plain value, or reset",
+    *_BLOCK,
+    req("name", "The property, as Streamlit names it."),
+    opt("value", "Its value (JSON). Without it: reset (taken out of the call).", "json"),
+    _WIDGET,
+)
+def canvas_set_property(a: dict[str, Any]) -> Any:
+    body: dict[str, Any] = {"widget": a.get("widget") or 0, "name": a["name"], "apply": True}
+    body |= {"do": "set", "value": a["value"]} if a.get("value") is not None else {"do": "reset"}
+    return api.call("POST", _code_path(a), body)
+
+
+@command(
+    "canvas_bind",
+    "Bind a widget's property: to a name another cell makes, a session state key, a variable, or an expression",
+    *_BLOCK,
+    req("name", "The property (value, options, disabled...)."),
+    req("kind", "name, state, variable or expression."),
+    req("target", "The name, the key, the variable, or the expression."),
+    _WIDGET,
+)
+def canvas_bind(a: dict[str, Any]) -> Any:
+    body = {"do": "bind", "widget": a.get("widget") or 0, "apply": True}
+    return api.call("POST", _code_path(a), body | {k: a[k] for k in ("name", "kind", "target")})
+
+
+@command(
+    "canvas_add_handler",
+    "A widget's event handler: a function stub in its cell and on_change= (or on_click=) set",
+    *_BLOCK,
+    _WIDGET,
+    opt("event", "on_change, on_click, on_submit or on_select (default: the widget's own)."),
+    opt("handler", "The function's name (default: on_<key>_<event>)."),
+)
+def canvas_add_handler(a: dict[str, Any]) -> Any:
+    body = {"do": "handler", "widget": a.get("widget") or 0, "apply": True}
+    return api.call("POST", _code_path(a), body | {k: a[k] for k in ("event", "handler") if a.get(k)})
+
+
+@command(
+    "canvas_set_cache",
+    "A function's cache decorator in a cell's code: st.cache_data or st.cache_resource, its settings, or none",
+    *_BLOCK,
+    req("function", "The function's name (canvas_inspect: cache)."),
+    opt("kind", "data, resource or none (default: data)."),
+    opt("settings", '{"ttl": 600, "max_entries": 100, "show_spinner": false}; null resets one.', "json"),
+    opt("document", "A cell this one calls: its file (canvas_inspect: cache)."),
+    opt("cell", "That cell's number.", "int"),
+)
+def canvas_set_cache(a: dict[str, Any]) -> Any:
+    kind = a.get("kind") or "data"
+    body: dict[str, Any] = {
+        "do": "cache",
+        "function": a["function"],
+        "kind": None if kind == "none" else kind,
+    }
+    body |= {k: a[k] for k in ("settings", "document", "cell") if a.get(k) is not None}
+    return api.call("POST", _code_path(a), body | {"apply": True})
+
+
+@command(
+    "canvas_state_set",
+    "Now: set a session state key in the RUNNING app (not the code), or forget it",
+    req("app", "The app's id (playing)."),
+    req("key", "The key (canvas_inspect: a widget's state_key; streamlit_state lists them)."),
+    opt("value", "Its value (JSON).", "json"),
+    opt("forget", "true: take the key out (its widget starts from its default).", "bool"),
+)
+def canvas_state_set(a: dict[str, Any]) -> Any:
+    body: dict[str, Any] = {"key": a["key"]}
+    body |= {"forget": True} if a.get("forget") else {"value": a.get("value")}
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/now", body)
+
+
+@command(
+    "canvas_cache_clear",
+    "Now: clear a cached function's cache in the RUNNING app (or every cache)",
+    req("app", "The app's id (playing)."),
+    opt("function", "The function's name (default: every cache)."),
+)
+def canvas_cache_clear(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/now", {"clear": a.get("function") or "*"})
+
+
+@command(
+    "canvas_toolbox",
+    "The Toolbox: every Streamlit element and container with its properties; with element: its new cell's code",
+    opt("app", "The app's id (with element)."),
+    opt("element", "An element's id (slider, selectbox...): the cell a drop makes."),
+)
+def canvas_toolbox(a: dict[str, Any]) -> Any:
+    if a.get("element"):
+        if not a.get("app"):
+            raise CommandError("Send app with element: the cell's names are free of that app's.")
+        return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/toolbox", {"element": a["element"]})
+    return api.call("GET", "/streamlit/toolbox")

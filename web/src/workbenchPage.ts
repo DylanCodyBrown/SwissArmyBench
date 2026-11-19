@@ -96,6 +96,7 @@ import { scriptView, type ScriptView } from "./workbenchScript";
 import { type Align, canvasView, type CanvasView, type Device } from "./workbenchCanvas";
 import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLineage, lineageNoticed, openLineage } from "./workbenchLineage";
 import { type AppHost, appPanels } from "./workbenchApp";
+import type { CodePlan } from "./canvasPane";
 import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
 import { fillSnippet } from "./starters";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
@@ -383,6 +384,7 @@ function openApp(path: string | null, pages: SavedPage[], modified: number | nul
       doc.app?.refresh(); // Properties and State follow the canvas
     },
     moveToData: (plan) => moveToData(plan, doc),
+    applyCode: (plan) => applyCode(doc, plan, false),
     lineage: (page, block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page, block }),
     selected: () => doc.modes?.redraw("properties"),
     starter: (name, where) => void addStarter(doc, name, where).catch((e: Error) => errorHere(e)),
@@ -756,7 +758,11 @@ async function saveProjectDocuments(folder: string | undefined): Promise<{ saved
 function appHost(doc: Doc): AppHost {
   return {
     lineage: (block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page: (doc.canvas?.report() as { page?: string } | undefined)?.page ?? undefined, block }).catch((e: Error) => errorHere(e)),
-    goToCell: (document, cell) => void goToCell(document, baseName(document), cell).catch((e: Error) => errorHere(e)),
+    goToCell: (document, cell, line) => void goToCell(document, baseName(document), cell, line).catch((e: Error) => errorHere(e)),
+    applyCode: (plan) => applyCode(doc, plan),
+    openVariable: () => openVariables(),
+    openConnection: () => void openConnections().then(() => void rail.loadBlades()),
+    openGrid: (grid) => showGridAtHome(grid),
     renameCell: async (document, cell, name) => {
       let held = docs.find((d) => d.path === document);
       if (!held) {
@@ -2269,7 +2275,7 @@ function browse(connection?: string): void {
 }
 
 /** A Streamlit cells pane entry's click: its document in front (opened when it is not), the cell shown. */
-async function goToCell(document: string | null, title: string, cell: number): Promise<void> {
+async function goToCell(document: string | null, title: string, cell: number, line?: number | null): Promise<void> {
   let doc = docs.find((d) => (document ? d.path === document : !d.path && d.title === title));
   if (!doc && document) {
     await open(document);
@@ -2277,7 +2283,33 @@ async function goToCell(document: string | null, title: string, cell: number): P
   }
   if (!doc) throw new Error(`${title} is not open here.`);
   show(doc);
-  if (!viewOf(doc)?.goTo(cell)) throw new Error(`${title} has no cell ${cell} now.`);
+  if (!viewOf(doc)?.goTo(cell, line)) throw new Error(`${title} has no cell ${cell} now.`);
+}
+
+/** A change to a cell's code from the canvas's property pane (a plan: the cell's code before and after,
+ *  only the characters it names changed): made in the open document like typing, so the editor's Undo
+ *  takes it back. The document is opened when it is not; the canvas stays in front. Refused when the
+ *  cell is no longer what the plan was made from. */
+async function applyCode(app: Doc | null, plan: CodePlan, history = true): Promise<boolean> {
+  const same = (a: string | null, b: string): boolean => !!a && a.replace(/\\/g, "/") === b.replace(/\\/g, "/");
+  let held = docs.find((d) => same(d.path, plan.document));
+  if (!held) {
+    await open(plan.document);
+    held = docs.find((d) => same(d.path, plan.document));
+    if (app) show(app);
+  }
+  if (!held) throw new Error(`${baseName(plan.document)} could not be opened.`);
+  const tidy = (text: string): string => text.replace(/\n+$/, "");
+  if (held.notebook) {
+    const now = held.notebook.sourceOf(plan.cell);
+    if (now === null) throw new Error(`${baseName(plan.document)} has no cell ${plan.cell} now.`);
+    if (tidy(now) !== tidy(plan.before)) throw new Error(`${plan.where} changed since: nothing was written. Try again.`);
+    held.notebook.editSource(plan.cell, tidy(plan.code));
+  } else if (held.script) held.script.setSource(plan.cell, plan.code);
+  else throw new Error(`${baseName(plan.document)} is not a notebook or a script.`);
+  await held.streamlit?.sync().catch(() => null); // the server knows the cell as it is now
+  if (history) app?.canvas?.codeChanged(plan);
+  return true;
 }
 
 // ----- the Streamlit cells pane (App mode's panel): every cell that calls Streamlit, by document
@@ -3314,6 +3346,13 @@ onNotice((notice) => {
   // A cell that calls Streamlit was typed, named, opened or closed somewhere: the pane follows.
   if (notice.type === "streamlit_cells") refreshPane();
   if (["grid_updated", "dataset_updated", "streamlit_changed"].includes(notice.type)) lineageNoticed();
+  // The agent changed a cell's code through the canvas's pane (canvas_set_default...): the window that
+  // holds the app makes it in the open document, like typing.
+  if (notice.type === "streamlit_code") {
+    const sent = notice as unknown as { window: string; plan: CodePlan };
+    const app = sent.window === WINDOW_ID ? docs.find((d) => d.canvas?.app() === sent.plan.app) : undefined;
+    if (app) void applyCode(app, sent.plan).catch((e: Error) => errorHere(e));
+  }
   // An app's pages or run changed somewhere (a linked cell typed in another window, the agent).
   if (notice.type === "streamlit_changed") {
     for (const doc of docs) {

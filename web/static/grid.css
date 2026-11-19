@@ -8627,7 +8627,7 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 }
 
 .wb-doc-body.mode-open.mode-side {
-  --mode-side-w: minmax(240px, 300px);
+  --mode-side-w: minmax(260px, 340px);
 }
 
 .wb-doc-body.mode-open.mode-bottom {
@@ -16828,4 +16828,351 @@ body:has(> .tour) > .context-menu {
     overflow: visible !important;
     padding: 0 !important;
   }
+}
+
+/* ===== The canvas's property pane (canvasPane.ts; the owner, 2026-11-19): WinForms' Properties window. ===== */
+
+.wb-mode-body.cp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 300px;
+  padding: 0 0 8px;
+}
+
+.cp-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.cp-target {
+  overflow: hidden;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cp-tools .cp-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.cp-section {
+  padding: 0 12px;
+}
+
+.cp-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cp-section[open] > summary {
+  margin-bottom: 4px;
+}
+
+.cp-count {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.cp-settings .app-section:last-child {
+  margin-bottom: 4px;
+}
+
+.cp > .cp-settings {
+  padding: 0 12px;
+}
+
+/* The grid: a name and its value a row, as a property grid has them. */
+.cp-grid {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.cp-category {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85em;
+  font-weight: 650;
+}
+
+.cp-row {
+  display: grid;
+  grid-template-columns: minmax(84px, 38%) minmax(0, 1fr);
+  align-items: center;
+  min-height: 30px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cp-row:last-child {
+  border-bottom: 0;
+}
+
+.cp-row:focus-within {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.cp-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 2px 8px;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A property the code sets is in full ink; one left at Streamlit's default is quiet. */
+.cp-row.set > .cp-name {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cp-value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 2px 6px 2px 0;
+}
+
+.cp-value .cp-input {
+  min-height: 26px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.cp-value .cp-input:hover,
+.cp-value .cp-input:focus {
+  border-color: var(--border-strong);
+  background: var(--bg);
+}
+
+.cp-value input[type="checkbox"] {
+  margin: 0 8px;
+}
+
+.cp-bound {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
+}
+
+.cp-bound code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-bound.cp-expression,
+.cp-bound[data-kind="expression"] {
+  background: var(--surface);
+}
+
+.cp-bind {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.cp-element-title {
+  margin-bottom: 4px;
+}
+
+.cp-element {
+  margin-bottom: 6px;
+}
+
+.cp-words {
+  position: sticky;
+  bottom: 0;
+  min-height: 3.2em;
+  margin-top: auto;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.cp-list {
+  margin-bottom: 8px;
+}
+
+.cp-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cp-list-title {
+  margin-bottom: 2px;
+  color: var(--muted);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.cp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  text-align: left;
+}
+
+.cp-link .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-lineage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.cp-node.target {
+  border-color: var(--kind-app);
+  color: var(--kind-app);
+  font-weight: 600;
+}
+
+.cp-arrow {
+  color: var(--muted);
+}
+
+/* A table a block uses, opened beside the canvas. */
+.cp-table {
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.cp-table-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cp-steps {
+  margin: 0;
+  padding: 4px 8px 4px 28px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.cp-table-scroll {
+  max-height: 260px;
+  overflow: auto;
+}
+
+.cp-rows {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.cp-rows th,
+.cp-rows td {
+  max-width: 220px;
+  padding: 2px 8px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cp-rows th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.cp-type {
+  margin-left: 6px;
+  font-weight: 400;
+}
+
+.cp-part {
+  margin-bottom: 10px;
+}
+
+.cp-state,
+.cp-cache {
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+}
+
+.cp-state-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.cp-play-first {
+  padding: 0 8px;
+}
+
+.cp-cache > .btn {
+  margin: 4px 6px;
+}
+
+.cp-code {
+  max-height: 280px;
+  margin: 0 0 6px;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 0.92em;
+  white-space: pre;
 }

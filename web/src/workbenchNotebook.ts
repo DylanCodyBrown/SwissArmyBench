@@ -266,8 +266,8 @@ export interface NotebookView {
   runTable: (name: string) => Promise<boolean>;
   /** Run every table's cell that is not up to date; how many ran. */
   runOutOfDate: () => Promise<number>;
-  /** Go to the cell with this number (false: there is none). */
-  goTo: (number: number) => boolean;
+  /** Go to the cell with this number (false: there is none); `line`: that line of its code, from 1. */
+  goTo: (number: number, line?: number | null) => boolean;
   /** The number the next new cell gets (saved with the file, so none is ever reused). */
   nextCell: () => number;
   /** Fold or unfold the Tables group (or one table of it). */
@@ -303,6 +303,11 @@ export interface NotebookView {
   indexOfNumber: (number: number) => number;
   /** Put this text in the user's cell numbered `number` (a thin cell's move to data.ipynb). */
   setSource: (number: number, source: string) => void;
+  /** The same as a user's edit: only the lines that differ change, and the editor's Undo takes it back
+   *  (the canvas's property pane writing a default, a key, a cache setting or a handler). */
+  editSource: (number: number, source: string) => void;
+  /** The text of the user's cell numbered `number` (null: there is none). */
+  sourceOf: (number: number) => string | null;
   /** A SQL or DAX cell of the user's (by its number) run on another connection (a swap's code). */
   setCellConnection: (number: number, name: string) => void;
   /** A new named Python cell at the end (data.ipynb's cell for a moved model); its number. */
@@ -1749,7 +1754,7 @@ export function notebookView(
 
   // ===== the Tables group: arranged by the server's rules, drawn and folded here =====
 
-  const goTo = (number: number): boolean => {
+  const goTo = (number: number, line?: number | null): boolean => {
     const cell = byNumber(number);
     if (!cell) {
       errorHere(`There is no cell ${number} in this notebook.`);
@@ -1764,6 +1769,10 @@ export function notebookView(
     cell.element.focus();
     cell.element.classList.add("wb-arrived");
     setTimeout(() => cell.element.classList.remove("wb-arrived"), 1200);
+    if (line && cell.editor) {
+      cell.editor.focus();
+      cell.editor.moveTo(line);
+    }
     return true;
   };
 
@@ -2255,6 +2264,19 @@ export function notebookView(
       drawPiece(cell);
       edited();
       typedSoon();
+    },
+    editSource: (number, source) => {
+      const cell = byNumber(number);
+      if (!cell || isApp(cell.role)) throw new Error(`This notebook has no cell ${number} of yours.`);
+      if (cell.editor) cell.editor.replaceText(source);
+      else cell.source = source;
+      drawPiece(cell);
+      edited();
+      typedSoon();
+    },
+    sourceOf: (number) => {
+      const cell = byNumber(number);
+      return cell && !isApp(cell.role) ? sourceOf(cell) : null;
     },
     setCellConnection: (number, name) => {
       const cell = byNumber(number);

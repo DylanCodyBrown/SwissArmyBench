@@ -23,6 +23,7 @@ need).
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -47,6 +48,7 @@ FRONT_END = ["streamlit-canvas", "live-cells"]
 # Its commands' area (cli/commands.py AREAS: the prefix, then what it works on).
 AREAS = (
     ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
+    ("canvas", "The canvas's designer: the property pane (uses, state, cache), Toolbox, containers, events"),
 )
 FAMILIES = ["Streamlit", "Components", "Controllers", "Text and layout"]
 MODE: dict[str, Any] = {
@@ -97,8 +99,9 @@ def routes(services: Any) -> list[Any]:
     from swissarmybench.server import streamlit_proxy
     from swissarmybench_streamlit.adapters.streamlit_files import AppFiles
     from swissarmybench_streamlit.domain import streamlit_cells
-    from swissarmybench_streamlit.server import routes_controllers, routes_streamlit
+    from swissarmybench_streamlit.server import routes_canvas, routes_controllers, routes_streamlit
     from swissarmybench_streamlit.server.streamlit_apps import Runner
+    from swissarmybench_streamlit.services.canvas_pane import CanvasPane
     from swissarmybench_streamlit.services.controllers import Controllers
     from swissarmybench_streamlit.services.streamlit import StreamlitApps
     from swissarmybench_streamlit.services.streamlit_documents import AppFile
@@ -125,6 +128,14 @@ def routes(services: Any) -> list[Any]:
     )
     # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
     controllers = Controllers(apps, app_files, runner, services.project_files)
+    # The property pane and the designer (the owner, 2026-11-19): what a block uses, its state and cache.
+    pane = CanvasPane(
+        apps,
+        variables=getattr(getattr(services, "variables", None), "listing", None),
+        lineage=getattr(getattr(services, "lineage", None), "trace", None),
+        is_set=lambda name: name in os.environ,
+    )
+    services.canvas_pane = pane
     services.streamlit = apps  # its stop, and tests
     services.controllers = controllers
 
@@ -144,6 +155,7 @@ def routes(services: Any) -> list[Any]:
     return [
         *routes_streamlit.routes(apps),
         *routes_controllers.routes(controllers),
+        *routes_canvas.routes(pane, apps),
         *streamlit_proxy.routes(apps.port_of),
     ]
 
