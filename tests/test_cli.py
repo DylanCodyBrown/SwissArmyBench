@@ -199,6 +199,7 @@ NOT_COMMANDS = {
     "/accounting/{}": "the Accounting extension is not on here: its door says so (extensions_install)",
     "/powerapps/{}": "the Power Apps extension is not on here: its door says so (extensions_install)",
     "/copilot/{}": "the GitHub Copilot extension is not on here: its door says so (extensions_install)",
+    "/powerbi/{}": "the Power BI extension is not on here: its door says so (extensions_install)",
     "/git/{}": "the Git extension is not on here: its door says so (extensions_install)",
     "/team/pull": "the Team box's Pull: github_pull (the team library's folder) is the same",
     "/team/push": "the Team box's Push: github_push (the team library's folder) is the same",

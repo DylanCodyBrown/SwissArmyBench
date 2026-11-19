@@ -3024,6 +3024,87 @@ body.agent-view .titlebar {
   min-height: 0;
 }
 
+/* Export to Power BI… (powerbiExport.ts) */
+.pbi-export .pbi-name-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.pbi-export .pbi-name {
+  flex: 1;
+}
+.pbi-export .pbi-tables,
+.pbi-export .pbi-rels {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+.pbi-export .pbi-table {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pbi-export .pbi-table > label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.pbi-export .pbi-why,
+.pbi-export .pbi-note,
+.pbi-export .pbi-rows,
+.pbi-export .pbi-local {
+  margin: 2px 0 0 24px;
+}
+.pbi-export .pbi-not > label strong {
+  text-decoration: line-through;
+}
+.pbi-export .pbi-local {
+  color: var(--warn);
+  background: var(--warn-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.pbi-export .pbi-out li {
+  color: var(--muted);
+}
+.pbi-export .pbi-drop {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 6px 0 10px;
+}
+.pbi-export .pbi-drop.over {
+  border-color: var(--accent);
+}
+.pbi-export .pbi-report-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.pbi-export .pbi-fields {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.pbi-export .pbi-field {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+}
+.pbi-export .pbi-unmapped > span:first-child {
+  color: var(--warn);
+}
+.pbi-export .pbi-written {
+  margin: 10px 0 6px;
+  overflow-wrap: anywhere;
+}
+
 .erd-actions {
   display: flex;
   flex-wrap: wrap;

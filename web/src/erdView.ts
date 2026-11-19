@@ -14,6 +14,8 @@
  *          [SHARED MODELS]    Apply -> applyShared(name)
  *          [MANAGE]           -> relationshipsDialog.openRelationships()
  *          [FIND]             -> openRelationships(true): the window, its finder already running
+ *          [EXTENSIONS]       an on extension's buttons (the mode's page_actions), given the tables drawn
+ *                             -> pageActions.ts
  *          [FOLLOW]           the agent added a relationship (Follow the agent, sessionPage.ts): its line
  *                             and its two tables pulse as the diagram draws it -> highlightRelationships()
  */
@@ -25,6 +27,7 @@ import { importRelationships, openRelationships } from "./relationshipsDialog";
 import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorHere, errorNote } from "./errorNote";
+import { actionButtons } from "./pageActions";
 
 let host: HTMLElement;
 let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
@@ -154,7 +157,10 @@ async function render(): Promise<void> {
     // ===== DIAGRAM =====
     slot,
   );
-  actions.append(...sizing);
+  actions.append(
+    ...sizing,
+    ...actionButtons("erd", () => covered),
+  );
   try {
     // All tables: every table, the shared catalog's (the library's catalog/: a teammate's) among them.
     const erd = await api<{ mermaid: string }>(

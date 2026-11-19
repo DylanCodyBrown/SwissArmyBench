@@ -6218,3 +6218,51 @@ exporter's and needs its connection pieces); wrapping independent blocks in `st.
 hits and size (Streamlit exposes none cheaply); a vertical ruler (rows are as tall as what they draw); opening
 a connection's own card from Uses (it opens the Connections page); the agent changing a cell's code in an app
 opened without a window (refused with the fix: open it in the Workbench).
+
+## Export to Power BI… from the ERD page (the owner, 2026-11-19: "Make a powerbi desktop file with our model exported an option on the erd page"; built, branch powerbi-export)
+
+SAB builds the dataset (tables and relationships); the user builds the report in Power BI Desktop. Decisions:
+- **The file is a Power BI Project (.pbip)**, Microsoft's documented text format (never the binary .pbix): the
+  .pbip, `<Name>.SemanticModel/` (definition.pbism 5.0, TMDL: database, model, relationships, expressions,
+  tables/) and `<Name>.Report/` (definition.pbir 4.0 by path, the smallest PBIR report: one empty page). In
+  the open project's `powerbi/` (written only when bytes change; an earlier export's stale table files and
+  rows removed, so Power BI never reads a table no longer ticked); with no project, a zip of the same folder.
+  Byte-stable: sorted tables, CRLF (Power BI Desktop's own end of line), lineage tags uuid5 of the names.
+- **Types:** int64, double, decimal, string, dateTime, boolean; anything else string, said in the dialog.
+  Columns a key or join names are `summarizeBy: none`, other numbers `sum`.
+- **Relationships:** one column each side and the same type (else left out, said); the one-active-path rule by a
+  union-find over the active joins, strongest first (the evidence's percentage, then the model's order).
+- **Power Query:** one table-driven domain file (domain/power_query.py): SQL Server/Azure SQL, PostgreSQL,
+  MySQL/MariaDB, Snowflake, Databricks, Oracle, Dataverse's SQL endpoint, SharePoint lists, CSV/Excel/Parquet
+  files, Data Lake Parquet, Delta and OneLake Delta. A connection's settings are read from its code
+  (blades.detect_settings): `${NAME}` becomes a Power Query parameter (its value the variable's shareable plain
+  value, else empty); a user name or password is never a setting, so never written.
+- **Steps:** a database table's steps go as the source's own SQL (sqlglot from DuckDB), as a native query;
+  DuckDB's own SQL that sqlglot would pass through unchanged (GROUP BY ALL, SELECT * EXCLUDE/REPLACE, QUALIFY
+  where the dialect has none, COLUMNS) and unknown functions are refused and said: the table goes without its
+  steps. A file goes as it is (said).
+- **No source Power Query can read** (pasted, pushed, a "+" query, Python, an API, a Power BI dataset read with
+  DAX): Include its rows writes Parquet into `<Name>.SemanticModel/data/` (Git-ignored), read from a
+  `DataFolder` parameter; the agent's export with rows waits for the user's Allow.
+- **Open in Power BI Desktop** (Windows, when .pbip has a program) or Show its folder: the user's click only.
+- Release note (pending): "Export to Power BI… on the ERD page: your tables, relationships and each table's
+  Power Query as a Power BI Project that Power BI Desktop opens with a double-click."
+- **The Power BI extension** (the owner, 2026-11-19: the Power BI work is an extension): extensions/powerbi
+  (swissarmybench-powerbi), available in the Extensions catalog. The base gained one generic seam: an on
+  extension's PAGE_ACTIONS ({page, id, label, icon, title}) in every mode's `page_actions`; the ERD draws them
+  and a click runs the web plug-in registered under that id (web/src/pageActions.ts). The agent's command is
+  `powerbi_export` (its own prefix, its guide topic powerbi.md).
+- **Use an existing report's pages** (the owner, 2026-11-19: "replace a current Power BI report's model by dragging
+  and dropping a pbix into the app"): in the dialog, a drop zone and Choose file… (.pbix, .pbit, .pbip); the
+  report's pages, visuals, themes and bookmarks go into <Name>.Report/ pointed at our model (definition.pbir by
+  path). A .pbix/.pbit is read as a zip: Report/Layout (the legacy layout, UTF-16 LE) is written as report.json
+  (PBIR-Legacy, which definition.pbir 4.0 opens), or a PBIR definition/ folder as it is; StaticResources too.
+  DataModel is never opened. Every field the visuals, filters and slicers name (Entity/Property, a query's From
+  aliases, queryRef) is mapped by name in any case; unmatched ones get a picker or Leave it; a left field keeps
+  its name (its table follows the table's mapping). The report's own measures (modelExtensions) and the model's
+  measures (a .pbit's DataModelSchema, a .pbip's TMDL, a .pbix's through pbixray) are rewritten through the
+  mapping; a measure naming an unmapped column is said, not written. A browser drop sends the file's bytes
+  (POST /powerbi/report: kept in memory, the last one only); a chosen file goes by its path. The agent:
+  `powerbi_export` with `report`, `mapping` (and `dry_run` for the proposed mapping).
+- Later phases asked for on 2026-11-19 (the import, a .pbix file connection by pbixray, Edit in
+  Power BI Desktop, the gated Power BI project type): not built on this branch yet.
