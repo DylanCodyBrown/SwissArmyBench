@@ -361,6 +361,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         page.locator(".nav-rail [data-area='connections']").click()
         page.get_by_role("button", name="Add connection").first.click()
         page.locator(".connection-type", has_text="PostgreSQL").click()
+        not_now(page)
         password = dialog.get_by_label("Password", exact=True)
         password.click()
         password.press_sequentially("${CRM")

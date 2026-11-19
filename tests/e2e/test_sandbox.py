@@ -159,6 +159,9 @@ def test_cards_resize_on_the_dashboard_grid_and_the_chart_redraws_to_fit(
     height_before = chart_card.locator(".chart svg").first.bounding_box()["height"]  # type: ignore[index]
     # Drag the corner grip to make it taller and wider; it snaps to the grid.
     grip = chart_card.locator(".card-grip")
+    # The Analyze page's toolbar and form sit above the board (2026-11-19), so the grip may start below
+    # the fold: brought into view first, as the user scrolls to it.
+    grip.scroll_into_view_if_needed()
     box = grip.bounding_box()
     assert box is not None
     page.mouse.move(box["x"] + 9, box["y"] + 9)
