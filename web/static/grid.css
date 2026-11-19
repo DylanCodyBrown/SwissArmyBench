@@ -18593,5 +18593,12 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 .extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
 .extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+/* An address on a closed area: the page covered (beside the rail), the line in its middle. */
+.gate-cover {
+  position: fixed; inset: 0 0 0 var(--rail-w, 0); width: auto; height: auto; margin: 0; padding: 0;
+  border: 0; background: var(--bg); color: var(--fg);
+}
+.gate-cover:popover-open { display: grid; place-items: center; }
+.gate-cover .gate-line { position: static; transform: none; }
 .gates-first { padding: 20px 24px; max-width: 560px; border-radius: 8px; }
 .gates-first .dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }

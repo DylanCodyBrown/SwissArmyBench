@@ -79,6 +79,7 @@ import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, projectOpen, setProjectFolder } from "./kindColours";
+import { areaOfKind, gatedRun } from "./gates";
 import { markBusy } from "./loading";
 import { type Missing, type PromptOptions, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
@@ -1729,7 +1730,7 @@ function newEntries(anchor: HTMLElement): MenuEntry[] {
   return [
     ...tabKinds()
       .filter((k) => k.start)
-      .map((k) => ({ label: startLabel(k), icon: k.id === "notebook" ? kindIcon("notebook", null) : k.icon, run: k.start!.run })),
+      .map((k) => ({ label: startLabel(k), icon: k.id === "notebook" ? kindIcon("notebook", null) : k.icon, run: gatedRun(areaOfKind(k.id), k.start!.run) })),
     null,
     ...projectEntries(),
     null,

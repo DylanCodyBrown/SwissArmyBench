@@ -25,6 +25,7 @@
  * (dom.remember). A teaching aid of the page only: the agent has no command for it (docs/ideas.md).
  */
 
+import { tourCards } from "./gates";
 import { api, failure, token } from "./api";
 import { button, h, icon, recall, remember } from "./dom";
 import { here, historyDepth, layerShown, returnTo, runArea, visit, withParams } from "./nav";
@@ -422,10 +423,19 @@ async function toGrids(staged: Staged, pair: boolean): Promise<void> {
 
 // ===== the tour =====
 
+/** A gated project type's card: its area's rail icon and name, the mode's words (they are the game's clue too). */
+function modeStop(card: { area: string; words: string }): Stop {
+  const item = document.querySelector<HTMLElement>(rail(card.area));
+  const word = item?.querySelector(".nav-rail-name")?.textContent?.trim() || item?.getAttribute("aria-label") || card.area;
+  const icon = item?.querySelector("[data-icon]")?.getAttribute("data-icon") ?? "star";
+  return { icon, word, line: card.words, clue: card.words, place: { area: card.area }, target: [rail(card.area)] };
+}
+
 export function openTour(): void {
   markSeen();
   document.querySelector(".tour")?.remove();
-  const stops = STOPS.filter((s) => !s.when || s.when());
+  const own = tourCards(); // a gated project type's own short list (its mode's tour)
+  const stops = own ? [STOPS[0]!, ...own.map(modeStop)] : STOPS.filter((s) => !s.when || s.when());
   const before = document.activeElement as HTMLElement | null;
   const startUrl = here();
   const startDepth = historyDepth();

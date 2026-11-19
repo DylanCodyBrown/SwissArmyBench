@@ -3,8 +3,12 @@
  * backend says (GET /app/gates: the mode's `areas`). Generic: no project type is named here. [SHARED]
  *
  *   [RAIL]    a closed area's rail item hidden (rail.ts asks isClosed)
- *   [LINE]    every other way in (an address, a link, a menu, the palette) shows one line: "This <type> project
- *             keeps <feature> closed." with Open every feature
+ *   [LINE]    every other way in (an address, a link, a menu, the palette, the Workbench's New entries) shows
+ *             one line: "This <type> project keeps <feature> closed." with Open every feature; an address that
+ *             lands on a closed area covers its page with that line (the page is not seen behind it)
+ *   [ASK]     gatedRun: a command or a New entry of a closed area shows the line instead of running (the
+ *             agent's tools stay open: its commands are never gated)
+ *   [TOUR]    the mode's own tour cards, for a gated project type
  *   [SETTING] Settings' Open every feature in this project (off by default), kept in .sab/project.json
  *   [FIRST]   the first-open pop-up, once per project: its words from the mode; Got it / Open Settings
  *
@@ -55,20 +59,87 @@ async function openEvery(on: boolean): Promise<void> {
   for (const told of listeners) told(current);
 }
 
-/** The one line a closed feature's way in shows, with Open every feature (the page keeps its place). */
-export function showGateLine(area: string): void {
+/** The one line a closed feature's way in shows, with Open every feature (the page keeps its place). With
+ *  `cover` (an address that landed on the closed area), the line stands over that page so it is not seen. */
+export function showGateLine(area: string, cover = false): void {
   const gate = current?.closed.find((c) => c.area === area);
   if (!current || !gate) return;
   document.querySelector(".gate-line")?.remove();
+  if (!cover) removeGateCover();
+  const gone = (): void => {
+    line.remove();
+    removeGateCover();
+  };
   const line = h(
     "div",
     { class: "gate-line", role: "status", "data-area": area },
     icon("info"),
     h("span", {}, current.line.replace("{feature}", gate.name)),
-    button("Open every feature", () => void openEvery(true).then(() => line.remove()), { class: "primary" }),
-    button("", () => line.remove(), { icon: "close", class: "ghost", title: "Close" }),
+    button("Open every feature", () => void openEvery(true).then(gone), { class: "primary" }),
+    cover ? null : button("", gone, { icon: "close", class: "ghost", title: "Close" }),
   );
-  document.body.append(line);
+  if (!cover) {
+    document.body.append(line);
+    return;
+  }
+  // Over the page (and any page layer shown before it: a popover is in the top layer), beside the rail.
+  let shade = document.querySelector<HTMLElement>(".gate-cover");
+  if (!shade) {
+    shade = h("div", { class: "gate-cover", popover: "manual", "data-area": area });
+    document.body.append(shade);
+  }
+  shade.dataset.area = area;
+  shade.replaceChildren(line);
+  if (!shade.matches(":popover-open")) shade.showPopover();
+}
+
+/** The cover a closed area's address put over its page, taken away (the address moved to an open one). */
+export function removeGateCover(): void {
+  const shade = document.querySelector<HTMLElement>(".gate-cover");
+  if (!shade) return;
+  if (shade.matches(":popover-open")) shade.hidePopover();
+  shade.remove();
+}
+
+/** Whether a way into `area` is closed: if so, its one line is shown and the caller does not go on. */
+export function gated(area: string | null | undefined): boolean {
+  if (!area || !isClosed(area)) return false;
+  showGateLine(area);
+  return true;
+}
+
+// The palette's commands and the Workbench's New entries by the area they belong to (their ids as
+// workbenchPage.ts names them; an extension's own commands name theirs with Command.area).
+const COMMAND_AREAS: [RegExp, string][] = [
+  [/^(file\.newScript|file\.exportScript|script(\.|$)|runSettings|runHistory)/, "scripts"],
+  [/^(file\.newApp|canvas\.|streamlit\.|data\.streamlitCells|appNotebook|toolbox|page$)/, "apps"],
+  [/^(data\.blades|data\.starters|data\.starterList|blade$|starters$|snippet\.)/, "blades"],
+  [/^data\.addApi/, "apis"],
+  [/^(analyze|visualizations)/, "analyze"],
+  [/^structures?/, "structures"],
+];
+const KIND_AREAS: Record<string, string> = { script: "scripts", page: "apps", notebook: "notebooks" };
+
+/** The area a command belongs to (null: none of the gated ones). */
+export function areaOfCommand(id: string): string | null {
+  return COMMAND_AREAS.find(([pattern]) => pattern.test(id))?.[1] ?? null;
+}
+
+/** The area a Workbench tab kind's New makes a document of. */
+export function areaOfKind(kind: string): string | null {
+  return KIND_AREAS[kind] ?? null;
+}
+
+/** `run`, unless `area` is closed: then its line instead. */
+export function gatedRun(area: string | null, run: () => void): () => void {
+  return () => {
+    if (!gated(area)) run();
+  };
+}
+
+/** The tour's cards for a gated project type (the mode's own list), or null: the usual tour. */
+export function tourCards(): { area: string; words: string }[] | null {
+  return current?.gated && current.tour.length ? current.tour : null;
 }
 
 /** Settings' switch: Open every feature in this project (shown only in a project whose type keeps some closed). */
