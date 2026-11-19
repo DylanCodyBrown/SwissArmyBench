@@ -263,7 +263,7 @@ def modes() -> list[dict[str, Any]]:
     return out
 
 
-_AREA_FIELDS = ("area", "name", "icon", "mark", "panel")
+_AREA_FIELDS = ("area", "name", "icon", "mark", "panel")  # panel: only when an area names one
 
 
 def areas() -> list[dict[str, Any]]:
@@ -276,7 +276,8 @@ def areas() -> list[dict[str, Any]]:
                 and isinstance(raw.get("area"), str)
                 and raw["area"] not in {a["area"] for a in out}
             ):
-                out.append({k: str(raw.get(k) or "") for k in _AREA_FIELDS})
+                said = {k: str(raw.get(k) or "") for k in _AREA_FIELDS if k != "panel"}
+                out.append(said | ({"panel": str(raw["panel"])} if raw.get("panel") else {}))
     return out
 
 
