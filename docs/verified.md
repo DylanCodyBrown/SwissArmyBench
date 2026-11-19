@@ -3591,3 +3591,9 @@ Not done, and why: the brief's "only the open project's connections" at start (c
 library's, the app opens on Projects with no project, and finding a project's connections reads every
 document: more work at start, not less); context.md's gathering moved to a thread (its services are not
 thread-safe; it runs only for a folder a Launch Claude made, every few seconds).
+
+The unit suite on this branch (no browser tests): 4,425 passed, 31 skipped, 1 failed in 15 minutes; the one,
+`test_desktop_shell.py::test_the_shell_does_what_a_browser_did` (Qt off screen, the home page not loaded in
+60 s), fails about one run in three or four here on 0.0.26's code as well (five runs: one failed), so it is
+this machine's, not the pass's. ruff, ruff format --check, mypy, and the page's typecheck and build: clean.
+The browser tests (tests/e2e) were not run for this pass: no page file changed.
