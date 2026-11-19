@@ -24,6 +24,14 @@ export function registerPageAction(id: string, run: Run): void {
   plugins.set(id, run);
 }
 
+/** Run a plug-in by its id with `context` (an extension's panel opening it right there); false: not here. */
+export function openPlugin(id: string, context: unknown): boolean {
+  const run = plugins.get(id);
+  if (!run) return false;
+  run(context);
+  return true;
+}
+
 /** The buttons for `page`: each declared action whose plug-in is here. */
 export function actionButtons(page: string, context: () => unknown): HTMLButtonElement[] {
   const declared = (activeMode().mode as { page_actions?: PageAction[] }).page_actions ?? [];

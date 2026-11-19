@@ -11,6 +11,9 @@
  *   choices   [{id, label, value, options: [{value, label}]}]: each a picker; a change posts {choice, value}
  *   rows      [{id, text, tone, action: {id, label}}]: a list to work through, each with its one fix
  *   actions may carry a `note`: one sentence under the button
+ *   review    {id, heading, items: [{text, tone, why}], apply: {id, label, disabled}, cancel, empty}: a dry run
+ *             to look over on the page, each change listed, then Apply (posts {action: apply.id}) or Cancel
+ *   open      {plugin, context}: a plug-in to open right there (pageActions.ts registerPageAction's id)
  * The Extensions page's card and Settings draw the same panel. Nothing here names an extension.
  *
  * ROUTING: the panel's route (GET, POST)  ·  notice extension_panel_changed
@@ -18,6 +21,7 @@
 import { api, onNotice } from "./api";
 import { button, h, icon, toast } from "./dom";
 import { errorHere } from "./errorNote";
+import { openPlugin } from "./pageActions";
 
 export interface PanelData {
   title?: string;
@@ -29,6 +33,15 @@ export interface PanelData {
   heading?: string;
   code?: { label: string; text: string; link: string; link_label: string; then: string; waiting?: boolean } | null;
   busy?: string | null;
+  review?: {
+    id: string;
+    heading: string;
+    items: { text: string; tone?: string; why?: string }[];
+    apply: { id: string; label: string; disabled?: boolean };
+    cancel?: { id: string; label: string };
+    empty?: string;
+  } | null;
+  open?: { plugin: string; context?: unknown } | null;
 }
 
 const mounted = new Set<{ host: HTMLElement; redraw: () => void }>();
@@ -83,8 +96,32 @@ export function extensionPanel(route: string): HTMLElement {
       code = h("div", { class: "extension-panel-code" }, h("span", { class: "muted" }, said.label), h("strong", { class: "mono extension-panel-usercode" }, said.text), copy, said.waiting ? null : open);
     }
     const busy = data.busy ? h("div", { class: "extension-panel-busy", role: "status" }, h("progress", { "aria-label": data.busy }), h("span", {}, data.busy)) : null;
+    let review: HTMLElement | null = null;
+    if (data.review) {
+      const r = data.review;
+      const apply = button(r.apply.label, () => void post({ action: r.apply.id }), { class: "primary", icon: "check" });
+      apply.dataset.action = r.apply.id;
+      apply.disabled = Boolean(r.apply.disabled);
+      const cancel = r.cancel ? button(r.cancel.label, () => void post({ action: r.cancel!.id }), { class: "ghost" }) : null;
+      review = h(
+        "section",
+        { class: "extension-panel-review", "aria-label": r.heading, "data-review": r.id },
+        h("h2", { class: "extension-panel-heading" }, r.heading),
+        r.items.length
+          ? h("ul", { class: "extension-panel-rows" }, ...r.items.map((i) => h("li", { class: `extension-panel-row${i.tone ? ` tone-${i.tone}` : ""}` }, h("span", {}, i.text), i.why ? h("span", { class: "extension-panel-note" }, i.why) : "")))
+          : h("p", { class: "extension-panel-line" }, r.empty ?? ""),
+        h("div", { class: "extension-panel-controls" }, apply, cancel ?? ""),
+      );
+    }
+    if (data.open) {
+      const opening = data.open;
+      window.setTimeout(() => {
+        if (!openPlugin(opening.plugin, opening.context)) errorHere("That part of the page is not here: reload the page.");
+      });
+    }
     host.replaceChildren(
       ...choices,
+      review ?? "",
       data.heading && rows.length ? h("h2", { class: "extension-panel-heading" }, data.heading) : "",
       rows.length ? h("ul", { class: "extension-panel-rows" }, ...rows) : "",
       ...lines,

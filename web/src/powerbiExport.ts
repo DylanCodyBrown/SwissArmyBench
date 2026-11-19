@@ -83,9 +83,11 @@ const REPORT_KINDS = [".pbix", ".pbit", ".pbip"];
 const words = (r: PlannedRelationship): string => `${r.from}.${r.from_columns.join(", ")} → ${r.to}.${r.to_columns.join(", ")}`;
 
 registerPageAction("powerbi_export", (tables) => openPowerBIExport(Array.isArray(tables) ? (tables as string[]) : []));
+// The Power BI page's Use another report's pages: the same dialog, its report part in view and first.
+registerPageAction("powerbi_report_pages", (tables) => openPowerBIExport(Array.isArray(tables) ? (tables as string[]) : [], true));
 
-/** Open the dialog for these tables (the ERD's own). */
-export function openPowerBIExport(tables: string[]): void {
+/** Open the dialog for these tables (the ERD's own); `reportFirst`: its report part in view and focused. */
+export function openPowerBIExport(tables: string[], reportFirst = false): void {
   const parts = openDialog("Export to Power BI", true);
   parts.dialog.classList.add("pbi-export");
   const ticked = new Set(tables);
@@ -174,6 +176,11 @@ export function openPowerBIExport(tables: string[]): void {
   };
   drawReportPicker();
   parts.body.append(h("label", { class: "pbi-name-row" }, h("span", {}, "Name"), name), listing, reportBox, done);
+  if (reportFirst) {
+    reportBox.classList.add("pbi-report-first");
+    parts.body.prepend(reportBox);
+    window.setTimeout(() => reportBox.querySelector<HTMLElement>("button, [tabindex]")?.focus());
+  }
   let plan: Plan | null = null;
 
   const body = (): Record<string, unknown> => ({

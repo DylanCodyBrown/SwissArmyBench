@@ -427,7 +427,8 @@ class PowerBIExport:
             if not columns:  # an older state: the Source grid's columns
                 grid = next((by[g] for g in pair if g in by and by[g].columns), None)
                 columns = grid.columns if grid is not None else ()
-            plan = TablePlan(t.name, source=str(state.get("target") or "the .pbix"), columns=columns, m=t.m)
+            target = posixpath.basename(str(state.get("target") or "").replace("\\", "/")) or "the .pbix"
+            plan = TablePlan(t.name, source=target, columns=columns, m=t.m)
             plan.notes.append(t.words())
             if not columns:
                 plan.goes, plan.why = False, "its columns are not known: open its Source grid"

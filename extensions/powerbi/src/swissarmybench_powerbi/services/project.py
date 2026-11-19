@@ -76,6 +76,10 @@ class PowerBIProject:
         self.live = live
         self.registrations = registrations
         self.last_import: dict[str, Any] | None = None
+        # Edit in Power BI Desktop's dry run shown on the Power BI page (each change listed, Apply), until
+        # applied or put away; and a plug-in the page opens right there (another report's pages).
+        self.review: dict[str, Any] | None = None
+        self._opens: dict[str, Any] | None = None
         self.pending: str | None = None  # a .pbix/.pbit/.pbip opened with the app or dropped on a window
 
     # ===== C: the .pbix file connection =====
@@ -668,6 +672,7 @@ class PowerBIProject:
         POST {choice, value} (Read Power BI from, App registration) or {action}."""
         body = body if isinstance(body, dict) else {}
         said: list[dict[str, str]] = []
+        self._opens = None
         try:
             if body.get("choice") == "source":
                 await self.set_source({"source": body.get("value")}, who)
@@ -718,6 +723,8 @@ class PowerBIProject:
         ]
         return {
             "heading": "To finish setting up",
+            "review": self.review,
+            "open": self._opens,
             "rows": rows,
             "choices": [
                 {
@@ -824,7 +831,36 @@ class PowerBIProject:
                         "tone": "warn",
                     }
                 ]
-            return [{"text": "See the dry run: powerbi_edit_plan, then Apply.", "tone": ""}]
+            planned = await self.live.plan({})
+            changes = planned["changes"]
+            self.review = {
+                "id": "edit",
+                "heading": "Edit in Power BI Desktop: the dry run",
+                "items": [
+                    {"text": c["words"], "tone": "ok" if c["ok"] else "warn"}
+                    | ({"why": c["why"]} if c.get("why") else {})
+                    for c in changes
+                ],
+                "apply": {
+                    "id": "edit:apply",
+                    "label": "Apply",
+                    "disabled": not any(c["ok"] for c in changes),
+                },
+                "cancel": {"id": "edit:cancel", "label": "Cancel"},
+                "empty": "Nothing to change: the open model has our relationships and measures.",
+            }
+            return []
+        if action == "edit:cancel":
+            self.review = None
+            return []
+        if action == "edit:apply":
+            if self.live is None:
+                raise Conflict("Edit in Power BI Desktop needs Power BI Desktop on this computer (Windows).")
+            done = await self.live.apply({}, who)  # the agent's waits for the user's Allow
+            self.review = None
+            n = len(done["applied"])
+            words = f"Applied {n} change{'' if n == 1 else 's'} to the open model in Power BI Desktop."
+            return [{"text": words, "tone": "ok"}]
         if action == "export":
             done = await self.base.powerbi_export.export({}, who)
             return [
@@ -834,12 +870,10 @@ class PowerBIProject:
                 }
             ]
         if action == "pages":
-            return [
-                {
-                    "text": "On the ERD page: Export to Power BI…, then Use an existing report's pages.",
-                    "tone": "",
-                }
-            ]
+            # The export dialog with its report part, right there on the page (the ERD's plug-in).
+            tables = [str(t["name"]) for t in self._state().get("tables", []) if t.get("name")]
+            self._opens = {"plugin": "powerbi_report_pages", "context": tables}
+            return []
         return [{"text": f"{action} is not an action here.", "tone": "error"}]
 
     def check_conflict(self) -> None:
