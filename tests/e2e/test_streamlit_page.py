@@ -312,7 +312,9 @@ def test_cells_dragged_onto_a_canvas_play_live_in_place_and_are_saved(
     # ----- Save as: the project as one zip (data.py, pages/*.py, the canvas, the notebook); no rows
     workbench.get_by_role("button", name="Save as zip…").click()
     choose(workbench, tmp_path, "sales-app.zip", "Save here")
-    expect(workbench.locator(".toast", has_text="sales-app.zip")).to_be_visible(timeout=LONG)
+    # The saved path (info); the page's deliberate problems (the deleted cell) come as the one error note,
+    # which names the file too (9.5), so the info toast is looked for by its kind.
+    expect(workbench.locator(".toast.info", has_text="sales-app.zip")).to_be_visible(timeout=LONG)
     with zipfile.ZipFile(tmp_path / "sales-app.zip") as zipped:
         names = sorted(zipped.namelist())
         page_text = zipped.read("pages/page_1.py").decode()
