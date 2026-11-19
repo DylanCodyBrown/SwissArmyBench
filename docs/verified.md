@@ -4042,3 +4042,6 @@ The whole suite on the merged branch (Chromium for the browser tests; Edge is no
 4,708 passed, 42 skipped, none failed (`-n 4 --dist loadfile`); the browser tests 390 passed, 15 skipped, 2 failed
 under `-n 2` (test_launch_page's launch-and-compare and test_scm_page's footer mark), both passing twice on their own:
 load, not faults. `build.py` makes the base wheel and all six extension wheels at 0.0.27.
+From the release (PyPI after about 15 minutes): `install.sh` from the v0.0.27 release into an empty home folder put
+0.0.27 of the app and its preinstalled Streamlit extension in place; the Power BI extension's wheel is on the release;
+the desktop app (Xvfb) started its server, and 40 s after the app closed the server was gone.
