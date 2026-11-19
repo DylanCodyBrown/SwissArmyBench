@@ -379,6 +379,12 @@ def query_facts(code: str) -> QueryFacts | None:
     )
 
 
+def query_connections(code: str) -> list[str]:
+    """The connection a SQL or DAX block reads (none for any other block): it wears that one's colour."""
+    found = query_facts(code)
+    return [found.connection] if found is not None and found.connection else []
+
+
 def is_query(code: str) -> bool:
     """The code is a SQL or DAX block's (`query_code`)."""
     return f"import {QUERY_MODULE} as {QUERY_ALIAS}\n" in code and SHOW_MARK in code

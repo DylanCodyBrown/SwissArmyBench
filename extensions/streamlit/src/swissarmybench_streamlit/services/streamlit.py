@@ -632,6 +632,8 @@ class StreamlitApps:
                         "connections": (
                             connection_usage.cell_connections("code", code, None)
                             if code is not None and linked.kind(block.key) == "code"
+                            else rules.query_connections(code)
+                            if code is not None
                             else []
                         ),
                         "problem": mine.problem,
@@ -1391,7 +1393,14 @@ class StreamlitApps:
         """The connections these codes name (sab.sql, sab.read, %%sql...) that run only on this computer,
         each with why (domain/portability.py), and the export's words for them."""
         named = list(
-            dict.fromkeys(n for code in codes for n in connection_usage.cell_connections("code", code, None))
+            dict.fromkeys(
+                n
+                for code in codes
+                for n in [
+                    *connection_usage.cell_connections("code", code, None),
+                    *rules.query_connections(code),
+                ]
+            )
         )
         notes = self._local_notes(named)
         return {"local": notes, "local_words": portability.export_words(notes)}

@@ -81,6 +81,8 @@ export interface BlockState {
   /** Hidden while designing; locked against moving and sizing. */
   hidden: boolean;
   locked: boolean;
+  /** A SQL or DAX block's view: {as: "bar", x, y, cache: false...}; none: a table, cached. */
+  view?: Record<string, unknown>;
   name: string | null;
   /** code, markdown or html: a text block is marked T. */
   kind: "code" | "markdown" | "html" | "sql" | "dax" | null;
@@ -220,7 +222,7 @@ export const shownValue = (value: unknown): string => {
 export interface SavedPage {
   id?: string;
   name: string;
-  blocks: { id?: string; document: string; cell: number; row: number; column: number; w: number; h: number | null; parent?: string | null; slot?: number; hidden?: boolean; locked?: boolean }[];
+  blocks: { id?: string; document: string; cell: number; row: number; column: number; w: number; h: number | null; parent?: string | null; slot?: number; hidden?: boolean; locked?: boolean; view?: Record<string, unknown> }[];
   containers?: { id: string; kind: string; row: number; column: number; w: number; h: number | null; parent: string | null; slot: number; props: Record<string, unknown>; name: string; hidden: boolean; locked: boolean }[];
 }
 
@@ -228,7 +230,7 @@ export const savedPages = (pages: (CanvasPage | SavedPage)[]): SavedPage[] =>
   pages.map((p) => ({
     id: p.id,
     name: p.name,
-    blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, ...(b.parent ? { parent: b.parent, slot: b.slot ?? 0 } : {}), ...(b.hidden ? { hidden: true } : {}), ...(b.locked ? { locked: true } : {}) })),
+    blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, ...(b.parent ? { parent: b.parent, slot: b.slot ?? 0 } : {}), ...(b.hidden ? { hidden: true } : {}), ...(b.locked ? { locked: true } : {}), ...(b.view && Object.keys(b.view).length ? { view: b.view } : {}) })),
     ...(p.containers?.length ? { containers: p.containers.map((c) => ({ id: c.id, kind: c.kind, row: c.row, column: c.column, w: c.w, h: c.h, parent: c.parent, slot: c.slot, props: c.props, name: c.name, hidden: c.hidden, locked: c.locked })) } : {}),
   }));
 
