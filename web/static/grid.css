@@ -810,7 +810,6 @@ body.popout .steps-panel {
   margin-left: 4px;
 }
 
-
 .workspace[data-panel="collapsed"] .ai-panel .panel-body,
 .workspace[data-panel="collapsed"] .ai-panel .tabs,
 .workspace[data-panel="collapsed"] .ai-panel .panel-header > :not(.collapse-toggle) {
@@ -1339,6 +1338,12 @@ table.small td.num {
 
 /* ===== status bar ===== */
 
+.statusbar .grow {
+  flex: 1;
+}
+
+/* A narrow window never scrolls sideways because of the status bar (zoom joined it, 2026-11-17): the bar
+   clips its own overflow, and the least needed parts give way first. */
 .statusbar {
   display: flex;
   flex-wrap: nowrap; /* one line, so selecting a cell never moves the grid; the credit shrinks first */
@@ -1350,15 +1355,6 @@ table.small td.num {
   background: var(--surface);
   font-size: 0.92em;
   font-variant-numeric: tabular-nums;
-}
-
-.statusbar .grow {
-  flex: 1;
-}
-
-/* A narrow window never scrolls sideways because of the status bar (zoom joined it, 2026-11-17): the bar
-   clips its own overflow, and the least needed parts give way first. */
-.statusbar {
   overflow: hidden;
   min-width: 0;
 }
@@ -1538,10 +1534,6 @@ dialog::backdrop {
   font-size: 0.9em;
 }
 
-.warning-text {
-  color: var(--warn);
-}
-
 .popover {
   position: fixed;
   z-index: 50;
@@ -1689,12 +1681,6 @@ html {
 
 .btn.icon[aria-pressed="true"]::before {
   content: none;
-}
-
-.zoom-control .zoom-label {
-  padding: 0 4px 0 8px;
-  color: var(--muted);
-  font-size: 0.92em;
 }
 
 /* A text floor: nothing smaller than about 11.5px at 100% zoom. */
@@ -1934,13 +1920,6 @@ dialog .expanded-chart {
 /* ===== title row, add-a-step bar, credit (2026-10-22) ===== */
 
 /* The dataset name is the page's headline: centered and large. */
-.titlebar {
-  display: flex;
-  justify-content: center;
-  padding: 8px 16px 4px;
-  background: var(--surface);
-}
-
 #grid-title {
   display: flex;
   align-items: baseline;
@@ -2737,17 +2716,6 @@ body.agent-view .titlebar {
   display: none;
 }
 
-/* The Agent tab is the one fixed tab: an icon and heavier text so it's easy to find. */
-.tab-app {
-  font-weight: 700;
-  gap: 6px;
-  color: var(--fg);
-}
-
-.tab-app .icon-svg {
-  color: var(--accent);
-}
-
 /* Each Visualizations card names the table it is drawn on: one sandbox for every table. */
 .card-table {
   margin-left: 6px;
@@ -3155,6 +3123,10 @@ body.agent-view .titlebar {
 
 /* The table's name has its line to itself; the steps strip sits on its own line under it. */
 .titlebar {
+  display: flex;
+  justify-content: center;
+  padding: 8px 16px 4px;
+  background: var(--surface);
   flex-direction: column;
   align-items: center;
   gap: 2px;
@@ -3814,8 +3786,6 @@ body.agent-view .titlebar {
   color: var(--muted);
   line-height: 1.4;
 }
-
-
 
 .tour-clue {
   color: var(--fg);
@@ -4578,43 +4548,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
 }
 
 /* ===== CONNECTIONS (connectionsWindow.ts) and the file chooser (fileChooser.ts) ===== */
-.connection-list {
-  list-style: none;
-  margin: 0 0 12px;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.connection-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--raised);
-}
-
-.connection-text {
-  display: grid;
-  flex: 1;
-  gap: 3px;
-  min-width: 0;
-}
-
-.connection-text code {
-  overflow-wrap: anywhere;
-}
-
-.connection-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
-}
-
 .connection-types {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
@@ -4665,8 +4598,7 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   text-align: left;
 }
 
-.connection-type .icon-svg,
-.connection-row-icon .icon-svg {
+.connection-type .icon-svg {
   width: 22px;
   height: 22px;
   stroke-width: 1.6;
@@ -4712,17 +4644,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   height: 20px;
 }
 
-.connection-row-icon {
-  display: grid;
-  flex: none;
-  place-items: center;
-  align-self: flex-start;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--fam) 10%, transparent);
-}
-
 .connection-fields .field.wide {
   grid-column: 1 / -1;
   order: 1; /* a path with Browse… sits under the short fields, not between them */
@@ -4755,21 +4676,6 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
 .connection-fields .field-row input {
   flex: 1;
   min-width: 0;
-}
-
-/* A certificate or keystore file's source: its path, or an environment variable (its default the path). */
-.connection-fields .field-source {
-  flex-wrap: wrap; /* a narrow field: the variable under the choice, never over the next field */
-  margin-top: 4px;
-}
-
-.connection-fields .field-source select {
-  flex: none;
-}
-
-.connection-fields .field-source input.mono {
-  flex: 1;
-  min-width: 24ch;
 }
 
 /* Security: the certificate file sits beside Trust server certificate, in the order of the rule. */
@@ -4873,12 +4779,6 @@ dialog.missing-packages {
   padding: 8px 12px;
 }
 
-.vault-entries {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-}
-
 .vault-secrets .field-row {
   display: flex;
   gap: 6px;
@@ -4975,11 +4875,6 @@ dialog.missing-packages {
 
 .python-variable code {
   overflow-wrap: anywhere;
-}
-
-/* A Python connection's Test, under its row in the list: the first table's first rows. */
-.connection-row:has(.connection-tested) {
-  flex-wrap: wrap;
 }
 
 .connection-tested {
@@ -5564,21 +5459,6 @@ dialog.file-chooser {
 }
 
 .wb-data.collapsed .wb-data-title {
-  display: none;
-}
-
-.wb-data-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 22px;
-  min-height: 0;
-  margin: 0 -16px;
-  padding: 0 16px;
-  overflow: auto;
-}
-
-.wb-data-body[hidden] {
   display: none;
 }
 
@@ -6301,12 +6181,6 @@ body.wb-dragging-tab * {
   background: var(--muted);
 }
 
-.wb-body {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
 /* The four panes (workbenchLayout.ts): RStudio's skeleton. Each column is a grid of two panes and a
    splitter; the sizes are custom properties the splitters set. */
 .wb-panes {
@@ -6329,21 +6203,12 @@ body.wb-dragging-tab * {
   flex: 0 0 var(--wb-left, 66%);
 }
 
-.wb-col-right {
-  flex: 1;
-  background: var(--surface);
-}
-
 .wb-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-}
-
-.wb-source {
-  overflow: auto;
 }
 
 .wb-pane-empty {
@@ -6424,6 +6289,8 @@ body.wb-dragging-tab * {
 /* The right column holds Variables alone (pictures go to Visualizations), under a band level with the
    groups' rows. */
 .wb-col-right {
+  flex: 1;
+  background: var(--surface);
   grid-template-rows: calc(48px * var(--ui-zoom, 1)) minmax(0, 1fr);
   border-left: 1px solid var(--border);
 }
@@ -6435,6 +6302,9 @@ body.wb-dragging-tab * {
 
 /* F1 help: a card over the source's top right corner. */
 .wb-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
   position: relative;
 }
 
@@ -6500,13 +6370,6 @@ body.wb-dragging-tab * {
 }
 
 /* Send to the agent: the error panel's button, the question dialog. */
-.wb-err-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 4px;
-}
-
 .wb-err-send {
   margin-left: auto;
   font-family: inherit;
@@ -6862,12 +6725,6 @@ body.wb-dragging-tab * {
   display: none;
 }
 
-.wb-outputs {
-  padding: 6px 10px 8px;
-  border-top: 1px dashed var(--border);
-  overflow-x: auto;
-}
-
 .wb-stream,
 .wb-text,
 .wb-error {
@@ -7006,11 +6863,6 @@ body.wb-dragging-tab * {
   font-size: 0.85em;
 }
 
-.wb-fold {
-  margin: 2px 0;
-  font-family: inherit;
-}
-
 /* input(): the kernel asks for a line, here, in place. */
 .wb-input-row {
   display: flex;
@@ -7032,6 +6884,9 @@ body.wb-dragging-tab * {
 
 /* Colour codes in output (ANSI): the 16 colours, readable on this theme's background. */
 .wb-outputs {
+  padding: 6px 10px 8px;
+  border-top: 1px dashed var(--border);
+  overflow-x: auto;
   --ansi-0: #3b4148;
   --ansi-1: #b3261e;
   --ansi-2: #1c7a33;
@@ -7111,12 +6966,6 @@ html[data-theme="hc-dark"] .wb-outputs {
 .wb-error .ansi-fg-0,
 .wb-error .ansi-fg-7 {
   color: var(--fg);
-}
-
-.tab-workbench .icon-svg:last-child {
-  width: 12px;
-  height: 12px;
-  opacity: 0.6;
 }
 
 /* New environment (workbenchEnvironment.ts) */
@@ -7282,6 +7131,10 @@ dialog .field > .field-row > select {
 }
 
 .wb-err-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 4px;
   overflow-wrap: anywhere;
 }
 
@@ -7487,6 +7340,8 @@ body.dropping-file::after {
 }
 
 .wb-fold {
+  margin: 2px 0;
+  font-family: inherit;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -7880,36 +7735,12 @@ body.dropping-file::after {
   display: none;
 }
 
-/* The grid: each row is 12 columns; a block sits in its own columns of its row. */
-.cv-board {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  padding: 12px;
-  overflow: auto;
-  background-color: var(--bg);
-  /* The 12 columns, faintly, so a place reads before a block is dropped on it. */
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc((100% - 24px + 8px) / 12 - 8px),
-    var(--border) calc((100% - 24px + 8px) / 12 - 8px),
-    var(--border) calc((100% - 24px + 8px) / 12 - 7px),
-    transparent calc((100% - 24px + 8px) / 12 - 7px),
-    transparent calc((100% - 24px + 8px) / 12)
-  );
-  background-position: 12px 0;
-  background-size: calc(100% - 24px + 8px) 100%;
-  background-repeat: no-repeat;
-}
-
 .cv-board.dropping {
   outline: 2px dashed var(--kind-app);
   outline-offset: -4px;
 }
 
+/* The grid: each row is 12 columns; a block sits in its own columns of its row. */
 .cv-row {
   display: grid;
   flex: none;
@@ -8068,7 +7899,6 @@ body.dropping-file::after {
   outline-offset: -2px;
 }
 
-
 /* ===== named cells and the Streamlit cells pane (2026-11-15) ===== */
 
 /* A cell's name in its head, after its number. Without one the area shows only while the head is
@@ -8163,11 +7993,6 @@ body.dropping-file::after {
   height: 14px;
 }
 
-.wb-st-where {
-  flex: none;
-  font-family: "Cascadia Code", Consolas, monospace;
-}
-
 /* A long "makes … · reads …" is cut short, never wider than the panel. */
 .wb-st .wb-data-list {
   grid-template-columns: minmax(0, 1fr);
@@ -8245,7 +8070,6 @@ body.dropping-file::after {
   opacity: 0.55;
   pointer-events: none;
 }
-
 
 /* ===== panels turned off in Settings (panels.ts): gone, not folded ===== */
 
@@ -8747,6 +8571,8 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 }
 
 .wb-st-where {
+  flex: none;
+  font-family: "Cascadia Code", Consolas, monospace;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -8970,12 +8796,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   list-style: none;
 }
 
-.app-feeds .link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .app-feeds svg {
   color: var(--kind-app);
 }
@@ -9024,10 +8844,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 }
 
 /* The selected block: a violet outline (the app's colour), and its wiring over the board. */
-.cv-board {
-  position: relative;
-}
-
 .cv-block.selected {
   outline: 2px solid var(--kind-app);
   outline-offset: 1px;
@@ -9067,15 +8883,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 .cv-wires circle {
   fill: var(--kind-app);
   stroke: none;
-}
-
-.cv-wire-label {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  pointer-events: none;
 }
 
 .cv-wire-size {
@@ -9438,7 +9245,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   font-weight: 600;
 }
 
-
 .dict-input {
   width: 100%;
   padding: 3px 8px;
@@ -9462,20 +9268,8 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   color: var(--muted);
 }
 
-/* App mode in the Data panel: Data | Starters, and the starter gallery. */
-.wb-data-switch {
-  margin-right: auto;
-}
-
-.wb-data-switch[hidden] {
-  display: none;
-}
-
+/* App mode in the Data panel: the starter gallery. */
 .wb-data-head h2[hidden] {
-  display: none;
-}
-
-.wb-starters-host[hidden] {
   display: none;
 }
 
@@ -9565,10 +9359,19 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 }
 
 .cv-wire-label {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: none;
   margin-top: 2px;
 }
 
 .app-feeds .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--fg);
 }
 
@@ -9801,10 +9604,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   outline-offset: 2px;
 }
 
-.autosave-choice .dialog-body {
-  padding: 18px 20px;
-}
-
 .project-group .autosave-switch {
   padding: 0 6px;
   font-size: 0.92em;
@@ -9840,18 +9639,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   color: var(--muted);
   font-size: 0.92em;
   font-weight: 600;
-}
-
-/* A connection with no password source on this computer (a project opened elsewhere). */
-.needs-password {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--warn-soft);
-  color: var(--warn);
-  font-size: 0.88em;
 }
 
 .start-page {
@@ -9892,86 +9679,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 
 .btn.start-action .icon-svg {
   color: var(--accent);
-}
-
-.start-list {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.start-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 6px;
-}
-
-.start-item:hover {
-  background: var(--row-hover);
-}
-
-.start-open {
-  display: grid;
-  flex: 1;
-  grid-template-columns: 20px auto minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 7px 8px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--fg);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.start-open:focus-visible {
-  outline: var(--focus-width) solid var(--focus);
-}
-
-.start-open .icon-svg {
-  width: 18px;
-  height: 18px;
-  color: var(--muted);
-}
-
-.start-name {
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.start-folder {
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 0.92em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.start-when {
-  flex: none;
-  padding-right: 10px;
-  color: var(--muted);
-  font-size: 0.88em;
-}
-
-.start-item.missing .start-open {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.start-missing {
-  flex: none;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--warn-soft);
-  color: var(--warn);
-  font-size: 0.85em;
 }
 
 /* The Application row's project group: hidden with no project open. */
@@ -10047,25 +9754,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 
 body.has-rail {
   padding-left: var(--rail-w);
-}
-
-.nav-rail {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 45;
-  width: var(--rail-w);
-  border-right: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.nav-rail-items {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  padding: 8px 0;
-  gap: 2px;
 }
 
 .nav-rail-item {
@@ -10171,11 +9859,24 @@ body.has-rail {
 /* The rail's names (rail.ts showNames; on until turned off, the owner 2026-11-19): a wider rail, each
    icon where it was and its name beside it; the hover tip only for the keys. The toggle at the foot. */
 .nav-rail {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 45;
+  width: var(--rail-w);
+  border-right: 1px solid var(--border);
+  background: var(--surface);
   display: flex;
   flex-direction: column;
 }
 
 .nav-rail-items {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 8px 0;
+  gap: 2px;
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -13145,12 +12846,6 @@ dialog.find-data .dialog-body {
   padding: 0;
 }
 
-.wb-explorer .wb-data-head h2 {
-  min-width: 0;
-  font-size: 1em;
-  white-space: nowrap;
-}
-
 .wb-explorer .wb-data-head .btn {
   flex: none;
   padding: 4px 5px;
@@ -13162,6 +12857,9 @@ dialog.find-data .dialog-body {
 }
 
 .wb-explorer .wb-data-head h2 {
+  min-width: 0;
+  font-size: 1em;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -13570,15 +13268,6 @@ dialog.find-data .dialog-body {
   gap: 8px;
 }
 
-/* Settings' Library (library.ts). */
-.library-folder {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 4px;
-  overflow-wrap: anywhere;
-}
-
 .xc-template-main {
   display: flex;
   flex: 1;
@@ -13968,9 +13657,6 @@ dialog.find-data .dialog-body {
 }
 .ca-this {
   font-weight: 600;
-}
-.starter-every-row {
-  padding: 2px 10px;
 }
 .wb-gbody:has(> .wb-doc-body.kind-codefile) {
   overflow: hidden;
@@ -14872,16 +14558,7 @@ dialog.new-project .dialog-body {
   cursor: not-allowed;
 }
 
-.projects-folder-label {
-  margin: 10px 0 4px;
-  font-size: 0.92em;
-}
-
 /* ===== Set up from the meta store (library.ts) ===== */
-.library-fieldset {
-  min-width: 0;
-}
-
 .library-setup {
   min-width: 0;
   margin-top: 12px;
@@ -16103,18 +15780,6 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
   color: var(--warn);
   font-weight: 600;
   font-size: 12px;
-}
-.github-folder {
-  border-top: 1px solid var(--border, #ccc);
-  padding-top: 8px;
-  margin-top: 8px;
-}
-.github-words {
-  font-weight: 600;
-}
-.github-fieldset .scm-token-row .monaco-button,
-.github-fieldset .monaco-button {
-  width: auto;
 }
 
 /* ===== the loading state (loading.ts, 2026-11-18): one for every page and window =====
@@ -17566,6 +17231,17 @@ body:has(> .tour) > .context-menu {
 
 /* The page's own grid carries the twelve faint columns now (the board holds a sidebar beside it). */
 .cv-board {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  padding: 12px;
+  overflow: auto;
+  background-color: var(--bg);
+  background-position: 12px 0;
+  background-size: calc(100% - 24px + 8px) 100%;
+  background-repeat: no-repeat;
   position: relative;
   background-image: none;
 }
