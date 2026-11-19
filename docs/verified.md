@@ -3521,3 +3521,79 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
   toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
   test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
+
+## Server speed, the overnight optimisation pass (2026-11-19, branch opt-server)
+
+The owner: "find as many things to optimize tonight and do it". One script (a full app through Starlette's
+TestClient, a temporary state folder, made-up data; the median of six calls after the first), run against
+0.0.26 (`origin/claude/vibrant-mendel-j04osj`) and this branch on the same machine, minutes apart. The
+operating system's vault was the keyring's fail backend there, so the saved-secret cache (below) shows nothing
+in these numbers; on Windows Credential Manager or macOS Keychain each lookup it saves is a call into the
+vault.
+
+| Measure | 0.0.26 | opt-server |
+|---|---|---|
+| `import swissarmybench.server.app` (seven runs, median) | 877 ms | 670 ms |
+| `create_app` | 158 ms | 119 ms |
+| GET /connections, no connections | 225 ms | 5.8 ms |
+| GET /connections, five connections | 220 ms | 9.6 ms |
+| GET /connections/types (median; the first call reads every form's code: 1.9 s, now 1.2 s) | 1,890 ms | 33 ms |
+| GET /blades/starters | 242 ms | 31 ms |
+| GET /blades/{a starter} | 21 ms | 3.6 ms |
+| GET /app/mode, /app/modes, /app/areas | 11-16 ms | 2 ms |
+| GET /grids/{id}/step-counts, 2,000,000 rows, three steps (again, unchanged view) | 30 ms | 1.5 ms |
+
+What changed, and what keeps each kept answer right:
+
+- **A blade's code read once per text.** `read_code`, `detect_settings` (its `_detect`), `import_lines`,
+  `python_connections.env_reads` and `portability.check` are `functools.lru_cache`d by their text and inputs;
+  each call gets lists and settings of its own (`dataclasses.replace` with the suggestions copied), so a
+  caller that changes one (services/blades.py marks placeholders) changes nothing kept. The same text gives
+  the same answer: nothing goes stale. `portability.check` was the most of /connections/types: a dozen
+  patterns over SQL Server's whole runtime (495 KB of starter code), for every sign-in of every form.
+- **The connections' Write starters** come from the starter blades as they are (name, family, kind, tags),
+  not from `starters()`' summaries of all 188 starters (each with its secrets, providers and settings):
+  every /connections listing, and every service that lists connections (context.md, the outline, the swap,
+  the tables), paid for it. `starters()` itself is not memoised: its summaries hold the pins, the loaded
+  catalogs, the saved secrets and every vault's mapping, too many inputs to key safely; with the text caches
+  it is 31 ms and only the starters page asks.
+- **Saved-secret status** (`BladeStore._has_secret`): whether a value is saved, never the value, kept 30 s
+  (`SECRET_STATUS_SECONDS`); a save or forget through the app clears that entry at once, so the time only
+  bounds a change made outside the app. `providers()` asks it too (it read every secret's value before).
+- **A starter by name**: the last listing's index (name to file); its one file is looked at (a stat) and
+  read again when changed; a file gone or renamed lists the starters again.
+- **Installed extensions** (`extensions.installed()`): read once per process (every package's metadata was
+  read on each request), again when `sys.path` changes or after `forget_installed()`. Install and Remove
+  restart the app (server/updater.py), which reads them afresh.
+- **Later imports**: openpyxl (with the first workbook read), xlsxwriter and `pyarrow.compute` (with the
+  first export; a small `_Later` module stand-in), jupyter_client and ZeroMQ (with the first kernel).
+  DuckDB's grammar (`duckdb_grammar`, 70 ms) is read on the first query that needs it (`grammar_later`:
+  the same fields, asked through).
+- **Start-up's catalogs** wait for the app's first window (and two more seconds for its page), at most
+  `catalogs_start_wait_seconds` (15) when none opens: their child processes no longer race the first page.
+  `test_connections.py`'s start-up test sets the wait to 0.5 s (no window opens in a test client).
+- **context.md**: rendered in a thread (`rules.render` is pure); the index and guide pages kept by their
+  file's stamp.
+- **The shared catalog's look** (every 3 s) globs and stats in a thread; **a watched file's look** stats
+  every watched file in one thread call (was a thread hop per table).
+- **Step counts** kept by view key (the dataset's version and serial are in it: a re-push or a step change
+  is a new key; a closed or re-pushed dataset's are dropped); a cached view's size estimate scales by its
+  columns against the dataset's (a step that adds columns made a wider table than the estimate said).
+- `missing_imports` moved from domain/blades.py to domain/packages.py (re-exported) to keep blades.py under
+  the 1,500-line rule with the caches' wrappers.
+
+Tests: `tests/test_server_caches.py` (copies handed out, the secret status cleared on a save and after its
+time, a starter's file followed, the extensions read once and again when forgotten, start-up waiting for a
+window or the time, step counts after a re-push and a step change, the grammar asked through, the pages
+read again when changed).
+
+Not done, and why: the brief's "only the open project's connections" at start (connections are the
+library's, the app opens on Projects with no project, and finding a project's connections reads every
+document: more work at start, not less); context.md's gathering moved to a thread (its services are not
+thread-safe; it runs only for a folder a Launch Claude made, every few seconds).
+
+The unit suite on this branch (no browser tests): 4,425 passed, 31 skipped, 1 failed in 15 minutes; the one,
+`test_desktop_shell.py::test_the_shell_does_what_a_browser_did` (Qt off screen, the home page not loaded in
+60 s), fails about one run in three or four here on 0.0.26's code as well (five runs: one failed), so it is
+this machine's, not the pass's. ruff, ruff format --check, mypy, and the page's typecheck and build: clean.
+The browser tests (tests/e2e) were not run for this pass: no page file changed.

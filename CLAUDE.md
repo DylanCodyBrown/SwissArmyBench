@@ -329,7 +329,8 @@ src/swissarmybench/
                          for (read from its name), a value written safely for where it stands (DAX, Python, HTML)
     packages.py          the pip packages a blade's imports need (re-exported by blades.py); a missing package
                          said one way everywhere: {"missing": {feature, packages, python ("app" or a path),
-                         command}}, the feature in plain words, MissingPackagesError (422 with it)
+                         command}}, the feature in plain words, MissingPackagesError (422 with it); the
+                         imports a script lacks (missing_imports)
     stats.py             the shared statistics: chi-square, t, F and normal distributions, effect sizes
     analysis.py          the analyses' math and query text: the fit test (Benford, Nigrini), outliers
                          (amount fences, frequency on two scales), odds (ratios, Woolf's range), buckets,
@@ -551,8 +552,9 @@ src/swissarmybench/
     agent.py             the agent door: approvals, export tickets, its reads, the current table,
                          listing and proposing blades (saved on the user's Allow)
     catalogs.py          load, remove, the tree, search
-    catalog_loading.py   catalogs that load themselves in the background: on save, at start-up (not a
-                         browser-window sign-in), on first use; each a child process, a few at once
+    catalog_loading.py   catalogs that load themselves in the background: on save, at start-up (once the
+                         first window is open; not a browser-window sign-in), on first use; each a child
+                         process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
     session_log.py       the Session page: the audit heard (Heard), this session's entries in memory, the

@@ -21,11 +21,10 @@ import tempfile
 import time
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import zmq
-from jupyter_client.kernelspec import KernelSpec
-from jupyter_client.manager import AsyncKernelManager
+if TYPE_CHECKING:  # jupyter_client and ZeroMQ load with the first kernel, not with the app (60 ms)
+    from jupyter_client.manager import AsyncKernelManager
 
 _START_SECONDS: float = 60.0
 # How long a completion or hover waits: the first on a big library (pandas) can take 4 s.
@@ -103,6 +102,8 @@ def _client(manager: AsyncKernelManager) -> Any:
     local socket holds, which is little) the kernel drops what it prints, without a word. A script
     printing 6,000 lines while this computer was busy lost lines from the middle, and the message
     that ends the run, so the run never ended (found 2026-11-15, the whole suite under load)."""
+    import zmq
+
     client = manager.client()
     client.context.setsockopt(zmq.RCVHWM, 0)  # for the sockets start_channels() makes
     return client
@@ -458,6 +459,9 @@ async def start(
             f"{python} has no ipykernel, which runs the Workbench's code. Install it there: "
             f"uv pip install --python {python} ipykernel"
         )
+    from jupyter_client.kernelspec import KernelSpec
+    from jupyter_client.manager import AsyncKernelManager
+
     manager = AsyncKernelManager()
     sockets: str | None = None
     if sys.platform != "win32":

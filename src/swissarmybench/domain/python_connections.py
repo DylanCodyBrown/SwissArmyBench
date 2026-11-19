@@ -27,6 +27,7 @@ import ast
 import re
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 TEMPLATE: str = "python"
@@ -68,6 +69,13 @@ def _text(node: ast.AST | None) -> str | None:
 
 
 def env_reads(*codes: str | None) -> list[EnvRead]:
+    """Every environment variable the code reads (below); kept by the text (the same text, the same answer:
+    a listing reads every blade's each time), a new list each call."""
+    return list(_env_reads(codes))
+
+
+@lru_cache(maxsize=1024)
+def _env_reads(codes: tuple[str | None, ...]) -> tuple[EnvRead, ...]:
     """Every environment variable the code reads by a name written in it: `os.environ["X"]`,
     `os.environ.get("X")`, `os.getenv("X")` and `secret("X")` (also `environ` and `getenv` imported
     from os, and os under another name). In the order first read; a name read both ways is required.
@@ -127,7 +135,7 @@ def env_reads(*codes: str | None) -> list[EnvRead]:
                 reads.append((getattr(node, "lineno", 0), getattr(node, "col_offset", 0), name, required))
         for _, _, name, required in sorted(reads):
             found[name] = found.get(name, False) or required
-    return [EnvRead(name, required) for name, required in found.items()]
+    return tuple(EnvRead(name, required) for name, required in found.items())
 
 
 def env_names(*codes: str | None) -> list[str]:

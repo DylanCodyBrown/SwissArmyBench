@@ -35,7 +35,7 @@ from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
-from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, open_database
+from swissarmybench.adapters.database import PriorityWorkers, grammar_later, open_database
 from swissarmybench.adapters.datasets import DatasetStore, file_stamp
 from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
@@ -422,7 +422,7 @@ def bootstrap(
         workers=workers,
         # The audit log, heard by the Session page's log (this session's entries, each naming its object).
         audit=Heard(AuditLog(state_dir / "audit.log" if audit_log else None), session_log),
-        grammar=duckdb_grammar(),
+        grammar=grammar_later(),  # read from DuckDB on the first query, not at start
         interrupted=duckdb.InterruptException,
         engine_error=duckdb.Error,
     )
@@ -484,7 +484,7 @@ def bootstrap(
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
     )
     catalog_loading = CatalogLoading(
-        ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once
+        ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, live.windows
     )
     # Relationship sets come from the person's own folder and the shared folders, which are the blade
     # folders: one team folder carries blades and sets alike.

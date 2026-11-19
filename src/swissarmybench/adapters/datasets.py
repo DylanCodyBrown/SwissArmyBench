@@ -34,8 +34,6 @@ import pyarrow.csv as pacsv
 import pyarrow.ipc as ipc
 import pyarrow.json as pajson
 import pyarrow.parquet as pq
-from openpyxl import load_workbook
-from openpyxl.utils.exceptions import InvalidFileException
 
 from swissarmybench.domain.datasets import (
     RESERVED_PREFIX,
@@ -577,6 +575,10 @@ def _sheets(source: _Source) -> list[str]:
 
 
 def _open_book(source: _Source) -> Any:
+    # openpyxl loads with the first workbook read, not with the app (60 ms at start).
+    from openpyxl import load_workbook
+    from openpyxl.utils.exceptions import InvalidFileException
+
     try:
         return load_workbook(source.open(), read_only=True, data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, KeyError) as error:

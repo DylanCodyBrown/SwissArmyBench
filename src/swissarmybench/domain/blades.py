@@ -27,7 +27,8 @@ import re
 import tomllib
 import zipfile
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from typing import Any
 
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
@@ -38,6 +39,7 @@ from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
 from swissarmybench.domain.packages import PIP_NAMES as PIP_NAMES
 from swissarmybench.domain.packages import Package as Package
 from swissarmybench.domain.packages import install_command as install_command
+from swissarmybench.domain.packages import missing_imports as missing_imports
 from swissarmybench.domain.packages import missing_module_hint as missing_module_hint
 from swissarmybench.domain.packages import pip_name as pip_name
 from swissarmybench.domain.packages import provided as provided
@@ -117,7 +119,16 @@ def _top_level_names(statements: list[ast.stmt]) -> list[str]:
 
 
 def read_code(code: str, label: str = "the blade") -> BladeCode:
-    """What the code makes, asks for and imports."""
+    """What the code makes, asks for and imports. Kept by the text (a listing reads every blade's code each
+    time, ast's walk the most of its cost); each call gets lists of its own."""
+    found = _read_code(code, label)
+    return BladeCode(
+        found.variable, list(found.assigned), list(found.secrets), list(found.imports), list(found.calls)
+    )
+
+
+@lru_cache(maxsize=2048)
+def _read_code(code: str, label: str) -> BladeCode:
     tree = parse_code(code, label)
     assigned = _top_level_names(tree.body)
     imported_names: set[str] = set()
@@ -174,6 +185,11 @@ def _function_params(code: str, name: str) -> int | None:
 
 def import_lines(code: str) -> list[str]:
     """The code's top-level import statements, as written (for adding to a script's top)."""
+    return list(_import_lines(code))
+
+
+@lru_cache(maxsize=1024)
+def _import_lines(code: str) -> tuple[str, ...]:
     tree = parse_code(code)
     lines = code.splitlines()
     found: list[str] = []
@@ -181,42 +197,7 @@ def import_lines(code: str) -> list[str]:
         if isinstance(statement, ast.Import | ast.ImportFrom):
             end = statement.end_lineno or statement.lineno
             found.append("\n".join(lines[statement.lineno - 1 : end]))
-    return found
-
-
-def missing_imports(script: str, wanted: list[str]) -> list[str]:
-    """The import statements in `wanted` that `script` does not already make. An import counts as made
-    when the script binds the same name to the same thing: `import pandas as pd` is there when the
-    script has it anywhere (even among others on one line), and `from x import a` is there when the
-    script has `from x import a, b`; but `import swissarmybench` does not give the `sab` that
-    `import swissarmybench as sab` would. A script that does not parse yet gets them all."""
-    try:
-        tree = ast.parse(script)
-    except SyntaxError:
-        return list(wanted)
-    have: set[tuple[str, ...]] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            have.update(("import", alias.name, alias.asname or alias.name) for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            have.update(("from", node.module, alias.name, alias.asname or alias.name) for alias in node.names)
-    needed: list[str] = []
-    for line in wanted:
-        try:
-            statement = ast.parse(line).body[0]
-        except (SyntaxError, IndexError):
-            continue
-        keys: list[tuple[str, ...]]
-        if isinstance(statement, ast.Import):
-            keys = [("import", alias.name, alias.asname or alias.name) for alias in statement.names]
-        elif isinstance(statement, ast.ImportFrom) and statement.module:
-            module = statement.module
-            keys = [("from", module, alias.name, alias.asname or alias.name) for alias in statement.names]
-        else:
-            continue
-        if not all(key in have for key in keys):
-            needed.append(line)
-    return needed
+    return tuple(found)
 
 
 def needed(code: str, installed: Callable[[str], bool]) -> list[Package]:
@@ -828,10 +809,12 @@ def _call_name(node: ast.Call) -> str:
 def detect_settings(code: str) -> list[Setting]:
     """Every setting in the code, in the order it is written. Raises BladeCodeError for code that is
     not Python."""
-    return [f.setting for f in _detect(code)]
+    return [replace(f.setting, suggestions=list(f.setting.suggestions)) for f in _detect(code)]
 
 
-def _detect(code: str) -> list[_Found]:
+@lru_cache(maxsize=1024)
+def _detect(code: str) -> tuple[_Found, ...]:
+    """Every setting with where it is. Kept by the text: read only (detect_settings hands out copies)."""
     tree = parse_code(code)
     lines = _lines(code)
     starts = _offsets(code)
@@ -1020,7 +1003,7 @@ def _detect(code: str) -> list[_Found]:
                     _char(lines, starts, node.lineno, node.col_offset),
                     _char(lines, starts, node.end_lineno, node.end_col_offset),
                 )
-    return sorted(found.values(), key=lambda f: f.start)
+    return tuple(sorted(found.values(), key=lambda f: f.start))
 
 
 def _pairs(text: str, least: int = 2) -> bool:

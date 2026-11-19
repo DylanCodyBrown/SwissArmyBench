@@ -339,7 +339,10 @@ class ContextMd:
         )
 
     async def build(self) -> rules.Rendered:
-        rendered = rules.render(await self.state(), self.ws.settings.context_md_chars)
+        # The rendering (pure: its budget's trims, each section's digest) off the event loop.
+        rendered = await asyncio.to_thread(
+            rules.render, await self.state(), self.ws.settings.context_md_chars
+        )
         self.last = rendered
         return rendered
 

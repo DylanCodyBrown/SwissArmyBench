@@ -28,6 +28,19 @@ class ClaudeFiles:
         self.root = root  # the state folder's claude/
         self._choices = choices  # claude.json; None: kept in memory (tests)
         self._memory: dict[str, Any] = {}
+        # The index's and the guide's pages, by path: (modification time and size, text). Read again only
+        # when the file changed: context.md is built every few seconds while the app runs.
+        self._pages: dict[Path, tuple[tuple[int, int], str]] = {}
+
+    def _page(self, path: Path) -> str:
+        """A page's text, kept by its stamp. Raises OSError as reading it does."""
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        kept = self._pages.get(path)
+        if kept is None or kept[0] != stamp:
+            kept = (stamp, path.read_text(encoding="utf-8"))
+            self._pages[path] = kept
+        return kept[1]
 
     # ===== the folder Claude Code starts in =====
 
@@ -67,14 +80,14 @@ class ClaudeFiles:
     def guide(self, topic: str) -> str:
         """A guide topic's page (mcp/guide/<topic>.md), "" when there is none."""
         try:
-            return (INDEX.parent / "guide" / f"{topic}.md").read_text(encoding="utf-8")
+            return self._page(INDEX.parent / "guide" / f"{topic}.md")
         except OSError:
             return ""
 
     def index(self) -> str:
         """The MCP server's index (mcp/index.md): the folder's CLAUDE.md carries it whole."""
         try:
-            return INDEX.read_text(encoding="utf-8")
+            return self._page(INDEX)
         except OSError:
             return "Read the resource swissarmybench://index (or call the `guide` tool) first."
 

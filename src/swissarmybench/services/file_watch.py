@@ -53,13 +53,16 @@ class FileWatch:
             self._seen.pop(gone, None)
             self._changed.discard(gone)
         said: list[str] = []
+        paths = {name: self._file(name) for name in infos}
+        watched = {name: path for name, path in paths.items() if path is not None}
+        # Every watched file looked at in one trip off the loop (a thread each was a hop per table).
+        stamps = await asyncio.to_thread(lambda: {name: self._stamp(path) for name, path in watched.items()})
         for name, info in infos.items():
-            path = self._file(name)
-            if path is None:
+            if name not in watched:
                 self._seen.pop(name, None)
                 self._changed.discard(name)
                 continue
-            now = await asyncio.to_thread(self._stamp, path)
+            now = stamps[name]
             seen = self._seen.get(name)
             if seen is None or seen[0] != info.version:
                 # Loaded or reloaded: the file as it is now.

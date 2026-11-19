@@ -131,6 +131,34 @@ def duckdb_grammar() -> SqlGrammar:
         return _grammar
 
 
+class _GrammarLater(SqlGrammar):
+    """duckdb_grammar()'s, read on its first use rather than as the app starts (70 ms): the same fields."""
+
+    def __init__(self) -> None:  # nothing read yet: each field asks duckdb_grammar(), which reads once
+        pass
+
+    @property
+    def parse(self) -> Callable[[str], dict[str, Any]]:
+        return duckdb_grammar().parse
+
+    @property
+    def table_functions(self) -> frozenset[str]:
+        return duckdb_grammar().table_functions
+
+    @property
+    def keywords(self) -> frozenset[str]:
+        return duckdb_grammar().keywords
+
+    @property
+    def reserved(self) -> frozenset[str]:
+        return duckdb_grammar().reserved
+
+
+def grammar_later() -> SqlGrammar:
+    """The grammar the guard reads, read from DuckDB on its first use (duckdb_grammar)."""
+    return _GrammarLater()
+
+
 # ===== the worker pool =====
 
 

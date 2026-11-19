@@ -28,7 +28,7 @@ from typing import Any
 
 import duckdb
 
-from swissarmybench.adapters.database import describer, duckdb_grammar
+from swissarmybench.adapters.database import describer, grammar_later
 from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.grids import POS, Window, view_key
 from swissarmybench.domain.sql_guard import SqlGrammar
@@ -53,10 +53,13 @@ class ViewEngine:
     ) -> None:
         self._connection = connection
         # What a SQL step is checked against: this DuckDB's own grammar unless one is given.
-        self._grammar = grammar or duckdb_grammar()
+        self._grammar = grammar or grammar_later()
         self._cache_bytes = cache_bytes
         self._compiled: OrderedDict[str, CompiledView] = OrderedDict()
         self._tables: OrderedDict[str, _Cached] = OrderedDict()
+        # The rows after each stage, by view key (a dataset's version is in it: a new one is a new key), with
+        # the dataset's name: the steps strip asks again on each change and each window.
+        self._counts: OrderedDict[str, tuple[str, list[int]]] = OrderedDict()
         self._lock = threading.Lock()
         # One lock per cache key, so two windows of a new view materialize it only once.
         self._key_locks: dict[str, threading.Lock] = {}
@@ -204,11 +207,22 @@ class ViewEngine:
         settings: ViewSettings,
     ) -> list[int]:
         """Rows after each stage: [source, after step 1, ...] for "12,000 -> 11,420"."""
+        key = view_key(info, steps, settings, None)
+        with self._lock:
+            kept = self._counts.get(key)
+            if kept is not None:
+                self._counts.move_to_end(key)
+                return list(kept[1])
         compiled = self.compile(cursor, info, steps, settings)
         with_clause = ", ".join(f"{n} AS ({b})" for n, b in compiled.ctes)
         selects = ", ".join(f"(SELECT count(*) FROM {stage.name})" for stage in compiled.stages)
         row = cursor.execute(f"WITH {with_clause} SELECT {selects}").fetchone()
-        return [int(v) for v in row] if row else []
+        counts = [int(v) for v in row] if row else []
+        with self._lock:
+            self._counts[key] = (info.name, counts)
+            while len(self._counts) > 256:
+                self._counts.popitem(last=False)
+        return list(counts)
 
     def cell(
         self,
@@ -264,9 +278,11 @@ class ViewEngine:
             cursor.execute(f"CREATE TABLE {table} AS {compiled.sql(upto)}")
             count_row = cursor.execute(f"SELECT count(*) FROM {table}").fetchone()
             count = int(count_row[0]) if count_row else 0
-            # Estimate: the dataset's bytes scaled by the share of rows the view keeps.
+            # Estimate: the dataset's bytes scaled by the share of rows the view keeps and by its columns
+            # against the dataset's (a step that adds columns makes a wider table).
             share = count / info.row_count if info.row_count else 0.0
-            entry = _Cached(table, count, int(info.nbytes * max(share, 0.01)), info.name)
+            widths = len(compiled.columns) / len(info.columns) if info.columns else 1.0
+            entry = _Cached(table, count, int(info.nbytes * max(share, 0.01) * max(widths, 0.1)), info.name)
             with self._lock:
                 if self._key_locks.get(key) is key_lock:
                     self._key_locks.pop(key)
@@ -323,6 +339,8 @@ class ViewEngine:
     def forget_dataset(self, name: str) -> None:
         """Drop every cache entry built from dataset `name` (re-pushed or closed)."""
         with self._lock:
+            for key in [k for k, (dataset, _) in self._counts.items() if dataset == name]:
+                self._counts.pop(key)
             doomed: list[str] = []
             for key in [k for k, e in self._tables.items() if e.dataset == name]:
                 doomed.extend(self._retire(self._tables.pop(key)))
