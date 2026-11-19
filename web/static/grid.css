@@ -15989,3 +15989,76 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
   background: var(--warn-soft);
   font-size: 13px;
 }
+
+/* ===== a variable in any box (variableBox.ts, design principle 12.7) ===== */
+.variable-box {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.variable-box-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+.variable-box-row > .variable-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.variable-insert {
+  flex: none;
+  padding: 0 6px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+}
+.variable-list {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  z-index: 56;
+  display: grid;
+  min-width: 240px;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+}
+.variable-list[hidden] {
+  display: none;
+}
+.variable-option {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.variable-option.active,
+.variable-option:hover {
+  background: var(--surface-2);
+}
+.variable-new {
+  color: var(--accent);
+}
+.variable-preview {
+  min-width: 0;
+  color: var(--muted);
+}
+.variable-preview[hidden] {
+  display: none;
+}
+.variable-preview-value {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
