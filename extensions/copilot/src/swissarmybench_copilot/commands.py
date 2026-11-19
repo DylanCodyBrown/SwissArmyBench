@@ -5,22 +5,15 @@ Standard library only.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from swissarmybench.cli import api
-from swissarmybench.cli.commands import Arg, Command, req
+from swissarmybench.cli.commands import Command, Registrar, req
 
 COMMANDS: dict[str, Command] = {}
-Run = Callable[[dict[str, Any]], Any]
 
 
-def command(name: str, summary: str, *args: Arg) -> Callable[[Run], Run]:
-    def register(run: Run) -> Run:
-        COMMANDS[name] = Command(name, summary, args, run, False, False)
-        return run
-
-    return register
+command = Registrar(COMMANDS)
 
 
 @command(

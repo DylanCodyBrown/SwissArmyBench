@@ -141,6 +141,31 @@ def safely(handler: Handler) -> Handler:
     return guarded
 
 
+def with_body(run: Callable[[Any, str], Awaitable[Any]]) -> Handler:
+    """A route that runs `run(its JSON body, who is asking)` and answers its result (an error in the
+    one shape)."""
+
+    async def handle(request: Request) -> Response:
+        try:
+            return json_response(await run(await read_json(request), actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    return handle
+
+
+def with_actor(run: Callable[[str], Awaitable[Any]]) -> Handler:
+    """A route that runs `run(who is asking)` and answers its result (an error in the one shape)."""
+
+    async def handle(request: Request) -> Response:
+        try:
+            return json_response(await run(actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    return handle
+
+
 def refusal(
     what: str,
     status_code: int,
