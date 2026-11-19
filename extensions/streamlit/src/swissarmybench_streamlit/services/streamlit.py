@@ -187,8 +187,12 @@ class StreamlitApps:
         approvals: Approvals,
         data_export: DataExport,
         local_notes: Callable[[list[str]], list[dict[str, Any]]] = lambda names: [],
+        query_module: Callable[[list[Any]], Any] | None = None,
     ) -> None:
         self.ws = ws
+        # sab_queries.py for the pages' SQL and DAX blocks: the base's script exporter writes each
+        # connection they name as an export writes it (services/script_export.py `query_module`).
+        self._query_module = query_module
         # Each named connection that runs only on this computer (the base's services/script_export.py):
         # an export says them before it writes (the owner, 2026-11-17: "this is meant to scale to a
         # function app or up to a hosted streamlit application").
@@ -485,7 +489,8 @@ class StreamlitApps:
     @staticmethod
     def _layout(page: Page) -> str:
         blocks = [
-            [b.id, b.document, b.cell, b.row, b.column, b.w, b.h, b.parent, b.slot] for b in page.blocks
+            [b.id, b.document, b.cell, b.row, b.column, b.w, b.h, b.parent, b.slot, b.view]
+            for b in page.blocks
         ]
         boxes = [
             [c.id, c.kind, c.row, c.column, c.w, c.h, c.parent, c.slot, c.props] for c in page.containers
@@ -1159,6 +1164,10 @@ class StreamlitApps:
                     code = linked.code(block.key)
                     ran[block.key] = None if code is None else rules.body(code)
             files[rules.TRACE_FILE] = self._files.lineage_helper()
+            module, query_notes = self.queries(piece.code for piece in pieces.values())
+            notes += query_notes
+            if module is not None:  # the SQL and DAX blocks' connections, beside the pages
+                files[rules.QUERY_FILE] = module.text
             if any(rules.uses_text_module(piece.code) for piece in pieces.values()):
                 # A Markdown or HTML block names a value: the rules that fill it, beside the pages.
                 files[rules.TEXT_FILE] = rules.text_file(self._files.helper())
@@ -1200,6 +1209,20 @@ class StreamlitApps:
         app.ran = ran
         app.ran_at = self._now()
         app.notes = notes
+
+    def queries(self, codes: Any) -> tuple[Any | None, list[str]]:
+        """sab_queries.py for the SQL and DAX blocks among these codes (None: there is none), and what
+        stops it, in words."""
+        cells = [c for code in codes for c in rules.query_calls(code)]
+        if not cells:
+            return None, []
+        if self._query_module is None:
+            return None, ["SQL and DAX blocks need the app's script exporter, which is not here."]
+        try:
+            made = self._query_module(cells)
+        except Refused as error:
+            return None, [str(error)]
+        return made, [f"sab_queries.py: {p}" for p in made.problems]
 
     def _python(self, app: App) -> str:
         if app.canvas:
@@ -1398,6 +1421,10 @@ class StreamlitApps:
             head=page_settings.page_head(app.settings, app.title),
             config=page_settings.config_toml(app.settings, app.title),
         )
+        module, query_notes = self.queries(p.code for p in pieces.values())
+        if module is not None:
+            rules.with_queries(made, module.text, module.requirements)
+        problems_said = query_notes
         try:
             target = self._files.export_target(folder)
         except FileNotFoundError as error:
@@ -1425,7 +1452,7 @@ class StreamlitApps:
             "files": written,
             "pages": [p.name for p in app.pages],
             "tables": list(made.tables),
-            "problems": list(made.problems),
+            "problems": [*made.problems, *problems_said],
             "run": "streamlit run app.py",
             **self.local([p.code for p in pieces.values()]),
         }
@@ -1554,6 +1581,13 @@ class StreamlitApps:
             helper = rules.text_file(self._files.helper()) if made.texts else None
             if helper is not None:
                 self._project.write(folder, rules.TEXT_FILE, helper)
+            # A SQL or DAX block: its connections go beside data.py too (sab_queries.py).
+            module, query_notes = self.queries(p.code for p in pieces.values())
+            problems += query_notes
+            if module is not None:
+                self._project.write(folder, rules.QUERY_FILE, module.text)
+                requirements = projects.merged_requirements(requirements, list(module.requirements))
+                self._project.write(folder, projects.REQUIREMENTS_FILE, requirements)
         except PermissionError as error:
             raise Conflict(str(error)) from None
         # The linked files: one inside the project keeps its place; one outside comes along at the
@@ -1566,6 +1600,7 @@ class StreamlitApps:
             projects.REQUIREMENTS_FILE,
             "README.txt",
             rules.TEXT_FILE,
+            rules.QUERY_FILE,
             app_name,
             *made.files,
             *(name for name in inside.values() if name),
@@ -1579,6 +1614,8 @@ class StreamlitApps:
         }
         if helper is not None:
             files[rules.TEXT_FILE] = helper
+        if module is not None:
+            files[rules.QUERY_FILE] = module.text
         notebook = self._project.read(folder, projects.DATA_NOTEBOOK)
         if notebook is not None:
             files[projects.DATA_NOTEBOOK] = self._for_zip(projects.DATA_NOTEBOOK, notebook)

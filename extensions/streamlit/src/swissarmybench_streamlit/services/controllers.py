@@ -159,6 +159,9 @@ class Controllers:
             files["page.py"] = made.code
             if any(rules.uses_text_module(pieces[b.key].code) for b in page.blocks if b.key in pieces):
                 files[rules.TEXT_FILE] = rules.text_file(self._files.helper())
+            module, _ = self._apps.queries(pieces[b.key].code for b in page.blocks if b.key in pieces)
+            if module is not None:
+                files[rules.QUERY_FILE] = module.text
             keyed = [
                 (b.id, pieces[b.key].name, rules.keyed(rules.body(pieces[b.key].code).rstrip("\n"), b.id))
                 for b in page.blocks

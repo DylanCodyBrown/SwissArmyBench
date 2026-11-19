@@ -125,6 +125,7 @@ def routes(services: Any) -> list[Any]:
         approvals=services.agent.approvals,
         data_export=services.data_export,
         local_notes=services.script_exports.local_notes,
+        query_module=services.script_exports.query_module,
     )
     # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
     controllers = Controllers(apps, app_files, runner, services.project_files)

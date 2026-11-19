@@ -37,10 +37,18 @@ def sent_cells(sent: Any) -> Cells:
         except notebooks.NotebookError as error:
             raise StreamlitError(str(error)) from None
         kind = raw.get("kind", "code")
-        if kind not in ("code", *rules.TEXT_KINDS):
-            raise StreamlitError('A cell\'s kind is "code", "markdown" or "html".')
+        if kind not in ("code", *rules.TEXT_KINDS, *rules.QUERY_KINDS):
+            raise StreamlitError('A cell\'s kind is "code", "markdown", "html", "sql" or "dax".')
         seen.add(cell)
-        if kind != "code":
+        if kind in rules.QUERY_KINDS:
+            # A SQL or DAX cell sends its query and its head's connection (`Shop -> orders`).
+            connection = raw.get("connection")
+            if not code.strip():
+                continue
+            held = connection if isinstance(connection, str) and "\n" not in connection else None
+            code = rules.query_code(kind, held, code, cell, name or None)
+            kinds[cell] = kind
+        elif kind != "code":
             text = html_cells.read_script_body(code)[0] if raw.get("form") == "script" else code
             if text is None:
                 continue  # a script's HTML cell whose string is not whole yet: not on a page

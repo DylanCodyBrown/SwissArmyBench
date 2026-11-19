@@ -45,6 +45,7 @@ from typing import Any
 
 from swissarmybench.domain import connection_usage as usage
 from swissarmybench.domain import html_cells, notebooks, table_cells
+from swissarmybench.domain import script_export as exporter
 from swissarmybench.domain.blades import pip_name, provided
 from swissarmybench.domain.cell_facts import (
     MAX_NAME,
@@ -55,6 +56,7 @@ from swissarmybench.domain.cell_facts import (
     indented,
     piece_name,
 )
+from swissarmybench.domain.codegen import python_string
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 from swissarmybench_streamlit.domain import toolbox
@@ -110,6 +112,17 @@ SCRIPT_STREAMLIT: str = "streamlit>=1.52"
 # copy of client/lineage_values.py beside the page (standard library only), only while it plays here.
 TRACE_MODULE: str = "sab_lineage"
 TRACE_FILE: str = f"{TRACE_MODULE}.py"
+
+# A SQL or DAX cell on a page (2026-11-19, the owner: "did we add DAX cells to the canvas?"): its code is
+# the script exporter's own translation (domain/script_export.py `query_cell`), calling sab_queries.py
+# beside the pages (the connections written out as the exporter writes them, `query_module`).
+QUERY_KINDS: tuple[str, ...] = ("sql", "dax")
+QUERY_MODULE: str = exporter.QUERY_MODULE
+QUERY_FILE: str = exporter.QUERY_FILE
+# The line a query block shows its result with ends with this mark (the view's choice replaces it).
+SHOW_MARK: str = "# shown as:"
+VIEWS: tuple[str, ...] = ("table", "bar", "line", "area", "metric")
+CHARTS: tuple[str, ...] = ("bar", "line", "area")
 
 # A block's cell: the linked file's path (as the app holds it) and the cell's own number. A piece
 # shown alone in its own document has "" for the path.
@@ -222,6 +235,118 @@ def text_code(kind: str, text: str, number: int) -> str:
     return "\n".join(lines) + "\n"
 
 
+def query_title(kind: str, text: str, number: int, name: str | None = None) -> str:
+    """What a SQL or DAX cell is called on a canvas without a name: its first line of the query (its
+    comment's words, else the query), else "SQL cell N" or "DAX cell N"."""
+    if name:
+        return name
+    query = table_cells.split_uses(text, sql=True)[1]
+    for line in query.split("\n"):
+        words = re.sub(r"^\s*(?:--|//)\s*", "", line).strip()
+        if words:
+            return " ".join(words.split())[:MAX_NAME]
+    return f"{kind.upper()} cell {number}"
+
+
+def query_code(kind: str, connection: str | None, text: str, number: int, name: str | None = None) -> str:
+    """A SQL or DAX cell as a page runs it: the script exporter's translation of the cell (its connection
+    and result's name, its query) as a call of sab_queries.py beside the page, its result shown as a table.
+    The page's values it names (`{{ region }}`) are passed by name: bound as parameters (SQL), written as
+    DAX literals (DAX); never pasted. No magic line: the page is plain Streamlit."""
+    cell = exporter.ExportCell(kind, text, connection, number=number, name=name)
+    head = f"# {query_title(kind, text, number, name)}"
+    try:
+        asked = exporter.query_cell(cell)
+    except exporter.ScriptExportError as error:
+        said = str(error)
+        return f"{head}\nst.error({said[:1].upper() + said[1:] + ': pick one in its head.'!r})\n"
+    result = asked.target or f"query_{number}"
+    names = [n for n in exporter.page_names(asked.query, kind == "dax") if not keyword.iskeyword(n)]
+    values = (", {" + ", ".join(f"{n!r}: {n}" for n in names) + "}") if names else ""
+    call = f"{QUERY_MODULE}.{kind}({asked.name!r}, {python_string(asked.query)}{values})"
+    return (
+        "\n".join(
+            [
+                head,
+                f"import {QUERY_MODULE}",
+                "",
+                f"{result} = {call}",
+                f"st.dataframe({result})  {SHOW_MARK} table",
+            ]
+        )
+        + "\n"
+    )
+
+
+def query_calls(code: str) -> list[exporter.ExportCell]:
+    """The SQL and DAX cells a block's code calls sab_queries.py with (`query_code`), as the exporter
+    reads cells: its kind, its query and its connection as the call names it."""
+    if not is_query(code):
+        return []
+    try:
+        tree = ast.parse(body(code))
+    except SyntaxError:
+        return []
+    found: list[exporter.ExportCell] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        held = node.func.value
+        if not (isinstance(held, ast.Name) and held.id == QUERY_MODULE and node.func.attr in QUERY_KINDS):
+            continue
+        args = [a.value for a in node.args[:2] if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+        if len(args) == 2:
+            found.append(exporter.ExportCell(node.func.attr, args[1].strip(), args[0]))
+    return found
+
+
+def is_query(code: str) -> bool:
+    """The code is a SQL or DAX block's (`query_code`)."""
+    return f"import {QUERY_MODULE}\n" in code and SHOW_MARK in code
+
+
+def shown(code: str, view: Mapping[str, Any]) -> str:
+    """A query block's code with its view: the result as a table, a chart (bar, line, area; x and y
+    picked) or a metric (one value), and its cache off when the view says so."""
+    if not view or not is_query(code):
+        return code
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code
+    call = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Attribute)
+            and isinstance(node.value.func.value, ast.Name)
+            and node.value.func.value.id == QUERY_MODULE
+        ),
+        None,
+    )
+    lines = code.rstrip("\n").split("\n")
+    at = next((i for i, line in enumerate(lines) if line.endswith(f"{SHOW_MARK} table")), None)
+    if call is None or at is None or not isinstance(call.targets[0], ast.Name):
+        return code
+    result = call.targets[0].id
+    if view.get("cache") is False and call.value.end_lineno is not None:
+        end = call.value.end_lineno - 1
+        line = lines[end]
+        cut = len(line.encode("utf-8")[: call.value.end_col_offset or 0].decode("utf-8")) - 1
+        lines[end] = line[:cut] + ", cache=False" + line[cut:]
+    how = view.get("as", "table")
+    if how in CHARTS:
+        given = "".join(f", {axis}={view[axis]!r}" for axis in ("x", "y") if view.get(axis))
+        lines[at] = f"st.{how}_chart({result}{given})  {SHOW_MARK} {how} chart"
+    elif how == "metric":
+        label = view.get("label") or view.get("column") or result
+        value = f"{QUERY_MODULE}.one({result}, {view.get('column')!r})"
+        lines[at] = f"st.metric({label!r}, {value})  {SHOW_MARK} metric"
+    return "\n".join(lines) + "\n"
+
+
 def uses_text_module(code: str) -> bool:
     """The code fills a text block's names from `sab_text.py` (the copy goes beside the page)."""
     return TEXT_MODULE in facts(code).modules
@@ -308,6 +433,9 @@ def linkable(path: str, text: str) -> list[Linkable]:
                 found.append(Linkable(c.number, "code", c.source, c.name))
             elif c.kind in TEXT_KINDS and c.role == "":
                 found.append(Linkable(c.number, c.kind, text_code(c.kind, c.source, c.number), c.name))
+            elif c.kind in QUERY_KINDS and c.role == "" and c.source.strip():
+                code = query_code(c.kind, c.connection, c.source, c.number, c.name)
+                found.append(Linkable(c.number, c.kind, code, c.name))
         return found
     for s in table_cells.parse_script(text).cells:
         if s.number is None or s.fixed or s.role not in ("", "maker"):
@@ -335,8 +463,8 @@ def document_names(path: str, text: str) -> dict[int, str]:
 
 
 def document_kinds(path: str, text: str) -> dict[int, str]:
-    """Which of those cells are Markdown or HTML cells, by the cell's own number."""
-    return {c.number: c.kind for c in linkable(path, text) if c.kind in TEXT_KINDS}
+    """Which of those cells are Markdown, HTML, SQL or DAX cells, by the cell's own number."""
+    return {c.number: c.kind for c in linkable(path, text) if c.kind != "code"}
 
 
 def cell_title(code: str, number: int, name: str | None = None) -> str:
@@ -365,13 +493,15 @@ class Block:
     slot: int = 0
     hidden: bool = False  # hidden while designing (the page still draws it)
     locked: bool = False  # the designer does not move or size it
+    # A SQL or DAX block's view (`check_view`): {"as": "bar", "x": .., "y": .., "cache": false}; {}: a table.
+    view: dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> Key:
         return (self.document, self.cell)
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        said: dict[str, Any] = {
             "id": self.id,
             "document": self.document,
             "cell": self.cell,
@@ -384,6 +514,7 @@ class Block:
             "hidden": self.hidden,
             "locked": self.locked,
         }
+        return said | ({"view": dict(self.view)} if self.view else {})
 
 
 @dataclass
@@ -530,6 +661,47 @@ def check_link(document: Any, cell: Any) -> Key:
     if isinstance(cell, bool) or not isinstance(cell, int) or cell < 1:
         raise StreamlitError("A block names its cell by the cell's own number.")
     return document.strip(), cell
+
+
+def check_view(raw: Any) -> dict[str, Any]:
+    """A SQL or DAX block's view as sent: {"as": table | bar | line | area | metric, "x"?: a column,
+    "y"?: a column or a list of them (a chart), "column"?: the value's column and "label"?: its words (a
+    metric), "cache"?: false}. A table, cached, is the default and is written as {}."""
+    if raw is None or raw == {}:
+        return {}
+    if not isinstance(raw, dict):
+        raise StreamlitError('A block\'s view is {"as": "table" | "bar" | "line" | "area" | "metric", ...}.')
+    shown = raw.get("as", "table")
+    if shown not in VIEWS:
+        raise StreamlitError(f"A query block shows its result as one of: {', '.join(VIEWS)}.")
+    out: dict[str, Any] = {} if shown == "table" else {"as": shown}
+
+    def column(name: str, value: Any) -> str:
+        if not isinstance(value, str) or not value.strip() or len(value) > MAX_NAME or "\n" in value:
+            raise StreamlitError(f"{name} names one column of the result.")
+        return value.strip()
+
+    for name in raw:
+        if name not in ("as", "x", "y", "column", "label", "cache"):
+            raise StreamlitError(f"A query block's view has no {name!r}: as, x, y, column, label, cache.")
+    if shown in CHARTS:
+        if raw.get("x"):
+            out["x"] = column("x", raw["x"])
+        y = raw.get("y")
+        if isinstance(y, list) and y:
+            out["y"] = [column("y", v) for v in y][:12]
+        elif y:
+            out["y"] = column("y", y)
+    if shown == "metric":
+        if raw.get("column"):
+            out["column"] = column("column", raw["column"])
+        if raw.get("label"):
+            out["label"] = column("label", raw["label"])
+    if raw.get("cache") is False:
+        out["cache"] = False
+    elif "cache" in raw and not isinstance(raw["cache"], bool):
+        raise StreamlitError("cache is true or false.")
+    return out
 
 
 def check_props(kind: Any, raw: Any, held: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -807,6 +979,7 @@ def read_pages(sent: Any) -> list[Page]:
                     item["slot"] if type(item.get("slot")) is int and item["slot"] >= 0 else 0,
                     item.get("hidden") is True,
                     item.get("locked") is True,
+                    check_view(item.get("view")),
                 )
             )
         held = raw.get("containers") or []
@@ -889,7 +1062,7 @@ def write_app(
     the file: `relative_link`). `settings`: the page settings' line (domain/app_settings.py file_line)."""
     said = json.dumps
     plain = all(
-        not page.containers and not any(b.parent or b.hidden or b.locked for b in page.blocks)
+        not page.containers and not any(b.parent or b.hidden or b.locked or b.view for b in page.blocks)
         for page in pages
     )
     # A page with no container, nothing hidden and nothing locked is written as version 1 wrote it.
@@ -915,6 +1088,8 @@ def write_app(
                 if block.parent:
                     held |= {"parent": block.parent, "slot": block.slot}
                 held |= {key: True for key in ("hidden", "locked") if getattr(block, key)}
+                if block.view:
+                    held["view"] = dict(sorted(block.view.items()))
                 comma = "," if index + 1 < len(page.blocks) else ""
                 lines.append(f"        {said(held, ensure_ascii=False)}{comma}")
             lines.append("      ]" + ("," if page.containers else ""))
@@ -1360,7 +1535,7 @@ def page_code(
             cells = _listed([f"{name} ({elsewhere[name]})" for name in missing])
             say(block_id, f"{piece.name} reads {cells}, which is not on this page: place that cell here too.")
             continue
-        text = keyed(body(piece.code).rstrip("\n"), b.id)
+        text = keyed(body(shown(piece.code, b.view)).rstrip("\n"), b.id)
         if notes and block_id in notes:
             text = f"st.caption({notes[block_id]!r})\n{text}"
         if not runs_something(text):
@@ -1512,7 +1687,7 @@ def requirements(codes: Iterable[str], base: Sequence[str] = REQUIREMENTS) -> li
     have = {re.split(r"[<>=!~ ]", line)[0].lower() for line in needed}
     for code in every:
         for module in facts(code).modules:
-            if provided(module) or module == TEXT_MODULE:
+            if provided(module) or module in (TEXT_MODULE, QUERY_MODULE):
                 continue
             name = pip_name(module)[0]
             if name.lower() not in have:
@@ -1621,6 +1796,20 @@ def export(
     if config:
         files[".streamlit/config.toml"] = config  # the page settings' theme colours
     return Export(files, tuple(used), tuple(problems))
+
+
+def with_queries(made: Export, module: str, needed: Iterable[str]) -> None:
+    """An export with its SQL and DAX blocks' sab_queries.py (`module`) beside app.py, and what that
+    needs installed in requirements.txt."""
+    made.files[QUERY_FILE] = module
+    have = made.files["requirements.txt"].split()
+    lower = {re.split(r"[<>=!~ ]", line)[0].lower() for line in have}
+    extra = [line for line in needed if re.split(r"[<>=!~ ]", line)[0].lower() not in lower]
+    made.files["requirements.txt"] = "\n".join([*have, *extra]) + "\n"
+    made.files["README.txt"] += (
+        f"{QUERY_FILE}  the connections the SQL and DAX blocks query, each one's own code (its settings\n"
+        "                read from the environment: no password is written here)\n"
+    )
 
 
 # ===== Save as: the pages as modules of a project (domain/projects.py) =====

@@ -210,6 +210,48 @@ def sql_line(connection: str | None) -> tuple[str | None, str | None]:
     return " ".join(words) or None, target
 
 
+@dataclass(frozen=True)
+class QueryCell:
+    """A SQL or DAX cell as its export calls it: the connection as the call names it (`Shop`,
+    `Finance/Sales model`), the connection's own name, the query (its uses line taken off) and its
+    result's name (`-> name` on its line, else the cell's own name when that is a Python name)."""
+
+    kind: str  # sql or dax
+    name: str
+    base: str
+    query: str
+    target: str | None
+
+    @property
+    def call(self) -> str:
+        return "run_dax" if self.kind == "dax" else "run_sql"
+
+
+def query_cell(cell: ExportCell, default: str | None = None) -> QueryCell:
+    """A SQL or DAX cell read as its export calls it (`default`: the connection %sql_connect named)."""
+    named, target = sql_line(cell.connection)
+    if cell.kind == "sql" and named is None:
+        named = default
+    if named is None:
+        raise ScriptExportError(f"the {cell.kind.upper()} cell names no connection")
+    base = named.split("/", 1)[0].strip() if cell.kind == "dax" else named
+    query = table_cells.split_uses(cell.source, sql=True)[1].strip()
+    if target is None and cell.name and _TARGET.match(cell.name.strip()):
+        target = cell.name.strip()
+    return QueryCell(cell.kind, named, base, query, target)
+
+
+# The page values a query names (`{{ region }}`), read by the same text the page runs (sab_queries.py).
+_PAGE: dict[str, object] = {"re": re, "Any": object}
+exec(compile(runtime.PAGE_PARTS, "sab_queries.py", "exec"), _PAGE)  # noqa: S102 (our own text, read once)
+
+
+def page_names(query: str, dax: bool = False) -> list[str]:
+    """The page values a SQL or DAX query names: `{{ name }}` outside its strings and comments."""
+    found = _PAGE["page_names"]
+    return list(found(query, dax))  # type: ignore[operator]
+
+
 def _byte_offsets(source: str) -> list[int]:
     """Where each line starts, in characters (ast gives a line and a UTF-8 byte column)."""
     starts = [0]
@@ -789,24 +831,18 @@ def plan(
             )
             continue
         if cell.kind in ("sql", "dax"):
-            named, target = sql_line(cell.connection)
-            if cell.kind == "sql" and named is None:
-                named = default
-            if named is None:
-                problems.append(Problem(label, f"the {cell.kind.upper()} cell names no connection", index))
+            try:
+                asked = query_cell(cell, default)
+            except ScriptExportError as error:
+                problems.append(Problem(label, str(error), index))
                 continue
-            base = named.split("/", 1)[0].strip() if cell.kind == "dax" else named
-            found = use(base, label, index)
+            found = use(asked.base, label, index)
             if found is None:
                 continue
-            call = "run_dax" if cell.kind == "dax" else "run_sql"
-            query = table_cells.split_uses(cell.source, sql=True)[1].strip()
-            name = found if cell.kind == "sql" else f"{found}{named[len(base) :]}"
-            # Its result: `-> name` on its line, else the cell's own name when that is a Python name.
-            if target is None and cell.name and _TARGET.match(cell.name.strip()):
-                target = cell.name.strip()
+            name = found if cell.kind == "sql" else f"{found}{asked.name[len(asked.base) :]}"
+            target = asked.target
             result = target or "_"
-            lines = [f"{result} = {call}({name!r}, {python_string(query)})"]
+            lines = [f"{result} = {asked.call}({name!r}, {python_string(asked.query)})"]
             if target is None:
                 lines.insert(
                     0, "# The cell names no result (no -> name, no cell name): IPython keeps it as _"
@@ -1158,6 +1194,55 @@ def render_script(made: Plan, file: str) -> Exported:
     text = "\n".join(out) + "\n"
     lines = [(first + s, first + e - 1, label) for label, s, e in places]
     return _exported(made, text, requirements, lines)
+
+
+# ===== a Streamlit page's SQL and DAX blocks: their connections as one module beside the pages =====
+
+QUERY_MODULE: str = "sab_queries"
+QUERY_FILE: str = f"{QUERY_MODULE}.py"
+
+
+@dataclass(frozen=True)
+class QueryModule:
+    """sab_queries.py: what the pages' SQL and DAX blocks call (`sql`, `dax`), with each connection
+    they name written out as this exporter writes it for a script (its own code, its settings read from
+    the environment, a password never written). Its requirements, settings and what it could not take."""
+
+    text: str
+    requirements: tuple[str, ...]
+    settings: tuple[dict[str, object], ...]
+    problems: tuple[Problem, ...]
+
+
+def query_module(made: Plan) -> QueryModule:
+    """The plan of a page's SQL and DAX cells (`plan` over them) as sab_queries.py: the connections,
+    vaults and helpers a script would hold, then the page's own `sql` and `dax` (the page's values bound,
+    never pasted; cached by Streamlit). Settings are read from the environment when a query runs."""
+    shared = _shared(made)
+    out = [
+        '"""Written by Swiss Army Bench: the connections the SQL and DAX blocks of these pages query, each',
+        "one's own code as saved in the app, and how a page's values go with a query (bound, never pasted",
+        "into its text). No password is written here: each is read from the environment. Change the",
+        'connections in the app, not this file."""',
+        "",
+        "from __future__ import annotations",
+        "",
+        runtime.IMPORTS,
+        "",
+        f"log = logging.getLogger({QUERY_MODULE!r})",
+        "",
+        shared.settings_text,
+        "",
+        "",
+        shared.helpers,
+    ]
+    if made.pieces:
+        out += ["", "", "\n\n\n".join(shared.pieces), "", "", shared.registry]
+    out += ["", "", runtime.PAGE_PARTS.strip("\n"), "", "", runtime.PAGE_QUERIES.strip("\n"), ""]
+    _, listed = runtime.settings_block(made.settings)
+    requirements = dict(shared.requirements)
+    requirements.pop("streamlit", None)  # the page's own
+    return QueryModule("\n".join(out), tuple(requirements.values()), tuple(listed), made.problems)
 
 
 # ===== the notebook: the same steps, one cell each =====

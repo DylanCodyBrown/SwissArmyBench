@@ -306,14 +306,16 @@ def test_a_linked_files_python_markdown_and_html_cells_are_the_ones_a_block_can_
         notebooks.Cell("html", "<p>{{ total }}</p>"),
     ]
     text = notebooks.write_notebook(cells)
-    # A Markdown or HTML cell is linked as the Python its page runs (text cells on the canvas, 2026-11-15).
+    # A Markdown or HTML cell is linked as the Python its page runs (text cells on the canvas, 2026-11-15);
+    # a SQL or DAX cell as its query block (2026-11-19).
     assert rules.document_cells("/work/sales.ipynb", text) == [
         (1, rules.text_code("markdown", "# Sales", 1)),
         (2, FILTER),
+        (3, rules.query_code("sql", None, "select 1", 3)),
         (5, TOTAL),
         (6, rules.text_code("html", "<p>{{ total }}</p>", 6)),
     ]
-    assert rules.document_kinds("/work/sales.ipynb", text) == {1: "markdown", 6: "html"}
+    assert rules.document_kinds("/work/sales.ipynb", text) == {1: "markdown", 3: "sql", 6: "html"}
     # The Tables group's own headings are the app's, not the user's: never on a page.
     heading = notebooks.Cell("markdown", "## Tables", role="tables")
     assert rules.document_kinds("/work/t.ipynb", notebooks.write_notebook([heading])) == {}

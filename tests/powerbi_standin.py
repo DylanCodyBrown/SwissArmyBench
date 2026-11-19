@@ -334,6 +334,17 @@ def evaluate(
         found := re.fullmatch(r"EVALUATE TOPN\(\s*(\d+)\s*,\s*'((?:[^']|'')+)'\s*\)", text, re.I)
     ) is not None:
         return _table_rows(found.group(2), model)[: int(found.group(1))]
+    if (
+        found := re.fullmatch(
+            r"EVALUATE FILTER\(\s*'((?:[^']|'')+)'\s*,\s*'(?:[^']|'')+'\[(\w+)\]\s*=\s*"
+            r'"((?:[^"]|"")*)"\s*\)',
+            text,
+            re.I,
+        )
+    ) is not None:  # a page's filter: one column equal to one text (the canvas's DAX blocks)
+        wanted = found.group(3).replace('""', '"')
+        name = found.group(1).replace("''", "'")
+        return [r for r in _table_rows(found.group(1), model) if r.get(f"{name}[{found.group(2)}]") == wanted]
     if (found := re.fullmatch(r"EVALUATE '((?:[^']|'')+)'", text, re.I)) is not None:
         return _table_rows(found.group(1), model)
     if (
