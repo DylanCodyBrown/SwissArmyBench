@@ -189,6 +189,7 @@ def routes(services: Any) -> list[Any]:
     )
     project.live = live
     service.kept = project.kept  # part 1's export reads the round trip
+    services.hooks.dataset_aliases = project.aliases  # [Sales model].T, %%dax Sales model: E's switch
     _standins(project, live)
     services.powerbi_live = live  # tests hand it a fake
     services.app_registrations.query_hints = project.query_hints

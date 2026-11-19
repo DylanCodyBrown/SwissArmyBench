@@ -9,7 +9,7 @@ file (domain/pbix_file.py) planned into a project ready to work. Pure rules; the
               Power BI workspace connections reach; several or none: asked, never guessed
   [TABLES]    per model table a Source read (its back-end connection's table or native query; its Power Query
               steps after the navigation said, not translated) and an In Power BI read (the dataset)
-  [NOTEBOOK]  data.ipynb: per table a `%%sql <connection>` cell and a `%%dax <dataset connection>/<dataset>`
+  [NOTEBOOK]  data.ipynb: per table a `%%sql <connection>` cell and a `%%dax <the project's dataset>`
   cell
   [KEEP]      .sab/powerbi.json: the measures, display folders, formats and each table's original M (part 1's
               export writes an untouched table's M back byte for byte)
@@ -26,6 +26,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import notebooks as nb
 from swissarmybench.domain import variable_refs as refs
 from swissarmybench_powerbi.domain import pbix_file as pf
 from swissarmybench_powerbi.domain import power_query as pq
@@ -263,26 +264,27 @@ def find_dataset(
 
 
 def notebook_cells(plan_: ImportPlan, dataset_connection: str | None) -> list[dict[str, Any]]:
-    """data.ipynb's cells: per table its `%%sql` Source cell and its `%%dax` cell, each named after it."""
+    """data.ipynb's cells: per table its `%%sql` Source cell and its `%%dax` cell, each named after it. The
+    `%%dax` cell names the project's one dataset connection (named after the model), which reads what Read
+    Power BI from says (Published, Local, the file) with no change to the cell."""
     cells: list[dict[str, Any]] = [
         {
             "kind": "markdown",
             "source": f"# {plan_.project}\nEach table read from its source, and as Power BI has it.",
         }
     ]
-    dataset = plan_.dataset["dataset"] if plan_.dataset else ""
     for t in plan_.tables:
         sql = t.source_sql()
         if t.connection and sql:
             cells.append(
-                {"kind": "code", "source": f"%%sql {t.connection}\n{sql}", "name": f"{t.name} source"}
+                {"kind": "code", "source": f"{nb.sql_line(t.connection)}\n{sql}", "name": f"{t.name} source"}
             )
-        if dataset_connection and dataset:
+        if dataset_connection:
             dax = "EVALUATE " + "'" + t.name.replace("'", "''") + "'"
             cells.append(
                 {
                     "kind": "code",
-                    "source": f"%%dax {dataset_connection}/{dataset}\n{dax}",
+                    "source": f"{nb.dax_line(dataset_connection)}\n{dax}",
                     "name": f"{t.name} in Power BI",
                 }
             )
@@ -319,6 +321,23 @@ def notebook_json(cells: Sequence[Mapping[str, Any]]) -> str:
     return json.dumps(book, indent=1, ensure_ascii=False) + "\n"
 
 
+def dataset_name(state: Mapping[str, Any]) -> str:
+    """The project's one dataset connection name: the model's (kept at import), else its file's."""
+    kept = str(state.get("dataset_name") or "")
+    if kept:
+        return kept
+    target = str(state.get("target") or "").replace("\\", "/").rsplit("/", 1)[-1]
+    return target.rsplit(".", 1)[0] if "." in target else target
+
+
+def table_of(dax: str) -> str | None:
+    """The table a whole-table DAX query reads (EVALUATE 'Sales', EVALUATE Sales), else None."""
+    found = re.fullmatch(r"\s*EVALUATE\s+(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_]*))\s*;?\s*", dax, re.I)
+    if found is None:
+        return None
+    return found.group(1).replace("''", "'") if found.group(1) else found.group(2)
+
+
 def changed_query(source: str) -> str | None:
     """A Source cell's SQL (its text after the %%sql line), for the round trip."""
     lines = source.splitlines()
@@ -343,6 +362,7 @@ def state_json(
         "format": FORMAT,
         "target": target,
         "dataset_connection": dataset_connection,
+        "dataset_name": plan_.model.name,
         "file_connection": file_connection,
         "dataset": plan_.dataset,
         "source": "published" if plan_.dataset else "file",

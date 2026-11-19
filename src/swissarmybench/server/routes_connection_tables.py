@@ -15,9 +15,16 @@ SQL that names them by the connection. The agent may do all of it too (the golde
   GET    /connections/sql/reads/{id}        one read's rows as an Arrow IPC stream (a kernel's DuckDB)
   POST   /connections/sql/refresh           {connection?}: drop the session's reads, so the next query
                                             reads again
+  GET    /connections/sql/alias?name=       the open project's dataset connection name ({name, alias,
+                                            words, dialect: dax}) when it is not a saved connection (a
+                                            kernel's %%dax cell asks before it fails)
+  POST   /connections/sql/alias/dax         {name, dax}: DAX through what that name reads now, an Arrow
+                                            IPC stream (its words in X-Sab-Source)
 """
 
 from __future__ import annotations
+
+from urllib.parse import quote
 
 from starlette.requests import Request
 from starlette.responses import Response
@@ -83,6 +90,33 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
         except Exception as error:
             return error_response(error)
 
+    async def alias(request: Request) -> Response:
+        name = request.query_params.get("name", "")
+        found = tables.alias(name) if name else None
+        if found is None:
+            return error_response(
+                LookupError(f"No dataset connection is named {name!r} in the open project.")
+            )
+        key, value = found
+        return json_response(
+            {"name": key, "alias": True, "words": value.words(), "dialect": "dax", "connection": "database"}
+        )
+
+    async def alias_dax(request: Request) -> Response:
+        try:
+            body = await read_json(request)
+            body = body if isinstance(body, dict) else {}
+            name, query = body.get("name"), body.get("dax")
+            if not isinstance(name, str) or not isinstance(query, str) or not query.strip():
+                raise ValueError('Send {"name": "<the dataset connection>", "dax": "EVALUATE ..."}.')
+            table, words = await tables.alias_dax(name, query)
+            data = await tables.to_arrow(table)
+            return Response(
+                data, media_type="application/vnd.apache.arrow.stream", headers={"X-Sab-Source": quote(words)}
+            )
+        except Exception as error:
+            return failed(error, None)
+
     async def refresh(request: Request) -> Response:
         try:
             body = await read_json(request)
@@ -96,6 +130,8 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
         Route("/connections/sql/reads", reads),
         Route("/connections/sql/reads/{id}", read),
         Route("/connections/sql/refresh", refresh, methods=["POST"]),
+        Route("/connections/sql/alias", alias),
+        Route("/connections/sql/alias/dax", alias_dax, methods=["POST"]),
         Route("/connections/{name}/tree", tree),
         Route("/connections/{name}/open-dataset", open_dataset, methods=["POST"]),
         Route("/connections/{name}/sql-endpoint", sql_endpoint, methods=["POST"]),

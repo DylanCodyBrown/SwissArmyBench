@@ -714,7 +714,12 @@ def bootstrap(
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
     # What a connection is: its tables, listed and read one way for every kind; DuckDB SQL names them.
     connection_tables = ConnectionTablesService(
-        ws, connections, catalogs, catalog_loading, table_reader.table_to_arrow_stream
+        ws,
+        connections,
+        catalogs,
+        catalog_loading,
+        table_reader.table_to_arrow_stream,
+        aliases=lambda: hooks.dataset_aliases(),
     )
     datasets.connection_sql = connection_tables
     connection_swap = ConnectionSwap(

@@ -83,6 +83,23 @@ def _call_bytes(path: str) -> bytes:
         raise RuntimeError(f"Swiss Army Bench refused ({error.code}): {message}") from None
 
 
+def _post_bytes(path: str, body: bytes) -> tuple[bytes, dict[str, str]]:
+    """A POST whose answer is bytes (DAX through the project's dataset, as Arrow), and its headers."""
+    info = ensure_server()
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{info['port']}{path}",
+        data=body,
+        method="POST",
+        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310 (fixed http://127.0.0.1 URL)
+            return bytes(response.read()), dict(response.headers.items())
+    except urllib.error.HTTPError as error:
+        message = error.read().decode("utf-8", "replace")
+        raise RuntimeError(f"Swiss Army Bench refused ({error.code}): {message}") from None
+
+
 def _quote(name: str) -> str:
     return urllib.parse.quote(name, safe="")
 

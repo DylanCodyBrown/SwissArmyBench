@@ -144,6 +144,10 @@ NOT_COMMANDS = {
     "/connections/sql/prepare": "a Workbench kernel's %%sql asking for the connections' tables its DuckDB "
     "query names: the agent writes the same SQL with tabs_new_query, steps_run_sql or workbench_run",
     "/connections/sql/reads/{}": "one read's rows as Arrow for a kernel's DuckDB (the same transport)",
+    "/connections/sql/alias": "a kernel's %%dax cell asking what the project's dataset connection name is "
+    "(the agent runs DAX in a Workbench kernel, or reads a table with DuckDB SQL)",
+    "/connections/sql/alias/dax": "a kernel's %%dax cell's DAX through the project's dataset connection, as "
+    "Arrow (the same transport)",
     "/workbench/tables/{}/arrow": "an open grid's view as Arrow for a kernel's DuckDB SQL (as above)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",

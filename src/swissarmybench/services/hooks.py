@@ -17,6 +17,8 @@ default: nothing held, nothing to stop, no canvas. The base never names the exte
   project_app       a new base project's own app files and requirements ({} with none)
   app_pages         an app's pages and the cells their blocks link (the project's outline)
   team              GitHub sync for Settings' Team box (services/team.py TeamSync; None: its Install offered)
+  dataset_aliases   a project's one dataset connection name that resolves through a setting of its own (a
+                    Power BI project's Read Power BI from): DuckDB SQL and a kernel's %%dax cell follow it
 """
 
 from __future__ import annotations
@@ -34,6 +36,19 @@ class AppDocument(Protocol):
     def open(self, text: str, full: str) -> dict[str, Any]: ...
 
     def write(self, body: dict[str, Any], path: str) -> str: ...
+
+
+class DatasetAlias(Protocol):
+    """A dataset connection name that is not a saved connection: what it reads now resolves through a
+    project setting (Published, Local, the file). Its tables, a table read whole, DAX on it (Arrow tables)."""
+
+    def words(self) -> str: ...
+
+    async def tables(self) -> list[str]: ...
+
+    async def read(self, table: str) -> Any: ...
+
+    async def dax(self, query: str) -> Any: ...
 
 
 def _none(*_: Any) -> Any:
@@ -73,3 +88,5 @@ class Hooks:
     # Settings' Team box: the repository's local copy, its new repository, pull and push (services/team.py
     # TeamSync). None: no extension syncs with GitHub here, and the box offers its Install.
     team: Any = None
+    # The open project's dataset connection names that resolve through its own setting ({} with none).
+    dataset_aliases: Callable[[], dict[str, DatasetAlias]] = field(default=lambda: {})

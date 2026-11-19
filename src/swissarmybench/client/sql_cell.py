@@ -73,6 +73,7 @@ from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 from swissarmybench.client import blades_client, connection_use, standalone
 from swissarmybench.client.kernel_values import is_table
@@ -179,6 +180,12 @@ def _record(name: str) -> dict[str, Any]:
     for b in blades_client._call("GET", "/blades")["blades"]:
         if str(b["name"]).casefold() == name.casefold():
             return dict(b)
+    try:  # the open project's dataset connection (it reads what the project's setting says, in the app)
+        aliased = blades_client._call("GET", "/connections/sql/alias?name=" + blades_client._quote(name))
+    except (LookupError, RuntimeError):
+        aliased = None
+    if isinstance(aliased, dict) and aliased.get("alias") and aliased.get("name"):
+        return dict(aliased)
     raise SqlCellError(f"No connection is named {name!r}. %sql_connections lists the ones a cell can use.")
 
 
@@ -377,6 +384,13 @@ def open_connection(name: str, fresh: bool = True) -> Connection:
     base, _, dataset = name.partition("/")
     record = _record(base.strip())
     label, kind = str(record["name"]), str(record.get("kind", "other"))
+    if record.get("alias"):  # DAX sent to the app, which reads it through the project's setting
+        if dataset.strip():
+            raise SqlCellError(f"{label} is the project's dataset: name it alone, as {label}.")
+        said = f"the project's dataset ({record.get('words')})"
+        found = Connection(label, "alias", None, said, language="dax")
+        _connections[label.casefold()] = found
+        return found
     if kind in ("vault", "secret", "analysis"):
         raise SqlCellError(
             f"{label} is a {kind} blade, not a connection. %sql_connections lists the connections."
@@ -687,7 +701,30 @@ def run(found: Connection, sql: str) -> Any:
     return answer
 
 
+def _alias_dax(found: Connection, text: str) -> Any:
+    """DAX on the project's dataset connection, run by the app through its setting (Read Power BI from): the
+    rows, and which source answered said first ("Sales model · Local")."""
+    try:
+        import pyarrow.ipc as ipc
+    except ImportError:
+        raise SqlCellError(
+            f"The project's dataset reaches this Python as Arrow: {sys.executable} -m pip install pyarrow"
+        ) from None
+    body = json.dumps({"name": found.name, "dax": text}).encode("utf-8")
+    data, headers = blades_client._post_bytes("/connections/sql/alias/dax", body)
+    words = unquote(headers.get("X-Sab-Source", ""))
+    if words:
+        print(words)
+    table = ipc.open_stream(data).read_all()
+    try:
+        return table.to_pandas()
+    except ImportError:
+        return _frame(list(table.column_names), [tuple(r.values()) for r in table.to_pylist()])
+
+
 def _run(found: Connection, text: str) -> Any:
+    if found.kind == "alias":
+        return _alias_dax(found, text)
     if found.kind == "database":
         try:
             return _run_database(found.target, text.rstrip(";") if text.count(";") == 1 else text)
