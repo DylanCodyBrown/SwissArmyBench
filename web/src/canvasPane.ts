@@ -31,8 +31,9 @@ import { button, clear, h, icon, showMenu, type MenuItem } from "./dom";
 import { errorHere, showError } from "./errorNote";
 import { kindIcon, kindOfPath } from "./kindColours";
 import { busy, busyButton, loadingBlock } from "./loading";
+import { readToolbox, type ToolParam } from "./canvasToolbox";
 import type { CanvasView } from "./workbenchCanvas";
-import { type BlockState, type Controller, controllerOf, type SessionRow, shownValue } from "./workbenchStreamlit";
+import { type BlockState, type ContainerState, type Controller, controllerOf, type SessionRow, shownValue } from "./workbenchStreamlit";
 
 /** A change to a cell's code, as the server planned it. */
 export interface CodePlan {
@@ -323,7 +324,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
   }
 
   /** An input that commits on change and on Enter; Escape puts back what the code says. */
-  function box(value: string, label: string, commit: (typed: string, input: HTMLInputElement) => void, more: Record<string, unknown> = {}): HTMLInputElement {
+  function boxInput(value: string, label: string, commit: (typed: string, input: HTMLInputElement) => void, more: Record<string, unknown> = {}): HTMLInputElement {
     const input = h("input", { type: "text", class: "app-input cp-input", value, "aria-label": label, ...more }) as HTMLInputElement;
     input.addEventListener("change", () => commit(input.value, input));
     input.addEventListener("keydown", (e) => {
@@ -341,7 +342,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     const prompts: Record<string, string> = { name: "The name (another cell's, or a widget's value)", state: "The session state key", variable: "The variable's name", expression: "A short Python expression" };
     const now = widget.arguments[name];
     const start = now && now.kind === kind ? (now.target ?? now.source) : kind === "expression" && now ? now.source : "";
-    const input = box(start, prompts[kind] ?? "", (typed) => {
+    const input = boxInput(start, prompts[kind] ?? "", (typed) => {
       form.remove();
       if (typed.trim()) void change(blockId, { do: "bind", widget: widget.index, name, kind, target: typed.trim() }, anchor);
     }, { placeholder: prompts[kind] ?? "", class: "app-input cp-input mono" });
@@ -382,7 +383,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
       } else {
         const shown = value ? shownText(value.value, param.type) : "";
         const placeholder = param.default === null || param.default === undefined ? "" : shownText(param.default, param.type);
-        editor = box(shown, name, (typed, input) => {
+        editor = boxInput(shown, name, (typed, input) => {
           if (typed === shown) return;
           // An emptied box takes the property out of the call (Streamlit's own default again).
           if (typed.trim() === "" && value && param.type !== "text") return void change(blockId, { do: "reset", widget: widget.index, name }, input);
@@ -412,12 +413,12 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
   function designRows(block: BlockState, seenBlock: NonNullable<Inspected["block"]>): Row[] {
     const c = canvas();
     const number = (name: string, value: number | null, min: number, max: number, send: (n: number | null) => void, empty = ""): HTMLInputElement =>
-      box(value === null ? "" : String(value), name, (typed, input) => {
+      boxInput(value === null ? "" : String(value), name, (typed, input) => {
         const n = typed.trim() === "" ? null : Math.round(Number(typed));
         if (n !== null && (Number.isNaN(n) || n < min || n > max)) return void errorHere(`${name} is ${min} to ${max}.`, {}, input);
         send(n);
       }, { inputmode: "numeric", placeholder: empty, dataset: { field: name.toLowerCase() } });
-    const name = box(block.name ?? "", "Name", (typed, input) => {
+    const name = boxInput(block.name ?? "", "Name", (typed, input) => {
       if (typed.trim() !== (block.name ?? "")) void host.renameCell(block.document, block.cell, typed.trim()).catch((e: Error) => errorHere(e, {}, input));
     }, { maxlength: 80, dataset: { field: "name" } });
     const kind = kindOfPath(block.document) ?? "notebook";
@@ -430,7 +431,76 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
       { name: "Column", category: "Layout", words: "The column it starts in, 1 to 12.", editor: number("Column", block.column, 1, 12, (n) => n && void c.changeBlock(block.id, { row: block.row, column: n })), set: true },
       { name: "Width", category: "Layout", words: "How many of the page's 12 columns it takes.", editor: number("Width", block.w, 2, 12, (n) => n && void c.changeBlock(block.id, { w: n })), set: true },
       { name: "Height", category: "Layout", words: "Its height in rows of 40 pixels. Empty: as tall as what it draws.", editor: number("Height", block.h, 1, 30, (n) => void c.changeBlock(block.id, { h: n }), "Fits"), set: block.h !== null },
+      ...flagRows(block),
     ];
+  }
+
+  /** Locked and Hidden: the designer's own, for a block and a container alike. */
+  function flagRows(item: { id: string; locked: boolean; hidden: boolean }): Row[] {
+    const c = canvas();
+    const tick = (name: string, on: boolean, send: (value: boolean) => void): HTMLInputElement => {
+      const input = h("input", { type: "checkbox", "aria-label": name, checked: on, dataset: { field: name.toLowerCase() } }) as HTMLInputElement;
+      input.addEventListener("change", () => send(input.checked));
+      return input;
+    };
+    return [
+      { name: "Locked", category: "Design", words: "Locked: the designer does not move or size it.", editor: tick("Locked", item.locked, (locked) => void c.changeBlock(item.id, { locked })), set: item.locked },
+      { name: "Hidden", category: "Design", words: "Hidden while designing (the page still draws it): the Outline shows it again.", editor: tick("Hidden", item.hidden, (hidden) => void c.changeBlock(item.id, { hidden })), set: item.hidden },
+    ];
+  }
+
+  /** A container's properties: its own (as the Toolbox lists them for its kind) and its place. */
+  let containerParams: Record<string, ToolParam[]> | null = null;
+  function containerRows(box: ContainerState): Row[] {
+    const c = canvas();
+    if (!containerParams) {
+      void readToolbox().then((found) => {
+        containerParams = Object.fromEntries(found.items.filter((t) => t.kind === "container").map((t) => [t.id, t.params]));
+        render();
+      }, () => undefined);
+    }
+    const send = (props: Record<string, unknown>): void => void c.changeBlock(box.id, { props });
+    const number = (name: string, value: number | null, min: number, max: number, body: (n: number | null) => Record<string, unknown>, empty = ""): HTMLInputElement =>
+      boxInput(value === null ? "" : String(value), name, (typed, input) => {
+        const n = typed.trim() === "" ? null : Math.round(Number(typed));
+        if (n !== null && (Number.isNaN(n) || n < min || n > max)) return void errorHere(`${name} is ${min} to ${max}.`, {}, input);
+        if (n === null && name !== "Height") return;
+        void c.changeBlock(box.id, body(n));
+      }, { inputmode: "numeric", placeholder: empty, dataset: { field: name.toLowerCase() } });
+    const own = (containerParams?.[box.kind] ?? []).map((param): Row => {
+      const value = box.props[param.name];
+      const set = value !== undefined;
+      let editor: HTMLElement;
+      if (param.type === "bool") {
+        const tick = h("input", { type: "checkbox", "aria-label": param.name, checked: set ? value === true : param.default === true }) as HTMLInputElement;
+        tick.addEventListener("change", () => send({ [param.name]: tick.checked }));
+        editor = tick;
+      } else if (param.type === "choice") {
+        const current = String(set ? value : (param.default ?? ""));
+        const select = h("select", { class: "app-input cp-input", "aria-label": param.name }, ...param.choices.map((choice) => h("option", { value: choice, selected: choice === current }, choice))) as HTMLSelectElement;
+        select.addEventListener("change", () => send({ [param.name]: select.value }));
+        editor = select;
+      } else {
+        const shown = shownText(set ? value : param.default, param.type);
+        editor = boxInput(shown, param.name, (typed, input) => {
+          if (typed === shown) return;
+          try {
+            send({ [param.name]: typed.trim() === "" ? null : typedValue(typed, param.type) });
+          } catch (e) {
+            errorHere(e, {}, input);
+          }
+        });
+      }
+      return { name: param.name, category: param.category, words: param.words, editor, set, menu: () => [["reset", "Reset to default", () => send({ [param.name]: null }), set ? undefined : "It is at its default"]] };
+    });
+    const name = boxInput(box.name, "Name", (typed) => void c.changeBlock(box.id, { name: typed.trim() }), { maxlength: 80, placeholder: box.title, dataset: { field: "name" } });
+    const place: Row[] = box.kind === "sidebar" ? [] : [
+      { name: "Row", category: "Layout", words: "Its row in its grid, from 1.", editor: number("Row", box.row, 1, 60, (n) => ({ row: n, column: box.column })), set: true },
+      { name: "Column", category: "Layout", words: "The column it starts in, 1 to 12.", editor: number("Column", box.column, 1, 12, (n) => ({ row: box.row, column: n })), set: true },
+      { name: "Width", category: "Layout", words: "How many of its grid's 12 columns it takes.", editor: number("Width", box.w, 2, 12, (n) => ({ w: n })), set: true },
+      ...(box.kind === "container" ? [{ name: "Height", category: "Layout", words: "Its height in rows of 40 pixels (it scrolls). Empty: as tall as what it holds.", editor: number("Height", box.h, 1, 30, (n) => ({ h: n }), "Fits"), set: box.h !== null }] : []),
+    ];
+    return [{ name: "Name", category: "Design", words: "The container's name in the Outline.", editor: name, set: !!box.name }, ...flagRows(box), ...own, ...place];
   }
 
   function grid(all: Row[]): HTMLElement {
@@ -534,13 +604,13 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
       { class: "cp-part", dataset: { part: "state" } },
       h("div", { class: "cp-list-title" }, "State"),
       ...keyed.map((w) => {
-        const keyBox = box(w.key ?? "", "Key", (typed, input) => {
+        const keyBox = boxInput(w.key ?? "", "Key", (typed, input) => {
           if (typed.trim() === (w.key ?? "")) return;
           void change(blockId, typed.trim() ? { do: "set", widget: w.index, name: "key", value: typed.trim() } : { do: "reset", widget: w.index, name: "key" }, input);
         }, { placeholder: w.state_key ?? "", class: "app-input cp-input mono", dataset: { field: "key" } });
         const type: Param["type"] = "any";
         const nowBox = running
-          ? box(w.held ? shownText(w.now, type) : "", "Now", (typed, input) => {
+          ? boxInput(w.held ? shownText(w.now, type) : "", "Now", (typed, input) => {
               if (!w.state_key) return;
               try {
                 void now(typed.trim() === "" ? { key: w.state_key, forget: true } : { key: w.state_key, value: typedValue(typed, type) }, input);
@@ -555,7 +625,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
           ? h("span", { class: "hint" }, "It has no default")
           : value && value.kind !== "literal"
             ? h("span", { class: "cp-bound", dataset: { kind: value.kind } }, icon(value.kind === "expression" ? "code" : "link"), h("code", { class: "mono" }, value.source))
-            : box(value ? shownText(value.value, param?.type ?? "any") : "", "Default", (typed, input) => {
+            : boxInput(value ? shownText(value.value, param?.type ?? "any") : "", "Default", (typed, input) => {
                 try {
                   void change(blockId, typed.trim() === "" && value ? { do: "reset", widget: w.index, name: w.default } : { do: "set", widget: w.index, name: "default", value: value?.form === "date" ? typed.trim() : typedValue(typed, param?.type ?? "any") }, input);
                 } catch (e) {
@@ -598,7 +668,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
             editor = tick;
           } else {
             const shown = value ? shownText(value.value, "any") : "";
-            editor = box(shown, name, (typed, input) => {
+            editor = boxInput(shown, name, (typed, input) => {
               if (typed === shown) return;
               try {
                 send(f.cache, { [name]: typed.trim() === "" ? null : typedValue(typed, type === "number" ? "number" : "any") }, input);
@@ -700,7 +770,9 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     const block = c.selected();
     const many = c.selection();
     describe("");
-    if (many.length > 1) return void clear(body, toolbar(`${many.length} blocks`), multiSection(many), words);
+    if (c.selectedIds().length > 1 && many.length > 1) return void clear(body, toolbar(`${many.length} blocks`), multiSection(many), words);
+    const box = c.selectedContainer();
+    if (box) return void clear(body, toolbar(box.title), h("div", { class: "cp-element-title hint cp-section" }, `${box.kind} · a layout container`), h("div", { class: "cp-section", dataset: { section: "properties" } }, grid(containerRows(box))), words);
     if (!seen || seen.target === "app" || (seen.target === "block" && !block) || (seen.target === "page" && block)) {
       // Nothing selected (or not read yet): the app's page settings.
       const settings = h("div", { class: "cp-settings" });
@@ -738,7 +810,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
         })()
       : null;
     const all = [...designRows(block, seen.block), ...(widget ? widgetRows(block.id, widget, seen.editable === true, where) : [])];
-    const streamlit = section("streamlit", "Streamlit", null, stateSection(block.id, widgets, seen.running), cacheSection(block.id, seen.cache ?? [], seen.running));
+    const streamlit = section("streamlit", "Streamlit", null, stateSection(block.id, widgets, seen.running), bindingsPart(block.id, widgets, seen.editable === true), cacheSection(block.id, seen.cache ?? [], seen.running));
     clear(
       body,
       toolbar(block.name ?? seen.block.where),
@@ -764,6 +836,32 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
   }
 
   /** Several blocks selected: the properties they share (their size), set on all of them at once. */
+  /** Bindings (WPF's): every property of the cell's widgets that reads a name, a session state key, a
+   *  variable or an expression, with what it reads; Unbind takes the property back to its default. */
+  function bindingsPart(blockId: string, widgets: Widget[], editable: boolean): HTMLElement | null {
+    const bound = widgets.flatMap((w) => Object.entries(w.arguments).filter(([name, v]) => v.kind !== "literal" && !name.startsWith("on_")).map(([name, v]) => ({ w, name, v })));
+    if (!bound.length) return null;
+    return h(
+      "div",
+      { class: "cp-part", dataset: { part: "bindings" } },
+      h("div", { class: "cp-list-title" }, "Bindings"),
+      h(
+        "div",
+        { class: "cp-grid", role: "grid" },
+        ...bound.map(({ w, name, v }) => {
+          const unbind = button(`Unbind ${name}`, (e) => void change(blockId, { do: "reset", widget: w.index, name }, e.currentTarget as HTMLElement), { icon: "close", iconOnly: true, class: "ghost cp-unbind", title: `Unbind ${name}: Streamlit's own default again` });
+          unbind.disabled = !editable || w.arguments[name] === undefined;
+          return h(
+            "div",
+            { class: "cp-row set", role: "row", dataset: { binding: name, kind: v.kind, widget: String(w.index) }, title: `${w.label ?? w.call}: ${name} reads ${BIND_WORDS[v.kind] ?? "code"}` },
+            h("span", { class: "cp-name", role: "rowheader" }, h("span", {}, name), h("span", { class: "hint" }, w.label ?? w.call)),
+            h("span", { class: "cp-value", role: "cell" }, h("span", { class: "cp-bound", dataset: { kind: v.kind } }, icon(v.kind === "expression" ? "code" : "link"), h("code", { class: "mono" }, v.target ?? v.source)), h("span", { class: "hint cp-bind-kind" }, BIND_WORDS[v.kind] ?? "code"), unbind),
+          );
+        }),
+      ),
+    );
+  }
+
   function multiSection(blocks: BlockState[]): HTMLElement {
     const c = canvas();
     const same = <T,>(pick: (b: BlockState) => T): T | undefined => (blocks.every((b) => pick(b) === pick(blocks[0]!)) ? pick(blocks[0]!) : undefined);
@@ -772,7 +870,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
       category: "Layout",
       words: `${name}: set on all ${blocks.length} blocks.`,
       set: value !== undefined,
-      editor: box(value === undefined || value === null ? "" : String(value), name, (typed, input) => {
+      editor: boxInput(value === undefined || value === null ? "" : String(value), name, (typed, input) => {
         const n = typed.trim() === "" ? null : Math.round(Number(typed));
         if (n !== null && (Number.isNaN(n) || n < min || n > max)) return void errorHere(`${name} is ${min} to ${max}.`, {}, input);
         if (n === null && name === "Width") return;

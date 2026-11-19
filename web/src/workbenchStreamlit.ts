@@ -75,6 +75,12 @@ export interface BlockState {
   column: number;
   w: number;
   h: number | null;
+  /** The container it sits in (null: the page itself) and which of its slots. */
+  parent: string | null;
+  slot: number;
+  /** Hidden while designing; locked against moving and sizing. */
+  hidden: boolean;
+  locked: boolean;
   name: string | null;
   /** code, markdown or html: a text block is marked T. */
   kind: "code" | "markdown" | "html" | null;
@@ -127,10 +133,33 @@ export interface PageTest {
   problem: string | null;
 }
 
+/** A layout container of a page (the designer's: columns, tabs, expander, container, form, sidebar,
+ *  popover): its place like a block's, its own properties, its slots (each a grid of its own). */
+export interface ContainerState {
+  id: string;
+  kind: "columns" | "tabs" | "expander" | "container" | "form" | "sidebar" | "popover";
+  row: number;
+  column: number;
+  w: number;
+  h: number | null;
+  parent: string | null;
+  slot: number;
+  props: Record<string, unknown>;
+  name: string;
+  hidden: boolean;
+  locked: boolean;
+  title: string;
+  slots: number;
+  slot_names: string[];
+}
+
 export interface CanvasPage {
   id: string;
   name: string;
   blocks: BlockState[];
+  containers: ContainerState[];
+  /** Each grid's rows of ids: "" the page's own, "c1:0" a container's slot. */
+  grids: Record<string, string[][]>;
   order: string[];
   tables: string[];
   problems: string[];
@@ -191,11 +220,17 @@ export const shownValue = (value: unknown): string => {
 export interface SavedPage {
   id?: string;
   name: string;
-  blocks: { id?: string; document: string; cell: number; row: number; column: number; w: number; h: number | null }[];
+  blocks: { id?: string; document: string; cell: number; row: number; column: number; w: number; h: number | null; parent?: string | null; slot?: number; hidden?: boolean; locked?: boolean }[];
+  containers?: { id: string; kind: string; row: number; column: number; w: number; h: number | null; parent: string | null; slot: number; props: Record<string, unknown>; name: string; hidden: boolean; locked: boolean }[];
 }
 
 export const savedPages = (pages: (CanvasPage | SavedPage)[]): SavedPage[] =>
-  pages.map((p) => ({ id: p.id, name: p.name, blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h })) }));
+  pages.map((p) => ({
+    id: p.id,
+    name: p.name,
+    blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, ...(b.parent ? { parent: b.parent, slot: b.slot ?? 0 } : {}), ...(b.hidden ? { hidden: true } : {}), ...(b.locked ? { locked: true } : {}) })),
+    ...(p.containers?.length ? { containers: p.containers.map((c) => ({ id: c.id, kind: c.kind, row: c.row, column: c.column, w: c.w, h: c.h, parent: c.parent, slot: c.slot, props: c.props, name: c.name, hidden: c.hidden, locked: c.locked })) } : {}),
+  }));
 
 /** The connections an export names that run only on this computer (domain/portability.py): said before it
  * writes (the owner, 2026-11-17: "this is meant to scale to a function app or up to a hosted streamlit

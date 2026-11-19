@@ -17176,3 +17176,402 @@ body:has(> .tour) > .context-menu {
   font-size: 0.92em;
   white-space: pre;
 }
+
+/* ===== The designer (workbenchCanvas.ts, canvasToolbox.ts; the owner, 2026-11-19): containers, snaplines,
+   the rubber band, the ruler, the Toolbox and the Document Outline. ===== */
+
+/* The page's own grid carries the twelve faint columns now (the board holds a sidebar beside it). */
+.cv-board {
+  position: relative;
+  background-image: none;
+}
+
+.cv-surface {
+  display: flex;
+  flex: none;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.cv-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0 auto;
+}
+
+.cv-board[data-width="centered"] .cv-page {
+  max-width: 736px;
+}
+
+.cv-board[data-width="phone"] .cv-page {
+  max-width: 390px;
+}
+
+.cv-sidebar {
+  flex: none;
+  width: 244px;
+}
+
+.cv-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cv-page > .cv-grid {
+  min-height: 120px;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent calc((100% + 8px) / 12 - 8px),
+    var(--border) calc((100% + 8px) / 12 - 8px),
+    var(--border) calc((100% + 8px) / 12 - 7px),
+    transparent calc((100% + 8px) / 12 - 7px),
+    transparent calc((100% + 8px) / 12)
+  );
+  background-size: calc(100% + 8px) 100%;
+  background-repeat: no-repeat;
+}
+
+.cv-grid.cv-inner {
+  min-height: 44px;
+}
+
+.cv-grid.dropping {
+  outline: 2px dashed var(--kind-app);
+  outline-offset: 2px;
+}
+
+.cv-board.dropping {
+  outline: none;
+}
+
+.cv-grid-empty {
+  margin: 0;
+  padding: 10px 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.cv-row-hidden {
+  display: none;
+}
+
+/* A layout container, drawn as what it is. */
+.cv-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--kind-app) 4%, var(--surface));
+  cursor: grab;
+}
+
+.cv-box:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cv-box.selected,
+.cv-block.selected {
+  outline: 2px solid var(--kind-app);
+  outline-offset: 1px;
+}
+
+.cv-box.dragging {
+  opacity: 0.45;
+}
+
+.cv-box.locked,
+.cv-block.locked {
+  cursor: default;
+}
+
+.cv-box-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.cv-box-head .spacer {
+  flex: 1;
+}
+
+.cv-box-name {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cv-lock {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.cv-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cv-slots-columns {
+  display: grid;
+  gap: 8px;
+}
+
+.cv-slot {
+  min-width: 0;
+  padding: 4px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.cv-box-expander > .cv-box-head::before {
+  content: "▸";
+}
+
+.cv-box-container {
+  border-style: solid;
+}
+
+.cv-box-sidebar {
+  min-height: 200px;
+  background: var(--surface);
+  cursor: default;
+}
+
+.cv-box-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cv-box-tab {
+  padding: 3px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.cv-box-tab.active {
+  border-bottom-color: var(--kind-app);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cv-form-submit {
+  align-self: flex-start;
+  pointer-events: none;
+}
+
+/* Snaplines: where the moving block lines up with another; equal gaps marked. */
+.cv-guide {
+  position: absolute;
+  z-index: 5;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.cv-guide-v {
+  width: 1px;
+}
+
+.cv-guide-h {
+  height: 1px;
+}
+
+.cv-gap {
+  position: absolute;
+  z-index: 5;
+  height: 7px;
+  margin-top: -3px;
+  border-right: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+  background: linear-gradient(var(--accent), var(--accent)) center / 100% 1px no-repeat;
+  pointer-events: none;
+}
+
+.cv-block.same-width,
+.cv-box.same-width {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.cv-band {
+  position: absolute;
+  z-index: 6;
+  border: 1px solid var(--kind-app);
+  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
+  pointer-events: none;
+}
+
+.cv-ruler {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.8em;
+  font-variant-numeric: tabular-nums;
+}
+
+.cv-ruler-column {
+  border-bottom: 2px solid var(--border-strong);
+  text-align: center;
+}
+
+.cv-ruler-width {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  padding: 0 4px;
+  background: var(--bg);
+}
+
+.cv-sample {
+  max-width: 100%;
+  margin-top: 4px;
+  overflow: hidden;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+
+.cv-sample-label {
+  display: block;
+  padding: 1px 6px;
+  background: var(--surface);
+}
+
+.cv-sample table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.cv-sample th,
+.cv-sample td {
+  max-width: 120px;
+  padding: 1px 6px;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The Toolbox. */
+.tb {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tb-group {
+  margin-bottom: 6px;
+}
+
+.tb-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;
+  padding: 3px 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  cursor: grab;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tb-item:hover,
+.tb-item:focus-visible {
+  border-color: var(--kind-app);
+}
+
+.tb-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The Document Outline. */
+.ol {
+  display: flex;
+  flex-direction: column;
+}
+
+.ol-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding-right: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ol-row:hover {
+  background: var(--surface);
+}
+
+.ol-row.selected {
+  background: color-mix(in srgb, var(--kind-app) 14%, transparent);
+}
+
+.ol-row.hidden-item .ol-title {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.ol-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ol-row .spacer {
+  flex: 1;
+}
+
+.ol-row .ol-eye.off,
+.ol-row .ol-lock:not(.on) {
+  opacity: 0.4;
+}
+
+.ol-slot {
+  min-height: 22px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 0.9em;
+}
+
+.ol-over {
+  outline: 2px dashed var(--kind-app);
+  outline-offset: -2px;
+}
