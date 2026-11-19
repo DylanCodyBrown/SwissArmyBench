@@ -1461,7 +1461,7 @@ def test_a_windows_markdown_and_html_cells_are_listed_under_text_and_never_live(
     assert state["pieces"] == []
     listed = _ok(client.get("/streamlit/cells", headers=AUTH))["documents"][0]["cells"]
     assert [(c["cell"], c["kind"], c["reads"]) for c in listed] == [(7, "html", ["region"])]
-    bad = [{"cell": 8, "code": "x", "kind": "sql"}]
+    bad = [{"cell": 8, "code": "x", "kind": "python"}]
     assert (
         client.put(f"/streamlit/apps/{opened['app']}", headers=AUTH, json={"cells": bad}).status_code == 400
     )

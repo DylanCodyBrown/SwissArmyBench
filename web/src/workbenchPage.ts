@@ -360,6 +360,15 @@ const streamlitHost = (doc: Doc): StreamlitHost => ({
   run: () => runApp(doc),
   install: () => void installStreamlit(doc),
   link: () => ({ document: doc.path, title: doc.title }),
+  addToApp: async (cell) => {
+    // The cell's document is saved (a block links to a file), then placed on the app in front (else the
+    // first open one, else a new one).
+    if (!(await save(doc))) throw new Error(`${doc.title} could not be saved.`);
+    await doc.streamlit?.sync().catch(() => null);
+    const app = (current?.canvas ? current : null) ?? docs.find((d) => d.canvas) ?? openApp(null, [], null);
+    show(app);
+    await app.canvas!.place({ document: doc.path, cell, title: doc.title });
+  },
 });
 
 /** A Streamlit app: its canvas as a document of its own. */
@@ -769,9 +778,21 @@ function appHost(doc: Doc): AppHost {
     lineage: (block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page: (doc.canvas?.report() as { page?: string } | undefined)?.page ?? undefined, block }).catch((e: Error) => errorHere(e)),
     goToCell: (document, cell, line) => void goToCell(document, baseName(document), cell, line).catch((e: Error) => errorHere(e)),
     applyCode: (plan) => applyCode(doc, plan),
-    openVariable: () => openVariables(),
-    openConnection: () => void openConnections().then(() => void rail.loadBlades()),
+    openVariable: (name) => openVariables(name),
+    openConnection: (name) => void openConnections({ detail: name }).then(() => void rail.loadBlades()),
     openGrid: (grid) => showGridAtHome(grid),
+    sources: (kind) => (kind === "dax" ? datasetNames : connectionNames),
+    setConnection: async (document, cell, connection) => {
+      let held = docs.find((d) => d.path === document);
+      if (!held) {
+        await open(document);
+        held = docs.find((d) => d.path === document);
+        if (doc.canvas) show(doc);
+      }
+      if (!held?.notebook) throw new Error(`${baseName(document)} is not open.`);
+      held.notebook.setCellConnection(cell, connection);
+      held.streamlit?.syncSoon();
+    },
     renameCell: async (document, cell, name) => {
       let held = docs.find((d) => d.path === document);
       if (!held) {
@@ -866,8 +887,9 @@ async function addElement(app: Doc, element: string, where?: Where): Promise<unk
   const id = app.canvas?.app();
   if (!id) throw new Error("The app is not open yet.");
   const notebookDoc = await appNotebookDoc(app);
-  const made = await api<{ code: string; name: string; variable: string | null }>(`/streamlit/apps/${encodeURIComponent(id)}/toolbox`, "POST", { element });
-  const cell = notebookDoc.notebook!.appendNamed(made.code.replace(/\n+$/, ""), made.name);
+  const made = await api<{ code: string; name: string; variable: string | null; kind: "code" | "sql" | "dax" }>(`/streamlit/apps/${encodeURIComponent(id)}/toolbox`, "POST", { element });
+  // A SQL or DAX query: a %%sql or %%dax cell, on the first connection (a DAX cell: its first dataset).
+  const cell = notebookDoc.notebook!.appendNamed(made.code.replace(/\n+$/, ""), made.name, made.kind ?? "code");
   const placed = (await placeStarter(app, notebookDoc, cell, where)) as { document: string | null; cell: number };
   return { ...placed, name: made.name, variable: made.variable };
 }

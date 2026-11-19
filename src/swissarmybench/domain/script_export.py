@@ -210,6 +210,37 @@ def sql_line(connection: str | None) -> tuple[str | None, str | None]:
     return " ".join(words) or None, target
 
 
+@dataclass(frozen=True)
+class QueryCell:
+    """A SQL or DAX cell as its export calls it: the connection as the call names it (`Shop`,
+    `Finance/Sales model`), the connection's own name, the query (its uses line taken off) and its
+    result's name (`-> name` on its line, else the cell's own name when that is a Python name)."""
+
+    kind: str  # sql or dax
+    name: str
+    base: str
+    query: str
+    target: str | None
+
+    @property
+    def call(self) -> str:
+        return "run_dax" if self.kind == "dax" else "run_sql"
+
+
+def query_cell(cell: ExportCell, default: str | None = None) -> QueryCell:
+    """A SQL or DAX cell read as its export calls it (`default`: the connection %sql_connect named)."""
+    named, target = sql_line(cell.connection)
+    if cell.kind == "sql" and named is None:
+        named = default
+    if named is None:
+        raise ScriptExportError(f"the {cell.kind.upper()} cell names no connection")
+    base = named.split("/", 1)[0].strip() if cell.kind == "dax" else named
+    query = table_cells.split_uses(cell.source, sql=True)[1].strip()
+    if target is None and cell.name and _TARGET.match(cell.name.strip()):
+        target = cell.name.strip()
+    return QueryCell(cell.kind, named, base, query, target)
+
+
 def _byte_offsets(source: str) -> list[int]:
     """Where each line starts, in characters (ast gives a line and a UTF-8 byte column)."""
     starts = [0]
@@ -789,24 +820,18 @@ def plan(
             )
             continue
         if cell.kind in ("sql", "dax"):
-            named, target = sql_line(cell.connection)
-            if cell.kind == "sql" and named is None:
-                named = default
-            if named is None:
-                problems.append(Problem(label, f"the {cell.kind.upper()} cell names no connection", index))
+            try:
+                asked = query_cell(cell, default)
+            except ScriptExportError as error:
+                problems.append(Problem(label, str(error), index))
                 continue
-            base = named.split("/", 1)[0].strip() if cell.kind == "dax" else named
-            found = use(base, label, index)
+            found = use(asked.base, label, index)
             if found is None:
                 continue
-            call = "run_dax" if cell.kind == "dax" else "run_sql"
-            query = table_cells.split_uses(cell.source, sql=True)[1].strip()
-            name = found if cell.kind == "sql" else f"{found}{named[len(base) :]}"
-            # Its result: `-> name` on its line, else the cell's own name when that is a Python name.
-            if target is None and cell.name and _TARGET.match(cell.name.strip()):
-                target = cell.name.strip()
+            name = found if cell.kind == "sql" else f"{found}{asked.name[len(asked.base) :]}"
+            target = asked.target
             result = target or "_"
-            lines = [f"{result} = {call}({name!r}, {python_string(query)})"]
+            lines = [f"{result} = {asked.call}({name!r}, {python_string(asked.query)})"]
             if target is None:
                 lines.insert(
                     0, "# The cell names no result (no -> name, no cell name): IPython keeps it as _"

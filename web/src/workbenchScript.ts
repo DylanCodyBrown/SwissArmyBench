@@ -422,7 +422,7 @@ export function scriptView(
       seen.add(key);
       let held = pieceCells.get(key);
       if (!held) {
-        const tools = pieceTools(hooks.streamlit);
+        const tools = pieceTools(hooks.streamlit, () => cell.number);
         const made: PieceCell = {
           key,
           cell,

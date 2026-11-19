@@ -32,8 +32,8 @@ export function cellsPane(goToCell: (document: string | null, title: string, cel
   const item = (d: PaneDocument, c: PaneCell): HTMLElement => {
     const on = d.document !== null && placed.has(`${d.document}#${c.cell}`);
     const parts = partsOf(c);
-    const text = c.kind === "markdown" || c.kind === "html";
-    const kind = c.kind === "markdown" ? "A Markdown cell" : "An HTML cell";
+    const text = c.kind === "markdown" || c.kind === "html" || c.kind === "sql" || c.kind === "dax";
+    const kind = c.kind === "markdown" ? "A Markdown cell" : c.kind === "sql" ? "A SQL query" : c.kind === "dax" ? "A DAX query" : "An HTML cell";
     return h(
       "li",
       { class: "wb-data-item" },
@@ -69,8 +69,9 @@ export function cellsPane(goToCell: (document: string | null, title: string, cel
   function draw(): void {
     list.replaceChildren(
       ...docs.map((d) => {
-        const live = d.cells.filter((c) => c.kind !== "markdown" && c.kind !== "html");
+        const live = d.cells.filter((c) => !["markdown", "html", "sql", "dax"].includes(c.kind ?? ""));
         const texts = d.cells.filter((c) => c.kind === "markdown" || c.kind === "html");
+        const queries = d.cells.filter((c) => c.kind === "sql" || c.kind === "dax");
         return h(
           "div",
           { class: `wb-st-doc km-${sourceKind(d)}` },
@@ -78,6 +79,8 @@ export function cellsPane(goToCell: (document: string | null, title: string, cel
           live.length ? h("ul", { class: "wb-data-list", "aria-label": d.title }, ...live.map((c) => item(d, c))) : null,
           texts.length ? h("div", { class: "wb-st-text-head" }, "Text") : null,
           texts.length ? h("ul", { class: "wb-data-list wb-st-texts", "aria-label": `${d.title}: text` }, ...texts.map((c) => item(d, c))) : null,
+          queries.length ? h("div", { class: "wb-st-text-head" }, "Queries") : null,
+          queries.length ? h("ul", { class: "wb-data-list wb-st-queries", "aria-label": `${d.title}: queries` }, ...queries.map((c) => item(d, c))) : null,
         );
       }),
     );

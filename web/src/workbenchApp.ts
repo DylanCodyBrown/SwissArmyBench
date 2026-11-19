@@ -36,6 +36,9 @@ export interface AppHost {
   chooseLogo: () => Promise<string | null>;
   /** The lineage overlay for a block of the page in front. */
   lineage?: (block: string) => void;
+  /** A SQL cell's connections, a DAX cell's datasets; a query cell put on another (the property pane). */
+  sources?: (kind: "sql" | "dax") => string[];
+  setConnection?: (document: string, cell: number, connection: string) => Promise<void>;
 }
 
 const COLOURS: [keyof AppSettings["colours"], string][] = [

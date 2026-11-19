@@ -49,6 +49,9 @@ FRONT_END = ["streamlit-canvas", "live-cells"]
 AREAS = (
     ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
     ("canvas", "The canvas's designer: the property pane (uses, state, cache), Toolbox, containers, events"),
+    ("builds", "Builds: every launch of an app, kept in its project's builds/ (list, compare)"),
+    ("build", "One build: run it again, restore its code into the app"),
+    ("perf", "The Performance Analyzer: a launched app's reruns, calls, caches, web socket, hints"),
 )
 FAMILIES = ["Streamlit", "Components", "Controllers", "Text and layout"]
 MODE: dict[str, Any] = {
@@ -125,6 +128,7 @@ def routes(services: Any) -> list[Any]:
         approvals=services.agent.approvals,
         data_export=services.data_export,
         local_notes=services.script_exports.local_notes,
+        query_module=services.script_exports.query_module,
     )
     # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
     controllers = Controllers(apps, app_files, runner, services.project_files)
@@ -134,9 +138,18 @@ def routes(services: Any) -> list[Any]:
         variables=getattr(getattr(services, "variables", None), "listing", None),
         lineage=getattr(getattr(services, "lineage", None), "trace", None),
         is_set=lambda name: name in os.environ,
+        places=getattr(getattr(services, "catalogs", None), "places", None),
     )
     services.canvas_pane = pane
     services.streamlit = apps  # its stop, and tests
+    # Launch, builds and the Performance Analyzer (2026-11-19): builds/ in the project, a run of its own.
+    from swissarmybench.settings import Settings
+    from swissarmybench_streamlit.adapters.build_files import BuildFiles
+    from swissarmybench_streamlit.server import routes_launch
+    from swissarmybench_streamlit.services.launch import LAUNCH_PATH, Launches
+
+    launches = Launches(apps, app_files, BuildFiles(), runner, services.project_files)
+    services.launches = launches
     services.controllers = controllers
 
     hooks = services.hooks
@@ -156,12 +169,21 @@ def routes(services: Any) -> list[Any]:
         *routes_streamlit.routes(apps),
         *routes_controllers.routes(controllers),
         *routes_canvas.routes(pane, apps),
+        *routes_launch.routes(
+            launches, getattr(getattr(services, "settings", None), "web_root", Settings().web_root)
+        ),
         *streamlit_proxy.routes(apps.port_of),
+        *streamlit_proxy.routes(
+            launches.port_of, prefix=LAUNCH_PATH, what="This launched app", tap=launches.tap
+        ),
     ]
 
 
 async def stop(services: Any) -> None:
     """When the server stops: no Streamlit process outlives it, nor its temporary folder."""
+    launches = getattr(services, "launches", None)
+    if launches is not None:
+        await launches.stop_all()
     apps = getattr(services, "streamlit", None)
     if apps is not None:
         await apps.stop_all()

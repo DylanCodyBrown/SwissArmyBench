@@ -17,6 +17,9 @@
  *                function; Clear this cache (Now)
  *   [EVENTS]     a widget's on_change or on_click: Add handler writes the function's stub into the cell and
  *                goes to it
+ *   [QUERY]      a SQL or DAX block (2026-11-19): its connection (a DAX block's dataset) picked as the cell's head
+ *                picks it, Show as (a table, a bar, line or area chart, a metric) with its columns, Cache, the
+ *                page values its query names and the block each comes from, the tables it names
  *   [CODE]       the exact code the page runs for the block, read-only, with Go to cell
  *
  * WRITING BACK: the server answers a change with a plan (the cell's code before and after: only the
@@ -61,7 +64,27 @@ export interface PaneHost {
   openGrid: (grid: string) => void;
   /** The page settings' form (the app, nothing selected). */
   drawSettings: (body: HTMLElement) => void;
+  /** A SQL cell's connections, a DAX cell's datasets (Finance/Sales model), as the cell's head offers them. */
+  sources?: (kind: "sql" | "dax") => string[];
+  /** Put a SQL or DAX cell on another connection or dataset, in its open document (like its head's picker). */
+  setConnection?: (document: string, cell: number, connection: string) => Promise<void>;
 }
+
+/** A SQL or DAX block's query, as the pane shows it. */
+interface QueryInfo {
+  kind: "sql" | "dax";
+  connection: string;
+  dataset: string | null;
+  query: string;
+  result: string | null;
+  params: { name: string; block: string | null; document: string | null; cell: number | null; title: string | null; where?: string }[];
+  tables: string[];
+  view: { as?: string; x?: string; y?: string | string[]; column?: string; label?: string; cache?: boolean };
+  views: string[];
+  dataset_tables: string[] | null;
+}
+
+const VIEW_WORDS: Record<string, string> = { table: "Table", bar: "Bar chart", line: "Line chart", area: "Area chart", metric: "Metric" };
 
 interface Value {
   kind: "literal" | "name" | "state" | "variable" | "expression";
@@ -135,6 +158,9 @@ export interface Inspected {
   uses?: Uses;
   cache?: CacheRow[];
   code?: string;
+  query?: QueryInfo | null;
+  /** Its widgets feed only itself: the page runs it as an st.fragment. */
+  fragment?: boolean;
 }
 
 interface TablePreview {
@@ -733,6 +759,61 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     );
   }
 
+  /** A SQL or DAX block: where it reads, how it shows its result, the page values its query names. */
+  function querySection(blockId: string, q: QueryInfo, where: { document: string; cell: number }): HTMLElement | null {
+    const c = canvas();
+    const view = { ...q.view };
+    const setView = (next: Record<string, unknown>, from: HTMLElement): void => {
+      const merged: Record<string, unknown> = { ...view, ...next };
+      for (const k of Object.keys(merged)) if (merged[k] === "" || merged[k] === undefined) delete merged[k];
+      if (merged.as === "table") delete merged.as;
+      void c.changeBlock(blockId, { view: merged }).then((ok) => (ok ? read(true) : undefined)).catch((e: unknown) => errorHere(e, {}, from));
+    };
+    const shownAs = view.as ?? "table";
+    const named = q.kind === "dax" ? `${q.connection}${q.dataset ? `/${q.dataset}` : ""}` : q.connection;
+    const offered = host.sources?.(q.kind) ?? [];
+    const picker = h("select", { class: "app-input cp-input", "aria-label": q.kind === "dax" ? "Dataset" : "Connection", dataset: { field: "connection" } }, ...[...new Set([named, ...offered])].map((s) => h("option", { value: s, selected: s === named }, s))) as HTMLSelectElement;
+    picker.disabled = !host.setConnection;
+    picker.addEventListener("change", () => {
+      const result = q.result && !/^query_\d+$/.test(q.result) ? ` -> ${q.result}` : "";
+      void host.setConnection?.(where.document, where.cell, `${picker.value}${result}`).then(() => read(true)).catch((e: unknown) => errorHere(e, {}, picker));
+    });
+    const how = h("select", { class: "app-input cp-input", "aria-label": "Show as", dataset: { field: "as" } }, ...q.views.map((v) => h("option", { value: v, selected: v === shownAs }, VIEW_WORDS[v] ?? v))) as HTMLSelectElement;
+    how.addEventListener("change", () => setView({ as: how.value }, how));
+    const field = (name: string, label: string, value: string, words: string): Row => ({
+      name: label,
+      category: "Data",
+      words,
+      set: !!value,
+      editor: boxInput(value, label, (typed, input) => setView({ [name]: typed.trim() }, input), { dataset: { field: name } }),
+    });
+    const cache = h("input", { type: "checkbox", checked: view.cache !== false, "aria-label": "Cache", dataset: { field: "cache" } }) as HTMLInputElement;
+    cache.addEventListener("change", () => setView({ cache: cache.checked ? undefined : false }, cache));
+    const ys = Array.isArray(view.y) ? view.y.join(", ") : (view.y ?? "");
+    const rows: Row[] = [
+      { name: q.kind === "dax" ? "Dataset" : "Connection", category: "Data", words: q.kind === "dax" ? "The Power BI dataset its DAX runs on." : "The connection its SQL runs on, in that connection's own SQL.", editor: picker, set: true },
+      { name: "Result", category: "Data", words: "The name its result goes by: other blocks read it by that name.", editor: h("code", { class: "mono" }, q.result ?? ""), set: true },
+      { name: "Show as", category: "Appearance", words: "A table, a chart of its columns, or one value.", editor: how, set: shownAs !== "table" },
+      ...(["bar", "line", "area"].includes(shownAs) ? [field("x", "X", view.x ?? "", "The column along the bottom."), { ...field("y", "Y", ys, "The column (or columns, by commas) drawn."), editor: boxInput(ys, "Y", (typed, input) => setView({ y: typed.includes(",") ? typed.split(",").map((t) => t.trim()).filter(Boolean) : typed.trim() }, input), { dataset: { field: "y" } }) }] : []),
+      ...(shownAs === "metric" ? [field("column", "Column", view.column ?? "", "The column whose first value it shows."), field("label", "Label", view.label ?? "", "The words above the value.")] : []),
+      { name: "Cache", category: "Behaviour", words: "On by default: Streamlit keeps the result for the same query and values; a change of a value it reads asks again.", editor: cache, set: view.cache === false },
+    ];
+    const params = q.params.map((p) => {
+      const el = link(p.block ? "link" : "warning", `{{ ${p.name} }}`, () => (p.block ? c.select(p.block) : p.document && p.cell ? host.goToCell(p.document, p.cell) : undefined), p.title ? `← ${p.title}` : "not on this page");
+      el.dataset.param = p.name;
+      return el;
+    });
+    const tables = (q.dataset_tables ?? q.tables).map((t) => h("span", { class: "app-chip mono" }, t));
+    return section(
+      "query",
+      q.kind === "dax" ? "DAX query" : "SQL query",
+      null,
+      grid(rows),
+      list("Parameters", params),
+      tables.length ? h("div", { class: "cp-list", dataset: { list: "tables" } }, h("div", { class: "cp-list-title" }, q.dataset_tables ? `Tables of ${q.dataset ?? q.connection}` : "Tables"), h("div", { class: "cp-chips" }, ...tables)) : null,
+    );
+  }
+
   function controllerSection(block: BlockState): HTMLElement | null {
     const controller = controllerOf(block);
     if (!controller) return null;
@@ -809,7 +890,14 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
           return select;
         })()
       : null;
-    const all = [...designRows(block, seen.block), ...(widget ? widgetRows(block.id, widget, seen.editable === true, where) : [])];
+    const reruns: Row = {
+      name: "Reruns",
+      category: "Behaviour",
+      words: seen.fragment ? "Its widgets feed only itself: the page runs it as an st.fragment, so a change of them reruns it alone." : "A change of its widgets reruns the whole page (another block reads what it makes, or it has none).",
+      editor: h("span", { class: "cp-reruns", dataset: { fragment: String(!!seen.fragment) } }, seen.fragment ? "Alone (fragment)" : "The whole page"),
+      set: !!seen.fragment,
+    };
+    const all = [...designRows(block, seen.block), ...(widgets.some((w) => w.widget) ? [reruns] : []), ...(widget ? widgetRows(block.id, widget, seen.editable === true, where) : [])];
     const streamlit = section("streamlit", "Streamlit", null, stateSection(block.id, widgets, seen.running), bindingsPart(block.id, widgets, seen.editable === true), cacheSection(block.id, seen.cache ?? [], seen.running));
     clear(
       body,
@@ -817,6 +905,7 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
       seen.block.missing ? h("div", { class: "cv-block-missing", role: "alert" }, seen.block.missing) : null,
       seen.problem ? h("div", { class: "cv-block-missing", role: "alert" }, seen.problem) : null,
       section("properties", "Properties", null, picker, widget ? h("div", { class: "cp-element-title hint" }, `st.${widget.call} · ${widget.title}`) : null, grid(all)),
+      seen.query ? querySection(block.id, seen.query, where) : null,
       seen.uses ? usesSection(seen.uses, block.id) : null,
       streamlit,
       eventsSection(block.id, widgets, where, seen.editable === true),
@@ -835,7 +924,6 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     );
   }
 
-  /** Several blocks selected: the properties they share (their size), set on all of them at once. */
   /** Bindings (WPF's): every property of the cell's widgets that reads a name, a session state key, a
    *  variable or an expression, with what it reads; Unbind takes the property back to its default. */
   function bindingsPart(blockId: string, widgets: Widget[], editable: boolean): HTMLElement | null {
@@ -862,22 +950,99 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     );
   }
 
+  /** Several blocks selected (WinForms' multi-select): every property they share, set on all of them at once:
+   *  their place and size, Locked and Hidden, a query's Show as and Cache when all are queries, and each
+   *  property of the widget their cells share (the same element in each: a slider's step, a select's label). */
+  let manyKey = "";
+  let manySeen: Inspected[] = [];
+  async function readMany(ids: string[]): Promise<void> {
+    const app = canvas().app();
+    const page = canvas().page();
+    if (!app || !page) return;
+    const key = `${app}|${page.id}|${ids.join(",")}`;
+    if (key === manyKey) return;
+    manyKey = key;
+    try {
+      const read = await Promise.all(ids.map((id) => api<Inspected>(`/streamlit/apps/${encodeURIComponent(app)}/inspect?page=${encodeURIComponent(page.id)}&block=${encodeURIComponent(id)}`)));
+      if (key !== manyKey) return;
+      manySeen = read;
+      render();
+    } catch {
+      manySeen = [];
+    }
+  }
+
   function multiSection(blocks: BlockState[]): HTMLElement {
     const c = canvas();
+    const ids = blocks.map((b) => b.id);
+    void readMany(ids);
     const same = <T,>(pick: (b: BlockState) => T): T | undefined => (blocks.every((b) => pick(b) === pick(blocks[0]!)) ? pick(blocks[0]!) : undefined);
-    const field = (name: string, value: number | null | undefined, min: number, max: number, body: (n: number | null) => Record<string, unknown>): Row => ({
+    const field = (name: string, value: number | null | undefined, min: number, max: number, body: (n: number | null) => Record<string, unknown>, category = "Layout"): Row => ({
       name,
-      category: "Layout",
+      category,
       words: `${name}: set on all ${blocks.length} blocks.`,
       set: value !== undefined,
       editor: boxInput(value === undefined || value === null ? "" : String(value), name, (typed, input) => {
         const n = typed.trim() === "" ? null : Math.round(Number(typed));
         if (n !== null && (Number.isNaN(n) || n < min || n > max)) return void errorHere(`${name} is ${min} to ${max}.`, {}, input);
-        if (n === null && name === "Width") return;
-        void c.changeBlocks(blocks.map((b) => b.id), body(n));
+        if (n === null && name !== "Height") return;
+        void c.changeBlocks(ids, body(n));
       }, { placeholder: value === undefined ? "Mixed" : "", dataset: { field: name.toLowerCase() } }),
     });
-    return h("div", {}, grid([field("Width", same((b) => b.w), 2, 12, (n) => ({ w: n })), field("Height", same((b) => b.h), 1, 30, (n) => ({ h: n }))]));
+    const flag = (name: "Locked" | "Hidden", pick: (b: BlockState) => boolean): Row => {
+      const mixed = same(pick) === undefined;
+      const tick = h("input", { type: "checkbox", "aria-label": name, checked: !mixed && pick(blocks[0]!), dataset: { field: name.toLowerCase() } }) as HTMLInputElement;
+      tick.indeterminate = mixed;
+      tick.addEventListener("change", () => void c.changeBlocks(ids, { [name.toLowerCase()]: tick.checked }));
+      return { name, category: "Design", words: `${name}: set on all ${blocks.length} blocks.`, editor: tick, set: !mixed };
+    };
+    const rows: Row[] = [
+      flag("Locked", (b) => b.locked),
+      flag("Hidden", (b) => b.hidden),
+      field("Row", same((b) => b.row), 1, 60, (n) => ({ row: n })),
+      field("Width", same((b) => b.w), 2, 12, (n) => ({ w: n })),
+      field("Height", same((b) => b.h), 1, 30, (n) => ({ h: n })),
+    ];
+    const seenAll = manySeen.length === blocks.length && manySeen.every((s, i) => s.block?.id === ids[i]) ? manySeen : [];
+    // All queries: Show as and Cache, on all of them.
+    if (seenAll.length && seenAll.every((s) => s.query)) {
+      const views = seenAll.map((s) => s.query!.view);
+      const shownAs = views.every((v) => (v.as ?? "table") === (views[0]!.as ?? "table")) ? (views[0]!.as ?? "table") : "";
+      const how = h("select", { class: "app-input cp-input", "aria-label": "Show as", dataset: { field: "as" } }, ...(shownAs ? [] : [h("option", { value: "", selected: true }, "Mixed")]), ...seenAll[0]!.query!.views.map((v) => h("option", { value: v, selected: v === shownAs }, VIEW_WORDS[v] ?? v))) as HTMLSelectElement;
+      how.addEventListener("change", () => {
+        if (!how.value) return;
+        void Promise.all(seenAll.map((s) => c.changeBlock(s.block!.id, { view: { ...s.query!.view, as: how.value === "table" ? undefined : how.value } }))).then(() => {
+          manyKey = "";
+          render();
+        });
+      });
+      rows.push({ name: "Show as", category: "Appearance", words: `Show as: set on all ${blocks.length} queries.`, editor: how, set: !!shownAs });
+    }
+    // The widget their cells share: each of its properties with one value in all (else Mixed).
+    const firsts = seenAll.map((s) => (s.widgets ?? []).find((w) => w.widget) ?? (s.widgets ?? [])[0]);
+    if (seenAll.length && firsts.every((w) => w && w.call === firsts[0]!.call) && seenAll.every((s) => s.editable)) {
+      const widgets = firsts as Widget[];
+      for (const param of widgets[0]!.params) {
+        const values = widgets.map((w) => w.arguments[param.name]);
+        if (param.name === "key" || values.some((v) => v && v.kind !== "literal")) continue; // a key is each one's own
+        const shown = values.every((v) => JSON.stringify(v?.value) === JSON.stringify(values[0]?.value)) ? (values[0] ? shownText(values[0].value, param.type) : "") : undefined;
+        const input = boxInput(shown ?? "", param.name, (typed, el) => {
+          let value: unknown;
+          try {
+            value = typedValue(typed, param.type);
+          } catch (e) {
+            return void errorHere(e, {}, el);
+          }
+          void (async () => {
+            for (let i = 0; i < seenAll.length; i++) await change(seenAll[i]!.block!.id, { do: "set", widget: widgets[i]!.index, name: param.name, value }, el);
+            manyKey = "";
+            render();
+          })();
+        }, { placeholder: shown === undefined ? "Mixed" : param.default === null || param.default === undefined ? "" : shownText(param.default, param.type), dataset: { field: param.name } });
+        rows.push({ name: param.name, category: param.category, words: `${param.words} Set on all ${blocks.length} blocks.`, editor: input, set: shown !== undefined && !!values[0] });
+      }
+    }
+    return h("div", { class: "cp-many" }, seenAll.length && firsts[0] ? h("div", { class: "cp-element-title hint" }, `st.${firsts[0].call} · on all ${blocks.length}`) : null, grid(rows));
   }
 
   return {

@@ -450,6 +450,44 @@ class CellCode:
     problem: str | None = None
 
 
+def state_reads(code: str) -> list[str]:
+    """The session state keys a cell reads by name: st.session_state["k"], st.session_state.k,
+    st.session_state.get("k") (a binding to a key reads it so). In order, each once."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+
+    def is_state(node: ast.AST) -> bool:
+        return isinstance(node, ast.Attribute) and node.attr == "session_state"
+
+    found: list[str] = []
+    for node in ast.walk(tree):
+        key: str | None = None
+        if isinstance(node, ast.Subscript) and is_state(node.value):
+            if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+                key = node.slice.value
+        elif (
+            isinstance(node, ast.Attribute)
+            and is_state(node.value)
+            and node.attr not in ("get", "keys", "items")
+        ):
+            key = node.attr
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get"
+            and is_state(node.func.value)
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            key = node.args[0].value
+        if key is not None and key not in found:
+            found.append(key)
+    return found
+
+
 def read(code: str) -> CellCode:
     """What the property pane shows of a cell's code. A cell that is not whole Python has nothing to show
     but why."""

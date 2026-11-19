@@ -73,3 +73,21 @@ drives the cells on the same page that read it.
   same_height, distribute; reset), `canvas_outline` (the page as a tree).
 - In the window: "canvas.add", "canvas.selectMany", "canvas.arrange", "canvas.view" (snaplines, rulers,
   sampleRows, width), "canvas.panel" (toolbox, outline), "streamlit.addToApp" (the selected cell onto the page).
+
+## SQL and DAX blocks; fragments
+- A `%%sql <connection>` or `%%dax <connection>/<dataset>` cell goes on a page like any cell: its page code is
+  the script exporter's call into sab_queries.py beside the pages (the connections written out; no magic line).
+  `{{ name }}` in its query is a page value: bound as a parameter (SQL), a DAX literal; never pasted.
+  `streamlit_block_change` view={"as": "bar", "x": .., "y": ..} (table, bar, line, area, metric; "cache":
+  false). `canvas_inspect`'s `query`: connection, dataset, params (each with the block that gives it), tables.
+  `canvas_add` element=sql_query or dax_query makes the cell and its block.
+- The export runs a block whose widgets feed only itself as an st.fragment (`canvas_inspect`'s `fragment`).
+
+## Launch, builds, the Performance Analyzer
+- `app_launch` (analyzer=true: recording from its first load): a new build in the project's
+  builds/<app>/<n>/ (the code as exported, cells.json, build.json: what changed, result), run in its own window
+  (`address`). `app_stop`. `builds_list` (build=: its files), `builds_compare` (a, b), `build_relaunch`,
+  `build_restore` (its cells' code back, in the open documents; the layout).
+- The analyzer records only while attached: `perf_attach` (on=false pauses; clear; detach; save: into the
+  build), `perf_session` (reruns with trigger and each block's ms, calls, caches, the socket's kinds and
+  sizes; build= and file=: a saved one), `perf_hints`.

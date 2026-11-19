@@ -84,7 +84,8 @@ let reload: (() => void) | null = null;
 
 registerLayer("variables", {
   isOpen: () => Boolean(shownPage?.open),
-  open: () => drawVariables(),
+  // open=variables&name=REGION_DEFAULT: the page found at that variable (the canvas pane's Uses).
+  open: (url) => drawVariables(url?.searchParams.get("name") ?? undefined),
   show: () => undefined,
   dismiss: () => {
     if (shownPage) dismissDialog(shownPage);
@@ -95,19 +96,25 @@ onNotice((n) => {
   if (n.type === "variables_changed" || n.type === "blades_changed") reload?.();
 });
 
-/** The Variables page, opened by the user (the rail's icon). */
-export function openVariables(): void {
-  if (shownPage?.open) return;
-  layerOpened("variables");
-  drawVariables();
+/** The Variables page, opened by the user (the rail's icon); `name`: found at that variable (its search
+ *  holds the name, its row marked and scrolled to). */
+export function openVariables(name?: string): void {
+  if (shownPage?.open) {
+    if (name) findVariable?.(name);
+    return;
+  }
+  layerOpened("variables", name ? { name } : {});
+  drawVariables(name);
 }
+
+let findVariable: ((name: string) => void) | null = null;
 
 /** A running kernel keeps the environment it started with: said after a change, once. */
 function afterChange(kernels: number): void {
   if (kernels > 0) toast(kernels === 1 ? "A running kernel reads it after a restart." : `${kernels} running kernels read it after a restart.`);
 }
 
-function drawVariables(): void {
+function drawVariables(at?: string): void {
   const { element, body, actions } = openAreaPage("variables", "Variables");
   shownPage = element;
   body.classList.add("variables-page");
@@ -408,6 +415,25 @@ function drawVariables(): void {
   };
 
   search.addEventListener("input", draw);
+  findVariable = (name: string): void => {
+    search.value = name;
+    draw();
+    const row = list.querySelector<HTMLElement>(`[data-name="${CSS.escape(name)}"]`);
+    row?.classList.add("found");
+    row?.scrollIntoView({ block: "nearest" });
+  };
+  if (at) {
+    search.value = at;
+    // Once its rows are drawn: the row marked.
+    const seek = (left: number): void => {
+      const row = list.querySelector<HTMLElement>(`[data-name="${CSS.escape(at)}"]`);
+      if (row) {
+        row.classList.add("found");
+        row.scrollIntoView({ block: "nearest" });
+      } else if (left > 0) window.setTimeout(() => seek(left - 1), 100);
+    };
+    seek(50);
+  }
   watchLayerDialog(element, "variables", [], () => {
     if (shownPage === element) shownPage = null;
     reload = null;

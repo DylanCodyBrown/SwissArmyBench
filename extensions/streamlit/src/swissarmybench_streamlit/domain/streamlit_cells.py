@@ -44,7 +44,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import connection_usage as usage
-from swissarmybench.domain import html_cells, notebooks, table_cells
+from swissarmybench.domain import html_cells, notebooks, page_queries, table_cells
+from swissarmybench.domain import script_export as exporter
 from swissarmybench.domain.blades import pip_name, provided
 from swissarmybench.domain.cell_facts import (
     MAX_NAME,
@@ -55,6 +56,7 @@ from swissarmybench.domain.cell_facts import (
     indented,
     piece_name,
 )
+from swissarmybench.domain.codegen import python_string
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 from swissarmybench_streamlit.domain import toolbox
@@ -110,6 +112,21 @@ SCRIPT_STREAMLIT: str = "streamlit>=1.52"
 # copy of client/lineage_values.py beside the page (standard library only), only while it plays here.
 TRACE_MODULE: str = "sab_lineage"
 TRACE_FILE: str = f"{TRACE_MODULE}.py"
+# A launched app's pages time each block for the Performance Analyzer (server/sab_perf.py, copied beside).
+PERF_MODULE: str = "sab_perf"
+PERF_FILE: str = f"{PERF_MODULE}.py"
+
+# A SQL or DAX cell on a page (2026-11-19, the owner: "did we add DAX cells to the canvas?"): its code is
+# the script exporter's own translation (domain/script_export.py `query_cell`), calling sab_queries.py
+# beside the pages (the connections written out as the exporter writes them, `query_module`).
+QUERY_KINDS: tuple[str, ...] = ("sql", "dax")
+QUERY_MODULE: str = page_queries.QUERY_MODULE
+QUERY_ALIAS: str = f"_{QUERY_MODULE}"  # the block's own name for it (a name with _ is not one the page shows)
+QUERY_FILE: str = page_queries.QUERY_FILE
+# The line a query block shows its result with ends with this mark (the view's choice replaces it).
+SHOW_MARK: str = "# shown as:"
+VIEWS: tuple[str, ...] = ("table", "bar", "line", "area", "metric")
+CHARTS: tuple[str, ...] = ("bar", "line", "area")
 
 # A block's cell: the linked file's path (as the app holds it) and the cell's own number. A piece
 # shown alone in its own document has "" for the path.
@@ -222,6 +239,202 @@ def text_code(kind: str, text: str, number: int) -> str:
     return "\n".join(lines) + "\n"
 
 
+def query_title(kind: str, text: str, number: int, name: str | None = None) -> str:
+    """What a SQL or DAX cell is called on a canvas without a name: its first line of the query (its
+    comment's words, else the query), else "SQL cell N" or "DAX cell N"."""
+    if name:
+        return name
+    query = table_cells.split_uses(text, sql=True)[1]
+    for line in query.split("\n"):
+        words = re.sub(r"^\s*(?:--|//)\s*", "", line).strip()
+        if words:
+            return " ".join(words.split())[:MAX_NAME]
+    return f"{kind.upper()} cell {number}"
+
+
+def query_code(kind: str, connection: str | None, text: str, number: int, name: str | None = None) -> str:
+    """A SQL or DAX cell as a page runs it: the script exporter's translation of the cell (its connection
+    and result's name, its query) as a call of sab_queries.py beside the page, its result shown as a table.
+    The page's values it names (`{{ region }}`) are passed by name: bound as parameters (SQL), written as
+    DAX literals (DAX); never pasted. No magic line: the page is plain Streamlit."""
+    cell = exporter.ExportCell(kind, text, connection, number=number, name=name)
+    head = f"# {query_title(kind, text, number, name)}"
+    try:
+        asked = exporter.query_cell(cell)
+    except exporter.ScriptExportError as error:
+        said = str(error)
+        return f"{head}\nst.error({said[:1].upper() + said[1:] + ': pick one in its head.'!r})\n"
+    result = asked.target or f"query_{number}"
+    names = [n for n in page_queries.page_names(asked.query, kind == "dax") if not keyword.iskeyword(n)]
+    values = (", {" + ", ".join(f"{n!r}: {n}" for n in names) + "}") if names else ""
+    call = f"{QUERY_ALIAS}.{kind}({asked.name!r}, {python_string(asked.query)}{values})"
+    return (
+        "\n".join(
+            [
+                head,
+                f"import {QUERY_MODULE} as {QUERY_ALIAS}",
+                "",
+                f"{result} = {call}",
+                f"st.dataframe({result})  {SHOW_MARK} table",
+            ]
+        )
+        + "\n"
+    )
+
+
+def query_calls(code: str) -> list[exporter.ExportCell]:
+    """The SQL and DAX cells a block's code calls sab_queries.py with (`query_code`), as the exporter
+    reads cells: its kind, its query and its connection as the call names it."""
+    if not is_query(code):
+        return []
+    try:
+        tree = ast.parse(body(code))
+    except SyntaxError:
+        return []
+    found: list[exporter.ExportCell] = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        held = node.func.value
+        if not (isinstance(held, ast.Name) and held.id == QUERY_ALIAS and node.func.attr in QUERY_KINDS):
+            continue
+        args = [a.value for a in node.args[:2] if isinstance(a, ast.Constant) and isinstance(a.value, str)]
+        if len(args) == 2:
+            found.append(exporter.ExportCell(node.func.attr, args[1].strip(), args[0]))
+    return found
+
+
+@dataclass(frozen=True)
+class QueryFacts:
+    """What a SQL or DAX block's pane shows: its kind, its connection (and a DAX block's dataset), its
+    query, the name its result goes by, the page values it names, and the tables its query names."""
+
+    kind: str
+    connection: str
+    dataset: str | None
+    query: str
+    result: str | None
+    params: tuple[str, ...]
+    tables: tuple[str, ...]
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "connection": self.connection,
+            "dataset": self.dataset,
+            "query": self.query,
+            "result": self.result,
+            "params": list(self.params),
+            "tables": list(self.tables),
+        }
+
+
+_DAX_TABLE = re.compile(r"'((?:[^']|'')+)'")
+
+
+def query_tables(kind: str, query: str) -> list[str]:
+    """The tables a query names: a SQL query's by sqlglot's tree (a page value read as a value); a DAX
+    query's quoted 'Table' names. Names only, in order; a query sqlglot cannot read names none."""
+    if kind == "dax":
+        text = "".join(p for p in page_queries.page_split(query, dax=True) if isinstance(p, str))
+        text = re.sub(r'"(?:[^"]|"")*"', '""', text)
+        return list(dict.fromkeys(m.group(1).replace("''", "'") for m in _DAX_TABLE.finditer(text)))
+    import sqlglot
+    from sqlglot import exp
+
+    text = "".join(p if isinstance(p, str) else "NULL" for p in page_queries.page_split(query))
+    try:
+        trees = sqlglot.parse(text)
+    except sqlglot.errors.SqlglotError:
+        return []
+    found: list[str] = []
+    for tree in trees:
+        if tree is None:
+            continue
+        ctes = {c.alias_or_name for c in tree.find_all(exp.CTE)}
+        for table in tree.find_all(exp.Table):
+            name = ".".join(part for part in (table.db, table.name) if part)
+            if name and table.name not in ctes and name not in found:
+                found.append(name)
+    return found
+
+
+def query_facts(code: str) -> QueryFacts | None:
+    """A SQL or DAX block's facts from its code (`query_code`); None for any other block."""
+    calls = query_calls(code)
+    if not calls:
+        return None
+    cell = calls[0]
+    connection = cell.connection or ""
+    dataset = (
+        connection.split("/", 1)[1].strip() or None if cell.kind == "dax" and "/" in connection else None
+    )
+    base = connection.split("/", 1)[0].strip() if cell.kind == "dax" else connection
+    made = [n for n in facts(code).makes if n not in PROVIDED and n != QUERY_ALIAS]
+    return QueryFacts(
+        cell.kind,
+        base,
+        dataset,
+        cell.source,
+        made[0] if made else None,
+        tuple(page_queries.page_names(cell.source, cell.kind == "dax")),
+        tuple(query_tables(cell.kind, cell.source)),
+    )
+
+
+def query_connections(code: str) -> list[str]:
+    """The connection a SQL or DAX block reads (none for any other block): it wears that one's colour."""
+    found = query_facts(code)
+    return [found.connection] if found is not None and found.connection else []
+
+
+def is_query(code: str) -> bool:
+    """The code is a SQL or DAX block's (`query_code`)."""
+    return f"import {QUERY_MODULE} as {QUERY_ALIAS}\n" in code and SHOW_MARK in code
+
+
+def shown(code: str, view: Mapping[str, Any]) -> str:
+    """A query block's code with its view: the result as a table, a chart (bar, line, area; x and y
+    picked) or a metric (one value), and its cache off when the view says so."""
+    if not view or not is_query(code):
+        return code
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code
+    call = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Attribute)
+            and isinstance(node.value.func.value, ast.Name)
+            and node.value.func.value.id == QUERY_ALIAS
+        ),
+        None,
+    )
+    lines = code.rstrip("\n").split("\n")
+    at = next((i for i, line in enumerate(lines) if line.endswith(f"{SHOW_MARK} table")), None)
+    if call is None or at is None or not isinstance(call.targets[0], ast.Name):
+        return code
+    result = call.targets[0].id
+    if view.get("cache") is False and call.value.end_lineno is not None:
+        end = call.value.end_lineno - 1
+        line = lines[end]
+        cut = len(line.encode("utf-8")[: call.value.end_col_offset or 0].decode("utf-8")) - 1
+        lines[end] = line[:cut] + ", cache=False" + line[cut:]
+    how = view.get("as", "table")
+    if how in CHARTS:
+        given = "".join(f", {axis}={view[axis]!r}" for axis in ("x", "y") if view.get(axis))
+        lines[at] = f"st.{how}_chart({result}{given})  {SHOW_MARK} {how} chart"
+    elif how == "metric":
+        label = view.get("label") or view.get("column") or result
+        value = f"{QUERY_ALIAS}.one({result}, {view.get('column')!r})"
+        lines[at] = f"st.metric({label!r}, {value})  {SHOW_MARK} metric"
+    return "\n".join(lines) + "\n"
+
+
 def uses_text_module(code: str) -> bool:
     """The code fills a text block's names from `sab_text.py` (the copy goes beside the page)."""
     return TEXT_MODULE in facts(code).modules
@@ -308,6 +521,9 @@ def linkable(path: str, text: str) -> list[Linkable]:
                 found.append(Linkable(c.number, "code", c.source, c.name))
             elif c.kind in TEXT_KINDS and c.role == "":
                 found.append(Linkable(c.number, c.kind, text_code(c.kind, c.source, c.number), c.name))
+            elif c.kind in QUERY_KINDS and c.role == "" and c.source.strip():
+                code = query_code(c.kind, c.connection, c.source, c.number, c.name)
+                found.append(Linkable(c.number, c.kind, code, c.name))
         return found
     for s in table_cells.parse_script(text).cells:
         if s.number is None or s.fixed or s.role not in ("", "maker"):
@@ -335,8 +551,8 @@ def document_names(path: str, text: str) -> dict[int, str]:
 
 
 def document_kinds(path: str, text: str) -> dict[int, str]:
-    """Which of those cells are Markdown or HTML cells, by the cell's own number."""
-    return {c.number: c.kind for c in linkable(path, text) if c.kind in TEXT_KINDS}
+    """Which of those cells are Markdown, HTML, SQL or DAX cells, by the cell's own number."""
+    return {c.number: c.kind for c in linkable(path, text) if c.kind != "code"}
 
 
 def cell_title(code: str, number: int, name: str | None = None) -> str:
@@ -365,13 +581,15 @@ class Block:
     slot: int = 0
     hidden: bool = False  # hidden while designing (the page still draws it)
     locked: bool = False  # the designer does not move or size it
+    # A SQL or DAX block's view (`check_view`): {"as": "bar", "x": .., "y": .., "cache": false}; {}: a table.
+    view: dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> Key:
         return (self.document, self.cell)
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        said: dict[str, Any] = {
             "id": self.id,
             "document": self.document,
             "cell": self.cell,
@@ -384,6 +602,7 @@ class Block:
             "hidden": self.hidden,
             "locked": self.locked,
         }
+        return said | ({"view": dict(self.view)} if self.view else {})
 
 
 @dataclass
@@ -530,6 +749,47 @@ def check_link(document: Any, cell: Any) -> Key:
     if isinstance(cell, bool) or not isinstance(cell, int) or cell < 1:
         raise StreamlitError("A block names its cell by the cell's own number.")
     return document.strip(), cell
+
+
+def check_view(raw: Any) -> dict[str, Any]:
+    """A SQL or DAX block's view as sent: {"as": table | bar | line | area | metric, "x"?: a column,
+    "y"?: a column or a list of them (a chart), "column"?: the value's column and "label"?: its words (a
+    metric), "cache"?: false}. A table, cached, is the default and is written as {}."""
+    if raw is None or raw == {}:
+        return {}
+    if not isinstance(raw, dict):
+        raise StreamlitError('A block\'s view is {"as": "table" | "bar" | "line" | "area" | "metric", ...}.')
+    shown = raw.get("as", "table")
+    if shown not in VIEWS:
+        raise StreamlitError(f"A query block shows its result as one of: {', '.join(VIEWS)}.")
+    out: dict[str, Any] = {} if shown == "table" else {"as": shown}
+
+    def column(name: str, value: Any) -> str:
+        if not isinstance(value, str) or not value.strip() or len(value) > MAX_NAME or "\n" in value:
+            raise StreamlitError(f"{name} names one column of the result.")
+        return value.strip()
+
+    for name in raw:
+        if name not in ("as", "x", "y", "column", "label", "cache"):
+            raise StreamlitError(f"A query block's view has no {name!r}: as, x, y, column, label, cache.")
+    if shown in CHARTS:
+        if raw.get("x"):
+            out["x"] = column("x", raw["x"])
+        y = raw.get("y")
+        if isinstance(y, list) and y:
+            out["y"] = [column("y", v) for v in y][:12]
+        elif y:
+            out["y"] = column("y", y)
+    if shown == "metric":
+        if raw.get("column"):
+            out["column"] = column("column", raw["column"])
+        if raw.get("label"):
+            out["label"] = column("label", raw["label"])
+    if raw.get("cache") is False:
+        out["cache"] = False
+    elif "cache" in raw and not isinstance(raw["cache"], bool):
+        raise StreamlitError("cache is true or false.")
+    return out
 
 
 def check_props(kind: Any, raw: Any, held: Mapping[str, Any] | None = None) -> dict[str, Any]:
@@ -807,6 +1067,7 @@ def read_pages(sent: Any) -> list[Page]:
                     item["slot"] if type(item.get("slot")) is int and item["slot"] >= 0 else 0,
                     item.get("hidden") is True,
                     item.get("locked") is True,
+                    check_view(item.get("view")),
                 )
             )
         held = raw.get("containers") or []
@@ -889,7 +1150,7 @@ def write_app(
     the file: `relative_link`). `settings`: the page settings' line (domain/app_settings.py file_line)."""
     said = json.dumps
     plain = all(
-        not page.containers and not any(b.parent or b.hidden or b.locked for b in page.blocks)
+        not page.containers and not any(b.parent or b.hidden or b.locked or b.view for b in page.blocks)
         for page in pages
     )
     # A page with no container, nothing hidden and nothing locked is written as version 1 wrote it.
@@ -915,6 +1176,8 @@ def write_app(
                 if block.parent:
                     held |= {"parent": block.parent, "slot": block.slot}
                 held |= {key: True for key in ("hidden", "locked") if getattr(block, key)}
+                if block.view:
+                    held["view"] = dict(sorted(block.view.items()))
                 comma = "," if index + 1 < len(page.blocks) else ""
                 lines.append(f"        {said(held, ensure_ascii=False)}{comma}")
             lines.append("      ]" + ("," if page.containers else ""))
@@ -1095,6 +1358,7 @@ class PageCode:
     problems: tuple[str, ...]  # what the page says instead of running a block
     # (block, name): a name a block reads whose maker is not on the page, given its default instead
     defaulted: tuple[tuple[str, str], ...] = ()
+    fragments: tuple[str, ...] = ()  # the blocks that run as st.fragment (`fragment_blocks`)
 
 
 @dataclass(frozen=True)
@@ -1245,6 +1509,8 @@ def page_code(
     record: bool = False,
     trace: str | None = None,
     containers: Sequence[Container] = (),
+    fragments: bool = True,
+    perf: str | None = None,
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -1266,7 +1532,10 @@ def page_code(
     block that reads one gets its default, written once above the blocks. `record`: each block also
     writes its error into st.session_state (a test of the page reads them: domain/controllers.py).
     `trace`: the page's id, while it plays in the app: after each block runs, its names' values are
-    noted for the lineage overlay (TRACE_MODULE), and its error when it fails.
+    noted for the lineage overlay (TRACE_MODULE), and its error when it fails. `fragments`: a block whose
+    widgets feed only itself runs as an st.fragment (`fragment_blocks`): its widget reruns it alone.
+    `perf`: the page's id, in a launch's run folder: each block is timed for the Performance Analyzer
+    (PERF_MODULE beside the pages records only while the analyzer is open).
     """
     known = [b for b in placed if b.key in pieces]
     found = {b.id: facts(pieces[b.key].code) for b in known}
@@ -1304,6 +1573,13 @@ def page_code(
         if table in named and table not in used:
             used.append(table)
     problems: list[str] = []
+    parts = (
+        fragment_blocks(
+            placed, {k: v for k, v in found.items()}, {b.id: pieces[b.key].code for b in known}, containers
+        )
+        if fragments
+        else set()
+    )
     out: list[str] = [f"# {title}"]
     if record:
         out += ["import streamlit as st", "", f"st.session_state[{RECORD!r}] = {{}}", ""]
@@ -1321,6 +1597,8 @@ def page_code(
 
     if trace is not None:
         out += [f"import {TRACE_MODULE} as _sab_lineage", "", f"_sab_lineage.start(__file__, {trace!r})", ""]
+    if perf is not None:
+        out += [f"import {PERF_MODULE} as _sab_perf", "", f"_sab_perf.start(__file__, {perf!r})", ""]
     out.append(LAYOUT_LINE)
     out += _layout(placed, containers)
     out.append("")
@@ -1360,11 +1638,15 @@ def page_code(
             cells = _listed([f"{name} ({elsewhere[name]})" for name in missing])
             say(block_id, f"{piece.name} reads {cells}, which is not on this page: place that cell here too.")
             continue
-        text = keyed(body(piece.code).rstrip("\n"), b.id)
+        text = keyed(body(shown(piece.code, b.view)).rstrip("\n"), b.id)
         if notes and block_id in notes:
             text = f"st.caption({notes[block_id]!r})\n{text}"
         if not runs_something(text):
             text = "pass"
+        part = b.id in parts
+        if perf is not None:
+            out.append(f"_sab_perf.before({b.id!r})")
+        start = len(out)
         out.append(f"with _slot_{b.id}:")
         noted = ""
         if trace is not None:
@@ -1384,10 +1666,100 @@ def page_code(
                 out.append(f"        {noted}, _error)")
         else:
             out.append(indented(text))
+        if part:
+            # A fragment: its widgets rerun only it (st.fragment), drawn in its own slot.
+            out[start] = f"@st.fragment\ndef _sab_part_{b.id}():"
+            out.append(f"\n\nwith _slot_{b.id}:\n    _sab_part_{b.id}()")
+        if perf is not None:
+            out.append(f"_sab_perf.mark({b.id!r})")
         out.append("")
+    if perf is not None:
+        out.append("_sab_perf.end()")
     return PageCode(
-        "\n".join(out).rstrip("\n") + "\n", tuple(used), ordered.order, tuple(problems), tuple(defaulted)
+        "\n".join(out).rstrip("\n") + "\n",
+        tuple(used),
+        ordered.order,
+        tuple(problems),
+        tuple(defaulted),
+        tuple(i for i in ordered.order if i in parts),
     )
+
+
+def has_widgets(code: str) -> bool:
+    """The code calls one of Streamlit's input widgets (st.slider, a column's .selectbox...)."""
+    try:
+        tree = ast.parse(body(code))
+    except SyntaxError:
+        return False
+    return any(
+        isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in WIDGETS
+        for n in ast.walk(tree)
+    )
+
+
+def _fits_a_function(code: str) -> bool:
+    """The code can run as a function's body unchanged: no return, yield, global, nonlocal or `import *`."""
+    try:
+        tree = ast.parse(body(code))
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda | ast.ClassDef):
+            continue
+        if isinstance(node, ast.Return | ast.Yield | ast.YieldFrom | ast.Global | ast.Nonlocal | ast.Await):
+            if not _inside_function(tree, node):
+                return False
+        if isinstance(node, ast.ImportFrom) and any(a.name == "*" for a in node.names):
+            return False
+    return True
+
+
+def _inside_function(tree: ast.AST, target: ast.AST) -> bool:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda) and node is not target:
+            if any(child is target for child in ast.walk(node)):
+                return True
+    return False
+
+
+def fragment_blocks(
+    placed: Sequence[Block],
+    found: Mapping[str, Facts],
+    codes: Mapping[str, str],
+    containers: Sequence[Container] = (),
+) -> set[str]:
+    """The blocks of a page that may run as an st.fragment (the research's first item, 2026-11-19): a block
+    whose widgets only feed itself reruns alone. A block qualifies when it calls an input widget, no other
+    block on the page reads a name it makes (a widget that feeds other blocks keeps the whole-page rerun),
+    it does not read a name it also makes, it does not sit in a form or the sidebar (Streamlit keeps a
+    fragment's widgets out of both), and its code runs as a function's body unchanged."""
+    boxes = {c.id: c for c in containers}
+    readers: dict[str, set[str]] = {}
+    for b in placed:
+        mine = found.get(b.id)
+        if mine is not None:
+            for name in mine.reads:
+                readers.setdefault(name, set()).add(b.id)
+    chosen: set[str] = set()
+    for b in placed:
+        mine, code = found.get(b.id), codes.get(b.id)
+        if mine is None or code is None or mine.problem or not has_widgets(code):
+            continue
+        makes = {n for n in mine.makes if n not in PROVIDED}
+        if any(readers.get(name, set()) - {b.id} for name in makes) or makes & set(mine.reads):
+            continue
+        holder, seen = b.parent, 0
+        walled = False
+        while holder and seen <= MAX_DEPTH:
+            box = boxes.get(holder)
+            if box is None:
+                break
+            walled = walled or box.kind in ("form", "sidebar")
+            holder, seen = box.parent, seen + 1
+        if walled or not _fits_a_function(code):
+            continue
+        chosen.add(b.id)
+    return chosen
 
 
 def makers(codes: Mapping[int, str], order: Sequence[int]) -> dict[int, Facts]:
@@ -1512,7 +1884,7 @@ def requirements(codes: Iterable[str], base: Sequence[str] = REQUIREMENTS) -> li
     have = {re.split(r"[<>=!~ ]", line)[0].lower() for line in needed}
     for code in every:
         for module in facts(code).modules:
-            if provided(module) or module == TEXT_MODULE:
+            if provided(module) or module in (TEXT_MODULE, QUERY_MODULE):
                 continue
             name = pip_name(module)[0]
             if name.lower() not in have:
@@ -1565,6 +1937,7 @@ def export(
     fallbacks: Mapping[str, Mapping[str, Fallback]] | None = None,
     head: Sequence[str] = (),
     config: str | None = None,
+    perf: bool = False,
 ) -> Export:
     """The pages as a runnable folder: app.py (st.navigation over the pages), one module a page,
     requirements.txt and README.txt. The tables it names go into data/ (the caller writes them). A
@@ -1593,6 +1966,7 @@ def export(
             gone=gone,
             fallbacks=(fallbacks or {}).get(page.id),
             containers=page.containers,
+            perf=page.id if perf else None,
         )
         files[f"app_pages/{module}.py"] = made.code
         modules.append((module, page.name))
@@ -1621,6 +1995,20 @@ def export(
     if config:
         files[".streamlit/config.toml"] = config  # the page settings' theme colours
     return Export(files, tuple(used), tuple(problems))
+
+
+def with_queries(made: Export, module: str, needed: Iterable[str]) -> None:
+    """An export with its SQL and DAX blocks' sab_queries.py (`module`) beside app.py, and what that
+    needs installed in requirements.txt."""
+    made.files[QUERY_FILE] = module
+    have = made.files["requirements.txt"].split()
+    lower = {re.split(r"[<>=!~ ]", line)[0].lower() for line in have}
+    extra = [line for line in needed if re.split(r"[<>=!~ ]", line)[0].lower() not in lower]
+    made.files["requirements.txt"] = "\n".join([*have, *extra]) + "\n"
+    made.files["README.txt"] += (
+        f"{QUERY_FILE}  the connections the SQL and DAX blocks query, each one's own code (its settings\n"
+        "                read from the environment: no password is written here)\n"
+    )
 
 
 # ===== Save as: the pages as modules of a project (domain/projects.py) =====

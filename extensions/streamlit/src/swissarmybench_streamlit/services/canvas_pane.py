@@ -53,7 +53,11 @@ class CanvasPane:
         variables: Callable[[], dict[str, Any]] | None = None,
         lineage: Callable[[Any], Awaitable[dict[str, Any]]] | None = None,
         is_set: Callable[[str], bool] = lambda name: False,
+        places: Callable[[str], Awaitable[list[tuple[str, str, str]] | None]] | None = None,
     ) -> None:
+        # A loaded catalog's tables (database, schema, table), None when it is not loaded: a DAX block's
+        # dataset's tables in its Uses (the base's services/catalogs.py `places`).
+        self._places = places
         self._is_set = is_set  # whether this server's environment holds a variable (never its value)
         self._apps = apps
         self._variables = variables  # the Variables page's listing: names, sources, values as it shows them
@@ -319,16 +323,74 @@ class CanvasPane:
             except Exception:  # the overlay says what is wrong with a lineage; the pane just has no line
                 lineage = []
         mine = found.get(block.key) or rules.facts(code)
+        query = await self._query(page, block, code, found, linked) if kind in rules.QUERY_KINDS else None
+        uses = self._uses(app, page, block, code, read, found, linked) | {"lineage": lineage}
+        if query is not None:
+            uses |= {"connections": [query["connection"]], "dataset": query["dataset"]}
+            uses |= {"query_tables": query["tables"], "dataset_tables": query["dataset_tables"]}
+        codes = {b.id: c for b in page.blocks if (c := linked.code(b.key)) is not None}
+        alone = rules.fragment_blocks(
+            page.blocks, {i: rules.facts(c) for i, c in codes.items()}, codes, page.containers
+        )
         return answer | {
+            # Its widgets feed only itself: the page runs it as an st.fragment (a change reruns it alone).
+            "fragment": block.id in alone,
+            "query": query,
             "problem": read.problem,
             "editable": kind == "code" and read.problem is None,
             "makes": rules.shown_makes(mine),
             "widgets": widgets,
-            "uses": self._uses(app, page, block, code, read, found, linked) | {"lineage": lineage},
+            "uses": uses,
             "cache": self._caches(block, read, found, linked),
             # The exact code the page runs for it: its cell, each widget keyed, inside its own slot.
             "code": f"with _slot_{block.id}:\n"
-            + rules.indented(rules.keyed(rules.body(code).rstrip("\n"), block.id) or "pass"),
+            + rules.indented(
+                rules.keyed(rules.body(rules.shown(code, block.view)).rstrip("\n"), block.id) or "pass"
+            ),
+        }
+
+    async def _query(
+        self, page: Page, block: Block, code: str, found: dict[Key, Any], linked: Linked
+    ) -> dict[str, Any] | None:
+        """A SQL or DAX block's query: its connection and dataset, the page values it names and the block
+        each comes from (a widget's value bound into the query), its view, the tables it names, and a DAX
+        block's dataset's tables when its catalog is loaded."""
+        facts = rules.query_facts(code)
+        if facts is None:
+            return None
+        on_page = {b.key: b.id for b in page.blocks}
+        params: list[dict[str, Any]] = []
+        for name in facts.params:
+            makers = [key for key, mine in found.items() if key != block.key and name in mine.makes]
+            makers.sort(key=lambda key: key not in on_page)
+            if not makers:
+                params.append({"name": name, "block": None, "document": None, "cell": None, "title": None})
+                continue
+            key = makers[0]
+            title = rules.cell_title(linked.code(key) or "", key[1], linked.name(key))
+            params.append(
+                {
+                    "name": name,
+                    "block": on_page.get(key),
+                    "document": key[0],
+                    "cell": key[1],
+                    "title": title,
+                    "where": _where(*key),
+                }
+            )
+        dataset_tables: list[str] | None = None
+        if facts.kind == "dax" and self._places is not None:
+            try:
+                places = await self._places(facts.connection)
+            except Exception:  # the catalog's own trouble: the pane just has no list
+                places = None
+            if places is not None:
+                dataset_tables = sorted({t for _, s, t in places if not facts.dataset or s == facts.dataset})
+        return facts.to_json() | {
+            "params": params,
+            "view": dict(block.view),
+            "views": list(rules.VIEWS),
+            "dataset_tables": dataset_tables,
         }
 
     # ===== a table a block uses, beside the canvas =====

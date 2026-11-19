@@ -56,7 +56,7 @@ from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 from swissarmybench_streamlit.domain import app_settings as page_settings
-from swissarmybench_streamlit.domain import controllers, designer
+from swissarmybench_streamlit.domain import controllers, designer, widget_code
 from swissarmybench_streamlit.domain import streamlit_cells as rules
 from swissarmybench_streamlit.domain.app_settings import AppSettings
 from swissarmybench_streamlit.domain.streamlit_cells import (
@@ -187,8 +187,12 @@ class StreamlitApps:
         approvals: Approvals,
         data_export: DataExport,
         local_notes: Callable[[list[str]], list[dict[str, Any]]] = lambda names: [],
+        query_module: Callable[[list[Any]], Any] | None = None,
     ) -> None:
         self.ws = ws
+        # sab_queries.py for the pages' SQL and DAX blocks: the base's script exporter writes each
+        # connection they name as an export writes it (services/script_export.py `query_module`).
+        self._query_module = query_module
         # Each named connection that runs only on this computer (the base's services/script_export.py):
         # an export says them before it writes (the owner, 2026-11-17: "this is meant to scale to a
         # function app or up to a hosted streamlit application").
@@ -485,7 +489,8 @@ class StreamlitApps:
     @staticmethod
     def _layout(page: Page) -> str:
         blocks = [
-            [b.id, b.document, b.cell, b.row, b.column, b.w, b.h, b.parent, b.slot] for b in page.blocks
+            [b.id, b.document, b.cell, b.row, b.column, b.w, b.h, b.parent, b.slot, b.view]
+            for b in page.blocks
         ]
         boxes = [
             [c.id, c.kind, c.row, c.column, c.w, c.h, c.parent, c.slot, c.props] for c in page.containers
@@ -627,8 +632,13 @@ class StreamlitApps:
                         "connections": (
                             connection_usage.cell_connections("code", code, None)
                             if code is not None and linked.kind(block.key) == "code"
+                            else rules.query_connections(code)
+                            if code is not None
                             else []
                         ),
+                        # The session state keys its widgets own, and the keys it reads: the board's
+                        # binding lines (a widget's value bound to another's key).
+                        **self._state_links(block.id, code, linked.kind(block.key)),
                         "problem": mine.problem,
                         # In red on the block: the cell is gone, or its file is.
                         "missing": gone.get(block.id),
@@ -1017,6 +1027,10 @@ class StreamlitApps:
                 if not isinstance(body[flag], bool):
                     raise StreamlitError(f"{flag} is true or false.")
                 setattr(block, flag, body[flag])
+        if "view" in body:
+            if not isinstance(block, Block):
+                raise StreamlitError("A container has no view: a SQL or DAX block has.")
+            block.view = rules.check_view(body["view"])
         moves = [k for k in ("row", "column", "insert", "w", "h", "parent", "slot", "page") if k in body]
         if block.locked and moves:
             raise Conflict(f"{block_id} is locked: unlock it to move or size it.")
@@ -1159,6 +1173,10 @@ class StreamlitApps:
                     code = linked.code(block.key)
                     ran[block.key] = None if code is None else rules.body(code)
             files[rules.TRACE_FILE] = self._files.lineage_helper()
+            module, query_notes = self.queries(piece.code for piece in pieces.values())
+            notes += query_notes
+            if module is not None:  # the SQL and DAX blocks' connections, beside the pages
+                files[rules.QUERY_FILE] = module.text
             if any(rules.uses_text_module(piece.code) for piece in pieces.values()):
                 # A Markdown or HTML block names a value: the rules that fill it, beside the pages.
                 files[rules.TEXT_FILE] = rules.text_file(self._files.helper())
@@ -1200,6 +1218,28 @@ class StreamlitApps:
         app.ran = ran
         app.ran_at = self._now()
         app.notes = notes
+
+    def queries(self, codes: Any) -> tuple[Any | None, list[str]]:
+        """sab_queries.py for the SQL and DAX blocks among these codes (None: there is none), and what
+        stops it, in words."""
+        cells = [c for code in codes for c in rules.query_calls(code)]
+        if not cells:
+            return None, []
+        if self._query_module is None:
+            return None, ["SQL and DAX blocks need the app's script exporter, which is not here."]
+        try:
+            made = self._query_module(cells)
+        except Refused as error:
+            return None, [str(error)]
+        return made, [f"sab_queries.py: {p}" for p in made.problems]
+
+    @staticmethod
+    def _state_links(block_id: str, code: str | None, kind: str) -> dict[str, list[str]]:
+        if code is None or kind != "code":
+            return {"state_keys": [], "state_reads": []}
+        held = widget_code.read(code)
+        owned = [k for w in held.widgets if w.widget and (k := w.to_json(block_id)["state_key"])]
+        return {"state_keys": owned, "state_reads": widget_code.state_reads(rules.body(code))}
 
     def _python(self, app: App) -> str:
         if app.canvas:
@@ -1364,7 +1404,14 @@ class StreamlitApps:
         """The connections these codes name (sab.sql, sab.read, %%sql...) that run only on this computer,
         each with why (domain/portability.py), and the export's words for them."""
         named = list(
-            dict.fromkeys(n for code in codes for n in connection_usage.cell_connections("code", code, None))
+            dict.fromkeys(
+                n
+                for code in codes
+                for n in [
+                    *connection_usage.cell_connections("code", code, None),
+                    *rules.query_connections(code),
+                ]
+            )
         )
         notes = self._local_notes(named)
         return {"local": notes, "local_words": portability.export_words(notes)}
@@ -1398,6 +1445,10 @@ class StreamlitApps:
             head=page_settings.page_head(app.settings, app.title),
             config=page_settings.config_toml(app.settings, app.title),
         )
+        module, query_notes = self.queries(p.code for p in pieces.values())
+        if module is not None:
+            rules.with_queries(made, module.text, module.requirements)
+        problems_said = query_notes
         try:
             target = self._files.export_target(folder)
         except FileNotFoundError as error:
@@ -1425,10 +1476,82 @@ class StreamlitApps:
             "files": written,
             "pages": [p.name for p in app.pages],
             "tables": list(made.tables),
-            "problems": list(made.problems),
+            "problems": [*made.problems, *problems_said],
             "run": "streamlit run app.py",
             **self.local([p.code for p in pieces.values()]),
         }
+
+    # ===== a launch's build (services/launch.py): the export exactly as a build keeps it =====
+
+    async def build_parts(self, app_id: str, title: str, perf: bool = False) -> dict[str, Any]:
+        """The app's export as a launch builds it: its files (app.py, app_pages/*.py, sab_queries.py,
+        data.py as made, requirements.txt, README.txt; with `perf`, each page timed for the analyzer), the
+        tables its pages read (their names; their rows go only into the run's own folder), each linked cell's
+        code (Restore), the canvas's file and the problems. `title`: the window's (`<app> · build <n>`)."""
+        app = self._app(app_id, canvas=True)
+        if not app.pages:
+            raise StreamlitError("There is no page to launch yet.")
+        tables = self._tables()
+        linked = self._linked(app)
+        pieces, found, where = self._canvas_pieces(app, linked)
+        gone = {b.id: said for p in app.pages for b in p.blocks if (said := self._gone(b, linked))}
+        fallen = {page.id: self.fallbacks(page, linked) for page in app.pages}
+        made = rules.export(
+            app.title,
+            app.pages,
+            pieces,
+            tables,
+            found,
+            where,
+            gone,
+            self._files.helper(),
+            fallbacks=fallen,
+            head=page_settings.page_head(app.settings, title),
+            config=page_settings.config_toml(app.settings, app.title),
+            perf=perf,
+        )
+        module, problems = self.queries(p.code for p in pieces.values())
+        if module is not None:
+            rules.with_queries(made, module.text, module.requirements)
+        if app.document:
+            data = await self._data(self._project.folder_of(app.document), app.title)
+            if data is not None:
+                made.files[projects.DATA_FILE] = data.text
+        cells = []
+        for (document, cell), code in sorted(
+            {(b.document, b.cell): linked.code(b.key) for p in app.pages for b in p.blocks}.items()
+        ):
+            if code is not None:
+                kind = linked.kind((document, cell))
+                cells.append((document, cell, kind, linked.name((document, cell)), code))
+        return {
+            "files": made.files,
+            "tables": list(made.tables),
+            "cells": cells,
+            "canvas": rules.write_app(app.pages, settings=page_settings.file_line(app.settings)),
+            "problems": [*made.problems, *problems],
+            "python": self._python(app),
+            "document": app.document,
+            "title": app.title,
+        }
+
+    def held_cells(self, app_id: str) -> dict[tuple[str, int], str]:
+        """Each linked cell's own text as it is now (Restore compares against it), by (file, number)."""
+        app = self._app(app_id, canvas=True)
+        found: dict[tuple[str, int], str] = {}
+        for document in dict.fromkeys(b.document for p in app.pages for b in p.blocks):
+            held = self._open_document(document)
+            if held is not None and held.every is not None:
+                found.update({(document, c.number): c.source for c in held.every if c.number is not None})
+                continue
+            try:
+                text, full, _ = self._read(document)
+            except (FileNotFoundError, OSError):
+                continue
+            if notebooks.kind_of(full) == "notebook":
+                cells, _ = notebooks.read_document(text)
+                found.update({(document, c.number): c.source for c in cells if c.number is not None})
+        return found
 
     # ===== a project's data: data.ipynb -> data.py =====
 
@@ -1554,6 +1677,13 @@ class StreamlitApps:
             helper = rules.text_file(self._files.helper()) if made.texts else None
             if helper is not None:
                 self._project.write(folder, rules.TEXT_FILE, helper)
+            # A SQL or DAX block: its connections go beside data.py too (sab_queries.py).
+            module, query_notes = self.queries(p.code for p in pieces.values())
+            problems += query_notes
+            if module is not None:
+                self._project.write(folder, rules.QUERY_FILE, module.text)
+                requirements = projects.merged_requirements(requirements, list(module.requirements))
+                self._project.write(folder, projects.REQUIREMENTS_FILE, requirements)
         except PermissionError as error:
             raise Conflict(str(error)) from None
         # The linked files: one inside the project keeps its place; one outside comes along at the
@@ -1566,6 +1696,7 @@ class StreamlitApps:
             projects.REQUIREMENTS_FILE,
             "README.txt",
             rules.TEXT_FILE,
+            rules.QUERY_FILE,
             app_name,
             *made.files,
             *(name for name in inside.values() if name),
@@ -1579,6 +1710,8 @@ class StreamlitApps:
         }
         if helper is not None:
             files[rules.TEXT_FILE] = helper
+        if module is not None:
+            files[rules.QUERY_FILE] = module.text
         notebook = self._project.read(folder, projects.DATA_NOTEBOOK)
         if notebook is not None:
             files[projects.DATA_NOTEBOOK] = self._for_zip(projects.DATA_NOTEBOOK, notebook)

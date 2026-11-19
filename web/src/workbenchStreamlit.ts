@@ -19,7 +19,9 @@
  * ROUTING: /streamlit/apps... (routes_streamlit.py); the `streamlit_changed` notice {app}
  */
 import { api, ApiError } from "./api";
-import { h } from "./dom";
+import { h, icon } from "./dom";
+import { errorHere } from "./errorNote";
+import { busyButton } from "./loading";
 import type { Missing } from "./missingPackages";
 import { effectiveTheme } from "./theme";
 import { canvasAnywhere } from "./modes";
@@ -81,9 +83,15 @@ export interface BlockState {
   /** Hidden while designing; locked against moving and sizing. */
   hidden: boolean;
   locked: boolean;
+  /** The session state keys its widgets own, and the keys it reads (st.session_state["k"]): the board's
+   *  binding lines. */
+  state_keys?: string[];
+  state_reads?: string[];
+  /** A SQL or DAX block's view: {as: "bar", x, y, cache: false...}; none: a table, cached. */
+  view?: Record<string, unknown>;
   name: string | null;
   /** code, markdown or html: a text block is marked T. */
-  kind: "code" | "markdown" | "html" | null;
+  kind: "code" | "markdown" | "html" | "sql" | "dax" | null;
   where: string;
   makes: string[];
   reads: string[];
@@ -220,7 +228,7 @@ export const shownValue = (value: unknown): string => {
 export interface SavedPage {
   id?: string;
   name: string;
-  blocks: { id?: string; document: string; cell: number; row: number; column: number; w: number; h: number | null; parent?: string | null; slot?: number; hidden?: boolean; locked?: boolean }[];
+  blocks: { id?: string; document: string; cell: number; row: number; column: number; w: number; h: number | null; parent?: string | null; slot?: number; hidden?: boolean; locked?: boolean; view?: Record<string, unknown> }[];
   containers?: { id: string; kind: string; row: number; column: number; w: number; h: number | null; parent: string | null; slot: number; props: Record<string, unknown>; name: string; hidden: boolean; locked: boolean }[];
 }
 
@@ -228,7 +236,7 @@ export const savedPages = (pages: (CanvasPage | SavedPage)[]): SavedPage[] =>
   pages.map((p) => ({
     id: p.id,
     name: p.name,
-    blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, ...(b.parent ? { parent: b.parent, slot: b.slot ?? 0 } : {}), ...(b.hidden ? { hidden: true } : {}), ...(b.locked ? { locked: true } : {}) })),
+    blocks: p.blocks.map((b) => ({ id: b.id, document: b.document, cell: b.cell, row: b.row, column: b.column, w: b.w, h: b.h, ...(b.parent ? { parent: b.parent, slot: b.slot ?? 0 } : {}), ...(b.hidden ? { hidden: true } : {}), ...(b.locked ? { locked: true } : {}), ...(b.view && Object.keys(b.view).length ? { view: b.view } : {}) })),
     ...(p.containers?.length ? { containers: p.containers.map((c) => ({ id: c.id, kind: c.kind, row: c.row, column: c.column, w: c.w, h: c.h, parent: c.parent, slot: c.slot, props: c.props, name: c.name, hidden: c.hidden, locked: c.locked })) } : {}),
   }));
 
@@ -320,8 +328,10 @@ export interface PieceSource {
   code: string;
   /** The cell's own name (none: it has none). */
   name?: string;
-  /** A Markdown or HTML cell (none: a Python cell). */
-  kind?: "markdown" | "html";
+  /** A Markdown, HTML, SQL or DAX cell (none: a Python cell). A SQL or DAX cell sends its query. */
+  kind?: "markdown" | "html" | "sql" | "dax";
+  /** A SQL cell's connection, a DAX cell's dataset, as its head holds it (`Shop -> orders`). */
+  connection?: string;
   /** A script's HTML cell sends its lines (the HTML as one Python string). */
   form?: "script";
 }
@@ -366,7 +376,7 @@ export interface PaneCell {
   /** It has a name of its own (else `name` is its first comment line or first line). */
   named: boolean;
   /** code, or a Markdown or HTML cell (the pane lists those under Text). */
-  kind: "code" | "markdown" | "html";
+  kind: "code" | "markdown" | "html" | "sql" | "dax";
   where: string;
   makes: string[];
   reads: string[];
@@ -560,21 +570,31 @@ export interface StreamlitHost {
   install: () => void;
   /** The document's path (null: never saved) and title: what a cell's link names. */
   link: () => { document: string | null; title: string };
+  /** Add to app: the cell placed on the open app's canvas (a new app when none is open). */
+  addToApp?: (cell: number) => Promise<void>;
 }
 
-/** A live cell's own tool in its pane's bar: Install (when Streamlit is missing). */
+/** A live cell's own tools in its pane's bar: Add to app (the canvas), Install (when Streamlit is missing). */
 export interface PieceTools {
   elements: HTMLElement[];
   draw: (view: PieceView) => void;
 }
 
-export function pieceTools(host: StreamlitHost | undefined): PieceTools {
+export function pieceTools(host: StreamlitHost | undefined, cell?: () => number | null): PieceTools {
   const install = h("button", { type: "button", class: "btn wb-piece-install", title: "Install Streamlit, pandas and pyarrow into this document's Python", onclick: () => host?.install() }, "Install");
   install.hidden = true;
+  const add = h("button", { type: "button", class: "btn ghost wb-piece-add", title: "Place this cell on the open Streamlit app's canvas" }, icon("plus"), h("span", {}, "Add to app")) as HTMLButtonElement;
+  add.addEventListener("click", () => {
+    const number = cell?.();
+    if (number === null || number === undefined || !host?.addToApp) return;
+    void busyButton(add, host.addToApp(number), "Adding…").catch((e: unknown) => errorHere(e, {}, add));
+  });
+  add.hidden = !host?.addToApp || !cell;
   return {
-    elements: [install],
+    elements: [add, install],
     draw: (view) => {
       install.hidden = !view.install;
+      add.hidden = !host?.addToApp || !cell || !view.live;
     },
   };
 }
