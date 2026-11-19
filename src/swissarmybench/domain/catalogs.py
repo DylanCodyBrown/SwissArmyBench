@@ -23,6 +23,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from swissarmybench.domain.datasets import quote
+
 # The dialects SAB knows how to quote for, with the names people also use for them.
 DIALECTS: tuple[str, ...] = (
     "sqlserver",
@@ -129,10 +131,6 @@ def check_name(name: str) -> str:
             "starting with a letter, digit or '_'."
         )
     return name
-
-
-def quote(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
 
 
 def pick_columns(names: list[str]) -> dict[str, str]:

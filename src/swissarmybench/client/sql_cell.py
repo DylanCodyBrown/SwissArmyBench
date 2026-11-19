@@ -74,6 +74,7 @@ from typing import Any
 
 from swissarmybench.client import blades_client, connection_use, standalone
 from swissarmybench.client.push_client import ServerNotRunningError
+from swissarmybench.client.writes import quote
 from swissarmybench.domain import dataverse, lakes, variable_refs
 from swissarmybench.renamed import env
 
@@ -177,10 +178,6 @@ def _record(name: str) -> dict[str, Any]:
     raise SqlCellError(f"No connection is named {name!r}. %sql_connections lists the ones a cell can use.")
 
 
-def _quote(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
 def _literal(text: str) -> str:
     return "'" + text.replace("'", "''") + "'"
 
@@ -211,10 +208,10 @@ def _files_in(path: Path) -> list[Path]:
 
 def _view(con: Any, schema: str | None, table: str, select: str) -> None:
     """The table by its bare name (the first one to claim it) and as the connection's catalog names it."""
-    names = [_quote(table)]
+    names = [quote(table)]
     if schema and schema.lower() not in _RESERVED_SCHEMAS:
-        con.execute(f"CREATE SCHEMA IF NOT EXISTS {_quote(schema)}")
-        names.append(f"{_quote(schema)}.{_quote(table)}")
+        con.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(schema)}")
+        names.append(f"{quote(schema)}.{quote(table)}")
     taken = {
         r[0].lower()
         for r in con.execute("SELECT view_name FROM duckdb_views() WHERE schema_name = 'main'").fetchall()
@@ -305,10 +302,8 @@ def _open_python(label: str) -> Connection:
         def load() -> None:
             con.register(table, _as_frame(read(schema, table)))
             if schema and schema.lower() not in _RESERVED_SCHEMAS:
-                con.execute(f"CREATE SCHEMA IF NOT EXISTS {_quote(schema)}")
-                con.execute(
-                    f"CREATE OR REPLACE VIEW {_quote(schema)}.{_quote(table)} AS FROM {_quote(table)}"
-                )
+                con.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(schema)}")
+                con.execute(f"CREATE OR REPLACE VIEW {quote(schema)}.{quote(table)} AS FROM {quote(table)}")
 
         return load
 
@@ -458,7 +453,7 @@ def columns(found: Connection) -> dict[str, list[str]]:
     for name in tables(found):
         try:
             described = found.target.execute(
-                f"DESCRIBE SELECT * FROM {'.'.join(_quote(p) for p in name.split('.', 1))}"
+                f"DESCRIBE SELECT * FROM {'.'.join(quote(p) for p in name.split('.', 1))}"
             ).fetchall()
         except Exception:  # noqa: S112 (a table that can't be described offers no columns)
             continue

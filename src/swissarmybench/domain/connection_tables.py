@@ -30,6 +30,7 @@ from sqlglot import exp
 from swissarmybench.domain import connections as rules
 from swissarmybench.domain import dataverse, lakes, powerbi, web_calls
 from swissarmybench.domain.connection_swap import Place
+from swissarmybench.domain.datasets import quote
 
 # How each kind of connection lists its tables and reads one (the contract's two calls).
 TABLE_KINDS: dict[str, tuple[str, str]] = {
@@ -315,10 +316,6 @@ def _bare(identifier: str) -> str:
     return identifier
 
 
-def _quoted(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
 def quote_brackets(text: str, names: Iterable[str]) -> str:
     """`[Finance Captive].[Sales model].Date` as `"Finance Captive"."Sales model".Date` (DuckDB reads
     square brackets as a list): only a dotted name whose first part is a connection's, outside quoted
@@ -330,10 +327,10 @@ def quote_brackets(text: str, names: Iterable[str]) -> str:
     def chain(found: re.Match[str]) -> str:
         if _bare(found.group(1)).casefold() not in known:
             return found.group(0)
-        rest = re.sub(r"\[([^\[\]\n]+)\]", lambda m: _quoted(m.group(1)), found.group(2))
-        rest = _AT_NAME.sub(lambda m: m.group(1) + _quoted(m.group(2)), rest)
+        rest = re.sub(r"\[([^\[\]\n]+)\]", lambda m: quote(m.group(1)), found.group(2))
+        rest = _AT_NAME.sub(lambda m: m.group(1) + quote(m.group(2)), rest)
         first = found.group(1)
-        return (_quoted(first[1:-1]) if first.startswith("[") else first) + rest
+        return (quote(first[1:-1]) if first.startswith("[") else first) + rest
 
     out: list[str] = []
     at = 0

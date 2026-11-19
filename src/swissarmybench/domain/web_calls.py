@@ -36,6 +36,8 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from swissarmybench.domain.datasets import quote
+
 METHODS: tuple[str, ...] = ("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
 PAGING: tuple[str, ...] = ("all", "first")
 SHAPES: tuple[str, ...] = ("records", "header_rows")
@@ -253,10 +255,6 @@ def _settings(
 # ===== the conversion: DuckDB's query over the pages =====
 
 
-def _ident(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
 def conversion(settings: Mapping[str, Any]) -> str:
     """DuckDB's query that makes the table from `response` (one row per page read, its JSON in `page`)."""
     rows = _duck_expr(check_path(settings.get("records")))
@@ -269,7 +267,7 @@ def conversion(settings: Mapping[str, Any]) -> str:
         for n, (name, kind) in enumerate(columns.items(), start=1):
             text = f"json_extract_string(to_json(r[{n}]), '$')"
             picks.append(
-                f"TRY_CAST({text} AS {kind}) AS {_ident(name)}" if kind else f"{text} AS {_ident(name)}"
+                f"TRY_CAST({text} AS {kind}) AS {quote(name)}" if kind else f"{text} AS {quote(name)}"
             )
         picked = ",\n  ".join(picks)
         return f"SELECT\n  {picked}\nFROM (SELECT unnest({source}) AS r FROM response)"  # noqa: S608 (names quoted, types checked)

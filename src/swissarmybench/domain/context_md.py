@@ -24,6 +24,7 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
+from swissarmybench.domain.catalogs import quote_identifier
 from swissarmybench.domain.claude import step_words
 from swissarmybench.domain.steps import Step
 
@@ -99,7 +100,7 @@ def sql_name(connection: str, parts: Sequence[str]) -> str:
     """How DuckDB SQL names a connection's table: `[Finance Captive].model_Report`,
     `[Trino].sales.orders` (the connection in square brackets, each other part quoted when it is not a
     plain name)."""
-    return f"[{connection.replace(']', ']]')}]." + ".".join(_part(p) for p in parts if p)
+    return quote_identifier(connection, "sqlserver") + "." + ".".join(_part(p) for p in parts if p)
 
 
 def _plural(n: int, word: str, many: str | None = None) -> str:
@@ -165,7 +166,7 @@ class ConnectionFacts:
 
     def rule(self) -> str:
         """How its tables are named in DuckDB SQL, in one line."""
-        head = f"[{self.name.replace(']', ']]')}]."
+        head = quote_identifier(self.name, "sqlserver") + "."
 
         def shape(*parts: str) -> str:
             return code(head + ".".join(parts))
