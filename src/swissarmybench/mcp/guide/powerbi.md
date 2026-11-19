@@ -16,3 +16,25 @@ which extension it needs.
   pass `mapping` ({"Table.Field": "Table.Field", or null to leave a field broken}) to change it. The report's
   model measures come along (a .pbit's or .pbip's; a .pbix's through pbixray), rewritten through the mapping;
   one naming an unmapped column is said in `report.said`, not written. The dropped file is never changed.
+
+## A Power BI project (the Power BI extension, part 2)
+
+- **Reading a .pbix is pbixray's only; editing is the live Power BI Desktop link only.** They never cross.
+- `powerbi_import_project(path, dry_run=true)` plans a .pbix as a project: one back-end connection per distinct
+  source (an existing one with the same server and database reused), Power Query parameters as plain variables,
+  the published dataset (a thin report's own, else one named like the file; several or none: pass `dataset`),
+  the .pbix file connection, data.ipynb (a `%%sql` and a `%%dax` cell per table), relationships into the ERD,
+  measures and each table's M kept in `.sab/powerbi.json`. Without `dry_run` it makes it (the user's Allow).
+  Every table opens twice: `<Table>_Source` and `<Table>_PowerBI`, with a Compare between them.
+- `powerbi_setup_status`: the To finish setting up rows and their fixes (`action`: dataset, not_published,
+  registration); passwords and sign-ins are the user's (Set up this computer).
+- `powerbi_source(source=published|local)`: where the `_PowerBI` grids read; the file is the fallback, said.
+- `powerbi_file(name, path)`: a .pbix as a read-only connection (pbixray), "as of" its last refresh.
+- `app_registration_add` (three VARIABLE names, never values), `app_registration_check` (an access report:
+  read-only calls, kept as names and marks), `powerbi_app_registration(registration, dry_run)` re-points the
+  project's Microsoft sources (the user's Allow).
+- `powerbi_edit_files`, `powerbi_edit_model`, `powerbi_edit_plan`, `powerbi_edit_apply`: Edit in Power BI
+  Desktop (Windows): our relationships and measures, measures, calculated columns and tables, calculation
+  groups; a dry run first; Apply waits for the user's Allow. A refresh or a table's Power Query is refused: export
+  a Power BI Project instead.
+- `app_gates`: the features a project type keeps closed (a Power BI project's); your tools stay open.

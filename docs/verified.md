@@ -3699,3 +3699,29 @@ pbixray is not installed here: its adapter is tested only through its fallback s
 interface (`PBIXRay(path).dax_measures`) follows its README. Not checked: **a real Power BI Desktop round trip**
 (a real .pbix's layout, the written report opened in Power BI Desktop), still to be tried on the owner's
 computer.
+
+
+## The Power BI extension, part 2 (2026-11-19, branch powerbi-2)
+
+Checked here (Linux, Chromium): unit and HTTP tests (tests/test_powerbi_project.py, test_app_registrations.py,
+test_powerbi_live.py) and the browser test tests/e2e/test_powerbi_project_page.py, with pbixray faked behind
+adapters/pbix_reader.py (tests/powerbi_pbix_fake.py), Power BI and its sign-in stood in for (tests/powerbi_standin.py:
+GET /groups, a member of no workspace, the tenant setting's refusal) and a running Power BI Desktop stood in for at
+the TomModel seam (tests/powerbi_live_fake.py).
+
+Microsoft Learn read on 2026-11-19:
+- External tools in Power BI Desktop, data modeling operations:
+  https://learn.microsoft.com/power-bi/transform-model/desktop-external-tools#data-modeling-operations (write
+  operations on the metadata are supported; processing commands and editing a .pbit are not)
+- Power BI Desktop projects, model authoring (automatic date tables are not to be changed by external tools):
+  https://learn.microsoft.com/power-bi/developer/projects/projects-overview#model-authoring
+- Service principals: the tenant setting "Service principals can call Fabric public APIs" and workspace access are
+  the refusals the access report names (the words in domain/app_registrations.py); not re-read page by page here.
+- NuGet: microsoft.analysisservices.retail.amd64 and microsoft.analysisservices.adomdclient.retail.amd64 19.82.0
+  (lib/net45), their .nupkg SHA-256 recorded in adapters/live_link.py (downloaded once here to compute them).
+
+Not checked (needs the owner's computer): a real .pbix through the real pbixray (its frame names are read loosely:
+schema, power_query, dax_tables, relationships, dax_measures, m_parameters, metadata); a thin report's Connections
+part from a real file; a real Power BI Desktop (port files, the PowerShell CIM query, pythonnet and TOM's edits);
+a real tenant's service principal (its token's claims, executeQueries' refusals); `swissarmybench open report.pbix`
+through the desktop app's channel.
