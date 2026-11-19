@@ -49,8 +49,9 @@ onNotice((n) => {
 });
 
 function variables(): Promise<Offered[]> {
-  offered ??= api<{ variables: Offered[] }>("/variables").then(
-    (r) => r.variables.map((v) => ({ name: v.name, words: v.words, secret: v.secret })),
+  offered ??= api<{ variables: (Offered & { vault?: string })[] }>("/variables").then(
+    // The source in words (a vault's own name with it), never a value.
+    (r) => r.variables.map((v) => ({ name: v.name, words: v.vault ? `${v.words} · ${v.vault}` : v.words, secret: v.secret })),
     () => {
       offered = null;
       return [];
@@ -72,6 +73,47 @@ export function namesVariable(text: string): boolean {
 
 let boxes = 0;
 
+/** The line under a box: what `text` reads on this computer, drawn again when a variable changes. Nothing
+ *  when it names no variable; a name not set is the one error (9.5) with Set it; a secret masked. */
+export function previewLine(): { line: HTMLElement; show: (text: string) => Promise<void> } {
+  const line = h("div", { class: "variable-preview", "aria-live": "polite", hidden: true });
+  let asked = 0;
+  let current = "";
+  const show = async (text: string): Promise<void> => {
+    current = text;
+    const mine = ++asked;
+    if (!namesVariable(text)) {
+      clearError(line);
+      line.replaceChildren();
+      line.hidden = true;
+      return;
+    }
+    try {
+      const answer = await api<Preview>("/variables/resolve", "POST", { text });
+      if (mine !== asked) return;
+      line.hidden = false;
+      if (answer.missing.length && answer.error) {
+        line.replaceChildren();
+        showError(line, JSON.stringify(answer.error), { dismiss: false, agent: false });
+      } else {
+        clearError(line);
+        line.replaceChildren(h("span", { class: "variable-preview-value mono", "data-masked": String(answer.masked), title: "What it reads on this computer" }, answer.value === "" ? "(empty)" : answer.value));
+      }
+    } catch {
+      if (mine === asked) line.hidden = true;
+    }
+  };
+  const refresh = (): void => {
+    if (!line.isConnected) {
+      refreshers.delete(refresh);
+      return;
+    }
+    void show(current);
+  };
+  refreshers.add(refresh);
+  return { line, show };
+}
+
 export function variableBox(input: HTMLInputElement, options: VariableBoxOptions = {}): HTMLElement {
   const id = `variable-list-${++boxes}`;
   input.classList.add("variable-input");
@@ -79,7 +121,6 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
   input.setAttribute("aria-autocomplete", "list");
   input.setAttribute("aria-controls", id);
   const list = h("ul", { id, class: "variable-list", role: "listbox", hidden: true, "aria-label": `Variables${options.label ? ` for ${options.label}` : ""}` });
-  const line = h("div", { class: "variable-preview", "aria-live": "polite" });
   const insert = h("button", { type: "button", class: "btn icon variable-insert", title: "Insert a variable", "aria-label": "Insert a variable" }, "{x}") as HTMLButtonElement;
   let items: Offered[] = [];
   let active = 0;
@@ -131,10 +172,7 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
   };
   const newVariable = (typed: string): void => {
     close();
-    const name = typed.toUpperCase();
-    addVariable(name, () => {
-      if (name) put(name);
-    });
+    addVariable(typed.toUpperCase(), (name) => put(name));
   };
   const filterNow = (): string | null => (mode === "button" ? "" : typingName(input.value, input.selectionStart ?? input.value.length));
   const open = async (how: "typed" | "button"): Promise<void> => {
@@ -170,53 +208,23 @@ export function variableBox(input: HTMLInputElement, options: VariableBoxOptions
       close();
     }
   });
-  input.addEventListener("blur", () => setTimeout(close, 150));
+  // Away from the box (not to its own {x}): the list closes.
+  input.addEventListener("blur", () => setTimeout(() => document.activeElement !== input && close(), 150));
   insert.addEventListener("click", () => {
     input.focus();
     void open("button");
   });
 
   // ----- the line under the box: what it reads here -----
+  const shown = previewLine();
+  const line = shown.line;
   let timer = 0;
-  let asked = 0;
-  const preview = async (): Promise<void> => {
-    const text = input.value;
-    const mine = ++asked;
-    if (!namesVariable(text)) {
-      clearError(line);
-      line.replaceChildren();
-      line.hidden = true;
-      return;
-    }
-    try {
-      const shown = await api<Preview>("/variables/resolve", "POST", { text });
-      if (mine !== asked) return;
-      line.hidden = false;
-      if (shown.missing.length && shown.error) {
-        line.replaceChildren();
-        showError(line, JSON.stringify(shown.error), { dismiss: false, agent: false });
-      } else {
-        clearError(line);
-        line.replaceChildren(h("span", { class: "variable-preview-value mono", "data-masked": String(shown.masked) }, shown.value));
-      }
-    } catch {
-      line.hidden = true;
-    }
-  };
+  const preview = (): Promise<void> => shown.show(input.value);
   const schedule = (): void => {
     clearTimeout(timer);
     timer = window.setTimeout(() => void preview(), 250);
   };
-  const refresh = (): void => {
-    if (!input.isConnected) {
-      refreshers.delete(refresh);
-      return;
-    }
-    void preview();
-  };
-  refreshers.add(refresh);
   input.addEventListener("change", schedule);
-  line.hidden = true;
   void preview();
 
   return h("span", { class: "variable-box" }, h("span", { class: "variable-box-row" }, input, insert), list, line);

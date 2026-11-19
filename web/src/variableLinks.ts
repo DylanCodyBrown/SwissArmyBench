@@ -4,7 +4,7 @@
  * The same three fields as the page's form (a name, a value, where it is kept); the same PUT /variables.
  * [SHARED]
  *
- *   addVariable(name, done)   the form; `done` once it is saved (the box that asked reads it again).
+ *   addVariable(name, done)   the form; `done(name)` once it is saved (the box that asked puts it in).
  */
 import { api } from "./api";
 import { button, h, openDialog, toast } from "./dom";
@@ -12,7 +12,7 @@ import { showError } from "./errorNote";
 
 const SECRET_NAME = /(PASSWORD|PASSWD|SECRET|TOKEN|API_?KEY|PRIVATE)/i;
 
-export function addVariable(name: string, done?: () => void): void {
+export function addVariable(name: string, done?: (name: string) => void): void {
   const { dialog, body, foot, close } = openDialog("Add variable");
   dialog.classList.add("variable-add-dialog");
   const named = h("input", { type: "text", class: "mono", "aria-label": "Name", placeholder: "SALES_REGION", spellcheck: false, value: name }) as HTMLInputElement;
@@ -43,9 +43,10 @@ export function addVariable(name: string, done?: () => void): void {
     const from = kept.value === "keyring" ? "keyring" : "value";
     try {
       await api("/variables", "PUT", { name: named.value.trim(), value: value.value, from, ...(from === "value" ? { local: kept.value === "local" } : {}) });
+      const added = named.value.trim();
       close();
-      toast(`Added ${named.value.trim()}`);
-      done?.();
+      toast(`Added ${added}`);
+      done?.(added);
     } catch (e) {
       showError(problem, e);
     }

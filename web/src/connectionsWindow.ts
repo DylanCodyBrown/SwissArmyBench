@@ -57,7 +57,7 @@ import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
 import { clearError, errorNote, showError } from "./errorNote";
-import { variableBox } from "./variableBox";
+import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
@@ -1051,6 +1051,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       form.secrets = form.secrets.map((s) => (s === secret ? answer.secret : s));
       labels.set(answer.secret, labels.get(secret) ?? secret);
     };
+    // A typed password as it is kept: `$${NAME}` is the text `${NAME}` (12.7); a `$` elsewhere stays as typed.
+    const typedValue = (text: string): string => text.replace(/\$(\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\})/g, "$1");
     const referenceOnly = (text: string): string | null => /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(text.trim())?.[1] ?? null;
     const drawPasswords = (): HTMLElement | null => {
       passwords.clear();
@@ -1069,6 +1071,11 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           input.addEventListener("input", () => (input.type = input.value.includes("${") ? "text" : "password"));
           input.addEventListener("change", () => {
             const variable = referenceOnly(input.value);
+            if (!variable && namesVariable(input.value)) {
+              // A password is a variable on its own, or a value: never part of one (its value is never shown).
+              showError(result, { what: `${label(s)} takes one variable on its own, such as \${${variableFor(s)}}, or a typed password.`, where: label(s) });
+              return;
+            }
             if (variable && variable !== s) {
               passwords.delete(s);
               void pointAt(s, variable).then(
@@ -1089,9 +1096,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const typedToVariables = async (): Promise<void> => {
       if (form.secrets_from === "vault only") return; // refused by the server, said there
       for (const [s, input] of [...passwords]) {
-        if (!input.value || input.value.includes("${")) continue;
+        if (!input.value || namesVariable(input.value)) continue;
         const variable = variableFor(s);
-        await api("/variables", "PUT", { name: variable, value: input.value, from: "keyring" });
+        await api("/variables", "PUT", { name: variable, value: typedValue(input.value), from: "keyring" });
         await pointAt(s, variable);
         passwords.delete(s);
         input.value = `\${${variable}}`;
@@ -1197,7 +1204,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       );
     });
 
-    const typed = (): Record<string, string> => Object.fromEntries([...passwords].filter(([, input]) => input.value).map(([s, input]) => [s, input.value]));
+    const typed = (): Record<string, string> => Object.fromEntries([...passwords].filter(([, input]) => input.value).map(([s, input]) => [s, typedValue(input.value)]));
     const sent = (): Record<string, unknown> => ({
       name: name.value.trim(),
       description: description.value.trim(),
@@ -1268,7 +1275,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const signIn = ways.length > 1 ? h("div", {}, h("label", { class: "field" }, h("span", {}, "Sign in"), signInSelect), signInNote) : null;
     const switchSignIn = async (way: { code: string }): Promise<void> => {
       // A value typed so far, with its variable when it comes from one (SQL Server's server, a certificate).
-      const typedSoFar = new Map<string, unknown>(fields.filter((f) => !f.placeholder || f.env).map((f) => [f.name, f.env ? { value: f.value, env: f.env } : f.value]));
+      const typedSoFar = new Map<string, unknown>(fields.filter((f) => !f.placeholder || namesVariable(f.text ?? "")).map((f) => [f.name, f.type === "flag" || form.choices?.[f.name] ? f.value : { text: f.text ?? String(f.value) }]));
       try {
         const next = await api<{ settings: Field[]; secrets: string[]; install_here: string | null; packages?: Form["packages"]; missing?: Missing | null }>("/blades/inspect", "POST", { code: way.code, template: form.id || null, name: editing });
         const keep = Object.fromEntries(next.settings.filter((s) => typedSoFar.has(s.name) && s.name !== "driver").map((s) => [s.id, typedSoFar.get(s.name)]));
