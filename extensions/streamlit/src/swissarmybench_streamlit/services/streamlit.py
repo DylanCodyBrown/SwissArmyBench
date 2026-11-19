@@ -1481,6 +1481,78 @@ class StreamlitApps:
             **self.local([p.code for p in pieces.values()]),
         }
 
+    # ===== a launch's build (services/launch.py): the export exactly as a build keeps it =====
+
+    async def build_parts(self, app_id: str, title: str, perf: bool = False) -> dict[str, Any]:
+        """The app's export as a launch builds it: its files (app.py, app_pages/*.py, sab_queries.py,
+        data.py as made, requirements.txt, README.txt; with `perf`, each page timed for the analyzer), the
+        tables its pages read (their names; their rows go only into the run's own folder), each linked cell's
+        code (Restore), the canvas's file and the problems. `title`: the window's (`<app> · build <n>`)."""
+        app = self._app(app_id, canvas=True)
+        if not app.pages:
+            raise StreamlitError("There is no page to launch yet.")
+        tables = self._tables()
+        linked = self._linked(app)
+        pieces, found, where = self._canvas_pieces(app, linked)
+        gone = {b.id: said for p in app.pages for b in p.blocks if (said := self._gone(b, linked))}
+        fallen = {page.id: self.fallbacks(page, linked) for page in app.pages}
+        made = rules.export(
+            app.title,
+            app.pages,
+            pieces,
+            tables,
+            found,
+            where,
+            gone,
+            self._files.helper(),
+            fallbacks=fallen,
+            head=page_settings.page_head(app.settings, title),
+            config=page_settings.config_toml(app.settings, app.title),
+            perf=perf,
+        )
+        module, problems = self.queries(p.code for p in pieces.values())
+        if module is not None:
+            rules.with_queries(made, module.text, module.requirements)
+        if app.document:
+            data = await self._data(self._project.folder_of(app.document), app.title)
+            if data is not None:
+                made.files[projects.DATA_FILE] = data.text
+        cells = []
+        for (document, cell), code in sorted(
+            {(b.document, b.cell): linked.code(b.key) for p in app.pages for b in p.blocks}.items()
+        ):
+            if code is not None:
+                kind = linked.kind((document, cell))
+                cells.append((document, cell, kind, linked.name((document, cell)), code))
+        return {
+            "files": made.files,
+            "tables": list(made.tables),
+            "cells": cells,
+            "canvas": rules.write_app(app.pages, settings=page_settings.file_line(app.settings)),
+            "problems": [*made.problems, *problems],
+            "python": self._python(app),
+            "document": app.document,
+            "title": app.title,
+        }
+
+    def held_cells(self, app_id: str) -> dict[tuple[str, int], str]:
+        """Each linked cell's own text as it is now (Restore compares against it), by (file, number)."""
+        app = self._app(app_id, canvas=True)
+        found: dict[tuple[str, int], str] = {}
+        for document in dict.fromkeys(b.document for p in app.pages for b in p.blocks):
+            held = self._open_document(document)
+            if held is not None and held.every is not None:
+                found.update({(document, c.number): c.source for c in held.every if c.number is not None})
+                continue
+            try:
+                text, full, _ = self._read(document)
+            except (FileNotFoundError, OSError):
+                continue
+            if notebooks.kind_of(full) == "notebook":
+                cells, _ = notebooks.read_document(text)
+                found.update({(document, c.number): c.source for c in cells if c.number is not None})
+        return found
+
     # ===== a project's data: data.ipynb -> data.py =====
 
     async def _data_cells(self, folder: str) -> list[DataCell] | None:

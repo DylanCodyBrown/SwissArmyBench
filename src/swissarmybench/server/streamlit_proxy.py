@@ -75,10 +75,18 @@ def _fetch(
         connection.close()
 
 
-def routes(port_of: Lookup, prefix: str = PREFIX, what: str = "This Streamlit app") -> list[BaseRoute]:
+# A websocket message seen as it passes: (the key, "down" to the page or "up" from it, the message). The
+# Performance Analyzer's (the Streamlit extension's): it keeps only a message's kind and size.
+Tap = Callable[[str, str, bytes | str], None]
+
+
+def routes(
+    port_of: Lookup, prefix: str = PREFIX, what: str = "This Streamlit app", tap: Tap | None = None
+) -> list[BaseRoute]:
     """`port_of("<app>-<secret>")` gives the Streamlit port to pass on to (None: refuse). Another live page
     served the same way (an extension's dev server, started with `prefix` as its base path) passes its own
-    `prefix` and its words for `what` is not running."""
+    `prefix` and its words for `what` is not running. `tap`: told of each websocket message (its own work
+    decides whether to keep anything)."""
 
     async def page(request: Request) -> Response:
         port = port_of(request.path_params["key"])
@@ -142,10 +150,19 @@ def routes(port_of: Lookup, prefix: str = PREFIX, what: str = "This Streamlit ap
             await websocket.close(code=1011)
             return
         await websocket.accept(subprotocol=upstream.subprotocol)
+        key = websocket.path_params["key"]
+
+        def seen(direction: str, message: bytes | str) -> None:
+            if tap is not None:
+                try:
+                    tap(key, direction, message)
+                except Exception:  # noqa: S110 (the analyzer's trouble never stops the page)
+                    pass
 
         async def down() -> None:
             try:
                 async for message in upstream:
+                    seen("down", message)
                     if isinstance(message, str):
                         await websocket.send_text(message)
                     else:
@@ -160,6 +177,7 @@ def routes(port_of: Lookup, prefix: str = PREFIX, what: str = "This Streamlit ap
                     if message["type"] == "websocket.disconnect":
                         return
                     if message.get("bytes") is not None:
+                        seen("up", message["bytes"])
                         await upstream.send(message["bytes"])
                     elif message.get("text") is not None:
                         await upstream.send(message["text"])

@@ -568,3 +568,113 @@ def canvas_add(a: dict[str, Any]) -> Any:
         "canvas.add",
         {k: a[k] for k in ("element", "parent", "slot", "row", "column") if a.get(k) is not None},
     )
+
+
+# Launch, build history and the Performance Analyzer (2026-11-19): every launch is a build in the project's
+# builds/<app>/<n>/; the analyzer records only while it is attached.
+
+
+@command(
+    "app_launch",
+    "Launch a Streamlit app (Visual Studio's F5): a new build in builds/<app>/<n>/, run in its own window",
+    req("app", "The canvas's id (streamlit_apps lists them)."),
+    opt("analyzer", "true: the Performance Analyzer records from its first load.", "bool"),
+)
+def app_launch(a: dict[str, Any]) -> Any:
+    body = {"analyzer": True} if a.get("analyzer") else {}
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/launch", body)
+
+
+@command("app_stop", "Stop a launched Streamlit app", req("app", "The canvas's id."))
+def app_stop(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/streamlit/apps/{_q(a['app'])}/launch")
+
+
+@command(
+    "builds_list",
+    "An app's builds, newest first: number, time, what changed in words, its result, saved analyzer sessions",
+    req("app", "The canvas's id."),
+    opt("build", "One build's number: its files (read-only).", "int"),
+)
+def builds_list(a: dict[str, Any]) -> Any:
+    if a.get("build") is not None:
+        return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}")
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/builds")
+
+
+@command(
+    "builds_compare",
+    "Two builds' code file by file: changed, added, removed, each side's text",
+    req("app", "The canvas's id."),
+    req("a", "The first build's number.", "int"),
+    req("b", "The second build's number.", "int"),
+)
+def builds_compare(a: dict[str, Any]) -> Any:
+    return api.call(
+        "GET", f"/streamlit/apps/{_q(a['app'])}/builds/compare", params={"a": a["a"], "b": a["b"]}
+    )
+
+
+@command(
+    "build_relaunch",
+    "Run an old build again, its code as it was built",
+    req("app", "The canvas's id."),
+    req("build", "The build's number.", "int"),
+)
+def build_relaunch(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}/launch")
+
+
+@command(
+    "build_restore",
+    "Restore a build's code into the app: its cells' code (undoable in their documents) and its layout",
+    req("app", "The canvas's id."),
+    req("build", "The build's number.", "int"),
+)
+def build_restore(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}/restore")
+
+
+@command(
+    "perf_attach",
+    "Attach the Performance Analyzer to a launched app (it records only while attached)",
+    req("app", "The canvas's id (its launch must be running)."),
+    opt("on", "false: pause; true (default): record.", "bool"),
+    opt("clear", "true: start a new session.", "bool"),
+    opt("detach", "true: detach (nothing more is recorded).", "bool"),
+    opt("save", "true: save the session into its build (perf-<time>.json).", "bool"),
+)
+def perf_attach(a: dict[str, Any]) -> Any:
+    path = f"/streamlit/apps/{_q(a['app'])}/perf"
+    if a.get("detach"):
+        return api.call("DELETE", path)
+    if a.get("save"):
+        return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/perf/save")
+    body = {k: a[k] for k in ("on", "clear") if a.get(k) is not None}
+    return api.call("POST", path, body)
+
+
+@command(
+    "perf_session",
+    "The analyzer's session: each rerun (trigger, each block's time), calls, caches, the web socket's messages",
+    req("app", "The canvas's id."),
+    opt("build", "A build's number, with `file`: a saved session.", "int"),
+    opt("file", "A saved session's file (perf-<time>.json; builds_list names them)."),
+)
+def perf_session(a: dict[str, Any]) -> Any:
+    if a.get("build") is not None and a.get("file"):
+        return api.call(
+            "GET", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}/perf/{_q(a['file'])}"
+        )
+    if a.get("build") is not None or a.get("file"):
+        raise CommandError("A saved session takes both build and file.")
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/perf")
+
+
+@command(
+    "perf_hints",
+    "The analyzer's hints in plain words: what to change, and where",
+    req("app", "The canvas's id."),
+)
+def perf_hints(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/perf/hints")

@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
-from swissarmybench.domain import dataverse, notebooks, portability
+from swissarmybench.domain import dataverse, notebooks, page_queries, portability
 from swissarmybench.domain import script_export as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
@@ -186,13 +186,13 @@ class ScriptExports:
             found.append((blade.name, blade.code, blade.template, passwords))
         return portability.export_notes(found)
 
-    def query_module(self, cells: list[ExportCell]) -> rules.QueryModule:
+    def query_module(self, cells: list[ExportCell]) -> page_queries.QueryModule:
         """sab_queries.py for a Streamlit page's SQL and DAX blocks (the Streamlit extension's canvas):
         each connection they name written out as an export writes it. Checked as an export is: it
         compiles and holds no saved password's value (Refused otherwise: nothing is written)."""
         names = self._code_names()
         pieces, values = self._pieces(rules.references(cells, names))
-        made = rules.query_module(rules.plan("pages", "pages.ipynb", cells, pieces, names))
+        made = page_queries.query_module(rules.plan("pages", "pages.ipynb", cells, pieces, names))
         stopped = rules.check(made.text, values)
         if stopped:
             raise Refused("sab_queries.py was not written: " + "; ".join(dict.fromkeys(stopped)) + ".")

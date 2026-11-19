@@ -24,14 +24,14 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
 | `compare_` | two grids, tie-out | `compare_create` |
-| `connections_`, `variables_` | databases, files, Power BI, Dataverse, Python; variables | `connections_list`, `variables_resolve` |
+| `connections_`, `variables_` | connections of every kind; variables | `connections_list`, `variables_resolve` |
 | `library_`, `team_` | library, setup; the team | `library_setup`, `team_join` |
-| `apis_` | APIs: operations, calls | `apis_search`, `apis_call`, `apis_save_call` |
+| `apis_` | APIs: operations, calls | `apis_search`, `apis_call` |
 | `structures_` | JSON, YAML, XML, TOML; steps, lineage | `structures_open`, `structures_show` |
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
-| `streamlit_`, `canvas_` | Streamlit apps; the designer | `streamlit_test`, `canvas_inspect` |
+| `streamlit_`, `canvas_`, `build_`, `builds_`, `perf_` | apps, designer, launches | `canvas_inspect`, `app_launch`, `perf_hints` |
 | `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |
 | `files_`, `app_`, `extensions_` | files; page, mode, extensions | `app_context`, `app_mode`, `extensions_list` |
 | `desktop_` | app windows | `desktop_open`, `app_lifecycle` |

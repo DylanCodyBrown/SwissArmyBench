@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.domain import notebooks
+from swissarmybench.domain import notebooks, page_queries
 from swissarmybench.domain import script_export as exporter
 from swissarmybench.domain import script_runtime as runtime
 from swissarmybench_streamlit.domain import streamlit_cells as rules
@@ -69,9 +69,9 @@ def test_a_sql_cell_is_the_exporters_call_with_its_page_values_named() -> None:
 def test_page_values_are_read_outside_strings_and_comments_only() -> None:
     sql = "SELECT '{{ a }}' AS t, \"{{ b }}\" FROM x -- {{ c }}\n"
     sql += "/* {{ d }} */ WHERE r = {{ region }} AND y = {{y}}"
-    assert exporter.page_names(sql) == ["region", "y"]
+    assert page_queries.page_names(sql) == ["region", "y"]
     dax = "EVALUATE FILTER('T {{ t }}', 'T'[R] = {{ region }} && \"{{ s }}\" <> \"\" ) // {{ c }}"
-    assert exporter.page_names(dax, dax=True) == ["region"]
+    assert page_queries.page_names(dax, dax=True) == ["region"]
 
 
 def _runtime() -> dict[str, Any]:

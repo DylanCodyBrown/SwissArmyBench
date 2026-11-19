@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.domain import connection_usage as usage
-from swissarmybench.domain import html_cells, notebooks, table_cells
+from swissarmybench.domain import html_cells, notebooks, page_queries, table_cells
 from swissarmybench.domain import script_export as exporter
 from swissarmybench.domain.blades import pip_name, provided
 from swissarmybench.domain.cell_facts import (
@@ -112,14 +112,17 @@ SCRIPT_STREAMLIT: str = "streamlit>=1.52"
 # copy of client/lineage_values.py beside the page (standard library only), only while it plays here.
 TRACE_MODULE: str = "sab_lineage"
 TRACE_FILE: str = f"{TRACE_MODULE}.py"
+# A launched app's pages time each block for the Performance Analyzer (server/sab_perf.py, copied beside).
+PERF_MODULE: str = "sab_perf"
+PERF_FILE: str = f"{PERF_MODULE}.py"
 
 # A SQL or DAX cell on a page (2026-11-19, the owner: "did we add DAX cells to the canvas?"): its code is
 # the script exporter's own translation (domain/script_export.py `query_cell`), calling sab_queries.py
 # beside the pages (the connections written out as the exporter writes them, `query_module`).
 QUERY_KINDS: tuple[str, ...] = ("sql", "dax")
-QUERY_MODULE: str = exporter.QUERY_MODULE
+QUERY_MODULE: str = page_queries.QUERY_MODULE
 QUERY_ALIAS: str = f"_{QUERY_MODULE}"  # the block's own name for it (a name with _ is not one the page shows)
-QUERY_FILE: str = exporter.QUERY_FILE
+QUERY_FILE: str = page_queries.QUERY_FILE
 # The line a query block shows its result with ends with this mark (the view's choice replaces it).
 SHOW_MARK: str = "# shown as:"
 VIEWS: tuple[str, ...] = ("table", "bar", "line", "area", "metric")
@@ -262,7 +265,7 @@ def query_code(kind: str, connection: str | None, text: str, number: int, name: 
         said = str(error)
         return f"{head}\nst.error({said[:1].upper() + said[1:] + ': pick one in its head.'!r})\n"
     result = asked.target or f"query_{number}"
-    names = [n for n in exporter.page_names(asked.query, kind == "dax") if not keyword.iskeyword(n)]
+    names = [n for n in page_queries.page_names(asked.query, kind == "dax") if not keyword.iskeyword(n)]
     values = (", {" + ", ".join(f"{n!r}: {n}" for n in names) + "}") if names else ""
     call = f"{QUERY_ALIAS}.{kind}({asked.name!r}, {python_string(asked.query)}{values})"
     return (
@@ -333,13 +336,13 @@ def query_tables(kind: str, query: str) -> list[str]:
     """The tables a query names: a SQL query's by sqlglot's tree (a page value read as a value); a DAX
     query's quoted 'Table' names. Names only, in order; a query sqlglot cannot read names none."""
     if kind == "dax":
-        text = "".join(p for p in exporter.page_split(query, dax=True) if isinstance(p, str))
+        text = "".join(p for p in page_queries.page_split(query, dax=True) if isinstance(p, str))
         text = re.sub(r'"(?:[^"]|"")*"', '""', text)
         return list(dict.fromkeys(m.group(1).replace("''", "'") for m in _DAX_TABLE.finditer(text)))
     import sqlglot
     from sqlglot import exp
 
-    text = "".join(p if isinstance(p, str) else "NULL" for p in exporter.page_split(query))
+    text = "".join(p if isinstance(p, str) else "NULL" for p in page_queries.page_split(query))
     try:
         trees = sqlglot.parse(text)
     except sqlglot.errors.SqlglotError:
@@ -374,7 +377,7 @@ def query_facts(code: str) -> QueryFacts | None:
         dataset,
         cell.source,
         made[0] if made else None,
-        tuple(exporter.page_names(cell.source, cell.kind == "dax")),
+        tuple(page_queries.page_names(cell.source, cell.kind == "dax")),
         tuple(query_tables(cell.kind, cell.source)),
     )
 
@@ -1507,6 +1510,7 @@ def page_code(
     trace: str | None = None,
     containers: Sequence[Container] = (),
     fragments: bool = True,
+    perf: str | None = None,
 ) -> PageCode:
     """A page as one Streamlit page.
 
@@ -1530,6 +1534,8 @@ def page_code(
     `trace`: the page's id, while it plays in the app: after each block runs, its names' values are
     noted for the lineage overlay (TRACE_MODULE), and its error when it fails. `fragments`: a block whose
     widgets feed only itself runs as an st.fragment (`fragment_blocks`): its widget reruns it alone.
+    `perf`: the page's id, in a launch's run folder: each block is timed for the Performance Analyzer
+    (PERF_MODULE beside the pages records only while the analyzer is open).
     """
     known = [b for b in placed if b.key in pieces]
     found = {b.id: facts(pieces[b.key].code) for b in known}
@@ -1591,6 +1597,8 @@ def page_code(
 
     if trace is not None:
         out += [f"import {TRACE_MODULE} as _sab_lineage", "", f"_sab_lineage.start(__file__, {trace!r})", ""]
+    if perf is not None:
+        out += [f"import {PERF_MODULE} as _sab_perf", "", f"_sab_perf.start(__file__, {perf!r})", ""]
     out.append(LAYOUT_LINE)
     out += _layout(placed, containers)
     out.append("")
@@ -1636,6 +1644,8 @@ def page_code(
         if not runs_something(text):
             text = "pass"
         part = b.id in parts
+        if perf is not None:
+            out.append(f"_sab_perf.before({b.id!r})")
         start = len(out)
         out.append(f"with _slot_{b.id}:")
         noted = ""
@@ -1660,7 +1670,11 @@ def page_code(
             # A fragment: its widgets rerun only it (st.fragment), drawn in its own slot.
             out[start] = f"@st.fragment\ndef _sab_part_{b.id}():"
             out.append(f"\n\nwith _slot_{b.id}:\n    _sab_part_{b.id}()")
+        if perf is not None:
+            out.append(f"_sab_perf.mark({b.id!r})")
         out.append("")
+    if perf is not None:
+        out.append("_sab_perf.end()")
     return PageCode(
         "\n".join(out).rstrip("\n") + "\n",
         tuple(used),
@@ -1923,6 +1937,7 @@ def export(
     fallbacks: Mapping[str, Mapping[str, Fallback]] | None = None,
     head: Sequence[str] = (),
     config: str | None = None,
+    perf: bool = False,
 ) -> Export:
     """The pages as a runnable folder: app.py (st.navigation over the pages), one module a page,
     requirements.txt and README.txt. The tables it names go into data/ (the caller writes them). A
@@ -1951,6 +1966,7 @@ def export(
             gone=gone,
             fallbacks=(fallbacks or {}).get(page.id),
             containers=page.containers,
+            perf=page.id if perf else None,
         )
         files[f"app_pages/{module}.py"] = made.code
         modules.append((module, page.name))
