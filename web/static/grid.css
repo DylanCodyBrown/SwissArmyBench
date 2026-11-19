@@ -18516,3 +18516,21 @@ body:has(> .tour) > .context-menu {
 .wb-cell.has-run .wb-cell-name.unnamed:not(:focus) {
   opacity: 0.6;
 }
+
+/* gates.ts: a feature the project's type keeps closed (its rail item hidden; one line on a way in). */
+/* A closed area stays hidden whether the rail shows names or not (html.rail-names sets the items' display). */
+.nav-rail .nav-rail-item[data-gated],
+html.rail-names .nav-rail .nav-rail-item[data-gated] {
+  display: none;
+}
+.gate-line {
+  position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 60;
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 6px;
+  background: var(--surface, var(--bg)); color: var(--fg); border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+.extension-panel-note { color: var(--muted); margin: 2px 0 10px; }
+.extension-panel-choice { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.extension-panel-action { display: flex; flex-direction: column; align-items: flex-start; margin: 6px 0; }
+.gates-first { padding: 20px 24px; max-width: 560px; border-radius: 8px; }
+.gates-first .dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }

@@ -118,3 +118,21 @@ def open_file(path: str, show: Callable[[str], None]) -> str:
         return "opened"
     show(str(target.parent))
     return "shown"
+
+
+class StateFiles:
+    """A Power BI project's own small files (.sab/powerbi.json, data.ipynb): read whole, written atomically
+    and
+    only when their bytes change."""
+
+    def read_text(self, path: str) -> str | None:
+        try:
+            return Path(path).read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return None
+
+    def write_text(self, path: str, text: str) -> bool:
+        from swissarmybench.adapters.atomic_files import write_atomic
+
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        return bool(write_atomic(path, text, if_changed=True))

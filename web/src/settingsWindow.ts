@@ -38,6 +38,7 @@ import { loadPanels, panelList, setPanel } from "./panels";
 import { followSwitch } from "./sessionPage";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 import { errorHere } from "./errorNote";
+import { gatesSetting } from "./gates";
 
 /** One switch for each panel, by page. A panel turned off is gone from every window at once. */
 function panelsSection(): HTMLElement {
@@ -164,6 +165,7 @@ function drawSettings(): void {
       h("div", { class: "form-grid", role: "radiogroup", "aria-label": "Theme" }, ...themes),
     ),
     teamSection(),
+    gatesSetting(), // a project type's gates: Open every feature in this project
     panelsSection(),
     kindColoursSection(),
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.

@@ -8,6 +8,9 @@
  *   code      {label, text, link, link_label, then, waiting}: a code to copy and a page to open (https only):
  *             the page opens on the user's click, then {action: then} is posted
  *   busy      words while it works (a progress bar; asked again every two seconds)
+ *   choices   [{id, label, value, options: [{value, label}]}]: each a picker; a change posts {choice, value}
+ *   rows      [{id, text, tone, action: {id, label}}]: a list to work through, each with its one fix
+ *   actions may carry a `note`: one sentence under the button
  * The Extensions page's card and Settings draw the same panel. Nothing here names an extension.
  *
  * ROUTING: the panel's route (GET, POST)  ·  notice extension_panel_changed
@@ -20,7 +23,10 @@ export interface PanelData {
   title?: string;
   lines: { text: string; tone?: string }[];
   switches: { id: string; label: string; on: boolean; disabled?: boolean }[];
-  actions: { id: string; label: string; primary?: boolean; disabled?: boolean }[];
+  actions: { id: string; label: string; primary?: boolean; disabled?: boolean; note?: string }[];
+  choices?: { id: string; label: string; value: string; options: { value: string; label: string }[] }[];
+  rows?: { id: string; text: string; tone?: string; action?: { id: string; label: string } }[];
+  heading?: string;
   code?: { label: string; text: string; link: string; link_label: string; then: string; waiting?: boolean } | null;
   busy?: string | null;
 }
@@ -52,7 +58,18 @@ export function extensionPanel(route: string): HTMLElement {
       const go = button(a.label, () => void post({ action: a.id }), { class: a.primary ? "primary" : "" });
       go.dataset.action = a.id;
       go.disabled = Boolean(a.disabled);
-      return go;
+      return a.note ? h("div", { class: "extension-panel-action" }, go, h("p", { class: "extension-panel-note" }, a.note)) : go;
+    });
+    const choices = (data.choices ?? []).map((c) => {
+      const select = h("select", { "aria-label": c.label, dataset: { choice: c.id } }, ...c.options.map((o) => h("option", { value: o.value }, o.label)));
+      select.value = c.value;
+      select.addEventListener("change", () => void post({ choice: c.id, value: select.value }));
+      return h("label", { class: "extension-panel-choice" }, h("span", {}, c.label), select);
+    });
+    const rows = (data.rows ?? []).map((r) => {
+      const fix = r.action ? button(r.action.label, () => void post({ action: r.action!.id }), {}) : null;
+      if (fix) fix.dataset.action = r.action!.id;
+      return h("li", { class: `extension-panel-row${r.tone ? ` tone-${r.tone}` : ""}`, "data-row": r.id }, h("span", {}, r.text), fix ?? "");
     });
     let code: HTMLElement | null = null;
     if (data.code) {
@@ -66,7 +83,15 @@ export function extensionPanel(route: string): HTMLElement {
       code = h("div", { class: "extension-panel-code" }, h("span", { class: "muted" }, said.label), h("strong", { class: "mono extension-panel-usercode" }, said.text), copy, said.waiting ? null : open);
     }
     const busy = data.busy ? h("div", { class: "extension-panel-busy", role: "status" }, h("progress", { "aria-label": data.busy }), h("span", {}, data.busy)) : null;
-    host.replaceChildren(...lines, code ?? "", busy ?? "", switches.length || actions.length ? h("div", { class: "extension-panel-controls" }, ...switches, ...actions) : "");
+    host.replaceChildren(
+      ...choices,
+      data.heading && rows.length ? h("h2", { class: "extension-panel-heading" }, data.heading) : "",
+      rows.length ? h("ul", { class: "extension-panel-rows" }, ...rows) : "",
+      ...lines,
+      code ?? "",
+      busy ?? "",
+      switches.length || actions.length ? h("div", { class: "extension-panel-controls" }, ...switches, ...actions) : "",
+    );
     if (poll !== null) window.clearTimeout(poll);
     poll = data.busy && host.isConnected ? window.setTimeout(() => void load(), 2000) : null;
   };

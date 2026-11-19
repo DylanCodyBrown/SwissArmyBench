@@ -358,8 +358,10 @@ class ConnectionService:
         if not place["table"]:
             raise ValueError("Name the table to open.")
         read = await self.read_table(blade, kind, place, every, body)
+        named = body.get("as") if isinstance(body, dict) else None  # a caller's own name for the grid
         stored = await self._tables.store(
-            read.dataset, read.table, who, read.opened, read.connection, read.sql, read.dax, read.code,
+            named.strip() if isinstance(named, str) and named.strip() else read.dataset,
+            read.table, who, read.opened, read.connection, read.sql, read.dax, read.code,
             read.place,
         )  # fmt: skip
         return stored | {"shown": read.shown, "total": read.total}

@@ -6483,3 +6483,48 @@ Release notes (pending):
 - A missing table's error is said once, without DuckDB's own-table guess; a table open in Grids is one click
   from its table cell.
 - Tabs fit nine to a row at 1024px; Find data closes on one Escape; Settings' boxes tidied; one tour button.
+
+
+## The Power BI extension, part 2: a .pbix as a project (2026-11-19, the owner's calls; built, branch powerbi-2)
+
+Built in the extension (backend and data); the base gained only generic seams.
+
+- **Two paths that never cross.** Reading a .pbix is pbixray's only (domain/pbix_file.py, adapters/pbix_reader.py);
+  editing is the live Power BI Desktop link only (domain/live_link.py, adapters/live_link.py). Nothing matches a
+  pbixray connection to a live link. The one exception is Read Power BI from's Local source.
+- **C, the .pbix file connection:** a Python connection (Connect, List the tables, Read a table) whose code reads
+  the file with pbixray; tagged `powerbi file`; its path `${NAME}`-able; "as of" its last refresh; read-only and
+  why; the portability note for a path on this disk. Its relationships are offered to the ERD.
+- **B, the import:** `POST /powerbi/import` (`powerbi_import_project`, dry run first): connections per distinct
+  source (reused by kind, server and database), Power Query parameters as plain variables, the published dataset
+  (a thin report's own; else by the file's name; several or none: asked), the file connection, `.sab/powerbi.json`
+  (each table's M and its Source SQL's digest, measures with folders and formats, relationships), data.ipynb,
+  relationships into the ERD, each table as `<Table>_Source` and `<Table>_PowerBI` grids with a Compare. The
+  import always finishes: what failed is listed. Round trip rules: round_trip_m and with_native_query (an untouched
+  table's M byte for byte; a changed notebook query as a native query). **Not wired yet:** part 1's export reading
+  `.sab/powerbi.json` (the rules are there and tested).
+- **H, To finish setting up:** rows for the app registration, the published dataset, a source's password, a source
+  kind we cannot read; each with one fix; `powerbi_setup_status`.
+- **G, app registrations:** a base library item (`app-registrations/<name>.toml`: three variable names). Test and
+  Check again make an access report (sign-in, workspaces, datasets, one COUNTROWS through executeQueries) kept as
+  `<name>.access.json` (names, marks, reasons, time, computer); `GET /connections/{name}/access` is a connection's
+  Access section. Non-Power BI connections say "not checked" with why (Azure SQL, Dataverse, SharePoint and lakes
+  are not reached yet). The Power BI project's choice re-points its SQL Server sources after a dry run.
+  **Left out:** the Access section drawn on the Connections page, and context.md's one line per connection.
+- **E, Read Power BI from:** Published | Local, kept in .sab/project.json (`powerbi_source`); the file is the
+  fallback, said. The `_PowerBI` grids read again on a switch. **Left out:** `%%dax` cells and DuckDB SQL following
+  the switch with no code change (they name the workspace connection as before).
+- **F, gates:** a mode's `areas`, `first_open` and `tour`; `GET/POST /app/gates` (`app_gates`); rail.ts hides a
+  closed area, an address or a goArea to one shows one line with Open every feature; Settings' Open every feature
+  in this project; the first-open pop-up once per project. An extension's rail area with a `panel` route is drawn
+  from data (extensionArea.ts; extensionPanel.ts gained choices, rows and notes). **Left out:** the palette's and
+  the Workbench's New entries asking the gates; the tour's own card list (the mode carries it).
+- **D, Edit in Power BI Desktop:** discovery every 15 seconds while wanted (Windows), status pushed
+  (`powerbi_live`), the open model as names, a dry run, Apply through TOM (pythonnet, Windows marker; Microsoft's
+  model client libraries 19.82.0 net45 fetched once, SHA-256 pinned). Agent: `powerbi_edit_files`, `_model`,
+  `_plan`, `_apply` (Allow).
+- **Opening a file:** an extension's `OPENS` (suffix: route); `swissarmybench open report.pbix` and a dropped file
+  are offered on the Power BI page (Make a Power BI project for it; Import its model; Use its pages on our model).
+
+Release notes: Power BI projects from a .pbix; the .pbix connection; app registrations with access reports; Read
+Power BI from Published or Local; project types that keep features closed; Edit in Power BI Desktop (Windows).

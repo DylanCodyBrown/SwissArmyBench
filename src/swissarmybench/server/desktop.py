@@ -168,10 +168,20 @@ def file_page(path: str, info: dict[str, Any]) -> str:
     target = Path(path).expanduser()
     if not target.exists():
         raise rules.ShellError(f"{target} is not there.")
-    kind = rules.file_kind(target.name, target.is_dir(), (target / ".sab").is_dir())
+    opens: dict[str, str] = {}
+    try:  # the files an on extension opens (a .pbix: the Power BI extension's), as the server says
+        opens = dict((get_json(info, "/app/opens") or {}).get("opens") or {})
+    except OSError:
+        pass
+    kind = rules.file_kind(target.name, target.is_dir(), (target / ".sab").is_dir(), tuple(opens))
     if not kind:
         raise rules.ShellError(rules.CANNOT_OPEN.format(name=target.name))
     full = str(target.resolve())
+    if kind == rules.EXTENSION:
+        route = next(r for s, r in opens.items() if target.name.lower().endswith(s))
+        answer = post_json(info, route, {"path": full})
+        page = answer.get("page") if isinstance(answer, dict) else None
+        return str(page) if isinstance(page, str) and page.startswith("/") else rules.HOME_PAGE
     if kind == rules.PROJECT:
         post_json(info, "/project/open", {"path": full, "ask": True})
         return rules.HOME_PAGE

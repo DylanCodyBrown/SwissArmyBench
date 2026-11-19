@@ -3642,6 +3642,18 @@ def app_mode(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "app_gates",
+    "The features the open project's type keeps closed (your tools stay open); every=true or false is "
+    "Settings' Open every feature in this project",
+    opt("every", "true: open every feature in this project; false: keep its type's gates.", "bool"),
+)
+def app_gates(a: dict[str, Any]) -> Any:
+    if a.get("every") is None:
+        return api.call("GET", "/app/gates")
+    return api.call("POST", "/app/gates", {"every": bool(a["every"])})
+
+
+@command(
     "app_panels",
     "The panels' switches in Settings (all on at each start); with set, turn some off or on",
     opt("set", '{"workbench.console": false, "grid.ribbon": true}', "json"),
@@ -3944,6 +3956,54 @@ def team_start(a: dict[str, Any]) -> Any:
 def team_leave(a: dict[str, Any]) -> Any:
     body = {} if a.get("keep") is None else {"keep": bool(a["keep"])}
     return api.call("POST", "/team/leave", body, timeout=200)
+
+
+@command(
+    "app_registration_list",
+    "The library's app registrations: their three variable names, the connections using each, the last check",
+    opt("name", "One registration: it and its last access report."),
+    opt("connection", "A connection's Access section instead."),
+)
+def app_registration_list(a: dict[str, Any]) -> Any:
+    if a.get("connection"):
+        return api.call("GET", f"/connections/{quote(str(a['connection']), safe='')}/access")
+    if a.get("name"):
+        return api.call("GET", f"/app-registrations/{quote(str(a['name']), safe='')}")
+    return api.call("GET", "/app-registrations")
+
+
+@command(
+    "app_registration_add",
+    "Add an app registration to the library: its name and the VARIABLES holding its tenant id, client id and "
+    "client secret (names only; remove=true takes it away)",
+    req("name", "Its name."),
+    opt("tenant", "The variable holding its tenant id."),
+    opt("client", "The variable holding its client id."),
+    opt("secret", "The variable holding its client secret (a keyring or vault variable)."),
+    opt("remove", "true: remove it from the library.", "bool"),
+)
+def app_registration_add(a: dict[str, Any]) -> Any:
+    if a.get("remove"):
+        return api.call("POST", "/app-registrations/remove", {"name": a["name"]})
+    body = {k: a[k] for k in ("name", "tenant", "client", "secret") if a.get(k)}
+    return api.call("POST", "/app-registrations", body)
+
+
+def _registration_check(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/app-registrations/{quote(str(a['name']), safe='')}/check", {}, timeout=200)
+
+
+command(
+    "app_registration_test",
+    "Test an app registration: its access report made now (read-only calls; never a token or a row kept)",
+    req("name", "The registration."),
+)(_registration_check)
+command(
+    "app_registration_check",
+    "Check again what an app registration reaches: workspaces, datasets, each connection using it; kept as "
+    "names and marks",
+    req("name", "The registration."),
+)(_registration_check)
 
 
 @command(

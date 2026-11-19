@@ -533,6 +533,9 @@ src/swissarmybench/
                          a display or with SWISSARMYBENCH_SYSTEM_DIALOGS=off), each tool's command line (values as
                          arguments or an environment variable, never in a script's text), its answer read; the
                          recent folders per kind of pick (dialogs.json); New folder's name
+    app_registrations.py an app registration (a library item: three variable names in app-registrations/<name>.toml)
+                         and its access report (names, marks, reasons; never a token or a row), Microsoft's refusals
+                         in plain words, a connection's access in one line
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -667,6 +670,8 @@ src/swissarmybench/
     project_scope.py     the open project's documents, and import: documents from another project folder or a
                          loose file into the project; an older project's connections and blades
                          into the library (services/library.py's take)
+    app_registrations.py the library's app registrations: list, add, remove, the access report (Test, Check again;
+                         never on a timer; audited), a connection's Access section
     inbox.py             what the user sends their agent (Send to the agent): memory only, read by the
                          prompt hook (client/context_hook.py) and the agent_inbox tool
     relationships.py     the Key Finder, compares, the current model and its library
@@ -689,6 +694,8 @@ src/swissarmybench/
                          file each, written only when its text changes), blade folders (.blade.py files found
                          by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
     shared_catalog.py    the catalog/ folder's files: stamps, read, written atomically only when the bytes change
+    app_registrations.py app-registrations/ (a file each, its .access.json beside it) and the access report's
+                         read-only calls (Microsoft's sign-in, Power BI's groups, datasets, one COUNTROWS)
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
     library.py           the library folder: where (library.json), README.md and .gitignore on first write,
                          counts, the one-time move of this computer's older stores (a dated backup), an older
@@ -1150,6 +1157,10 @@ web/src/scmPage.ts       (a plug-in) the Source Control page: VS Code's view (re
                          and the files beside it, the welcome and GitHub sign-in, Clone and Connect's quick picks;
                          the Team box's sign-in step (teamSignIn); a shared card's Pull, Push and words; Share's "Push it to GitHub
                          now?". scmGraph.ts the graph's swimlanes (ported from VS Code's scmHistory.ts, MIT)
+web/src/extensionArea.ts an extension's rail area with a `panel` route (GET /app/areas), drawn as a page of the
+                         rail's from that data (the Power BI page), generic
+web/src/gates.ts         a project type's gates (GET /app/gates): a closed area hidden on the rail, one line with Open
+                         every feature on any other way in, Settings' switch, the first-open pop-up once per project
 web/src/areaMarks.ts     the footer's marks an extension's area answers (GET /app/areas' mark route), generic
 vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
                          and an Open Swiss Army Bench button (starts the server when needed, opens its window)
@@ -1194,11 +1205,30 @@ extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; en
     server/routes.py     /powerapps/* and the dev server's live pages (/powerapps/live/<key>/, the live proxy)
     starters/            TypeScript and React snippet starters (families TypeScript, React, Connectors)
 extensions/powerbi/       the Power BI extension (swissarmybench-powerbi; entry point powerbi =
-                         swissarmybench_powerbi.extension; no project type yet; available in the Extensions catalog)
+                         swissarmybench_powerbi.extension; project type powerbi, keeping some
+                         features closed; a Power BI rail area drawn from data; in the Extensions catalog)
   src/swissarmybench_powerbi/
     extension.py         ID, NAME, ADDS, AREAS (powerbi_), PAGE_ACTIONS (the ERD's Export to Power BI…, as data),
                          SESSION_RULES; routes(services) its composition root; commands
-    commands.py          powerbi_export (dry_run: what would go); Open in Power BI Desktop is the user's click
+    commands.py          powerbi_export (dry_run: what would go); Open in Power BI Desktop is the user's click;
+                         powerbi_import_project, powerbi_file, powerbi_setup_status, powerbi_source,
+                         powerbi_app_registration, powerbi_edit_files/_model/_plan/_apply
+    domain/pbix_file.py  a .pbix as pbixray reads it (tables, M, relationships, measures, parameters, last refresh;
+                         a thin report's dataset), the .pbix file connection's three boxes, its card's words
+    domain/pbix_import.py a .pbix planned as a project (connections reused or made, variables, the dataset found or
+                         asked, the paired grids' names, data.ipynb, .sab/powerbi.json, the round trip's M), To
+                         finish setting up's rows
+    domain/live_link.py  Edit in Power BI Desktop: port files and command lines read, Live / Not open, the allowed
+                         changes (Microsoft Learn's external tools page), the dry run, our relationships and measures
+    adapters/pbix_reader.py pbixray's frames as the domain's model (the reader seam tests fake)
+    adapters/live_link.py the running Desktops found (Windows), the model client libraries fetched once (pinned,
+                         hash checked), TomModel (pythonnet: metadata, DAX, edits)
+    services/project.py  the Power BI project: the import, the .pbix connection, Read Power BI from, To finish,
+                         the app registration's re-pointing, the Power BI page as data (/powerbi/panel), a file
+                         opened with the app
+    services/live_link.py discovery every 15 s while wanted (a notice, never a request), the model, plan, apply
+    server/routes_project.py /powerbi/import, /powerbi/file-connection, /powerbi/setup, /powerbi/source,
+                         /powerbi/registration, /powerbi/page, /powerbi/panel, /powerbi/opened, /powerbi/live/*
     domain/power_query.py Power Query (M) for a table's source, table driven (KINDS: SQL Server, PostgreSQL, MySQL,
                          Snowflake, Databricks, Oracle, Dataverse, SharePoint, CSV, Excel, Parquet, lakes); `${NAME}`
                          as parameters; a grid's steps as the source's SQL by sqlglot (or why not); M read back
@@ -1253,8 +1283,8 @@ web/src/inlineCompletion.ts ghost text from the provider the mode declares (`inl
                          ask (cancelled with Monaco's token), the shown/accepted/partial report, the status bar's
                          "Completions: <name> · on/off" (a click toggles); lazy/codeEditor.ts registers Monaco's
                          inline completions provider for Python and SQL (an editor's `inline: inlineSource(...)`)
-web/src/extensionPanel.ts an extension's panel drawn from its data (lines, switches, actions, a code and a page to
-                         open): on its Extensions card and in Settings; projectFile.ts privateSwitch (the project
+web/src/extensionPanel.ts an extension's panel drawn from its data (lines, switches, actions with notes, choices,
+                         rows to work through, a code and a page to open): on its Extensions card and in Settings; projectFile.ts privateSwitch (the project
                          group's Private: POST /project/private)
 web/src/codeAppPage.ts   (a plug-in) the rail's Code App page: tools, sign-in, project, connectors (the APIs
                          explorer's look), Run live's pane, Push, custom connectors, runs; shown while on

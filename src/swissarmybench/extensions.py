@@ -68,6 +68,12 @@ BASE_MODE: dict[str, Any] = {
     # Buttons an on extension adds to a base page (its PAGE_ACTIONS), in every mode, as data: {page, id,
     # label, icon, title}; the page runs its plug-in of that id (web/src/pageActions.ts), never naming it.
     "page_actions": [],
+    # The features open in a project of this type (the rail's areas; empty: all of them, as for every type
+    # but one that keeps some closed to stay simple), the first-open pop-up's words ({closed}: the closed
+    # features' names) and the tour's own cards ({area, words}).
+    "areas": [],
+    "first_open": "",
+    "tour": [],
 }
 # A Streamlit app, for beginners: a base project with its app's canvas (until the Streamlit extension brings
 # its own project type, whose mode then says it). `make` is what New project sends for it.
@@ -154,6 +160,19 @@ def _mode(raw: Any) -> dict[str, Any] | None:
         value = mode.get(key)
         mode[key] = [str(v) for v in value] if isinstance(value, list | tuple) else []
     mode["project_files"] = str(mode.get("project_files") or "")
+    areas = raw.get("areas")
+    mode["areas"] = [str(a) for a in areas] if isinstance(areas, list | tuple) else []
+    mode["first_open"] = str(raw.get("first_open") or "")
+    tour = raw.get("tour")
+    mode["tour"] = (
+        [
+            {"area": str(t.get("area", "")), "words": str(t.get("words", ""))}
+            for t in tour
+            if isinstance(t, dict)
+        ]
+        if isinstance(tour, list | tuple)
+        else []
+    )
     routes = mode.get("cell_routes")
     mode["cell_routes"] = (
         {
@@ -211,6 +230,22 @@ def page_actions(on: list[ModuleType]) -> list[dict[str, str]]:
     return out
 
 
+def opens() -> dict[str, str]:
+    """The files the on extensions open: each one's OPENS, {".suffix": a route}."""
+    out: dict[str, str] = {}
+    for module in enabled():
+        raw = getattr(module, "OPENS", None)
+        for suffix, route in raw.items() if isinstance(raw, dict) else ():
+            if (
+                isinstance(suffix, str)
+                and suffix.startswith(".")
+                and isinstance(route, str)
+                and route.startswith("/")
+            ):
+                out.setdefault(suffix.lower(), route)
+    return out
+
+
 def modes() -> list[dict[str, Any]]:
     """Every project type's mode: the base's first, then each on extension's (its MODE); each with the on
     extensions' inline completion providers."""
@@ -228,7 +263,7 @@ def modes() -> list[dict[str, Any]]:
     return out
 
 
-_AREA_FIELDS = ("area", "name", "icon", "mark")
+_AREA_FIELDS = ("area", "name", "icon", "mark", "panel")  # panel: only when an area names one
 
 
 def areas() -> list[dict[str, Any]]:
@@ -241,7 +276,8 @@ def areas() -> list[dict[str, Any]]:
                 and isinstance(raw.get("area"), str)
                 and raw["area"] not in {a["area"] for a in out}
             ):
-                out.append({k: str(raw.get(k) or "") for k in _AREA_FIELDS})
+                said = {k: str(raw.get(k) or "") for k in _AREA_FIELDS if k != "panel"}
+                out.append(said | ({"panel": str(raw["panel"])} if raw.get("panel") else {}))
     return out
 
 

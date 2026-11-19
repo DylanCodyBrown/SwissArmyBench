@@ -8,7 +8,13 @@ license = "MIT OR Apache-2.0"
 requires-python = ">=3.12"
 # pbixray (MIT; the owner's approval, 2026-11-19) reads a .pbix's model measures (never its rows): wheels of it and of
 # xpress8, xpress9, xmhuffman and apsw for Python 3.12 on Windows, macOS and Linux (checked on PyPI, 2026-11-19).
-dependencies = ["swissarmybench[server]==0.0.26", "pbixray==0.15.5"]
+# pythonnet (MIT; approved 2026-11-19) drives Microsoft's model client libraries for Edit in Power BI Desktop, on
+# Windows only (the libraries themselves are fetched once on first use, pinned and hash checked: never in the wheel).
+dependencies = [
+    "swissarmybench[server]==0.0.26",
+    "pbixray==0.15.5",
+    "pythonnet==3.0.5; sys_platform == 'win32'",
+]
 
 # How the base finds it (src/swissarmybench/extensions.py): its description, door and commands.
 [project.entry-points."swissarmybench.extensions"]

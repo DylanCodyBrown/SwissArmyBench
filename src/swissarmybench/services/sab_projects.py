@@ -990,6 +990,43 @@ class SabProjects:
         await self._changed()
         return self.state()
 
+    def setting(self, key: str) -> Any:
+        """A field an extension or a generic setting keeps in the open project's .sab/project.json (None: none
+        or no project open)."""
+        current = self.current
+        return current.manifest.extra.get(key) if current and current.manifest else None
+
+    async def set_setting(self, key: str, value: Any, who: str = "user") -> dict[str, Any]:
+        """Keep `key` in the open project's .sab/project.json at once (None removes it); written only when its
+        bytes change. The caller asks for Allow where the agent needs it."""
+        if not key or key in {"name", "format", "tables", "app_version", "autosave", "private", "type"}:
+            raise ValueError(f"{key!r} is not a field a setting may keep.")
+        current = self._need()
+        if current.read_only:
+            raise Refused(current.read_only)
+        manifest = current.manifest or Manifest(
+            name=current.name, app_version=self._version, autosave=current.autosave
+        )
+        extra = {k: v for k, v in manifest.extra.items() if k != key} | (
+            {key: value} if value is not None else {}
+        )
+        if extra == manifest.extra:
+            return self.state()
+        manifest = replace(manifest, extra=extra)
+        try:
+            await asyncio.to_thread(
+                self._archive.write_state,
+                current.folder,
+                rules.MANIFEST_PATH,
+                rules.write_manifest(manifest).encode("utf-8"),
+            )
+        except OSError as error:
+            raise Conflict(f"The setting could not be kept in {current.folder}: {error}") from None
+        current.manifest = manifest
+        self.ws.audit.write(who, "project_setting", None, setting=key)
+        await self._changed()
+        return self.state()
+
     # ===== autosave =====
 
     async def set_autosave(self, body: Any, who: str = "user") -> dict[str, Any]:
