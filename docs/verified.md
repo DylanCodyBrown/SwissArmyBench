@@ -4035,3 +4035,10 @@ PostgreSQL (test_variable_refs_page) needs psycopg in the server's Python; the r
   BI page) pass and fail by turns on this branch alone, on the same "Add connection" pair.
 - **Not checked:** Edge and the desktop app (Chromium here); `npm run watch` started (it builds and waits)
   but not edited under.
+
+## 0.0.27 before release (2026-11-19)
+
+The whole suite on the merged branch (Chromium for the browser tests; Edge is not on this machine): the quick tests
+4,708 passed, 42 skipped, none failed (`-n 4 --dist loadfile`); the browser tests 390 passed, 15 skipped, 2 failed
+under `-n 2` (test_launch_page's launch-and-compare and test_scm_page's footer mark), both passing twice on their own:
+load, not faults. `build.py` makes the base wheel and all six extension wheels at 0.0.27.
