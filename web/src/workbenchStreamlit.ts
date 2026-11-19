@@ -19,7 +19,9 @@
  * ROUTING: /streamlit/apps... (routes_streamlit.py); the `streamlit_changed` notice {app}
  */
 import { api, ApiError } from "./api";
-import { h } from "./dom";
+import { h, icon } from "./dom";
+import { errorHere } from "./errorNote";
+import { busyButton } from "./loading";
 import type { Missing } from "./missingPackages";
 import { effectiveTheme } from "./theme";
 import { canvasAnywhere } from "./modes";
@@ -81,6 +83,10 @@ export interface BlockState {
   /** Hidden while designing; locked against moving and sizing. */
   hidden: boolean;
   locked: boolean;
+  /** The session state keys its widgets own, and the keys it reads (st.session_state["k"]): the board's
+   *  binding lines. */
+  state_keys?: string[];
+  state_reads?: string[];
   /** A SQL or DAX block's view: {as: "bar", x, y, cache: false...}; none: a table, cached. */
   view?: Record<string, unknown>;
   name: string | null;
@@ -564,21 +570,31 @@ export interface StreamlitHost {
   install: () => void;
   /** The document's path (null: never saved) and title: what a cell's link names. */
   link: () => { document: string | null; title: string };
+  /** Add to app: the cell placed on the open app's canvas (a new app when none is open). */
+  addToApp?: (cell: number) => Promise<void>;
 }
 
-/** A live cell's own tool in its pane's bar: Install (when Streamlit is missing). */
+/** A live cell's own tools in its pane's bar: Add to app (the canvas), Install (when Streamlit is missing). */
 export interface PieceTools {
   elements: HTMLElement[];
   draw: (view: PieceView) => void;
 }
 
-export function pieceTools(host: StreamlitHost | undefined): PieceTools {
+export function pieceTools(host: StreamlitHost | undefined, cell?: () => number | null): PieceTools {
   const install = h("button", { type: "button", class: "btn wb-piece-install", title: "Install Streamlit, pandas and pyarrow into this document's Python", onclick: () => host?.install() }, "Install");
   install.hidden = true;
+  const add = h("button", { type: "button", class: "btn ghost wb-piece-add", title: "Place this cell on the open Streamlit app's canvas" }, icon("plus"), h("span", {}, "Add to app")) as HTMLButtonElement;
+  add.addEventListener("click", () => {
+    const number = cell?.();
+    if (number === null || number === undefined || !host?.addToApp) return;
+    void busyButton(add, host.addToApp(number), "Adding…").catch((e: unknown) => errorHere(e, {}, add));
+  });
+  add.hidden = !host?.addToApp || !cell;
   return {
-    elements: [install],
+    elements: [add, install],
     draw: (view) => {
       install.hidden = !view.install;
+      add.hidden = !host?.addToApp || !cell || !view.live;
     },
   };
 }

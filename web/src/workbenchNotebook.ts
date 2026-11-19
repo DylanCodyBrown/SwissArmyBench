@@ -638,7 +638,7 @@ export function notebookView(
   // ===== Streamlit cells: the piece live, its state, its run =====
 
   const pane = (kind: CellKind, height: number | null, cell: () => Cell): { design: DesignPane; tools: PieceTools | null } => {
-    const tools = kind === "code" ? pieceTools(hooks.streamlit) : null;
+    const tools = kind === "code" ? pieceTools(hooks.streamlit, () => cell().number) : null;
     const design = designPane({
       dark,
       height: drawn(kind) || kind === "code" || kind === "tsx" ? height : null,

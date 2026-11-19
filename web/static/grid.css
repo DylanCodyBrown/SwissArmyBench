@@ -8872,6 +8872,21 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   stroke-width: 2;
 }
 
+/* A binding through session state: dashed, its key on it. */
+.cv-wires path.cv-wire-state {
+  stroke-dasharray: 6 4;
+}
+
+.cv-wires .cv-wire-key {
+  fill: var(--kind-app);
+  font-family: var(--mono, monospace);
+  font-size: 12px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+}
+
 .cv-wires marker path,
 .cv-wires circle {
   fill: var(--kind-app);
@@ -11003,6 +11018,12 @@ body.sql-window dialog[open] textarea.code-input {
 }
 
 .variable-row:hover {
+  background: var(--row-hover);
+}
+
+/* The variable a link went to (the canvas pane's Uses). */
+.variable-row.found {
+  box-shadow: inset 3px 0 0 var(--accent);
   background: var(--row-hover);
 }
 

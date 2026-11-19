@@ -924,7 +924,6 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     );
   }
 
-  /** Several blocks selected: the properties they share (their size), set on all of them at once. */
   /** Bindings (WPF's): every property of the cell's widgets that reads a name, a session state key, a
    *  variable or an expression, with what it reads; Unbind takes the property back to its default. */
   function bindingsPart(blockId: string, widgets: Widget[], editable: boolean): HTMLElement | null {
@@ -951,22 +950,99 @@ export function canvasPane(canvas: () => CanvasView, host: PaneHost): PaneView {
     );
   }
 
+  /** Several blocks selected (WinForms' multi-select): every property they share, set on all of them at once:
+   *  their place and size, Locked and Hidden, a query's Show as and Cache when all are queries, and each
+   *  property of the widget their cells share (the same element in each: a slider's step, a select's label). */
+  let manyKey = "";
+  let manySeen: Inspected[] = [];
+  async function readMany(ids: string[]): Promise<void> {
+    const app = canvas().app();
+    const page = canvas().page();
+    if (!app || !page) return;
+    const key = `${app}|${page.id}|${ids.join(",")}`;
+    if (key === manyKey) return;
+    manyKey = key;
+    try {
+      const read = await Promise.all(ids.map((id) => api<Inspected>(`/streamlit/apps/${encodeURIComponent(app)}/inspect?page=${encodeURIComponent(page.id)}&block=${encodeURIComponent(id)}`)));
+      if (key !== manyKey) return;
+      manySeen = read;
+      render();
+    } catch {
+      manySeen = [];
+    }
+  }
+
   function multiSection(blocks: BlockState[]): HTMLElement {
     const c = canvas();
+    const ids = blocks.map((b) => b.id);
+    void readMany(ids);
     const same = <T,>(pick: (b: BlockState) => T): T | undefined => (blocks.every((b) => pick(b) === pick(blocks[0]!)) ? pick(blocks[0]!) : undefined);
-    const field = (name: string, value: number | null | undefined, min: number, max: number, body: (n: number | null) => Record<string, unknown>): Row => ({
+    const field = (name: string, value: number | null | undefined, min: number, max: number, body: (n: number | null) => Record<string, unknown>, category = "Layout"): Row => ({
       name,
-      category: "Layout",
+      category,
       words: `${name}: set on all ${blocks.length} blocks.`,
       set: value !== undefined,
       editor: boxInput(value === undefined || value === null ? "" : String(value), name, (typed, input) => {
         const n = typed.trim() === "" ? null : Math.round(Number(typed));
         if (n !== null && (Number.isNaN(n) || n < min || n > max)) return void errorHere(`${name} is ${min} to ${max}.`, {}, input);
-        if (n === null && name === "Width") return;
-        void c.changeBlocks(blocks.map((b) => b.id), body(n));
+        if (n === null && name !== "Height") return;
+        void c.changeBlocks(ids, body(n));
       }, { placeholder: value === undefined ? "Mixed" : "", dataset: { field: name.toLowerCase() } }),
     });
-    return h("div", {}, grid([field("Width", same((b) => b.w), 2, 12, (n) => ({ w: n })), field("Height", same((b) => b.h), 1, 30, (n) => ({ h: n }))]));
+    const flag = (name: "Locked" | "Hidden", pick: (b: BlockState) => boolean): Row => {
+      const mixed = same(pick) === undefined;
+      const tick = h("input", { type: "checkbox", "aria-label": name, checked: !mixed && pick(blocks[0]!), dataset: { field: name.toLowerCase() } }) as HTMLInputElement;
+      tick.indeterminate = mixed;
+      tick.addEventListener("change", () => void c.changeBlocks(ids, { [name.toLowerCase()]: tick.checked }));
+      return { name, category: "Design", words: `${name}: set on all ${blocks.length} blocks.`, editor: tick, set: !mixed };
+    };
+    const rows: Row[] = [
+      flag("Locked", (b) => b.locked),
+      flag("Hidden", (b) => b.hidden),
+      field("Row", same((b) => b.row), 1, 60, (n) => ({ row: n })),
+      field("Width", same((b) => b.w), 2, 12, (n) => ({ w: n })),
+      field("Height", same((b) => b.h), 1, 30, (n) => ({ h: n })),
+    ];
+    const seenAll = manySeen.length === blocks.length && manySeen.every((s, i) => s.block?.id === ids[i]) ? manySeen : [];
+    // All queries: Show as and Cache, on all of them.
+    if (seenAll.length && seenAll.every((s) => s.query)) {
+      const views = seenAll.map((s) => s.query!.view);
+      const shownAs = views.every((v) => (v.as ?? "table") === (views[0]!.as ?? "table")) ? (views[0]!.as ?? "table") : "";
+      const how = h("select", { class: "app-input cp-input", "aria-label": "Show as", dataset: { field: "as" } }, ...(shownAs ? [] : [h("option", { value: "", selected: true }, "Mixed")]), ...seenAll[0]!.query!.views.map((v) => h("option", { value: v, selected: v === shownAs }, VIEW_WORDS[v] ?? v))) as HTMLSelectElement;
+      how.addEventListener("change", () => {
+        if (!how.value) return;
+        void Promise.all(seenAll.map((s) => c.changeBlock(s.block!.id, { view: { ...s.query!.view, as: how.value === "table" ? undefined : how.value } }))).then(() => {
+          manyKey = "";
+          render();
+        });
+      });
+      rows.push({ name: "Show as", category: "Appearance", words: `Show as: set on all ${blocks.length} queries.`, editor: how, set: !!shownAs });
+    }
+    // The widget their cells share: each of its properties with one value in all (else Mixed).
+    const firsts = seenAll.map((s) => (s.widgets ?? []).find((w) => w.widget) ?? (s.widgets ?? [])[0]);
+    if (seenAll.length && firsts.every((w) => w && w.call === firsts[0]!.call) && seenAll.every((s) => s.editable)) {
+      const widgets = firsts as Widget[];
+      for (const param of widgets[0]!.params) {
+        const values = widgets.map((w) => w.arguments[param.name]);
+        if (param.name === "key" || values.some((v) => v && v.kind !== "literal")) continue; // a key is each one's own
+        const shown = values.every((v) => JSON.stringify(v?.value) === JSON.stringify(values[0]?.value)) ? (values[0] ? shownText(values[0].value, param.type) : "") : undefined;
+        const input = boxInput(shown ?? "", param.name, (typed, el) => {
+          let value: unknown;
+          try {
+            value = typedValue(typed, param.type);
+          } catch (e) {
+            return void errorHere(e, {}, el);
+          }
+          void (async () => {
+            for (let i = 0; i < seenAll.length; i++) await change(seenAll[i]!.block!.id, { do: "set", widget: widgets[i]!.index, name: param.name, value }, el);
+            manyKey = "";
+            render();
+          })();
+        }, { placeholder: shown === undefined ? "Mixed" : param.default === null || param.default === undefined ? "" : shownText(param.default, param.type), dataset: { field: param.name } });
+        rows.push({ name: param.name, category: param.category, words: `${param.words} Set on all ${blocks.length} blocks.`, editor: input, set: shown !== undefined && !!values[0] });
+      }
+    }
+    return h("div", { class: "cp-many" }, seenAll.length && firsts[0] ? h("div", { class: "cp-element-title hint" }, `st.${firsts[0].call} · on all ${blocks.length}`) : null, grid(rows));
   }
 
   return {

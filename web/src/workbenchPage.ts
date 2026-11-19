@@ -360,6 +360,15 @@ const streamlitHost = (doc: Doc): StreamlitHost => ({
   run: () => runApp(doc),
   install: () => void installStreamlit(doc),
   link: () => ({ document: doc.path, title: doc.title }),
+  addToApp: async (cell) => {
+    // The cell's document is saved (a block links to a file), then placed on the app in front (else the
+    // first open one, else a new one).
+    if (!(await save(doc))) throw new Error(`${doc.title} could not be saved.`);
+    await doc.streamlit?.sync().catch(() => null);
+    const app = (current?.canvas ? current : null) ?? docs.find((d) => d.canvas) ?? openApp(null, [], null);
+    show(app);
+    await app.canvas!.place({ document: doc.path, cell, title: doc.title });
+  },
 });
 
 /** A Streamlit app: its canvas as a document of its own. */
@@ -769,8 +778,8 @@ function appHost(doc: Doc): AppHost {
     lineage: (block) => void showLineage({ app: doc.canvas?.app() ?? undefined, page: (doc.canvas?.report() as { page?: string } | undefined)?.page ?? undefined, block }).catch((e: Error) => errorHere(e)),
     goToCell: (document, cell, line) => void goToCell(document, baseName(document), cell, line).catch((e: Error) => errorHere(e)),
     applyCode: (plan) => applyCode(doc, plan),
-    openVariable: () => openVariables(),
-    openConnection: () => void openConnections().then(() => void rail.loadBlades()),
+    openVariable: (name) => openVariables(name),
+    openConnection: (name) => void openConnections({ detail: name }).then(() => void rail.loadBlades()),
     openGrid: (grid) => showGridAtHome(grid),
     sources: (kind) => (kind === "dax" ? datasetNames : connectionNames),
     setConnection: async (document, cell, connection) => {

@@ -682,8 +682,24 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     return page.blocks.filter((b) => b.id !== block && !b.hidden && [...b.reads, ...b.tables].some((name) => from.makes.includes(name)));
   }
 
+  /** The blocks bound to the selected one through session state: they read a key its widgets own, or own
+   *  a key it reads (a widget's value bound to st.session_state["k"]), with the key. */
+  function stateFeeds(block: string): { block: BlockState; key: string; out: boolean }[] {
+    const page = current();
+    const from = page?.blocks.find((b) => b.id === block);
+    if (!page || !from) return [];
+    const found: { block: BlockState; key: string; out: boolean }[] = [];
+    for (const b of page.blocks) {
+      if (b.id === block || b.hidden) continue;
+      for (const key of from.state_keys ?? []) if ((b.state_reads ?? []).includes(key)) found.push({ block: b, key, out: true });
+      for (const key of from.state_reads ?? []) if ((b.state_keys ?? []).includes(key)) found.push({ block: b, key, out: false });
+    }
+    return found;
+  }
+
   /** The selected block's wiring: a violet arrow to each block that reads what it makes, the names it
-   *  makes in a chip under it, and its width. */
+   *  makes in a chip under it, and its width; a dashed line to each block bound to it through session
+   *  state, the key on it. */
   function drawWires(): void {
     board.querySelector(".cv-wires")?.remove();
     for (const old of board.querySelectorAll(".cv-wire-label")) old.remove();
@@ -720,6 +736,29 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
       path.setAttribute("marker-end", "url(#cv-arrow)");
       path.dataset.to = target.id;
       svg.append(path);
+    }
+    for (const link of stateFeeds(from.id)) {
+      const el = board.querySelector<HTMLElement>(`.cv-block[data-block="${link.block.id}"]`);
+      if (!el) continue;
+      const t = at(el);
+      const tx = x(t.left + t.width / 2);
+      const ty = y(t.top + t.height / 2);
+      const fx = x(s.left + s.width / 2);
+      const fy = y(s.top + s.height / 2);
+      const [ax, ay, bx, by] = link.out ? [fx, fy, tx, ty] : [tx, ty, fx, fy];
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", `M${ax},${ay} Q${(ax + bx) / 2},${Math.min(ay, by) - 40} ${bx},${by}`);
+      path.setAttribute("class", "cv-wire-state");
+      path.setAttribute("marker-end", "url(#cv-arrow)");
+      path.dataset.to = link.block.id;
+      path.dataset.key = link.key;
+      svg.append(path);
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", String((ax + bx) / 2));
+      text.setAttribute("y", String(Math.min(ay, by) - 24));
+      text.setAttribute("class", "cv-wire-key");
+      text.textContent = `session_state["${link.key}"]`;
+      svg.append(text);
     }
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     dot.setAttribute("cx", String(sx));

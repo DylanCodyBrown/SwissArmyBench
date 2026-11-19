@@ -56,7 +56,7 @@ from swissarmybench.services.export import ExportWriter
 from swissarmybench.services.ports import BACKGROUND
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 from swissarmybench_streamlit.domain import app_settings as page_settings
-from swissarmybench_streamlit.domain import controllers, designer
+from swissarmybench_streamlit.domain import controllers, designer, widget_code
 from swissarmybench_streamlit.domain import streamlit_cells as rules
 from swissarmybench_streamlit.domain.app_settings import AppSettings
 from swissarmybench_streamlit.domain.streamlit_cells import (
@@ -636,6 +636,9 @@ class StreamlitApps:
                             if code is not None
                             else []
                         ),
+                        # The session state keys its widgets own, and the keys it reads: the board's
+                        # binding lines (a widget's value bound to another's key).
+                        **self._state_links(block.id, code, linked.kind(block.key)),
                         "problem": mine.problem,
                         # In red on the block: the cell is gone, or its file is.
                         "missing": gone.get(block.id),
@@ -1229,6 +1232,14 @@ class StreamlitApps:
         except Refused as error:
             return None, [str(error)]
         return made, [f"sab_queries.py: {p}" for p in made.problems]
+
+    @staticmethod
+    def _state_links(block_id: str, code: str | None, kind: str) -> dict[str, list[str]]:
+        if code is None or kind != "code":
+            return {"state_keys": [], "state_reads": []}
+        held = widget_code.read(code)
+        owned = [k for w in held.widgets if w.widget and (k := w.to_json(block_id)["state_key"])]
+        return {"state_keys": owned, "state_reads": widget_code.state_reads(rules.body(code))}
 
     def _python(self, app: App) -> str:
         if app.canvas:
