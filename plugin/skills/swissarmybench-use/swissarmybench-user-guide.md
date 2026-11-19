@@ -934,6 +934,9 @@ fills in its own.
   variable's name. There are no "comes from" lists beside the boxes: where a value comes from is set once, on
   the Variables page, for every place that uses it.
 - The Variables page lists each variable's uses by box: `Warehouse · Server`.
+- **Anywhere:** typing `${` in any box of the app lists the variables the same way, and right-clicking a box
+  offers **Insert variable…** (beside Cut, Copy and Paste; Shift+F10 from the keyboard). A SQL cell or query
+  box completes them after `${` too. Search boxes, and Python cells (use `os.environ["NAME"]` there), do not.
 
 ### Your connections in DuckDB SQL
 

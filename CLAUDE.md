@@ -815,7 +815,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          variableBox.ts `${NAME}` in any box (12.7): typing `${` lists the variables (names and
                          sources in words), `{x}` the same, the line under the box (previewLine: the value, a secret
                          masked, or the one error with Set it); variableLinks.ts Set it's and New variable…'s Add
-                         variable form, over the page;
+                         variable form, over the page; variableAnywhere.ts the same list in any text box of the
+                         app (typing `${`; right-click: Cut, Copy, Paste, Insert variable…; search boxes and
+                         `[data-no-variables]` left alone) and `globalThis.sabVariables` for SQL editors;
                          fileChooser.ts picks real paths: the system's own dialog first (GET /dialogs, POST
                          /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
                          recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package

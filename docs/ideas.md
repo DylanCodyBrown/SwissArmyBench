@@ -5898,3 +5898,35 @@ variables, the line under the box, the tour's card; 2026-11-19) are built.
   from a box's text); Add API's sign-in settings and the values typed for Try it (an API's own variables,
   kept in the keyring on Add, as before); the file chooser's folder box (it moves the picker, it is not a
   saved value).
+
+### Anywhere: typing a dollar-brace, and right-click, Insert variable… (the owner, 2026-11-19)
+
+The owner: "We should make a right click and insert env var menu and a auto complete when ${ is typed anywhere";
+and for the tour: "Add to the tutorial and make users type in a sample input box and make the user right click".
+
+- **web/src/variableAnywhere.ts**, installed once in each page's entry (main.ts, catalogPage.ts, workbenchPage.ts):
+  document-level listeners, so a box drawn later needs nothing. In any text box or text area (password boxes
+  too; a password box shows a reference as text), typing `${` opens the same list as the forms' boxes, as one
+  floating list under the box (inside the top dialog when one is open; over the tour); Enter or Tab put in
+  `${NAME}` (a closing brace already there is used), Escape closes, New variable… last. The page hears the
+  change as typing (input, then change).
+- **Right-click** any such box: the app's own menu, Cut, Copy, Paste, then Insert variable… (the pick replaces
+  the selection at the caret); the keyboard's menu key or Shift+F10 opens it under the box. Beta mode's Leave a
+  note… follows, as on every menu. Paste reads the clipboard (the desktop app allows it; a browser that refuses
+  says to use Ctrl+V).
+- **Left alone:** Monaco's own text area (the editors have their own), boxes with their own list (variableBox.ts),
+  search and filter boxes (type=search, role=searchbox, a label or placeholder that starts with Search, Filter or
+  Find, or a class naming search or filter), anything inside `[data-no-variables]`, read-only and disabled boxes,
+  and non-text inputs (numbers, dates, ticks).
+- **Editors:** a SQL editor (a Workbench SQL cell, the "+" tab's query) completes the variables after `${`
+  (Monaco's completion, its trigger the brace) and has Insert variable… in its right-click menu. Not a Python
+  cell (Python reads `os.environ["NAME"]`; the editor already completes names there) and not DAX (the backend
+  does not read a reference in DAX).
+- **The agent needs nothing new:** it passes text with references directly (every command takes the text as
+  typed); `variables_resolve` previews one.
+- **The tour, hands on:** after "Using a variable", two cards with a practice box in the card: Type it (type a
+  dollar-brace, pick from the list) and Right-click it (Insert variable… from the menu). Next waits until the
+  box holds a variable, then the card says it worked and shows what it reads; a hint after 8 seconds; Skip,
+  Back and Escape always work (an open list or menu takes Escape first). The list always has one to pick: the
+  tour adds TOUR_WAREHOUSE_HOST (warehouse.example.com, made up) when this computer has none of that name and
+  removes it when it ends, like its two tables. Not in the game (no clue).
