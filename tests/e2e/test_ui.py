@@ -88,7 +88,9 @@ def browser() -> Iterator[Browser]:
         # actions (milliseconds, 350 by default when headed).
         headed = os.environ.get("SAB_HEADED") == "1"
         slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
-        instance = p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
+        instance = p.chromium.launch(
+            executable_path="/opt/pw-browsers/chromium", headless=not headed, slow_mo=slow
+        )
         yield instance
         instance.close()
 
@@ -2298,7 +2300,9 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     expect(app.locator(".tour-btn")).to_have_count(0)
     # With no project open it is empty, so it takes no band (2026-11-19): the Table row comes first.
     expect(app).to_be_hidden()
-    expect(page.locator(".ribbon .ribbon-group").first.locator(".ribbon-caption strong")).to_have_text("Table")
+    expect(page.locator(".ribbon .ribbon-group").first.locator(".ribbon-caption strong")).to_have_text(
+        "Table"
+    )
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
     # On the Analyze tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
     page.locator(".nav-rail [data-area='analyze']").click()

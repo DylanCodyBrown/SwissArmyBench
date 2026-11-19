@@ -974,12 +974,16 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
   const natural = new Map<string, number>();
   let userSized = false;
   let filling = false;
+  let filledFor = ""; // the window width and columns last filled for: once each, so it never chases itself
   function fillShort(): void {
     if (!gridApi || userSized || filling) return;
     const range = gridApi.getHorizontalPixelRange();
     const viewport = range.right - range.left;
     const columns = gridApi.getAllDisplayedColumns().filter((c) => !c.getPinned() && c.getColId() !== FILLER);
     if (!columns.length || viewport <= 0) return;
+    const key = `${viewport}:${columns.map((c) => c.getColId()).join(",")}`;
+    if (key === filledFor) return;
+    filledFor = key;
     for (const c of columns) if (!natural.has(c.getColId())) natural.set(c.getColId(), c.getActualWidth());
     const widths = columns.map((c) => natural.get(c.getColId())!);
     const total = widths.reduce((sum, w) => sum + w, 0);

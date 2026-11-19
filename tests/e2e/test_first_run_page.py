@@ -35,7 +35,9 @@ def shot(page: Page, name: str) -> None:
 
 
 def home(browser: Browser, server: dict[str, Any], query: str = "", width: int = 1440) -> Page:
-    page = browser.new_context(viewport={"width": width, "height": 900}, device_scale_factor=2 if SHOTS else 1).new_page()
+    page = browser.new_context(
+        viewport={"width": width, "height": 900}, device_scale_factor=2 if SHOTS else 1
+    ).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workspace{query}#token={server['token']}")
     expect(page.locator(".nav-rail")).to_be_visible(timeout=20000)
     return page
@@ -81,7 +83,7 @@ def test_empty_pages_lead_somewhere_and_the_sample_opens(browser: Browser, serve
           const pane = [...document.querySelectorAll('.ag-root-wrapper')].find((e) => e.offsetParent);
           const view = pane.getBoundingClientRect().width - 80;
           const cols = [...pane.querySelectorAll('.ag-header-cell[col-id]')]
-            .filter((c) => !['__rownum', '__marker', '__filler'].some((x) => c.getAttribute('col-id').startsWith(x)) && !c.closest('.ag-pinned-left-header'))
+            .filter((c) => !c.closest('.ag-pinned-left-header'))
             .map((c) => c.getBoundingClientRect().width).filter((w) => w > 1);
           return { view, used: cols.reduce((a, b) => a + b, 0), count: cols.length };
         }"""
@@ -156,7 +158,9 @@ def test_add_connection_searches_and_has_its_crumb(browser: Browser, server: dic
     # Back, and the kind used last comes first in its group.
     page.go_back()
     expect(search).to_be_visible(timeout=10000)
-    expect(pane.locator(".connection-types").first.locator(".connection-type").first).to_contain_text("SQLite")
+    expect(pane.locator(".connection-types").first.locator(".connection-type").first).to_contain_text(
+        "SQLite"
+    )
     page.context.close()
 
 
@@ -172,7 +176,7 @@ def test_find_data_puts_the_used_first_and_says_its_keys(browser: Browser, serve
     orders = dialog.locator(".ex-group[data-kind='tables'] .ex-result", has_text="orders").first
     expect(orders).to_be_visible(timeout=20000)
     orders.get_by_role("button", name="Copy name").click()
-    dialog.get_by_role("button", name="Close").first.click() if dialog.get_by_role("button", name="Close").count() else page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
     expect(dialog).to_have_count(0)
     page.keyboard.press("Control+K")
     recent = page.locator("dialog.find-data .ex-group-recent")
@@ -200,7 +204,9 @@ def test_the_finder_draws_its_joins_beside_the_list(browser: Browser, server: di
 
 
 def test_a_new_notebook_says_how_it_works(browser: Browser, server: dict[str, Any]) -> None:
-    page = browser.new_context(viewport={"width": 1400, "height": 900}, device_scale_factor=2 if SHOTS else 1).new_page()
+    page = browser.new_context(
+        viewport={"width": 1400, "height": 900}, device_scale_factor=2 if SHOTS else 1
+    ).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=notebook&view=list#token={server['token']}")
     empty = page.locator(".wb-landing .empty-state")
     expect(empty).to_be_visible(timeout=30000)
