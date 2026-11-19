@@ -40,9 +40,9 @@ import { dismissDialog, registerLayer, setOverTitle, watchLayerDialog } from "./
 import { mountText, mountTree, type Part, pathText, type Value } from "./structureTree";
 import { openStructures } from "./structuresPage";
 import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
+import { APIS } from "./lazyPages";
 
 /** The page's name, in one place. */
-export const APIS = "APIs";
 
 interface Card {
   name: string;

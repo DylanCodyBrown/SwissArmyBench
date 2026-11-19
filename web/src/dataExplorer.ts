@@ -32,7 +32,7 @@ import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { openConnections } from "./connectionsWindow";
 import { busyButton, busyClick, loadingBlock } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
-import { openStructures } from "./structuresPage";
+import { openStructures } from "./lazyPages";
 import type { Part } from "./structureTree";
 import { errorHere, errorNote } from "./errorNote";
 

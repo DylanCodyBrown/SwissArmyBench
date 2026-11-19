@@ -33,7 +33,6 @@ import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openLayer } from "./nav";
 import { localProjectsRow, sharedProjectsRow } from "./projectExplorer";
-import { teamSignIn } from "./scmPage";
 import { errorHere, errorNote } from "./errorNote";
 
 type Action = "join" | "start";
@@ -212,7 +211,7 @@ export function openTeamFlow(action: Action): void {
     const at = !s.sync_on ? "install" : !s.signed_in ? "sign_in" : action === "join" ? "pick" : "name";
     mark(at);
     if (at === "install") install(s);
-    else if (at === "sign_in") page.replaceChildren(teamSignIn(s, () => void next()));
+    else if (at === "sign_in") void import("./scmPage").then(({ teamSignIn }) => page.replaceChildren(teamSignIn(s, () => void next())));
     else if (at === "pick") void pick();
     else void name(s);
   };

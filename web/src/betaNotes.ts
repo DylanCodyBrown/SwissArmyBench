@@ -22,7 +22,6 @@
  * ROUTING: GET/PUT /beta, POST /beta/notes, POST /beta/page-errors, POST /beta/export, DELETE /beta/log;
  *          the `beta_changed` notice
  */
-import { toPng } from "html-to-image";
 import { api, onNotice } from "./api";
 import { button, h, icon, openDialog, setMenuExtras, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
@@ -291,6 +290,7 @@ export function clearBetaLog(): void {
 // ===== the note form =====
 
 async function picture(skip: Element[]): Promise<string> {
+  const { toPng } = await import("html-to-image");
   return toPng(document.body, {
     width: window.innerWidth,
     height: window.innerHeight,

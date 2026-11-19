@@ -31,12 +31,11 @@ import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { type Missing, promptForError } from "./missingPackages";
+import { CODE_APP, CODE_APP_TYPE, runLines, runListeners } from "./lazyPages";
 import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { mountTree, type Value } from "./structureTree";
 import { errorHere, errorNote } from "./errorNote";
 
-export const CODE_APP = "Code App";
-const TYPE = "codeapp";
 
 interface Tool { id: string; name: string; purpose: string; found: boolean; version: string | null; ok: boolean; phase: number; install: string; problem?: string }
 interface Source { name: string; kind: string; connector: string; table?: string | null; dataset?: string | null; display_name?: string }
@@ -74,32 +73,18 @@ interface Operation {
 interface Explored { name: string; display_name: string; title: string; from: string; operations: Operation[] }
 interface TreeNode { name: string; path: string; children?: TreeNode[] }
 
-/** Whether the extension is on here: the app's modes name the code app type. Asked once a page. */
-let onAsked: Promise<boolean> | null = null;
-export function codeAppOn(): Promise<boolean> {
-  onAsked ??= api<{ modes: { type: string }[] }>("/app/modes").then((got) => got.modes.some((m) => m.type === TYPE), () => false);
-  return onAsked;
-}
-
 let shownPage: PageElement | null = null;
 let tab: "project" | "connectors" | "live" | "push" | "custom" | "runs" = "project";
 let redraw: (() => void) | null = null;
-const runLines = new Map<string, string[]>();
-const runListeners = new Set<(run: string, line: string) => void>();
 
 onNotice((notice: Notice) => {
-  const said = notice as Notice & { run?: string | Run; line?: string };
-  if (notice.type === "powerapps_output" && typeof said.run === "string" && typeof said.line === "string") {
-    const lines = runLines.get(said.run) ?? [];
-    lines.push(said.line);
-    runLines.set(said.run, lines.slice(-2000));
-    for (const listen of runListeners) listen(said.run, said.line);
-  } else if (notice.type === "powerapps_project" || notice.type === "powerapps_live") {
+  // A run's lines are kept by lazyPages.ts from the page's start.
+  if (notice.type === "powerapps_project" || notice.type === "powerapps_live") {
     if (shownPage?.open && (tab === "project" || tab === "live")) redraw?.(); // the others keep what they show
   }
 });
 
-registerLayer(TYPE, {
+registerLayer(CODE_APP_TYPE, {
   isOpen: () => Boolean(shownPage?.open),
   open: () => drawPage(),
   show: () => undefined,
@@ -147,7 +132,7 @@ function openInWorkbench(path: string, document = false): void {
 }
 
 function drawPage(): void {
-  const { element, body, actions, foot, setHeading } = openAreaPage(TYPE, CODE_APP);
+  const { element, body, actions, foot, setHeading } = openAreaPage(CODE_APP_TYPE, CODE_APP);
   shownPage = element;
   body.classList.add("ca-page");
   setOverTitle(CODE_APP);

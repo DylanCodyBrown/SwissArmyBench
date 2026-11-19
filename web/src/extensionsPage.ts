@@ -13,16 +13,16 @@
  *
  * ROUTING: GET /extensions, POST /extensions/install, POST /extensions/remove  ·  notice extensions_changing
  */
-import { api, headers, onNotice } from "./api";
+import { api, headers } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, openDialog } from "./dom";
 import { extensionPanel } from "./extensionPanel";
+import { EXTENSIONS } from "./lazyPages";
 import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { busyClick } from "./loading";
 import { errorNote } from "./errorNote";
 
 /** The page's name, in one place: the rail, the title. */
-export const EXTENSIONS = "Extensions";
 
 type Status = "preinstalled" | "available" | "installed" | "coming";
 
@@ -61,14 +61,8 @@ registerLayer("extensions", {
   },
 });
 
-onNotice((n) => {
-  if (n.type !== "extensions_changing") return;
-  const said = n as unknown as { id: string; action: "install" | "remove" };
-  started(said.id, said.action);
-});
-
 /** A change handed over (the user's click, or the agent's after Allow): the card follows the restart. */
-function started(id: string, action: "install" | "remove"): void {
+export function started(id: string, action: "install" | "remove"): void {
   if (changing) return;
   changing = { id, action };
   stage = "handing";

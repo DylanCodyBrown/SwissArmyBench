@@ -27,13 +27,13 @@ import { button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { promptForError } from "./missingPackages";
+import { STRUCTURES } from "./lazyPages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mountTree, nodeAt, type Part, pathText, type TextView, type Tree, type Value } from "./structureTree";
 import { effectiveTheme } from "./theme";
 import { errorHere, errorMark, errorNote } from "./errorNote";
 
 /** The page's name, in one place (the owner chose it, 2026-11-17): the rail, the title, the tabs. */
-export const STRUCTURES = "Structures";
 
 export interface StepJson {
   op: string;
