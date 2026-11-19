@@ -3514,3 +3514,10 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
   tests/e2e/test_real_world.py's use case 9 (rewritten for the Analyze page, but the test bed was not up, so
   it was skipped); the desktop app's window; Edge (the tests ran in Chromium here); very wide
   tables (hundreds of columns) for the facts query's time.
+
+## 0.0.26 before release (2026-11-19)
+- The whole suite with Chromium, one file at a time (each kept, so a restart resumes): 3,931 passed, 46 skipped,
+  4 failed and 1 error in 3 files. Run again alone: test_workbench_page's input test passes (load);
+  test_streamlit_page's two canvas tests pass alone, and its Save as zip test was the test's own (the saved path's
+  toast looked for by its kind: the deliberate problems' note names the file too since 9.5): fixed, the file 7/7;
+  test_copilot_page's private-project test fails alone as it did before tonight (in the test pass's brief).
