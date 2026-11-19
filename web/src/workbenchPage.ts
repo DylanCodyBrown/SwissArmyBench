@@ -275,6 +275,21 @@ function refreshTablesSoon(): void {
   }, 120);
 }
 
+/** A table open in Grids given to `doc`: its read-only cell joins the document's Tables group (the error
+ *  panel's "orders is open in Grids: add its table cell", and tables.add). Its cell already in another
+ *  document stays there, and that is said. */
+async function giveTable(doc: Doc, name: string): Promise<string> {
+  tables = await fetchTables();
+  const info = tables.find((t) => t.name === name) ?? tables.find((t) => t.name.toLowerCase() === name.toLowerCase());
+  if (!info) throw new Error(`${name} is not open in Grids.`);
+  const owner = tableOwner.get(info.name);
+  if (owner && owner !== doc && docs.includes(owner)) throw new Error(`${info.name}'s cell is in ${owner.title}.`);
+  tableOwner.set(info.name, doc);
+  tablesSent.delete(doc);
+  assignTables();
+  return info.name;
+}
+
 /** The group row's word on the focused document's tables: Run tables, when one is not up to date. */
 function drawTablesTool(): void {
   const view = current ? viewOf(current) : undefined;
@@ -1187,6 +1202,10 @@ function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified
  * stopped on a missing package puts the prompt in the user's face (fix.auto); the panel's Install fix
  * opens it again when asked. Installed, the cell runs again (fix.again). */
 const pageFix = (doc: Doc) => (fix: Fix): boolean => {
+  if (fix.kind === "table" && fix.name) {
+    void giveTable(doc, fix.name).then((name) => toast(`Added ${name}'s table cell: run the cell again`), (e: Error) => errorHere(e));
+    return true;
+  }
   if (fix.kind === "install" && fix.package && doc.console) {
     const packages = fix.missing?.packages ?? [fix.package];
     if (!packages.every((p) => /^[A-Za-z0-9._\-[\],=<>!~]+$/.test(p))) return false;
@@ -2870,6 +2889,11 @@ const COMMANDS: Command[] = [
   } },
   // Tables: every table open in the grid has a read-only cell in its document
   { id: "tables.list", agentOnly: true, group: "Tables", title: "The document's tables and each cell's state", when: isCode, whyNot: "no notebook or script is in front", run: () => ({ document: current!.title, tables: tablesView().tables() }) },
+  { id: "tables.add", group: "Tables", title: "Add a table open in Grids to the document in front (its read-only cell)", args: "table: the table's name", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => {
+    const table = text(a, "table");
+    if (!table) throw new Error("Send the table's name.");
+    return { table: await giveTable(current!, table), document: current!.title };
+  } },
   { id: "tables.run", group: "Tables", title: "Run a table's cell", args: "table: the table's name", when: isCode, whyNot: "no notebook or script is in front", run: async (a) => {
     const table = text(a, "table");
     if (!table) throw new Error("Send the table's name.");

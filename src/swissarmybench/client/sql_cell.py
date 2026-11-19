@@ -27,7 +27,9 @@ DuckDB in this Python: a table (DataFrame) of this Python by its variable's name
 table by the connection's name (`[Finance Captive].Sales`, `"Shop".main.orders`,
 `[Finance Captive].[Sales model].Date` when two datasets share the name). The app reads each such table
 (the connection's Rows to open; read once a session, Refresh on the Connections page) and hands it to
-this Python's DuckDB; joins across connections work, DuckDB does the transforming.
+this Python's DuckDB; joins across connections work, DuckDB does the transforming. A table open in
+Grids is a table here too, by its name (feel-a, 2026-11-19): when the query names one this Python has
+no table of, the app hands over the grid's view (its steps applied), read-only and read again each time.
 
 Connections are added in the app (the Application row's Connections). What runs the SQL depends on
 what the connection's code makes:
@@ -75,6 +77,7 @@ from typing import Any
 from swissarmybench.client import blades_client, connection_use, standalone
 from swissarmybench.client.push_client import ServerNotRunningError
 from swissarmybench.domain import dataverse, lakes, variable_refs
+from swissarmybench.domain.errors import missing_table
 from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
@@ -644,13 +647,41 @@ def duck(query: str, namespace: dict[str, Any] | None = None) -> Any:
             ):
                 con.register(name, value)
                 registered.append(name)
-        return _duck_result(con.sql(sql, params=params) if params else con.sql(sql))
+        while True:
+            try:
+                return _duck_result(con.sql(sql, params=params) if params else con.sql(sql))
+            except Exception as error:
+                grid = _open_grid(str(error), registered)
+                if grid is None:
+                    raise
+                con.register(*grid)
+                registered.append(grid[0])
     finally:
         for name in registered:
             try:
                 con.unregister(name)
             except Exception:  # noqa: S112 (a name already gone)
                 continue
+
+
+_MOST_GRIDS = 20  # a query naming more open tables than this is told DuckDB's own error
+
+
+def _open_grid(message: str, registered: list[str]) -> tuple[str, Any] | None:
+    """The table DuckDB says is missing, when it is open in Grids: its name and the grid's view (Arrow).
+    None: not a missing table, not open, no app, or already given (the error is DuckDB's own then)."""
+    name = missing_table(message)
+    if not name or "." in name or name in registered or len(registered) >= _MOST_GRIDS:
+        return None
+    try:
+        import pyarrow.ipc as ipc
+
+        data = blades_client._call_bytes(f"/workbench/tables/{blades_client._quote(name)}/arrow")
+    except (ImportError, ServerNotRunningError, RuntimeError, OSError):
+        return None
+    table = ipc.open_stream(data).read_all()
+    print(f"{name}: the open table in Grids, {table.num_rows:,} rows as its grid shows them")
+    return name, table
 
 
 def run(found: Connection, sql: str) -> Any:

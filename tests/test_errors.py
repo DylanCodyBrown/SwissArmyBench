@@ -218,3 +218,59 @@ def test_a_loc_lookup_lists_the_tables_columns(tmp_path: Path) -> None:
     facts = found["chain"][-1]["facts"]
     assert facts["table"] is True and facts["candidates"] == ["amount"]
     assert [e["type"] for e in found["chain"]] == ["KeyError"]  # pandas' own inner KeyError left out
+
+
+# ===== a DuckDB SQL cell naming a table it cannot see (feel-a, 2026-11-19) =====
+
+MISSING_TABLE = (
+    "DuckDB: CatalogException: Catalog Error: Table with name orders does not exist!\n"
+    'Did you mean "pg_prepared_statements"?'
+)
+
+
+def test_duckdbs_missing_table_wording_is_caught_and_a_system_guess_dropped() -> None:
+    assert errors.missing_table(MISSING_TABLE) == "orders"
+    assert errors.missing_table("Catalog Error: Table with name My Orders does not exist!") == "My Orders"
+    assert errors.missing_table('Table with name "s.orders" does not exist because schema "s" does not') == (
+        "s.orders"
+    )
+    assert errors.missing_table("Binder Error: Referenced column x not found") is None
+    where = errors.sql_position(MISSING_TABLE)
+    assert where is not None and where["missing"] == "orders"
+    assert "candidates" not in where  # pg_prepared_statements is DuckDB's own, not the user's
+    told = errors.explain({"type": "UsageError", "message": MISSING_TABLE, "facts": {}})
+    assert "pg_prepared_statements" not in told["message"]
+    assert "Did you mean" not in told["message"] and told["message"].endswith("does not exist!")
+    assert not any("pg_" in f["title"] for f in told["fixes"])
+    assert "below" not in told["explanation"]
+    assert "'orders'" in told["explanation"]
+
+
+def test_a_close_name_of_the_users_own_stays_a_fix() -> None:
+    message = 'Catalog Error: Table with name ordrs does not exist!\nDid you mean "orders"?'
+    told = errors.explain({"type": "UsageError", "message": message, "facts": {}})
+    assert told["fixes"][0] == {
+        "kind": "replace",
+        "title": "Use 'orders'",
+        "target": "ordrs",
+        "text": "orders",
+    }
+    assert 'Did you mean "orders"' in told["message"]
+
+
+def test_a_table_open_in_grids_offers_its_table_cell() -> None:
+    detail = {"chain": [{"type": "UsageError", "message": MISSING_TABLE, "facts": {}}]}
+    told = errors.explain_detail(detail, open_tables=["Orders", "regions"])
+    entry = told["chain"][-1]
+    assert entry["fixes"][0] == {
+        "kind": "table",
+        "title": "Orders is open in Grids: add its table cell",
+        "name": "Orders",
+    }
+    assert "open in Grids" in entry["explanation"]
+    plain = errors.explain_detail(detail, open_tables=["regions"])["chain"][-1]
+    assert not any(f["kind"] == "table" for f in plain["fixes"])
+    # A Python error never offers a table cell.
+    python = {"chain": [{"type": "NameError", "message": "name 'orders' is not defined", "facts": {}}]}
+    told_python = errors.explain_detail(python, open_tables=["orders"])["chain"][-1]
+    assert not any(f["kind"] == "table" for f in told_python["fixes"])

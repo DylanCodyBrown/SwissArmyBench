@@ -6,6 +6,9 @@ Two use cases, for the Workbench window and the agent alike:
             the table's own name, and (for a table no code made) the load that goes before it
   arrange   a document's cells with its Tables group as it should be: a notebook's cells, or a
             script's text with its region; each of the user's cells with its uses line
+  view      an open table's grid view (its steps applied) as an Arrow stream, read when a kernel's DuckDB
+            SQL names it and that Python has no table of the name (feel-a, 2026-11-19): read-only, read
+            again each time, never kept
 
 Where each table came from is remembered here (`Origins`): the Workbench kernel that pushed it, the
 file it was read from, the connection and query. Memory only; nothing is written.
@@ -13,6 +16,7 @@ file it was read from, the connection and query. Memory only; nothing is written
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from swissarmybench.domain import notebooks
@@ -50,8 +54,12 @@ class Origins:
 
 
 class TableCells:
-    def __init__(self, ws: Workspace, origins: Origins) -> None:
+    def __init__(
+        self, ws: Workspace, origins: Origins, view_bytes: Callable[[SqlSession, str], bytes] | None = None
+    ) -> None:
         self.ws = ws
+        # A query's result as an Arrow IPC stream (adapters/datasets.py's query_table and its stream).
+        self._view_bytes = view_bytes
         self._origins = origins
 
     # ===== every open table as its cell's text =====
@@ -145,6 +153,27 @@ class TableCells:
             return [self._table(cursor, info, grid) for info, grid in pairs]
 
         return {"tables": await ws.workers.run(BACKGROUND, read) if pairs else []}
+
+    async def view(self, name: str) -> bytes:
+        """The open table `name` (any case, as DuckDB reads a name) as its grid shows it, every row, its
+        steps applied, as an Arrow IPC stream. LookupError: no table of that name is open in Grids."""
+        ws = self.ws
+        infos = [i for i in ws.store.all() if ws.grids.first_for(i.name) is not None]
+        info = next((i for i in infos if i.name == name), None) or next(
+            (i for i in infos if i.name.lower() == name.lower()), None
+        )
+        grid = ws.grids.first_for(info.name) if info is not None else None
+        if info is None or grid is None or self._view_bytes is None:
+            raise LookupError(f"No table named {name} is open in Grids.")
+        to_bytes = self._view_bytes
+
+        def read(cursor: SqlSession) -> bytes:
+            with ws.views.reading(cursor, info, grid.steps, grid.settings, ordered=True) as rows:
+                return to_bytes(cursor, rows)
+
+        found: bytes = await ws.grid_query(grid, None, BACKGROUND, read)
+        ws.audit.write("app", "table_read_by_sql", info.name, rows=None)
+        return found
 
     # ===== a document's Tables group =====
 

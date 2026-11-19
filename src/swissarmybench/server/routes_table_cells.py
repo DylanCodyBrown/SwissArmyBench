@@ -5,6 +5,8 @@ GET    /workbench/tables              every open table as its cell's text (its t
 POST   /workbench/tables/arrange      {"kind": "notebook", "cells", "tables", "next_cell", "move"} or
                                       {"kind": "script", "text", "tables", "move"}: the document with
                                       its Tables group as it should be, and each cell's uses line
+GET    /workbench/tables/{name}/arrow  an open table's grid view (its steps applied) as an Arrow IPC
+                                      stream: a kernel's DuckDB SQL naming it (client/sql_cell.py)
 """
 
 from __future__ import annotations
@@ -30,7 +32,15 @@ def routes(tables: TableCells) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
+    async def view(request: Request) -> Response:
+        try:
+            data = await tables.view(request.path_params["name"])
+            return Response(data, media_type="application/vnd.apache.arrow.stream")
+        except Exception as error:
+            return error_response(error)
+
     return [
         Route("/workbench/tables", listing),
+        Route("/workbench/tables/{name}/arrow", view),
         Route("/workbench/tables/arrange", arrange, methods=["POST"]),
     ]

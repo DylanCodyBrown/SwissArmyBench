@@ -22,6 +22,7 @@ import os
 import re
 import threading
 import uuid
+import warnings
 import zipfile
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
@@ -108,6 +109,20 @@ def table_to_arrow_stream(table: pa.Table) -> bytes:
     sink = pa.BufferOutputStream()
     with ipc.new_stream(sink, table.schema) as writer:
         writer.write_table(table)
+    return bytes(sink.getvalue().to_pybytes())
+
+
+def query_to_arrow_stream(cursor: duckdb.DuckDBPyConnection, sql: str) -> bytes:
+    """A query's rows as an Arrow IPC stream, batch by batch (an open table's view for a kernel's DuckDB
+    SQL). The cursor may hold an earlier execute's result, so this is execute()'s reader: DuckDB's note
+    about the copy it makes is expected here."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Arrow output on a DB-API result")
+        reader: Any = cursor.execute(sql).to_arrow_reader()
+    sink = pa.BufferOutputStream()
+    with ipc.new_stream(sink, reader.schema) as writer:
+        for batch in reader:
+            writer.write_batch(batch)
     return bytes(sink.getvalue().to_pybytes())
 
 
