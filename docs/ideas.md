@@ -6126,3 +6126,34 @@ Left:
 - Forecast's predictors, a time series' split by a category and a fit test against given shares are not in
   the form (the lower-level tools have them).
 - Cancel stops a run's own queries; a tie-out or Key Finder in flight finishes unseen and lands nothing.
+
+## The Python cleanup: duplicates merged, dead code out (the owner, 2026-11-19, the overnight optimisation pass; built, branch opt-clean)
+Behaviour kept; only what the evidence showed was unused or copied. The analysis code, anything named
+analyze/visualizations/sandbox and the one-release rename shims were left alone.
+- **One route wrapper:** server/http.py's `safely` (beside error_response) for the thirteen copies, and its
+  `with_body` / `with_actor` for routes_team.py's and the Git extension's. Many routes still write their own
+  try/except inline: the same answer, left as they were.
+- **One identifier quote:** domain/datasets.quote for DuckDB (catalogs, connection_tables, web_calls);
+  catalogs.quote_identifier(..., "sqlserver") for the bracket rule (count_sql, context.md's connection names);
+  sql_cell uses client/writes.quote. Quoting written into a connection's or an export's code as text
+  (sql_server's runtime, lakes' SQL endpoint, script_runtime, lake_code) stays text.
+- **One atomic write:** adapters/atomic_files.py: write_atomic (a unique temporary name in the same folder,
+  O_EXCL, fsync, one os.replace; the mode given, else the existing file's own, else the umask's;
+  if_changed), `replacing` for the two zips, and JsonFile (now atomic) that desktop.json's RecordFile (0o600),
+  windows.json's JsonState and update.json's switch stand on. ColoursFile stays its own class (TOML text, a
+  path that follows the library). A new file that went through tempfile.mkstemp before (an API's files, a
+  structure, a new notebook from the Workbench) is now the umask's mode (0o644 typically), not 0o600: the
+  blade files that must be owner-only say so (mode=0o600). The client's and the extensions' code-as-text
+  writers (lineage_values, writes.py, app_settings' page code) keep theirs: they cannot import the server.
+- **Dead functions:** app_pid, json_text, model_tables, is_structure_file, iter_keys, read_by_code, lookup_in
+  (no caller). Test-only: removed with their tests where no rule the app relies on stood behind them
+  (missing_imports, dax_column, spec_urls: the Add API dialog joins spec_paths itself, suggested_variable;
+  web_call_table was web_calls.is_table, the test calls that); kept where the test is an invariant over real
+  data (portability.portable_first, write_capability.tables_kinds_covered and kinds_named) or the function is
+  used by a copied file (domain/html_cells.page_html: a Streamlit page's sab_text.py).
+- **The client:** client/kernel_values.py (type_name, is_table, namespace) for six modules; cli/api.py takes
+  push_client.info_file. lineage_values, domain/approvals and domain/html_cells keep their own `_cut` and
+  `_namespace`: each travels as a standalone file.
+- **Commands:** cli/commands.Registrar is the base's `@command` and each extension's (`command =
+  Registrar(COMMANDS)`).
+- Lines: src and extensions 131,165 -> 130,840 Python lines (399 added, 724 removed); tests +147 / -35.
