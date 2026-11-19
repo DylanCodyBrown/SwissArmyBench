@@ -4,22 +4,19 @@ from __future__ import annotations
 
 import json
 import os
-import socket
 import sqlite3
-import threading
-import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
-import uvicorn
 
 import swissarmybench as sab
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
 from tests.fake_keyring import memory_keyring
+from tests.live_server import running
 
 TOKEN = "blades-client-token"
 
@@ -27,26 +24,13 @@ TOKEN = "blades-client-token"
 @pytest.fixture
 def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[int]:
     with memory_keyring():
-        with socket.socket() as s:
-            s.bind(("127.0.0.1", 0))
-            port = int(s.getsockname()[1])
         settings = Settings(state_dir=tmp_path / "state", export_dir=tmp_path / "exports")
-        server = uvicorn.Server(
-            uvicorn.Config(create_app(port, TOKEN, settings), port=port, log_level="warning")
-        )
-        thread = threading.Thread(target=server.run, daemon=True)
-        thread.start()
-        deadline = time.monotonic() + 20
-        while not server.started and time.monotonic() < deadline:
-            time.sleep(0.05)
-        assert server.started
-        info = tmp_path / "server.json"
-        info.write_text(json.dumps({"port": port, "token": TOKEN}))
-        monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
-        monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
-        yield port
-        server.should_exit = True
-        thread.join(10)
+        with running(lambda port: create_app(port, TOKEN, settings)) as (port, _server):
+            info = tmp_path / "server.json"
+            info.write_text(json.dumps({"port": port, "token": TOKEN}))
+            monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+            monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
+            yield port
 
 
 def user(port: int, method: str, path: str, body: Any = None) -> Any:

@@ -266,9 +266,9 @@ def test_a_real_server_stops_after_its_last_page_closes(tmp_path: Path) -> None:
     env = os.environ | {
         "SWISSARMYBENCH_INFO": str(info),
         "SWISSARMYBENCH_STATE": str(tmp_path / "state"),
-        "SWISSARMYBENCH_LIFE_GRACE": "2",
+        "SWISSARMYBENCH_LIFE_GRACE": "1",
         "SWISSARMYBENCH_LIFE_START_GRACE": "30",
-        "SWISSARMYBENCH_LIFE_IDLE": "4",
+        "SWISSARMYBENCH_LIFE_IDLE": "2",
     }
     process = subprocess.Popen(
         [sys.executable, "-m", "swissarmybench.server", "start", "--port", "0", "--no-window"],
@@ -286,11 +286,12 @@ def test_a_real_server_stops_after_its_last_page_closes(tmp_path: Path) -> None:
         assert server is not None
         address = f"ws://127.0.0.1:{server['port']}/ws?workspace=1"
         page = connect(address, subprotocols=["swissarmybench", server["token"]])  # type: ignore[list-item]
-        # A page open: past every grace, the server stays (the agent's request counts 4 s only).
-        time.sleep(7)
+        # A page open: past every grace, the server stays (the agent's request counts 2 s only). The one
+        # wait of its kind: the test is that nothing happens for longer than the graces.
+        time.sleep(3.5)
         assert process.poll() is None
         page.close()  # the last window closed
-        process.wait(timeout=20)  # the grace (2 s) and the agent's last read (4 s) later: stopped
+        process.wait(timeout=20)  # the grace (1 s) and the agent's last read (2 s) later: stopped
         assert not info.exists()
     finally:
         if process.poll() is None:

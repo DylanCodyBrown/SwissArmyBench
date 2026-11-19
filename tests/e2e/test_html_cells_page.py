@@ -24,7 +24,7 @@ from tests.e2e.test_table_cells_page import (
     type_cell,
     window,
 )
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 from tests.e2e.test_workbench_page import add_cell, start
 
 CARD = (
@@ -405,8 +405,12 @@ def test_a_saved_html_cell_opens_with_its_last_design_and_its_uses_line(
     # The table opens in the grid: the cell that asks for it says so on its first line, with a link.
     open_as_grid(server, "sales")
     expect(workbench.locator(".wb-tcell.role-transformations")).to_have_count(1, timeout=20000)
-    workbench.wait_for_timeout(1500)
-    first = str(html_cells_of(server)[0]["html"]).split("\n")[0]
+
+    def first_line() -> str:
+        return str(html_cells_of(server)[0]["html"]).split("\n")[0]
+
+    until(lambda: first_line().startswith("<!-- uses"), 15)  # the line follows a moment after
+    first = first_line()
     assert re.fullmatch(r"<!-- uses sales @cell\d+ -->", first), first
     # The app's own line does not make the cell out of date.
     expect(cell.locator(".wb-design-bar")).to_be_hidden()

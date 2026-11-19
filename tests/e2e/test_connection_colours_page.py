@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Locator, Page, expect
 
-from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, open_grid, server, until  # noqa: F401
 
 SHOTS = os.environ.get("SAB_CONNCOLOUR_SHOTS")
 PLAIN = {"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
@@ -92,6 +92,7 @@ def wait_worn(page: Page, selector: str, colour: str) -> None:
 
 
 def shown(page: Page, server: dict[str, Any], name: str) -> str:
+    page.wait_for_function("() => !!document.documentElement.dataset.theme")  # the theme applied
     theme = page.evaluate("document.documentElement.dataset.theme")
     return str(listed(server)[name]["themes"][theme]).lower()
 
@@ -142,8 +143,8 @@ def test_the_card_and_the_detail_choose_a_colour_the_rails_are_refused(
     expect(palette.locator(".conn-palette-swatch")).to_have_count(8)
     shot(page, "2-card-palette")
     palette.get_by_role("menuitemradio", name="Magenta").click()
+    assert until(lambda: listed(server)["Depot"]["chosen"] == MAGENTA)  # saved first, then worn
     wait_worn(page, ".connection-card[data-connection='Depot']", shown(page, server, "Depot"))
-    assert listed(server)["Depot"]["chosen"] == MAGENTA
     # Its detail: the swatch beside the tools.
     card.click()
     expect(page.locator(".connection-colour .conn-swatch")).to_be_visible(timeout=15000)

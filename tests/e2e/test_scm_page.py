@@ -23,7 +23,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.test_ui import browser, call  # noqa: F401
+from tests.e2e.test_ui import browser, call, until  # noqa: F401
 from tests.github_standin import TOKEN, GitHubStandin
 
 SHOTS = os.environ.get("SWISSARMYBENCH_SCM_SHOTS")
@@ -220,6 +220,13 @@ def test_the_footer_mark_and_a_shared_card(
     call(server, "POST", "/project/open", {"path": str(shared / "Close")})
     page = open_page(browser, server)
     footer = page.locator(".app-footer")
+    # The footer ready: its mark asked for once (it listens for the save's notice from then on).
+    page.wait_for_function(
+        "() => performance.getEntriesByType('resource').some(e => e.name.includes('/git/mark'))",
+        timeout=20000,
+    )
+    # And its live socket connected (the server counts it among the windows): the save's notice reaches it.
+    assert until(lambda: call(server, "GET", "/lifecycle")["windows"] >= 1)
     expect(footer.locator(".area-mark")).to_have_count(0)  # up to date
     # A change here: the mark says so (no polling: the save's notice and the page's read).
     (shared / "Close" / "plan.md").write_text("alpha\nmine\n")

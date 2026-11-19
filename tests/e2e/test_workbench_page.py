@@ -653,7 +653,10 @@ def test_a_deleted_cell_comes_back_and_open_documents_survive_a_reload(
     expect(workbench.locator(".wb-cell")).to_have_count(2)
     expect(workbench.locator(".wb-cell").first).to_contain_text("first cell")
     new_script(workbench, "draft = 'not saved yet'")
-    workbench.wait_for_timeout(1200)  # remembered a moment after the last change
+    # Remembered a moment after the last change (the window's session storage): wait until it is.
+    workbench.wait_for_function(
+        "() => (sessionStorage.getItem('workbench-documents') || '').includes('not saved yet')"
+    )
     workbench.reload()
     expect(workbench.locator(".wb-tabs .tab-item")).to_have_count(2, timeout=20000)
     expect(workbench.locator(".wb-script-editor .view-lines")).to_contain_text("not saved yet", timeout=20000)

@@ -11,7 +11,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, open_grid, orders_url, server, until  # noqa: F401
 from tests.e2e.test_workbench_page import add_cell, new_script, open_workbench, start
 
 SHOTS = os.environ.get("SAB_SHOTS")
@@ -103,9 +103,9 @@ def test_a_typo_is_squiggled_counted_and_ctrl_dot_adds_an_import(
     new_script(workbench, "total = 0\nprint(totl)\nframe = pd.DataFrame()\n")
     editor = workbench.locator(".wb-script-editor")
     # Within a second of the typing stopping: the squiggles and the status bar's count.
-    expect(editor.locator(".squiggly-error").first).to_be_visible(timeout=3000)
+    expect(editor.locator(".squiggly-error").first).to_be_visible(timeout=15000)
     problems = workbench.locator(".wb-status .wb-problems")
-    expect(problems).to_be_visible(timeout=3000)
+    expect(problems).to_be_visible(timeout=15000)
     expect(problems).to_contain_text("2 errors")
     shot(workbench, "lint.png")
     problems.click()
@@ -119,9 +119,13 @@ def test_a_typo_is_squiggled_counted_and_ctrl_dot_adds_an_import(
     shot(workbench, "quick-fix.png")
     fix.click()
     expect(editor.locator(".view-lines")).to_contain_text("import pandas as pd", timeout=5000)
-    expect(problems).to_contain_text("1 error", timeout=3000)
-    # The agent reads the same (workbench_problems), a moment after the editor settles.
-    workbench.wait_for_timeout(1500)
-    seen = call(server, "GET", "/workbench/intel/problems")
-    [document] = [d for d in seen["documents"] if d["document"] == "Untitled script"]
-    assert [p["code"] for p in document["problems"]] == ["F821"]
+    expect(problems).to_contain_text("1 error", timeout=15000)
+
+    # The agent reads the same (workbench_problems), once the editor has reported its settled text.
+    def codes() -> list[str]:
+        seen = call(server, "GET", "/workbench/intel/problems")
+        found = [d for d in seen["documents"] if d["document"] == "Untitled script"]
+        return [p["code"] for p in found[0]["problems"]] if len(found) == 1 else []
+
+    until(lambda: codes() == ["F821"], 20)
+    assert codes() == ["F821"]

@@ -267,6 +267,8 @@ def test_rotation_keeps_the_cap_and_the_days(tmp_path: Path) -> None:
     files = BetaFiles(tmp_path / "logs", max_bytes=64 * 1024, days=7, now=lambda: clock[0])
     for i in range(1500):  # (under the queue's size: a full queue drops events rather than wait)
         files.write({"kind": "slow", "i": i, "pad": "x" * 120})
+        if i % 100 == 99:  # on a busy machine the writer thread falls behind: never a full queue here
+            files.flush()
     files.flush()
     parts = sorted((tmp_path / "logs").glob("*.jsonl"))
     assert len(parts) > 1 and sum(p.stat().st_size for p in parts) <= 64 * 1024 + files.part_bytes

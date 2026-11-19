@@ -11,6 +11,7 @@ Run just these with: uv run pytest tests/e2e -q
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import os
 import re
@@ -19,7 +20,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -27,7 +28,7 @@ from typing import Any
 import duckdb
 import pandas as pd
 import pytest
-from playwright.sync_api import Browser, Error, Locator, Page, expect, sync_playwright
+from playwright.sync_api import Browser, Error, Locator, Page, Playwright, expect
 
 from swissarmybench.client import push_client
 
@@ -48,6 +49,12 @@ def demo_frame(rows: int = ROWS) -> pd.DataFrame:
             "note": [None if i % 17 == 0 else ("x" * 700 if i == 3 else f"note {i}") for i in range(rows)],
         }
     )
+
+
+@functools.cache
+def orders_frame() -> pd.DataFrame:
+    """The orders table, made once per run (pushing it does not change it)."""
+    return demo_frame()
 
 
 @pytest.fixture(scope="module")
@@ -81,16 +88,20 @@ def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]
             os.environ[key] = value
 
 
-@pytest.fixture(scope="module")
-def browser() -> Iterator[Browser]:
-    with sync_playwright() as p:
-        # SAB_HEADED=1 shows the browser so a person can watch; SAB_SLOWMO pauses between
-        # actions (milliseconds, 350 by default when headed).
-        headed = os.environ.get("SAB_HEADED") == "1"
-        slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
-        instance = p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
-        yield instance
-        instance.close()
+def launch_browser(p: Playwright) -> Browser:
+    """The browser every browser test drives (tests/e2e/conftest.py starts it once for the run)."""
+    # SAB_HEADED=1 shows the browser so a person can watch; SAB_SLOWMO pauses between
+    # actions (milliseconds, 350 by default when headed).
+    headed = os.environ.get("SAB_HEADED") == "1"
+    slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
+    return p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
+
+
+@pytest.fixture(scope="session")
+def browser(shared_browser: Browser) -> Browser:
+    """One browser for the whole run (tests/e2e/conftest.py's), not one per module: every module imports
+    this name, and each import is a fixture of that module that hands back the same browser."""
+    return shared_browser
 
 
 def call(info: dict[str, Any], method: str, path: str, body: Any = None, agent: bool = False) -> Any:
@@ -168,6 +179,66 @@ def grid_of(url: str) -> str:
     return url.split("/g/")[1].split("#")[0]
 
 
+def until(check: Callable[[], Any], seconds: float = 15) -> Any:
+    """Polls `check` (a server read, a page read) until it is truthy; its last answer (falsy on time out)."""
+    deadline = time.monotonic() + seconds
+    while not (answer := check()) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    return answer
+
+
+def frames(page: Page, count: int = 2) -> None:
+    """Waits for the page to draw `count` frames: what a handler that just ran changes has been drawn."""
+    page.evaluate(
+        "n => new Promise(done => { const next = k => k ? requestAnimationFrame(() => next(k - 1)) : done();"
+        " next(n); })",
+        count,
+    )
+
+
+def quiet(page: Page, ms: int = 300, seconds: float = 10) -> None:
+    """Waits until the page has had no request in flight for `ms` (its websockets aside): for a test that
+    checks something did NOT happen, the shortest honest wait. `wait_for_load_state("networkidle")` does
+    not do this after the first load (it answers at once)."""
+    pending: set[Any] = set()
+
+    def started(request: Any) -> None:
+        pending.add(request)
+
+    def ended(request: Any) -> None:
+        pending.discard(request)
+
+    page.on("request", started)
+    for event in ("requestfinished", "requestfailed"):
+        page.on(event, ended)
+    try:
+        deadline = time.monotonic() + seconds
+        quiet_since = time.monotonic()
+        while time.monotonic() < deadline:
+            page.wait_for_timeout(50)
+            if pending:
+                quiet_since = time.monotonic()
+            elif (time.monotonic() - quiet_since) * 1000 >= ms:
+                return
+    finally:
+        page.remove_listener("request", started)
+        for event in ("requestfinished", "requestfailed"):
+            page.remove_listener(event, ended)
+
+
+def steady_box(page: Page, locator: Locator, seconds: float = 5) -> Any:
+    """The element's box once it stops moving (two frames apart, the same)."""
+    deadline = time.monotonic() + seconds
+    box = locator.bounding_box()
+    while time.monotonic() < deadline:
+        frames(page)
+        now = locator.bounding_box()
+        if now == box:
+            return now
+        box = now
+    return box
+
+
 @pytest.fixture(autouse=True)
 def close_pages(browser: Browser) -> Iterator[None]:
     """Close every page a test opened. Each open workspace page stays connected and reacts to
@@ -181,8 +252,14 @@ def close_pages(browser: Browser) -> Iterator[None]:
 def orders_url(server: dict[str, Any]) -> Iterator[str]:
     """A fresh grid on "orders" for each test (a plain re-push would reuse the first grid,
     steps and all), closed afterwards so the 20-grid limit is never reached."""
-    orders = demo_frame()
-    url = push_client.push(orders, new_grid=True)
+    for attempt in range(3):  # the client's two-second health check can miss a busy server: asked again
+        try:
+            url = push_client.push(orders_frame(), name="orders", new_grid=True)
+            break
+        except push_client.ServerNotRunningError:
+            if attempt == 2:
+                raise
+            time.sleep(1)
     yield url
     call(server, "DELETE", f"/grids/{grid_of(url)}")
 
@@ -343,10 +420,13 @@ def test_bucket_and_categorize_forms(browser: Browser, orders_url: str) -> None:
     expect(page.locator(".ag-header-cell[col-id='quantity_bucket']")).to_be_visible()
     wait_for_cell(page, 0, "quantity_bucket", "[0, 10)")
 
-    # The new column was scrolled into view; scroll back to the start to reach region.
-    page.wait_for_timeout(600)  # let the grid finish scrolling the new column in
-    page.locator(".ag-body-horizontal-scroll-viewport").evaluate("e => e.scrollLeft = 0")
-    page.wait_for_timeout(300)
+    # The new column was scrolled into view; scroll back to the start to reach region (again on each
+    # frame until it holds: the grid may still be scrolling the new column in).
+    page.wait_for_function(
+        "() => { const v = document.querySelector('.ag-body-horizontal-scroll-viewport'); v.scrollLeft = 0;"
+        " return v.scrollLeft === 0 && !!document.querySelector(\".ag-header-cell[col-id='region']\"); }",
+        polling="raf",
+    )
     page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
     page.get_by_role("button", name="Categorize…").click()
     dialog = page.locator("dialog")
@@ -998,8 +1078,9 @@ def test_paste_tab_separated_text_makes_a_dataset(
             document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true }));
         }"""
     )
-    page.wait_for_timeout(1500)
-    assert any(d["name"].startswith("pasted_") for d in call(server, "GET", "/datasets")["datasets"])
+    assert until(
+        lambda: any(d["name"].startswith("pasted_") for d in call(server, "GET", "/datasets")["datasets"])
+    )
 
 
 def test_two_quick_pastes_make_two_datasets(
@@ -1158,11 +1239,12 @@ def test_no_column_is_cut_beside_the_row_numbers(
       return cells.filter(c => !['__sab_rownum', '__sab_filler'].includes(c[0]))
         .filter(c => c[1].left < key.right - 1 && c[1].right > key.right + 1).map(c => c[0]);
     }"""
-    page.wait_for_timeout(1500)
-    assert page.evaluate(probe) == []
+    # Polled: once drawn at that scroll, no header lies under the row numbers' column (a column that
+    # stays under it fails the wait).
+    page.wait_for_function(f"() => ({probe})().length === 0", timeout=5000)
     page.locator(".ag-body-horizontal-scroll-viewport").evaluate("e => e.scrollLeft = 100000")
-    page.wait_for_timeout(1200)
-    assert page.evaluate(probe) == []
+    frames(page, 3)  # the scroll handled and the headers drawn there
+    page.wait_for_function(f"() => ({probe})().length === 0", timeout=5000)
 
 
 # ===== Excel-style selection, the ribbon, SQL steps, the value viewer =====
@@ -1366,8 +1448,12 @@ def test_the_grid_scrolls_freely_through_a_column_wider_than_the_view(
     for step in range(1, 21):
         page.mouse.move(x + step * 40, y)
     page.mouse.up()
-    page.wait_for_timeout(500)
     viewport = page.locator(".ag-body-horizontal-scroll-viewport")
+    page.wait_for_function(
+        "() => document.querySelector(\".ag-header-cell[col-id='note']\").clientWidth >"
+        " document.querySelector('.ag-body-horizontal-scroll-viewport').clientWidth",
+        timeout=5000,
+    )
     view_width = viewport.evaluate("e => e.clientWidth")
     note_width = page.locator(".ag-header-cell[col-id='note']").evaluate("e => e.clientWidth")
     assert note_width > view_width, (view_width, note_width)
@@ -1984,9 +2070,13 @@ def test_a_table_over_a_million_pixels_scrolls_row_for_row(browser: Browser, ser
         for _ in range(8):
             page.keyboard.press("Control+Equal")
         expect(page.locator(".zoom-control output").first).to_have_text("200%")
-        page.wait_for_timeout(500)
-        viewport.evaluate("v => { v.scrollTop = v.scrollHeight; }")
-        page.wait_for_function(fits, timeout=10000)
+        # Scrolled to the bottom again on each frame until the last row fits (the zoom lays it out anew).
+        page.wait_for_function(
+            "() => { const v = document.querySelector('.pane.active .ag-grid-viewport');"
+            f" v.scrollTop = v.scrollHeight; return ({fits})(); }}",
+            polling="raf",
+            timeout=10000,
+        )
         page.keyboard.press("Control+0")
     finally:
         call(server, "DELETE", "/datasets/tall")
@@ -1999,8 +2089,7 @@ def test_the_last_row_scrolls_clear_of_the_sideways_scrollbar(browser: Browser, 
     viewport.evaluate("v => { v.scrollTop = v.scrollHeight; }")
     last = page.locator(f".pane.active .ag-row[row-index='{ROWS - 1}']").last
     expect(last).to_be_visible(timeout=10000)
-    page.wait_for_timeout(300)
-    row = last.bounding_box()
+    row = steady_box(page, last)
     strip = page.locator(".pane.active .ag-body-horizontal-scroll").bounding_box()
     bottom = viewport.evaluate("v => v.getBoundingClientRect().top + v.clientHeight")
     assert row is not None and strip is not None
@@ -2018,17 +2107,19 @@ def test_the_last_tab_clicked_wins_over_a_slow_first_load(
         page.locator(f".tab-item[data-grid='{first}']").click()
 
         def delayed(route: Any) -> None:
-            time.sleep(1.5)
+            time.sleep(0.5)
             route.continue_()
 
         page.route(re.compile(f"/grids/{slow}$"), delayed)
         # Both clicks inside the page, so the second lands while the first tab's info still loads.
-        page.evaluate(
-            "([slow, first]) => { for (const id of [slow, first])"
-            " document.querySelector(`.tab-item[data-grid='${id}']`).click(); }",
-            [slow, first],
-        )
-        page.wait_for_timeout(2500)
+        with page.expect_response(re.compile(f"/grids/{slow}$"), timeout=10000) as answered:
+            page.evaluate(
+                "([slow, first]) => { for (const id of [slow, first])"
+                " document.querySelector(`.tab-item[data-grid='${id}']`).click(); }",
+                [slow, first],
+            )
+        answered.value.finished()
+        frames(page)  # the slow answer handled: whatever it would switch to, it has
         expect(page.locator(".tab-item.active")).to_have_attribute("data-grid", first)
         expect(page.locator(f".pane[data-grid='{first}']")).to_be_visible()
     finally:
@@ -2079,7 +2170,7 @@ def test_the_pop_out_windows_start_without_errors(browser: Browser, orders_url: 
 
         page.on("pageerror", record)
         page.goto(f"{path}?panel={panel}#{fragment}")
-        page.wait_for_timeout(2500)
+        quiet(page)
         assert errors == [], f"{panel}: {errors}"
 
 
@@ -2144,12 +2235,12 @@ def test_switching_tabs_asks_for_no_step_counts_and_not_for_hidden_cards(
         expect(page.locator(f".pane[data-grid='{other}'] .ag-row[row-index='0']").first).to_be_visible(
             timeout=15000
         )
-        page.wait_for_timeout(500)
+        quiet(page)
         seen: list[str] = []
         page.on("request", lambda request: seen.append(request.url))
         page.locator(f".tab-item[data-grid='{first}']").click()
         expect(page.locator("#grid-title")).to_contain_text("orders")
-        page.wait_for_timeout(1000)
+        quiet(page)
         # The step counts belong to the steps window: the grid page no longer asks for them at all.
         assert sum("/step-counts" in url for url in seen) == 0, seen
         assert not any(url.endswith("/cards") for url in seen), seen  # the Agent tab is not showing
@@ -2230,7 +2321,7 @@ def test_a_server_that_stops_answering_gets_one_plain_message(browser: Browser, 
     # The one note (errorNote.ts), in place under the ribbon beside the button pressed.
     note = page.locator(".error-note")
     expect(note).to_contain_text(re.compile("server is not answering"), timeout=10000)
-    page.wait_for_timeout(500)
+    quiet(page)  # both refused requests answered
     expect(note).to_have_count(1)  # the same message once, not stacked
     expect(page.locator("body")).not_to_contain_text("Failed to fetch")
 
@@ -2293,11 +2384,18 @@ def test_a_step_forms_fields_share_a_row(browser: Browser, orders_url: str) -> N
 def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser, orders_url: str) -> None:
     page = open_grid(browser, orders_url, width=1440)
     app = page.locator(".app-row")
+    expect(app).to_be_visible()
     expect(app.locator(".ribbon-caption strong")).to_have_text("Application")
     # Settings, Connections and the blades page are the rail's (rail.ts); the tour is the Start page's.
     expect(app.locator(".tour-btn")).to_have_count(0)
     table_row = page.locator(".ribbon .ribbon-group").first
-    assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
+    expect(table_row).to_be_visible()
+
+    def app_row_above() -> bool:
+        top, ribbon = app.bounding_box(), table_row.bounding_box()
+        return top is not None and ribbon is not None and top["y"] < ribbon["y"]
+
+    assert until(app_row_above, 10)  # asked again until both are laid out
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
     # On the Analyze tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
     page.locator(".nav-rail [data-area='analyze']").click()

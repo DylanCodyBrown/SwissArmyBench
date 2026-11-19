@@ -10,7 +10,7 @@ from typing import Any
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from tests.e2e.test_ui import browser, demo_frame, open_grid, server  # noqa: F401
+from tests.e2e.test_ui import browser, demo_frame, frames, open_grid, server, until  # noqa: F401
 
 
 def palette(page: Page, words: str) -> None:
@@ -32,6 +32,20 @@ def test_the_palette_lists_every_action_of_the_page_and_runs_them(
     page = open_grid(browser, url, width=1700, height=900)
     try:
         page.locator(".ag-row[row-index='0'] .ag-cell[col-id='region']").click()
+        # The ribbon and the steps strip drawn whole before their buttons are listed.
+        expect(page.locator(".ribbon .ribbon-group").first).to_be_visible()
+        expect(page.locator(".steps-strip button").first).to_be_visible()
+        shown = (
+            "() => [...document.querySelectorAll('.ribbon .ribbon-group button, .app-row button')]"
+            ".filter(b => b.getClientRects().length > 0).length"
+        )
+        counts: list[int] = []
+
+        def steady() -> bool:  # the same count three looks running
+            counts.append(page.evaluate(shown))
+            return counts[-1] > 0 and counts[-3:] == [counts[-1]] * 3
+
+        until(steady)
         page.keyboard.press("Control+Shift+P")
         listed = page.locator(".wb-palette-item")
         expect(listed.first).to_be_visible()
@@ -144,7 +158,7 @@ def test_enter_or_f2_on_a_cell_opens_the_value_viewer(browser: Browser, server: 
         # On a header the keys keep their own meaning: no viewer.
         page.locator(".ag-header-cell[col-id='region'] .sab-header-name").click()
         page.keyboard.press("Enter")
-        page.wait_for_timeout(300)
+        frames(page)  # the key's handler has run and drawn
         expect(viewer).to_have_count(0)
     finally:
         page.close()

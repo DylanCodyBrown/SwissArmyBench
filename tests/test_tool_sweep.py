@@ -21,10 +21,8 @@ import io
 import itertools
 import json
 import re
-import socket
 import sys
 import threading
-import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
@@ -35,7 +33,6 @@ from typing import Any
 import pyarrow as pa
 import pyarrow.ipc as ipc
 import pytest
-import uvicorn
 
 from swissarmybench.cli.commands import REGISTRY, Arg, Command
 from swissarmybench.mcp import server as mcp_server
@@ -44,6 +41,8 @@ from swissarmybench.settings import Settings
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from examples.sample_store import make_store
+
+from tests.live_server import running
 
 TOKEN = "sweep-token"
 USER_TYPED = "UserTypedValue"  # a value the user typed into a step
@@ -148,19 +147,11 @@ def _arrow(frame: Any) -> bytes:
 @pytest.fixture(scope="module")
 def sweep(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Sweep]:
     tmp = tmp_path_factory.mktemp("sweep")
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = int(s.getsockname()[1])
     settings = Settings(
         state_dir=tmp / "state", export_dir=tmp / "exports", max_total_bytes=512 * 1024 * 1024
     )
-    server = uvicorn.Server(
-        uvicorn.Config(create_app(port, TOKEN, settings), port=port, log_level="critical")
-    )
-    thread = threading.Thread(target=server.run, daemon=True)
     with pytest.MonkeyPatch.context() as env:
         info = tmp / "server.json"
-        info.write_text(json.dumps({"port": port, "token": TOKEN}))
         env.setenv("SWISSARMYBENCH_INFO", str(info))
         env.setenv("SWISSARMYBENCH_STATE", str(tmp / "state"))
         env.setenv("SWISSARMYBENCH_OPEN", "0")
@@ -172,50 +163,50 @@ def sweep(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Sweep]:
             "relationships": [],
         }
         (tmp / "models" / "sweep.json").write_text(json.dumps(library_model), encoding="utf-8")
-        thread.start()
-        deadline = time.monotonic() + 20
-        while not server.started and time.monotonic() < deadline:
-            time.sleep(0.05)
-        assert server.started
-        store = make_store()
-        probe = Sweep(port, tmp, {}, frozenset())
-        grids: dict[str, str] = {}
-        for name, frame in store.items():
-            pushed = probe.user(
-                "PUT", f"/datasets/{name}", raw=_arrow(frame), kind="application/vnd.apache.arrow.stream"
-            )
-            grids[name] = str(pushed["grid"])
-        # A catalog, as sab.load would send it, for the catalog_* tools: names and types only.
-        probe.user(
-            "PUT",
-            "/catalogs/Sweep%20source?dialect=sqlserver",
-            {
-                "columns": ["table_schema", "table_name", "column_name", "data_type"],
-                "data": [
-                    ["sales", "orders", "order_id", "int"],
-                    ["sales", "orders", "placed_at", "datetime2"],
-                ],
-            },
+        with running(lambda port: create_app(port, TOKEN, settings), log_level="critical") as (port, _):
+            info.write_text(json.dumps({"port": port, "token": TOKEN}))
+            yield from _swept(port, tmp)
+
+
+def _swept(port: int, tmp: Path) -> Iterator[Sweep]:
+    """The sample store pushed, a catalog loaded, and the user allowing every request."""
+    store = make_store()
+    probe = Sweep(port, tmp, {}, frozenset())
+    grids: dict[str, str] = {}
+    for name, frame in store.items():
+        pushed = probe.user(
+            "PUT", f"/datasets/{name}", raw=_arrow(frame), kind="application/vnd.apache.arrow.stream"
         )
-        ready = Sweep(port, tmp, grids, frozenset(store))
-        stop = threading.Event()
+        grids[name] = str(pushed["grid"])
+    # A catalog, as sab.load would send it, for the catalog_* tools: names and types only.
+    probe.user(
+        "PUT",
+        "/catalogs/Sweep%20source?dialect=sqlserver",
+        {
+            "columns": ["table_schema", "table_name", "column_name", "data_type"],
+            "data": [
+                ["sales", "orders", "order_id", "int"],
+                ["sales", "orders", "placed_at", "datetime2"],
+            ],
+        },
+    )
+    ready = Sweep(port, tmp, grids, frozenset(store))
+    stop = threading.Event()
 
-        def approve() -> None:  # the user clicks Allow on every request an agent makes (exports)
-            while not stop.is_set():
-                try:
-                    for pending in ready.user("GET", "/agent/approvals")["pending"]:
-                        ready.user("POST", f"/agent/approvals/{pending['id']}", {"approve": True})
-                except (OSError, urllib.error.URLError, ValueError):
-                    pass
-                stop.wait(0.05)
+    def approve() -> None:  # the user clicks Allow on every request an agent makes (exports)
+        while not stop.is_set():
+            try:
+                for pending in ready.user("GET", "/agent/approvals")["pending"]:
+                    ready.user("POST", f"/agent/approvals/{pending['id']}", {"approve": True})
+            except (OSError, urllib.error.URLError, ValueError):
+                pass
+            stop.wait(0.05)
 
-        approver = threading.Thread(target=approve, daemon=True)
-        approver.start()
-        yield ready
-        stop.set()
-        approver.join(5)
-        server.should_exit = True
-        thread.join(10)
+    approver = threading.Thread(target=approve, daemon=True)
+    approver.start()
+    yield ready
+    stop.set()
+    approver.join(5)
 
 
 # ===== the arguments: sensible ones per tool, hostile ones made from each argument's type =====

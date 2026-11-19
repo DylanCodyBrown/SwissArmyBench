@@ -134,8 +134,8 @@ def test_the_top_right_button_warns_of_the_restart_then_updates(
 def test_settings_click_here_to_update_shows_only_when_an_update_is_available(
     browser: Browser, server: dict[str, Any], release_list: StandIn
 ) -> None:
-    """The owner (2026-11-19): "Check for updates should be changed to Click here to update and should only show
-    when an update is available, and 6 hours is a hidden setting not needed in settings"."""
+    """The owner (2026-11-19): "Check for updates should be changed to Click here to update and should only
+    show when an update is available, and 6 hours is a hidden setting not needed in settings"."""
     release_list.answer = pypi(__version__)
     call(server, "POST", "/updates/check")
     page = grid_page(browser, server)

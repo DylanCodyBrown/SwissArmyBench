@@ -25,7 +25,7 @@ from playwright.sync_api import Browser, Page, expect
 from swissarmybench.client import push_client
 from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
 SHOTS = env("SWISSARMYBENCH_MODES_SHOTS") or None
@@ -147,7 +147,7 @@ def test_kind_colours_on_tabs_menus_and_settings(
     page.keyboard.press("Escape")
     chosen = call(server, "PUT", "/kind-colours", {"script": "#227744"})["kinds"][2]
     shown = chosen["themes"]["light"]  # made readable on the light theme (a little darker)
-    page.wait_for_timeout(800)
+    until(lambda: token(page, "script") == shown)  # the notice reaches the page
     assert token(page, "script") == shown
     menu_button = page.get_by_role("button", name="Workbench menu", exact=True)
     menu_button.click()
@@ -158,7 +158,7 @@ def test_kind_colours_on_tabs_menus_and_settings(
     expect(section.get_by_role("button", name="Default")).to_have_count(1)
     shot(page, "kind-colours-settings")
     section.get_by_role("button", name="Default").click()
-    page.wait_for_timeout(500)
+    until(lambda: token(page, "script") != shown)
     assert token(page, "script") == "" or token(page, "script") != shown
     page.keyboard.press("Escape")
     page.context.close()
@@ -185,11 +185,9 @@ def test_app_mode_properties_wiring_tools_and_page_settings(
     title = props.locator("input[data-field=title]")
     title.fill("Sales")
     title.press("Enter")
-    page.wait_for_timeout(600)
-    assert window(server, "canvas.settings")["title"] == "Sales"
+    assert until(lambda: window(server, "canvas.settings")["title"] == "Sales")
     props.get_by_role("button", name="Centred").click()
-    page.wait_for_timeout(500)
-    assert window(server, "canvas.settings")["layout"] == "centered"
+    assert until(lambda: window(server, "canvas.settings")["layout"] == "centered")
     # A block selected: its name, size, source cell (blue: a notebook's), makes, reads, feeds.
     blocks.nth(0).click()
     expect(blocks.nth(0)).to_have_class(re.compile(r"\bselected\b"))
@@ -380,15 +378,21 @@ def test_script_mode_run_settings_run_as_scheduled_and_history(
     args = settings.locator(".wb-run-args")
     args.fill("--region East")
     args.press("Enter")
-    page.wait_for_timeout(500)
+    settings_url = f"/workbench/scripts/settings?path={quote(str(path))}"
+    until(lambda: call(server, "GET", settings_url)["arguments"] == "--region East")  # kept
     host = settings.locator('.wb-run-var[data-variable="WAREHOUSE_HOST"] select')
     host.select_option("value")
     value = settings.locator('.wb-run-var[data-variable="WAREHOUSE_HOST"] input')
     expect(value).to_be_visible()
     value.fill("db1.example.test")
     value.press("Enter")
-    page.wait_for_timeout(600)
-    held = call(server, "GET", f"/workbench/scripts/settings?path={quote(str(path))}")
+    until(
+        lambda: any(
+            v["name"] == "WAREHOUSE_HOST" and v["words"] == "Plain value"
+            for v in call(server, "GET", settings_url)["variables"]
+        )
+    )
+    held = call(server, "GET", settings_url)
     assert held["arguments"] == "--region East"
     assert any(v["name"] == "WAREHOUSE_HOST" and v["words"] == "Plain value" for v in held["variables"])
     shot(page, "script-run-settings")

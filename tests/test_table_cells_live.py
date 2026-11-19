@@ -9,6 +9,7 @@ import json
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,25 @@ STEPS = [
 
 def table(live: Live, name: str) -> dict[str, Any]:
     return next(t for t in live.user("GET", "/workbench/tables")["tables"] if t["name"] == name)
+
+
+def version_of(live: Live, name: str) -> int:
+    """The open table's version, by its name (not the first listed: other tables may be open)."""
+    return int(next(d["version"] for d in live.user("GET", "/datasets")["datasets"] if d["name"] == name))
+
+
+def open_when_seen(live: Live, kernel: str, name: str, seconds: float = 20) -> dict[str, Any]:
+    """Open a kernel's variable as a grid once the kernel's watcher has reported it (asked again until
+    then, instead of a fixed wait for its first scan)."""
+    deadline = time.monotonic() + seconds
+    while True:
+        try:
+            opened: dict[str, Any] = live.user("POST", f"/workbench/kernels/{kernel}/grid", {"name": name})
+            return opened
+        except urllib.error.HTTPError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.1)
 
 
 def grid_rows(live: Live, grid: str) -> list[list[Any]]:
@@ -198,8 +218,7 @@ def test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_resul
     try:
         maker = "import pandas as pd\norders = pd.DataFrame({'id': [1, 2, 3, 4], 'amount': [10, 20, 30, 40]})"
         assert lines(live, execute, {"code": maker})[-1]["done"]["ok"] is True
-        time.sleep(1.5)  # the kernel's watcher says it is there
-        opened = live.user("POST", f"/workbench/kernels/{kernel}/grid", {"name": "orders"})
+        opened = open_when_seen(live, kernel, "orders")
         assert opened["dataset"] == "orders"
         listed = table(live, "orders")
         assert listed["kernel"] == kernel  # the table belongs to this kernel's document
@@ -207,14 +226,15 @@ def test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_resul
         steps = [{"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 15}}]
         live.user("POST", f"/grids/{grid}/steps", {"steps": steps})
         code = table(live, "orders")["code"]
-        version = live.user("GET", "/datasets")["datasets"][0]["version"]
+        version = version_of(live, "orders")
         for _ in range(2):
             done = lines(live, execute, {"kind": "table", "table": "orders", "code": code})
             assert done[-1]["done"]["ok"] is True, done
             assert said("print(len(orders), type(orders).__name__)") == "3 DataFrame\n"
-        time.sleep(2.5)  # several scans of the watcher
+        # Nothing is sent: two of the watcher's scans (every 0.5 s) and a margin, the one wait of its kind.
+        time.sleep(1.2)
         # The cell's result was not sent back: the grid still holds the four rows and shows three.
-        assert live.user("GET", "/datasets")["datasets"][0]["version"] == version
+        assert version_of(live, "orders") == version
         assert len(grid_rows(live, grid)) == 3
         # The maker runs again: new data, sent to the grid as before.
         again = "orders = pd.DataFrame({'id': [1, 2], 'amount': [5, 50]})"
@@ -223,7 +243,7 @@ def test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_resul
         while time.monotonic() < deadline and len(grid_rows(live, grid)) != 1:
             time.sleep(0.3)
         assert grid_rows(live, grid) == [[2, 50]] or [r[:2] for r in grid_rows(live, grid)] == [[2, 50]]
-        assert live.user("GET", "/datasets")["datasets"][0]["version"] > version
+        assert version_of(live, "orders") > version
         lines(live, execute, {"kind": "table", "table": "orders", "code": code})
         assert said("print(len(orders))") == "1\n"
         # The agent runs a table's cell with its own command.

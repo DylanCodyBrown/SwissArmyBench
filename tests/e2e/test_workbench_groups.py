@@ -89,9 +89,12 @@ def test_groups_split_right_and_down_by_command_and_come_back_after_a_reload(
     # A splitter moves by keyboard.
     sash = workbench.locator(".wb-gsash.row")
     sash.focus()
+    remembered = "() => sessionStorage.getItem('workbench-documents')"
+    before = workbench.evaluate(remembered)
     workbench.keyboard.press("ArrowRight")
     expect(sash).to_have_attribute("aria-valuenow", "53")
-    workbench.wait_for_timeout(1200)  # remembered a moment after the last change
+    # Remembered a moment after the last change (the window's session storage): wait until it is.
+    workbench.wait_for_function(f"before => ({remembered})() !== before", arg=before)
 
     # A reload brings back the documents and the groups as they were, the focused one too.
     workbench.reload()

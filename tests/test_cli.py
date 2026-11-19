@@ -10,7 +10,6 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import socket
 import threading
 import time
 import urllib.request
@@ -19,7 +18,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import uvicorn
 from mcp.types import CallToolResult, ImageContent, TextContent
 
 from swissarmybench.cli import api, main
@@ -28,6 +26,7 @@ from swissarmybench.cli.commands import REGISTRY, catalog, execute
 from swissarmybench.mcp import server as mcp_server
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
+from tests.live_server import running
 
 # A spreadsheet copy is tab-separated, which is what the Paste button reads.
 CSV = "\n".join(
@@ -76,27 +75,16 @@ def data_of(text: str) -> Any:
 
 @pytest.fixture
 def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Live]:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        port = int(s.getsockname()[1])
     token = "cli-test-token"
     settings = Settings(
         state_dir=tmp_path / "state", export_dir=tmp_path / "exports", max_total_bytes=256 * 1024 * 1024
     )
-    server = uvicorn.Server(uvicorn.Config(create_app(port, token, settings), port=port, log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 20
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(0.05)
-    assert server.started
-    info = tmp_path / "server.json"
-    info.write_text(json.dumps({"port": port, "token": token}))
-    monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
-    monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
-    yield Live(port, token)
-    server.should_exit = True
-    thread.join(10)
+    with running(lambda port: create_app(port, token, settings)) as (port, _server):
+        info = tmp_path / "server.json"
+        info.write_text(json.dumps({"port": port, "token": token}))
+        monkeypatch.setenv("SWISSARMYBENCH_INFO", str(info))
+        monkeypatch.setenv("SWISSARMYBENCH_OPEN", "0")
+        yield Live(port, token)
 
 
 @pytest.fixture

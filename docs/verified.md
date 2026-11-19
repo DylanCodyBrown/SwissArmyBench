@@ -3699,3 +3699,95 @@ pbixray is not installed here: its adapter is tested only through its fallback s
 interface (`PBIXRay(path).dax_measures`) follows its README. Not checked: **a real Power BI Desktop round trip**
 (a real .pbix's layout, the written report opened in Power BI Desktop), still to be tried on the owner's
 computer.
+
+## A faster, steadier test suite (2026-11-19, branch opt-tests)
+Tests only; no app behaviour changed. pytest-xdist added to the dev group (the owner's approval, 2026-11-19).
+Measured on the shared 4-core machine while other build agents ran their own suites: there was no quiet moment,
+so each time below carries the load average it ran at; read the differences as rough.
+- **Unit tests (everything but tests/e2e), serial:** before 1,092 s (18:12; load 5.7 falling to 2.6), after 959 s
+  (15:59; load 2.6 falling to 1.0): about 2 minutes saved, most of it the shutdown waits. **With `-n 4 --dist
+  loadfile`: 318 s (5:18), load about 4:** about 3 times faster than serial. 4,414 passed, 31 skipped serially;
+  under -n 4 test_performance's million-row targets miss (timing under four workers, as under any load) and,
+  once, the desktop drive's reopened window (now asked again up to three times).
+- **Browser tests, serial after: 1,909 s (31:49; load 8 to 11). With `-n 2 --dist loadfile`: 1,068 s (17:48;
+  load about 8).** The serial run before (a copy of the base commit, outside the repository) took 2,983 s at load
+  15 to 16 with 26 failures, the extensions' pages most (that copy is not a Git checkout): not a fair comparison,
+  so no browser minutes are claimed here beyond what -n 2 gives.
+- **The slowest 40 unit tests** (the analysis and Analyze tests left out: another branch rewrites them), before
+  and after, serial: their sum 298.7 s before, 227.0 s after. The five 10 s teardowns were the
+  `should_exit; join(10)` of a uvicorn server with a kernel's or a socket's connection open.
+
+| Test (phase) | Before (s) | After (s) |
+|---|---|---|
+| `test_desktop_shell.py::test_the_shell_does_what_a_browser_did` (call) | 16.3 | 16.2 |
+| `test_updater.py::test_the_helper_upgrades_a_uv_tool_and_the_new_version_starts` (call) | 15.5 | 15.3 |
+| `test_server_life.py::test_a_real_server_stops_after_its_last_page_closes` (call) | 11.3 | 6.3 |
+| `test_lakes.py::test_sharepoint_documents_index_and_tabular_documents_are_tables` (call) | 11.0 | 9.8 |
+| `test_lakes.py::test_a_delta_tables_version_or_time_is_named_after_an_at` (call) | 10.5 | 8.7 |
+| `test_lakes.py::test_no_secret_in_any_answer_log_or_file` (call) | 10.4 | 9.7 |
+| `test_apis.py::test_the_made_file_runs_in_a_plain_python_with_each_auth_type[oauth2` (call) | 10.2 | 10.1 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[streamlit_test]` (teardown) | 10.0 | not in the slowest 80 |
+| `test_cli.py::test_the_agent_works_the_workbench_as_the_user_does` (teardown) | 10.0 | not in the slowest 80 |
+| `test_streamlit_apps.py::test_running_a_notebook_as_the_agent_leaves_the_cells_that_call_streamlit_out` (teardown) | 10.0 | not in the slowest 80 |
+| `test_table_cells_live.py::test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_result` (teardown) | 10.0 | not in the slowest 80 |
+| `test_connection_sql_kernel.py::test_a_cell_with_no_connection_names_a_connections_table` (teardown) | 10.0 | not in the slowest 80 |
+| `test_connections.py::test_catalogs_load_themselves_when_saved_at_start_up_and_on_first_use` (call) | 10.0 | 9.1 |
+| `test_streamlit_apps.py::test_the_real_streamlit_runs_the_canvas_the_live_cells_the_export_and_the_saved_pages` (call) | 9.8 | 8.8 |
+| `test_table_cells_live.py::test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_result` (call) | 7.3 | 4.1 |
+| `test_lakes.py::test_a_data_lake_lists_files_delta_and_partitioned_folders_and_reads_them_by_name` (call) | 7.2 | 7.2 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[tabs_new_connection_query]` (call) | 6.9 | 7.0 |
+| `test_workbench.py::test_a_busy_reader_loses_none_of_what_a_kernel_prints` (call) | 6.8 | 6.7 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[table_swap_connection]` (call) | 6.4 | 5.2 |
+| `test_connection_tables.py::test_a_join_across_a_database_and_a_power_bi_dataset_in_one_duckdb_query` (call) | 6.3 | 6.9 |
+| `test_sample_store.py::test_every_true_relationship_holds[returns->order_lines]` (call) | 6.1 | 6.1 |
+| `test_project_outline.py::test_a_made_up_project_outlines_byte_for_byte_and_says_no_value` (call) | 6.1 | 5.2 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[agent_events]` (call) | 6.0 | 6.0 |
+| `test_connection_tables.py::test_a_filter_and_a_safe_limit_go_to_the_source` (call) | 6.0 | 5.5 |
+| `test_powerbi.py::test_import_its_relationships_merges_into_the_current_model` (call) | 5.9 | 4.4 |
+| `test_lakes.py::test_sharepoint_lists_are_typed_tables_with_lookups_people_and_filters_sent` (call) | 5.9 | 6.0 |
+| `test_powerbi.py::test_the_connection_is_made_from_the_vault_and_no_secret_is_ever_answered` (call) | 5.6 | 4.5 |
+| `test_desktop_shell.py::test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows_it` (call) | 5.2 | 4.6 |
+| `test_connection_tables.py::test_the_tree_open_all_and_a_kernel_read` (call) | 5.2 | 4.7 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[explorer_search]` (call) | 5.2 | 5.2 |
+| `test_connection_sql_kernel.py::test_a_cell_with_no_connection_names_a_connections_table` (call) | 5.0 | 5.0 |
+| `test_python_connections.py::test_a_python_connection_over_a_web_service_end_to_end` (call) | 4.8 | 4.6 |
+| `test_sample_store.py::test_every_true_relationship_holds[order_lines->orders]` (call) | 4.7 | 5.1 |
+| `test_dataverse.py::test_no_secret_in_any_answer_log_or_file` (call) | 4.5 | 4.1 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[workbench_kernel_start]` (call) | 4.5 | 4.5 |
+| `test_tool_sweep.py::test_hostile_arguments_get_a_plain_refusal[steps_save_result]` (call) | 4.5 | 5.4 |
+| `test_powerbi.py::test_each_datasets_relationships_come_by_themselves_named_as_the_grids_are` (call) | 4.4 | 3.6 |
+| `test_connection_swap_routes.py::test_a_table_not_found_by_name_asks_to_pick_or_runs_a_reviewed_query` (call) | 4.4 | 3.7 |
+| `test_powerbi.py::test_a_table_opens_as_a_grid_its_first_rows_counted_then_all` (call) | 4.3 | 3.9 |
+| `test_lifecycle.py::test_start_status_second_start_and_stop` (call) | 4.3 | 3.9 |
+
+- **What changed:** tests/live_server.py (uvicorn handed a socket already bound: no port-0 probe race between
+  parallel workers; a one-second graceful stop, then force_exit) for test_cli, test_tool_sweep, test_apis,
+  test_python_connections, test_blades_client and test_watch; tests/e2e/conftest.py holds the one browser of the
+  run (stopped when the run leaves tests/e2e, since Playwright's sync loop and asyncio.run cannot share a
+  thread; started again if a worker comes back), closes a module's pages after it, and makes expect wait 15 s
+  (a page's action 15 s, its load Playwright's 30 s); the orders frame built once; fixed sleeps replaced by what
+  they waited for (an arrange's answer, a slow response, the page's requests quiet, a box that stopped moving, a
+  server read polled, the session storage written); test_server_life's graces shortened (3.5 s instead of 7 s);
+  the file-changed test writes again after a look instead of waiting 4 s first. A wait is left only where a test
+  checks that something does not happen: short, with its reason.
+- **The flaky tests, each run 5 times alone and its file twice (all on the busy machine):** B the application
+  row 5/5, its file 2/2 (one file run lost test_the_plus_tab_builds_a_table_from_a_query once: not in the brief);
+  the palette 5/5, 2/2; the Streamlit page's pick and is_above 5/5, 2/2. D the real kernel's table 5/5, 2/2. E
+  the connection colours 5/5, 2/2. F the SCM footer 4/5 (one timed out at 20 s), its file 2/2, 3 more alone
+  passed; its socket is now waited for too (the server's window count): 2 more alone passed. G intellisense 5/5, 2/2. H the
+  SQL Server export 5/5, 2/2. I the DAX drag 4/5 (one failure at 5 s, not seen again in 4 more), its file 2/2.
+  J the Copilot private project: it failed alone 2 of 5 before; the cause, seen with -x: the project's data.ipynb
+  opened by itself as the window started and went in front of the script made just before it (the language
+  server was not it); the test now waits for the notebook, then makes the script: 5/5 alone, its file 2/2.
+- **Not fixed, and why:** C, test_table_cells_page's two tests whose Tables group never draws
+  (test_a_notebook_table_has_a_read_only_cell..., test_a_maker_that_needs_something_further_down...): they fail
+  the same way on the base commit (the maker test 2 of 4 alone there), with every request answered (the server
+  lists the table with its kernel; the window asks, arranges twice, and draws no group). An app race, left for
+  an app change. test_workbench_groups (the drag test, and the status bar's "Untitled notebook 1") and, once
+  each, test_panels_page and test_workbench_page's first-save test: an extra "Untitled" document in a new window,
+  an earlier window's of the same file; the groups drag test fails on the base commit too.
+- **The browser runs' own results:** serial 354 passed, 15 skipped, 2 failed (test_panels_page's switch: the
+  extra document above; test_rail_page's Apps pane: no block on the canvas within 10 s, once). With -n 2: 350
+  passed, 5 failed, 1 error: the table cells and groups tests above, the tour's spotlight (its target now asked
+  again while it is redrawn) and a push that missed the client's two-second health check on a busy server (the
+  orders fixture now pushes again).
