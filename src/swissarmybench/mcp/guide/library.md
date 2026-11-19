@@ -1,9 +1,27 @@
-# The meta store (the library)
+# The library and the team
 
 Connections, APIs, key vaults, blades, relationship sets, variables and connection colours are this computer's library,
 shared by every project (a project names them; it never holds them). The library is one folder of text
-files made to be a Git repository: `~/.swissarmybench/library` unless the user pointed Settings' **Meta
-store folder** (the library folder) at another: their clone of the team's GitHub repository.
+files made to be a Git repository: `~/.swissarmybench/library` unless the computer is in a team (below), or
+Settings' Team box, Advanced, points it at another folder.
+
+## A team (Settings' Team box)
+A team is ONE GitHub repository: the team library at its top, the team's shared projects in its `projects/`.
+The screen calls it the Team library. Joining needs GitHub sync (the Git extension; `team_status` says
+`needs` when it is not installed: `extensions_install`). Signing in to GitHub is the user's own.
+- `team_status(remote?, repositories?, search?, owners?)`: `state` none or joined; joined: `team.repository`,
+  `team.folder` (the local copy), `team.projects`, `team.sync` (only when something is to do: Pull, changes to
+  push, conflicts); `signed_in`, `pending` (a Join or Start step kept over Install's restart).
+- `team_join(repository)`: the local copy made in `~/.swissarmybench/team/<owner>-<repo>/` (no path asked),
+  the library pointed at it and the shared projects folder at its `projects/`, then the Set up checklist
+  (`setup`). Allow.
+- `team_start(name, owner?, private?)`: a new private repository with README.md, .gitignore (local/,
+  .sab/data/) and projects/; this computer's library copied in and pushed; then joined. Allow.
+- `team_leave(keep)`: without keep, the question; then the library and the shared projects folder go back to
+  what they were before joining (keep: the team's items this library lacks copied in first; one it has, kept).
+  The local copy stays on disk. Allow.
+- Pull and Push: `github_pull`, `github_push` (which library). A shared project's card pushes only its own
+  files (`github_push(which="shared", path=...)`).
 
 ```
 connections/<name>.blade.py   vaults/<name>.blade.py   blades/<name>.blade.py
@@ -24,7 +42,7 @@ local/                        this computer only (git-ignored): plain values mar
 - Never in it: a password or secret's value, a token, a row of data. Secrets stay in each computer's keyring
   (`connections_password_source`). On another computer a cloned library's connections say which passwords
   they need (`connections_list`: `needs_password`), and local values are missing until set there.
-- The app never runs git: the user commits and pushes the folder with their own tools.
+- The app never runs git: GitHub sync (a team) or the user's own tools move the folder.
 
 ## The shared catalog (catalog/)
 One file per connection: each table's database, schema and name, its columns (name, type, nullable, key),
@@ -42,8 +60,8 @@ primary key, the relationships whose ends are its tables, `used_by` (the project
   user fixes it. `explorer_search` and `explorer_browse` (section "From the shared catalog"), the ERD's All
   tables (`erd_text(scope="all")`) and `app_context` read it too.
 
-## Set up from the meta store
-`library_setup(check?)`: a new person's checklist against a team's meta store: `count` and `words` ("3 things
+## Set up this computer
+`library_setup(check?)`: a new person's checklist against a team library: `count` and `words` ("3 things
 to set up", "Ready: 9 connections work"); `vaults` (readable here or not, the sign-in that fixes it, how many
 variables it gives); `values` (a keyring or local variable with no value here, a connection's password with
 no source here: the user types each once, never you); `connections` (works, needs <thing>, or only works on

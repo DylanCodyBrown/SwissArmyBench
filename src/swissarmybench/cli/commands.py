@@ -3697,7 +3697,7 @@ def library_set_folder(a: dict[str, Any]) -> Any:
 
 @command(
     "library_setup",
-    "Set up from the meta store: vault sign-ins, values to type once, each connection's status, shared projects",
+    "Set up this computer (a team library): vault sign-ins, values to type once, each connection's status, shared projects",
     opt("check", "true: check every key vault again now.", "bool"),
 )
 def library_setup(a: dict[str, Any]) -> Any:
@@ -3716,6 +3716,56 @@ def library_setup(a: dict[str, Any]) -> Any:
 def library_setup_move_to_vault(a: dict[str, Any]) -> Any:
     body = {k: a[k] for k in ("connection", "secret", "vault", "vault_secret", "env") if a.get(k)}
     return api.call("POST", "/library/setup/move-to-vault", body)
+
+
+@command(
+    "team_status",
+    "The Team box: none or joined (owner/repo, sync words), signed in, a kept step, the folders",
+    opt("remote", "true: ask GitHub now.", "bool"),
+    opt("repositories", "true: the repositories to join, newest first.", "bool"),
+    opt("search", "Words in owner/name."),
+    opt("owners", "true: a new team's possible owners.", "bool"),
+)
+def team_status(a: dict[str, Any]) -> Any:
+    found: dict[str, Any] = api.call("GET", "/team?remote=1" if a.get("remote") else "/team")
+    if a.get("repositories"):
+        query = f"?search={quote(str(a['search']))}" if a.get("search") else ""
+        found["repositories"] = api.call("GET", "/team/repositories" + query)["repositories"]
+    if a.get("owners"):
+        found["owners"] = api.call("GET", "/team/owners")["owners"]
+    return found
+
+
+@command(
+    "team_join",
+    "Join a team: its repository copied here, the library and shared projects folder pointed at it, the "
+    "checklist; waits for Allow",
+    req("repository", "owner/name."),
+)
+def team_join(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/team/join", {"repository": a["repository"]}, timeout=600)
+
+
+@command(
+    "team_start",
+    "Start a team: a new private repository, this library pushed to it, then joined; waits for Allow",
+    req("name", "The new repository's name."),
+    opt("owner", "One of the account's organisations (default: the account)."),
+    opt("private", "false: a public repository.", "bool"),
+)
+def team_start(a: dict[str, Any]) -> Any:
+    body = {"name": a["name"], "owner": a.get("owner"), "private": a.get("private") is not False}
+    return api.call("POST", "/team/start", body, timeout=600)
+
+
+@command(
+    "team_leave",
+    "Leave the team: both folders back as they were (the copy stays); no keep: the question; waits for Allow",
+    opt("keep", "true: copy the team's items into this library first.", "bool"),
+)
+def team_leave(a: dict[str, Any]) -> Any:
+    body = {} if a.get("keep") is None else {"keep": bool(a["keep"])}
+    return api.call("POST", "/team/leave", body, timeout=200)
 
 
 @command(
@@ -4580,6 +4630,7 @@ AREAS: tuple[tuple[str, str], ...] = (
         "library",
         "The library: the folder of connections, APIs, vaults, blades and variables (a Git repository)",
     ),
+    ("team", "Settings' Team box: join, start or leave a team (one GitHub repository, its projects/)"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),

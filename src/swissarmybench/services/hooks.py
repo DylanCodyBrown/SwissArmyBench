@@ -16,6 +16,7 @@ default: nothing held, nothing to stop, no canvas. The base never names the exte
   live_cells        a notebook's cells shown live instead of run in its kernel
   project_app       a new base project's own app files and requirements ({} with none)
   app_pages         an app's pages and the cells their blocks link (the project's outline)
+  team              GitHub sync for Settings' Team box (services/team.py TeamSync; None: its Install offered)
 """
 
 from __future__ import annotations
@@ -69,3 +70,6 @@ class Hooks:
     app_pages: Callable[[str, str], list[tuple[str, list[tuple[str, int]]]]] = field(
         default=lambda path, text: []
     )
+    # Settings' Team box: the repository's local copy, its new repository, pull and push (services/team.py
+    # TeamSync). None: no extension syncs with GitHub here, and the box offers its Install.
+    team: Any = None

@@ -19,11 +19,11 @@ ID = "git"
 NAME = "Git"
 VERSION = __version__
 DESCRIPTION = (
-    "GitHub sync for the meta store and shared projects, and a Source Control page with a commit graph."
+    "GitHub sync for the team library and shared projects, and a Source Control page with a commit graph."
 )
 ADDS = [
     "Sign in to GitHub (a token, or Sign in with GitHub)",
-    "Clone or connect the meta store folder and the shared projects folder",
+    "Join or start a team: one repository for the team library and shared projects",
     "Pull (three-way merges, conflicts beside the file) and Push, never forced",
     "The Source Control page: changes, staging, Commit, Sync, the graph",
     "Monaco's diff editor for every change and commit",
@@ -38,7 +38,7 @@ WEB = "https://github.com"
 AREAS = (
     (
         "github",
-        "GitHub sync: sign-in status, clone, connect, pull and push the meta store and shared projects",
+        "GitHub sync: sign-in status, clone, connect, pull and push the team library and shared projects",
     ),
     (
         "scm",
@@ -54,7 +54,7 @@ def _area(what: str) -> tuple[str, str, dict[str, Any]]:
 
 
 def _which(x: Any) -> str:
-    return "the meta store" if x.get("which") == "library" else "the shared projects"
+    return "the team library" if x.get("which") == "library" else "the shared projects"
 
 
 # The Session page's words for each audit entry (names and counts only, never a value or the token).
@@ -128,6 +128,10 @@ def routes(services: Any) -> list[Any]:
         project=project,
     )
     services.git = service  # tests
+    # The base's Team box (Settings): one repository for the team library and its projects/.
+    from swissarmybench_git.services.team import TeamPort
+
+    services.hooks.team = TeamPort(service, web)
 
     async def changed(*_: Any) -> None:
         await services.live.broadcast({"type": "sync_changed"})

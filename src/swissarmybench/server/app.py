@@ -38,6 +38,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
   routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
+  routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
   routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
@@ -119,6 +120,7 @@ from swissarmybench.server import (
     routes_snapshots,
     routes_structures,
     routes_table_cells,
+    routes_team,
     routes_tieout,
     routes_timeseries,
     routes_updates,
@@ -314,6 +316,7 @@ def create_app(
             *routes_navigation.routes(ctx.navigation),
             *routes_kind_colours.routes(ctx.kind_colours),
             *routes_library.routes(ctx.library, ctx.library_setup),
+            *routes_team.routes(ctx.team),
             *routes_shared_catalog.routes(ctx.shared_catalog),
             *routes_connection_colours.routes(ctx.connection_colours),
             *routes_session_log.routes(ctx.session_log),

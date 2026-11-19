@@ -412,6 +412,10 @@ RULES: dict[str, Rule] = {
     "project_import": lambda d, x: ("Imported into the project", "project", _area("project")),
     "new_project": lambda d, x: (f"Made the project folder {_file(d)}", "project", _area("project")),
     "export_data": lambda d, x: ("Exported data.py", "notebooks", _document(d)),
+    # Settings' Team box (one GitHub repository for the team library and its projects).
+    "team_join": lambda d, x: ("Joined a team", "project", None),
+    "team_start": lambda d, x: (f"Started a team ({x.get('files')} files pushed)", "project", None),
+    "team_leave": lambda d, x: ("Left the team", "project", None),
 }
 
 

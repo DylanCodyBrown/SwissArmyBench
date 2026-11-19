@@ -61,6 +61,7 @@ from swissarmybench.adapters.state_files import (
 )
 from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
 from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
+from swissarmybench.adapters.team import TeamFiles
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note
 from swissarmybench.adapters.variables import ProcessEnvironment, VariableFiles, VariableKeyring
 from swissarmybench.adapters.views import ViewEngine
@@ -154,6 +155,7 @@ from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.structures import Structures
 from swissarmybench.services.table_cells import TableCells
+from swissarmybench.services.team import Team
 from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
 from swissarmybench.services.updates import Updates
@@ -226,6 +228,7 @@ class Services:
     connection_colours: ConnectionColours
     library: Library
     library_setup: LibrarySetup
+    team: Team
     shared_catalog: SharedCatalog
     script_runs: ScriptRuns
     beta: BetaLog
@@ -994,6 +997,25 @@ def bootstrap(
         },
     )
     update_helper.kept = extensions.kept_wheels
+    # Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the team
+    # joined, the folders before it, a step kept over Install's restart). The GitHub work is an extension's.
+    syncing = next((e for e in extension_rules.CATALOG if "team" in e.provides), None)
+    team = Team(
+        ws,
+        hooks,
+        library,
+        project_explorer,
+        library_setup,
+        JsonFile(state_dir / "team.json" if audit_log else None),
+        TeamFiles(file_manager.show),
+        str(state_dir),
+        approvals,
+        lambda: {
+            "id": syncing.id if syncing else "",
+            "name": syncing.name if syncing else "",
+            "installable": extensions.state()["installable"],
+        },
+    )
     updates = Updates(
         current=__version__,
         feeds=settings.update_feeds,
@@ -1226,6 +1248,7 @@ def bootstrap(
         packs=Packs(ws, pack_files, blade_store, models.library_files),
         library=library,
         library_setup=library_setup,
+        team=team,
         shared_catalog=shared_catalog,
         keys=KeyFinder(ws),
         compares=compares,

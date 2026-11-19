@@ -15,7 +15,7 @@ from swissarmybench.cli.commands import Arg, Command, opt, req
 COMMANDS: dict[str, Command] = {}
 Run = Callable[[dict[str, Any]], Any]
 LONG = 600.0  # a pull or a push of many files, or the Allow it waits for
-WHICH = opt("which", "library (the meta store folder, default) or shared (the shared projects folder).")
+WHICH = opt("which", "library (the team library folder, default) or shared (the shared projects folder).")
 
 
 def command(name: str, summary: str, *args: Arg) -> Callable[[Run], Run]:
@@ -51,7 +51,7 @@ def github_repositories(a: dict[str, Any]) -> Any:
 
 @command(
     "github_clone",
-    "Clone a GitHub repository into an empty or new folder, which becomes the meta store or the shared projects "
+    "Clone a GitHub repository into an empty or new folder, which becomes the team library or the shared projects "
     "folder; waits for Allow",
     req("repository", "owner/name."),
     WHICH,
@@ -65,7 +65,7 @@ def github_clone(a: dict[str, Any]) -> Any:
 
 @command(
     "github_connect",
-    "Connect the meta store or shared projects folder to a GitHub repository (compared, nothing written); "
+    "Connect the team library or shared projects folder to a GitHub repository (compared, nothing written); "
     "waits for Allow",
     req("repository", "owner/name."),
     WHICH,
