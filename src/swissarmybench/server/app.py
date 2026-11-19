@@ -65,6 +65,7 @@ import asyncio
 import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import Any
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -160,6 +161,17 @@ def not_installed(name: str, ident: str) -> Callable[[Request], Awaitable[Respon
         return JSONResponse({"error": words, "extension": ident}, status_code=404)
 
     return answer
+
+
+class CheckedStaticFiles(StaticFiles):
+    """The page's files, each checked before a saved copy is used again (`Cache-Control: no-cache`; a 304 when
+    it has not changed). Without it the desktop app's browser kept an update's old scripts (the owner,
+    2026-11-19: the {x} buttons still showing in 0.0.27)."""
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Response:
+        answer = super().file_response(*args, **kwargs)
+        answer.headers["Cache-Control"] = "no-cache"
+        return answer
 
 
 def create_app(
@@ -357,7 +369,7 @@ def create_app(
             Route("/workspace", workspace_page),
             Route("/catalog", catalog_page),
             Route("/workbench", workbench_page),
-            Mount("/static", StaticFiles(directory=settings.web_root, check_dir=False)),
+            Mount("/static", CheckedStaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[
             Middleware(

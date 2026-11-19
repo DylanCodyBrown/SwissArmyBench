@@ -4045,3 +4045,10 @@ load, not faults. `build.py` makes the base wheel and all six extension wheels a
 From the release (PyPI after about 15 minutes): `install.sh` from the v0.0.27 release into an empty home folder put
 0.0.27 of the app and its preinstalled Streamlit extension in place; the Power BI extension's wheel is on the release;
 the desktop app (Xvfb) started its server, and 40 s after the app closed the server was gone.
+
+## The page's files after an update (2026-11-19)
+
+The owner, on 0.0.27, still saw the `{x}` buttons 0.0.27 removed: `/static` answered with no Cache-Control, so Qt
+WebEngine's cache kept 0.0.26's scripts (heuristic freshness). Now `/static` answers `Cache-Control: no-cache` (a
+304 when unchanged: tests/test_static_cache.py), and the desktop app clears its HTTP cache once when its version
+changes (desktop/profile/version.txt; cookies and local storage kept). test_desktop_shell passed three times.

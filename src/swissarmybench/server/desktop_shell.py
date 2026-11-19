@@ -596,7 +596,28 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         script.setRunsOnSubFrames(False)
         profile.scripts().insert(script)
         profile.downloadRequested.connect(self.download)
+        self._fresh_after_update(profile, storage)
         return profile
+
+    @staticmethod
+    def _fresh_after_update(profile: QWebEngineProfile, storage: Path) -> None:
+        """A new version clears the saved copies of the pages' files once (cookies and local storage kept),
+        so an update never shows the old version's screens (the owner, 2026-11-19)."""
+        from swissarmybench import __version__
+
+        mark = storage / "version.txt"
+        try:
+            last = mark.read_text(encoding="utf-8").strip()
+        except OSError:
+            last = ""
+        if last == __version__:
+            return
+        profile.clearHttpCache()
+        try:
+            storage.mkdir(parents=True, exist_ok=True)
+            mark.write_text(__version__, encoding="utf-8")
+        except OSError:
+            pass  # cleared again at the next start: harmless
 
     # ----- the server -----
 
