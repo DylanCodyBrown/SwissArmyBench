@@ -5,7 +5,7 @@ window is open, and writes the move to the audit log. Nothing is kept."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from swissarmybench.domain import navigation as rules
 from swissarmybench.services.workspace import Conflict, Workspace
@@ -18,9 +18,41 @@ NOT_OPEN: dict[str, str] = {
 }
 
 
+class Kept(Protocol):
+    def read(self) -> Any: ...
+
+    def write(self, data: Any) -> None: ...
+
+
+class _Memory:
+    def __init__(self) -> None:
+        self.data: Any = None
+
+    def read(self) -> Any:
+        return self.data
+
+    def write(self, data: Any) -> None:
+        self.data = data
+
+
 class Navigation:
-    def __init__(self, ws: Workspace) -> None:
+    def __init__(self, ws: Workspace, kept: Kept | None = None) -> None:
         self.ws = ws
+        # The rail's names on or off: this computer's choice (rail.json), shared by every window.
+        self._kept: Kept = kept or _Memory()
+        self._labels = rules.rail_labels(self._kept.read())
+
+    def rail(self) -> dict[str, Any]:
+        return {"labels": self._labels}
+
+    async def set_rail(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """The rail with its names ({"labels": true}) or the icons alone ({"labels": false})."""
+        self._labels = rules.rail_change(body)
+        self._kept.write({"labels": self._labels})
+        self.ws.audit.write(who, "rail", "names on" if self._labels else "names off")
+        said = self.rail()
+        await self.ws.live.broadcast({"type": "rail_changed"} | said)
+        return said
 
     async def go(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Send a window somewhere: {"to": "visualizations"}, {"window": "catalog", "to": "blade:x"}."""

@@ -123,3 +123,22 @@ def said(notice: dict[str, Any]) -> str:
     named = [str(notice[k]) for k in ("grid", "name") if k in notice]
     where = f"{notice['window']} window to {notice['to']}{' ' + '/'.join(named) if named else ''}"
     return where + (", in a new window" if notice.get("new_window") else "")
+
+
+# ===== the rail's names (the owner, 2026-11-19) =====
+# The rail shows each area's name beside its icon (a wider rail) or the icons alone. The names are on until
+# the user turns them off, so a first run sees the words; the choice is this computer's (rail.json).
+
+
+def rail_labels(saved: Any) -> bool:
+    """Whether the rail shows its names: what rail.json kept, else on."""
+    if isinstance(saved, dict) and isinstance(saved.get("labels"), bool):
+        return bool(saved["labels"])
+    return True
+
+
+def rail_change(sent: Any) -> bool:
+    """The switch as sent: {"labels": true} (the rail with its names) or {"labels": false} (icons only)."""
+    if not isinstance(sent, dict) or not isinstance(sent.get("labels"), bool):
+        raise NavigationError('Send {"labels": true} (the rail with its names) or {"labels": false}.')
+    return bool(sent["labels"])
