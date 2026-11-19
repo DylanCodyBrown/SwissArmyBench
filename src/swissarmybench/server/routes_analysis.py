@@ -13,15 +13,13 @@
                               value's rate against the rest and its odds ratio with a 95% range
   POST /grids/{id}/predictors {"target", "candidates", "buckets"} -> each candidate tested together with
                               the target, ranked by Cramér's V; correlations; pairs that say the same
-  POST /grids/{id}/shape-check {"analysis", "columns"} -> {"notes": [{"level": ok | warn, "text"}]}: does
-                              the grid suit the analysis (the Data shape panel)
   POST /analysis-proof        {"analysis", "result", "dataset"} -> {"title", "markdown"}: Show the math,
                               the result's own numbers worked through (domain/proofs.py)
   POST /grids/{id}/analysis-code {"analysis", "body"} -> {"code", "imports"}: the analysis as Python for
                               the notebook (the steps as checked SQL, then the swissarmybench.stats call)
 
-  GET  /grids/{id}/analysis-defaults -> {"identifiers", "number", "column", "predictors"}: what the forms
-                              start on in this view, never an identifier (domain/analysis.py)
+Whether a table suits an analysis, and what a form starts on, are the Analyze page's (routes_analyze.py:
+POST /analyze/check, POST /analyze/plan), from each analysis's contract.
 
 All read; the agent may run them (cell values come back, so its tools mark them as data).
 """
@@ -86,16 +84,7 @@ def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
-    async def defaults(request: Request) -> Response:
-        """What the analysis forms start on in this view: never an identifier."""
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(await analysis.defaults(grid, info, actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     return [
-        Route("/grids/{grid_id}/analysis-defaults", defaults),
         Route("/grids/{grid_id}/fit-test", fit_test, methods=["POST"]),
         Route(
             "/grids/{grid_id}/outliers",
@@ -108,11 +97,6 @@ def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
             methods=["POST"],
         ),
         Route("/grids/{grid_id}/predictors", one("predictors", '{"target": name}'), methods=["POST"]),
-        Route(
-            "/grids/{grid_id}/shape-check",
-            one("shape", '{"analysis": "odds", "columns": [...]}'),
-            methods=["POST"],
-        ),
         Route("/grids/{grid_id}/analysis-code", code, methods=["POST"]),
         Route("/analysis-proof", proof, methods=["POST"]),
     ]

@@ -1,6 +1,6 @@
 # Grids and steps
 
-The grid page: one tab per open grid (Visualizations, ERD and Workbench are the rail's, left); + makes a
+The grid page: one tab per open grid (Analyze, ERD and Workbench are the rail's, left); + makes a
 table from a query. Over the grid, the Application row (Settings, Connections, Blades), then
 the ribbon's Table and Column rows. A cell's tools are on its right-click menu. Under the title, the
 steps strip counts the grid's steps; Edit steps opens them in a tab of their own.

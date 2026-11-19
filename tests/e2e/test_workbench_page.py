@@ -774,7 +774,7 @@ def test_four_panes_a_palette_and_jupyters_keys(browser: Browser, orders_url: st
     start(workbench)
     cell = workbench.locator(".wb-cell").first
     expect(cell.locator(".monaco-editor")).to_be_visible(timeout=20000)
-    # RStudio's places: source, its console, Variables (pictures go to Visualizations, not a pane here);
+    # RStudio's places: source, its console, Variables (pictures go to Analyze, not a pane here);
     # the console and Variables closed until the status bar opens them.
     expect(workbench.locator(".wb-console-pane .wb-console")).to_be_hidden()
     expect(workbench.locator(".wb-env .wb-vars")).to_be_hidden()
@@ -837,11 +837,11 @@ def test_pictures_go_to_the_sandbox_f1_helps_and_code_goes_to_the_agent(
     workbench.get_by_role("button", name="Run file").click()
     log = workbench.locator(".wb-console-log")
     expect(log).to_contain_text("7", timeout=60000)
-    # A picture goes to Visualizations with one click.
+    # A picture goes to Analyze with one click.
     figure = log.locator(".wb-figure").first
     figure.hover()
-    figure.get_by_role("button", name="Send to Visualizations").click()
-    expect(workbench.locator(".toast")).to_contain_text("Sent to Visualizations")
+    figure.get_by_role("button", name="Send to Analyze").click()
+    expect(workbench.locator(".toast")).to_contain_text("Sent to Analyze")
     assert any(
         c["kind"] == "image" and c["title"] == "From shapes.py"
         for c in call(server, "GET", "/cards")["cards"]

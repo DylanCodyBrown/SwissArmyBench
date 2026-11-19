@@ -21,7 +21,7 @@ WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench")
 # The rail's areas (the owner, 2026-11-16: "this app needs a navigation pane somehow"; a slim icon
 # rail down the left of every page and window), in its order: each is a place from every window, as a
 # rail click goes there (web/src/rail.ts). A window that does not show the area brings forward the one
-# that does (the home window for the grids, Visualizations and the ERD; the Workbench for notebooks,
+# that does (the home window for the grids, Analyze and the ERD; the Workbench for notebooks,
 # scripts and apps, each its kind's mode; the blades page). Grids is the home page's tabbed grids, only the
 # grids; projects (the mark, the rail's first item: the owner, 2026-11-18) is the Projects page over the
 # home page (the Project Explorer and the tour), and home goes there too.
@@ -40,14 +40,19 @@ AREAS: tuple[str, ...] = (
     "notebooks",
     "scripts",
     "apps",
-    "visualizations",
+    "analyze",
     "session",
     "extensions",
     "settings",
 )
 # The old names, one release (the owner, 2026-11-16: the Sandbox is Visualizations, the Diagram the ERD;
 # 2026-11-18: the Start view is the Projects page).
-SAME: dict[str, str] = {"sandbox": "visualizations", "diagram": "erd", "start": "projects"}
+SAME: dict[str, str] = {
+    "sandbox": "analyze",
+    "visualizations": "analyze",  # 2026-11-19: Visualizations is the Analyze page
+    "diagram": "erd",
+    "start": "projects",
+}
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
 CODE: tuple[str, ...] = ("notebooks", "scripts", "apps")
 # Every window: home (the mark), the rail's areas, the browser's Back and Forward, a connection's

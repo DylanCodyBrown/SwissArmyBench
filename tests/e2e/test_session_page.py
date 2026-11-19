@@ -4,7 +4,7 @@ things, I want to see objects that were created in a log make that a new page ca
 what it in realtime"), in a real browser, the agent's calls made as the agent (X-Actor: agent).
 
 - Follow on: a relationship the agent adds brings the ERD to the front, its line highlighted; a card it
-  adds brings Visualizations, the card scrolled to and pulsed.
+  adds brings Analyze, the card scrolled to and pulsed.
 - Follow off: nothing moves; the rail's Session icon counts them; the Session page lists both, and each
   link goes to its object.
 - Typing in a box is never interrupted: the move waits until the user leaves it.
@@ -106,7 +106,7 @@ def test_following_the_agent_brings_the_erd_and_visualizations_to_the_front(
     assert line.get_attribute("data-followed") == f"{ORDERS}.customer_id -> {CUSTOMERS}.id"
     expect(line).to_have_class(re.compile(r"follow-pulse"))
     shot(page, "follow-erd")
-    # A card: Visualizations, the card scrolled into view and pulsed.
+    # A card: Analyze, the card scrolled into view and pulsed.
     card = add_card(server)
     expect(view(page)).to_have_attribute("data-view", "agent", timeout=10000)
     shown = page.locator(f".card[data-card='{card}']")
@@ -158,7 +158,7 @@ def test_with_follow_off_nothing_moves_and_the_session_page_lists_both_with_link
     expect(session).to_be_visible()
     expect(count).to_be_hidden()
     rows = session.locator(".session-entry")
-    expect(rows.first).to_contain_text("Added a note card on Visualizations")
+    expect(rows.first).to_contain_text("Added a note card on Analyze")
     expect(session.locator(".session-entry[data-action='relationships']").first).to_contain_text(
         f"Added the relationship {ORDERS}.customer_id -> {CUSTOMERS}.id"
     )
@@ -169,7 +169,7 @@ def test_with_follow_off_nothing_moves_and_the_session_page_lists_both_with_link
     session.locator("[data-who='both']").click()
     expect(session.locator(".session-entry.by-user").first).to_be_visible()
     session.locator("[data-who='agent']").click()
-    # A link: the relationship's ERD, its line highlighted; then the card's Visualizations.
+    # A link: the relationship's ERD, its line highlighted; then the card's Analyze.
     session.locator(".session-entry[data-action='relationships'] .session-link").first.click()
     expect(view(page)).to_have_attribute("data-view", "erd", timeout=10000)
     expect(page.locator(".area-page")).to_have_count(0)

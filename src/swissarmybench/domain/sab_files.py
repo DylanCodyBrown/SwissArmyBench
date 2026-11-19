@@ -8,7 +8,8 @@ beside them, plain and stable text that reads well in a diff:
     .sab/project.json        the format, the type, the tables (each with its source and its grids' steps),
                              the open tabs, the Workbench's documents and layout, the diagram, autosave;
                              sorted keys, no timestamp: a save that changes nothing changes no byte
-    .sab/visualizations.json Visualizations as it was left (its cards; what a chart showed redraws)
+    .sab/visualizations.json the Analyze board as it was left (project.json's "analyze" names it): its
+                             cards; what a chart showed redraws
     .sab/visualizations/     the saved dashboards (one JSON file each)
     .sab/model.json          the relationships (the ERD)
     .sab/data/<table>.parquet only the tables ticked "Keep its rows": ignored by Git (.sab/.gitignore and the
@@ -334,9 +335,11 @@ _KNOWN = {
     "tabs",
     "workbench",
     "diagram",
-    "visualizations",
+    "analyze",
 }
-_KNOWN |= {"sandbox"}  # the old key: read as visualizations, not carried
+# The old keys: read as analyze, not carried (the Sandbox became Visualizations, 2026-11-16, and
+# Visualizations became Analyze, 2026-11-19).
+_KNOWN |= {"visualizations", "sandbox"}
 _KNOWN |= {"model", "autosave", MARK_KEY}
 
 
@@ -422,7 +425,7 @@ def read_manifest(text: str, folder: bool = False) -> tuple[Manifest, str | None
         tabs=_mapping(raw.get("tabs")),
         workbench=_mapping(raw.get("workbench")),
         diagram=_mapping(raw.get("diagram")),
-        visualizations=entry("visualizations") or entry("sandbox"),
+        visualizations=entry("analyze") or entry("visualizations") or entry("sandbox"),
         model=entry("model"),
         autosave=raw.get("autosave") is not False if folder else raw.get("autosave") is True,
         extra={k: v for k, v in raw.items() if k not in _KNOWN},
@@ -442,7 +445,7 @@ def write_manifest(manifest: Manifest) -> str:
         "tabs": dict(manifest.tabs),
         "workbench": dict(manifest.workbench),
         "diagram": dict(manifest.diagram),
-        "visualizations": manifest.visualizations,
+        "analyze": manifest.visualizations,
         "model": manifest.model,
         "autosave": manifest.autosave,
     }

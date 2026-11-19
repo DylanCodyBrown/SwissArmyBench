@@ -96,7 +96,8 @@ def test_the_resources_list_and_read_over_mcp() -> None:
             texts: dict[str, str] = {}
             for resource in listed:
                 [content] = (await client.read_resource(str(resource.uri))).contents
-                assert content.mime_type == "text/markdown"
+                contracts = str(resource.uri) == mcp_server.CONTRACTS_URI
+                assert content.mime_type == ("application/json" if contracts else "text/markdown")
                 texts[str(resource.uri)] = getattr(content, "text", "")
             return client.instructions, listed, texts
 
@@ -109,7 +110,13 @@ def test_the_resources_list_and_read_over_mcp() -> None:
         uri = f"swissarmybench://guide/{topic}"
         assert texts[uri] == guide_text(topic) and by_uri[uri].title == GUIDE_TOPICS[topic]
     guide = {f"swissarmybench://guide/{t}" for t in GUIDE_TOPICS}
-    assert set(by_uri) == {mcp_server.INDEX_URI, mcp_server.CONTEXT_URI} | guide
+    assert set(by_uri) == {mcp_server.INDEX_URI, mcp_server.CONTEXT_URI, mcp_server.CONTRACTS_URI} | guide
+    # Each analysis's data contract (the owner, 2026-11-19: "then present that to the agent"): with no app
+    # running, the built-in ones, each with its made-up sample.
+    contracts = json.loads(texts[mcp_server.CONTRACTS_URI])
+    assert contracts["format"] == 1 and len(contracts["contracts"]) >= 14
+    assert all(c["slots"] is not None and c["sample"]["rows"] for c in contracts["contracts"])
+    assert mcp_server.CONTRACTS_URI in index() and "analyze_contracts" in guide_text("analyze")
     # What is open now (Launch Claude's summary, for Claude Desktop): read fresh, said plainly with no app.
     assert texts[mcp_server.CONTEXT_URI]
     # The instructions send the agent to the index first, and keep the data note.

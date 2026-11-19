@@ -1,7 +1,7 @@
 /**
- * aiPanel.ts: Visualizations: a dashboard of charts, notes, result tables, diagrams and images. [WIRE]
+ * aiPanel.ts: Analyze: a dashboard of charts, notes, result tables, diagrams and images. [WIRE]
  *
- * It lives in the Visualizations tab: the first tab of the tab bar, always there, which shows this panel
+ * It lives in the Analyze tab: the first tab of the tab bar, always there, which shows this panel
  * full width (panes.ts). It is one sandbox for every table: each card names the table it is drawn on
  * (GET /cards), and Add chart picks the table. The grid tabs give the grids the full width.
  *
@@ -16,7 +16,7 @@
  * Split-panel styles: the panel sits to the right of the grid or below it, its size drags
  * (or moves with the arrow keys on the splitter), it collapses to a slim rail or maximizes
  * over the grid. Zooming: the page has one zoom (the Application row's, Ctrl+= and Ctrl+-), which
- * Visualizations follows (the owner's decision 19: it had one of its own); any chart opens large with
+ * Analyze follows (the owner's decision 19: it had one of its own); any chart opens large with
  * wheel zoom and drag-to-pan. Layout, size and zoom are remembered per viewer.
  *
  * ROUTING: [SPLITTER]        drag / arrows / double-click -> setSize()
@@ -41,6 +41,7 @@ import { PAPERS, fitPages, makeMovable, moveCard, paginate, printPages, type Pap
 import { effectiveTheme, gridZoom, onThemeChange, setTheme, themeChoice } from "./theme";
 import type { Drawn } from "./lazy/charts";
 import { errorHere, errorNote, showError } from "./errorNote";
+import { analyzeParts, cardActions, handleAnalyzeNotice, type CardAnalysis } from "./analyzePage";
 
 type CardKind = "chart" | "note" | "table" | "diagram" | "graphviz" | "plotly" | "echarts" | "vegalite" | "image";
 
@@ -62,9 +63,10 @@ interface Card {
   created_by: string;
   grid: string | null; // the grid the card is drawn on; null for a card of no table (Python, a note)
   dataset: string | null;
-  origin?: string; // a card of no table: "Python", "Agent" or "Visualizations"
+  origin?: string; // a card of no table: "Python", "Agent" or "Analyze"
   size?: { w: number; h: number }; // columns of 12, rows of ROW_HEIGHT; else the kind's default
   new_page?: boolean; // in Page view (and the PDF), this card starts a new page
+  analysis?: CardAnalysis; // an analysis run's card: the run, for its actions and Run again
 }
 
 // ===== the dashboard grid =====
@@ -327,20 +329,49 @@ export function setMode(mode: "open" | "collapsed" | "max", save = true): void {
 // ===== live notices =====
 
 export function handleNotice(notice: Notice): void {
+  handleAnalyzeNotice(notice);
   // One sandbox for every table: any table's cards changing redraws it.
-  if (notice.type === "cards_updated") void render();
+  if (notice.type !== "cards_updated") return;
+  // An analysis's cards landed (the owner, 2026-11-19: "Every analysis should automatically push to the
+  // analysis visualization area"): once drawn, the first comes into view and each is briefly marked.
+  const landed = (notice as { landed?: unknown }).landed;
+  if (Array.isArray(landed) && landed.length) landing = landed.filter((id): id is string => typeof id === "string");
+  void render();
+}
+
+let landing: string[] = [];
+
+function markLanded(): void {
+  if (!landing.length || !panel) return;
+  const found = landing.map((id) => panel.querySelector<HTMLElement>(`.card[data-card="${CSS.escape(id)}"]`)).filter((c): c is HTMLElement => Boolean(c && c.getClientRects().length));
+  if (!found.length) return;
+  landing = [];
+  found[0]!.scrollIntoView({ block: "start", behavior: "auto" });
+  for (const card of found) {
+    card.classList.add("arrived", "landed");
+    pulse(card);
+    window.setTimeout(() => card.classList.remove("arrived", "landed"), 2500);
+  }
 }
 
 // ===== render =====
 
+let drawing = 0;
+
 async function render(): Promise<void> {
-  if (!panel || !state.info) return;
+  if (!panel) return;
   // Hidden (the grids are showing): nothing to draw. Every step change and tab switch used to
   // fetch the cards and redraw every chart here unseen; showing the Agent tab draws it fresh.
   if (!panel.getClientRects().length) return;
   const mode = workspace.dataset.panel;
   const layout = workspace.dataset.layout;
-  const body = h("div", { class: "panel-body", id: "ai-panel-body" });
+  const mine = ++drawing; // two notices at once (two runs landing): only the newest draw is kept
+  const body = h("div", { class: "panel-body analyze-body", id: "ai-panel-body" });
+  // The Analyze toolbar across the top, the board under it and the form beside the board (analyzePage.ts);
+  // both are kept across the board's redraws, so an open form stays as it is while cards land.
+  const parts = analyzeParts();
+  const board = h("div", { class: "analyze-board", id: "analyze-board" });
+  const scrolled = panel.querySelector<HTMLElement>(".analyze-board")?.scrollTop ?? 0;
   clear(
     panel,
     h(
@@ -358,26 +389,31 @@ async function render(): Promise<void> {
           iconOnly: true,
           class: "ghost",
         }),
-        mode === "collapsed" ? h("span", { class: "rail-label" }, "Visualizations") : null,
+        mode === "collapsed" ? h("span", { class: "rail-label" }, "Analyze") : null,
       ),
     ),
     body,
   );
   if (mode === "collapsed") return;
+  body.append(parts.toolbar, h("div", { class: "analyze-split" }, board, parts.side));
   // The panel's title, centered and large like a table's name, above what it holds.
-  body.append(h("h1", { id: "ai-panel-title", class: "sandbox-title" }, "Visualizations"));
-  // Visualizations' own theme, on its body only: the grid keeps the app's.
+  board.append(h("h1", { id: "ai-panel-title", class: "sandbox-title" }, "Analyze"));
+  // the Analyze board's own theme, on its body only: the grid keeps the app's.
   const themes = await loadThemes().catch(() => null);
+  if (mine !== drawing) return;
   applySandboxTheme(body, themes?.theme ?? null);
   themeBar = themes ? themeControls(themes, () => void render()) : null;
-  await renderCards(body);
+  await renderCards(board);
+  if (mine !== drawing) return;
+  board.scrollTop = scrolled;
+  requestAnimationFrame(markLanded);
 }
 
 // ===== cards =====
 
-let themeBar: HTMLElement | null = null; // the theme picker, for Visualizations' toolbar
+let themeBar: HTMLElement | null = null; // the theme picker, for the Analyze board's toolbar
 
-let onBoard = 0; // how many cards Visualizations shows (the Dashboards window warns before replacing them)
+let onBoard = 0; // how many cards Analyze shows (the Dashboards window warns before replacing them)
 
 async function renderCards(body: HTMLElement): Promise<void> {
   body.append(
@@ -418,7 +454,7 @@ async function renderCards(body: HTMLElement): Promise<void> {
         "div",
         { class: "empty-state" },
         icon("agent"),
-        h("strong", {}, "Visualizations is empty"),
+        h("strong", {}, "The board is empty"),
       ),
     );
     return;
@@ -440,7 +476,7 @@ async function renderCards(body: HTMLElement): Promise<void> {
   arrive();
 }
 
-// A toast's Show (sandboxShow.ts): the card to bring into view once Visualizations has drawn it.
+// A toast's Show (sandboxShow.ts): the card to bring into view once Analyze has drawn it.
 let arriving: string | null = null;
 onShowCard((card) => {
   arriving = card;
@@ -476,10 +512,10 @@ function setPaper(next: Paper): void {
 /** How each drawn card makes a picture of itself (for the markdown export), filled as cards draw. */
 const pictures = new Map<string, () => Promise<string | null>>();
 
-/** All of Visualizations as one markdown file, every drawing a PNG; drawn on light paper like the PDF. */
+/** All of Analyze as one markdown file, every drawing a PNG; drawn on light paper like the PDF. */
 async function exportMarkdown(): Promise<void> {
   const theme = themeChoice();
-  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // a Visualizations theme exports as it is
+  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // an Analyze theme exports as it is
   try {
     if (dark) setTheme("light");
     await render();
@@ -502,7 +538,7 @@ async function exportMarkdown(): Promise<void> {
 async function printSandbox(): Promise<void> {
   const wasPages = pageView();
   const theme = themeChoice();
-  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // a Visualizations theme prints as it is
+  const dark = !sandboxTheme() && effectiveTheme() !== "light"; // an Analyze theme prints as it is
   await printPages(
     paper(),
     async () => {
@@ -547,17 +583,18 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     ]), { icon: "more", iconOnly: true, class: "ghost" }),
     h("span", { class: "danger-gap" }, button("Remove", () => void api(`/cards/${card.id}`, "DELETE").then(() => render()), { icon: "trash", iconOnly: true, class: "ghost" })),
   );
-  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind])), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Visualizations"}` }, card.dataset ?? card.origin ?? "Visualizations"), actions);
+  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind])), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Analyze"}` }, card.dataset ?? card.origin ?? "Analyze"), actions);
   const element = h(
     "article",
     { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "data-card": card.id, "aria-label": card.title || KIND_NAMES[card.kind] },
     header,
     content,
+    cardActions(card.analysis), // an analysis's result: Show the math, Open as grid, Copy code, Run again
     foot,
   );
   element.append(resizeGrip(card, element));
   makeMovable(element, header, card.id, order[index + 1] ?? null, () => void render());
-  const dark = sandboxDark(); // Visualizations' theme, or the app's when it follows it
+  const dark = sandboxDark(); // the Analyze board's theme, or the app's when it follows it
   const failed = (slot: HTMLElement, e: unknown): void => {
     slot.replaceChildren(errorNote(e, { where: card.title || undefined, dismiss: false }));
   };

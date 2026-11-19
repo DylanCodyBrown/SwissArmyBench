@@ -1,6 +1,6 @@
 # ruff: noqa: F811
-"""Saved dashboards on the page: save Visualizations, change it, save a second version, open the first from
-History (it replaces Visualizations, after asking), and a chart that reopens live on its open table."""
+"""Saved dashboards on the page: save Analyze, change it, save a second version, open the first from
+History (it replaces Analyze, after asking), and a chart that reopens live on its open table."""
 
 from __future__ import annotations
 
@@ -20,10 +20,10 @@ def test_save_change_and_open_an_earlier_version(browser: Browser, server: dict[
     page.on("dialog", lambda dialog: dialog.accept())
     toast = page.locator(".toast").last
     try:
-        visualizations_client.visualizations(
+        visualizations_client.add_card(
             "## First reading\n\nNorth leads.", "First reading", key="dash-reading"
         )
-        page.locator(".nav-rail [data-area='visualizations']").click()
+        page.locator(".nav-rail [data-area='analyze']").click()
         panel = page.locator("#ai-panel")
         expect(panel.locator(".card-header h3", has_text="First reading")).to_be_visible(timeout=20000)
 
@@ -38,7 +38,7 @@ def test_save_change_and_open_an_earlier_version(browser: Browser, server: dict[
         expect(window.locator(".dashboard-row", has_text="dash_weekly")).to_contain_text("1 card")
         window.get_by_role("button", name="Close").last.click()
 
-        visualizations_client.visualizations(
+        visualizations_client.add_card(
             "## Second reading\n\nSouth caught up.", "Second reading", key="dash-reading"
         )
         expect(panel.locator(".card-header h3", has_text="Second reading")).to_be_visible(timeout=20000)

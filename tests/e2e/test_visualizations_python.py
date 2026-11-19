@@ -28,15 +28,11 @@ def test_python_cards_draw_in_the_sandbox(browser: Browser, server: dict[str, An
     url = push_client.push(pa.table({"n": [1, 2, 3]}), name="python_cards", new_grid=True)
     page = open_grid(browser, url, width=1280, height=900)
     try:
-        visualizations_client.visualizations(SPEC, "Sales by region", key="sales")
-        visualizations_client.visualizations(
-            json.dumps({"x": 1}), "First draft", key="notes", kind="markdown"
-        )
-        visualizations_client.visualizations("## Findings\n\nNorth sells most.", "Findings", key="notes")
-        visualizations_client.visualizations(
-            [{"store": "S1", "units": 3}, {"store": "S2", "units": 5}], "Stores"
-        )
-        page.locator(".nav-rail [data-area='visualizations']").click()
+        visualizations_client.add_card(SPEC, "Sales by region", key="sales")
+        visualizations_client.add_card(json.dumps({"x": 1}), "First draft", key="notes", kind="markdown")
+        visualizations_client.add_card("## Findings\n\nNorth sells most.", "Findings", key="notes")
+        visualizations_client.add_card([{"store": "S1", "units": 3}, {"store": "S2", "units": 5}], "Stores")
+        page.locator(".nav-rail [data-area='analyze']").click()
         panel = page.locator("#ai-panel")
         chart = panel.locator(".card", has_text="Sales by region")
         expect(chart.locator(".card-table")).to_have_text("Python")

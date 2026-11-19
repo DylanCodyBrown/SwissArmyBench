@@ -2,13 +2,14 @@
  * cellMenu.ts: the grid's right-click menus (Plans/sandbox-report.plan.md, S4). gridView.ts says where
  * the click was; this says what can be done there.
  *
- *   [CELL]    Send value to Visualizations, Send the row to Visualizations, Keep these, Exclude these, View value, Copy
- *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Visualizations, Distinct values to Visualizations, Profile, and the Analyze entries for it
+ *   [CELL]    Send value to Analyze, Send the row to Analyze, Keep these, Exclude these, View value, Copy
+ *   [HEADER]  Unnest this column (a LIST or STRUCT column: a SQL step), Profile to Analyze, Distinct values to
+ *             Analyze, Profile. The analyses themselves are the Analyze page's (the owner, 2026-11-19)
  */
-import { oddsCards, rowCards, valueCards, type OddsCardInput } from "./analysisCards";
-import { openFitTest, openOdds, openOutliers, openPredictors } from "./analysisDialog";
+import { rowCards, valueCards } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
-import { api, grid } from "./api";
+import { api, gridId } from "./api";
+import { sentToast } from "./sandboxShow";
 import { showMenu, type MenuItem } from "./dom";
 import { cellValue, copySelection, focusedCell, onCellMenu, onHeaderMenu, selection, viewCell, viewColumns, type CellClick } from "./gridView";
 import { openColumnProfile, profileToSandbox } from "./profileView";
@@ -24,10 +25,12 @@ function rowValues(click: CellClick): Record<string, unknown> {
   return Object.fromEntries(viewColumns().map((c) => [c.name, click.data[c.name] ?? null]));
 }
 
+/** A column's values and how often each shows up, on the Analyze board: the page's own count (the odds
+ * analysis with no outcome), so its cards are the ones Analyze makes. */
 async function distinctToSandbox(column: string): Promise<void> {
   try {
-    const counted = await api<OddsCardInput>(`${grid}/odds`, "POST", { column });
-    await sendCards(oddsCards(counted).map((card) => ({ ...card, title: card.title.replace(/^Odds: /, "Distinct values of ") })));
+    const ran = await api<{ cards: string[] }>("/analyze/run", "POST", { analysis: "odds", table: gridId, columns: { column, outcome: "" } });
+    sentToast("On the Analyze board: a note and its chart.", { card: ran.cards[0] });
   } catch (e) {
     errorHere(e);
   }
@@ -48,7 +51,7 @@ export function cellCommands(): [string, () => void][] {
     ["Copy", () => void copySelection()],
     ["Keep these", () => void filterByCells(true)],
     ["Exclude these", () => void filterByCells(false)],
-    ["Send value to Visualizations", sendValue],
+    ["Send value to Analyze", sendValue],
   ];
 }
 
@@ -56,8 +59,8 @@ export function mountContextMenus(): void {
   onCellMenu((click) => {
     const where = `${click.column}, row ${(click.row + 1).toLocaleString()}`;
     showMenu(click.x, click.y, where, [
-      ["image", "Send value to Visualizations", () => void cellValue(click.row, click.column).then((value) => sendCards(valueCards(value, where, dataset())))],
-      ["rows", "Send the row to Visualizations", () => void sendCards(rowCards(rowValues(click), click.row, dataset()))],
+      ["image", "Send value to Analyze", () => void cellValue(click.row, click.column).then((value) => sendCards(valueCards(value, where, dataset())))],
+      ["rows", "Send the row to Analyze", () => void sendCards(rowCards(rowValues(click), click.row, dataset()))],
       "-",
       ["filter", "Keep these", () => void filterByCells(true)],
       ["exclude", "Exclude these", () => void filterByCells(false)],
@@ -86,14 +89,9 @@ export function mountContextMenus(): void {
       ["group", "Group by…", () => editStep("group_by", undefined, { keys: cols })],
       ...(nested ? [["rows", "Unnest this column", unnest] as MenuItem] : []),
       "-",
-      ["image", "Profile to Visualizations", () => void profileToSandbox(column)],
-      ["tag", "Distinct values to Visualizations", () => void distinctToSandbox(column)],
+      ["image", "Profile to Analyze", () => void profileToSandbox(column)],
+      ["tag", "Distinct values to Analyze", () => void distinctToSandbox(column)],
       ["profile", "Profile…", () => openColumnProfile(column)],
-      "-",
-      ["tag", "Odds…", () => void openOdds(column)],
-      ["fit", "Fit test…", () => void openFitTest(chosen.length ? chosen : [column])],
-      ["outliers", "Outliers…", () => void openOutliers(column)],
-      ["profile", "Find what predicts it…", () => void openPredictors(column)],
     ]);
   });
 }

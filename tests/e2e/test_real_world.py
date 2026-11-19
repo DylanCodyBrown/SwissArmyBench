@@ -1001,7 +1001,7 @@ def test_8_power_bi_ties_out_against_its_postgresql_source(
     act.done(ceiling=22)
 
 
-# ===== 9. a forecast as a Visualizations report, printed to PDF =====
+# ===== 9. a forecast as an Analyze report, printed to PDF =====
 
 # window.print noted with the page's classes then (and each change of them, to say what went wrong if
 # the print view was not on: once seen in a full run, not again).
@@ -1019,7 +1019,7 @@ PRINT_STUB = """() => {
 def test_9_a_forecast_becomes_a_sandbox_report_printed_to_pdf(
     browser: Browser, bench: dict[str, Any], tmp_path: Path
 ) -> None:
-    act = Actions("9. a forecast as a Visualizations report, printed to PDF")
+    act = Actions("9. a forecast as an Analyze report, printed to PDF")
     ensure_shop(bench)
     close_tables(bench)
     for card in call(bench, "GET", "/cards")["cards"]:
@@ -1032,22 +1032,21 @@ def test_9_a_forecast_becomes_a_sandbox_report_printed_to_pdf(
     open_as_grid(act, catalog, "invoices")
     page.bring_to_front()
     act.click(page.locator(".tab-item[data-grid]", has_text="invoices"))
-    act.click(page.locator(".ribbon .ribbon-group").first.get_by_role("button", name="Analyze"))
-    act.click(page.get_by_role("menuitem", name="Forecast…"))
-    dialog = page.locator("dialog")
-    expect(dialog.get_by_label("Date")).to_have_value("invoice_date", timeout=LONG)
-    act.select(dialog.get_by_label("Metric"), value="amount")
-    act.click(dialog.get_by_role("button", name="Forecast", exact=True))
-    words = dialog.locator(".analysis-summary")
+    # The Analyze page (2026-11-19): the forecast's form has the table and the columns picked already, and
+    # its result lands on the board by itself (three clicks: the rail, the analysis, Run).
+    act.click(page.locator(".nav-rail [data-area='analyze']"))
+    act.click(page.locator("#ai-panel .analyze-btn[data-analysis='forecast']"))
+    form = page.locator("#ai-panel .analyze-side .analyze-form")
+    date = form.locator(".analyze-chip-row[data-slot='date'] select.chip-select")
+    expect(date).to_have_value("invoice_date", timeout=LONG)
+    expect(form.locator(".analyze-chip-row[data-slot='metric'] select.chip-select")).to_have_value("amount")
+    act.click(form.get_by_role("button", name="Run", exact=True))
+    cards = page.locator("#ai-panel .analyze-board .card")
+    expect(cards).to_have_count(2, timeout=LONG)  # the note and its chart (once only the note came)
+    words = cards.first
     # November has one day of invoices: left out, and said so (it once counted as a month: a 99% fall).
     expect(words).to_contain_text("Left out 2026-11-01: its rows stop on 2026-11-01", timeout=LONG)
     expect(words).not_to_contain_text("e+0")  # 73,771, never 7.377e+04
-    act.click(dialog.get_by_role("button", name="Send to Visualizations"))
-    expect(page.locator(".toast").last).to_contain_text("a note and its chart")
-    act.click(dialog.get_by_role("button", name="Close").last)
-    act.click(page.locator(".nav-rail [data-area='visualizations']"))
-    cards = page.locator("#ai-panel .card")
-    expect(cards).to_have_count(2, timeout=LONG)  # the note and its chart (once only the note came)
     expect(page.locator("#ai-panel .figure .main-svg").first).to_be_visible(timeout=LONG)
     act.click(page.get_by_role("button", name="Page view"))
     expect(page.locator(".page").first).to_be_visible(timeout=20000)

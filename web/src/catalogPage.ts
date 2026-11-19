@@ -114,7 +114,7 @@ async function showAddress(url: URL): Promise<void> {
 
 const opened = new URL(location.href);
 mountNav("catalog", { show: (url) => void showAddress(url) });
-mountNavRail("catalog"); // the grids, Visualizations and the ERD are the home window's
+mountNavRail("catalog"); // the grids, Analyze and the ERD are the home window's
 setTitle(PAGE);
 void rail
   .loadBlades()

@@ -97,6 +97,27 @@ def open_now() -> str:
     return str(answer.get("text", "")) if isinstance(answer, dict) else str(answer)
 
 
+CONTRACTS_URI = "swissarmybench://analyze/contracts"
+
+
+@server.resource(
+    CONTRACTS_URI,
+    name="analyze/contracts",
+    title="Each analysis's data contract",
+    description="What every Analyze analysis needs: its slots, the table's shape, options, a made-up sample.",
+    mime_type="application/json",
+    annotations=Annotations(audience=["assistant"], priority=0.7),
+)
+def contracts_now() -> str:
+    """Every contract (the user's own analyses too) from the running app; the built-in ones without it."""
+    try:
+        return str(execute_result("analyze_contracts", {}))
+    except CommandError:
+        from swissarmybench.domain import analysis_contracts
+
+        return json.dumps(analysis_contracts.every())
+
+
 class GridServerError(ToolError):
     """A command was refused or failed. A ToolError, so the MCP library passes the plain-language
     reason ("The user declined (or did not answer) this export.") to the agent; any other exception

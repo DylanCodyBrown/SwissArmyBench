@@ -28,6 +28,21 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   answer for one release: `sab.sandbox` (a warning), `sandbox_*` (cli/commands.py OLD_NAMES: run, never
   listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
   `sandbox` key. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
+- **Renamed (the owner, 2026-11-19): Visualizations is Analyze, and the analyses live there** ("Let's move the
+  analyze from the table bar to the visualizations pane and then rename the visualizations pane Analyze" /
+  "Every analysis should automatically push to the analysis visualization area" / "make it stupid simple";
+  design principles 8.7 and 8.13). The Analyze page has a toolbar of every analysis and one guided form beside
+  the board; every result lands on the board by itself; the grid page has no analysis on it (no Analyze menu,
+  no Fit test or Outliers on a header, no Tie-out on the Compare row; Compare, the quick Profile and the Key
+  Finder's window stay). **Each analysis has one data contract** (domain/analysis_contracts.py) that the form,
+  the column picking, the made-up sample, the fixes ("Make it fit": grid steps, never applied by itself), the
+  ranking (Check this table), the agent (`analyze_contracts`, `analyze_check`, `analyze_plan`, `analyze_run`)
+  and Python (`sab.analyze.<analysis>(df)`) all read through one checker (domain/analyze.py). Write `analyze_*`,
+  `sab.analyze`, `?view=analyze`. The old names answer for one release: `visualizations_*` and `sandbox_*`
+  (OLD_NAMES; the chart's code is `analyze_chart_code`), `sab.visualizations` (warns once) and `sab.sandbox`,
+  app_navigate's and app_snapshot's `visualizations`/`sandbox`, `?view=visualizations`, a project.json's
+  `visualizations` key (written as `analyze`). Files on disk and internal names kept the old word
+  (`.sab/visualizations.json`, client/visualizations_client.py, aiPanel.ts, sandbox*.ts).
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
   and reads one through one contract, and DuckDB SQL names them by the connection
@@ -120,7 +135,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
   window or the grid page's Ctrl+K), App mode's Streamlit cells panel, tabs that pop out into windows of their own (and move
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
-  Analyze menu, Visualizations, compare's diff and tie-out,
+  Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
   your own HTML and JavaScript as Streamlit pieces, four of them two-way; Controllers; Text and layout,
@@ -245,7 +260,7 @@ src/swissarmybench/
   renamed.py             the old name (SwissArmyGrid) for one release: SWISSARMYGRID_* read after the new
                          variables, the state folder moved on first start, the old commands; the next
                          release removes it, src/swissarmygrid/ and every OLD_* name (tests/test_renamed.py)
-  stats.py               public: the Analyze menu's analyses on your own table (what notebook code calls)
+  stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
   bootstrap.py           the composition root: builds the adapters, hands them to the services
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
                          SWISSARMYBENCH_EXTENSIONS: extension_on(id)), their modules, every project type's
@@ -316,17 +331,32 @@ src/swissarmybench/
                          said one way everywhere: {"missing": {feature, packages, python ("app" or a path),
                          command}}, the feature in plain words, MissingPackagesError (422 with it)
     stats.py             the shared statistics: chi-square, t, F and normal distributions, effect sizes
-    analysis.py          the Analyze menu's math and query text: the fit test (Benford, Nigrini), outliers
+    analysis.py          the analyses' math and query text: the fit test (Benford, Nigrini), outliers
                          (amount fences, frequency on two scales), odds (ratios, Woolf's range), buckets,
-                         find predictors' rules, the Data shape check, and the notebook code (one
+                         find predictors' rules, identifiers, a wide table, and the notebook code (one
                          swissarmybench.stats call)
+    analysis_contracts.py each analysis's data contract (FORMAT 1; the owner, 2026-11-19): the question, the
+                         technical name, the group, the table's shape, the slots (words, kinds, how many,
+                         checks, name hints), the options, the output, its own fixes, a deterministic made-up
+                         sample; an analysis blade's read from its code (its CONTRACT, or `columns`), never run
+    analysis_facts.py    a table's column facts (one DuckDB pass: types, counts, ranges, text that reads as
+                         numbers or dates) and the one checker: check_column (fits a slot or not, and why)
+    analysis_fixes.py    Make it fit: each fix as grid steps with one sentence and its count (text to number,
+                         text to date in one style, a month column, the ten most common and Other, drop
+                         blanks, keep positive, yes/no, totals per month or key)
+    analyze.py           the Analyze page's rules on those: a form planned (the picks and why, what is
+                         missing in one sentence, the options), the sentence of what will run, each analysis's
+                         request, what a column fits, the ranking (fits now, after its fixes, or not), the
+                         table's notes (the Data shape check)
+    analysis_cards.py    a result as the board's cards (a report-style note and its Plotly chart), its rows
+                         for Open as grid, its hand-offs to the next tool
     regression.py        linear and logistic regression: the terms as SQL, the sums, Cholesky, ranges,
                          what-if predictions, the model as SQL (predicted and miss columns)
     timeseries.py        periods, the seasonal index, anomalies against neighbours, steps in the level,
                          memory, growth; the forecast (trend, steps, season, predictors, held-back check)
     tieout.py            the tie-out report: shared columns, the two GROUP BYs joined, ties or off
     proofs.py            Show the math: each analysis result as a step-by-step proof (markdown)
-    themes.py            Visualizations' 20 themes and imported ones, every colour made readable (WCAG)
+    themes.py            the Analyze board's 20 themes and imported ones, every colour made readable (WCAG)
     diff.py              compare's diff mode: which cells differ (tolerance, trim, case), as SQL and Python
     python_connections.py a connection from the user's own Python (three boxes: Connect, List the tables,
                          Read a table): the environment variables its code reads (found with ast), where
@@ -504,8 +534,14 @@ src/swissarmybench/
     datasets.py          every way data arrives (push, file, paste, the "+" tab's query), list, close
     grids.py             rows, counts, steps and step changes, highlights, the selection
     profile.py           column and table profiles, kept by view key
-    analysis.py          the Analyze menu on a grid's view: run_* functions over any cursor (the same code
-                         swissarmybench.stats runs on a DataFrame), the Data shape check, the notebook code
+    analysis.py          the analyses on a grid's view: run_* functions over any cursor (the same code
+                         swissarmybench.stats runs on a DataFrame), the notebook code
+    analyze.py           the Analyze page: the toolbar and contracts (your analysis blades' too), a form
+                         planned on a table's facts (kept by view), Check this table, a column's analyses,
+                         fixes applied as steps on the caller's word, the sample opened as a table, run (a
+                         time limit in plain words, cancel by token; the cards land at the top of the board),
+                         a result Python computed landed, a run's math, rows as a grid, code and inputs;
+                         the last columns and options per table and analysis (memory)
     regression.py        regression on a grid's view (run_regression, over any cursor) and what-if
     timeseries.py        time series and forecast on a grid's view (run_time_series, run_forecast)
     sql.py               the SQL box
@@ -593,7 +629,7 @@ src/swissarmybench/
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
     sab_projects.py      a project is a folder: new (scaffolded in the projects folder or where named, opened,
                          .sab/ written), open (a folder; a plain one made a project on request; each table
-                         read again with its steps; Visualizations, model, layout), save (.sab/, only changed
+                         read again with its steps; Analyze's board, model, layout), save (.sab/, only changed
                          bytes; rows only on a tick, the agent's on the user's Allow), autosave (on by default,
                          once a change settles), Copy project to, close,
                          the recent list, a table's fix; unsaved changes worked out, not tracked; each open,
@@ -679,7 +715,7 @@ src/swissarmybench/
                          (domain/refusals.py; refusal(), error_as(); UTF-8; the guard, an unknown address and a
                          method not taken answer it too; cli/api.py reads a words-only one as its words)
     routes_*.py          one per feature: read the request, call the use case, shape the answer
-                         (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
+                         (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
@@ -748,8 +784,10 @@ src/swissarmybench/
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
                          files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
                          <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
-  client/visualizations_client.py sab.visualizations (sab.sandbox, the old name, one release): a figure,
-                         picture, table or text as a Visualizations card (duck-typed)
+  client/visualizations_client.py a figure, picture, table or text as a card on the Analyze board
+                         (duck-typed); sab.visualizations and sab.sandbox, the old names, one release
+  client/analyze_client.py sab.analyze: callable for a card; .<analysis>(df or an open table's name), .check,
+                         .contract, .contracts, .sample: the page's contracts and checker, stats' functions
   client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
   client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the
@@ -779,7 +817,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          rail.ts is the slim icon rail down the left of every page and window, in the order of
                          the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; the red mark first,
                          Projects, and 24px icons so more fit, 2026-11-18): Projects, Connections, APIs, Variables, Data, Grids, ERD, Structures,
-                         Blades, Notebooks, Scripts, Apps, Visualizations, Session, Settings at the
+                         Blades, Notebooks, Scripts, Apps, Analyze, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
@@ -796,7 +834,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          a table that arrives); variablesPage.ts the Variables page (open=variables:
                          by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
-                         the grids, Visualizations and the ERD to the front, workbenchPage.ts a cell; never while the user
+                         the grids, Analyze and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls; no APIs);
                          connectionTree.ts a connection's tables as a tree in its detail (search, Open, Preview,
@@ -805,17 +843,17 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
                          its documents as cards, Scripts' and Notebooks' Transformations cards first, Notebooks'
                          under Data notebook and App notebooks; New and Open… in the top bar);
-                         aiPanel.ts is Visualizations (a 12-column dashboard of resizable cards);
-                         analyzeMenu.ts is the Table row's Analyze menu and every result's Send to Visualizations,
-                         Open as grid and Copy code; analysisDialog.ts is its forms (odds, fit test, find
-                         predictors, outliers; Fit test and Outliers are also on a column header's right-click menu);
-                         modelDialog.ts the regression and what-if; timeSeriesDialog.ts time series and
-                         forecast (Plotly charts in the window); cheatSheets.ts each form's Data shape;
-                         analysisCards.ts every result as Visualizations cards (a report-style note and a chart);
-                         sandboxDashboards.ts saving and opening Visualizations as named dashboards;
-                         sandboxThemes.ts Visualizations' own theme (tokens on its element only);
-                         tieOutDialog.ts the compare's tie-out report (Tie-out… in the Compare row);
-                         bladeAnalysis.ts analysis blades (your own analyses) in the Analyze menu;
+                         aiPanel.ts is the Analyze board (a 12-column dashboard of resizable cards; an
+                         analysis's cards land at its top and are marked; a result's actions under its card);
+                         analyzePage.ts the Analyze toolbar (every analysis, grouped, everyday words first) and
+                         its one form beside the board (the table line with Change, the columns as chips, Make
+                         it fit with Apply, one sentence, Run gated with Cancel, More options, What your data
+                         should look like with Try it on this sample; What can I do with a column?; Check this
+                         table; Run again; no rule of its own: all from POST /analyze/plan);
+                         analyzeMenu.ts sendCards (a profile, a value, a row sent to the board by hand);
+                         analysisCards.ts those cards (a column's profile, the table's, a value, a row);
+                         sandboxDashboards.ts saving and opening the board as named dashboards;
+                         sandboxThemes.ts the board's own theme (tokens on its element only);
                          sandboxPages.ts Page view, Print to PDF and moving cards; sandboxExport.ts the
                          markdown export; cellMenu.ts the right-click menus on cells and headers;
                          tour.ts is the first-time tour (on the Projects page only: a card per
@@ -864,7 +902,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
                          status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a
-                         card; pictures go to Visualizations), workbenchGroups.ts (tab groups as VS Code's
+                         card; pictures go to Analyze), workbenchGroups.ts (tab groups as VS Code's
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
                          layout as data for the session restore; the tab kind registry, registerTabKind,
                          where app pages are added; the canvases' New entries follow the mode),

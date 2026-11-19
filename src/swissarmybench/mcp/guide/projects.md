@@ -4,7 +4,7 @@ A project is a folder (the owner, 2026-11-17): its notebooks, scripts, apps and 
 files at its top, so it can be a Git repository and shared like one. The app's own state is a hidden
 `.sab/` folder beside them, plain JSON that reads well in a diff: `.sab/project.json` (each table's source
 and steps, the tabs and windows, autosave), `.sab/visualizations.json` and `.sab/visualizations/`
-(Visualizations and its saved dashboards), `.sab/model.json` (the relationships). Rows are written only
+(the Analyze board and its saved dashboards), `.sab/model.json` (the relationships). Rows are written only
 on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`).
 
 ## The home page: the Project Explorer
@@ -45,7 +45,7 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
   `path` makes the open work a project there.
 - `project_copy(path, data?)`: Copy project to a new or empty folder; `data=true` copies `.sab/data/`
   too, and then waits for the user's Allow.
-- `project_close(discard?)`: its tables, Visualizations and relationships close; the folder stays.
+- `project_close(discard?)`: its tables, the Analyze board and relationships close; the folder stays.
 - Nothing runs code on open: a table made by a notebook comes back when that notebook runs.
 - A project of a newer format opens read-only: say so; it cannot be saved here.
 
@@ -54,7 +54,7 @@ on a tick, into `.sab/data/`, which Git ignores (`.gitignore`, `.sab/.gitignore`
   with `project_import(source=<file>)`; `project_import(source, list=true)` shows what another project
   folder offers.
 - Connections, APIs, blades and variables are the library's (every project has them); its saved
-  Visualizations dashboards are the project's.
+  the Analyze board's dashboards are the project's.
 - Never a password in a project: a connection's password comes from each computer's keyring,
   environment or vault, by name. Where none is set, `connections_list` gives the connection a
   `needs_password` with its fix, and its tables wait in `problems` with "Set the password".

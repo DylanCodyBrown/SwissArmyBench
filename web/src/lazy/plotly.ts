@@ -74,7 +74,7 @@ export async function drawPlotly(host: HTMLElement, text: string, dark: boolean)
   const checked = safeFigure(text);
   const data = themed(checked.data, host);
   const layout = themed(checked.layout, host);
-  // The ink and grid lines of the theme the figure draws in (Visualizations' own, there).
+  // The ink and grid lines of the theme the figure draws in (the Analyze board's own, there).
   const style = getComputedStyle(host);
   const read = (name: string, fallback: string): string => style.getPropertyValue(name).trim() || fallback;
   const ink = read("--fg", dark ? "#e8ecef" : "#1c2228");

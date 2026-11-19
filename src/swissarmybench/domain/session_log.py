@@ -22,7 +22,7 @@ from typing import Any
 # Where an entry's object lives: the rail's areas, and the project (the Projects page's).
 AREAS: tuple[str, ...] = (
     "grids",
-    "visualizations",
+    "analyze",
     "erd",
     "notebooks",
     "scripts",
@@ -91,6 +91,14 @@ def relationship_key(from_table: str, from_columns: Any, to_table: str, to_colum
 def _grid(details: dict[str, Any], dataset: str) -> Target:
     grid = details.get("grid")
     return {"place": "grid", "grid": _name(grid), "dataset": dataset} if grid else _dataset(dataset)
+
+
+def _analysis(details: dict[str, Any]) -> str:
+    """An analysis by its everyday question (its contract's label), else its id."""
+    from swissarmybench.domain.analysis_contracts import BY_ID
+
+    found = BY_ID.get(str(details.get("analysis")))
+    return found.label if found else _name(details.get("analysis")) or "an analysis"
 
 
 def _dataset(dataset: str) -> Target:
@@ -253,29 +261,38 @@ RULES: dict[str, Rule] = {
     "compare": lambda d, x: (f"Compared {d.replace(':', ' with ', 1)}", "grids", _area("grids")),
     "export": _export,
     "approval": _approval,
-    # Visualizations: cards and dashboards.
+    # Analyze: a run (its cards land by themselves), a fix applied as steps, cards and dashboards.
+    "analyze_run": lambda d, x: (
+        f"Ran {_analysis(x)} on {d} ({_count(x.get('cards'), 'card')} on Analyze)",
+        "analyze",
+        _area("analyze"),
+    ),
+    "analyze_fix": lambda d, x: (
+        f"Made {d} fit {_analysis(x)} ({_count(x.get('fixes'), 'fix').replace('fixs', 'fixes')}, as steps)",
+        "analyze",
+        _grid(x, d),
+    ),
     "add_card": lambda d, x: (
-        f"{'Replaced' if x.get('replaced') else 'Added'} a {_name(x.get('kind')) or 'new'} card "
-        "on Visualizations",
-        "visualizations",
-        {"place": "card", "card": _name(x.get("card"))} if x.get("card") else _area("visualizations"),
+        f"{'Replaced' if x.get('replaced') else 'Added'} a {_name(x.get('kind')) or 'new'} card on Analyze",
+        "analyze",
+        {"place": "card", "card": _name(x.get("card"))} if x.get("card") else _area("analyze"),
     ),
     "update_card": lambda d, x: (
-        "Changed a card on Visualizations",
-        "visualizations",
-        {"place": "card", "card": _name(x.get("card"))} if x.get("card") else _area("visualizations"),
+        "Changed a card on Analyze",
+        "analyze",
+        {"place": "card", "card": _name(x.get("card"))} if x.get("card") else _area("analyze"),
     ),
     "remove_card": lambda d, x: (
-        "Removed a card from Visualizations",
-        "visualizations",
-        _area("visualizations"),
+        "Removed a card from Analyze",
+        "analyze",
+        _area("analyze"),
     ),
-    "save_dashboard": lambda d, x: (f"Saved the dashboard {d}", "visualizations", _area("visualizations")),
-    "open_dashboard": lambda d, x: (f"Opened the dashboard {d}", "visualizations", _area("visualizations")),
+    "save_dashboard": lambda d, x: (f"Saved the dashboard {d}", "analyze", _area("analyze")),
+    "open_dashboard": lambda d, x: (f"Opened the dashboard {d}", "analyze", _area("analyze")),
     "delete_dashboard": lambda d, x: (
         f"Deleted the dashboard {d}",
-        "visualizations",
-        _area("visualizations"),
+        "analyze",
+        _area("analyze"),
     ),
     # The ERD: relationships, each one added named; a set saved, renamed or deleted; joins deleted or changed.
     "relationships": _relationships,

@@ -114,7 +114,7 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
 ) -> None:
     page = home(browser, plums)
     base = f"http://127.0.0.1:{server['port']}"
-    area(page, "visualizations").click()
+    area(page, "analyze").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
     no_box(page)
     area(page, "erd").click()

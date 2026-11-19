@@ -15,7 +15,7 @@
  *              file and "…" (Open…, Recent, Interrupt, Restart, Save as…, the Streamlit app, split)
  *   [PANES]    after RStudio (workbenchLayout.ts): the focused document's console under the groups and
  *              Variables on the right, both closed until the status bar opens them (a run in the
- *              console opens it). Pictures go to Visualizations
+ *              console opens it). Pictures go to Analyze
  *   [STATUS]   for the focused document: its kernel (a menu: Interrupt, Restart), its environment, the
  *              cursor; then the Console and Variables toggles
  *   [EMPTY]    nothing open: Start a notebook (and Start an app, once app pages are registered)
@@ -3178,7 +3178,7 @@ startNav();
 if (fileAsked) void open(fileAsked);
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
-// What is sent to the agent or Visualizations names the document it came from.
+// What is sent to the agent or Analyze names the document it came from.
 setDocumentName(() => current?.title ?? "the Workbench");
 
 /** The keys the window takes wherever the focus is (before an editor or the browser sees them). */

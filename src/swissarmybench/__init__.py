@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 from swissarmybench.renamed import env
 
 if TYPE_CHECKING:
+    from swissarmybench.client.analyze_client import analyze
     from swissarmybench.client.blades_client import blade, blades, load, read
     from swissarmybench.client.blades_client import blade as connection
     from swissarmybench.client.completion import complete
@@ -37,7 +38,9 @@ if TYPE_CHECKING:
     from swissarmybench.client.sql_cell import dax, sql
     from swissarmybench.client.structures_client import show_structure, structure, structure_table
     from swissarmybench.client.visualizations_client import sandbox as sandbox  # the old name, one release
-    from swissarmybench.client.visualizations_client import visualizations
+    from swissarmybench.client.visualizations_client import (
+        visualizations as visualizations,  # the old name, one release
+    )
     from swissarmybench.client.watcher import start as watch
     from swissarmybench.client.watcher import stop as unwatch
 
@@ -46,6 +49,7 @@ __all__ = [
     "DatasetTooLargeError",
     "ServerNotRunningError",
     "__version__",
+    "analyze",
     "blade",
     "blades",
     "complete",
@@ -59,7 +63,6 @@ __all__ = [
     "structure",
     "structure_table",
     "unwatch",
-    "visualizations",
     "watch",
 ]
 
@@ -76,9 +79,11 @@ _LAZY: dict[str, tuple[str, str]] = {
     "sql": ("swissarmybench.client.sql_cell", "sql"),
     # DAX on one dataset of a Power BI workspace connection: sab.dax("Finance/Sales model", ...).
     "dax": ("swissarmybench.client.sql_cell", "dax"),
-    # Anything visual from Python as a Visualizations card: sab.visualizations(fig).
+    # The Analyze page from Python: sab.analyze.benford(df), sab.analyze.contract("odds"), and anything
+    # visual as a card on its board: sab.analyze(fig).
+    "analyze": ("swissarmybench.client.analyze_client", "analyze"),
+    # The old names, one release (renamed.py): a DeprecationWarning, then the same card call.
     "visualizations": ("swissarmybench.client.visualizations_client", "visualizations"),
-    # The old name, one release (renamed.py): a DeprecationWarning, then the same call.
     "sandbox": ("swissarmybench.client.visualizations_client", "sandbox"),
     "complete": ("swissarmybench.client.completion", "complete"),
     # Structures (JSON, YAML, XML, TOML): a saved one's value, its records as a table, a value shown.

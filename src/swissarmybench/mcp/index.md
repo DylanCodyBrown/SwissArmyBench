@@ -21,8 +21,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `column_` | ribbon, Column row | `column_keep`, `column_rename`, `column_outliers` |
 | `cell_`, `row_` | a cell's menu; rows | `cell_exclude`, `row_read`, `row_count` |
 | `steps_` | a grid's steps, SQL, code | `steps_add`, `steps_kinds`, `steps_python` |
-| `analyze_` | Analyze menu | `analyze_odds`, `analyze_regression`, `analyze_forecast` |
-| `visualizations_` | cards, dashboards | `visualizations_add`, `visualizations_formats` |
+| `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
 | `compare_` | two grids, tie-out | `compare_create` |
 | `connections_`, `variables_` | databases, files, Power BI, Dataverse, Python; variables | `connections_list`, `variables_resolve` |
@@ -55,4 +54,5 @@ No prefix: `guide`, `commands`, `health`.
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
   streamlit, projects, library, accounting, powerapps, git, writing, privacy. Also swissarmybench://guide/<topic>.
+- swissarmybench://analyze/contracts: each analysis's contract; then `analyze_run`.
 - `commands(match="word")`: every tool's exact arguments.

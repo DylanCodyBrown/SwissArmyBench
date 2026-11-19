@@ -13,7 +13,7 @@ let viz: Promise<Viz> | null = null;
 export async function drawGraphviz(host: HTMLElement, dot: string, dark: boolean): Promise<void> {
   viz ??= instance();
   const engine = await viz;
-  const ink = token(host, "--fg", dark ? "#e8ecef" : "#1c2228"); // the theme's ink (Visualizations' own)
+  const ink = token(host, "--fg", dark ? "#e8ecef" : "#1c2228"); // the theme's ink (the Analyze board's own)
   const result = engine.render(dot, {
     format: "svg",
     // The theme's ink for anything the graph does not colour itself; a transparent page.

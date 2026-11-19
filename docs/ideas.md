@@ -6028,3 +6028,101 @@ Decisions and notes:
 - The library's counts and the shared catalog's counts left Settings with the Meta store folder (7.1).
 - Not changed (another branch's file): tour.ts's Settings card still says "the meta store folder your team
   shares, the projects folders"; it should say "your team".
+
+## Analyze: the analyses on their own page, a contract each, results that land by themselves (the owner, 2026-11-19; built, branch analyze-page)
+
+The owner: "Let's move the analyze from the table bar to the visualizations pane and then rename the
+visualizations pane Analyze. The new analyze pane's functions should be across the top with its own toolbar for
+every single analyze option we have. This page becomes the place where users can input columns and tables
+through guided, exact, very user friendly forms" / "Every analysis should automatically push to the analysis
+visualization area. That's the whole point of moving it here." / "make it stupid simple" / "We need a data
+structure contract format for each analysis ... then present that to the agent, and mock up a sample to include
+in each analysis input window" / "and even suggestions for the current data to get the best analysis" / "as
+robust as possible". Design principles 8.7 (rewritten) and 8.13 (new).
+
+Built:
+- **The rename.** Visualizations is Analyze: the rail, the page's title, `?view=analyze`, app_navigate and
+  app_snapshot (`analyze`), the Session page's words, `analyze_*` commands (the chart's code is
+  `analyze_chart_code`, since `analyze_code` is an analysis's code), `sab.analyze`, project.json's `analyze` key.
+  The old names answer for one release: `?view=visualizations` and `?view=sandbox`, the old areas, `sandbox_*`
+  and `visualizations_*` (cli/commands.py OLD_NAMES: run, never listed), `sab.visualizations` (warns once a
+  session) and `sab.sandbox`, a project.json's `visualizations` or `sandbox` key. Files on disk keep their names
+  (`.sab/visualizations.json`, `visualizations/`), as do internal names (aiPanel.ts, sandbox*.ts, CSS classes,
+  client/visualizations_client.py). The old `/visualizations/theme*` routes went (only the page called them).
+- **A contract per analysis** (domain/analysis_contracts.py, FORMAT 1): id, the everyday question, the technical
+  name, what you get, the toolbar group; the table (rows at least and rows that are better, one row per what,
+  two tables); the slots (plain words, the kinds accepted: number, whole number, date, text category, yes/no;
+  how many: one, one or more, optional, none or more; the checks, each "must" or "should", in words and as a
+  check; name hints); the options (type, default, allowed values, one line); the output (cards, a table
+  result's columns); its own fixes; a deterministic made-up sample. Fourteen built in; an analysis blade's is
+  read from its code and never run: its `CONTRACT` dictionary, else from whether `analyze` takes `columns`.
+- **One checker** (domain/analysis_facts.py check_column, domain/analyze.py plan): a table's facts in one DuckDB
+  pass (types, filled and different values, ranges, values at or below zero, whether every number is whole,
+  text that reads as numbers or as dates in each of three styles, different days and months), then the
+  few-valued columns' values and every column's first values. Per slot: fits or not and why in plain words;
+  cautions for a "should". The form, the chips, the column-first buttons, Check this table, the agent's
+  analyze_check and sab.analyze.check all call it. The old Data shape rules went (domain/analysis.py
+  shape_notes and form_defaults, the /shape-check and /analysis-defaults routes, cheatSheets.ts), and the
+  tools `analyze_shape` and `analyze_defaults` with them (a call says to use analyze_check or analyze_plan).
+- **The form** (web/src/analyzePage.ts): a panel beside the board. The table line with Change (open tables,
+  Find data… for a connection's), the chips (a native list per slot: only what fits, each with its type and a
+  few values; "Does not fit" lists the rest with why), the cautions, Make it fit, one sentence, Run (gated,
+  Cancel), More options, What your data should look like (the contract in words, the sample with the slots'
+  columns marked, Try it on this sample). What can I do with a column? and Check this table are two more
+  faces of the same panel. The last columns and options come back per table and analysis (this session).
+- **Fixes as grid steps** (domain/analysis_fixes.py): text to number (commas, spaces and a currency sign
+  dropped; nan and inf are blank), text to date (ISO, month/day/year or day/month/year: one style for the
+  column; both offered when both read every value, never guessed), a month column from a date, the ten most
+  common values and Other, blanks left out, values above zero, a yes/no column from Y/N and 1/0 in any
+  spelling or from one value of a text column, and (the Outliers contract's own) totals per month or per key.
+  Each has its count from the facts (the top-ten's from one query) and is applied only on Apply, on a button
+  that names it ("Read when as dates and run"), or by the agent (`analyze_fix`, `steps_add`, or analyze_run's
+  `apply_fixes`).
+- **The ranking** (rank): fits now, fits after its fixes (planned against what each fix would make: a column
+  whose ranges are not known until it is applied passes the range checks, and the run reads the real facts
+  after applying), or does not; a score and a one-line reason; the top three are never ones that do not fit.
+- **Runs** (services/analyze.py): the existing run_* functions on the grid's view, with a time limit said in
+  plain words and a token to cancel by; the cards are made on the server (domain/analysis_cards.py), so the
+  agent's and Python's runs land with no window open; they land at the top, newest first, as cards of no grid
+  (what a run found stays when its table closes) carrying `analysis`: the run, its inputs, its actions and
+  hand-offs. A run's result is kept in memory (60) for Show the math, Open as grid and Copy code.
+- **The agent:** analyze_contracts, analyze_tables, analyze_check, analyze_plan, analyze_column, analyze_fix,
+  analyze_run, analyze_cancel, analyze_runs, analyze_sample; the resource swissarmybench://analyze/contracts.
+- **Python:** `sab.analyze(fig)` (a card), `sab.analyze.<analysis>(df, ...)` (the same plan and request, then
+  the swissarmybench.stats function; its cards land through POST /analyze/land when the app runs),
+  `sab.analyze.<analysis>("orders")` (an open table: run in the app), `.check`, `.contract`, `.contracts`,
+  `.sample`.
+
+Decisions:
+- **Nothing on the grid:** the Table row's Analyze menu, the column header's Odds, Fit test, Outliers and Find
+  what predicts it, and the Compare row's Tie-out went. **Compare stays** (it is a view of two grids, not an
+  analysis). The grid keeps a column's quick Profile popup, the Table row's Profile, and the plain sends
+  (Profile to Analyze, Send value, Send the row); Distinct values to Analyze is the Analyze page's odds run
+  now. **The Key Finder's window stays on the ribbon:** it does more than report (it samples, and its pairs
+  become relationships); Analyze's "Which columns join two tables?" is its report as a card.
+- **Tie-out without a compare:** an unregistered Compare passed to TieOut.run, grouped and totalled by its own
+  suggestion, so nothing appears on the grid page.
+- **The fit test is three questions:** first digits (Benford), each value as common as expected, two columns
+  related. **Logistic regression** is Predict a number with a yes/no target and a hidden "Counts as yes".
+- **Samples keep real column names** (amount, region, late) with each slot's columns named beside them, not
+  the slot keys as names: the form marks and labels the slot's column ("Amounts" over "amount"), and the
+  sample reads like a table. A blade's generic sample does use its slot keys. Time-series and forecast
+  samples are 24 monthly rows (a season shows), not about 8.
+- **A chip is a native list**, not a custom popup: keyboard and screen readers work as everywhere, the
+  columns that do not fit sit in the same list, disabled, with the reason.
+- **The date fix never guesses** between month/day and day/month, and the number fix reads only what DuckDB
+  reads after dropping commas, spaces and a currency sign: a European "1.234,50" is not offered as a number.
+- **Group by a period and by a key** are suggestions (the Outliers contract's own: unusual months or
+  customers), not needed fixes: time series and forecast group by period themselves. The needed "period" fix
+  is a month column from a date, for a slot that wants a category.
+- **Memory is the session's:** the last columns and options per table and analysis are not written to a
+  project.
+- **The lower-level tools stay** (column_fit_test, column_outliers, analyze_odds...) for what the form does
+  not ask (shares, thresholds, a forecast's predictors); they answer the agent only and land nothing.
+
+Left:
+- A contract cannot yet declare a fix of its own as data in a blade's CONTRACT (the built-in Outliers one
+  does, in code).
+- Forecast's predictors, a time series' split by a category and a fit test against given shares are not in
+  the form (the lower-level tools have them).
+- Cancel stops a run's own queries; a tie-out or Key Finder in flight finishes unseen and lands nothing.

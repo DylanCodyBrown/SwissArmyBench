@@ -34,7 +34,7 @@ export function mountBottomBar(host: HTMLElement): void {
 
 // What the status bar says when an app tab is in front: the grid's row count belongs to the grid.
 const APP_TABS: Record<string, string> = {
-  agent: "Visualizations",
+  agent: "Analyze",
   erd: "ERD",
   query: "New table from a query",
 };
@@ -44,7 +44,7 @@ function render(): void {
   if (!info) return;
   const view = document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid";
   if (view !== "grid" && !(view === "query" && state.sqlResult)) {
-    // The tab's name, then the grid behind it: a Visualizations chart's click filters that grid, and this says so.
+    // The tab's name, then the grid behind it: an Analyze chart's click filters that grid, and this says so.
     const total = shownTotal() || 0;
     const grid = total === info.row_count ? `${formatCount(total)} rows` : `${formatCount(total)} of ${formatCount(info.row_count)} rows`;
     rows.textContent = `${APP_TABS[view] ?? ""} · ${info.dataset}: ${grid}`;

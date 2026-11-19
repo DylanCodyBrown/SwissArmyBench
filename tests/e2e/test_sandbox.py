@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""Visualizations in a real browser: the dashboard grid, resizing, and the Plotly, ECharts, Graphviz and
+"""Analyze in a real browser: the dashboard grid, resizing, and the Plotly, ECharts, Graphviz and
 image cards, with what they may and may not do in the page.
 
 Cards of the new kinds are served by a stand-in for GET /cards (the server learns those kinds in

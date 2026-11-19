@@ -3452,3 +3452,65 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
 - **Not checked:** psycopg's and SQLAlchemy's styles against a real server (the styles are PEP 249's; the
   test bed was not run); a vault's entry as a setting's variable in a real vault (the stand-in path of providers
   only); the forms (Phase B).
+
+## Analyze: contracts, the checker, fixes, runs that land (2026-11-19, branch analyze-page)
+
+- **Rules (tests/test_analyze_rules.py):** one contract per toolbar analysis in the one format; each sample the
+  same every time, naming its slots; **every sample passes its own checker and the form picks exactly the
+  sample's columns by itself**; what fits each slot and why (a number slot refuses text, dates, yes/no and
+  blank columns with the reason; a category slot refuses identifiers, constants and blanks); the only column
+  that fits is picked and said; two slots never take one column; a given column kept, refused with why, or
+  said gone; nothing fits is one sentence; too few rows; options defaulted and a wrong value falling back;
+  Counts as yes; the sentence for every analysis; two-table picks; each route's request; the column-first
+  list; each fix kind with its sentence and count and **the table fitting once its steps ran in DuckDB**
+  (text to number, text to date in three styles and both offered when ambiguous, a month column, the ten most
+  common and Other, drop blanks, keep positive, yes/no from words and from one value, totals per month and
+  per key, a new column never taking a name the table has); the ranking (fits now, after its fixes with the
+  button's words, not at all); the table's notes.
+- **HTTP (tests/test_analyze_http.py):** the toolbar and tables; the contracts for the agent; **every analysis
+  run on its own sample through POST /analyze/run, its cards at the top of the board in order, and each
+  action its contract promises (math, code, grid) answering**; newer runs above older; the agent's run the
+  same; memory per table and analysis; Run again; hand-offs on the card; what-if; tie-out with no compare
+  left on the grid page; an analysis blade's contract read from its code (declared, derived, broken) and run
+  through the same form; refusals in the one shape with the form; fixes applied as steps and undone by the
+  steps' Undo; the original rows unchanged; the top-ten fix counted on the table. **Edge cases:** an empty
+  table (every analysis says so, none fails), one row, every value blank in a slot, mixed text and numbers,
+  dates at uneven intervals, a category with one value, the time limit said in plain words (408, not a hang),
+  a table closed while its form is open (404 with words; its results stay; its math still answers), two and
+  three runs at once (each run's cards together, no two cards in one place), a cancelled run (408, nothing
+  lands, no run kept), a column renamed by a step after the form filled it (409 naming it, the form refilled),
+  a table with a broken step.
+- **The agent and Python (tests/test_cli.py, tests/test_analyze_client.py, tests/test_agent_index.py):** the
+  ten analyze_* tools end to end; a fix applied by analyze_fix and by steps_add; sandbox_* and
+  visualizations_* running their analyze_* commands by `sab` and by MCP, never listed; the contracts resource
+  with no app running; every analysis on its sample in Python; sab.analyze's numbers equal to
+  swissarmybench.stats'; a DataFrame's result landing on the board with the app running, kept off with
+  board=False; an open table by name, two tables too; sab.visualizations warning once.
+- **Browser (tests/e2e/test_analyze_page.py, Chromium):** the toolbar with every analysis, everyday words
+  first; a first-digits test: the table picked, only number columns offered, the rest listed with why, one
+  sentence, Run, the cards on the board with no other click and marked, a second run above the first; a
+  card's Show the math, Open as grid, Copy code, Run again (the form filled); tie-out picking two tables; the
+  grid page with no Analyze menu and no analysis on a header; `?view=visualizations` and `?view=sandbox`
+  landing on Analyze; Make it fit with Apply adding one step; Check this table's three with the fix named on
+  the button and applied in that click; the column-first panel; the sample marked and Try it on this sample;
+  a table closed under the form; an error staying in the form and going once fixed; a run gated with Cancel
+  landing nothing.
+- **DuckDB 2.0.0:** `TRY_CAST('20240105' AS DATE)` and `TRY_CAST('12' AS TIMESTAMP)` are NULL (a number is
+  not read as a date); `TRY_CAST('2024-01-05 10:30:00' AS DATE)` reads; `TRY_CAST('nan' AS DOUBLE)` and
+  `'inf'` read as numbers, so the number reading keeps only finite ones; `try_strptime` with one format reads
+  one style only.
+- **A connection's table:** `[Shop].orders` named as the table reads it whole through the connection-tables
+  contract into a table of its own (600 rows, not a first-rows cut), once; past the read limit it is refused
+  with the contract's own words ("[Big].orders has 15,000 rows ... Add a WHERE that narrows it") and nothing
+  is opened.
+- **Whole suite (Chromium):** 4762 passed, 46 skipped, 7 failed, 1 error in 39 minutes. Two were this work's
+  (tests/test_themes.py still called the old theme routes: fixed, passing). Four passed alone
+  (test_streamlit_page's two canvas tests, test_table_cells_page's maker that stays put, test_text_cells_page's
+  markdown starter) and so did test_workbench_page's fixture error. One fails alone and is not this work's:
+  test_beta_notes_page expects no app menu on a right-click in a text box, and the variable list's menu
+  (15e7d47, already on the branch this started from) shows one. test_tour's Steps card fails about one run in
+  three alone (the tour adds its sort step before the grid's tab exists: also from before this work).
+- **Not checked:** a connection's table picked through Find data… in a browser against a real database;
+  tests/e2e/test_real_world.py's use case 9 (rewritten for the Analyze page, but the test bed was not up, so
+  it was skipped); the desktop app's window; Edge (the tests ran in Chromium here); very wide
+  tables (hundreds of columns) for the facts query's time.

@@ -3,7 +3,7 @@
 The grid page has buttons; this has commands. Each command is named for the part of the app it
 works on, then the action: `tabs_new_query` (the + tab), `table_filter` (the ribbon's Table row),
 `column_keep` (the Column row), `cell_exclude` (a cell's right-click menu), `steps_add` (the Table
-Transformations panel), `compare_create`, `visualizations_add`. The prefix is the area, so a flat tool
+Transformations panel), `compare_create`, `analyze_add`. The prefix is the area, so a flat tool
 list sorts itself into the app's layout; AREAS below lists them in the order the app shows them.
 Some commands are composites of several server handlers that match one button on the page
 (`steps_apply_sql`, `steps_delete`, `table_matching`).
@@ -133,7 +133,7 @@ def _row_count(grid: str) -> int | None:
 # The MCP server also serves each as a resource: swissarmybench://index, swissarmybench://guide/<topic>.
 GUIDE_TOPICS: dict[str, str] = {
     "grids": "Grids and steps: data in, reading, the ribbon, steps, SQL, the page",
-    "analyze": "Analyze and Visualizations: the analyses, cards, dashboards, themes",
+    "analyze": "The Analyze page: the analyses, their cards on the board, dashboards, themes",
     "relationships": "Keys and relationships: the finder, saved sets, the ERD, compare and tie-out",
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python; key vaults, variables",
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
@@ -858,18 +858,18 @@ def save_result(a: dict[str, Any]) -> Any:
     return {"dataset": result.get("pinned"), "grid": result.get("grid")}
 
 
-# ===== Visualizations (cards) =====
+# ===== Analyze (cards) =====
 
 
 @command(
-    "visualizations_all",
-    "Every chart, note, table and diagram card in Visualizations.",
+    "analyze_all",
+    "Every chart, note, table and diagram card on the Analyze board.",
 )
 def all_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", "/cards")
 
 
-@command("visualizations_list", "The cards drawn on one grid.", req("grid", "Grid id."))
+@command("analyze_list", "The cards drawn on one grid.", req("grid", "Grid id."))
 def list_cards(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/grids/{_q(a['grid'])}/cards")
 
@@ -892,7 +892,7 @@ _CARD_FIELDS = (
 
 # What each card kind takes (visualizations_formats): the agent's whole drawing vocabulary in one answer.
 _FORMATS: dict[str, Any] = {
-    "board": "12 columns wide, rows of 40px; size {w: 2-12, h: 3-30}. Cards go in order; visualizations_update "
+    "board": "12 columns wide, rows of 40px; size {w: 2-12, h: 3-30}. Cards go in order; analyze_update "
     "moves (before) and resizes them. Page view prints them as letter or landscape pages.",
     "kinds": {
         "chart": {
@@ -906,7 +906,7 @@ _FORMATS: dict[str, Any] = {
             "or": "columns and rows of its own (no grid), first 100 rows",
         },
         "note": {
-            "body": "Markdown: headings, lists, tables, code, quotes. A Visualizations note is resizable like a text box."
+            "body": "Markdown: headings, lists, tables, code, quotes. An Analyze note is resizable like a text box."
         },
         "diagram": {"body": "Mermaid text: flowchart LR\n  A --> B"},
         "graphviz": {"body": "DOT text: digraph { a -> b }"},
@@ -931,16 +931,16 @@ _FORMATS: dict[str, Any] = {
 
 
 @command(
-    "visualizations_formats",
-    "What each Visualizations card kind takes, with an example, and how sizing works.",
+    "analyze_formats",
+    "What each Analyze card kind takes, with an example, and how sizing works.",
 )
 def card_formats(a: dict[str, Any]) -> Any:
     return _FORMATS
 
 
 @command(
-    "visualizations_add",
-    "Add a Visualizations card (visualizations_formats lists the kinds). Without grid it belongs to no table.",
+    "analyze_add",
+    "Add a card to the Analyze board (analyze_formats lists the kinds). Without grid it belongs to no table.",
     opt("grid", "Grid id: needed for chart and for table sql."),
     opt("kind", "chart, note, table, diagram, graphviz, plotly, echarts or image."),
     *_CARD_FIELDS,
@@ -971,7 +971,7 @@ def add_card(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "visualizations_update",
+    "analyze_update",
     "Change a card's title, body, spec, sql or size, pin it, move it (before a card) or start a page.",
     req("card", "Card id."),
     *_CARD_FIELDS,
@@ -991,7 +991,7 @@ def update_card(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "visualizations_dashboards",
+    "analyze_dashboards",
     "Saved dashboards; with name, its versions and cards. Saving and opening are the user's.",
     opt("name", "A dashboard's name."),
 )
@@ -1000,17 +1000,17 @@ def dashboards(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "visualizations_theme",
-    "Visualizations' themes; set one (theme), or propose your own (file). The grid keeps its own theme.",
+    "analyze_theme",
+    "The Analyze board's themes; set one (theme), or propose your own (file). The grid keeps its own theme.",
     opt("theme", "A theme's id, or app to follow the app."),
     opt("file", '{"name", "dark", "tokens": {"bg": "#rrggbb", ..., "cat": [8 colours]}}', "json"),
 )
-def visualizations_theme(a: dict[str, Any]) -> Any:
+def analyze_theme(a: dict[str, Any]) -> Any:
     if a.get("file") is not None:
-        return api.call("POST", "/visualizations/themes", a["file"])
+        return api.call("POST", "/analyze/themes", a["file"])
     if a.get("theme"):
-        return api.call("PUT", "/visualizations/theme", {"theme": a["theme"]})
-    listed = api.call("GET", "/visualizations/themes")
+        return api.call("PUT", "/analyze/theme", {"theme": a["theme"]})
+    listed = api.call("GET", "/analyze/themes")
     # Names and notes only: the agent picks by id, and needs no colour values to do it.
     return {
         "current": listed["current"],
@@ -1018,13 +1018,13 @@ def visualizations_theme(a: dict[str, Any]) -> Any:
     }
 
 
-@command("visualizations_delete", "Remove a card.", req("card", "Card id."))
+@command("analyze_delete", "Remove a card.", req("card", "Card id."))
 def delete_card(a: dict[str, Any]) -> Any:
     return api.call("DELETE", f"/cards/{_q(a['card'])}")
 
 
 @command(
-    "visualizations_select",
+    "analyze_select",
     "Click a chart's bar or point: adds the matching filter step to its grid (cross-filtering).",
     req("card", "Chart card id."),
     opt("value", "The x value clicked; omit for the blank bar."),
@@ -1033,7 +1033,7 @@ def card_select(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/cards/{_q(a['card'])}/select", {"value": a.get("value")})
 
 
-@command("visualizations_code", "The Altair Python for a chart card.", req("card", "Chart card id."))
+@command("analyze_chart_code", "The Altair Python for a chart card.", req("card", "Chart card id."))
 def card_code(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/cards/{_q(a['card'])}/code")
 
@@ -1198,7 +1198,7 @@ def relationships_scope(a: dict[str, Any]) -> Any:
 
 @command(
     "erd_draw",
-    "Draw the relationship model as a diagram card in Visualizations.",
+    "Draw the relationship model as a diagram card in Analyze.",
     req("grid", "Grid the card is filed with."),
     opt("tables", "Comma-separated dataset names."),
     opt("title", "Card title (default Relationships)."),
@@ -1441,14 +1441,14 @@ def blades_snippet(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/blades/{_q(a['name'])}/snippet{query}")
 
 
-@command("blades_analyses", "The user's own analyses (analysis blades) the Analyze menu offers")
+@command("blades_analyses", "The user's own analyses (analysis blades) the Analyze page offers")
 def blades_analyses(a: dict[str, Any]) -> Any:
     return api.call("GET", "/blades/analyses")
 
 
 @command(
     "blades_run_analysis",
-    "Run an analysis blade on a grid's rows as shown; its result as Visualizations cards",
+    "Run an analysis blade on a grid's rows as shown; its result as Analyze cards",
     req("grid", "The grid's id."),
     req("name", "The analysis blade."),
     opt("columns", "The selected columns it gets.", "list"),
@@ -2055,31 +2055,6 @@ def analyze_predict(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "analyze_shape",
-    "Does the grid suit an analysis (odds, fit_test, predictors, outliers)? Notes on a wide table, "
-    "few rows, blanks, identifiers, bucketing, Benford's range."
-    "(one column per month), few rows, blanks, identifiers, numbers that will be bucketed, Benford's range.",
-    req("grid", "Grid id."),
-    req("analysis", "odds, fit_test, predictors or outliers."),
-    opt("columns", "The columns it would use.", "list"),
-)
-def analyze_shape(a: dict[str, Any]) -> Any:
-    body = {"analysis": a["analysis"], "columns": a.get("columns") or []}
-    return api.call("POST", f"/grids/{_q(a['grid'])}/shape-check", body)
-
-
-@command(
-    "analyze_defaults",
-    "What the analysis forms start on in this grid's view: its identifier columns (by name, or every row "
-    "a different whole number or text), the first number column that is not one, and a regression's "
-    "starting predictors. Never analyse an identifier as a measure.",
-    req("grid", "Grid id."),
-)
-def analyze_defaults(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/grids/{_q(a['grid'])}/analysis-defaults")
-
-
-@command(
     "analyze_time_series",
     "A metric per period from a date column: trend, season in words, periods that stand out (with a step "
     "showing their rows), steps in the level, memory, growth.",
@@ -2114,6 +2089,158 @@ def analyze_forecast(a: dict[str, Any]) -> Any:
     return api.call(
         "POST", f"/grids/{_q(a['grid'])}/forecast", {k: a[k] for k in keys if a.get(k) is not None}
     )
+
+
+# ===== the Analyze page: every analysis by its contract (services/analyze.py) =====
+
+
+def _analyze_body(a: dict[str, Any], *keys: str) -> dict[str, Any]:
+    return {k: a[k] for k in keys if a.get(k) not in (None, "")}
+
+
+@command(
+    "analyze_contracts",
+    "Each analysis's data contract: its slots (the kinds of column each takes, how many, the checks), the "
+    "table's shape, options with defaults, what it makes, and a made-up sample. Read it, then analyze_run.",
+    opt(
+        "analysis",
+        "One analysis's id (omit for all): benford, fit, together, outliers, odds, predictors, "
+        "regression, whatif, time_series, forecast, tie_out, key_finder, profile, check.",
+    ),
+)
+def analyze_contracts(a: dict[str, Any]) -> Any:
+    if a.get("analysis"):
+        return api.call("GET", f"/analyze/contracts/{_q(a['analysis'])}")
+    return api.call("GET", "/analyze/contracts")
+
+
+@command(
+    "analyze_tables",
+    "The Analyze toolbar (each analysis, by group) and the open tables it can run on, with the one its "
+    "forms start on.",
+    values=True,
+)
+def analyze_tables(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/analyze")
+
+
+@command(
+    "analyze_check",
+    "Check this table: every analysis ranked for it (fits now, fits after its fixes, or not, with why) "
+    "and the three that suit it. With `analysis`: that one's check: per slot what fits and what does not "
+    "(and why), what is missing, and `fixes`, each with the steps (for steps_add) that make the table fit.",
+    opt("table", "Grid id or table name (default: the one Analyze last used)."),
+    opt("analysis", "One analysis's id."),
+    opt("columns", "{slot: column} to check instead of the app's picks.", "json"),
+    values=True,
+)
+def analyze_check(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/check", _analyze_body(a, "table", "analysis", "columns"))
+
+
+@command(
+    "analyze_plan",
+    "An analysis's form for a table, as the page shows it: each slot's pick (and why), the columns that "
+    "fit, the options and their defaults, and the sentence of what analyze_run would run.",
+    req("analysis", "The analysis's id (analyze_contracts)."),
+    opt("table", "Grid id or table name."),
+    opt("columns", "{slot: column or [columns]}.", "json"),
+    opt("options", "{option: value}.", "json"),
+    values=True,
+)
+def analyze_plan(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/plan", _analyze_body(a, "analysis", "table", "columns", "options"))
+
+
+@command(
+    "analyze_column",
+    "What can I do with a column? The analyses it fits (each runs with analyze_run); with no column, "
+    "every column of the table with its type and what fits it.",
+    opt("table", "Grid id or table name."),
+    opt("column", "Column name."),
+    values=True,
+)
+def analyze_column(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/column", _analyze_body(a, "table", "column"))
+
+
+@command(
+    "analyze_fix",
+    "Make it fit: add the named fixes' steps to the table (the user sees them in the steps strip and can "
+    "undo them), then the form again. The ids are analyze_check's `fixes`.",
+    req("analysis", "The analysis's id."),
+    req("fixes", "Fix ids.", "list"),
+    opt("table", "Grid id or table name."),
+    opt("columns", "{slot: column} already chosen.", "json"),
+)
+def analyze_fix(a: dict[str, Any]) -> Any:
+    fixes = a["fixes"]
+    body = _analyze_body(a, "analysis", "table", "columns") | {
+        "fixes": [fixes] if isinstance(fixes, str) else fixes
+    }
+    return api.call("POST", "/analyze/fix", body)
+
+
+@command(
+    "analyze_run",
+    "Run an analysis by its id: columns and options are picked by the app unless given. Its cards land on "
+    "the Analyze board (as the user's do) and `result` holds the numbers. A table that does not fit is "
+    "refused with why and the form (`plan`); apply_fixes adds the steps it needs first.",
+    req("analysis", "The analysis's id (analyze_contracts)."),
+    opt("table", "Grid id, table name or [Connection].table (default: the one Analyze last used)."),
+    opt("columns", "{slot: column or [columns]}.", "json"),
+    opt("options", "{option: value}.", "json"),
+    opt("apply_fixes", "Add the fixes the table needs (grid steps) and then run.", "bool"),
+    opt("sample", "Run on the contract's made-up sample instead (opened as a table).", "bool"),
+    opt("token", "A name for this run, for analyze_cancel."),
+    values=True,
+)
+def analyze_run(a: dict[str, Any]) -> Any:
+    body = _analyze_body(a, "analysis", "table", "columns", "options", "token")
+    body |= {k: True for k in ("apply_fixes", "sample") if a.get(k)}
+    return api.call("POST", "/analyze/run", body)
+
+
+@command(
+    "analyze_cancel",
+    "Stop a run started with a token; nothing of it lands.",
+    req("token", "The run's token."),
+)
+def analyze_cancel(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/cancel", {"token": a["token"]})
+
+
+@command(
+    "analyze_runs",
+    "This session's runs, newest first; with `run` and `show`, a result's actions: inputs (Run again), "
+    "math (Show the math), code (Copy code) or grid (Open as grid: its table in a new tab).",
+    opt("run", "A run's id."),
+    opt("show", "inputs, math, code or grid."),
+    values=True,
+)
+def analyze_runs(a: dict[str, Any]) -> Any:
+    if not a.get("run"):
+        return api.call("GET", "/analyze/runs")
+    show = a.get("show") or "inputs"
+    if show not in ("inputs", "math", "code", "grid"):
+        raise CommandError("analyze_runs: show is inputs, math, code or grid.")
+    if show == "grid":
+        return api.call("POST", f"/analyze/runs/{_q(a['run'])}/grid", {})
+    if show == "math":
+        return api.call("GET", f"/analyze/runs/{_q(a['run'])}/math")
+    if show == "code":
+        return api.call("GET", f"/analyze/runs/{_q(a['run'])}/code")
+    return api.call("GET", f"/analyze/runs/{_q(a['run'])}")
+
+
+@command(
+    "analyze_sample",
+    "Open an analysis's made-up sample as a table (Try it on this sample): its grid and the columns each "
+    "slot takes.",
+    req("analysis", "The analysis's id."),
+)
+def analyze_sample(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/analyze/sample", {"analysis": a["analysis"]})
 
 
 @command(
@@ -2160,7 +2287,7 @@ def cell_exclude(a: dict[str, Any]) -> Any:
     "app_snapshot",
     "A PNG of the app as the user sees it (your scroll, selection, splits and panels). Shows real cell "
     "values, and the user's browser tab must be visible.",
-    opt("area", "app (the whole window, default), ribbon, grid, steps, visualizations or projects."),
+    opt("area", "app (the whole window, default), ribbon, grid, steps, analyze or projects."),
     opt("scale", "1 (default) or 2 for a sharper picture.", "int"),
     opt("out", "Also save the PNG to this file path."),
     image=True,
@@ -2183,7 +2310,7 @@ def app_snapshot(a: dict[str, Any]) -> Any:
 #
 # The name's prefix is the area, in the order the app shows them: the tab bar, the datasets, the
 # ribbon's Table and Column rows, a cell's right-click menu, the Table Transformations panel, the Key Finder, the
-# Relationships dialog and ERD tab, compare, Visualizations, then what only an agent sees.
+# Relationships dialog and ERD tab, compare, Analyze, then what only an agent sees.
 # The catalog groups by area, and so does the MCP's tool list.
 
 
@@ -4015,7 +4142,7 @@ def project_import(a: dict[str, Any]) -> Any:
 
 @command(
     "project_open",
-    "Open a project's folder (tables read again with their steps, Visualizations, relationships). Refused "
+    "Open a project's folder (tables read again with their steps, Analyze, relationships). Refused "
     "while unsaved changes are open, unless discard; a plain folder answers not_a_project (make: true)",
     req("path", "The project's folder."),
     opt("make", "true: make a plain folder a project around its files.", "bool"),
@@ -4028,7 +4155,7 @@ def project_open(a: dict[str, Any]) -> Any:
 
 @command(
     "project_save",
-    "Write the open project's .sab/ (tables, steps, Visualizations, relationships). Rows are kept only for "
+    "Write the open project's .sab/ (tables, steps, Analyze, relationships). Rows are kept only for "
     "tables ticked in keep_rows: then it waits for the user's Allow",
     opt("keep_rows", '{"pasted_1": true}: keep its rows in .sab/data/.', "json"),
     opt("path", "No project open: a new or empty folder to make the open work one."),
@@ -4063,7 +4190,7 @@ def project_recent(a: dict[str, Any]) -> Any:
 
 @command(
     "project_close",
-    "Close the project: its tables, Visualizations and relationships. Refused with unsaved changes, unless discard",
+    "Close the project: its tables, Analyze and relationships. Refused with unsaved changes, unless discard",
     opt("discard", "true: let its unsaved changes go.", "bool"),
 )
 def project_close(a: dict[str, Any]) -> Any:
@@ -4414,7 +4541,7 @@ def app_audit(a: dict[str, Any]) -> Any:
     "Move a window as the user does: home (the mark: the Projects page), back, forward, or a view",
     req(
         "to",
-        "the rail: projects (the mark), data (browse tables), grids, visualizations, erd, notebooks, scripts, "
+        "the rail: projects (the mark), data (browse tables), grids, analyze, erd, notebooks, scripts, "
         "apps, blades, connections, variables, session, settings; back, forward, add_connection, add_api; home: "
         "query, grid:<id>; catalog (the blades page): blade:<name>, new_blade",
     ),
@@ -4587,13 +4714,13 @@ def relationships_reject(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "visualizations_dashboard",
-    "Save Visualizations as a dashboard (a new version), open one, or delete one",
+    "analyze_dashboard",
+    "Save Analyze as a dashboard (a new version), open one, or delete one",
     req("action", "save, open or delete."),
     req("name", "The dashboard's name."),
     opt("version", "open: which version (default: the newest).", "int"),
 )
-def visualizations_dashboard(a: dict[str, Any]) -> Any:
+def analyze_dashboard(a: dict[str, Any]) -> Any:
     name, action = _q(a["name"]), a["action"]
     if action == "save":
         return api.call("POST", "/dashboards", {"name": a["name"]})
@@ -4607,12 +4734,12 @@ def visualizations_dashboard(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "visualizations_theme_remove",
-    "Remove one of the user's imported Visualizations themes",
+    "analyze_theme_remove",
+    "Remove one of the user's imported Analyze themes",
     req("id", "The theme's id."),
 )
-def visualizations_theme_remove(a: dict[str, Any]) -> Any:
-    return api.call("DELETE", f"/visualizations/themes/{_q(a['id'])}")
+def analyze_theme_remove(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/analyze/themes/{_q(a['id'])}")
 
 
 @command(
@@ -4635,7 +4762,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("table", "Ribbon, Table row"),
     ("column", "Ribbon, Column row"),
     ("cell", "A cell's right-click menu"),
-    ("analyze", "Ribbon, Table row: the Analyze menu (odds, predictors, regression, time series, forecast)"),
+    ("analyze", "The Analyze page: every analysis (analyze_run), its cards on the board, dashboards, themes"),
     ("row", "Rows"),
     ("steps", "Table Transformations panel and SQL box"),
     ("key_finder", "Key Finder"),
@@ -4653,13 +4780,12 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
-    ("project", "Projects: a folder (its files, and .sab/: tables, steps, Visualizations, relationships)"),
+    ("project", "Projects: a folder (its files, and .sab/: tables, steps, Analyze, relationships)"),
     ("projects", "The Project Explorer: every project as a card, sorted; the project types explained"),
     ("packs", "Packs: blades and relationship sets from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
-    ("visualizations", "Visualizations: cards, dashboards, themes"),
     ("app", "The page itself: snapshots"),
     ("desktop", "The desktop app: its windows, a page opened in one"),
     ("extensions", "Extensions: what plugs into the base (Streamlit, Accounting, Power Apps)"),
@@ -4689,19 +4815,24 @@ def _arrange() -> None:
 _arrange()
 
 # The old names, one release (as renamed.py keeps SwissArmyGrid's): the Sandbox became Visualizations (the
-# owner, 2026-11-16), so each sandbox_* command is its visualizations_* one; a tang became a relationship
+# owner, 2026-11-16) and Visualizations became Analyze (the owner, 2026-11-19), so each sandbox_* and
+# visualizations_* command is its analyze_* one (the chart's code is analyze_chart_code); a tang became a relationship
 # set (the owner, 2026-11-17), so relationships_*_tang is relationships_*_set. Accepted by the dispatcher
 # (the `sab` command and an MCP call by name) but not listed: the tool list carries the new names only.
-OLD_NAMES: dict[str, str] = {
-    "sandbox" + name.removeprefix("visualizations"): name
-    for name in REGISTRY
-    if name.startswith("visualizations_")
-} | {
-    "relationships_save_tang": "relationships_save_set",
-    "relationships_export_tang": "relationships_export_set",
-    "relationships_import_tang": "relationships_import_set",
-    "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
-}
+_BOARD_NAMES = (
+    "all", "list", "formats", "add", "update", "dashboards", "theme", "delete", "select", "dashboard",
+    "theme_remove",
+)  # fmt: skip
+OLD_NAMES: dict[str, str] = (
+    {f"{old}_{name}": f"analyze_{name}" for old in ("sandbox", "visualizations") for name in _BOARD_NAMES}
+    | {"sandbox_code": "analyze_chart_code", "visualizations_code": "analyze_chart_code"}
+    | {
+        "relationships_save_tang": "relationships_save_set",
+        "relationships_export_tang": "relationships_export_set",
+        "relationships_import_tang": "relationships_import_set",
+        "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
+    }
+)
 
 
 # An old argument's name, one release: (command, old) -> new. A tang became a relationship set.
@@ -4713,13 +4844,17 @@ OLD_ARGS: dict[tuple[str, str], str] = {
 
 # Commands that went, one release: an old call says why instead of "unknown".
 GONE_NAMES: dict[str, str] = {
+    "analyze_shape": "analyze_shape went (2026-11-19): analyze_check(table, analysis) says whether a table suits "
+    "an analysis, from its contract: what fits each slot, what is missing, the fixes.",
+    "analyze_defaults": "analyze_defaults went (2026-11-19): analyze_plan(analysis, table) gives the columns a "
+    "form starts on (never an identifier), and analyze_check each column's fit.",
     "app_autostart": "app_autostart went (2026-11-18): there is no tray and no start at sign-in any more; the "
     "server runs while the app is open (app_lifecycle says when it stops).",
 }
 
 
 def current_name(name: str) -> str:
-    """A command's name as it is now: an old one (sandbox_add) is its new one (visualizations_add)."""
+    """A command's name as it is now: an old one (visualizations_add) is its new one (analyze_add)."""
     return OLD_NAMES.get(name, name)
 
 

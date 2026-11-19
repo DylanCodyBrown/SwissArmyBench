@@ -24,7 +24,7 @@
  *          [SAVE AS A SET]          -> POST /relationships/sets
  *          [DELETE / KIND / RUN]    -> POST /relationships/delete, /relationships/update; [UNDO] /relationships/undo
  *          [FIND]                   -> POST /relationships/find; [ACCEPT] -> POST /relationships; [REJECT] -> /reject
- *          [DRAW DIAGRAM]           -> a diagram card in Visualizations
+ *          [DRAW DIAGRAM]           -> a diagram card in Analyze
  * The agent's: relationships_delete, _update, _undo, _save_set, _export_set, _rename_set, _delete_set.
  */
 import { api, download, grid } from "./api";
@@ -217,7 +217,7 @@ export function openRelationships(startFinding = false): void {
     button("Import relationships", () => file.click(), { icon: "import", title: "A saved set (reviewed before it is applied) or a model as JSON" }),
     button("Export", () => void exportCurrent(), { icon: "export", title: "Download as .relationships.json" }),
     button("Save as a set…", () => saveDialog(), { icon: "save" }),
-    button("Draw diagram", () => void drawErd(close), { icon: "link", title: "To Visualizations" }),
+    button("Draw diagram", () => void drawErd(close), { icon: "link", title: "To Analyze" }),
     button("Close", close, { class: "primary" }),
   );
 
@@ -760,7 +760,7 @@ async function drawErd(close: () => void): Promise<void> {
     await api(`${grid}/cards`, "POST", { kind: "diagram", title: "Relationships", body: erd.mermaid });
     close();
     showAgentView();
-    toast("Diagram sent to Visualizations.");
+    toast("Diagram sent to Analyze.");
   } catch (e) {
     errorHere(e);
   }

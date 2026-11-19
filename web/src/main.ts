@@ -2,12 +2,12 @@
  * main.ts: the grid page, put together. [EXPORT: bootstrap, composition only]
  *
  * One page holds every open grid: the tab bar and the grid panes (two side by side when split)
- * are panes.ts; everything else here (toolbar, ribbon, steps, Visualizations in the Agent
+ * are panes.ts; everything else here (toolbar, ribbon, steps, Analyze in the Agent
  * tab, SQL box, status bar) is shared and shows the active grid. /g/<id> opens the page on that grid, /workspace on
  * the last one used.
  *
  * COMPOSES: panes (tabs, panes, split) · gridView + selection (one per grid) · ribbon (Table / Column tools) ·
- *           stepsPanel + stepForms (applied steps) · aiPanel (Visualizations) ·
+ *           stepsPanel + stepForms (applied steps) · aiPanel (Analyze) ·
  *           agentAccess (approval popups) · stepsStrip · exportDialog ·
  *           erdView (the ERD tab) · queryTab (the "+" tab: a new table from a query) ·
  *           openMenu (the Open dialog: tables in running Python sessions) ·
@@ -33,6 +33,8 @@ import { api, connect, failure, gridId, onNotice, openedWith, requireSession, to
 import { mountSnapshots } from "./snapshot";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { handleNotice, mountAiPanel, refreshPanel } from "./aiPanel";
+import { analyzeParts, onFindData, onOpenAnalyze } from "./analyzePage";
+import { openFindData } from "./gridCommands";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
 import { $, button, clear, closeDialogs, h, toast } from "./dom";
@@ -53,7 +55,7 @@ import { pulse, setFollower, setGoer, type Entry, type Target } from "./sessionP
 import { highlightRelationships } from "./erdView";
 import { showInSandbox } from "./sandboxShow";
 import type { Move } from "./nav";
-import { activateGrid, activeContext, addGrid, contextOf, contextsOf, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, viewingLanding } from "./panes";
+import { activateGrid, activeContext, addGrid, contextOf, contextsOf, currentView, drawTitle, dropGrid, gridList, mountPanes, onSplitCreated, openGrids, renameContexts, resyncGrids, showAgentView, showErdView, showGridView, showPlace, viewingLanding } from "./panes";
 import { mountStart } from "./startView";
 import { mountProjectsPage } from "./projectsPage";
 import { loadProject } from "./projectFile";
@@ -191,7 +193,7 @@ function goToTarget(t: Target, how: Move): boolean {
     showErdView(how);
     return true;
   }
-  if (t.place === "area" && t.area === "visualizations") showAgentView(how);
+  if (t.place === "area" && t.area === "analyze") showAgentView(how);
   else if (t.place === "area" && t.area === "erd") showErdView(how);
   else if (t.place === "area" && t.area === "grids") showGridView(how);
   else return false;
@@ -199,7 +201,7 @@ function goToTarget(t: Target, how: Move): boolean {
 }
 
 /** Follow the agent: its action's area to the front (a move of the app's: the address is replaced), the
- *  object pulsed. The grids, Visualizations and the ERD move here; nothing else does. */
+ *  object pulsed. The grids, Analyze and the ERD move here; nothing else does. */
 function follow(entry: Entry): boolean {
   const t = entry.target;
   if (!t || (t.place === "area" && t.area === "grids")) return false; // a table closed: nothing to show
@@ -330,6 +332,11 @@ async function start(): Promise<void> {
   mountBottomBar($(".statusbar"));
   void loadPanels(); // a panel turned off in Settings is gone (grid.css, by <body>'s class)
   mountAiPanel(workspace, $("#ai-panel"), $(".splitter"));
+  // An analysis's form opened from anywhere (the palette, a card's Run again) brings Analyze to the front;
+  // its Change… finds a connection's table with the Data Explorer (Find data…).
+  onOpenAnalyze(() => { if (currentView() !== "agent") showAgentView(); });
+  onFindData(() => openFindData());
+  analyzeParts(); // its list of analyses is read now: the palette offers them before Analyze is first shown
   mountErd($("#erd-view"));
   // Before the panes: a built table's pane gets its query tray as the pane is made.
   mountQueryTab($("#query-view"));
@@ -337,7 +344,7 @@ async function start(): Promise<void> {
   state.on("info", () => {
     if (!state.info) return;
     title();
-    // The browser tab names the place in front (the table, Visualizations, the ERD); the tab bar names them all.
+    // The browser tab names the place in front (the table, Analyze, the ERD); the tab bar names them all.
     drawTitle();
   });
   // A project folder (startView.ts): the Start view, the project's name and Save, Save as, Close and
@@ -409,7 +416,7 @@ async function start(): Promise<void> {
   // A compare this page was showing before a reload comes back with its split.
   await restoreCompare().catch(() => undefined);
   if (!activeContext()) toolbarEmpty();
-  // The view the address named (Visualizations, the ERD, a table), then the dialog over it.
+  // The view the address named (Analyze, the ERD, a table), then the dialog over it.
   await showPlace(opened);
   startNav(opened);
   // Unless the user went somewhere meanwhile (a rail click while the page was starting): only the grids'

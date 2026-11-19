@@ -40,9 +40,9 @@ from swissarmybench.services.workspace import NotFound, Refused, Workspace
 _TABLE_CARD_ROWS: int = 100
 _TABLE_CARD_COLUMNS: int = 50
 _CELL_CHARACTERS: int = 1_000
-_ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Visualizations"}
+_ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Analyze"}
 # A card saved before the Sandbox became Visualizations (2026-11-16) is badged with the new name.
-_ORIGIN_NOW: dict[str, str] = {"Sandbox": "Visualizations"}
+_ORIGIN_NOW: dict[str, str] = {"Sandbox": "Analyze", "Visualizations": "Analyze"}
 # A diagram is Mermaid text (an ERD from GET /relationships/erd, or any flowchart), drawn by the page.
 # Graphviz is DOT text; Plotly and ECharts are a figure as JSON text; an image is a data: URL. The page
 # draws each (web/src/lazy/), so the server only checks that the text is there and not too big.
@@ -276,6 +276,7 @@ _KEPT: tuple[str, ...] = (
     "origin",
     "dataset",
     "created_by",
+    "analysis",
 )
 
 
@@ -338,10 +339,10 @@ class Cards:
 
     async def set_theme(self, theme_id: Any, who: str) -> dict[str, Any]:
         if theme_id != themes.APP and (not isinstance(theme_id, str) or self._theme_by_id(theme_id) is None):
-            raise NotFound(f"No Visualizations theme {theme_id!r}: GET /visualizations/themes lists them.")
+            raise NotFound(f"No Visualizations theme {theme_id!r}: GET /analyze/themes lists them.")
         self._theme = str(theme_id)
         await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
-        self.ws.audit.write(who, "visualizations_theme", self._theme)
+        self.ws.audit.write(who, "analyze_theme", self._theme)
         return {"current": self._theme}
 
     async def add_theme(self, raw: Any, who: str) -> dict[str, Any]:
@@ -633,7 +634,7 @@ class Cards:
                 "grid": None,
                 "dataset": saved.get("dataset"),
                 "frozen": saved.get("frozen") or {},
-                "origin": _ORIGIN_NOW.get(saved.get("origin") or "", saved.get("origin")) or "Visualizations",
+                "origin": _ORIGIN_NOW.get(saved.get("origin") or "", saved.get("origin")) or "Analyze",
                 "pinned": bool(saved.get("pinned")),
                 "new_page": bool(saved.get("new_page")),
                 "created_by": saved.get("created_by") or who,
@@ -704,7 +705,7 @@ class Cards:
                 "key": key,
                 "grid": grid,
                 "dataset": dataset,
-                "origin": _ORIGINS.get(origin, "Visualizations"),
+                "origin": _ORIGINS.get(origin, "Analyze"),
                 "pinned": False,
                 "new_page": False,
                 "created_by": who,
@@ -722,6 +723,43 @@ class Cards:
             card=card["id"],
         )
         return {"card": card["id"], "replaced": same is not None}
+
+    async def land(
+        self, made: list[Any], dataset: str, who: str, analysis: dict[str, Any], origin: str = ""
+    ) -> list[str]:
+        """An analysis result's cards put on the board by themselves (the owner, 2026-11-19: "Every
+        analysis should automatically push to the analysis visualization area"): at the top, the newest
+        run first, in the order made. They belong to no grid (what a run found stays when its table
+        closes) and carry `analysis`: the run, so a card can show its math, open as a grid, give its code
+        and run again. One notice names them, so the page scrolls to them and marks them."""
+        ws = self.ws
+        cards = [check_card(body) for body in made]
+        if not cards:
+            return []
+        top = min((c.get("order", 0.0) for c in self._cards.values()), default=1.0)
+        landed: list[str] = []
+        for at, card in enumerate(cards):
+            card |= {
+                "id": secrets.token_hex(4),
+                "key": None,
+                "grid": None,
+                "dataset": dataset,
+                "origin": _ORIGINS.get(origin or who, "Analyze"),
+                "pinned": False,
+                "new_page": False,
+                "created_by": who,
+                "created": time.time(),
+                "order": top - len(cards) + at,
+                "analysis": analysis | {"first": at == 0},
+            }
+            self._cards[card["id"]] = card
+            landed.append(card["id"])
+        await ws.live.broadcast({"type": "cards_updated", "grid": None, "landed": landed})
+        return landed
+
+    def of_run(self, run: str) -> list[str]:
+        """The cards a run landed that are still on the board."""
+        return [c["id"] for c in self._cards.values() if (c.get("analysis") or {}).get("run") == run]
 
     async def update(self, card: Card, body: Any, who: str) -> dict[str, Any]:
         """Change title, spec, body, sql, pinned, new_page (it starts a page in Page view), or its

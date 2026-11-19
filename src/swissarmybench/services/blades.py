@@ -644,6 +644,13 @@ class BladeService:
         found = [b for b in self._blades.all() if b.kind == "analysis"]
         return {"analyses": [{"name": b.name, "description": b.description, "tags": b.tags} for b in found]}
 
+    def analysis_blade(self, name: str) -> Blade:
+        """An analysis blade by its name (the Analyze page reads its contract from its code)."""
+        blade = self._blades.get(name)
+        if blade.kind != "analysis":
+            raise BladeError(f"{blade.name} is not an analysis blade.")
+        return blade
+
     async def analyze(
         self, name: str, grid: Grid, info: DatasetInfo, body: dict[str, Any], who: str
     ) -> dict[str, Any]:

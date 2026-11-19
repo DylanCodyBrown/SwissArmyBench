@@ -24,7 +24,7 @@ def test_a_columns_tools_are_beside_it(browser: Browser, orders_url: str) -> Non
         "Remove",
         "Keep only",
         "Group by…",
-        "Profile to Visualizations",
+        "Profile to Analyze",
     ):
         expect(menu.get_by_role("menuitem", name=label)).to_be_visible()
     menu.get_by_role("menuitem", name="Sort Z→A").click()

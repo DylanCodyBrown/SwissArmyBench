@@ -127,6 +127,8 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    "/analyze/land": "sab.analyze's own: a result Python computed on a DataFrame, put on the board (the "
+    "agent runs an analysis with analyze_run, which lands its cards itself)",
     "/relationships/tangs": "the old name of /relationships/sets (a tang until 2026-11-17), one release",
     "/relationships/tang": "the old name of /relationships/set (a tang until 2026-11-17), one release",
     "/projects": "a project type's scaffold alone, not opened (an extension's own New): project_new makes "
@@ -416,23 +418,94 @@ def test_cards_including_a_saved_query(live: Live, clients: str) -> None:
     assert run("visualizations_delete", card=note["card"])["removed"] == note["card"]
 
 
-def test_the_old_sandbox_names_still_run_their_visualizations_commands(live: Live, clients: str) -> None:
-    """The Sandbox became Visualizations (the owner, 2026-11-16): every sandbox_* name runs its
-    visualizations_* command for one release, by `sab` and by an MCP call, but is never listed."""
+BOARD = (
+    "all", "list", "formats", "add", "update", "dashboards", "theme", "delete", "select", "dashboard",
+    "theme_remove", "code",
+)  # fmt: skip
+
+
+@pytest.mark.parametrize("old", ["sandbox", "visualizations"])
+def test_the_old_board_names_still_run_their_analyze_commands(live: Live, clients: str, old: str) -> None:
+    """The Sandbox became Visualizations (the owner, 2026-11-16) and Visualizations became Analyze
+    (2026-11-19): every sandbox_* and visualizations_* name runs its analyze_* command for one release, by
+    `sab` and by an MCP call, but is never listed."""
     from swissarmybench.cli import main as cli_main
     from swissarmybench.cli.commands import OLD_NAMES
 
-    sandbox = {k: v for k, v in OLD_NAMES.items() if k.startswith("sandbox_")}
-    assert set(sandbox.values()) == {n for n in REGISTRY if n.startswith("visualizations_")}
-    assert len(sandbox) == 12 and not any(n.startswith("sandbox_") for n in REGISTRY)
-    note = run("sandbox_add", grid=clients, kind="note", title="old name", body="still here")
-    assert note["card"] in {c["id"] for c in run("visualizations_list", grid=clients)["cards"]}
-    assert cli_main.parse(["sandbox_delete", note["card"]]) == ("sandbox_delete", {"card": note["card"]})
-    assert cli_main.main(["sandbox_delete", note["card"]]) == 0
+    mine = {k: v for k, v in OLD_NAMES.items() if k.startswith(f"{old}_")}
+    assert set(mine) == {f"{old}_{name}" for name in BOARD}
+    assert mine[f"{old}_code"] == "analyze_chart_code"  # analyze_code is an analysis's code
+    assert all(new == f"analyze_{k.split('_', 1)[1]}" for k, new in mine.items() if not k.endswith("_code"))
+    assert set(mine.values()) <= set(REGISTRY) and not any(n.startswith(f"{old}_") for n in REGISTRY)
+    note = run(f"{old}_add", grid=clients, kind="note", title="old name", body="still here")
+    assert note["card"] in {c["id"] for c in run("analyze_list", grid=clients)["cards"]}
+    assert cli_main.parse([f"{old}_delete", note["card"]]) == (f"{old}_delete", {"card": note["card"]})
+    assert cli_main.main([f"{old}_delete", note["card"]]) == 0
     tools = {t.name for t in asyncio.run(mcp_server.server.list_tools())}
-    assert "visualizations_formats" in tools and "sandbox_formats" not in tools
-    result = asyncio.run(mcp_server.server.call_tool("sandbox_formats", {}))
+    assert "analyze_formats" in tools and f"{old}_formats" not in tools
+    result = asyncio.run(mcp_server.server.call_tool(f"{old}_formats", {}))
     assert "kinds" in "".join(getattr(part, "text", "") for part in getattr(result, "content", result))
+
+
+def test_the_agent_reaches_every_analysis_through_its_contract(live: Live) -> None:
+    """analyze_contracts, analyze_check, analyze_plan, analyze_run: one source for the page and the agent."""
+    rows = "\n".join(
+        f"client {i}\t{100 + (i * 37) % 900}.5\t{('east', 'west', 'north')[i % 3]}" for i in range(30)
+    )
+    clients = str(run("datasets_paste", name="clients", text="client\tbalance\tregion\n" + rows)["grid"])
+    contracts = run("analyze_contracts")
+    ids = [c["id"] for c in contracts["contracts"]]
+    assert "benford" in ids and run("analyze_contracts", analysis="odds")["slots"][0]["key"] == "column"
+    assert data_of(execute("analyze_tables", {}))["current"] == clients
+    checked = data_of(execute("analyze_check", {"table": clients}))
+    assert {e["analysis"] for e in checked["ranked"]} == set(ids) - {"profile", "check"}
+    one = data_of(execute("analyze_check", {"table": "clients", "analysis": "outliers"}))
+    assert one["columns"] == {"column": "balance"} and one["ready"] is True
+    plan = data_of(execute("analyze_plan", {"analysis": "outliers", "table": clients}))
+    assert plan["sentence"].startswith("Find the unusual values of balance")
+    assert data_of(execute("analyze_column", {"table": clients, "column": "balance"}))["analyses"]
+    ran = data_of(execute("analyze_run", {"analysis": "profile", "table": clients}))
+    assert ran["cards"] and ran["cards"][0] in {c["id"] for c in run("analyze_all")["cards"]}
+    listed = data_of(execute("analyze_runs", {}))
+    assert listed["runs"][0]["run"] == ran["run"] and listed["runs"][0]["who"] == "agent"
+    assert data_of(execute("analyze_runs", {"run": ran["run"]}))["analysis"] == "profile"
+    opened = data_of(execute("analyze_runs", {"run": ran["run"], "show": "grid"}))
+    assert opened["dataset"] == "clients_profile"
+    with pytest.raises(CommandError, match="has no math to show"):
+        execute("analyze_runs", {"run": ran["run"], "show": "math"})
+    with pytest.raises(CommandError, match="has no code to copy"):
+        execute("analyze_runs", {"run": ran["run"], "show": "code"})
+    sample = run("analyze_sample", analysis="benford")
+    assert sample["dataset"] == "sample_benford" and sample["columns"] == {"column": "amount"}
+    tried = data_of(execute("analyze_run", {"analysis": "benford", "sample": True}))
+    assert tried["dataset"] == "sample_benford" and "math" in tried["actions"]
+    assert "markdown" in data_of(execute("analyze_runs", {"run": tried["run"], "show": "math"}))
+    assert "stats.fit_test" in data_of(execute("analyze_runs", {"run": tried["run"], "show": "code"}))["code"]
+    assert run("analyze_cancel", token="nothing-running") == {"cancelled": False}
+    with pytest.raises(CommandError, match="Nothing in clients fits dates"):
+        execute("analyze_run", {"analysis": "time_series", "table": clients})
+
+
+def test_the_agent_applies_a_fix_with_the_steps_commands_or_analyze_fix(live: Live) -> None:
+    """analyze_check's fixes carry their steps: steps_add applies one, and so does analyze_fix by its id."""
+    rows = "\n".join(f"invoice {i}\t${10 ** (1 + i % 4) + i * 7}" for i in range(40))
+    text = "invoice\tamount\n" + rows
+    for way in ("analyze_fix", "steps_add"):
+        grid = run("datasets_paste", name=f"sales_{way}", text=text)["grid"]
+        checked = data_of(execute("analyze_check", {"table": grid, "analysis": "benford"}))
+        assert checked["ready"] is False
+        fix = next(f for f in checked["fixes"] if f["level"] == "needed")
+        assert fix["sentence"] == "Read amount as numbers: 40 of 40 values are numbers."
+        step = fix["steps"][0]
+        assert step["kind"] == "sql" and run("tabs_get", grid=grid)["steps"] == []
+        if way == "analyze_fix":
+            fixed = run("analyze_fix", analysis="benford", table=grid, fixes=[fix["id"]])
+            assert fixed["ready"] is True and fixed["columns"] == {"column": "amount"}
+        else:
+            run("steps_add", grid=grid, kind=step["kind"], params=step["params"])
+        assert len(run("tabs_get", grid=grid)["steps"]) == 1
+        ran = data_of(execute("analyze_run", {"analysis": "benford", "table": grid}))
+        assert ran["columns"] == {"column": "amount"} and ran["cards"]
 
 
 def test_key_finder_relationships_and_compare(live: Live, clients: str) -> None:
@@ -673,7 +746,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # tabs_reload (a file changed on disk: Reload, steps kept).
     # 83,400 (2026-11-18): the variable references (12.7) added variables_resolve and variables_uses;
     # 84,200 (2026-11-19): the Team box's four (team_status, _join, _start, _leave).
-    assert size < 84_200, f"the tool list is {size} characters"
+    # 86,000 (2026-11-19): the Analyze page's ten: analyze_contracts, _tables, _check, _plan, _column, _fix,
+    # _run, _cancel, _runs (a result's inputs, math, code, grid) and _sample; analyze_shape and
+    # analyze_defaults went (the checker answers both).
+    assert size < 86_000, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

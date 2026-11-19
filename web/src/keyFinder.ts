@@ -91,7 +91,7 @@ export function openKeyFinderWindow(): void {
 
 export const pct = (share: number): string => `${(Math.round(share * 1000) / 10).toLocaleString()}%`;
 
-/** The Key Finder's pairs as a Visualizations note: which columns share values, and how much of each side. */
+/** The Key Finder's pairs as an Analyze note: which columns share values, and how much of each side. */
 function keyFinderCards(result: Result): SandboxCard[] {
   const share = (v: number): string => `${Math.round(100 * v)}%`;
   const markdown = [
@@ -192,7 +192,7 @@ export async function renderKeyFinder(body: HTMLElement): Promise<void> {
           )
         : h("p", {}, "No shared values."),
       result.pairs.length > shown.length ? button(`Show all ${formatCount(result.pairs.length)}`, () => { showAll = true; draw(); }, { class: "small" }) : null,
-      result.pairs.length ? button("Send to Visualizations", () => void sendCards(keyFinderCards(result)), { icon: "image", class: "small" }) : null,
+      result.pairs.length ? button("Send to Analyze", () => void sendCards(keyFinderCards(result)), { icon: "image", class: "small" }) : null,
       skippedHere.length || skippedThere.length
         ? h(
             "details",
