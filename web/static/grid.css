@@ -3338,6 +3338,52 @@ body.agent-view .titlebar {
   background: var(--accent);
 }
 
+/* The finder's confidence: green when sure, a quiet grey otherwise (the brand red read as an error). */
+.confidence.sure span {
+  background: var(--ok);
+}
+
+.confidence.unsure span {
+  background: var(--muted);
+}
+
+/* The joins found: the diagram drawn at once, the list beside it as a side panel (relationshipsDialog.ts). */
+.rel-found {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 12px;
+  align-items: start;
+}
+
+.rel-found-diagram {
+  display: grid;
+  place-items: center;
+  min-height: 260px;
+  max-height: 60vh;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.rel-found-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.rel-found-list {
+  max-height: 60vh;
+  margin: 0;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .rel-found {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .rel-table tr.run-holds .rel-col-check,
 .rel-run tr.run-holds td:nth-child(2) {
   color: var(--ok);

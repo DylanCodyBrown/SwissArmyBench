@@ -9,7 +9,8 @@
  *   SAVED SETS  every set found (the person's own and the shared ones): search, apply, check against the
  *               open tables, and from its menu rename, export, delete (not a pack's or a built-in one)
  *   FIND        the relationship finder: how the open tables join, worked out from the data, each
- *               suggestion with its evidence; tick and accept, or reject
+ *               suggestion with its evidence; the confident ones added at once (one Undo in the toast) and
+ *               drawn as a diagram beside the list (2026-11-19); a tick adds or takes one out; reject
  *   IN USE NOW  the joins in use, managed (the owner, 2026-11-17: "I cant mass delete anything or manage
  *               those at all and they dont fit in the window"): a checkbox per row, select all (of the
  *               filtered rows), shift-click ranges, the count; Delete selected and Run on/off for the
@@ -34,6 +35,13 @@ import { saveBlob } from "./profileView";
 import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
 import { busyClick, loadingBlock } from "./loading";
 import { errorHere, errorNote } from "./errorNote";
+import { effectiveTheme } from "./theme";
+
+let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
+const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
+  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
+  return diagramModule;
+};
 
 interface SavedSet {
   name: string;
@@ -367,6 +375,14 @@ export function openRelationships(startFinding = false): void {
     );
   }
 
+  /** What the finder found last (the side panel's list, the diagram's tables). */
+  let lastFound: { tables: string[]; suggestions: Suggestion[]; keys: Record<string, string[]>; seconds: number } | null = null;
+
+  const joinOf = ({ confidence: _c, containment: _a, coverage: _v, orphans: _o, reasons: _r, known: _k, ...join }: Suggestion): Join => join;
+
+  /** The joins found, drawn at once (the owner, 2026-11-19: no Draw diagram step): the diagram of the
+   *  tables they join, the list beside it as a side panel. The confident ones are added straight away with
+   *  one Undo in the toast (in place of the old Accept the ticked joins); a row's tick adds or takes one out. */
   async function find(): Promise<void> {
     clear(findHost, h("h3", { id: "rel-find" }, "Find relationships"), loadingBlock("Looking for relationships among the open tables…"));
     let found: { tables: string[]; suggestions: Suggestion[]; keys: Record<string, string[]>; seconds: number };
@@ -377,28 +393,74 @@ export function openRelationships(startFinding = false): void {
       errorHere(e);
       return;
     }
-    const picked = new Set(found.suggestions.filter((s) => !s.known && s.confidence >= 0.8).map((_, i) => i));
-    const rows = found.suggestions.map((s, i) => {
-      const box = h("input", { type: "checkbox", checked: picked.has(found.suggestions.indexOf(s)) && !s.known, disabled: s.known, "aria-label": `Accept ${s.from} to ${s.to}` }) as HTMLInputElement;
-      box.addEventListener("change", () => (box.checked ? picked.add(i) : picked.delete(i)));
+    lastFound = found;
+    const confident = found.suggestions.filter((s) => !s.known && s.confidence >= 0.8);
+    if (confident.length) {
+      try {
+        await addJoins(found, confident);
+        for (const s of confident) s.known = true;
+        await renderCurrent();
+        toast(`Added ${plural(confident.length, "join")} found in the data.`, "info", { label: "Undo", run: () => void undoAdded() });
+      } catch (e) {
+        errorHere(e);
+      }
+    }
+    await drawFound();
+  }
+
+  async function addJoins(found: { keys: Record<string, string[]> }, chosen: Suggestion[]): Promise<void> {
+    const tables: Record<string, { primary_key: string[] }> = {};
+    for (const s of chosen) if (found.keys[s.to]) tables[s.to] = { primary_key: found.keys[s.to]! };
+    await api("/relationships", "POST", { model: { tables, relationships: chosen.map(joinOf) } });
+  }
+
+  async function undoAdded(): Promise<void> {
+    await undo();
+    if (!lastFound) return;
+    const now = new Set((await currentModel()).relationships.map(keyOf));
+    for (const s of lastFound.suggestions) s.known = now.has(keyOf(s));
+    await drawFound();
+  }
+
+  /** A row's tick: the join added to the ones in use, or taken out again (each with its Undo). */
+  async function toggle(s: Suggestion, on: boolean): Promise<void> {
+    if (!lastFound) return;
+    try {
+      if (on) await addJoins(lastFound, [s]);
+      else await api("/relationships/delete", "POST", { joins: [ends(s)] });
+      s.known = on;
+      toast(on ? `Added ${s.from} → ${s.to}.` : `Took out ${s.from} → ${s.to}.`, "info", { label: "Undo", run: () => void undoAdded() });
+      await renderCurrent();
+      await drawFound();
+    } catch (e) {
+      errorHere(e);
+    }
+  }
+
+  async function drawFound(): Promise<void> {
+    const found = lastFound;
+    if (!found) return;
+    const rows = found.suggestions.map((s) => {
+      const box = h("input", { type: "checkbox", checked: s.known, "aria-label": `Use ${s.from} to ${s.to}` }) as HTMLInputElement;
+      box.addEventListener("change", () => void toggle(s, box.checked));
+      const sure = Math.round(s.confidence * 100);
       return h(
         "li",
-        { class: `suggestion ${s.known ? "known" : ""}` },
+        { class: `suggestion ${s.known ? "known" : ""}`, "data-join": keyOf(s) },
         box,
         h(
           "div",
           { class: "set-text" },
           h(
             "div",
-            {},
+            { class: "rel-found-join" },
             h("strong", {}, s.from),
             " → ",
             h("strong", {}, s.to),
             h("span", { class: "hint" }, ` on ${on(s)} · ${s.kind}`),
             s.active === false ? h("span", { class: "badge" }, "inactive") : null,
-            s.known ? h("span", { class: "badge" }, icon("crown"), "in use") : null,
           ),
-          h("div", { class: "confidence", title: `Confidence ${Math.round(s.confidence * 100)}%` }, h("span", { style: { "--share": `${Math.round(s.confidence * 100)}%` } })),
+          h("div", { class: `confidence ${sure >= 80 ? "sure" : "unsure"}`, title: `Confidence ${sure}%` }, h("span", { style: { "--share": `${sure}%` } })),
           h("details", {}, h("summary", {}, s.evidence ?? "Why"), h("ul", { class: "hint" }, ...s.reasons.map((r) => h("li", {}, r)))),
         ),
         s.known
@@ -408,33 +470,24 @@ export function openRelationships(startFinding = false): void {
             }, { icon: "close", iconOnly: true, class: "ghost", title: "Do not suggest again" }),
       );
     });
+    const picture = h("div", { class: "rel-found-diagram", "aria-label": "The joins in use as a diagram" });
     clear(
       findHost,
       h("h3", { id: "rel-find" }, "Find relationships"),
       h("p", { class: "hint" }, `${found.suggestions.length} joins across ${found.tables.length} tables (${found.seconds} seconds).`),
-      found.suggestions.length ? h("ul", { class: "suggestion-list" }, ...rows) : h("p", { class: "hint" }, "No joins found."),
-      h(
-        "div",
-        { class: "row-actions" },
-        button("Accept the ticked joins", () => void accept(found, picked), { class: "primary", icon: "check" }),
-        button("Find again", () => void find(), { class: "ghost" }),
-      ),
+      found.suggestions.length
+        ? h("div", { class: "rel-found" }, picture, h("ul", { class: "suggestion-list rel-found-list", "aria-label": "Joins found" }, ...rows))
+        : h("p", { class: "hint" }, "No joins found."),
+      h("div", { class: "row-actions" }, button("Find again", () => void find(), { class: "ghost", icon: "zoom" })),
     );
-  }
-
-  async function accept(found: { suggestions: Suggestion[]; keys: Record<string, string[]> }, picked: Set<number>): Promise<void> {
-    const chosen = found.suggestions.filter((_, i) => picked.has(i));
-    if (!chosen.length) return errorHere("No joins ticked.");
-    const tables: Record<string, { primary_key: string[] }> = {};
-    for (const s of chosen) if (found.keys[s.to]) tables[s.to] = { primary_key: found.keys[s.to]! };
-    const relationships = chosen.map(({ confidence: _c, containment: _a, coverage: _v, orphans: _o, reasons: _r, known: _k, ...join }) => join);
+    if (!found.suggestions.length) return;
     try {
-      await api("/relationships", "POST", { model: { tables, relationships } });
-      toast(`Accepted ${chosen.length} joins.`);
-      await renderCurrent();
-      await find();
+      const erd = await api<{ mermaid: string }>(`/relationships/erd?tables=${encodeURIComponent(found.tables.join(","))}`);
+      const m = await diagrams();
+      if (!picture.isConnected) return;
+      await m.drawDiagram(picture, erd.mermaid, effectiveTheme() !== "light");
     } catch (e) {
-      errorHere(e);
+      picture.replaceChildren(errorNote(e, { dismiss: false }));
     }
   }
 

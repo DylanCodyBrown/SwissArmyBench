@@ -830,7 +830,7 @@ def test_6_a_csv_folder_workbook_sheets_and_a_database_table_are_combined_and_th
     act.click(workbench.get_by_role("button", name="Run all"))
     act.click(workbench.locator(".wb-to-grid").last)
     expect(tabs.filter(has_text="daily")).to_have_count(1, timeout=LONG)
-    # The joins: Find relationships in the ERD, the likely ones ticked, accepted.
+    # The joins: Find relationships in the ERD; the likely ones are added at once and drawn.
     page.bring_to_front()
     act.click(page.locator(".nav-rail [data-area='erd']"))
     act.click(page.locator("#erd-view").get_by_role("button", name="Find relationships"))
@@ -843,7 +843,6 @@ def test_6_a_csv_folder_workbook_sheets_and_a_database_table_are_combined_and_th
         "catalogue_Products → catalogue_Categories on category_id",
     ):
         expect(found).to_contain_text(join)
-    act.click(page.get_by_role("button", name="Accept the ticked joins"))
     wait_until(lambda: len(call(bench, "GET", "/relationships")["relationships"]) >= 3, 30)
     act.done(ceiling=40)
     joins = {(j["from"], j["to"]) for j in call(bench, "GET", "/relationships")["relationships"]}
