@@ -8,6 +8,7 @@ documents them:
   GET  /msi/token?resource=...                         a managed identity's (IDENTITY_ENDPOINT and
                                                        IDENTITY_HEADER point it here)
   GET  /api/data/v9.2/WhoAmI                           who signed in
+  GET  /api/data/v9.2/systemusers(...)/systemuserroles_association   its security roles' names
   GET  /api/data/v9.2/EntityDefinitions?$select=...&$filter=IsPrivate eq false[&$expand=Attributes(...)]
   GET  /api/data/v9.2/EntityDefinitions(LogicalName='account')/Attributes?$select=...
   GET  /api/data/v9.2/accounts?$select=...&$filter=...&$orderby=...&$top=...&$count=true
@@ -54,6 +55,7 @@ TOKEN = "made-up-dataverse-token-1004"
 IDENTITY_HEADER = "made-up-identity-header-1005"
 USER = "aaaaaaaa-1111-4222-8333-444444444444"
 ORGANIZATION = "bbbbbbbb-5555-4666-8777-888888888888"
+ROLES = ("Basic User", "Sales Reader")  # the application user's security roles (made up)
 OPPORTUNITIES = 6_200
 LABEL = "@OData.Community.Display.V1.FormattedValue"
 API = "/api/data/v9.2"
@@ -379,6 +381,8 @@ class StandIn:
         try:
             if rest == "WhoAmI":
                 return 200, {"UserId": USER, "BusinessUnitId": USER, "OrganizationId": ORGANIZATION}
+            if rest == f"systemusers({USER})/systemuserroles_association":  # the signed-in user's roles
+                return 200, {"value": [{"name": r} for r in ROLES]}
             if rest == "EntityDefinitions":
                 return 200, {"value": self.definitions(query)}
             found = re.fullmatch(r"EntityDefinitions\(LogicalName='(\w+)'\)/Attributes", rest)

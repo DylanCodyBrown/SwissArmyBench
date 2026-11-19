@@ -28,6 +28,10 @@ PROJECT_TYPE = "powerbi"
 SOURCE_KEY = "powerbi_source"
 REGISTRATION_KEY = "powerbi_registration"
 SOURCE_WORDS = {"published": "Published", "local": "Local", "file": "the file"}
+# The connection kinds an app registration signs in (re-pointed by the project's App registration).
+MICROSOFT_TEMPLATES = frozenset(
+    {"sqlserver", "azuresql", "dataverse", "sharepoint", "sharepoint_docs", "datalake", "onelake", "delta"}
+)
 
 
 class Reader(Protocol):
@@ -546,7 +550,7 @@ class PowerBIProject:
                 blade = self.base.connections.blade(name)[0]
             except Exception:  # noqa: S112 (gone)
                 continue
-            if blade.template in ("sqlserver", "azuresql", "dataverse", "sharepoint", "datalake", "onelake"):
+            if blade.template in MICROSOFT_TEMPLATES:
                 out.append(name)
         return out
 
@@ -589,26 +593,15 @@ class PowerBIProject:
         return {"registration": name, "changes": changes, "to_finish": await self.to_finish()}
 
     async def _repoint(self, name: str, reg: Any, who: str) -> None:
-        """A SQL Server connection made to sign in with the registration's variables."""
-        from swissarmybench.domain import sql_server
-        from swissarmybench.domain.blades import apply_settings
+        """A Microsoft connection (Azure SQL or SQL Server with Entra, Dataverse, SharePoint, OneLake, Data
+        Lake) made to sign in with the registration's variables: its kind's app-registration code, its place
+        settings kept (domain/app_registrations.py signed_in_with)."""
+        from swissarmybench.domain import app_registrations as registrations
 
         blade = self.base.connections.blade(name)[0]
-        if blade.template not in ("sqlserver", "azuresql"):
+        code = registrations.signed_in_with(str(blade.template or ""), blade.code, reg)
+        if code is None:
             return
-        settings = _settings_of(blade.code)
-        code = sql_server.code("app_secret", "my-server")
-        found = {s.name: s.id for s in detect_settings(code)}
-        values = {
-            "server": settings.get("server", ""),
-            "database": settings.get("database", ""),
-            "tenant_id": "${" + reg.tenant + "}",
-            "client_id": "${" + reg.client + "}",
-        }
-        filled = {found[k]: {"text": v} for k, v in values.items() if k in found and v}
-        code = apply_settings(code, filled).replace('secret("client secret")', f'os.environ["{reg.secret}"]')
-        if "import os\n" not in code:
-            code = "import os\n" + code
         body = {
             "name": name,
             "kind": blade.kind,

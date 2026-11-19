@@ -271,13 +271,168 @@ def powerbi_refused(status: int, said: str, workspace: str = "") -> tuple[str, s
     return f"Power BI answered {status}", "Check again later"
 
 
-NOT_CHECKED_KINDS: dict[str, str] = {
-    "sqlserver": "reaching the database needs its server on this network: Check again there",
-    "dataverse": "WhoAmI is asked once the connection signs in with this registration",
-    "sharepoint": "its sites are listed once the connection signs in with this registration",
-    "datalake": "its paths are listed once the connection signs in with this registration",
-    "onelake": "its paths are listed once the connection signs in with this registration",
+NOT_CHECKED_KINDS: dict[str, str] = {}  # every Microsoft kind is checked now (CHECKED_KINDS)
+
+# The Microsoft kinds an access report reaches, read-only, each signed in as the registration with its own
+# scope: Azure SQL (connect, the databases it sees, SELECT TOP 0 on its tables), Dataverse (WhoAmI, its
+# roles' names), SharePoint (the named site, its lists and libraries), OneLake and Data Lake (a listing of
+# the named path).
+CHECKED_KINDS: dict[str, str] = {
+    "sqlserver": "https://database.windows.net/.default",
+    "dataverse": "",  # the environment's own: <its address>/.default
+    "sharepoint": "https://graph.microsoft.com/.default",
+    "sharepoint_docs": "https://graph.microsoft.com/.default",
+    "datalake": "https://storage.azure.com/.default",
+    "onelake": "https://storage.azure.com/.default",
+    "delta": "https://storage.azure.com/.default",
 }
+
+
+NOT_HERE = -1  # a Refused status: the check cannot run on this computer (a driver not installed): not checked
+
+# Each kind's area in the report, in words.
+AREAS: dict[str, str] = {
+    "sqlserver": "Azure SQL",
+    "dataverse": "Dataverse",
+    "sharepoint": "SharePoint",
+    "sharepoint_docs": "SharePoint",
+    "datalake": "Data Lake",
+    "onelake": "OneLake",
+    "delta": "Data Lake",
+}
+
+
+def scope_for(kind: str, settings: Mapping[str, str]) -> str:
+    """The token's scope for a kind's check (Dataverse: the environment's own address)."""
+    if kind == "dataverse":
+        return str(settings.get("url") or "").rstrip("/") + "/.default"
+    return CHECKED_KINDS.get(kind, "")
+
+
+def place_words(kind: str, settings: Mapping[str, str]) -> str:
+    """What a kind's check names, in words: the database, the environment, the site, the path."""
+    if kind == "sqlserver":
+        return " on ".join(p for p in (settings.get("database", ""), settings.get("server", "")) if p)
+    if kind == "dataverse":
+        return settings.get("url", "")
+    if kind in ("sharepoint", "sharepoint_docs"):
+        return settings.get("site_url", "")
+    if kind == "onelake":
+        return "/".join(p for p in (settings.get("workspace", ""), settings.get("item", "")) if p)
+    if kind == "delta":
+        return settings.get("root", "")
+    return "/".join(
+        p
+        for p in (
+            settings.get("account", ""),
+            settings.get("container", ""),
+            settings.get("folder_in_container", ""),
+        )
+        if p
+    )
+
+
+def lake_place(kind: str, settings: Mapping[str, str]) -> tuple[str, str, str] | None:
+    """(account, filesystem, directory) a lake kind's check lists; None: not an Azure path."""
+    if kind == "datalake":
+        return (
+            settings.get("account", ""),
+            settings.get("container", ""),
+            settings.get("folder_in_container", ""),
+        )
+    if kind == "onelake":
+        return "onelake", settings.get("workspace", ""), settings.get("item", "")
+    if kind == "delta":
+        found = re.fullmatch(r"abfss://([^@/]+)@([^./]+)\.dfs\.[^/]+/?(.*)", settings.get("root", ""))
+        return (found.group(2), found.group(1), found.group(3)) if found else None
+    return None
+
+
+def refused_words(kind: str, status: int, said: str) -> tuple[str, str]:
+    """A refusal from a kind's check: (the plain reason, the fix)."""
+    if kind == "sqlserver":
+        if "18456" in said or "Login failed" in said:
+            return (
+                "the database refused its sign-in: it is not a user there",
+                "Add it as a user: CREATE USER [<app name>] FROM EXTERNAL PROVIDER",
+            )
+        if "40615" in said or "firewall" in said.casefold():
+            return "the server's firewall does not let this computer in", "Allow this address on the server"
+        return f"the database refused it: {said[:200]}", "Check its server and database"
+    if kind == "dataverse":
+        if status in (401, 403):
+            return (
+                "it is not an application user of this environment",
+                "Add it as an application user with a security role (Power Platform admin center)",
+            )
+        return f"Dataverse answered {status}", "Check the environment's address"
+    if kind in ("sharepoint", "sharepoint_docs"):
+        if status in (401, 403):
+            return (
+                "Graph refused it: it has no Sites.Selected or Sites.Read.All permission for the site",
+                "Grant it Sites.Selected on this site (or Sites.Read.All) and admin consent",
+            )
+        if status == 404:
+            return "Graph does not find the site", "Check the site's address"
+        return f"Graph answered {status}", "Check again later"
+    if status in (401, 403):
+        return (
+            "the storage refused it: it has no data role on the path",
+            "Give it Storage Blob Data Reader on the account (OneLake: a workspace role)",
+        )
+    if status == 404:
+        return "the path does not exist", "Check the account, container and folder"
+    return f"the storage answered {status}", "Check again later"
+
+
+# ===== a connection signed in with a registration (re-pointing) =====
+
+
+def _app_code(kind: str, root: str) -> str | None:
+    """The kind's app-registration code, from its starter (the place settings filled after)."""
+    from swissarmybench.domain import dataverse, lakes, sharepoint, sql_server
+
+    if kind == "sqlserver":
+        return sql_server.code("app_secret", "my-server")
+    if kind == "dataverse":
+        return dataverse.APP
+    if kind == "onelake":
+        return lakes.ONELAKE_SIGN_INS[0][2]
+    if kind == "datalake":
+        return lakes.DATALAKE_SIGN_INS[0][2]
+    if kind == "delta":
+        return lakes.DELTA_SIGN_INS[0][2] if root.startswith("abfss://") else None
+    if kind == "sharepoint":
+        return next(c for _label, mark, c in sharepoint.LISTS_SIGN_INS if mark == _APP_MARK)
+    if kind == "sharepoint_docs":
+        return next(c for _label, mark, c in sharepoint.DOCS_SIGN_INS if mark == _APP_MARK)
+    return None
+
+
+_APP_MARK = "# Sign in as an app registration"
+_SIGN_IN_NAMES = frozenset({"tenant_id", "client_id", "tenant", "client"})
+
+
+def signed_in_with(kind: str, code: str, reg: Registration) -> str | None:
+    """The connection's code made to sign in with the registration's variables (`os.environ[...]` in it): its
+    kind's app-registration code with the connection's place settings carried over (their `${NAME}` kept).
+    None: its kind does not sign in with an app registration (on-premises SQL, a folder, S3)."""
+    from swissarmybench.domain.blades import apply_settings, detect_settings
+
+    try:
+        own = {s.key: s.text for s in detect_settings(code) if s.text is not None}
+    except Exception:  # code the reader does not follow: its kind's defaults
+        own = {}
+    made = _app_code("sqlserver" if kind == "azuresql" else kind, str(own.get("root") or ""))
+    if made is None:
+        return None
+    values = {k: v for k, v in own.items() if k not in _SIGN_IN_NAMES}
+    values |= {"tenant_id": "${" + reg.tenant + "}", "client_id": "${" + reg.client + "}"}
+    found = {s.key: s.id for s in detect_settings(made)}
+    filled = {found[k]: {"text": v} for k, v in values.items() if k in found and v}
+    out = apply_settings(made, filled) if filled else made
+    out = out.replace('secret("client secret")', f'os.environ["{reg.secret}"]')
+    return out if out.startswith("import os\n") or "\nimport os\n" in out else "import os\n" + out
 
 
 def uses(code: str, registration: Registration) -> bool:

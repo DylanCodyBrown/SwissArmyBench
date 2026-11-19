@@ -5,6 +5,7 @@ not, the tenant setting's refusal). Made-up values only; no secret is ever answe
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,8 @@ def standin(monkeypatch: pytest.MonkeyPatch) -> Iterator[made_up.StandIn]:
     running = made_up.StandIn().start()
     for name, value in running.environment().items():
         monkeypatch.setenv(name, value)
+    monkeypatch.setenv("SWISSARMYBENCH_LOGIN_URL", running.url)  # the kinds' own sign-in: never Microsoft
+    monkeypatch.setitem(sys.modules, "mssql_python", None)  # no driver here: Azure SQL said not checked
     yield running
     running.stop()
 
@@ -110,13 +113,15 @@ def test_the_access_report_and_a_connections_access_section(tmp_path: Path, stan
         assert marks[("Sign-in", "Contoso BI")] == "✓"
         assert marks[("Power BI", "the Finance workspace")] == "✓"
         assert marks[("Power BI", "Sales model")] == "✓"  # one COUNTROWS, its answer not kept
-        assert marks[("Connection", "Warehouse")] == "not checked"
+        assert marks[("Azure SQL", "my_database on sql01.contoso.example")] == "not checked"
         assert made_up.SECRET not in str(report) and made_up.TOKEN not in str(report)
         access = ok(client.get("/connections/Warehouse/access", headers=AGENT))["access"][0]
-        assert access["registration"] == "Contoso BI" and access["line"] == "1 not checked"
+        assert access["registration"] == "Contoso BI" and access["line"] == "✓ 1, 1 not checked"
         facts = await_state(ctx)
         warehouse = next(c for c in facts.connections if c.name == "Warehouse")
-        assert warehouse.access and warehouse.access[0].startswith("`Contoso BI`: 1 not checked, checked 20")
+        assert warehouse.access and warehouse.access[0].startswith(
+            "`Contoso BI`: ✓ 1, 1 not checked, checked 20"
+        )
 
         # The tenant setting off: the plain reason and the fix.
         standin.tenant_setting_off = True

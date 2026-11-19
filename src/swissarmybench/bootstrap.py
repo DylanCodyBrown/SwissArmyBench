@@ -28,7 +28,7 @@ from swissarmybench.adapters import blade_run
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
-from swissarmybench.adapters.app_registrations import PowerBIProbe, RegistrationFiles
+from swissarmybench.adapters.app_registrations import MicrosoftProbe, RegistrationFiles
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
@@ -861,10 +861,11 @@ def bootstrap(
     app_registrations = AppRegistrations(
         ws,
         RegistrationFiles(lambda: library_folder.root, library_folder.ensure),
-        PowerBIProbe(),
+        MicrosoftProbe(),
         variables.values,
         every_connection,
     )
+    app_registrations.tables_of = catalogs.places  # Azure SQL's SELECT TOP 0 on its catalog's tables
     datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
     structures.variables = variables
     api_explorer.variables = variables
