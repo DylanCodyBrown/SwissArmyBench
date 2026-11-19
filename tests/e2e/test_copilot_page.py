@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -20,7 +21,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.test_ui import browser, call  # noqa: F401
+from tests.e2e.test_ui import browser, call, close_pages  # noqa: F401
 from tests.e2e.test_workbench_page import add_cell, start
 
 SHOTS = os.environ.get("SWISSARMYBENCH_COPILOT_SHOTS")
@@ -188,7 +189,13 @@ def test_a_private_project_sends_nothing(browser: Browser, server: dict[str, Any
     page = workbench(browser, server)
     item = page.locator(".inline-status")
     expect(item).to_have_text("Completions: GitHub Copilot · private", timeout=10000)
+    # The open project's notebook opens by itself as the window starts; a script made before it arrived
+    # went behind it (the cause of this test's failures, alone too): wait for it, then make the script.
+    expect(page.get_by_role("tab", name="data.ipynb Close data.ipynb")).to_be_visible(timeout=20000)
     start(page, "New script")
+    expect(page.get_by_role("tab", name=re.compile(r"^Untitled script")).first).to_have_attribute(
+        "aria-selected", "true"
+    )
     editor = page.locator(".wb-script-editor .monaco-editor")
     expect(editor).to_be_visible(timeout=20000)
     before = len(sent(server))

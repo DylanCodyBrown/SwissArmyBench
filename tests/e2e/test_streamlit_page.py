@@ -32,7 +32,7 @@ from playwright.sync_api import Browser, FrameLocator, Locator, Page, expect
 from swissarmybench.client import push_client
 from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 from tests.e2e.test_workbench_page import menu
 from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
@@ -79,13 +79,20 @@ def metric(frame: FrameLocator) -> Locator:
 def pick(frame: FrameLocator, page: Page, option: str) -> None:
     """Choose a selectbox's option in a live Streamlit page."""
     frame.locator('[data-testid="stSelectbox"] input').click()
-    frame.get_by_role("option", name=option).click()
-    page.wait_for_timeout(200)
+    chosen = frame.get_by_role("option", name=option)
+    chosen.click()
+    expect(chosen).to_have_count(0)  # the list closed: the choice is made, the page reruns on it
 
 
-def is_above(upper: Locator, lower: Locator) -> bool:
-    above, below = upper.bounding_box(), lower.bounding_box()
-    return above is not None and below is not None and above["y"] + above["height"] <= below["y"]
+def is_above(upper: Locator, lower: Locator, seconds: float = 10) -> bool:
+    """Whether `upper` ends above `lower` once the page has laid them out (asked again until it does: a
+    live page's pieces arrive one by one)."""
+
+    def above() -> bool:
+        top, bottom = upper.bounding_box(), lower.bounding_box()
+        return top is not None and bottom is not None and top["y"] + top["height"] <= bottom["y"]
+
+    return bool(until(above, seconds))
 
 
 @pytest.fixture

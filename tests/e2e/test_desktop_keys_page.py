@@ -6,13 +6,12 @@ Not now). tests/test_desktop_shell.py runs the real app. Made-up data only."""
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from typing import Any
 
-from playwright.sync_api import Browser, Page, expect
+from playwright.sync_api import Browser, Locator, Page, expect
 
-from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, frames, open_grid, server  # noqa: F401
 from tests.e2e.test_workbench_page import seen_by_server
 
 IN_APP = (
@@ -56,7 +55,7 @@ def test_the_browsers_keys_are_the_apps_only_in_the_app(
         page = open_grid(browser, f"{base}/g/{east}#token={server['token']}")
         expect(tab(page, "west_orders")).to_have_count(1, timeout=20000)
         page.keyboard.press("Control+Tab")
-        page.wait_for_timeout(300)
+        frames(page)  # a key's handler has run and drawn by then
         assert front(page) == "east_orders"
         page.context.close()
         # In the app: Ctrl+Tab goes round, Ctrl+W closes the tab in front, Ctrl+Shift+T brings it back with
@@ -91,9 +90,11 @@ def test_the_browsers_keys_are_the_apps_only_in_the_app(
         ).to_have_text("Ctrl+Shift+T")
         page.keyboard.press("Escape")
         # Every tab closed: Ctrl+W closes the window (the shell's close).
+        tabs = page.locator(".tab-item")
         for _ in range(2):
+            left = tabs.count() - 1
             page.keyboard.press("Control+w")
-            page.wait_for_timeout(400)
+            expect(tabs).to_have_count(left)
         page.keyboard.press("Control+w")
         page.wait_for_function("window.__closed === true", timeout=10000)
         context.close()
@@ -103,6 +104,21 @@ def test_the_browsers_keys_are_the_apps_only_in_the_app(
                 call(server, "DELETE", f"/datasets/{name}")
             except Exception:  # noqa: S110 (closed by the test already)
                 pass
+
+
+def changed_on_disk(bar: Locator, csv: Path, text: str) -> None:
+    """Writes the file until the page says it changed. The server stamps a table's file at its first look
+    after the load (every 3 s, services/file_watch.py): a write before that look is the stamp itself, so
+    the same text is written again (a new modification time) after a look's time, instead of a fixed wait
+    for the first look before writing."""
+    for _ in range(4):
+        csv.write_text(text, encoding="utf-8")
+        try:
+            expect(bar).to_contain_text("Changed on disk", timeout=3500)
+            return
+        except AssertionError:
+            continue
+    expect(bar).to_contain_text("Changed on disk")
 
 
 def test_a_file_that_changed_on_disk_says_so_with_reload_and_not_now(
@@ -124,18 +140,14 @@ def test_a_file_that_changed_on_disk_says_so_with_reload_and_not_now(
         page = open_grid(browser, f"http://127.0.0.1:{server['port']}/g/{grid}#token={server['token']}")
         bar = page.locator(".pane:not([hidden]) .file-changed")
         expect(tab(page, "stock")).to_have_count(1, timeout=20000)
-        time.sleep(4)  # the server's first look stamps the file as it was read
-        csv.write_text("sku,qty\nA-1,3\nB-2,5\nC-3,9\n", encoding="utf-8")
-        expect(bar).to_contain_text("Changed on disk", timeout=15000)
+        changed_on_disk(bar, csv, "sku,qty\nA-1,3\nB-2,5\nC-3,9\n")
         expect(tab(page, "stock").locator(".tab-changed")).to_have_count(1)
         assert call(server, "GET", f"/grids/{grid}/count")["row_count"] == 1  # never reloaded by itself
         bar.get_by_role("button", name="Reload").click()
         expect(bar).to_have_count(0, timeout=15000)
         expect(tab(page, "stock").locator(".tab-changed")).to_have_count(0)
         assert call(server, "GET", f"/grids/{grid}/count")["row_count"] == 2  # read again, its step kept
-        time.sleep(4)
-        csv.write_text("sku,qty\nA-1,3\n", encoding="utf-8")
-        expect(bar).to_contain_text("Changed on disk", timeout=15000)
+        changed_on_disk(bar, csv, "sku,qty\nA-1,3\n")
         bar.get_by_role("button", name="Not now").click()
         expect(bar).to_have_count(0, timeout=10000)
         assert call(server, "GET", f"/grids/{grid}/count")["row_count"] == 2  # kept as it was

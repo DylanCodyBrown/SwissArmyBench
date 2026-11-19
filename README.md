@@ -906,13 +906,20 @@ npm run typecheck
 ## Checks (run before a commit)
 
 ```powershell
-.venv\Scripts\python -m pytest -q                 # 300+ tests, including the browser ones
-.venv\Scripts\python -m pytest -q tests\e2e       # just the browser tests (Edge, headless)
+.venv\Scripts\python -m pytest -q --ignore=tests\e2e -n 4 --dist loadfile   # the unit tests, four at once
+.venv\Scripts\python -m pytest -q tests\e2e -n 2 --dist loadfile            # the browser tests (Edge, headless), two at once
+.venv\Scripts\python -m pytest -q                 # everything in one process (slower; what a failure is retried with)
 .venv\Scripts\python -m ruff check .
 .venv\Scripts\python -m ruff format --check .
 .venv\Scripts\python -m mypy
 cd web; npm run typecheck
 ```
+
+`-n` is pytest-xdist (a dev dependency): `--dist loadfile` keeps each test file in one process, so a
+file's shared server and browser are its own. Every test binds its ports through the system (port 0, the
+socket handed over, `tests/live_server.py`) and keeps its files in its own temporary folder, so parallel
+runs do not meet. A browser test waits for what it checks (an `expect`, a server read polled, a response),
+never a fixed time, unless it checks that something does not happen; then the wait is short and says why.
 
 The real-world test bed (`tools/testbed/README.md`) runs eleven of the owner's use cases end to end
 in a real browser against real PostgreSQL and MariaDB and stand-ins for Power BI and Azure Key Vault,

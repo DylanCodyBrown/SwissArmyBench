@@ -14,7 +14,7 @@ from urllib.parse import quote
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.domain import notebooks
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 from tests.e2e.test_workbench_page import add_cell, start
 
 SALES = "sales = pd.DataFrame({'store': ['North', 'South', 'East', 'West'], 'amount': [10, 20, 30, 40]})"
@@ -60,6 +60,12 @@ def type_cell(workbench: Page, index: int, text: str) -> None:
     expect(editor).to_be_visible(timeout=20000)
     editor.click()
     workbench.keyboard.insert_text(text)
+
+
+def arranged(workbench: Page) -> Any:
+    """Around typing: waits for the app's answer to it (the uses lines follow the typing after a pause,
+    workbenchNotebook.ts's arrange), instead of a fixed wait."""
+    return workbench.expect_response(lambda r: "/workbench/tables/arrange" in r.url, timeout=15000)
 
 
 def source_of(server: dict[str, Any], number: int) -> str:
@@ -182,14 +188,14 @@ def test_the_uses_line_follows_the_typing_and_a_cell_link_goes_to_its_cell(
     # cursor is where it was (the next keys land at the end of what was typed).
     user = workbench.locator(".wb-cell").last
     user.locator(".monaco-editor").click()
-    workbench.keyboard.type("# sales in a comment and 'sales' in a string do not count")
-    workbench.wait_for_timeout(1200)
+    with arranged(workbench):
+        workbench.keyboard.type("# sales in a comment and 'sales' in a string do not count")
     assert source_of(server, 2) == "# sales in a comment and 'sales' in a string do not count"
     workbench.keyboard.press("Enter")
     workbench.keyboard.type("big = sales")
     expect(user.locator(".view-lines")).to_contain_text(f"# uses sales @cell{number}", timeout=10000)
-    workbench.keyboard.type(".head(2)")
-    workbench.wait_for_timeout(1200)
+    with arranged(workbench):
+        workbench.keyboard.type(".head(2)")
     assert source_of(server, 2).split("\n") == [
         f"# uses sales @cell{number}",
         "# sales in a comment and 'sales' in a string do not count",
@@ -198,16 +204,16 @@ def test_the_uses_line_follows_the_typing_and_a_cell_link_goes_to_its_cell(
     # A longer name is another name: the line goes when the cell names no table any more.
     for _ in range(len(".head(2)")):
         workbench.keyboard.press("Backspace")
-    workbench.keyboard.type("_2026")
-    workbench.wait_for_timeout(1500)
+    with arranged(workbench):
+        workbench.keyboard.type("_2026")
     assert source_of(server, 2).split("\n") == [
         "# sales in a comment and 'sales' in a string do not count",
         "big = sales_2026",
     ]
     # Undo takes the typing back; the app does not answer an undo with an edit of its own.
-    for _ in range(6):
-        workbench.keyboard.press("Control+z")
-    workbench.wait_for_timeout(1500)
+    with arranged(workbench):
+        for _ in range(6):
+            workbench.keyboard.press("Control+z")
     assert "@cell" not in source_of(server, 2) and "# uses" not in source_of(server, 2)
     workbench.keyboard.press("Control+a")
     workbench.keyboard.type("report = sales")
@@ -257,9 +263,13 @@ def test_a_maker_that_needs_something_further_down_stays_put_with_a_link(
     expect(line).to_contain_text("sales is made at @cell2 (it needs add_tax and pd)", timeout=20000)
     # Its cells stay where they are, together: the maker, then its transformations.
     kinds = "l => l.map(e => e.classList.contains('role-transformations') ? 'table cell' : e.classList[0])"
-    order = workbench.locator(".wb-cells > section").evaluate_all(kinds)
-    assert order == ["wb-tcell", "wb-tcell", "wb-cell", "wb-cell", "table cell"]
     expect(workbench.locator(".wb-tcell.role-transformations")).to_be_visible()
+    wanted = ["wb-tcell", "wb-tcell", "wb-cell", "wb-cell", "table cell"]
+    cells = workbench.locator(".wb-cells > section")
+    order = until(lambda: (o := cells.evaluate_all(kinds)) == wanted and o, seconds=10) or cells.evaluate_all(
+        kinds
+    )
+    assert order == wanted
     line.locator(".wb-cell-link").click()
     expect(workbench.locator(".wb-cell").nth(1)).to_have_class(re.compile(r"\bselected\b"))
     close_tables(server)
@@ -431,7 +441,8 @@ def test_a_scripts_tables_are_a_region_of_cells_the_editor_folds_and_draws(
     workbench.locator(".wb-console-head").get_by_role("button", name="Clear").click()
     workbench.get_by_role("button", name="Run file").click()
     expect(log).to_contain_text("rows 2", timeout=60000)
-    workbench.wait_for_timeout(2000)
+    # Nothing is sent to the grid: a moment for a push that should not come (it would follow the run).
+    workbench.wait_for_timeout(500)
     assert next(d["rows"] for d in call(server, "GET", "/datasets")["datasets"] if d["name"] == "sales") == 4
     assert call(server, "GET", f"/grids/{grid}/count")["row_count"] == 2
     # The group folds to one line, and a link in a comment goes to its cell.

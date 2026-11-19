@@ -994,7 +994,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
 web/static/              index.html, grid.css (all theme tokens), build/ (gitignored); design.html is the
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
-tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright),
+tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright; e2e/conftest.py
+                         holds the one browser of the run and the waits' 15 s), live_server.py (a real server in
+                         a thread on a socket already bound, stopped within a second or two),
                          desktop_drive.py (the desktop app really run under Qt off screen: windows, downloads,
                          Print to PDF, outside links, the server stopping with it; test_desktop_shell.py runs it),
                          copilot_standin.py (GitHub's Copilot Language Server stood in for: stdio LSP, a made-up
@@ -1176,7 +1178,8 @@ web/src/workbenchCodeFile.ts (a plug-in) a code app's file in the Workbench's ed
 
 ## Commands
 
-See [README.md](README.md). Before a commit: `pytest -q` (includes the browser tests),
+See [README.md](README.md). Before a commit: `pytest -q --ignore=tests/e2e -n 4 --dist loadfile` and
+`pytest -q tests/e2e -n 2 --dist loadfile` (pytest-xdist; plain `pytest -q` runs it all in one process),
 `ruff check .`, `ruff format --check .`, `mypy`, and `npm run typecheck` in `web/`. Run
 Python as `.venv\Scripts\python -m ...`: `uv run` re-syncs first and fails while a server
 started from `swissarmybench.exe` is running.

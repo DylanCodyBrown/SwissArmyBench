@@ -26,7 +26,7 @@ from swissarmybench.server.blade_templates import POWERBI_VAULT
 from tests import powerbi_standin as made_up
 from tests.e2e.test_streamlit_page import LONG, metric, open_window, saved_notebook, shot
 from tests.e2e.test_table_cells_page import close_tables, window
-from tests.e2e.test_ui import browser, call, server  # noqa: F401
+from tests.e2e.test_ui import browser, call, server, steady_box  # noqa: F401
 from tests.e2e.test_workbench_page import menu, wait_until
 from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
@@ -186,9 +186,18 @@ def test_a_dax_snippet_dragged_onto_a_dax_cell_fills_its_form_from_the_dataset(
     expect(dax.locator(".monaco-editor")).to_be_visible(timeout=20000)
     listed = blades(workbench)
     family(listed, "DAX")
-    listed.locator(".starter-item", has_text="DAX year to date").drag_to(dax.locator(".monaco-editor"))
+    item = listed.locator(".starter-item", has_text="DAX year to date")
+    expect(item).to_be_visible()
+    steady_box(workbench, item)  # the flyout has finished sliding in
     form = workbench.locator("dialog[open]")
-    expect(form.locator("h2")).to_have_text("DAX year to date")
+    for attempt in range(2):  # a drag that started before the editor took drops is tried once more
+        item.drag_to(dax.locator(".monaco-editor"))
+        try:
+            expect(form.locator("h2")).to_have_text("DAX year to date", timeout=20000)
+            break
+        except AssertionError:
+            if attempt:
+                raise
     # Prefilled from the dataset's catalog: a measure, the table it is on, the date table and its date.
     measure = form.get_by_label("Measure", exact=True)
     expect(measure).to_have_value("Customer Count", timeout=20000)

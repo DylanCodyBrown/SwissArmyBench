@@ -220,6 +220,11 @@ def test_the_footer_mark_and_a_shared_card(
     call(server, "POST", "/project/open", {"path": str(shared / "Close")})
     page = open_page(browser, server)
     footer = page.locator(".app-footer")
+    # The footer ready: its mark asked for once (it listens for the save's notice from then on).
+    page.wait_for_function(
+        "() => performance.getEntriesByType('resource').some(e => e.name.includes('/git/mark'))",
+        timeout=20000,
+    )
     expect(footer.locator(".area-mark")).to_have_count(0)  # up to date
     # A change here: the mark says so (no polling: the save's notice and the page's read).
     (shared / "Close" / "plan.md").write_text("alpha\nmine\n")

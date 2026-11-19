@@ -225,6 +225,8 @@ def test_the_script_export_asks_before_it_writes_when_a_connection_runs_only_her
             where = chooser.locator("input[aria-label=Folder]")
             where.fill(str(folder))
             where.press("Enter")
+            # The chooser is in that folder (its breadcrumb ends with it), then its listing has said so.
+            expect(chooser.locator(".file-crumb.current")).to_have_text(folder.name)
             expect(chooser.locator("[role=status]")).to_contain_text("folder")
             chooser.get_by_label("File name").fill("warehouse_automation.py")
             chooser.get_by_role("button", name="Save here").click()
