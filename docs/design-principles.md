@@ -560,6 +560,10 @@ settings, a path, Run settings, a project setting and a SQL query take `${NAME}`
   drop-downs beside it. Where NAME's value comes from (the keyring, a vault's entry, the environment, a plain
   value) is set once, on the Variables page, for every place that uses it. Typing `${` offers the variables; the
   field shows what it resolves to here (a secret never).
+- **Anywhere, the same two ways in** (the owner, 2026-11-19: "a right click and insert env var menu and a auto
+  complete when [it] is typed anywhere"): typing a dollar-brace in any text box of any page or window, and in
+  the SQL editors, opens the variables list at the caret; right-click, Insert variable… opens the same list.
+  Not in Python cells (os.environ is Python's way) nor in a list's search box.
 - **A `$` is never touched by accident:** only `${` + a name (a letter or `_`, then letters, digits, `_`) + `}`
   is a reference; `pa$$word`, `Sheet1$`, `[Orders$]` and `${not a name}` stay as typed; `$${NAME}` is a literal
   `${NAME}`, shown as such. Only typed text is read: a value that came from a variable (a password holding
