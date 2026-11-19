@@ -1,8 +1,8 @@
 """Fragments in a canvas's pages (docs/research/app-builders-2026-11.md, items 1 and 3; 2026-11-19): a
 block whose widgets feed only itself runs as an st.fragment, so a change of its widget reruns it alone; a
 widget that feeds another block keeps the whole-page rerun. Its query blocks are cached by default
-(tests/test_canvas_queries.py). With a Python that has Streamlit, AppTest proves it: a fragment's widget changes, another block does not run
-again (a made-up counter in session state). Made-up data only."""
+(tests/test_canvas_queries.py). With a Python that has Streamlit, AppTest proves it: a fragment's widget
+changes, another block does not run again (a made-up counter in session state). Made-up data only."""
 
 from __future__ import annotations
 

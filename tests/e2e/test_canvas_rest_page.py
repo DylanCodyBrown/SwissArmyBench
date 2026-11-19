@@ -5,6 +5,7 @@ SWISSARMYBENCH_CANVAS_SHOTS names a folder. Made-up data only."""
 
 from __future__ import annotations
 
+import functools
 import json
 import sqlite3
 import urllib.error
@@ -151,7 +152,7 @@ def test_binding_lines_shared_properties_and_uses_links(
     box.fill("30")
     box.press("Enter")
     for block_id in ("b1", "b2"):
-        until(lambda b=block_id: _argument(server, b, "max_value"), 30, 20)
+        until(functools.partial(_argument, server, block_id, "max_value"), 30, 20)
     expect(props.locator("input[data-field=locked]")).to_be_visible()
     shot(page, "designer-multi-select")
     # Uses: a variable opens the Variables page at its name; a connection its own card.
