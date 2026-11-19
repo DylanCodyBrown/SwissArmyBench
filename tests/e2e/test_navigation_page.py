@@ -147,7 +147,7 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     page.locator(".nav-rail [data-area='connections']").click()
     expect(page).to_have_url(re.compile(r"open=connections"))
     expect(page).to_have_title("Connections")
-    page.get_by_role("button", name="Add connection").first.click()
+    dialog.locator(".area-page-actions").get_by_role("button", name="Add connection").click()
     expect(page).to_have_url(re.compile(r"open=connections&at=types"))
     expect(page).to_have_title("Connections › Add connection")
     expect(dialog.get_by_role("button", name="Back to Connections")).to_be_visible()
@@ -156,6 +156,9 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     trail = dialog.get_by_role("navigation", name="Breadcrumb")
     expect(trail.locator("li")).to_have_text(["Connections", "Add connection", "PostgreSQL"])
     expect(page).to_have_title("Connections › Add connection › PostgreSQL")
+    # Without its driver in this Python the form asks for it at once (missingPackages.ts): not this test's.
+    if dialog.locator(".install-note").count():
+        page.locator("dialog.missing-packages").get_by_role("button", name="Not now").click()
     back = dialog.get_by_role("button", name="Back to Add connection")
     expect(back).to_contain_text("Add connection")
 
@@ -172,18 +175,20 @@ def test_connections_forms_are_in_the_address_with_back_buttons_and_a_trail(
     expect(dialog.get_by_role("heading", name="New PostgreSQL connection")).to_be_visible()
     # A crumb is a link to its place.
     dialog.get_by_role("navigation", name="Breadcrumb").get_by_role("link", name="Connections").click()
-    expect(dialog.get_by_role("button", name="Add connection")).to_be_visible()
+    expect(dialog.locator(".area-page-actions").get_by_role("button", name="Add connection")).to_be_visible()
     expect(page).to_have_url(re.compile(r"open=connections$"))
     page.go_back()
     expect(dialog.get_by_role("heading", name="New PostgreSQL connection")).to_be_visible()
     page.go_back()
     page.go_back()
-    expect(dialog.get_by_role("button", name="Add connection")).to_be_visible()  # the list
+    expect(
+        dialog.locator(".area-page-actions").get_by_role("button", name="Add connection")
+    ).to_be_visible()  # the list
     page.go_back()
     expect(dialog).to_have_count(0)  # Back past the list takes the page away, and stays on the grids
     expect(page).to_have_url(re.compile(r"/g/"))
     page.go_forward()
-    expect(dialog.get_by_role("button", name="Add connection")).to_be_visible()
+    expect(dialog.locator(".area-page-actions").get_by_role("button", name="Add connection")).to_be_visible()
     # Grids on the rail: the page makes way, the table in front again.
     page.locator(".nav-rail [data-area='grids']").click()
     expect(dialog).to_have_count(0)

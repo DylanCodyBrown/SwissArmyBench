@@ -115,6 +115,10 @@ def postgres_form(page: Page) -> Any:
     page.get_by_role("button", name="Add connection").first.click()
     page.locator(".connection-type", has_text="PostgreSQL").click()
     expect(dialog.get_by_label("Server", exact=True)).to_be_visible()
+    # Without psycopg in the server's Python the form asks for it at once (missingPackages.ts); Not now
+    # here (the boxes are this file's subject; a test of the connection itself still needs the driver).
+    if dialog.locator(".install-note").count():
+        page.locator("dialog.missing-packages").get_by_role("button", name="Not now").click()
     return dialog
 
 
