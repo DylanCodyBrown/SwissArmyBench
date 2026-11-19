@@ -1,0 +1,10 @@
+import streamlit as st
+if st.checkbox("Show totals",value=True ,):
+    st.metric("Total", 1200, delta=-40,)
+def on_done_click():
+    pass
+
+
+done = st.button("Go", on_click=on_done_click)
+when = st.date_input("From", date(2026, 1, 31))
+span = st.slider("Range", 0, 10, (2, 8))

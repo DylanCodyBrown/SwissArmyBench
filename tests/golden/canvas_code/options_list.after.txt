@@ -1,0 +1,12 @@
+# Region filter
+# Makes: region: str = "All"
+import streamlit as st
+
+# the regions come from the orders table
+region = st.selectbox(
+    "Region",   # shown above the box
+    ["All", "North", "South", "West"],
+    index=0,  # All
+    key="region_pick",
+)
+amount = st.slider('Least amount', 0, 500, 50)  # euros

@@ -1,0 +1,20 @@
+# Sales by month
+import streamlit as st
+
+# read once
+@st.cache_data(ttl=600,  # ten minutes
+               show_spinner=False)
+def monthly(orders):
+    return orders.groupby("month")["amount"].sum()   # the totals
+
+
+def slow(n):
+    """Made up."""
+    return n * 2
+
+
+@st.cache_data
+def client():
+    return object()
+
+st.line_chart(monthly(orders))
