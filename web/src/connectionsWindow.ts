@@ -53,7 +53,7 @@
 import { showAddApi } from "./addApi";
 import { api, errorText, onNotice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { button, clear, h, hasIcon, icon, toast } from "./dom";
+import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
 import { clearError, errorHere, errorMark, errorNote, showError, warningNote } from "./errorNote";
@@ -88,6 +88,20 @@ interface Field {
 
 /** The lake and SharePoint kinds (domain/lakes.py): a group of their own on the page. */
 const LAKE_GROUP = "Lakes and SharePoint";
+
+/** The connection kinds this browser opened last, newest first (Add connection puts them first). */
+const RECENT_KINDS = "connections.recentKinds";
+function recentKinds(): string[] {
+  try {
+    const kept = JSON.parse(recall(RECENT_KINDS) ?? "[]") as unknown;
+    return Array.isArray(kept) ? kept.filter((k): k is string => typeof k === "string").slice(0, 6) : [];
+  } catch {
+    return [];
+  }
+}
+function rememberKind(id: string): void {
+  remember(RECENT_KINDS, JSON.stringify([id, ...recentKinds().filter((k) => k !== id)].slice(0, 6)));
+}
 const LAKE_KINDS = new Set(["onelake", "datalake", "delta", "sharepoint", "sharepoint_docs"]);
 /** Those whose own code reads their tables: sab.read, and Test shows a table's first rows. */
 const readsByCode = (dialect: string): boolean => dialect === "dataverse" || LAKE_KINDS.has(dialect);
@@ -852,19 +866,72 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       failedView(e);
       return;
     }
-    const open = (t: Form): void => (then ? void showForm({ type: t, then }) : move({ at: "form", type: t.id, name: null }, () => void showForm({ type: t })));
+    // The kinds used last come first in their group (this browser's memory: a convenience, nothing kept).
+    const recent = recentKinds();
+    const rank = (t: Form): number => {
+      const at = recent.indexOf(t.id);
+      return at < 0 ? recent.length : at;
+    };
+    const open = (t: Form): void => {
+      rememberKind(t.id);
+      if (then) void showForm({ type: t, then });
+      else move({ at: "form", type: t.id, name: null }, () => void showForm({ type: t }));
+    };
     // A picker: each type's own icon over its name, tinted by its group (connectionIcon).
     const tile = (t: Form): HTMLElement => {
       const made = button(plain(t.label), () => open(t), { class: `connection-type fam-${t.connection}`, icon: connectionIcon(t.id, t.connection) });
       made.dataset.type = t.id;
+      made.dataset.words = `${plain(t.label)} ${t.id} ${t.group ?? ""}`.toLowerCase();
+      if (recent.includes(t.id)) made.classList.add("recent");
       return made;
     };
-    const group = (title: string, belongs: (t: Form) => boolean): HTMLElement[] => [h("h3", {}, title), h("div", { class: "connection-types" }, ...offered.filter(belongs).map(tile))];
+    const group = (title: string, belongs: (t: Form) => boolean): HTMLElement[] => [
+      h("h3", {}, title),
+      h("div", { class: "connection-types" }, ...offered.filter(belongs).sort((a, b) => rank(a) - rank(b)).map(tile)),
+    ];
     const of = (kind: Form["connection"]) => (t: Form): boolean => t.connection === kind && t.group !== LAKE_GROUP;
+    // Type to filter (the owner, 2026-11-19: more than 30 tiles); Enter opens the first one left.
+    const none = h("p", { class: "empty-note", hidden: true }, "No connection type matches.");
+    const search = h("input", {
+      type: "search",
+      class: "connection-type-search",
+      placeholder: "Search the types",
+      "aria-label": "Search the connection types",
+      oninput: () => {
+        const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        let left = 0;
+        for (const types of body.querySelectorAll<HTMLElement>(".connection-types")) {
+          let shown = 0;
+          for (const t of types.querySelectorAll<HTMLElement>(".connection-type")) {
+            t.hidden = !words.every((w) => (t.dataset.words ?? "").includes(w));
+            if (!t.hidden) shown++;
+          }
+          types.hidden = !shown;
+          const title = types.previousElementSibling as HTMLElement | null;
+          if (title?.tagName === "H3") title.hidden = !shown;
+          left += shown;
+        }
+        none.hidden = left > 0;
+      },
+      onkeydown: (e: KeyboardEvent) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        body.querySelector<HTMLElement>(".connection-type:not([hidden])")?.click();
+      },
+    }) as HTMLInputElement;
+    // The crumb at the top (8.11): where this is, and the way back.
+    const trail = then ? null : h("div", { class: "connection-detail-top" }, backButton("Connections", urlOf(LIST)), crumbs([{ label: "Connections", url: urlOf(LIST) }, { label: "Add connection" }]));
     // From a password's New vault: only vaults, and Back returns to that connection. Otherwise no vaults:
     // they are added on the Variables page.
-    clear(body, ...(then ? group("Key vaults", of("vault")) : [...group("Databases", of("database")), ...group(LAKE_GROUP, (t) => t.group === LAKE_GROUP), ...group("Files", of("file")), ...group("Your own code", of("python"))]));
-    foot.append(then ? button("Back", () => void then(null), { icon: "back" }) : backButton("Connections", urlOf(LIST)));
+    clear(
+      body,
+      trail,
+      h("div", { class: "connection-type-find" }, search),
+      none,
+      ...(then ? group("Key vaults", of("vault")) : [...group("Databases", of("database")), ...group(LAKE_GROUP, (t) => t.group === LAKE_GROUP), ...group("Files", of("file")), ...group("Your own code", of("python"))]),
+    );
+    if (then) foot.append(button("Back", () => void then(null), { icon: "back" }));
+    search.focus();
   };
 
   /** A new connection's form by its type's id (an address: a reload, Forward, a breadcrumb). */

@@ -204,7 +204,7 @@ def app_page(browser: Browser, bench: dict[str, Any]) -> Page:
     )
     page = context.new_page()
     page.goto(f"http://127.0.0.1:{bench['port']}/workspace#token={bench['token']}")
-    expect(page.locator(".app-row")).to_be_visible(timeout=20000)
+    expect(page.locator(".nav-rail")).to_be_visible(timeout=20000)
     return page
 
 

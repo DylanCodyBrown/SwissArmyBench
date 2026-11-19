@@ -68,6 +68,8 @@ export interface ExplorerResult {
 
 interface Group {
   kind: ResultKind;
+  /** The results used last, pulled to the top while nothing is typed (Recently used). */
+  recent?: boolean;
   label: string;
   count: number;
   results: ExplorerResult[];
@@ -141,6 +143,41 @@ function keepRecent(text: string): void {
   } catch {
     /* storage blocked: no recent searches */
   }
+}
+
+const USED_KEY = "explorer-used";
+
+/** The results whose actions ran last (their keys: names only), newest first. */
+function usedKeys(): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(USED_KEY) ?? "[]") as unknown;
+    return Array.isArray(list) ? list.filter((s): s is string => typeof s === "string").slice(0, RECENT_MAX) : [];
+  } catch {
+    return [];
+  }
+}
+
+function keepUsed(key: string): void {
+  try {
+    localStorage.setItem(USED_KEY, JSON.stringify([key, ...usedKeys().filter((k) => k !== key)].slice(0, RECENT_MAX)));
+  } catch {
+    /* storage blocked: nothing kept */
+  }
+}
+
+/** With nothing typed, the results used last come first as their own group (the owner, 2026-11-19:
+ *  Ctrl+K's order looked arbitrary), each taken out of its kind's group so it shows once. */
+export function withRecent(groups: Group[], used: string[]): Group[] {
+  const found = used.map((key) => groups.flatMap((g) => g.results).find((r) => r.key === key)).filter((r): r is ExplorerResult => Boolean(r));
+  if (!found.length) return groups;
+  const taken = new Set(found.map((r) => r.key));
+  const rest = groups
+    .map((g) => {
+      const results = g.results.filter((r) => !taken.has(r.key));
+      return { ...g, results, count: g.count - (g.results.length - results.length) };
+    })
+    .filter((g) => g.results.length);
+  return [{ kind: found[0]!.kind, label: "Recently used", count: found.length, results: found, recent: true }, ...rest];
 }
 
 const copyText = (text: string, what: string): void =>
@@ -531,6 +568,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
         h("span", { class: "ex-actions" }, ...own.map((a) => button(a.label, (e) => {
           e.stopPropagation();
           select(r.key);
+          keepUsed(r.key);
           const pressed = e.currentTarget;
           const running = a.run();
           // Slow work (Open as grid, Preview) keeps its button busy until it ends (loading.ts).
@@ -541,11 +579,14 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       under,
     );
     item.addEventListener("click", () => select(r.key));
-    item.addEventListener("dblclick", () => void own[0]?.run());
+    item.addEventListener("dblclick", () => {
+      keepUsed(r.key);
+      void own[0]?.run();
+    });
     item.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       select(r.key);
-      showMenu(e.clientX, e.clientY, r.name, own.map((a): MenuItem => [a.icon, a.label, () => void a.run()]));
+      showMenu(e.clientX, e.clientY, r.name, own.map((a): MenuItem => [a.icon, a.label, () => (keepUsed(r.key), void a.run())]));
     });
     item.addEventListener("dragstart", (e) => dragData(r, e));
     return item;
@@ -571,11 +612,11 @@ export function mountExplorer(host: ExplorerHost): Explorer {
     drawOffers(answer);
     clear(
       results,
-      ...answer.groups.map((g) =>
+      ...shownGroups().map((g) =>
         h(
           "section",
-          { class: "ex-group", dataset: { kind: g.kind }, "aria-label": g.label },
-          h("h3", {}, icon(KIND_ICONS[g.kind]), h("span", {}, g.label), h("span", { class: "ex-count" }, g.count.toLocaleString())),
+          { class: `ex-group${g.recent ? " ex-group-recent" : ""}`, dataset: { kind: g.recent ? "recent" : g.kind }, "aria-label": g.label },
+          h("h3", {}, icon(g.recent ? "history" : KIND_ICONS[g.kind]), h("span", {}, g.label), h("span", { class: "ex-count" }, g.count.toLocaleString())),
           h("ul", { class: "ex-list", "aria-label": g.label }, ...g.results.map(row)),
           g.count > g.results.length ? h("p", { class: "ex-more" }, `${(g.count - g.results.length).toLocaleString()} more: type more of the name`) : null,
         ),
@@ -584,7 +625,9 @@ export function mountExplorer(host: ExplorerHost): Explorer {
     );
   }
 
-  const flat = (): ExplorerResult[] => (last?.groups ?? []).flatMap((g) => g.results);
+  /** The groups as drawn: the recently used first while nothing is typed. */
+  const shownGroups = (): Group[] => (!last ? [] : state.text.trim() || state.column ? last.groups : withRecent(last.groups, usedKeys()));
+  const flat = (): ExplorerResult[] => shownGroups().flatMap((g) => g.results);
 
   function select(key: string | null): void {
     selectedKey = key;
@@ -615,6 +658,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       e.preventDefault();
       keepRecent(state.text);
       const r = list[at < 0 ? 0 : at]!;
+      keepUsed(r.key);
       const li = results.querySelector<HTMLElement>(`.ex-result[data-key="${CSS.escape(r.key)}"]`);
       void actions(r, li?.querySelector<HTMLElement>(".ex-preview") ?? h("div"))[0]?.run();
     }

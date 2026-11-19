@@ -206,9 +206,19 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
 
 
 def test_the_keyboard_moves_along_the_rail_and_the_tip_names_each_area(
-    browser: Browser, orchard: str
+    browser: Browser, server: dict[str, Any], orchard: str
 ) -> None:
+    # The icons alone (the names beside them are on by default: the tip is for the icon rail).
+    call(server, "PUT", "/rail", {"labels": False})
+    try:
+        keyboard_and_tips(browser, orchard)
+    finally:
+        call(server, "PUT", "/rail", {"labels": True})
+
+
+def keyboard_and_tips(browser: Browser, orchard: str) -> None:
     page = home_page(browser, orchard)
+    expect(page.locator("html")).not_to_have_class(re.compile(r"\brail-names\b"))
     # One stop in the Tab order: the current area's.
     stops = [area(page, a).get_attribute("tabindex") for a in AREAS]
     assert stops == ["0" if a == "grids" else "-1" for a in AREAS]  # the current area's (the grids)

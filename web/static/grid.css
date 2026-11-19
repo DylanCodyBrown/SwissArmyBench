@@ -2786,6 +2786,15 @@ body.agent-view .titlebar {
   border-top: 0;
 }
 
+/* An Application row with nothing in it (no project open) takes no band (the owner, 2026-11-19). */
+.app-row:not(:has(.ribbon-tools > :not([hidden]))) {
+  display: none;
+}
+
+.app-row:not(:has(.ribbon-tools > :not([hidden]))) + .ribbon {
+  border-top: 1px solid var(--border);
+}
+
 .app-row .ribbon-btn {
   padding: 3px 7px;
   border-color: transparent;
@@ -4530,6 +4539,38 @@ td.far { color: var(--danger, #a3141f); font-weight: 600; }
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 6px;
   margin-bottom: 14px;
+}
+
+/* Paste data (openFile.ts pasteData): the box a copied table is pasted into. */
+.paste-box {
+  width: min(560px, 80vw);
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+/* Add connection's search (type to filter the tiles; Enter opens the first). */
+.connection-type-find {
+  margin-bottom: 6px;
+}
+
+.connection-type-search {
+  width: min(420px, 100%);
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.connection-type-search:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: 1px;
+}
+
+.connection-types[hidden],
+.connection-type[hidden] {
+  display: none;
 }
 
 /* The type picker (2026-11-16): each type's own icon beside its name, tinted by its group (the theme's
@@ -12821,6 +12862,22 @@ g.follow-pulse > path:first-of-type {
 .btn.ex-recent-item {
   color: var(--muted);
   font-size: 0.82em;
+}
+
+/* Find data's foot: the keys, quiet, on the left (the buttons stay right). */
+.ex-keys {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ex-keys kbd {
+  margin-right: 2px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font: inherit;
 }
 
 .ex-offers:empty {

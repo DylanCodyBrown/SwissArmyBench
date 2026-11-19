@@ -603,7 +603,11 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       },
       onViewportChanged: () => state.emit("selection"),
       onGridSizeChanged: () => fitFiller(),
-      onColumnResized: (event) => { if (event.finished && event.column?.getColId() !== FILLER) fitFiller(); },
+      onColumnResized: (event) => {
+        // The user's own width (a drag, Auto width): kept, and a short table stops filling the window.
+        if (!filling && (event.source === "uiColumnResized" || event.source === "autosizeColumns") && event.column?.getColId() !== FILLER) userSized = true;
+        if (event.finished && event.column?.getColId() !== FILLER) fitFiller();
+      },
       onDisplayedColumnsChanged: () => setTimeout(fitFiller, 0),
       onFirstDataRendered: () => fitFiller(),
       onBodyScrollEnd: () => state.emit("selection"),
@@ -964,9 +968,37 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     }
   }
 
+  // A short table fills the width (the owner, 2026-11-19: a two-column table left 70% blank): while the
+  // columns' own widths add up to less than the window, each grows in proportion (at most four times); a
+  // column the user sizes (a drag, Auto width) keeps its width and the filling stops for this grid.
+  const natural = new Map<string, number>();
+  let userSized = false;
+  let filling = false;
+  function fillShort(): void {
+    if (!gridApi || userSized || filling) return;
+    const range = gridApi.getHorizontalPixelRange();
+    const viewport = range.right - range.left;
+    const columns = gridApi.getAllDisplayedColumns().filter((c) => !c.getPinned() && c.getColId() !== FILLER);
+    if (!columns.length || viewport <= 0) return;
+    for (const c of columns) if (!natural.has(c.getColId())) natural.set(c.getColId(), c.getActualWidth());
+    const widths = columns.map((c) => natural.get(c.getColId())!);
+    const total = widths.reduce((sum, w) => sum + w, 0);
+    const scale = total < viewport ? Math.min(4, (viewport - 2) / total) : 1;
+    const wanted = widths.map((w) => Math.floor(w * scale));
+    const changed = columns.some((c, i) => Math.abs(c.getActualWidth() - wanted[i]!) > 1);
+    if (!changed) return;
+    filling = true;
+    try {
+      gridApi.setColumnWidths(columns.map((c, i) => ({ key: c.getColId(), newWidth: wanted[i]! })));
+    } finally {
+      filling = false;
+    }
+  }
+
   /** Size the filler so (scrollable width - viewport) ends exactly on a column edge. */
   function fitFiller(): void {
     if (!gridApi) return;
+    fillShort();
     const range = gridApi.getHorizontalPixelRange();
     const viewport = range.right - range.left;
     const columns = gridApi.getAllDisplayedColumns().filter((c) => !c.getPinned() && c.getColId() !== FILLER);

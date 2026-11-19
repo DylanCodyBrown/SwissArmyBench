@@ -29,6 +29,7 @@ import { baseName, copyProject, newProject, openProject, type ProjectState, when
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
 import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
 import { errorHere, errorMark } from "./errorNote";
+import { openFile, pasteData } from "./openFile";
 
 export interface ProjectCard {
   path: string;
@@ -188,6 +189,9 @@ function header(read: Listing, empty: boolean): HTMLElement {
       { class: "start-actions" },
       button("New project", () => create(), { icon: "plus", class: "start-action primary-action" }),
       button("Open project…", guard(() => openProject(undefined, host ?? undefined).then((s) => opened(s))), { icon: "folder", class: "start-action" }),
+      // A file or a copied table straight to a grid, no project needed (the owner, 2026-11-19).
+      button("Open a file…", () => void openFile(), { icon: "file", class: "start-action" }),
+      button("Paste data", () => pasteData(), { icon: "copy", class: "start-action", title: "A table copied from Excel or a web page" }),
     ),
     empty ? null : h("div", { class: "explorer-tools" }, search, places, types, h("label", { class: "explorer-sort-label" }, h("span", {}, "Sort"), sort), direction),
   );

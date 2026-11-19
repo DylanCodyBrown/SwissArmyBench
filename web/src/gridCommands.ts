@@ -32,7 +32,7 @@ import { setGridZoom } from "./theme";
 import { api } from "./api";
 import { mountExplorer } from "./dataExplorer";
 import { openData } from "./dataPage";
-import { button, openDialog, toast } from "./dom";
+import { button, h, openDialog, toast } from "./dom";
 import { openVariables } from "./variablesPage";
 import { openPalette, setCommandSource, type Command } from "./workbenchCommands";
 import { errorHere } from "./errorNote";
@@ -227,6 +227,8 @@ export function openFindData(): void {
   });
   body.append(explorer.element);
   foot.append(
+    // The keys, said once at the foot (the owner, 2026-11-19).
+    h("span", { class: "ex-keys", "aria-hidden": "true" }, h("kbd", {}, "↑"), h("kbd", {}, "↓"), " move · ", h("kbd", {}, "Enter"), " opens · ", h("kbd", {}, "Esc"), " closes"),
     button("Open the Data page", () => {
       const state = explorer.state();
       close();

@@ -2296,8 +2296,9 @@ def test_the_application_row_sits_above_the_ribbon_on_every_tab(browser: Browser
     expect(app.locator(".ribbon-caption strong")).to_have_text("Application")
     # Settings, Connections and the blades page are the rail's (rail.ts); the tour is the Start page's.
     expect(app.locator(".tour-btn")).to_have_count(0)
-    table_row = page.locator(".ribbon .ribbon-group").first
-    assert app.bounding_box()["y"] < table_row.bounding_box()["y"]  # type: ignore[index]
+    # With no project open it is empty, so it takes no band (2026-11-19): the Table row comes first.
+    expect(app).to_be_hidden()
+    expect(page.locator(".ribbon .ribbon-group").first.locator(".ribbon-caption strong")).to_have_text("Table")
     expect(page.locator(".tabbar").get_by_role("button", name="Settings")).to_have_count(0)
     # On the Analyze tab the ribbon goes; the zoom stays, in the status bar beside Beta (2026-11-17).
     page.locator(".nav-rail [data-area='analyze']").click()
