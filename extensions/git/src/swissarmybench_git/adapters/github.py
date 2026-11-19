@@ -275,7 +275,10 @@ SIGN_IN_WORDS: dict[str, str] = {
 
 def _words(status: int, said: str) -> str:
     if status == 401:
-        return "GitHub refused the sign-in: sign in to GitHub again in Settings."
+        # GitHub's own reason kept (the owner saw only "sign in again" twice, 2026-11-19): "Bad credentials" is a
+        # token GitHub no longer takes; "Requires authentication" is a request sent without one.
+        reason = f" (GitHub said: {said[:120]})" if said else ""
+        return f"GitHub refused the sign-in{reason}: sign in to GitHub again in Settings."
     if status == 403:
         return f"GitHub refused: {said[:200] or 'this sign-in may not do that'}."
     if status == 404:
