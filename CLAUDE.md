@@ -369,6 +369,10 @@ src/swissarmybench/
                          and comments left; a name's place refused), the export form (`os.environ[...]` joined by
                          `+`) and read back; a vault's secret names as variables. Standard library only
     blade_suggestions.py a blade's settings' suggestions (other blades' values, the common environment variables)
+    refusals.py          the server's one refusal shape (9.5): {error: one sentence, where, fixes: [{label, action:
+                         install | set_variable | sign_in | open_settings | try_again, ...}], details: the source's
+                         words}; Explained (Refused, NotFound, Conflict, TimedOut may name where and the fixes); a
+                         failed run's sentence and details
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
@@ -671,7 +675,9 @@ src/swissarmybench/
 
   server/                the HTTP door, and everything that starts a process
     app.py               asks bootstrap for the services, mounts the routes behind the guard
-    http.py              reading requests, shaping answers, each error as its status
+    http.py              reading requests, shaping answers, each error as its status in the one refusal shape
+                         (domain/refusals.py; refusal(), error_as(); UTF-8; the guard, an unknown address and a
+                         method not taken answer it too; cli/api.py reads a words-only one as its words)
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
@@ -850,7 +856,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          button busy until its work ends, markBusy a button drawn busy from a view's own state; no
                          page has loading text of its own; errorNote.ts the one error component (9.5): the word
                          and icon, what happened, where, the fixes as buttons, Details folded with Copy, Send to the
-                         agent; showError/clearError in place, errorToast for background work; The Workbench (static/workbench.html, its own
+                         agent; showError/clearError in place; errorHere (in place where the last action was: the control's row in its
+                         card, panel, form or dialog, a floating note under a page bar, a menu item's opener;
+                         pressed again, it goes); errorToast the same note in a toast with Show (background work
+                         only); errorMark its inline form for one-line rows; problemsHere several as one; toast()
+                         is info only; ApiError carries the refusal (`said`, saidOf); The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
                          status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a

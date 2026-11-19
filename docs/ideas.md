@@ -5722,6 +5722,51 @@ and they don't gate the thing that is loading." Made design principles 8.12 (loa
 - **The agent:** unaffected; no new user action, so no new command (no Cancel route was added: no slow route has a
   server-side cancel yet; `onCancel` is there for the first one).
 
+## Every error looks and reads the same: one shape from the server, the note in place (the owner, 2026-11-18; built, branch uniform-errors)
+
+The owner: "Errors should be presented to users in one uniform way as much as possible." Design principle 9.5, the
+second pass (the component came with uniform-loading).
+
+- **The server's one shape** (domain/refusals.py, server/http.py): every refusal is JSON `{error, where?, fixes?,
+  details?}`: `error` one plain sentence (a longer message keeps its whole text in `details`), `where` the named
+  thing, `fixes` `[{label, action, ...}]` with `action` one of install, set_variable, sign_in, open_settings,
+  try_again (and `command` for the agent where one exists), `details` the source's own words. The fields pages and
+  the agent read stay beside it (`missing`, `missing_variables`, `needs`, `install_here`). The use cases' outcomes
+  (Refused, NotFound, Conflict, TimedOut) are `Explained`: `NotFound("...", where=..., fixes=[...])`; a plain one
+  answers as before, in the shape. DuckDB's and sqlglot's errors keep their words in `details`; a failed run
+  ("Shop failed: OperationalError: ... (line 5)") reads "Shop failed: unable to open database file." with
+  "OperationalError: ... (line 5)" as details and its connection as where. The guard's 401/403, an unknown address
+  and a method not taken answer the shape too; the routes that chose their own status use `error_as` / `refusal`.
+  Refusals are written as UTF-8 (not \u escapes). The agent (cli/api.py) reads a words-only refusal as its words,
+  exactly as the plain answers read, and a fuller one as its JSON (where, fixes and their commands).
+- **The page reads it** through ApiError: `message` is the sentence, `said` the whole answer (`saidOf(e)`), so every
+  place that showed `e.message` shows words, never JSON. errorParts turns the server's fixes into buttons (Install
+  now, Set it, Sign in and Open its settings to the connection's page).
+- **In place, not toasts.** Every `toast(..., "error")` became the note (322 of them): `errorHere(e)` puts it where
+  the user's last action was (the control's row inside its card, panel, pane, section, form, cell or dialog; a
+  dialog's footer button: the body's foot; a control in a page's bar (ribbon, title and tab rows, status bar, rail,
+  toolbars): a note floating just under the bar beside it; a menu item: its opener). Pressing the same control
+  again takes its note away first, so a retry that works leaves none. Three minutes after the press, or with the
+  control gone, the work is the page's own and the note is a toast. Places that hold their own place use
+  showError/clearError (forms: the connection forms, a step's form, Export, a starter's form, the theme form), the
+  grid's rows (over the grid, with Try again), a card's drawing (the lazy drawers throw; their callers draw the note).
+- **Background only: errorToast**, the same note in a toast (Close, Details, Send to the agent), with Show when
+  there is a place: a failed Autosave (Show: the project's group on Grids; Save now), a table that did not open
+  from Python, a dataset closed elsewhere, a page another window asked for, the blade import's problems once its
+  dialog closed, and the Source Control page's notifications (VS Code shows its own as notifications; its page's
+  words and look are unchanged). `toast()` takes no error kind any more.
+- **status-error lines and the one-off styles** (error-text, `p.error`, node-error, cv-problem, missing-error,
+  connection-error, team-install-error) became errorNote; a one-line row's mark (a card's "catalog not loaded", a
+  password with no source, the steps strip's broken step, a tree's row, an API's answer, the blades tree's "!")
+  is `errorMark`, the note's inline form (the icon, the word for screen readers, the words, the message in its
+  tip). Their CSS left grid.css.
+- **Warnings use warningNote, their words kept:** "Only works on your machine" (the form, the sign-in, the
+  password, the detail; the card's and a starter's as the warning mark), a stale result's "Out of date: run
+  again", the Key Finder's time limit, a kernel started without a vault's variables, steps that no longer fit after
+  a connection swap.
+- **Kept:** the Workbench's error panel (9.1) and its kernel notices ("Cancelled"), the Source Control page.
+- **The agent:** no new user action, no new command; it reads the same refusals (above).
+
 ## Desktop quick wins and desktop enhancements (the owner, 2026-11-18: "Agreed"; built, branch desktop-wins)
 
 The survey of the desktop app (read only) listed small fixes; each was checked before it was changed.

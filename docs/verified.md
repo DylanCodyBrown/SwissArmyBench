@@ -3369,6 +3369,28 @@ ARM (no Qt WebEngine wheel: the browser should open; not tried).
 - **Not checked:** the desktop app (Qt WebEngine) by hand; a screen reader's reading of the progressbar's name;
   Cancel against a real slow route (no route has a server-side cancel yet).
 
+## Every error the same: the server's shape and the note in place (2026-11-19, branch uniform-errors)
+
+- **The shape** (tests/test_refusals.py): one sentence and details for a long message; fixes with known actions;
+  an Explained outcome's where, fixes and details; the agent reads a words-only refusal as its words; a missing
+  grid, a body that is not JSON, DuckDB's refusal, an unknown address (404 with where), the guard's 401, a missing
+  variable (Set it with its action, `missing_variables` kept) and a refused connection Test (where, the source's
+  words), for the user and the agent alike. test_variable_refs_http.py's Set it fix has its action; two tests that
+  read the plain text now read `error`.
+- **In a real browser** (tests/e2e/test_errors_page.py, Chromium): a refused SQLite Test shows the note in the
+  form (Error, the sentence, where, Try again, Details with the source's words and Copy, Send to the agent) and
+  Try again after the file exists says It works with no note left; a missing driver's Install now opens the
+  prompt again after Not now; a failed Autosave (a file where .sab/ goes) is the note in a toast with Show and Save
+  now, and Show goes to Grids; a diagram card that cannot be drawn says so in the card; Windows sign-in's "Only
+  works on your machine" is the Warning note without Send to the agent. Screenshots light and dark at scale 2.
+- **Updated browser tests** for the note in place of the old toast and classes (test_ui, test_starters_page,
+  test_rename_table, test_steps_page, test_text_cells_page, test_project_outline_page, test_structures_apis_page,
+  test_team_page, test_streamlit_page, test_workbench_page, test_add_api_page, test_sql_server_page).
+- **grep:** no `toast(` with "error" outside errorNote.ts, no `status-error`, `error-text`, `cv-problem`,
+  `node-error` in web/src.
+- **Not checked:** each of the 322 converted places by hand (the placement is one rule, errorHere's, tested
+  through the ribbon, a form and a dialog); the desktop app (Qt WebEngine); a screen reader on errorMark.
+
 ## Desktop quick wins and desktop enhancements (2026-11-18, branch desktop-wins)
 
 - **Startup time:** `python -X importtime -c "import swissarmybench.server.__main__"`, warm: 0.54-0.56 s cumulative
