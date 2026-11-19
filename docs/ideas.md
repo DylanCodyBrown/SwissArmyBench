@@ -6126,3 +6126,64 @@ Left:
 - Forecast's predictors, a time series' split by a category and a fit test against given shares are not in
   the form (the lower-level tools have them).
 - Cancel stops a run's own queries; a tie-out or Key Finder in flight finishes unseen and lands nothing.
+
+## The canvas's property pane, and a designer as flexible as WinForms and WPF (the owner, 2026-11-19; built, branch canvas-designer)
+
+The owner: "I think we need a property pane for everything on the app canvas, and ways to see all things
+related to the canvas. For example if it relies on a table or variable, I should be able to click through and
+see that table and variables. From here we can edit things in Streamlit like state and cache as well for a
+widget." Then: "Take a pass at making the canvas far more usable. Think about WinForms and WPF. Let's aim for
+a canvas as flexible as that." Decided with the owner: edits are BOTH, clearly split (Now: the running app
+only; Default and cache settings: the cell's code); a table it uses opens beside the canvas.
+
+**Built.**
+
+- **One pane** (App mode's Properties, `canvasPane.ts`; `GET /streamlit/apps/{app}/inspect`): a block, a page,
+  or the app. Properties as a grid (Categorized or A to Z, a search box, the focused property's line at the
+  foot, right-click: Reset to default, Bind to…, Go to cell); Uses (tables opened beside the canvas with their
+  columns, steps in words and first rows, Open as grid; variables to the Variables page; connections; the cells
+  that make the names it reads; Used by; a line of its lineage, from `domain/lineage.py`'s graph); Streamlit
+  (State: key, Now, Default; Bindings; Cache: the decorator's settings, Cache this function, Clear this cache);
+  Events (Add handler); Code (the exact code the page runs for the block, read-only, Go to cell).
+- **Writing back** (`domain/widget_code.py`): the call or decorator is found with Python's parser and ONLY its
+  characters change (golden before/after files: comments, spacing and line breaks stay). The server answers a
+  plan; the window makes it in the open document like typing (the editor's Undo takes it back, and so does the
+  canvas's: one history). Code that is not a plain value is refused in words and shown read-only.
+- **Now** (`POST …/now`): a numbered file in the running app's own temporary folder, read at the page's start;
+  each session makes what it has not made yet, once; a session started later starts fresh. Clear this cache
+  runs after the blocks (the function is defined by then) and the page runs once more.
+- **The designer:** the Toolbox (`domain/toolbox.py`: every element with its properties as data; a drop makes
+  the cell in the app notebook and its block); layout containers (columns by their ratios, tabs, expander,
+  container, form, sidebar, popover) that hold blocks and each other, each slot a 12-column grid of its own,
+  kept in the app's file (version 2 only when a page uses them) and exported as plain Streamlit; the Document
+  Outline (select, move, hide, lock); multi-select (Ctrl+click, a rubber band), align, same size, distribute
+  and Reset layout as one change (`domain/designer.py`); snaplines and equal-gap markers (`canvasSnap.ts`);
+  Shift+arrows, Ctrl+C/V/D, Delete; events and bindings; the ruler, Wide/Centered/Phone, sample rows.
+
+**Decisions.**
+
+1. A container is the canvas's own (no cell behind it): `page.containers` beside `page.blocks`, so everything
+   that reads a page's blocks (the run order, lineage, controllers, the Connections page) is unchanged.
+2. The layout is still drawn first as empty slots, and each block runs in its own slot: a container is opened
+   where it sits (`_in_c1 = st.columns([2, 1])`, `_in_c2 = _in_c1[1].tabs([...])`), not as a `with` around its
+   blocks, so the run order by names keeps working across containers. The Streamlit drawn is the same.
+3. A form's button is the form's own (`applied = _in_c4.form_submit_button('Apply')`), named when asked.
+4. Hidden is design-time only (Visual Studio's): the page still draws the block. Locked refuses a move or a
+   size on the server, so the agent's commands are refused the same way.
+5. "Reopens on the canvas identical" is the app's file: written, read back, written again byte for byte; the
+   export made from what was read back runs under AppTest. Reading exported Python back into a canvas is not
+   built (the canvas's file is the source; the export is its output).
+6. The app's file holds no block ids (as before); a container has one (blocks name their parent by it).
+7. Wide and Centered on the design surface ARE the app's layout setting (one truth); Phone only narrows the board.
+8. The State panel stays as the whole session's list; the pane is where a selection's state is seen and set.
+9. Snaplines: the grid snaps every move to a column, so the guides say what lines up (edges with edges,
+   centres with centres) rather than pull; the maths (`snapped` too) is tested as the page runs it.
+10. The binding lines on the board are the existing wiring (the names a block makes, to the blocks that read
+    them); a binding to a session state key is listed in the pane, not drawn.
+
+**Not built (said plainly).** SQL and DAX cells as canvas blocks (a `%%sql` or `%%dax` cell is not offered to
+a page today: `linkable` takes Python, Markdown and HTML cells; the portable translation is the script
+exporter's and needs its connection pieces); wrapping independent blocks in `st.fragment` on export; a cache's
+hits and size (Streamlit exposes none cheaply); a vertical ruler (rows are as tall as what they draw); opening
+a connection's own card from Uses (it opens the Connections page); the agent changing a cell's code in an app
+opened without a window (refused with the fix: open it in the Workbench).

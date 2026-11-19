@@ -1607,6 +1607,35 @@ own). The status bar shows the document in front's panels as toggles.
   **Lineage** draws the selected cell's lineage (else the last cell's) in place: the same flow and
   values as the Lineage overlay; a double-click on a step goes back to Cells, at that cell.
 
+### App mode: the property pane and the designer
+
+**Properties** (the status bar's toggle) is one pane for whatever is selected on a Streamlit app's canvas: a
+block, the page (click the board), or the app.
+
+- **Properties.** A block's name, cell, place and size, then every property of the Streamlit element its cell
+  calls (label, options, help…), Categorized or A to Z, with a search box; the line at the foot says what the
+  focused property does. Type a value and press Enter: the cell's code changes in only those characters, and
+  Undo (the canvas's or the editor's) takes it back. A property that is code (`value=load()`) is shown
+  read-only with Go to cell. Right-click a property: Reset to default, Bind to a name, session state, a
+  variable or an expression, Go to cell.
+- **Uses.** The tables, variables, connections and cells the block depends on, each a link, and what is used
+  by it. A table opens in the pane (its columns, its steps in words, its first rows) with Open as grid.
+- **Streamlit.** State: a widget's Key, its value **Now** (the running app only: Play first) and its
+  **Default** (written into the cell). Cache: a cached function's ttl, max_entries, show_spinner and persist;
+  Cache this function; Clear this cache (the running app only).
+- **Events.** Add handler writes `def on_region_change():` into the cell, sets `on_change=`, and goes to it.
+- **Code.** The exact code the page runs for the block.
+
+**Designing a page.** The **Toolbox** lists every Streamlit element and layout container: drag one onto the
+page (or click it). An element becomes a named cell of the app notebook and its block. **Containers**
+(columns, tabs, expander, container, form, sidebar, popover) hold blocks and other containers: drop a block
+into one. The **Outline** shows the page as a tree: click to select, drag a row onto a slot to move it in,
+the eye hides a block while you design, the pin locks it. Ctrl+click (or drag over the board) selects
+several: Align then lines them up, makes them the same size or spreads them, as one change. Guides appear
+where a block you drag or size lines up with another. Arrow keys move a block (Shift: three columns),
+Ctrl+D duplicates, Delete takes it off the page. View shows the ruler and sample rows; Wide, Centered and
+Phone set the page's width. Everything exports as plain Streamlit.
+
 ### Projects: start with the data
 
 A project is a folder that starts with the data. **data.ipynb** is where you work on it: each table's
