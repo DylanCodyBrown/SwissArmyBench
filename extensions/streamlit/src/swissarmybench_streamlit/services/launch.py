@@ -116,7 +116,7 @@ class Launches:
         folder, title = self._folder(app_id)
         taken = self._builds.builds(folder)
         number = rules.next_number(taken)
-        # The build keeps the app's own title (two builds compare by their code); the run's copy says its number.
+        # The build keeps the app's own title (builds compare by their code); the run's copy says its number.
         made = await self._apps.build_parts(app_id, title)
         build = self._builds.join(folder, str(number))
         files = dict(made["files"])

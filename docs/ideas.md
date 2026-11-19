@@ -6218,3 +6218,76 @@ exporter's and needs its connection pieces); wrapping independent blocks in `st.
 hits and size (Streamlit exposes none cheaply); a vertical ruler (rows are as tall as what they draw); opening
 a connection's own card from Uses (it opens the Connections page); the agent changing a cell's code in an app
 opened without a window (refused with the fix: open it in the Workbench).
+
+## The canvas's remaining work, then Launch, builds and the Performance Analyzer (the owner, 2026-11-19; built, branch canvas-rest)
+
+The owner: "did we add DAX cells to the canvas?" (no, then), and: "One of my biggest concerns we should tackle is
+performance over the web socket ... we also need a performance analyzer. This will be a separate tab. Not a rail
+icon, just a separate window that can be launched from the app canvas ... Also ... build a way to launch the app
+canvas in a new tab ... along with a build version history every time we launch, think Visual Studio." Decided
+with the owner: builds live in the project folder, shared in Git ("we just have apps in folders"); the analyzer
+records only when it is opened.
+
+**Built.**
+
+- **SQL and DAX blocks.** A `%%sql`/`%%dax` cell is a canvas block. Its page code is the script exporter's own
+  reading of the cell (`domain/script_export.py` `query_cell`, which `plan` now uses too: one translation) as a
+  call of `sab_queries.py` beside the pages; `domain/page_queries.py` writes that module from the exporter's plan
+  (`_shared`: each connection's own code, its settings read from the environment, no password) plus the page's
+  `sql`/`dax`. `{{ name }}` in a query is a page value (read outside strings and comments by one scanner, the same
+  text in the domain and in the page): SQL binds it in the driver's paramstyle, DAX writes it as a literal
+  (text, numbers, TRUE()/FALSE(), BLANK(), DATE(), {lists}). Queries run on one worker thread (a connection is
+  used from the thread that made it: SQLite and others refuse a second). The block's **view** (table; bar, line,
+  area chart with x and y; metric; cache off) is the block's own, in the app's file. The pane's SQL/DAX query
+  section: connection (the cell head's picker), Result, Show as, Cache (on by default, said), Parameters (each
+  with the block that gives it), the tables its query names (sqlglot; a DAX block's dataset's tables when its
+  catalog is loaded). The Toolbox's SQL query and DAX query make the cell (named `query_<n>`, its result's name)
+  and the block; the Streamlit cells panel lists them under Queries; a query block wears its connection's colour.
+- **Fragments.** `fragment_blocks`: a block that calls an input widget, whose names no other block on the page
+  reads, that does not read a name before making it, that sits in no form or sidebar, and whose code runs as a
+  function body unchanged, runs as `@st.fragment` (Play, export, Save as). The pane says Reruns: Alone or The
+  whole page. Query blocks are cached by default (`st.cache_data` on the query and its values).
+- **The designer's gaps.** Session state bindings drawn on the board (dashed, the key on the line) from each
+  block's `state_keys` and `state_reads`; several blocks: every shared property (place, size, Locked, Hidden, a
+  query's Show as, each property of the element their cells share, Mixed where they differ; a widget's key
+  never); Add to app on each live cell (the app in front, else the first open, else a new one); Uses opens a
+  connection's own card (open=connections&at=detail&name=) and a variable at its name (open=variables&name=).
+- **Launch** (the canvas's Launch, Ctrl+F5; F5 with the analyzer): the export written as a build in
+  `builds/<app>/<n>/` (app.py, app_pages/, sab_queries.py, data.py as made, requirements.txt, README.txt, the
+  canvas's file, cells.json, build.json: number, time, the canvas's hash, what changed in words, result, first
+  load, saved sessions; sorted JSON), then a run folder of its own (the same export with each block timed for the
+  analyzer and the window's title "<app> · build <n>", the tables as Parquet, sab_perf.py) served under
+  /streamlit/launch/<key>/; the page opens it with window.open (the desktop app's own window, a browser's tab).
+  Builds: newest first; Compare (Monaco's diff editor); Open (read-only); Relaunch; Restore (each cell whose
+  code differs, as a plan the window makes like typing; the layout). Every build is kept (`keep` can trim).
+- **The Performance Analyzer** (`/streamlit/perf?app=`, its own window): attaching switches `sab_perf.on` in the
+  run folder and the proxy's tap (`streamlit_proxy.routes(tap=)`) keeps each websocket message's kind, element,
+  path and size (`domain/perf.py`'s protobuf wire reader; tested on messages Streamlit's own classes wrote,
+  tests/golden/perf). sab_perf.py beside the pages records each rerun (its blocks' times, sab_queries' queries,
+  urllib and pandas reads, each cache's calls and misses with argument digests, each dataframe's shape). The
+  trigger is the browser's own ask (the widget whose value changed), else the page's. Tabs: Timeline, Calls,
+  Cache, Web socket, Hints; Pause, Clear, Save into the build (perf-<time>.json); saved sessions open from Builds.
+  Hints: a table sent whole each rerun (≥1 MB), a block that reruns (≥50 ms) though it reads nothing the changed
+  widget gives, a cache that always misses (the argument new each call), a slow query (≥200 ms) run again with
+  the same text, many small messages (≥200 under 300 bytes) in one rerun.
+- The agent: `streamlit_block_change` view=, `canvas_add` element=sql_query/dax_query, `app_launch`, `app_stop`,
+  `builds_list`, `builds_compare`, `build_relaunch`, `build_restore`, `perf_attach` (pause, clear, detach,
+  save), `perf_session`, `perf_hints`.
+
+**Decisions.**
+
+1. `{{ name }}` names a page value in a query (as text cells already do); `${NAME}` stays a variable.
+2. The build is the plain export; the run's copy adds the timing lines and the window's title (so two builds
+   compare by their code alone, and the analyzer costs nothing until it is attached).
+3. An old build relaunches as built: its blocks are not timed (the socket is still recorded).
+4. The trigger comes from the socket: the first ask seen after attaching holds every widget, so it says
+   "rerun" rather than guess.
+5. A fragment's own reruns are seen on the socket; the page's records time only full reruns.
+6. Streamlit keeps a dataframe it has sent (ref_hash): only a table not sent before travels again, so the
+   big-table hint counts what really travelled.
+
+**Not built (said plainly).** `{{ name }}` in a %%sql/%%dax cell run in the notebook (the kernel sends it
+as typed: the value is the page's); `${NAME}` in an exported SQL query (the script exporter's own gap); a
+setting in Settings for the number of builds kept (the service takes `keep`; the default keeps every one);
+Restore for an app opened without a window (refused with the fix); the analyzer for Play (it attaches to a
+launch); window titles from a page settings title (the settings' title wins).

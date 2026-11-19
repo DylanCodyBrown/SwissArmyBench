@@ -184,7 +184,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   and README.md only when absent), by Autosave (on by default) and by the Autosave switch, each file only
   when its bytes change. Rows only on the user's "Keep its rows" tick, into `.sab/data/` (Git-ignored);
   the agent's save or Copy project to with rows waits for the user's Allow. Copy project to copies the
-  folder (`.sab/data/` on a tick). `recent_projects.json` holds the projects' folder paths and times only;
+  folder (`.sab/data/` on a tick). **Launch's builds (the owner, 2026-11-19: "think Visual Studio"; "we just have
+  apps in folders"):** each launch of a Streamlit app writes `builds/<app>/<n>/` at the project's top (code,
+  cells.json, build.json; never rows or a secret; shared in Git), and a saved analyzer session goes beside it
+  (perf-<time>.json: names, times, sizes, counts only). `recent_projects.json` holds the projects' folder paths and times only;
   `projects.json` the Project Explorer's projects folder, sort, custom order and hidden ones. The old
   single .sab file is not read any more (its conversion removed, the owner, 2026-11-17: `swissarmybench open
   x.sab` says so in one line); the installers take an earlier .sab registration away.
@@ -446,6 +449,9 @@ src/swissarmybench/
     packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
+    page_queries.py      a Streamlit page's SQL and DAX blocks: the page values a query names (`{{ region }}`,
+                         read by the same text the page runs) and sab_queries.py (the exporter's connections, then
+                         the page's sql/dax: values bound or written as DAX literals, cached; one worker thread)
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
                          (the package check, settings, the vault by managed identity, connections)
@@ -1085,6 +1091,17 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
     services/canvas_pane.py  inspect (a block, a page, the app: properties, uses, used by, state, cache, code), a
                          table beside the canvas, a change to a cell's code as a plan, a Toolbox element's cell;
                          Now (the running app's session state and caches) is services/streamlit.py's `now`
+    domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top, shared in Git): build.json (sorted),
+                         cells.json, what changed in words, compare, Restore's plans, the run's title
+    domain/perf.py       the Performance Analyzer: a protobuf wire reader (a ForwardMsg's kind, element and path, a
+                         BackMsg's rerun and widgets: never content), the socket per rerun, the page's records
+                         joined, the caches, the hints in plain words
+    services/launch.py   Launch (a build, then a run folder of its own, timed; /streamlit/launch/<key>/), Stop,
+                         builds (list, files, compare, relaunch, restore), the analyzer (attach, tap, session, save)
+    server/sab_perf.py   copied beside a launch's pages: each rerun's trigger, blocks' times, calls, caches; one
+                         JSON line a rerun, only while sab_perf.on is there (the analyzer attached)
+    server/routes_launch.py  /streamlit/apps/{app}/launch, …/builds…, …/perf…, /streamlit/perf (the window)
+    adapters/build_files.py  a build's folder (written only when bytes change), the run folder's analyzer files
     server/routes_canvas.py  /streamlit/toolbox, …/inspect, /streamlit/tables/{name}, …/blocks/{block}/code, …/now,
                          …/containers, …/arrange, …/outline (the agent's canvas_* commands)
 extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
@@ -1182,6 +1199,10 @@ extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; e
 web/src/canvasPane.ts    (the Streamlit extension's) App mode's property pane: the grid (categorized, A to Z, search, a
                          property's line), Uses (a table beside the canvas, Open as grid), Streamlit (State: key, Now,
                          Default; Bindings; Cache), Events, Code; a container's own properties; several blocks' shared
+web/src/canvasLaunch.ts  the canvas's Launch (Ctrl+F5; F5 with the analyzer), Stop, the analyzer's window, Builds
+                         (Visual Studio's history: Compare in Monaco's diff editor, Open, Relaunch, Restore)
+web/src/perfPage.ts      the Performance Analyzer's window (static/perf.html): Timeline, Calls, Cache, Web socket,
+                         Hints; Pause, Clear, Save into the build; a saved session read-only
 web/src/canvasToolbox.ts the Toolbox (drag or click: an element's cell and block, a container) and the Document Outline
 web/src/canvasSnap.ts    snapline maths over rectangles (guides, snapped, equalGaps, sameSize, inBand): pure,
                          tested as the page runs it (tests/test_canvas_snap.py: esbuild and Node)
