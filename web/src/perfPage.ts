@@ -142,7 +142,7 @@ function draw(): void {
   else if (tab === "socket")
     content = h(
       "div",
-      { class: "pf-socket" },
+      { class: "pf-socket-view" },
       h("p", { class: "pf-total" }, `${s.socket?.messages ?? 0} messages · ${size(s.socket?.size ?? 0)} to the page`),
       table(["Element", "Messages", "Size"], Object.entries(s.socket?.elements ?? {}).map(([k, v]) => [k, v.count, size(v.size)]), "elements"),
       h("h3", { class: "app-heading" }, "The biggest"),

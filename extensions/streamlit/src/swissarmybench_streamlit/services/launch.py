@@ -116,7 +116,8 @@ class Launches:
         folder, title = self._folder(app_id)
         taken = self._builds.builds(folder)
         number = rules.next_number(taken)
-        made = await self._apps.build_parts(app_id, f"{title} · build {number}")
+        # The build keeps the app's own title (two builds compare by their code); the run's copy says its number.
+        made = await self._apps.build_parts(app_id, title)
         build = self._builds.join(folder, str(number))
         files = dict(made["files"])
         files[rules.APP_FILE] = made["canvas"]
@@ -217,7 +218,10 @@ class Launches:
             for k, v in files.items()
             if k.endswith(".py") or k in ("requirements.txt", ".streamlit/config.toml")
         }
-        timed = code  # an old build relaunches as it was built (its blocks are not timed)
+        # An old build relaunches as it was built (its blocks are not timed), its window named by its number.
+        timed = dict(code)
+        if "app.py" in timed:
+            timed["app.py"] = rules.titled(timed["app.py"], title, int(data["number"]))
         tables = sorted({t for v in code.values() for t in re.findall(r'_table\("(\w+)"', v)})
         app = self._apps._app(app_id, canvas=True)
         made = {"files": timed, "tables": tables, "python": self._apps.python_of(app), "timed": True}

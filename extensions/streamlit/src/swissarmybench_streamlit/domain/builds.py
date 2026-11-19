@@ -48,6 +48,13 @@ def digest(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
+def titled(app_py: str, title: str, number: int) -> str:
+    """A build's app.py as its run shows it: the window's title "<app> · build <n>" (the build keeps the
+    app's own, so two builds compare by their code)."""
+    words = f"{title} · build {number}"
+    return re.sub(r"page_title=(['\"]).*?\1", lambda _: f"page_title={words!r}", app_py, count=1)
+
+
 def next_number(taken: Iterable[str]) -> int:
     """The next build's number: one past the highest folder that is a number."""
     numbers = [int(n) for n in taken if n.isdigit()]

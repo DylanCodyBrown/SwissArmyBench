@@ -316,10 +316,17 @@ def socket_reruns(messages: Sequence[Message]) -> list[SocketRerun]:
     current: SocketRerun | None = None
     for message in messages:
         if message.direction == "up" and message.kind == "rerun_script":
-            changed = [k for k, d in message.widgets if last.get(k) != d]
+            # The first ask seen holds every widget's value: which changed is not known (attached late).
+            known = bool(last) or not message.widgets
+            changed = [k for k, d in message.widgets if last.get(k) != d] if last else []
             for k, d in message.widgets:
                 last[k] = d
-            trigger = changed[0] if changed else ("fragment" if message.fragment else "rerun")
+            if not known:
+                trigger = "rerun"
+            elif not message.widgets and not reruns:
+                trigger = "first load"
+            else:
+                trigger = changed[0] if changed else ("fragment" if message.fragment else "rerun")
             current = SocketRerun(trigger)
             reruns.append(current)
         elif message.direction == "down" and message.kind == "new_session" and current is None:
@@ -361,12 +368,13 @@ class Rerun:
 
 
 def reruns_of(records: Iterable[Mapping[str, Any]], socket: Sequence[SocketRerun]) -> list[Rerun]:
-    """The page's reruns (its records: kind "run", in order) beside the socket's, the n-th with the n-th."""
+    """The page's reruns (its records: kind "run", in order) beside the socket's, the n-th with the n-th. The
+    socket says the trigger (the browser's own ask names the widget that changed); else the page does."""
     runs = [r for r in records if r.get("kind") == "run"]
     out: list[Rerun] = []
     for index, record in enumerate(runs):
         held = socket[index] if index < len(socket) else None
-        trigger = str(record.get("trigger") or (held.trigger if held else "rerun"))
+        trigger = held.trigger if held is not None else str(record.get("trigger") or "rerun")
         blocks = tuple((str(b), float(ms)) for b, ms in record.get("blocks") or [])
         out.append(
             Rerun(

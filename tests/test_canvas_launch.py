@@ -65,8 +65,8 @@ def _socket() -> list[perf.Message]:
 
 def test_the_socket_is_grouped_per_rerun_with_its_trigger() -> None:
     reruns = perf.socket_reruns(_socket())
-    assert [r.trigger for r in reruns] == ["first load", "region_pick", "zoom"]
-    # The first rerun after the first load: both widgets are new, the first is its trigger; then zoom changed.
+    assert [r.trigger for r in reruns] == ["first load", "rerun", "zoom"]
+    # The first ask holds every widget's value (which changed is not known); then zoom changed.
     assert reruns[0].to_json()["elements"]["dataframe"]["count"] == 1
     assert reruns[2].size == len(_bin("dataframe")) + len(_bin("script_finished"))
 
@@ -327,7 +327,7 @@ def test_the_analyzer_records_only_while_attached_and_says_the_big_table(
     ]
     (run_folder / "sab_perf.jsonl").write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8")
     session = _ok(client.get(f"{base}/perf", headers=AUTH))
-    assert [r["trigger"] for r in session["reruns"]] == ["first load", "region_pick"]
+    assert [r["trigger"] for r in session["reruns"]] == ["first load", "rerun"]
     assert session["reruns"][1]["blocks"] == [
         {"block": "b1", "title": "Region", "ms": 3.0},
         {"block": "b2", "title": "Orders", "ms": 41.0},

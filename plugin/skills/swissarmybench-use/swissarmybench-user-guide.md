@@ -1636,6 +1636,46 @@ where a block you drag or size lines up with another. Arrow keys move a block (S
 Ctrl+D duplicates, Delete takes it off the page. View shows the ruler and sample rows; Wide, Centered and
 Phone set the page's width. Everything exports as plain Streamlit.
 
+**SQL and DAX queries on a page.** A SQL cell (`%%sql Shop -> by_region`) or a DAX cell (`%%dax Finance/Sales
+model`) goes on a page like a Python cell; the Toolbox's **SQL query** and **DAX query** make one. Its result
+shows as a table; Properties' **SQL query** section picks its connection (a DAX block's dataset), **Show as**
+(a table, a bar, line or area chart, a metric), and **Cache** (on by default). Write `{{ region }}` in the query
+where a widget's value goes: the page sends it as a bound parameter (SQL) or a DAX literal, never pasted into
+the query's text; **Parameters** shows which block gives each value. The export runs anywhere: the connections
+go into `sab_queries.py` beside the pages, their passwords read from the environment.
+
+**Fragments.** A block whose widgets feed only itself reruns alone (`st.fragment`): Properties says
+**Reruns: Alone (fragment)** or **The whole page**.
+
+**Several blocks selected** show every property they share: their size, Locked and Hidden, a query's Show as,
+and each property of the element their cells share (set on all at once; Mixed where they differ). A binding
+through session state (a widget's value bound to `st.session_state["level"]`) is drawn on the board as a dashed
+line with its key. A Python cell that calls Streamlit has **Add to app** in its bar. In Uses, a connection
+opens its own card and a variable the Variables page at its name.
+
+### Launch, builds and the Performance Analyzer
+
+**Launch** (the canvas's bar, Ctrl+F5) builds the app and runs it in a window of its own, titled
+"orders · build 3"; **F5** launches it with the Performance Analyzer attached. Launch again replaces the
+running one; **Stop** ends it.
+
+**Every launch is a build**, a folder in your project: `builds/<app>/<number>/` holds the code exactly as
+launched (app.py, the pages, sab_queries.py, data.py, requirements.txt), the canvas's file, each cell's code,
+and `build.json` (when, what changed in words, whether it started, the first load's time). Builds are text
+and go into Git with the project; no rows and no passwords are in them. **Builds** lists them newest first:
+tick two and **Compare** shows each changed file side by side; **Open** shows one build's files; **Relaunch**
+runs an old build; **Restore** puts its cells' code back into your notebooks (Undo takes it back) and its
+layout on the canvas.
+
+**The Performance Analyzer** opens in its own window from the canvas while the app runs, and records only
+while it is open (**Pause**, **Clear**, **Save into the build**). **Timeline**: each rerun, what started it
+(the widget that changed, a page switch), its time, and each block's time under it. **Calls**: each query,
+web request and file read. **Cache**: each cached function's calls, hits and misses. **Web socket**: what
+travelled to the page, by element (a dataframe, a chart, markdown), the biggest first: kinds and sizes only.
+**Hints** say what to change in plain words: a table sent whole each rerun, a block that reruns though it
+does not read the widget that changed, a cache that always misses, a slow query run again with the same
+text, many small messages from a loop.
+
 ### Projects: start with the data
 
 A project is a folder that starts with the data. **data.ipynb** is where you work on it: each table's
