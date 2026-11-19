@@ -26,6 +26,7 @@
  * ?panel=steps opens only the steps panel (the pop-out window), and ?panel=keys only the Key
  * Finder; both follow the same server state through the WebSocket, so edits show in every window.
  */
+import { touring } from "./tour";
 import { mountContextMenus } from "./cellMenu";
 import { watchConnectionColours } from "./connectionColours";
 import { libraryNotices } from "./library";
@@ -122,10 +123,14 @@ function onLiveNotice(notice: Notice): void {
   if (notice.type === "grid_shown" && notice.grid && !popout && !keysWindow) {
     // A push or an agent opened a grid: it arrives as a tab and comes to the front (over the Grids landing,
     // and the Projects page makes way, as the Start view did).
+    // Not while the tour is on show: it pastes its own two tables as it starts, and their notices, late on a
+    // busy computer, took the Projects page away from under its Projects card.
     addGrid(notice.grid, notice.dataset ?? notice.grid);
-    if (viewingLanding()) showGridView("replace");
-    if (layerShown() === "projects") visit(withParams({ open: null, at: null, type: null, name: null }), "replace");
-    void activateGrid(notice.grid);
+    if (!touring()) {
+      if (viewingLanding()) showGridView("replace");
+      if (layerShown() === "projects") visit(withParams({ open: null, at: null, type: null, name: null }), "replace");
+      void activateGrid(notice.grid);
+    }
   }
   if (notice.type === "grid_closed" && notice.grid) dropGrid(notice.grid);
   if (notice.type === "dataset_renamed" && notice.dataset && notice.to) renameContexts(notice.dataset, notice.to);

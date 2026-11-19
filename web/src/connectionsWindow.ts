@@ -61,7 +61,8 @@ import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
 import { pickSheets } from "./openFile";
-import { type Missing, noticeMissing, promptForError } from "./missingPackages";
+import { type Missing, noticeMissing, promptForError, reminder } from "./missingPackages";
+import { touring } from "./tour";
 import { colourPicker } from "./connectionColours";
 import { kindIcon } from "./kindColours";
 import { backButton, crumbs, dismissDialog, go, homeWindow, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
@@ -1442,7 +1443,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         form.missing = found.missing ?? null;
         drawInstall();
       };
-      installSlot.replaceChildren(h("p", { class: "hint install-note" }, noticeMissing(missing, { then: again }), h("code", {}, missing.command)));
+      // The tour's made-up form (a PostgreSQL one, on a computer without its driver) never asks: the prompt took
+      // the tour's focus. The small Install reminder is there all the same.
+      const note = touring() ? reminder(missing, { then: again }) : noticeMissing(missing, { then: again });
+      installSlot.replaceChildren(h("p", { class: "hint install-note" }, note, h("code", {}, missing.command)));
     };
     drawInstall();
     clear(

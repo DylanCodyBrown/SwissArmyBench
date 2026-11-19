@@ -23,6 +23,27 @@ from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
 SHOTS = os.environ.get("SWISSARMYBENCH_TOUR_SHOTS")
 
 
+def postgres_driver_missing(page: Page) -> None:
+    """The PostgreSQL form's driver stood in for as missing (a made-up package, whatever this Python has): the
+    tour's made-up form shows it and must not ask for it in the user's face (it took the tour's focus)."""
+    missing = {
+        "feature": "PostgreSQL connections",
+        "packages": ["made-up-postgres-driver"],
+        "python": "app",
+        "command": "uv pip install made-up-postgres-driver",
+    }
+
+    def types(route: Any) -> None:
+        answer = route.fetch()
+        found = answer.json()
+        for form in found["types"]:
+            if form["id"] == "postgres":
+                form["missing"] = missing
+        route.fulfill(response=answer, json=found)
+
+    page.route("**/connections/types", types)
+
+
 def datasets(server: dict[str, Any]) -> set[str]:
     return {d["name"] for d in call(server, "GET", "/datasets")["datasets"]}
 
@@ -100,6 +121,19 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
     frame = pd.DataFrame({"order_id": [1, 2, 3], "item": ["Anvil", "Bolt", "Cog"]})  # made up
     url = push_client.push(frame, name="tour_orders", new_grid=True)
     page = open_grid(browser, url, width=1440)
+    postgres_driver_missing(page)
+    # The tour's own two tables held back until the Projects card is on show, as on a busy computer: their
+    # arrival once took the Projects page away from under it.
+    held: list[Any] = []
+    holding = {"on": True}
+
+    def paste(route: Any) -> None:
+        if holding["on"]:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/datasets/tour_*/paste", paste)
     try:
         # Not in the Application row: Home (the Projects page, the rail's mark) has it.
         expect(page.locator(".app-row .tour-btn")).to_have_count(0)
@@ -117,13 +151,18 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         # Projects: this page, its mark on the rail lit up.
         to_word(page, tour, "Projects")
         expect(row).to_be_visible()
-        lights_up(tour, page.locator('.nav-rail [data-area="projects"]'))
 
-        # Its two made-up tables arrive as tabs, beside the user's.
+        # Its two made-up tables arrive as tabs, beside the user's, and the Projects page stays.
+        holding["on"] = False
+        for route in held:
+            route.continue_()
         tabs = page.locator(".tabs-row .tab-item")
         expect(tabs.filter(has_text="tour_customers")).to_have_count(1)
         expect(tabs.filter(has_text="tour_orders_2")).to_have_count(1)
         assert {"tour_orders", "tour_orders_2", "tour_customers"} <= datasets(server)
+        expect(row).to_be_visible()
+        expect(tour.locator(".tour-word")).to_have_text("Projects")
+        lights_up(tour, page.locator('.nav-rail [data-area="projects"]'))
 
         # A rail page: it goes there and lights up the page's own button.
         to_word(page, tour, "Connections")
@@ -140,6 +179,9 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         connections = page.locator('.area-page[data-page="connections"]')
         server_box = connections.get_by_label("Server", exact=True)
         expect(server_box).to_have_value("${WAREHOUSE_HOST}")
+        # Its driver is missing here: the form's small reminder, never the prompt over the tour.
+        expect(connections.locator(".install-note")).to_be_visible()
+        expect(page.locator("dialog.missing-packages")).to_have_count(0)
         lights_up(tour, connections.locator('.field[data-setting="server"] .variable-box-row'))
         if SHOTS:
             page.screenshot(path=str(Path(SHOTS) / "tour-using-a-variable.png"))

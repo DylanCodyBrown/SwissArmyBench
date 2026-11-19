@@ -422,6 +422,12 @@ async function toGrids(staged: Staged, pair: boolean): Promise<void> {
 
 // ===== the tour =====
 
+/** Whether the tour is on show: it moves the user itself, so a table that arrives meanwhile (its own staged
+ *  tables among them) never takes the user anywhere (main.ts's grid_shown). */
+export function touring(): boolean {
+  return document.querySelector(".tour") !== null;
+}
+
 export function openTour(): void {
   markSeen();
   document.querySelector(".tour")?.remove();

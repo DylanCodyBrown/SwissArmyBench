@@ -3937,3 +3937,18 @@ schema, power_query, dax_tables, relationships, dax_measures, m_parameters, meta
 part from a real file; a real Power BI Desktop (port files, the PowerShell CIM query, pythonnet and TOM's edits);
 a real tenant's service principal (its token's claims, executeQueries' refusals); `swissarmybench open report.pbix`
 through the desktop app's channel.
+
+## The browser tests after the 2026-11-19 merges (branch e2e-fix)
+
+Checked in Chromium, `pytest tests/e2e -n 2 --dist loadfile`, each fixed test alone and together. Two app bugs
+found by the tour test, each with a check that fails without its fix:
+- The tour's own two staged tables, arriving late on a busy computer, took the Projects page away from under the
+  tour's Projects card (main.ts's grid_shown made way for them). While the tour is on show an arriving table no
+  longer moves the user (tour.ts `touring()`); the test holds the tour's pastes until the Projects card shows.
+- The tour's made-up PostgreSQL form, on a Python without psycopg (not an app dependency, so every fresh install),
+  put "Install psycopg[binary]?" in the user's face over the tour and took its focus. While the tour is on show the
+  form shows only its small Install reminder; the test stands the driver in as missing.
+The rest were tests out of date (the Connections page's second Add connection, the rail's names toggle in the Tab
+order, the Application row hidden with no project, the removed insert button, the Analyze form above the board,
+SQL cells in the Streamlit cells panel, the empty landing's New script). The one test that really connects to
+PostgreSQL (test_variable_refs_page) needs psycopg in the server's Python; the rest answer Not now without it.
