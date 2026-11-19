@@ -203,8 +203,8 @@ NOT_COMMANDS = {
 }
 
 
-def test_every_server_route_has_a_command_or_a_stated_reason(live: Live) -> None:
-    app = create_app(1, "t", Settings(state_dir=Path("."), export_dir=Path(".")))
+def test_every_server_route_has_a_command_or_a_stated_reason(live: Live, tmp_path: Path) -> None:
+    app = create_app(1, "t", Settings(state_dir=tmp_path, export_dir=tmp_path))
     server_paths = {_normal(getattr(r, "path", "")) for r in app.routes}
     source = (Path(main.__file__).parent / "commands.py").read_text(encoding="utf-8")
     # And each extension's that is on (the Streamlit extension, preinstalled: its commands.py).

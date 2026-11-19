@@ -829,10 +829,15 @@ def bootstrap(
         # Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
         # variable, its connection's file backed up first; then what saved text now reads a variable (once).
         today = datetime.now(UTC).date().isoformat()
-        library.notice(
-            "computer",
-            variables.migrate_passwords(backup_copies(state_dir / "backup" / f"before-variables-{today}")),
-        )
+        passwords_moved = JsonFile(state_dir / "variables_moved.json")  # once: the first start with 12.7
+        if passwords_moved.read() is None:
+            library.notice(
+                "computer",
+                variables.migrate_passwords(
+                    backup_copies(state_dir / "backup" / f"before-variables-{today}")
+                ),
+            )
+            passwords_moved.write({"moved": today})
         refs_seen = JsonFile(state_dir / "variable_refs.json")
         holding = variables.holding() if refs_seen.read() is None else []
         if holding:  # said once; nothing found writes nothing

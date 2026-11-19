@@ -150,6 +150,8 @@ def test_the_first_start_makes_each_saved_password_a_variable(tmp_path: Path) ->
     blade = {"name": "Sales DB", "kind": "sql", "dialect": "sqlite", "code": code, "variable": "conn"}
     with make_client(tmp_path) as client:
         _ok(client.post("/blades", json=blade | {"secrets": {"password": SECRET}}, headers=AUTH))
+    # As on the first start of a version with 12.7 (the one before it wrote no mark).
+    (tmp_path / "state" / "variables_moved.json").unlink()
     library = tmp_path / "state" / "library"
     before = {p.name: p.read_bytes() for p in (library / "connections").iterdir()}
     with make_client(tmp_path) as client:
