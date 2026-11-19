@@ -188,6 +188,7 @@ def routes(services: Any) -> list[Any]:
         live_files.windows,
     )
     project.live = live
+    service.kept = project.kept  # part 1's export reads the round trip
     _standins(project, live)
     services.powerbi_live = live  # tests hand it a fake
     services.app_registrations.query_hints = project.query_hints

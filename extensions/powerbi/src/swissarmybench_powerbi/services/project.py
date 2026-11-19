@@ -321,6 +321,18 @@ class PowerBIProject:
             raise NotFound("This project was not made from a .pbix (it has no .sab/powerbi.json).")
         return dict(json.loads(text))
 
+    def kept(self) -> tuple[dict[str, Any] | None, str | None]:
+        """The round trip's two inputs for part 1's export: .sab/powerbi.json and data.ipynb's text as it is
+        now (saved); (None, None) outside a Power BI project made from a .pbix."""
+        current = self.base.sab_projects.current
+        if current is None:
+            return None, None
+        try:
+            state = self._state()
+        except NotFound:
+            return None, None
+        return state, self.files.read_text(str(Path(current.folder) / "data.ipynb"))
+
     def _write_state(self, state: Mapping[str, Any]) -> None:
         current = self.base.sab_projects.current
         self.files.write_text(str(Path(current.folder) / rules.STATE_PATH), rules.write_state(state))
