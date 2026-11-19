@@ -157,7 +157,12 @@ def test_multi_select_align_snaplines_keys_and_the_design_surface(
     page.keyboard.press("Delete")
     expect(blocks).to_have_count(3, timeout=15000)
     # Snaplines while a block is dragged over the row below: a guide where its edge meets another's.
-    box = blocks.nth(2).bounding_box()
+    # The blocks are drawn again after the Delete: the third one's box asked for until it is there.
+    box = None
+    for _ in range(100):
+        if box := blocks.nth(2).bounding_box():
+            break
+        page.wait_for_timeout(100)
     assert box
     blocks.nth(0).hover()
     page.mouse.down()
