@@ -45,8 +45,8 @@ QUERY = (
 def test_a_sql_cell_is_the_exporters_call_with_its_page_values_named() -> None:
     code = rules.query_code("sql", "Shop -> by_region", QUERY, 3)
     assert "%%" not in code
-    assert code.startswith("# Orders in the region\nimport sab_queries\n")
-    assert "by_region = sab_queries.sql('Shop', " in code and code.count("{'region': region})") == 1
+    assert code.startswith("# Orders in the region\nimport sab_queries as _sab_queries\n")
+    assert "by_region = _sab_queries.sql('Shop', " in code and code.count("{'region': region})") == 1
     assert "st.dataframe(by_region)" in code
     # The run order counts the page value as a read, and the result as made.
     found = rules.facts(code)
@@ -59,7 +59,7 @@ def test_a_sql_cell_is_the_exporters_call_with_its_page_values_named() -> None:
     assert exporter.query_cell(cell).query == QUERY and exporter.query_cell(cell).target == "by_region"
     # A DAX cell: its dataset in the name; no result name: query_<n>; a cell's own name titles it.
     dax = rules.query_code("dax", "Finance/Sales model", "EVALUATE 'Customer'", 7, "Customer list")
-    assert dax.startswith("# Customer list\n") and "query_7 = sab_queries.dax('Finance/Sales model', " in dax
+    assert dax.startswith("# Customer list\n") and "query_7 = _sab_queries.dax('Finance/Sales model', " in dax
     # No connection: the block says so on the page.
     assert "st.error('The SQL cell names no connection: pick one in its head.')" in rules.query_code(
         "sql", None, "select 1", 2
@@ -142,7 +142,7 @@ def test_the_view_is_a_table_a_chart_or_a_metric_and_the_cache_can_be_turned_off
     bar = rules.shown(code, rules.check_view({"as": "bar", "x": "order_id", "y": "amount"}))
     assert "st.bar_chart(by_region, x='order_id', y='amount')" in bar and "st.dataframe" not in bar
     metric = rules.shown(code, rules.check_view({"as": "metric", "column": "amount", "label": "First"}))
-    assert "st.metric('First', sab_queries.one(by_region, 'amount'))" in metric
+    assert "st.metric('First', _sab_queries.one(by_region, 'amount'))" in metric
     off = rules.shown(code, rules.check_view({"as": "table", "cache": False}))
     assert "{'region': region}, cache=False)" in off
     assert rules.check_view({"as": "table"}) == {} and rules.check_view(None) == {}
@@ -169,7 +169,7 @@ def test_the_export_has_sab_queries_and_no_magic(tmp_path: Path) -> None:
     written = made.files["app_pages/orders.py"]
     assert not any(line.lstrip().startswith("%%") for line in written.split("\n"))
     assert "import sab_queries" in written
-    assert written.index("region = st.selectbox") < written.index("by_region = sab_queries.sql")
+    assert written.index("region = st.selectbox") < written.index("by_region = _sab_queries.sql")
     assert made.files[rules.QUERY_FILE] == "# the module\n"
     assert "sab_queries" not in made.files["requirements.txt"] and "pandas" in made.files["requirements.txt"]
 
@@ -324,3 +324,45 @@ def test_a_dax_block_on_power_bi_plays_exports_and_runs_with_a_select_feeding_it
     assert seen["first"] == [east] and seen["second"] == [west]
     asked = [r for r in powerbi.requests if r.get("what") == "query"]
     assert any('= \\"West\\"' in json.dumps(r) or '= "West"' in json.dumps(r) for r in asked)
+
+
+def test_the_pane_shows_a_query_blocks_connection_parameters_and_view_and_the_toolbox_makes_one(
+    served: tuple[TestClient, made_up.StandIn], tmp_path: Path
+) -> None:
+    client, _ = served
+    _ok(client.post("/connections", headers=AUTH, json=sqlite_connection(_shop(tmp_path))))
+    notebook = tmp_path / "app.ipynb"
+    cells = [notebooks.Cell("code", FILTER), notebooks.Cell("sql", QUERY, "Shop -> by_region")]
+    notebook.write_text(notebooks.write_notebook(cells), encoding="utf-8")
+    base = _place(client, notebook, [1, 2])
+    seen = _ok(client.get(f"{base}/inspect", headers=AUTH, params={"page": "p1", "block": "b2"}))
+    assert seen["block"]["kind"] == "sql"
+    query = seen["query"]
+    assert (query["kind"], query["connection"], query["result"], query["tables"]) == (
+        "sql",
+        "Shop",
+        "by_region",
+        ["orders"],
+    )
+    assert [(p["name"], p["block"], p["title"]) for p in query["params"]] == [("region", "b1", "Region")]
+    assert seen["uses"]["connections"] == ["Shop"] and query["view"] == {}
+    # The view is the block's: a bar chart, uncached; the code the page runs says so.
+    view = {"as": "bar", "x": "order_id", "y": "amount", "cache": False}
+    _ok(client.patch(f"{base}/pages/p1/blocks/b2", headers=AUTH, json={"view": view}))
+    seen = _ok(client.get(f"{base}/inspect", headers=AUTH, params={"page": "p1", "block": "b2"}))
+    assert seen["query"]["view"] == view
+    assert (
+        "st.bar_chart(by_region, x='order_id', y='amount')" in seen["code"] and "cache=False" in seen["code"]
+    )
+    bad = client.patch(f"{base}/pages/p1/blocks/b2", headers=AUTH, json={"view": {"as": "pie"}})
+    assert bad.status_code == 400
+    # The Toolbox's SQL query and DAX query: a query cell named as its result.
+    listed = _ok(client.get("/streamlit/toolbox", headers=AUTH))["items"]
+    assert {i["id"]: i.get("query") for i in listed if i.get("query")} == {
+        "sql_query": "sql",
+        "dax_query": "dax",
+    }
+    made = _ok(client.post(f"{base}/toolbox", headers=AUTH, json={"element": "sql_query"}))
+    assert (made["kind"], made["name"], made["variable"]) == ("sql", "query_1", "query_1")
+    made = _ok(client.post(f"{base}/toolbox", headers=AUTH, json={"element": "dax_query"}))
+    assert made["kind"] == "dax" and made["code"].startswith("EVALUATE")

@@ -463,8 +463,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     }
     const link = copiedCell();
     if (!link) return false;
-    if (link.kind !== "code" && link.kind !== "markdown" && link.kind !== "html") {
-      errorHere("A Python, Markdown or HTML cell goes on a Streamlit app's canvas.");
+    if (!["code", "markdown", "html", "sql", "dax"].includes(link.kind)) {
+      errorHere("A Python, Markdown, HTML, SQL or DAX cell goes on a Streamlit app's canvas.");
       return true;
     }
     await place(link);
@@ -1141,6 +1141,8 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
         { class: "cv-block-head" },
         // A Markdown or HTML cell's block: st.markdown or st.html on the page (text cells on the canvas).
         block.kind === "markdown" || block.kind === "html" ? h("span", { class: "wb-st-t", title: block.kind === "markdown" ? "A Markdown cell" : "An HTML cell", "aria-label": block.kind === "markdown" ? "A Markdown cell" : "An HTML cell" }, "T") : null,
+        // A SQL or DAX cell's block: its query's result on the page (a table, a chart or a metric).
+        block.kind === "sql" || block.kind === "dax" ? h("span", { class: "wb-st-t cv-query", title: block.kind === "sql" ? "A SQL query" : "A DAX query", "aria-label": block.kind === "sql" ? "A SQL query" : "A DAX query" }, block.kind.toUpperCase()) : null,
         h("span", { class: "cv-block-name" }, name),
         marks(block),
         h("span", { class: "spacer" }),

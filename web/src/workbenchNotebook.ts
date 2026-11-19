@@ -311,7 +311,7 @@ export interface NotebookView {
   /** A SQL or DAX cell of the user's (by its number) run on another connection (a swap's code). */
   setCellConnection: (number: number, name: string) => void;
   /** A new named Python cell at the end (data.ipynb's cell for a moved model); its number. */
-  appendNamed: (source: string, name: string) => number;
+  appendNamed: (source: string, name: string, kind?: CellKind, connection?: string | null) => number;
   /** Insert a snippet, filled with `values` (the agent's): into the cell numbered `number`, else the
    *  selected one of its kind, else a new one. Which cell took it. */
   insertSnippet: (name: string, values: Record<string, unknown>, number?: number) => Promise<{ cell: number; kind: CellKind; name: string | null }>;
@@ -2225,11 +2225,18 @@ export function notebookView(
     editSelected: () => {
       if (selected) edit(selected);
     },
-    // Its Python cells, and its Markdown and HTML cells (they go on a page too: text cells on the canvas).
+    // Its Python cells, its Markdown and HTML cells (text cells on the canvas), its SQL and DAX cells
+    // (query blocks: their query and connection).
     pieces: () =>
       cells
-        .filter((c) => (c.kind === "code" ? c.role === "" || c.role === "maker" : isText(c.kind) && c.role === "") && sourceOf(c).trim())
-        .map((c) => ({ cell: c.number, code: sourceOf(c), ...(isText(c.kind) ? { kind: c.kind as "markdown" | "html" } : {}), ...(c.name ? { name: c.name } : {}) })),
+        .filter((c) => (c.kind === "code" ? c.role === "" || c.role === "maker" : (isText(c.kind) || c.kind === "sql" || c.kind === "dax") && c.role === "") && sourceOf(c).trim())
+        .map((c) => ({
+          cell: c.number,
+          code: sourceOf(c),
+          ...(isText(c.kind) ? { kind: c.kind as "markdown" | "html" } : {}),
+          ...(c.kind === "sql" || c.kind === "dax" ? { kind: c.kind, ...(c.connection ? { connection: c.connection } : {}) } : {}),
+          ...(c.name ? { name: c.name } : {}),
+        })),
     everyCells: () => cells.map((c) => ({ kind: c.kind, source: sourceOf(c), role: c.role, table: c.table, number: c.number })),
     copy: (number) => {
       const cell = number === undefined ? selected : byNumber(number);
@@ -2285,8 +2292,9 @@ export function notebookView(
       cell.connectionPicker.dispatchEvent(new Event("focus")); // drawn again, with this one picked
       edited();
     },
-    appendNamed: (source, name) => {
-      const cell = insertAt(cells.length, "code", source);
+    appendNamed: (source, name, kind = "code", connection = null) => {
+      const cell = insertAt(cells.length, kind, source);
+      if (connection) cell.connection = connection;
       setName(cell, name);
       return cell.number;
     },

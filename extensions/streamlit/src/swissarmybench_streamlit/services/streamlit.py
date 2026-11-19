@@ -1022,6 +1022,10 @@ class StreamlitApps:
                 if not isinstance(body[flag], bool):
                     raise StreamlitError(f"{flag} is true or false.")
                 setattr(block, flag, body[flag])
+        if "view" in body:
+            if not isinstance(block, Block):
+                raise StreamlitError("A container has no view: a SQL or DAX block has.")
+            block.view = rules.check_view(body["view"])
         moves = [k for k in ("row", "column", "insert", "w", "h", "parent", "slot", "page") if k in body]
         if block.locked and moves:
             raise Conflict(f"{block_id} is locked: unlock it to move or size it.")

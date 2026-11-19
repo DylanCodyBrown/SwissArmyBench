@@ -246,6 +246,12 @@ _PAGE: dict[str, object] = {"re": re, "Any": object}
 exec(compile(runtime.PAGE_PARTS, "sab_queries.py", "exec"), _PAGE)  # noqa: S102 (our own text, read once)
 
 
+def page_split(query: str, dax: bool = False) -> list[str | tuple[str]]:
+    """A query as its text and its page values (`("region",)`), as sab_queries.py reads it."""
+    found = _PAGE["page_parts"]
+    return list(found(query, dax))  # type: ignore[operator]
+
+
 def page_names(query: str, dax: bool = False) -> list[str]:
     """The page values a SQL or DAX query names: `{{ name }}` outside its strings and comments."""
     found = _PAGE["page_names"]

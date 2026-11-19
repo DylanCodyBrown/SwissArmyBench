@@ -135,6 +135,7 @@ def routes(services: Any) -> list[Any]:
         variables=getattr(getattr(services, "variables", None), "listing", None),
         lineage=getattr(getattr(services, "lineage", None), "trace", None),
         is_set=lambda name: name in os.environ,
+        places=getattr(getattr(services, "catalogs", None), "places", None),
     )
     services.canvas_pane = pane
     services.streamlit = apps  # its stop, and tests

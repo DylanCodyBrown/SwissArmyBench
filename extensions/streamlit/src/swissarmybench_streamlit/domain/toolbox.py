@@ -774,9 +774,29 @@ CONTAINERS: dict[str, ContainerKind] = {
 }
 
 
+# A SQL or DAX query (2026-11-19): a %%sql or %%dax cell of the app notebook and its block; its connection
+# (a DAX cell's dataset) is picked in its head or the property pane; its result shows as a table.
+QUERIES: dict[str, tuple[str, str, str, str]] = {
+    "sql_query": ("sql", "SQL query", "A query on a connection, in its own SQL.", "SELECT 1 AS value"),
+    "dax_query": ("dax", "DAX query", "A DAX query on a Power BI dataset.", 'EVALUATE ROW("Value", 1)'),
+}
+
+
 def catalog() -> dict[str, Any]:
     """The Toolbox as the page and the agent read it: the groups in order, each element and container."""
-    items = [e.to_json() for e in _ELEMENTS] + [c.to_json() for c in CONTAINERS.values()]
+    queries = [
+        {
+            "id": tool,
+            "group": "Data",
+            "label": label,
+            "words": words,
+            "kind": "element",
+            "query": kind,
+            "params": [],
+        }
+        for tool, (kind, label, words, _) in QUERIES.items()
+    ]
+    items = [e.to_json() for e in _ELEMENTS] + queries + [c.to_json() for c in CONTAINERS.values()]
     return {"groups": list(GROUPS), "items": items}
 
 
@@ -801,9 +821,10 @@ class NewCell:
     code: str
     name: str  # the cell's own name ("Slider 1")
     variable: str | None  # the name its value has (None: it shows something and makes nothing)
+    kind: str = "code"  # a SQL or DAX query's cell: sql, dax (its code is the query)
 
     def to_json(self) -> dict[str, Any]:
-        return {"code": self.code, "name": self.name, "variable": self.variable}
+        return {"code": self.code, "name": self.name, "variable": self.variable, "kind": self.kind}
 
 
 def cell_code(
@@ -812,6 +833,11 @@ def cell_code(
     """A dropped element's cell: a title line, the element's minimal code. Its variable and key are one
     name no cell has made (`taken`); a data element shows the first open table (`tables`), else a small
     made-up one."""
+    if call in QUERIES:
+        # Its name is its result's (a Python name), so a chart or another block reads it by that name.
+        kind, _, _, query = QUERIES[call]
+        name = free_name("query", taken)
+        return NewCell(query + "\n", name, name, kind)
     element = ELEMENTS.get(call)
     if element is None or not element.code:
         raise ToolboxError(f"The Toolbox has no element called {call!r}.")

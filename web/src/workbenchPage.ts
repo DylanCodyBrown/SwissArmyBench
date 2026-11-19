@@ -772,6 +772,18 @@ function appHost(doc: Doc): AppHost {
     openVariable: () => openVariables(),
     openConnection: () => void openConnections().then(() => void rail.loadBlades()),
     openGrid: (grid) => showGridAtHome(grid),
+    sources: (kind) => (kind === "dax" ? datasetNames : connectionNames),
+    setConnection: async (document, cell, connection) => {
+      let held = docs.find((d) => d.path === document);
+      if (!held) {
+        await open(document);
+        held = docs.find((d) => d.path === document);
+        if (doc.canvas) show(doc);
+      }
+      if (!held?.notebook) throw new Error(`${baseName(document)} is not open.`);
+      held.notebook.setCellConnection(cell, connection);
+      held.streamlit?.syncSoon();
+    },
     renameCell: async (document, cell, name) => {
       let held = docs.find((d) => d.path === document);
       if (!held) {
@@ -866,8 +878,9 @@ async function addElement(app: Doc, element: string, where?: Where): Promise<unk
   const id = app.canvas?.app();
   if (!id) throw new Error("The app is not open yet.");
   const notebookDoc = await appNotebookDoc(app);
-  const made = await api<{ code: string; name: string; variable: string | null }>(`/streamlit/apps/${encodeURIComponent(id)}/toolbox`, "POST", { element });
-  const cell = notebookDoc.notebook!.appendNamed(made.code.replace(/\n+$/, ""), made.name);
+  const made = await api<{ code: string; name: string; variable: string | null; kind: "code" | "sql" | "dax" }>(`/streamlit/apps/${encodeURIComponent(id)}/toolbox`, "POST", { element });
+  // A SQL or DAX query: a %%sql or %%dax cell, on the first connection (a DAX cell: its first dataset).
+  const cell = notebookDoc.notebook!.appendNamed(made.code.replace(/\n+$/, ""), made.name, made.kind ?? "code");
   const placed = (await placeStarter(app, notebookDoc, cell, where)) as { document: string | null; cell: number };
   return { ...placed, name: made.name, variable: made.variable };
 }

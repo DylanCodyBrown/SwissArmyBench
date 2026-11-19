@@ -83,7 +83,7 @@ export interface BlockState {
   locked: boolean;
   name: string | null;
   /** code, markdown or html: a text block is marked T. */
-  kind: "code" | "markdown" | "html" | null;
+  kind: "code" | "markdown" | "html" | "sql" | "dax" | null;
   where: string;
   makes: string[];
   reads: string[];
@@ -320,8 +320,10 @@ export interface PieceSource {
   code: string;
   /** The cell's own name (none: it has none). */
   name?: string;
-  /** A Markdown or HTML cell (none: a Python cell). */
-  kind?: "markdown" | "html";
+  /** A Markdown, HTML, SQL or DAX cell (none: a Python cell). A SQL or DAX cell sends its query. */
+  kind?: "markdown" | "html" | "sql" | "dax";
+  /** A SQL cell's connection, a DAX cell's dataset, as its head holds it (`Shop -> orders`). */
+  connection?: string;
   /** A script's HTML cell sends its lines (the HTML as one Python string). */
   form?: "script";
 }
@@ -366,7 +368,7 @@ export interface PaneCell {
   /** It has a name of its own (else `name` is its first comment line or first line). */
   named: boolean;
   /** code, or a Markdown or HTML cell (the pane lists those under Text). */
-  kind: "code" | "markdown" | "html";
+  kind: "code" | "markdown" | "html" | "sql" | "dax";
   where: string;
   makes: string[];
   reads: string[];

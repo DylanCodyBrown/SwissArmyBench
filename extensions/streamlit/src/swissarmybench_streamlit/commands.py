@@ -286,6 +286,12 @@ def streamlit_block_place(a: dict[str, Any]) -> Any:
     opt("hidden", "Hidden while designing.", "bool"),
     opt("locked", "Locked: the designer does not move or size it.", "bool"),
     opt("props", 'A container\'s own properties: {"widths": [2, 1]}, {"labels": ["A", "B"]}...', "json"),
+    opt(
+        "view",
+        'A SQL or DAX block\'s view: {"as": "table" | "bar" | "line" | "area" | "metric", "x", "y", '
+        '"column", "label", "cache": false}; {} the table, cached.',
+        "json",
+    ),
 )
 def streamlit_block_change(a: dict[str, Any]) -> Any:
     body: dict[str, Any] = {k: a[k] for k in ("row", "column", "insert", "w") if a.get(k) is not None}
@@ -295,7 +301,7 @@ def streamlit_block_change(a: dict[str, Any]) -> Any:
         body["page"] = a["to_page"]
     if a.get("parent") is not None:
         body["parent"] = a["parent"] or None
-    body |= {k: a[k] for k in ("slot", "hidden", "locked", "props") if a.get(k) is not None}
+    body |= {k: a[k] for k in ("slot", "hidden", "locked", "props", "view") if a.get(k) is not None}
     path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}"
     return api.call("PATCH", path, body)
 

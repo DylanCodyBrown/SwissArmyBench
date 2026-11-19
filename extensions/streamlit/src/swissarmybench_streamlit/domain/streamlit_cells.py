@@ -118,6 +118,7 @@ TRACE_FILE: str = f"{TRACE_MODULE}.py"
 # beside the pages (the connections written out as the exporter writes them, `query_module`).
 QUERY_KINDS: tuple[str, ...] = ("sql", "dax")
 QUERY_MODULE: str = exporter.QUERY_MODULE
+QUERY_ALIAS: str = f"_{QUERY_MODULE}"  # the block's own name for it (a name with _ is not one the page shows)
 QUERY_FILE: str = exporter.QUERY_FILE
 # The line a query block shows its result with ends with this mark (the view's choice replaces it).
 SHOW_MARK: str = "# shown as:"
@@ -263,12 +264,12 @@ def query_code(kind: str, connection: str | None, text: str, number: int, name: 
     result = asked.target or f"query_{number}"
     names = [n for n in exporter.page_names(asked.query, kind == "dax") if not keyword.iskeyword(n)]
     values = (", {" + ", ".join(f"{n!r}: {n}" for n in names) + "}") if names else ""
-    call = f"{QUERY_MODULE}.{kind}({asked.name!r}, {python_string(asked.query)}{values})"
+    call = f"{QUERY_ALIAS}.{kind}({asked.name!r}, {python_string(asked.query)}{values})"
     return (
         "\n".join(
             [
                 head,
-                f"import {QUERY_MODULE}",
+                f"import {QUERY_MODULE} as {QUERY_ALIAS}",
                 "",
                 f"{result} = {call}",
                 f"st.dataframe({result})  {SHOW_MARK} table",
@@ -292,7 +293,7 @@ def query_calls(code: str) -> list[exporter.ExportCell]:
         if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
             continue
         held = node.func.value
-        if not (isinstance(held, ast.Name) and held.id == QUERY_MODULE and node.func.attr in QUERY_KINDS):
+        if not (isinstance(held, ast.Name) and held.id == QUERY_ALIAS and node.func.attr in QUERY_KINDS):
             continue
         args = [a.value for a in node.args[:2] if isinstance(a, ast.Constant) and isinstance(a.value, str)]
         if len(args) == 2:
@@ -300,9 +301,87 @@ def query_calls(code: str) -> list[exporter.ExportCell]:
     return found
 
 
+@dataclass(frozen=True)
+class QueryFacts:
+    """What a SQL or DAX block's pane shows: its kind, its connection (and a DAX block's dataset), its
+    query, the name its result goes by, the page values it names, and the tables its query names."""
+
+    kind: str
+    connection: str
+    dataset: str | None
+    query: str
+    result: str | None
+    params: tuple[str, ...]
+    tables: tuple[str, ...]
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "connection": self.connection,
+            "dataset": self.dataset,
+            "query": self.query,
+            "result": self.result,
+            "params": list(self.params),
+            "tables": list(self.tables),
+        }
+
+
+_DAX_TABLE = re.compile(r"'((?:[^']|'')+)'")
+
+
+def query_tables(kind: str, query: str) -> list[str]:
+    """The tables a query names: a SQL query's by sqlglot's tree (a page value read as a value); a DAX
+    query's quoted 'Table' names. Names only, in order; a query sqlglot cannot read names none."""
+    if kind == "dax":
+        text = "".join(p for p in exporter.page_split(query, dax=True) if isinstance(p, str))
+        text = re.sub(r'"(?:[^"]|"")*"', '""', text)
+        return list(dict.fromkeys(m.group(1).replace("''", "'") for m in _DAX_TABLE.finditer(text)))
+    import sqlglot
+    from sqlglot import exp
+
+    text = "".join(p if isinstance(p, str) else "NULL" for p in exporter.page_split(query))
+    try:
+        trees = sqlglot.parse(text)
+    except sqlglot.errors.SqlglotError:
+        return []
+    found: list[str] = []
+    for tree in trees:
+        if tree is None:
+            continue
+        ctes = {c.alias_or_name for c in tree.find_all(exp.CTE)}
+        for table in tree.find_all(exp.Table):
+            name = ".".join(part for part in (table.db, table.name) if part)
+            if name and table.name not in ctes and name not in found:
+                found.append(name)
+    return found
+
+
+def query_facts(code: str) -> QueryFacts | None:
+    """A SQL or DAX block's facts from its code (`query_code`); None for any other block."""
+    calls = query_calls(code)
+    if not calls:
+        return None
+    cell = calls[0]
+    connection = cell.connection or ""
+    dataset = (
+        connection.split("/", 1)[1].strip() or None if cell.kind == "dax" and "/" in connection else None
+    )
+    base = connection.split("/", 1)[0].strip() if cell.kind == "dax" else connection
+    made = [n for n in facts(code).makes if n not in PROVIDED and n != QUERY_ALIAS]
+    return QueryFacts(
+        cell.kind,
+        base,
+        dataset,
+        cell.source,
+        made[0] if made else None,
+        tuple(exporter.page_names(cell.source, cell.kind == "dax")),
+        tuple(query_tables(cell.kind, cell.source)),
+    )
+
+
 def is_query(code: str) -> bool:
     """The code is a SQL or DAX block's (`query_code`)."""
-    return f"import {QUERY_MODULE}\n" in code and SHOW_MARK in code
+    return f"import {QUERY_MODULE} as {QUERY_ALIAS}\n" in code and SHOW_MARK in code
 
 
 def shown(code: str, view: Mapping[str, Any]) -> str:
@@ -322,7 +401,7 @@ def shown(code: str, view: Mapping[str, Any]) -> str:
             and isinstance(node.value, ast.Call)
             and isinstance(node.value.func, ast.Attribute)
             and isinstance(node.value.func.value, ast.Name)
-            and node.value.func.value.id == QUERY_MODULE
+            and node.value.func.value.id == QUERY_ALIAS
         ),
         None,
     )
@@ -342,7 +421,7 @@ def shown(code: str, view: Mapping[str, Any]) -> str:
         lines[at] = f"st.{how}_chart({result}{given})  {SHOW_MARK} {how} chart"
     elif how == "metric":
         label = view.get("label") or view.get("column") or result
-        value = f"{QUERY_MODULE}.one({result}, {view.get('column')!r})"
+        value = f"{QUERY_ALIAS}.one({result}, {view.get('column')!r})"
         lines[at] = f"st.metric({label!r}, {value})  {SHOW_MARK} metric"
     return "\n".join(lines) + "\n"
 
