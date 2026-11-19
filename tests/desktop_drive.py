@@ -22,7 +22,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent
+from PySide6.QtCore import QEvent, QMimeData, QPoint, QPointF, Qt, QUrl
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from swissarmybench.adapters.desktop import RecordFile, ask
@@ -280,6 +282,68 @@ def main(folder: Path, shots: Path | None) -> int:
             p.name for p in (info_file.parent / "desktop" / "profile").iterdir()
         )
         shot(catalog, "desktop-catalog-window.png")
+
+        # 11b. Files: one handed over the channel (`swissarmybench open <file>`), one dropped from the system
+        # on the home window: each read by its real path (its origin the file).
+        def tables() -> dict[str, Any]:
+            return {g["dataset"]: g for g in call("GET", "/grids")["grids"]}
+
+        def tab_count() -> int:
+            return int(js(home, "document.querySelectorAll('.tab-item[data-grid]').length"))
+
+        regions = folder / "regions.csv"
+        regions.write_text("region,manager\nNorth,Avery\nSouth,Blake\n", encoding="utf-8")
+        found = record.shell()
+        assert found is not None
+        results["file_answer"] = ask(found[1], found[2], {"file": str(regions)})
+        wait(lambda: "regions" in tables(), 30, "the file handed over the channel")
+        wait(lambda: js(home, "!!document.querySelector('.tab-item[title=\"regions\"]')"), 30, "its tab")
+        results["file_origin"] = tables()["regions"]["origin"]["kind"]
+        dropped = folder / "drop_me.csv"
+        dropped.write_text("sku,qty\nA-1,3\nB-2,5\n", encoding="utf-8")
+        target = home.view.focusProxy() or home.view
+        mime = QMimeData()
+        mime.setUrls([QUrl.fromLocalFile(str(dropped))])
+        action = Qt.DropAction.CopyAction
+        button, none = Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+        enter = QDragEnterEvent(QPoint(60, 60), action, mime, button, none)
+        QApplication.sendEvent(target, enter)
+        results["drop_accepted"] = enter.isAccepted()
+        QApplication.sendEvent(target, QDropEvent(QPointF(60, 60), action, mime, button, none))
+        wait(lambda: "drop_me" in tables(), 30, "the dropped file")
+        results["drop_origin"] = tables()["drop_me"]["origin"]["kind"]
+        results["opened_files"] = [Path(p).name for p in shell.opened_files]
+
+        # 11c. The browser's keys are the app's: Ctrl+Tab goes round the tabs, Ctrl+W closes the one in front
+        # (not the window), Ctrl+Shift+T brings it back with its steps.
+        home.bring_forward()
+        target.setFocus()
+        wait(lambda: tab_count() >= 3, 15, "three tabs")
+        before = tab_count()
+        front = js(home, "document.querySelector('.tab-item.active')?.title")
+        ctrl, shift = Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.ShiftModifier
+        QTest.keyClick(target, Qt.Key.Key_Tab, ctrl)
+        wait(lambda: js(home, "document.querySelector('.tab-item.active')?.title") != front, 10, "Ctrl+Tab")
+        results["ctrl_tab_moved"] = True
+        QTest.keyClick(target, Qt.Key.Key_W, ctrl)
+        wait(lambda: tab_count() == before - 1, 10, "Ctrl+W closed a tab")
+        results["ctrl_w_closed_tab"] = True
+        results["ctrl_w_kept_window"] = home.ident in shell.windows and home.isVisible()
+        QTest.keyClick(target, Qt.Key.Key_T, ctrl | shift)
+        wait(lambda: tab_count() == before, 15, "Ctrl+Shift+T reopened it")
+        results["ctrl_shift_t_reopened"] = True
+        # The Workbench's F5 is its own (run), never a reload; Ctrl+W with no document closes its window.
+        wb_target = again.view.focusProxy() or again.view
+        again.bring_forward()
+        wb_target.setFocus()
+        wait(lambda: loaded(again), 60, "the Workbench again")
+        js(again, "window.__kept = 7; true")
+        QTest.keyClick(wb_target, Qt.Key.Key_F5)
+        wait(lambda: True, 1.5)
+        results["workbench_f5_kept_page"] = js(again, "window.__kept === 7")
+        QTest.keyClick(wb_target, Qt.Key.Key_W, ctrl)
+        wait(lambda: again.ident not in shell.windows, 15, "Ctrl+W closed the Workbench window")
+        results["ctrl_w_closed_empty_window"] = True
 
         # 12. Every window closed (each page asked first): the app tells the server, which stops.
         for window in list(shell.windows.values()):

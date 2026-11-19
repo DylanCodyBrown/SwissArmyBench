@@ -133,6 +133,15 @@ class GridService:
 
     async def close(self, grid_id: str) -> dict[str, Any] | None:
         """Close the grid (the dataset stays). None when there is no such grid."""
+        found = self.ws.grids.get(grid_id)
+        if found is not None:
+            # Ctrl+Shift+T brings it back (tabs_reopen).
+            info = self.ws.store.get(found.dataset)
+            origin = self._origin_of(found.dataset)
+            path = origin.path if origin.kind == "file" else None
+            self.ws.grids.remember_closed(
+                found, info.serial if info else -1, path, origin.sheet if path else None
+            )
         grid = self.ws.grids.close(grid_id)
         if grid is None:
             return None

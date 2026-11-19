@@ -36,7 +36,7 @@ from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
 from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, open_database
-from swissarmybench.adapters.datasets import DatasetStore
+from swissarmybench.adapters.datasets import DatasetStore, file_stamp
 from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import is_folder, make_folder
@@ -121,6 +121,7 @@ from swissarmybench.services.explorer import BrowseSources, Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.extensions import Extensions
 from swissarmybench.services.file_dialogs import FileDialogs
+from swissarmybench.services.file_watch import FileWatch
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.hooks import Hooks
@@ -172,6 +173,7 @@ class Services:
     settings: Settings
     ws: Workspace
     datasets: DatasetService
+    file_watch: FileWatch
     grids: GridService
     profiles: Profiles
     analysis: Analysis
@@ -451,6 +453,10 @@ def bootstrap(
         own_file=lambda path: is_own_file(path, state_dir, export_dir),
         on_shutdown=on_shutdown or (lambda: None),
     )
+    # A table read from a file is watched: changed on disk, the page says so (Reload, Not now).
+    file_watch = FileWatch(ws, datasets.origins.get, file_stamp, settings.file_watch_seconds)
+    datasets.changed_on_disk = file_watch.changed
+    datasets.not_now = file_watch.not_now
     catalogs = CatalogService(
         ws, CatalogStore(connection, settings.max_catalogs, settings.max_catalog_rows), table_reader
     )
@@ -1184,6 +1190,7 @@ def bootstrap(
         settings=settings,
         ws=ws,
         datasets=datasets,
+        file_watch=file_watch,
         grids=GridService(ws, datasets.origins.get),
         profiles=Profiles(ws),
         analysis=Analysis(ws, verifier),

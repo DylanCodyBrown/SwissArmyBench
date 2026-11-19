@@ -374,7 +374,70 @@ def read_message(line: bytes, key: str) -> dict[str, Any]:
         return {"status": True}
     if said.get("quit") is True:
         return {"quit": True}
-    raise ShellError('Send {"open": page}, {"status": true} or {"quit": true}.')
+    if "file" in said:
+        return {"file": read_file_path(said["file"])}
+    raise ShellError('Send {"open": page}, {"file": path}, {"status": true} or {"quit": true}.')
+
+
+# ===== a file opened with the app: `swissarmybench open <file>`, Open with, a file dropped on a window =====
+
+# The files the app opens as a table (adapters/datasets.py SUFFIXES), a notebook and a blade.
+TABLE_SUFFIXES: tuple[str, ...] = (
+    ".csv", ".tsv", ".txt", ".parquet", ".json", ".jsonl", ".ndjson", ".arrow", ".feather", ".xlsx",
+)  # fmt: skip
+NOTEBOOK_SUFFIXES: tuple[str, ...] = (".ipynb",)
+BLADE_SUFFIX = ".blade.py"
+TABLE, NOTEBOOK, BLADE, PROJECT = "table", "notebook", "blade", "project"
+CANNOT_OPEN = (
+    "{name}: Swiss Army Bench opens CSV, TSV, Parquet, JSON, Arrow and Excel files, notebooks (.ipynb), "
+    "blades (.blade.py) and project folders."
+)
+_NAME_PART = re.compile(r"[^A-Za-z0-9_-]+")
+
+
+def read_file_path(value: Any) -> str:
+    """A file's path as the channel carries it: one line of text, absolute, of a sane length."""
+    if not isinstance(value, str) or not value.strip() or len(value) > MAX_PAGE:
+        raise ShellError("Send the file's path.")
+    if any(not c.isprintable() for c in value):
+        raise ShellError("A file's path is one line of text.")
+    text = value.strip()
+    if not (text.startswith("/") or re.match(r"^[A-Za-z]:[\\/]", text) or text.startswith("\\\\")):
+        raise ShellError("Send the file's full path.")
+    return text
+
+
+def file_kind(name: str, is_folder: bool, has_sab: bool) -> str:
+    """What opening a file with the app does: a project (a folder with .sab/, or any folder: it is asked to
+    become one), a table, a notebook (the Workbench) or a blade; "" when the app does not open it."""
+    if is_folder:
+        return PROJECT
+    lowered = name.lower()
+    if lowered.endswith(BLADE_SUFFIX):
+        return BLADE
+    if lowered.endswith(NOTEBOOK_SUFFIXES):
+        return NOTEBOOK
+    if lowered.endswith(TABLE_SUFFIXES):
+        return TABLE
+    return ""
+
+
+def table_name(file_name: str, taken: set[str] | list[str]) -> str:
+    """The table a file opens as: its name without the suffix, made a dataset name ([A-Za-z0-9_-]{1,64}),
+    with _2, _3 ... when an open table has it already (another table is never replaced)."""
+    stem = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
+    base = _NAME_PART.sub("_", stem).strip("_")[:60] or "data"
+    used = {t.lower() for t in taken}
+    name, n = base, 2
+    while name.lower() in used:
+        name = f"{base[: 60 - len(str(n))]}_{n}"
+        n += 1
+    return name
+
+
+def blade_stem(file_name: str) -> str:
+    """A blade file's name without .blade.py (the name the library keeps it by)."""
+    return file_name[: -len(BLADE_SUFFIX)] if file_name.lower().endswith(BLADE_SUFFIX) else file_name
 
 
 def download_name(suggested: str) -> str:

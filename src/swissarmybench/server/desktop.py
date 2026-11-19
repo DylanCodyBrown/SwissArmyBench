@@ -25,11 +25,18 @@ import time
 import webbrowser
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from swissarmybench.adapters.desktop import RecordFile, ask
 from swissarmybench.adapters.state_files import info_file_path
 from swissarmybench.domain import desktop as rules
-from swissarmybench.server.lifecycle import AlreadyStartingError, InstanceLock, process_alive
+from swissarmybench.server.lifecycle import (
+    AlreadyStartingError,
+    InstanceLock,
+    get_json,
+    post_json,
+    process_alive,
+)
 from swissarmybench.server.updater import detached
 
 RECORD_WAIT_SECONDS = 20.0
@@ -144,6 +151,55 @@ def show(address: str, info_file: Path | None = None) -> bool:
         return bool(webbrowser.open(address))
     except webbrowser.Error:
         return False
+
+
+def hand_file(path: str, info_file: Path | None = None) -> bool:
+    """`swissarmybench open <file>`, Open with: the file handed to the running app over its channel (one app,
+    never a second), the app started first when none runs. False when no app answered."""
+    said = {"file": path}
+    if tell(said, info_file) is not None:
+        return True
+    if lock_free(info_file):
+        start_app(None)
+    return tell(said, info_file, wait=RECORD_WAIT_SECONDS) is not None
+
+
+def file_page(path: str, info: dict[str, Any]) -> str:
+    """A file opened with the app (`swissarmybench open <file>`, Open with, a file dropped on a window), by
+    the running server `info`: a table read by its path (its grid shows in the home window: the page
+    returned), a notebook in the Workbench (the one open, else a Workbench window that opens it), a blade of
+    the library on the blades page (any other .blade.py in the Workbench), a folder as a project. The page to
+    show (no token). ShellError for a file the app does not open; OSError with the server's words when it
+    refuses."""
+    target = Path(path).expanduser()
+    if not target.exists():
+        raise rules.ShellError(f"{target} is not there.")
+    kind = rules.file_kind(target.name, target.is_dir(), (target / ".sab").is_dir())
+    if not kind:
+        raise rules.ShellError(rules.CANNOT_OPEN.format(name=target.name))
+    full = str(target.resolve())
+    if kind == rules.PROJECT:
+        post_json(info, "/project/open", {"path": full, "ask": True})
+        return rules.HOME_PAGE
+    if kind == rules.TABLE:
+        listed = get_json(info, "/datasets")
+        taken = [str(d.get("name")) for d in (listed or {}).get("datasets", []) if isinstance(d, dict)]
+        name = rules.table_name(target.name, taken)
+        loaded = post_json(info, f"/datasets/{quote(name, safe='')}/load", {"path": full})
+        grid = loaded.get("grid") if isinstance(loaded, dict) else None
+        return f"/workspace#grid={grid}" if isinstance(grid, str) else rules.HOME_PAGE
+    if kind == rules.BLADE:
+        stem = rules.blade_stem(target.name)
+        try:
+            get_json(info, f"/blades/{quote(stem, safe='')}")
+            return f"/catalog?blade={quote(stem, safe='')}"
+        except OSError:
+            pass  # not one of the library's: its file in the Workbench
+    try:
+        post_json(info, "/workbench/window", {"command": "file.open", "args": {"path": full}}, timeout=30)
+        return "/workbench"  # the Workbench window that opened it, brought forward
+    except OSError:
+        return f"/workbench?file={quote(full, safe='')}"  # no Workbench window: one that opens it
 
 
 def quit_app(info_file: Path | None = None, wait: float = QUIT_WAIT_SECONDS) -> bool:

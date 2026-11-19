@@ -251,12 +251,14 @@ def create_app(
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
+        watch = asyncio.create_task(ctx.file_watch.run_forever())  # a table's file changed on disk
         # The server's life follows the app's windows (services/lifecycle.py): only a server that can stop.
         life = asyncio.create_task(ctx.lifecycle.run_forever()) if on_shutdown is not None else None
         yield
         if life is not None:
             life.cancel()
         shared.cancel()
+        watch.cancel()
         context_md.cancel()
         autosave.cancel()
         pruner.cancel()

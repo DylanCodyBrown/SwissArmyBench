@@ -134,6 +134,15 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     # Open in browser: the page in the system's browser (stood in), with the token as the launch has it.
     assert said["open_in_browser"].endswith("/catalog") and said["open_in_browser_has_token"]
     assert said["catalog_reused"]
+    # Files: handed over the channel and dropped on a window, each read by its real path.
+    assert said["file_answer"] == {"ok": True} and said["file_origin"] == "file"
+    assert said["drop_accepted"] and said["drop_origin"] == "file"
+    assert said["opened_files"] == ["regions.csv", "drop_me.csv"]
+    # The browser's keys are the app's: Ctrl+Tab, Ctrl+W a tab (the window stays), Ctrl+Shift+T it again;
+    # the Workbench's F5 is its own; Ctrl+W with no document closes the window.
+    assert said["ctrl_tab_moved"] and said["ctrl_w_closed_tab"] and said["ctrl_w_kept_window"]
+    assert said["ctrl_shift_t_reopened"] and said["workbench_f5_kept_page"] is True
+    assert said["ctrl_w_closed_empty_window"]
     # The profile in the state folder: cookies and local storage kept there.
     assert {"Cookies", "Local Storage"} <= set(said["profile_folder"])
     # Every window closed: the app told the server, and the server stopped.

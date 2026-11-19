@@ -414,8 +414,10 @@ src/swissarmybench/
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice
     desktop.py           the desktop app's rules: what loads inside (the app's origin) and what goes to the system's
                          browser or is refused, named-window reuse (sab-home), each kind of window's place, pages
-                         named without the token, the app's command line, its channel's messages, the clipboard the
-                         one permission, window titles, the launcher's icon (PNG, .ico) made with the stdlib
+                         named without the token, the app's command line, its channel's messages (open, file,
+                         status, quit), the clipboard the one permission, window titles, the launcher's icon (PNG,
+                         .ico) made with the stdlib; a file opened with the app (its kind: a table, a notebook, a
+                         blade, a project; the table's free name)
     lifecycle.py         the server's life: windows, the grace, the start grace, the app closed, the last client's
                          ten minutes, busy, held; when it stops and why (app_lifecycle)
     claude.py            Launch Claude: Claude Code and Claude Desktop found loosely (registry, Store, Start menu,
@@ -538,6 +540,8 @@ src/swissarmybench/
     lifecycle.py         the server's life: the windows counted, the clients' requests (from the guard), the stop
                          (an open project saved first, or held), the desktop app's closed
     desktop.py           desktop_status and desktop_open: the app's windows, a page opened in one
+    file_watch.py        a table read from a file, watched (a stat every few seconds, off the loop): Changed on
+                         disk said once (`file_changed`), Not now; Reload is datasets.py's (steps kept)
     extensions.py        the Extensions page: the cards, Install and Remove handed to the update's helper (the
                          agent's on Allow; Remove asks the user first; a development checkout says what to run)
     claude.py            Launch Claude: what was found, the user's choices, the folder written, the terminal or
@@ -652,10 +656,15 @@ src/swissarmybench/
                          (the app; open [folder] [--browser], start [--background] [--no-window], stop,
                          status, icon <file>; tray and autostart said gone)
     desktop.py           the desktop app from outside (no Qt): can it run, open a page in it (started when none
-                         runs; else the browser), its status, `swissarmybench app`'s process (one at a time)
+                         runs; else the browser), its status, `swissarmybench app`'s process (one at a time); a
+                         grid nothing shows (show: the running server's fallback), a file opened with the app
+                         (hand_file over the channel; file_page: what the server is asked, the page shown), the
+                         app's quit (`swissarmybench stop`)
     desktop_shell.py     the desktop app (PySide6): windows, the persistent profile, window.open, outside links to
-                         the browser, downloads, Print to PDF, permissions, keys, Open in browser, the server it
-                         starts and tells when its last window closed
+                         the browser, downloads, Print to PDF (afterprint once the PDF is written), permissions,
+                         keys (the page's first), Open in browser, a file handed over the channel or dropped on a
+                         window (its real path), the channel's quit, the server it starts (off the window
+                         thread; Starting… meanwhile) and tells when its last window closed
     legacy_tray.py       an older version's tray and start-at-sign-in entry, removed once (said once)
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
                          installs with uv, checks the version, starts the app, or the old one and a note;
@@ -874,7 +883,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
                          Point these at <name> (the cells that named the old one, ticked);
                          updates.ts the status bars' "Update available" (Update to X, What's new) and
-                         Settings' Check for updates;
+                         Settings' Check for updates; desktopApp.ts is the page in the desktop app (window.sabApp:
+                         the browser's keys are the app's there, Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+Shift+T;
+                         closeWindow); fileChanged.ts a table whose file changed on disk (its tab's dot, its
+                         pane's Changed on disk: Reload, Not now);
                          claudeLaunch.ts the status bars' Launch Claude (one found: straight to it; both: a
                          menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it

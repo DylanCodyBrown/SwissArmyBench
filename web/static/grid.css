@@ -15792,3 +15792,25 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
 .github-fieldset .monaco-button {
   width: auto;
 }
+
+/* fileChanged.ts: a table whose file changed on disk (its tab's dot, its pane's bar: Reload, Not now) */
+.tab-changed {
+  width: 7px;
+  height: 7px;
+  margin-inline-start: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex: none;
+}
+.disk-slot:empty {
+  display: none;
+}
+.file-changed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warn-soft);
+  font-size: 13px;
+}

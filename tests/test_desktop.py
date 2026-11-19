@@ -265,8 +265,14 @@ def test_install_sh_adds_the_launcher_and_uninstall_removes_it(tmp_path: Path) -
     assert "Name=Swiss Army Bench" in text and "Icon=swissarmybench" in text and "Exec=" in text
     assert icon.read_text(encoding="utf-8").startswith("<svg") and not old.exists()
     assert "Opening Swiss Army Bench" not in said  # a build machine: nothing opened
+    # Open with: `swissarmybench open <file>` for the types it opens; a blade's own type (*.blade.py).
+    assert "open %f" in text and "MimeType=text/csv;" in text
+    for kind in ("application/vnd.apache.parquet", "spreadsheetml.sheet", "application/x-ipynb+json"):
+        assert kind in text
+    mime = tmp_path / ".local" / "share" / "mime" / "packages" / "swissarmybench-files.xml"
+    assert '<glob pattern="*.blade.py" weight="60"/>' in mime.read_text(encoding="utf-8")
     said = run("--uninstall")
-    assert not entry.exists() and not icon.exists() and "removed" in said
+    assert not entry.exists() and not icon.exists() and not mime.exists() and "removed" in said
     assert "tool uninstall swissarmybench" in log.read_text()
 
 

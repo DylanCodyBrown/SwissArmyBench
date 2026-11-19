@@ -54,6 +54,7 @@ import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
 import { button, clear, h, icon, toast } from "./dom";
+import { closeWindow, inApp } from "./desktopApp";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
 import { effectiveTheme } from "./theme";
@@ -2724,7 +2725,7 @@ function documents(): unknown {
 
 const COMMANDS: Command[] = [
   // File
-  { id: "file.newNotebook", group: "File", title: "New notebook", run: () => void openNotebook(null, [], null) },
+  { id: "file.newNotebook", group: "File", title: "New notebook", keys: inApp() ? "Ctrl+N" : undefined, run: () => void openNotebook(null, [], null) },
   { id: "file.newScript", group: "File", title: "New script", run: () => void openScript(null, "", null) },
   { id: "file.newApp", group: "File", title: "New Streamlit app", when: () => canvasAnywhere("streamlit"), whyNot: "the Streamlit extension is not installed (Extensions: Install)", run: () => {
     const doc = openApp(null, [], null);
@@ -2752,6 +2753,9 @@ const COMMANDS: Command[] = [
   { id: "workbook.report", group: "Workbook", title: "The workbook in front, as it stands", when: () => !!current?.workbook, whyNot: "no workbook is in front", run: () => workbookInFront().report() },
   { id: "project.open", group: "Project", title: "Open project…", args: "folder: the project's folder (without it, the file chooser opens)", run: (a) => openProject(text(a, "folder")) },
   { id: "project.exportData", group: "Project", title: "Export data.py (from data.ipynb)", when: () => docs.some(isData) || !!project, whyNot: "no project is open", run: () => exportData() },
+  // The desktop app's Ctrl+W (desktopApp.ts): the document in front, and the window once none is left.
+  { id: "file.closeTab", group: "File", title: "Close the document in front (the window when none is open)", keys: inApp() ? "Ctrl+W" : undefined, run: () => (current ? close(current) : closeWindow()) },
+  { id: "tabs.reopen", group: "Tabs", title: "Reopen the last closed table (in the home window)", keys: inApp() ? "Ctrl+Shift+T" : undefined, run: () => api("/grids/reopen", "POST").catch((e: ApiError) => toast(e.status === 404 ? "No closed table to reopen." : e.message, e.status === 404 ? "info" : "error")) },
   { id: "file.close", group: "File", title: "Close the document", args: "index: a document (default: the one in front)", when: () => docs.length > 0, whyNot: "nothing is open", run: (a) => {
     const at = num(a, "index");
     const doc = at === undefined ? current : docs[at];
@@ -3140,6 +3144,16 @@ registerCommands(updateCommands()); // Update to X, What's new, Check for update
 registerCommands(claudeCommands()); // Launch Claude (Claude Code, Claude Desktop)
 // No token and no good cookie (a bookmark after a restart): the page says how to open the app.
 void requireSession();
+// A file opened with the app (`swissarmybench open <file>`, Open with, a drop: server/desktop.py file_page) and
+// no Workbench window to take it: /workbench?file=<path> opens it here, and the address forgets it.
+const fileAsked = (() => {
+  const url = new URL(location.href);
+  const file = url.searchParams.get("file");
+  if (!file) return null;
+  url.searchParams.delete("file");
+  history.replaceState(history.state, "", url);
+  return file;
+})();
 // Getting around: Back closes a dialog and moves inside Connections; a dialog the address names opens.
 // The rail's Notebooks, Scripts and Apps (?kind= in the address): Back and Forward bring that kind's
 // document forward again.
@@ -3155,6 +3169,7 @@ mountNav("workbench", {
 });
 mountNavRail("workbench");
 startNav();
+if (fileAsked) void open(fileAsked);
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
 // What is sent to the agent or Visualizations names the document it came from.
@@ -3179,6 +3194,10 @@ const WINDOW_KEYS: Record<string, string> = {
   "Ctrl+Alt+PageDown": "doc.next",
   "Ctrl+Alt+PageUp": "doc.previous",
 };
+/** In the desktop app the browser's keys are the window's too (desktopApp.ts); in a browser, the browser's. */
+const APP_KEYS: Record<string, string> = inApp()
+  ? { "Ctrl+W": "file.closeTab", "Ctrl+T": "file.newNotebook", "Ctrl+N": "file.newNotebook", "Ctrl+Tab": "doc.next", "Ctrl+Shift+Tab": "doc.previous", "Ctrl+Shift+T": "tabs.reopen" }
+  : {};
 
 function keyName(e: KeyboardEvent): string {
   const key = /^Digit\d$/.test(e.code) ? e.code.slice(5) : e.key.length === 1 ? e.key.toUpperCase() : e.key;
@@ -3188,7 +3207,7 @@ function keyName(e: KeyboardEvent): string {
 document.addEventListener(
   "keydown",
   (e) => {
-    const id = WINDOW_KEYS[keyName(e)];
+    const id = WINDOW_KEYS[keyName(e)] ?? APP_KEYS[keyName(e)];
     if (!id) return;
     // F5 would reload the window (stopping every kernel), F1 open the browser's help: the window's own.
     e.preventDefault();

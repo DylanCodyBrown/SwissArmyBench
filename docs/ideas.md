@@ -5714,3 +5714,45 @@ The survey of the desktop app (read only) listed small fixes; each was checked b
   `afterprint` once the PDF is written (or the dialog is cancelled), the page waits for it in the app (`sabApp`
   marks the app; the browser keeps its 1.5 s), and Chromium takes the page's `@page` size: Letter landscape comes
   out 792 x 612 pt.
+
+### Part B: desktop enhancements
+
+- **The browser's keys are the app's (in the app only).** The shell's script puts `window.sabApp` on every page
+  (desktopApp.ts reads it); in a browser the keys stay the browser's. Grid page: Ctrl+W closes the tab in front
+  (a table's, the query draft; on Visualizations or the ERD the grids come back), and the window once no tab is
+  left; Ctrl+T and Ctrl+N a new query tab; Ctrl+Tab and Ctrl+Shift+Tab go round the tables; Ctrl+Shift+T reopens
+  the last closed tab. Workbench: Ctrl+W the document in front (the window when none), Ctrl+T and Ctrl+N a new
+  notebook (decided: the Workbench has no query tab, a new notebook is its new tab), Ctrl+Tab and Ctrl+Shift+Tab
+  the documents, Ctrl+Shift+T the last closed table (in the home window). They are commands of the pages'
+  registries (gridCommands.ts `tabs.closeTab`, `tabs.next`, `tabs.previous`, `tabs.reopen`; the Workbench's
+  `file.closeTab`, `tabs.reopen`), so the palette shows their keys and the agent's workbench_window runs them.
+  **F5, Ctrl+R and Ctrl+W are the page's first now:** the shell's own shortcuts took F5 before the Workbench
+  could (its F5 runs); the shell's script reloads or closes only when the page left the key alone.
+- **Ctrl+Shift+T reopens what the session knows:** closing a grid (or its table) remembers its table (by name
+  and the store's serial, so another table of that name is never taken for it), steps and settings, and the
+  file it was read from; the newest that can come back does: a new grid on the table while it is open, else the
+  table read again from its file. The last twenty, in memory only. The agent: `tabs_reopen`.
+- **Open with:** the installers register the app for this user only: Linux a .desktop `MimeType` (text/csv,
+  Parquet, xlsx, ipynb, folders) and a shared-mime-info package with a blade's own type (`*.blade.py`), the
+  default only for that type (`xdg-mime default`); macOS the bundle's document types (Alternate for csv,
+  parquet, xlsx, ipynb; Owner for an exported `com.swissarmybench.blade` UTI, and QFileOpenEvent handled by the
+  app's QApplication); Windows HKCU `SwissArmyBench.File` and each extension's `OpenWithProgids` (never the
+  default; a .blade.py is a .py to Windows, so .py is offered). `--uninstall` / `-Uninstall` removes them.
+- **`swissarmybench open <file>`** hands the file to the running app over its channel (`{"file": path}`; the
+  app started first when none runs: one app, never a second). The app (server/desktop.py file_page, off its
+  window thread) asks the server: a table loads by its path under its file's name (never replacing an open
+  table: `_2`), a notebook opens in the Workbench window that is open (workbench_window `file.open`), else a
+  Workbench window at `/workbench?file=<path>` opens it; a blade of the library opens on the blades page,
+  another .blade.py in the Workbench; a folder as a project (as before). Where the app cannot run (or
+  `--browser`) the server reads it and the browser shows it.
+- **Drag and drop in:** a file dropped from the system on a window is opened by its real path (a filter on each
+  window's view and the child that draws the page), so a table's origin is the file and a project reads it
+  again; the browser keeps its upload. **Drag out (a tab dropped as a CSV) was not built:** Qt WebEngine hands a
+  page's drag to Qt only as its MIME data, so it would need the page to start a native QDrag through the shell
+  with a temporary file and its removal; not small, left for later.
+- **Files that refresh themselves:** services/file_watch.py stats each file-read table's file every 3 s (the
+  server, so the browser sees it too), stamped by the table's version when it was read; a change is said once
+  (`file_changed`), `datasets_list` carries `changed_on_disk`. The tab shows a dot and the pane a bar: Changed on
+  disk, Reload (POST /datasets/{name}/reload: read again in place, its grids and steps kept), Not now (the stamp
+  taken as it is now: said again only on the next change). Never reloaded by itself; a file that is gone is not
+  said. The agent: `tabs_reload` (`not_now`).

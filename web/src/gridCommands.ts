@@ -26,7 +26,8 @@ import { updateCommands } from "./updates";
 import { claudeCommands } from "./claudeLaunch";
 import { cellCommands } from "./cellMenu";
 import { focusedCell } from "./gridView";
-import { activateGrid, activeContext, closeGrid, compareWith, gridList, openWorkbench, renameActive, showAgentView, showErdView, showGridView } from "./panes";
+import { activateGrid, activeContext, closeDraft, closeGrid, compareWith, currentView, gridList, newQueryTab, openWorkbench, renameActive, showAgentView, showErdView, showGridView } from "./panes";
+import { appKey, closeWindow, inApp } from "./desktopApp";
 import { setGridZoom } from "./theme";
 import { api } from "./api";
 import { mountExplorer } from "./dataExplorer";
@@ -37,6 +38,8 @@ import { openPalette, setCommandSource, type Command } from "./workbenchCommands
 
 /** The keys the page already has, shown beside the command they run. */
 const KEYS: Record<string, string> = {
+  // The desktop app's (desktopApp.ts): the browser's keys are the app's there.
+  ...(inApp() ? { "Tabs: New table from a query": "Ctrl+T" } : {}),
   "Steps: Undo": "Ctrl+Z",
   "Steps: Redo": "Ctrl+Y",
   "Application: Zoom in": "Ctrl+=",
@@ -102,6 +105,7 @@ function commands(): Command[] {
     ...gridList().map(({ id, label }): Command => ({ id: `tabs.go.${id}`, group: "Tabs", title: `Go to ${label}`, run: () => { showGridView(); void activateGrid(id); } })),
     ...buttonsOf("Tabs", document, ".tabs-row > button"),
   );
+  out.push(...tabKeys());
   if (active) {
     const many = gridList().length > 1;
     out.push(
@@ -116,6 +120,85 @@ function commands(): Command[] {
     out.push(...cellCommands().map(([title, run]): Command => ({ id: `cell.${slug(title)}`, group: "Cell", title, keys: KEYS[`Cell: ${title}`], when: () => cell !== null, whyNot: "Click a cell first", run })));
   }
   return out;
+}
+
+// ===== the browser's keys, the app's (desktopApp.ts): Ctrl+W, Ctrl+T, Ctrl+N, Ctrl+Tab, Ctrl+Shift+T =====
+
+/** Ctrl+W: the tab in front closes (a table's, the query draft); on Visualizations or the ERD the grids come
+ *  back; with no tab left, false: the window closes (the shell's own Ctrl+W). */
+function closeTab(): boolean {
+  const view = currentView();
+  const active = activeContext();
+  if (view === "grid" && active) {
+    void closeGrid(active.id);
+    return true;
+  }
+  if (view === "query") {
+    closeDraft();
+    return true;
+  }
+  if (gridList().length && view !== "grid") {
+    showGridView();
+    return true;
+  }
+  return false;
+}
+
+/** Ctrl+Tab and Ctrl+Shift+Tab: the next or previous table, round the tab row. */
+function cycleTabs(by: number): void {
+  const list = gridList();
+  if (!list.length) return;
+  const at = list.findIndex((g) => g.id === activeContext()?.id);
+  const next = list[(Math.max(at, 0) + by + list.length) % list.length];
+  showGridView();
+  if (next) void activateGrid(next.id);
+}
+
+/** Ctrl+Shift+T (tabs_reopen): the last closed table again, its steps kept; its tab arrives by the server's
+ *  grid_shown. */
+export async function reopenTab(): Promise<void> {
+  try {
+    await api("/grids/reopen", "POST");
+  } catch (e) {
+    toast((e as { status?: number }).status === 404 ? "No closed table to reopen." : (e as Error).message, (e as { status?: number }).status === 404 ? "info" : "error");
+  }
+}
+
+function tabKeys(): Command[] {
+  const keys = (k: string): string | undefined => (inApp() ? k : undefined);
+  return [
+    { id: "tabs.closeTab", group: "Tabs", title: "Close the tab", keys: keys("Ctrl+W"), when: () => gridList().length > 0 || currentView() === "query", whyNot: "no tab is open", run: () => void closeTab() },
+    { id: "tabs.next", group: "Tabs", title: "Next tab", keys: keys("Ctrl+Tab"), when: () => gridList().length > 1, whyNot: "one table or none is open", run: () => cycleTabs(1) },
+    { id: "tabs.previous", group: "Tabs", title: "Previous tab", keys: keys("Ctrl+Shift+Tab"), when: () => gridList().length > 1, whyNot: "one table or none is open", run: () => cycleTabs(-1) },
+    { id: "tabs.reopen", group: "Tabs", title: "Reopen the last closed tab", keys: keys("Ctrl+Shift+T"), run: () => reopenTab() },
+  ];
+}
+
+/** In the desktop app only: the browser's keys, the app's. In a browser they stay the browser's. */
+function mountAppKeys(): void {
+  if (!inApp()) return;
+  document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented) return;
+    const key = appKey(event);
+    if (key === "Ctrl+W") {
+      // No tab left: the window closes (its page asked first, as its close button would).
+      event.preventDefault();
+      if (!closeTab()) closeWindow();
+      return;
+    }
+    const run: Record<string, () => void> = {
+      "Ctrl+T": () => void newQueryTab(),
+      "Ctrl+N": () => void newQueryTab(),
+      "Ctrl+Tab": () => cycleTabs(1),
+      "Ctrl+Shift+Tab": () => cycleTabs(-1),
+      "Ctrl+Shift+T": () => void reopenTab(),
+    };
+    const action = run[key];
+    if (!action) return;
+    event.preventDefault();
+    document.querySelector(".menu")?.remove();
+    action();
+  });
 }
 
 /** Find data… (Ctrl+K): the Data Explorer's search in a dialog over the grids (dataExplorer.ts, the same
@@ -155,6 +238,7 @@ export function openFindData(): void {
 /** Ctrl+Shift+P opens the palette, wherever the cursor is; Ctrl+K, Find data. */
 export function mountGridCommands(): void {
   setCommandSource(commands);
+  mountAppKeys();
   document.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "k") {
       event.preventDefault();

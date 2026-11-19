@@ -3,6 +3,8 @@
     swissarmybench                        open the app (the desktop app; it starts the server it owns)
     swissarmybench open                   the same; with the app open, its home window comes forward
     swissarmybench open ~/sales           open a project folder in the app (starting it when it is not open)
+    swissarmybench open orders.csv        a file in the app: a table (CSV, Parquet, Excel, JSON), a notebook,
+                                          a blade (Open with and the installers' registrations run this)
     swissarmybench open --browser         the app in the browser instead (a tab; the same server)
     swissarmybench start                  the server in this console, then the app's window (--no-window not)
     swissarmybench start --background     the server detached, no console, returns at once
@@ -106,7 +108,7 @@ def main() -> None:
     parser.add_argument(
         "switch",
         nargs="?",
-        help="open: a project's folder; app: a page of the app; icon: a .ico or .png file.",
+        help="open: a project's folder or a file; app: a page of the app; icon: a .ico or .png file.",
     )
     parser.add_argument("--port", type=int, default=None, help="Exact port; 0 picks any free one.")
     parser.add_argument(
@@ -135,7 +137,7 @@ def main() -> None:
             sys.exit(0 if open_in_browser(path, args.switch) else 1)
         sys.exit(desktop.main(args.switch, path))
     if command == "open" and args.switch:
-        sys.exit(open_project(args.switch, path, browser=args.browser))
+        sys.exit(open_target(args.switch, path, browser=args.browser))
     if command == "open":
         if args.browser:
             sys.exit(0 if open_in_browser(path) else 1)
@@ -237,6 +239,49 @@ def open_page(path: Path | None = None) -> bool:
 
 
 OLD_SAB_FILE: str = "{name}: this version opens project folders only."
+
+
+def open_target(target: str, path: Path, browser: bool = False) -> int:
+    """`swissarmybench open <path>` (and Open with, the installers' registrations): a project's folder, or a
+    file: a table (CSV, Parquet, Excel, JSON, Arrow), a notebook, a blade. A file goes to the running app over
+    its channel (one app, never a second; started when none runs); where the app cannot run (or --browser),
+    the server reads it and the browser shows it."""
+    from swissarmybench.domain import desktop as rules
+
+    file = Path(target).expanduser()
+    if file.name.lower().endswith(".sab") or not file.exists():
+        return open_project(target, path, browser=browser)  # says why, in one line
+    kind = rules.file_kind(file.name, file.is_dir(), (file / ".sab").is_dir())
+    if kind == rules.PROJECT:
+        return open_project(target, path, browser=browser)
+    if not kind:
+        print(rules.CANNOT_OPEN.format(name=file.name), file=sys.stderr)
+        return 1
+    full = str(file.resolve())
+    if not browser and desktop.can_run():
+        if desktop.hand_file(full, path):
+            print(f"Opening {file.name}.")
+            return 0
+        print("Swiss Army Bench did not start.", file=sys.stderr)
+        return 1
+    info = running_server(path)
+    if info is None:
+        start_in_background(None, window=False)
+        deadline = time.monotonic() + 30
+        while info is None and time.monotonic() < deadline:
+            time.sleep(0.3)
+            info = running_server(path)
+    if info is None:
+        print("Swiss Army Bench did not start.", file=sys.stderr)
+        return 1
+    try:
+        page = desktop.file_page(full, info)
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
+    webbrowser.open(rules.address_of(page, int(info["port"]), str(info["token"])))
+    print(f"Opened {file.name}.")
+    return 0
 
 
 def open_project(target: str, path: Path, wait_seconds: float = 30.0, browser: bool = False) -> int:
