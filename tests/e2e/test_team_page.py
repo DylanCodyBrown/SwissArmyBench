@@ -149,7 +149,7 @@ def test_one_team_box_and_join_starts_at_installing_github_sync(browser: Browser
             shot(page, f"team-join-install-{theme}", flow)
             # A development checkout cannot install: it says what to run, and nothing is kept for a restart.
             flow.get_by_role("button", name="Install").click()
-            expect(flow.locator(".team-install-error")).to_be_visible(timeout=10000)
+            expect(flow.locator(".error-note")).to_be_visible(timeout=10000)
             assert call(info, "GET", "/team")["pending"] is None
             page.context.close()
     finally:

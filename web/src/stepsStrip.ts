@@ -19,7 +19,7 @@ import { button, clear, h, icon } from "./dom";
 import { busy, busyClick } from "./loading";
 import { state } from "./state";
 import type { GridInfo } from "./api";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark } from "./errorNote";
 
 let host: HTMLElement;
 
@@ -62,7 +62,7 @@ function render(): void {
         )
       : null,
     label ? stepsCount(label, info.steps) : null,
-    info.step_error ? h("span", { class: "status-error" }, `Step ${info.step_error.index + 1}: ${info.step_error.message}`) : null,
+    info.step_error ? errorMark(`Step ${info.step_error.index + 1}: ${info.step_error.message}`) : null,
     disabledUnless(info.can_undo, button("Undo", () => void state.undo().catch(failed), { icon: "back", iconOnly: true, class: "ghost", title: info.can_undo ? "Undo the last step change (Ctrl+Z)" : "Nothing to undo" })),
     disabledUnless(info.can_redo, button("Redo", () => void state.redo().catch(failed), { icon: "forward", iconOnly: true, class: "ghost", title: info.can_redo ? "Redo (Ctrl+Y)" : "Nothing to redo" })),
     disabledUnless(info.steps.length > 0, button("Clear the steps", () => void state.saveSteps([]).catch(failed), { icon: "trash", iconOnly: true, class: "ghost" })),

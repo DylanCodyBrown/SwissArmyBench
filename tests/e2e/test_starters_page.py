@@ -211,7 +211,7 @@ def test_a_dax_snippet_dragged_onto_a_dax_cell_fills_its_form_from_the_dataset(
     blades(workbench).locator(".starter-item", has_text="HTML KPI tile").drag_to(
         dax.locator(".monaco-editor")
     )
-    expect(workbench.locator(".toast.error")).to_have_text(re.compile("An HTML snippet goes in an HTML cell"))
+    expect(workbench.locator(".error-note")).to_contain_text(re.compile("An HTML snippet goes in an HTML cell"))
     assert next(c["source"] for c in window(server, "doc.read")["cells"] if c["kind"] == "dax") == source
     workbench.close()
 

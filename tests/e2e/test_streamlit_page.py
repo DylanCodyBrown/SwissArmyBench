@@ -417,10 +417,12 @@ def test_a_python_without_streamlit_says_so_with_install(
     workbench.locator(".wb-tab").nth(1).click()
     expect(workbench.locator(".cv-block")).to_have_count(1)
     workbench.get_by_role("button", name="Play", exact=True).click()
-    expect(workbench.locator(".cv-problem")).to_contain_text("not installed", timeout=LONG)
-    expect(workbench.locator(".cv-install")).to_be_visible()
+    problem = workbench.locator(".error-note", has_text="not installed")
+    expect(problem).to_be_visible(timeout=LONG)
+    install = problem.locator(".error-note-fix", has_text="Install")
+    expect(install).to_be_visible()
     expect(prompt).to_have_count(0)  # Not now holds for the session: no nagging
-    workbench.locator(".cv-install").click()  # asked for: the prompt again
+    install.click()  # asked for: the prompt again
     expect(prompt.get_by_role("button", name="Install now")).to_be_visible()
     prompt.get_by_role("button", name="Not now").click()
     expect(workbench.locator(".cv-board")).to_be_visible()  # nothing to show: the blocks stay

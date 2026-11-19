@@ -34,7 +34,7 @@ import { busy, busyClick, loadingBlock } from "./loading";
 import { openLayer } from "./nav";
 import { localProjectsRow, sharedProjectsRow } from "./projectExplorer";
 import { teamSignIn } from "./scmPage";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 type Action = "join" | "start";
 
@@ -94,7 +94,7 @@ function setupChecklist(host: HTMLElement): (check?: boolean) => Promise<void> {
     try {
       s = await api<Setup>(check ? "/library/setup?check=1" : "/library/setup");
     } catch (e) {
-      host.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
+      host.replaceChildren(errorNote(e));
       return;
     }
     const typed = (fix: Fix, connection?: string): HTMLElement => {
@@ -228,7 +228,7 @@ export function openTeamFlow(action: Action): void {
           if (done.changing) page.replaceChildren(h("h3", { class: "team-step-title" }, needs?.words ?? ""), loadingBlock(`Installing ${needs?.name ?? ""}: the app starts again and Settings opens here.`));
         } catch (e) {
           await api("/team/pending", "POST", { action: null }).catch(() => undefined);
-          page.append(h("p", { class: "status-error team-install-error" }, (e as Error).message));
+          page.append(errorNote(e));
         }
       }),
       { icon: "extensions", class: "primary team-install" },
@@ -367,7 +367,7 @@ export function teamSection(): HTMLElement {
     try {
       s = await api<TeamStatus>(remote ? "/team?remote=1" : "/team");
     } catch (e) {
-      main.replaceChildren(h("p", { class: "status-error" }, (e as Error).message));
+      main.replaceChildren(errorNote(e));
       return;
     }
     drawLibraryRow(s);

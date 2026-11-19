@@ -21,7 +21,7 @@ import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDi
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { busyClick, loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface FitRow {
   value: string;
@@ -158,7 +158,7 @@ export async function openFitTest(columns: string[], expectedKind?: string): Pro
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   body.append(
@@ -329,7 +329,7 @@ export async function openOutliers(column?: string): Promise<void> {
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   sync();
@@ -490,7 +490,7 @@ export async function openOdds(column?: string): Promise<void> {
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   sync();
@@ -617,7 +617,7 @@ export async function openPredictors(target?: string): Promise<void> {
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   body.append(

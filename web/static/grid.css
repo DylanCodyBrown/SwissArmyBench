@@ -734,16 +734,6 @@ body.popout .steps-panel {
   background: var(--error-soft);
 }
 
-.step .error-text {
-  grid-column: 3 / -1;
-  color: var(--error);
-  font-size: 0.9em;
-}
-
-.step .error-text::before {
-  content: "\26A0  ";
-}
-
 .step .actions {
   display: flex;
   gap: 2px;
@@ -907,10 +897,6 @@ body.popout .steps-panel {
   padding: 4px 10px 8px;
   color: var(--muted);
   font-size: 0.85em;
-}
-
-.card .error-text {
-  color: var(--error);
 }
 
 /* Notes read as a report: a clear title, sections, real tables, cautions set apart. */
@@ -1450,10 +1436,6 @@ table.small td.num {
   color: var(--error);
 }
 
-.status-error {
-  color: var(--error);
-}
-
 /* ===== dialogs, popovers, toasts ===== */
 
 dialog {
@@ -1747,10 +1729,6 @@ html {
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   grid-column: 1 / -1;
-}
-
-.status-error:empty {
-  display: none;
 }
 
 /* The grid's rows did not come: the error note over the grid (gridView.ts). */
@@ -4676,10 +4654,6 @@ dialog.missing-packages {
 }
 .missing-packages .missing-state:empty {
   display: none;
-}
-.missing-packages .missing-error {
-  max-height: 180px;
-  overflow: auto;
 }
 .missing-reminder {
   display: inline-flex;
@@ -7730,18 +7704,6 @@ body.dropping-file::after {
   display: none;
 }
 
-.cv-problem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  padding: 6px 10px;
-  border: 1px solid var(--warn);
-  border-radius: 6px;
-  background: var(--warn-soft);
-  color: var(--fg);
-}
-
 /* The grid: each row is 12 columns; a block sits in its own columns of its row. */
 .cv-board {
   display: flex;
@@ -8096,11 +8058,6 @@ body.dropping-file::after {
 .wb-markdown-view .md-mermaid {
   margin: 6px 0;
   overflow-x: auto;
-}
-
-.wb-markdown-view .md-mermaid.error-text {
-  color: var(--error);
-  font-size: 0.92em;
 }
 
 .wb-cell.kind-markdown.stale .wb-text-bar {
@@ -10333,10 +10290,6 @@ body.has-rail .area-page {
   gap: 2px;
 }
 
-.connection-error {
-  margin: 8px 0;
-}
-
 /* SQL Server's options (encryption, the driver, timeouts): folded under the form's security part. */
 .connection-options {
   margin: 8px 0;
@@ -12040,7 +11993,7 @@ g.follow-pulse > path:first-of-type {
 }
 
 .structure-text-error {
-  padding: 4px 8px;
+  padding: 4px 8px 0;
   border-top: 1px solid var(--border);
 }
 
@@ -15964,6 +15917,54 @@ html[data-theme="hc-dark"] :is(.scm-page, .scm-context-view, .scm-quick-input, .
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+/* errorHere for a control in a page's bar: the note floats just under the bar, beside the control. */
+.error-note.floating {
+  position: fixed;
+  z-index: 70;
+  width: min(460px, calc(100vw - 16px));
+  margin: 0;
+  background: linear-gradient(var(--error-soft), var(--error-soft)), var(--raised);
+  box-shadow: var(--shadow);
+}
+.error-note.floating.warning {
+  background: linear-gradient(var(--warn-soft), var(--warn-soft)), var(--raised);
+}
+
+/* errorMark: the note's inline form for a one-line row (a card's status, a step's problem, a tree's row). */
+.error-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--error);
+  vertical-align: middle;
+}
+.error-mark.warning,
+.error-mark.warning .error-note-icon {
+  color: var(--warn);
+}
+.error-mark-what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A form's place for its error (filled by showError, emptied by clearError). */
+.form-error:empty {
+  display: none;
+}
+
+/* Words for screen readers only (the note's word beside an icon). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 /* errorToast: the same note in a toast (work with no place on screen), opaque over the page. */

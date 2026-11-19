@@ -18,7 +18,7 @@ import { api, errorText } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
-import { clearError, errorHere, showError } from "./errorNote";
+import { clearError, errorHere, errorNote, showError } from "./errorNote";
 
 interface TreeTable {
   database: string;
@@ -100,7 +100,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
       const got = await api<{ columns: string[]; rows: unknown[][] }>(`/connections/${path}/preview`, "POST", { database: t.database, schema: t.schema, table: t.table });
       under.replaceChildren(...tablePreview({ table: t.table, schema: t.schema, columns: got.columns, rows: got.rows, total: null }));
     } catch (e) {
-      under.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+      under.replaceChildren(errorNote(e));
     }
   };
 
@@ -205,12 +205,12 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
     try {
       tree = await busy(section, `Loading ${name}'s tables…`, api<Tree>(`/connections/${path}/tree`), { errorIn: false });
       if (tree.state.state === "failed" && !tree.groups.length) {
-        clear(list, h("p", { class: "status-error" }, tree.state.error ?? "The catalog did not load."));
+        clear(list, errorNote(tree.state.error ?? "The catalog did not load."));
         return;
       }
       draw();
     } catch (e) {
-      clear(list, h("p", { class: "status-error" }, errorText(e)));
+      clear(list, errorNote(e));
     }
   };
   void load();

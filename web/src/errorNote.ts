@@ -8,6 +8,7 @@
  *                               as buttons (Try again, Install now, ...), the source's own message folded behind
  *                               Details with Copy, and Send to the agent. The error token's colour (the warning's
  *                               for a warning), the body text's size.
+ *   errorMark(what)             its inline form for a one-line row: the icon, the words, the message in its tip.
  *   warningNote(parts)          the same note in the warning colour ("Only works on your machine", cancelled work).
  *   showError(host, error, x)   the note at the top of `host`, in place of the one it showed before; returns it.
  *   clearError(host)            the note gone (a retry that worked: it never lingers).
@@ -169,6 +170,20 @@ export function errorNote(e: unknown, extra: Partial<ErrorParts> = {}): HTMLElem
   return note;
 }
 
+/** The note's inline form, for a row that must stay on one line (a card's status, a step's problem, a tree's
+ *  row): the same icon and colour, its word for screen readers, the words, the whole message in its tip. */
+export function errorMark(what: string, options: { title?: string; level?: "error" | "warning"; iconOnly?: boolean } = {}): HTMLElement {
+  const warning = options.level === "warning";
+  const word = warning ? "Warning" : "Error";
+  return h(
+    "span",
+    { class: `error-mark${warning ? " warning" : ""}`, title: options.title || what, "data-level": warning ? "warning" : "error", role: options.iconOnly ? "img" : null, "aria-label": options.iconOnly ? `${word}: ${what}` : null },
+    h("span", { class: "error-note-icon", "aria-hidden": "true" }, icon(warning ? "warning" : "problem")),
+    options.iconOnly ? null : h("span", { class: "visually-hidden" }, `${word}: `),
+    options.iconOnly ? null : h("span", { class: "error-mark-what" }, what),
+  );
+}
+
 /** The note in the warning colour. */
 export const warningNote = (parts: ErrorParts): HTMLElement => errorNote({ ...parts, level: "warning" });
 
@@ -222,6 +237,11 @@ function heard(event: Event): void {
   const target = event.target instanceof Element ? event.target : null;
   const element = target?.closest(ACTING) ?? target;
   if (!element || element.closest(".error-note, .toasts")) return;
+  // A menu's item: the work is the menu's opener's (the button or the right-clicked row), which stays on screen.
+  if (element.closest("[role=menu], .menu") && lastAction?.element.isConnected) {
+    lastAction = { element: lastAction.element, at: Date.now() };
+    return;
+  }
   // Pressing the same control again: its last note goes first (a retry that works leaves none).
   document.querySelectorAll<HTMLElement>(".error-note[data-from]").forEach((note) => {
     if (fromOf.get(note) === element) note.remove();
@@ -241,6 +261,31 @@ function listen(): void {
   }, true);
 }
 listen();
+
+/** A page's bars (the ribbon, the title and tab rows, a status bar, the rail, a toolbar): no room for a note
+ *  inside, so one for a control there floats just under the bar, beside the control. */
+const BARS = ".ribbon, .app-row, .titlebar, .tabbar, .tabs-row, .statusbar, .wb-top, .cat-top, .nav-rail, [role=toolbar], [role=menubar], [role=tablist]";
+
+/** The outermost bar `from` sits in, or null. */
+function barOf(from: Element): HTMLElement | null {
+  let bar: HTMLElement | null = null;
+  for (let at = from.closest<HTMLElement>(BARS); at; at = at.parentElement?.closest<HTMLElement>(BARS) ?? null) bar = at;
+  return bar;
+}
+
+/** The note floating under `bar`, lined up with `control` (one at a time). */
+function floatUnder(bar: HTMLElement, control: Element, note: HTMLElement): void {
+  document.querySelectorAll(".error-note.floating").forEach((old) => old.remove());
+  note.classList.add("floating");
+  ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body).append(note);
+  const under = bar.getBoundingClientRect();
+  const at = control.getBoundingClientRect();
+  const width = note.offsetWidth;
+  const atBottom = under.top > window.innerHeight / 2; // a status bar: above it
+  note.style.left = `${Math.max(8, Math.min(at.left, window.innerWidth - width - 8))}px`;
+  if (atBottom) note.style.bottom = `${Math.max(8, window.innerHeight - under.top + 6)}px`;
+  else note.style.top = `${Math.max(8, under.bottom + 6)}px`;
+}
 
 /** Where a note for an action on `from` goes: the part that holds it, and the child of that part to put the
  *  note after (the row of the control), or null to put it first. */
@@ -275,14 +320,26 @@ const ACTION_MS = 3 * 60_000;
 export function errorHere(e: unknown, extra: Partial<ErrorParts> = {}, from?: Element | null): void {
   const recent = lastAction && Date.now() - lastAction.at < ACTION_MS ? lastAction.element : null;
   const control = from ?? recent;
-  const place = control && control.isConnected ? placeFor(control) : null;
+  if (!control || !control.isConnected) {
+    errorToast(e, undefined, extra);
+    return;
+  }
+  const bar = barOf(control);
+  if (bar) {
+    const floating = errorNote(e, extra);
+    floating.dataset.from = "";
+    fromOf.set(floating, control);
+    floatUnder(bar, control, floating);
+    return;
+  }
+  const place = placeFor(control);
   if (!place) {
     errorToast(e, undefined, extra);
     return;
   }
   const note = errorNote(e, extra);
   note.dataset.from = "";
-  if (control) fromOf.set(note, control);
+  fromOf.set(note, control);
   // One note per place and control: the one it showed before goes.
   place.part.querySelectorAll<HTMLElement>(":scope > .error-note[data-from]").forEach((old) => {
     if (fromOf.get(old) === control) old.remove();

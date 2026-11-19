@@ -10,7 +10,7 @@
  */
 import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface Saved {
   name: string;
@@ -109,6 +109,6 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
     list,
   );
   foot.append(button("Close", close));
-  void refresh().catch((e: Error) => clear(list, h("p", { class: "status-error" }, e.message)));
+  void refresh().catch((e: Error) => clear(list, errorNote(e)));
   name.focus();
 }

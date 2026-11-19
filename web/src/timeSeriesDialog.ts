@@ -17,7 +17,7 @@ import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { effectiveTheme } from "./theme";
 import { busyClick, loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 const plotly = (): Promise<typeof import("./lazy/plotly")> => import(/* external */ "/static/build/lazy/plotly.js" as string) as Promise<typeof import("./lazy/plotly")>;
 
@@ -75,7 +75,7 @@ registerAnalysis("expand", "Forecast…", () => void openForecast());
 export async function openTimeSeries(given: Record<string, unknown> = {}): Promise<void> {
   const { body, foot, close } = openDialog("Time series", true);
   if (!viewColumns().some((c) => isDateType(c.type))) {
-    body.append(h("p", { class: "status-error" }, "This view has no date column."));
+    body.append(errorNote("This view has no date column."));
     foot.append(button("Close", close));
     return;
   }
@@ -109,7 +109,7 @@ export async function openTimeSeries(given: Record<string, unknown> = {}): Promi
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   body.append(h("div", {}, form.element, h("div", { class: "analysis-controls" }, field("One line per", split), button("Read", busyClick("Reading…", run), { icon: "play", class: "primary" }))), results);
@@ -121,7 +121,7 @@ export async function openTimeSeries(given: Record<string, unknown> = {}): Promi
 export async function openForecast(given: Record<string, unknown> = {}): Promise<void> {
   const { body, foot, close } = openDialog("Forecast", true);
   if (!viewColumns().some((c) => isDateType(c.type))) {
-    body.append(h("p", { class: "status-error" }, "This view has no date column."));
+    body.append(errorNote("This view has no date column."));
     foot.append(button("Close", close));
     return;
   }
@@ -171,7 +171,7 @@ export async function openForecast(given: Record<string, unknown> = {}): Promise
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   body.append(form.element, h("div", { class: "analysis-controls" }, field("Periods ahead", horizon), button("Forecast", busyClick("Forecasting…", run), { icon: "play", class: "primary" })), pool, results);

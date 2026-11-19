@@ -10,7 +10,7 @@ import { sentToast } from "./sandboxShow";
 import { selection } from "./gridView";
 import { renderMarkdown } from "./markdown";
 import { effectiveTheme } from "./theme";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface Card {
   kind: string;
@@ -96,7 +96,7 @@ export async function runBladeAnalysis(blade: AnalysisBlade): Promise<void> {
         button("Edit on the blades page", openBladesPage, { icon: "edit", class: "ghost" }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, errorText(e)));
+      clear(results, errorNote(e));
       clear(actions, button("Edit on the blades page", openBladesPage, { icon: "edit" }));
       // Stopped on a missing package: the prompt in the user's face; installed, it runs again.
       const missing = missingOf(e);

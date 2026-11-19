@@ -79,7 +79,7 @@ def test_undo_redo_keys_a_header_sort_counted_and_the_steps_listed_on_hover(
         expect(status).to_contain_text("of 600")
         page.keyboard.press("Control+z")  # nothing left to undo: nothing happens, nothing is said
         expect(strip.get_by_role("button", name="Undo", exact=True)).to_be_disabled()
-        expect(page.locator(".toast.error")).to_have_count(0)
+        expect(page.locator(".error-note")).to_have_count(0)
 
         # Ctrl+Y and Ctrl+Shift+Z redo.
         page.keyboard.press("Control+y")

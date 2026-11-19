@@ -492,7 +492,7 @@ def test_a_sql_step_has_its_own_form_in_the_steps_window(browser: Browser, order
     dialog = sql_step_window(steps)
     dialog.get_by_label("SQL").fill("DROP TABLE orders")
     dialog.get_by_role("button", name="Add step").click()
-    expect(page.locator(".steps-strip .status-error")).to_contain_text("Step 2", timeout=15000)
+    expect(page.locator(".steps-strip .error-mark")).to_contain_text("Step 2", timeout=15000)
     steps.close()
 
 
@@ -605,7 +605,7 @@ def test_excel_export_can_cut_a_cell_over_excels_limit(browser: Browser, server:
     dialog = page.locator("dialog")
     dialog.get_by_label("Format").select_option("xlsx")
     dialog.get_by_role("button", name="Download").click()
-    expect(dialog.locator(".status-error")).to_contain_text("holds 40,000 characters")
+    expect(dialog.locator(".error-note")).to_contain_text("holds 40,000 characters")
     dialog.get_by_label("Cut text over 32,767 characters").check()
     with page.expect_download() as download_info:
         dialog.get_by_role("button", name="Download").click()
@@ -2227,10 +2227,12 @@ def test_a_server_that_stops_answering_gets_one_plain_message(browser: Browser, 
     sort = page.locator(".ribbon").get_by_role("button", name="Sort A→Z", exact=True)
     sort.click()
     sort.click()
-    expect(page.locator(".toast.error")).to_have_text(re.compile("server is not answering"), timeout=10000)
+    # The one note (errorNote.ts), in place under the ribbon beside the button pressed.
+    note = page.locator(".error-note")
+    expect(note).to_contain_text(re.compile("server is not answering"), timeout=10000)
     page.wait_for_timeout(500)
-    expect(page.locator(".toast.error")).to_have_count(1)  # the same message once, not stacked
-    expect(page.locator(".toast")).not_to_contain_text("Failed to fetch")
+    expect(note).to_have_count(1)  # the same message once, not stacked
+    expect(page.locator("body")).not_to_contain_text("Failed to fetch")
 
 
 def test_long_names_and_empty_tables_read_well(browser: Browser, server: dict[str, Any]) -> None:

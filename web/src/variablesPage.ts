@@ -30,7 +30,7 @@ import { connectionIcon, openReference } from "./connectionsWindow";
 import { append, button, h, icon, toast } from "./dom";
 import { loadingBlock } from "./loading";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 type Source = "vault" | "value" | "keyring" | "env" | "missing";
 
@@ -192,7 +192,7 @@ function drawVariables(): void {
   const draw = (): void => {
     if (!element.open) return;
     if (failed) {
-      list.replaceChildren(h("p", { class: "status-error" }, failed));
+      list.replaceChildren(errorNote(failed));
       return;
     }
     if (!listing) {

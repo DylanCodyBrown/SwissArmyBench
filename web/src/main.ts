@@ -76,7 +76,7 @@ import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
 import { setGridZoom, stepZoom } from "./theme";
 import { installVariableAnywhere } from "./variableAnywhere";
-import { errorHere, errorToast } from "./errorNote";
+import { errorHere, errorNote, errorToast } from "./errorNote";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -451,7 +451,7 @@ window.addEventListener("unhandledrejection", (event: PromiseRejectionEvent) => 
 start().catch((e: unknown) => {
   // Never a dead end: the words, and the way home.
   document.body.append(
-    h("p", { class: "status-error", style: { padding: "16px" } }, `Could not open this grid: ${(e as Error).message} `, h("a", { href: HOME_URL }, "Home")),
+    h("div", { style: { padding: "16px" } }, errorNote(e, { what: `Could not open this grid: ${(e as Error).message}`, fixes: [{ label: "Home", icon: "back", run: () => location.assign(HOME_URL) }], dismiss: false })),
   );
 });
 

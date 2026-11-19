@@ -199,7 +199,7 @@ def test_a_missing_package_is_asked_for_in_the_users_face_and_installed(
     prompt.get_by_role("button", name="Install now").click()  # one action
     # The first install fails: said plainly, with what it printed, and it can be tried again.
     expect(prompt.locator(".missing-state")).to_have_text("The install failed.")
-    expect(prompt.locator(".missing-error")).to_contain_text("a made-up failure")
+    expect(prompt.locator(".error-note")).to_contain_text("a made-up failure")
     prompt.get_by_role("button", name="Try again").click()
     # In: the prompt goes, the form reads its code again, and there is nothing left to install.
     expect(prompt).to_have_count(0, timeout=15000)

@@ -15,6 +15,7 @@ import { api, failure, token } from "./api";
 import { button, clear, h, openDialog } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busyClick, loadingBlock } from "./loading";
+import { errorNote } from "./errorNote";
 
 interface Offer {
   libraries: { pip: string; label: string; group: string; imports: string; note: string }[];
@@ -73,7 +74,7 @@ export async function newEnvironment(start: { folder: string; document: string |
     const others = h("input", { type: "text", "aria-label": "Other packages", placeholder: "Package names", spellcheck: false });
     const addImports = h("input", { type: "checkbox", checked: true }) as HTMLInputElement;
     const log = h("pre", { class: "env-log", hidden: true, "aria-live": "polite" });
-    const status = h("p", { class: "hint", role: "status" }, `Always installed: ${offer.always.join(", ")}`);
+    const status = h("div", { class: "hint", role: "status" }, `Always installed: ${offer.always.join(", ")}`);
 
     const make = async (): Promise<void> => {
       const packages = [...[...boxes.values()].filter((b) => b.checked).map((b) => b.value), ...others.value.split(/[\s,]+/).filter(Boolean)];
@@ -113,8 +114,7 @@ export async function newEnvironment(start: { folder: string; document: string |
           if (done) break;
         }
       } catch (e) {
-        status.textContent = (e as Error).message;
-        status.className = "status-error";
+        clear(status, errorNote(e));
       }
     };
 

@@ -23,9 +23,8 @@ export async function drawGraphviz(host: HTMLElement, dot: string, dark: boolean
     edgeAttributes: { fontcolor: ink, color: ink, fontname: "Arial", fontsize: 11 },
   });
   if (result.status !== "success") {
-    host.textContent = `This graph could not be drawn: ${result.errors.map((e) => e.message).join(" ") || "the DOT text is not valid."}`;
-    host.classList.add("error-text");
-    return;
+    host.replaceChildren();
+    throw new Error(`This graph could not be drawn: ${result.errors.map((e) => e.message).join(" ") || "the DOT text is not valid."}`);
   }
   const drawing = contained(result.output);
   if (drawing instanceof Element) fitToCard(drawing);

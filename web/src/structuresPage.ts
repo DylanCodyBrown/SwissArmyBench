@@ -30,7 +30,7 @@ import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mountTree, nodeAt, type Part, pathText, type TextView, type Tree, type Value } from "./structureTree";
 import { effectiveTheme } from "./theme";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark, errorNote } from "./errorNote";
 
 /** The page's name, in one place (the owner chose it, 2026-11-17): the rail, the title, the tabs. */
 export const STRUCTURES = "Structures";
@@ -430,7 +430,7 @@ function drawPage(): void {
           h("span", { class: "muted" }, `${o.api ?? ""} · ${o.operation ?? ""}`),
           status,
           h("span", { class: "muted" }, `${o.ms ?? 0} ms`),
-          o.said ? h("span", { class: "status-error" }, o.said) : null,
+          o.said ? errorMark(o.said) : null,
           h("details", { class: "structures-headers" }, h("summary", {}, "Headers"), h("table", {}, ...Object.entries(o.headers ?? {}).map(([k, v]) => h("tr", {}, h("th", {}, k), h("td", { class: "mono" }, v))))),
         ),
       );
@@ -444,7 +444,7 @@ function drawPage(): void {
           : [h("span", { class: "muted structures-no-steps" }, "No steps")]),
       ),
     );
-    if (current.error) parts.push(h("p", { class: "status-error" }, current.error));
+    if (current.error) parts.push(errorNote(current.error));
     const value = current.value ?? null;
     const split = h("div", { class: `structures-split view-${view}` });
     if (view !== "text") {

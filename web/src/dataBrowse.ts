@@ -26,7 +26,7 @@ import { api, errorText } from "./api";
 import { connectionDot } from "./connectionColours";
 import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
 import { busyClick, loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark, errorNote } from "./errorNote";
 
 /** A result as the Explorer has it (dataExplorer.ts's ExplorerResult, kept loose here to avoid a cycle). */
 export interface BrowseResult {
@@ -344,7 +344,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
         },
         (e: unknown) => {
           node.lazy = lazy;
-          clear(kids, h("li", { class: "db-loading status-error", role: "none" }, errorText(e)));
+          clear(kids, h("li", { class: "db-loading", role: "none" }, errorMark(errorText(e))));
         },
       );
       return;
@@ -437,7 +437,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
         codeBlock("Python cell", d.code.python),
       );
     } catch (e) {
-      clear(body, h("p", { class: "status-error" }, errorText(e)));
+      clear(body, errorNote(e));
     }
   }
 

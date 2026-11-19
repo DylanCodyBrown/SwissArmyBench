@@ -26,6 +26,7 @@ import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { backButton } from "./nav";
 import { variableBox } from "./variableBox";
+import { errorNote } from "./errorNote";
 
 interface Setting {
   id: string;
@@ -132,14 +133,14 @@ function triedTable(got: Tried): HTMLElement[] {
 export function showAddApi(host: AddApiHost): void {
   const { body, foot } = host;
   const status = h("div", { class: "connection-result add-api-preview", role: "status" });
-  const failed = (e: unknown): void => void status.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+  const failed = (e: unknown): void => void status.replaceChildren(errorNote(e));
   clear(body, loadingBlock("Loading the form…"));
   clear(foot);
   (choices ??= api<Choices>("/apis/choices")).then(
     (found) => draw(found),
     (e) => {
       choices = null;
-      clear(body, h("p", { class: "status-error" }, errorText(e)));
+      clear(body, errorNote(e));
       foot.append(backButton(host.backTo.label, host.backTo.url));
     },
   );
@@ -244,7 +245,7 @@ export function showAddApi(host: AddApiHost): void {
           // not there: the next place
         }
       }
-      status.replaceChildren(h("p", { class: "status-error" }, "No OpenAPI document there: list the endpoints."));
+      status.replaceChildren(errorNote("No OpenAPI document there: list the endpoints."));
       pick("form");
     };
 
@@ -527,13 +528,13 @@ export function showAddApi(host: AddApiHost): void {
       const body = sent();
       const operation = typeof which === "string" ? which : fresh?.spec.operations[which]?.name;
       if (!body || !operation) {
-        out.replaceChildren(h("p", { class: "status-error" }, mode === "form" && !baseUrl.value.trim() ? "Give the base address first." : "Fix the form first."));
+        out.replaceChildren(errorNote(mode === "form" && !baseUrl.value.trim() ? "Give the base address first." : "Fix the form first."));
         return;
       }
       try {
         out.replaceChildren(...triedTable(await api<Tried>("/apis/try", "POST", { ...body, try: operation, values: values() })));
       } catch (e) {
-        out.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+        out.replaceChildren(errorNote(e));
       }
     };
     const documentTry = h("div", { class: "add-api-try", role: "status" });
@@ -565,7 +566,7 @@ export function showAddApi(host: AddApiHost): void {
       clear(
         status,
         h("p", { class: "hint add-api-file" }, h("code", {}, p.path), p.exists ? h("span", { class: "badge" }, "Replaces") : null),
-        p.taken ? h("p", { class: "status-error" }, p.taken) : null,
+        p.taken ? errorNote(p.taken) : null,
         summary ? h("p", { class: "hint" }, summary) : null,
         h("p", { class: "hint" }, `${p.spec.title} · ${p.spec.source} · ${count(p.spec.operations.length, "operation")} · ${count(p.spec.tables.length, "table")}`),
         ops,

@@ -33,7 +33,7 @@ import { showAgentView } from "./panes";
 import { saveBlob } from "./profileView";
 import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
 import { busyClick, loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface SavedSet {
   name: string;
@@ -292,7 +292,7 @@ export function openRelationships(startFinding = false): void {
             ),
           )
         : h("p", { class: "hint" }, library.models.length ? "No saved set matches." : "No saved sets yet."),
-      library.problems.length ? h("p", { class: "status-error" }, `Could not read: ${library.problems.join("; ")}`) : null,
+      library.problems.length ? errorNote(`Could not read: ${library.problems.join("; ")}`) : null,
       library.shared_folders.length ? h("p", { class: "hint" }, `Shared folders: ${library.shared_folders.join(" · ")}`) : null,
     );
   }

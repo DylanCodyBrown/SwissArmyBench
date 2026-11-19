@@ -33,7 +33,7 @@ import { busy, busyClick, loadingBlock } from "./loading";
 import { type Missing, promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 import { mountTree, type Value } from "./structureTree";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 export const CODE_APP = "Code App";
 const TYPE = "codeapp";
@@ -290,7 +290,7 @@ function drawPage(): void {
       return;
     }
     if (project.problem) {
-      panel.replaceChildren(h("p", { class: "status-error" }, project.problem));
+      panel.replaceChildren(errorNote(project.problem));
       return;
     }
     const app = project.app!;
@@ -542,7 +542,7 @@ function drawPage(): void {
     const dataset = h("input", { "aria-label": "Dataset", placeholder: "A site, or server,database" }) as HTMLInputElement;
     const table = h("input", { "aria-label": "Table", placeholder: "A list or a table" }) as HTMLInputElement;
     box.append(
-      got.connections.length ? h("label", { class: "ca-field" }, h("span", {}, "Connection"), choice) : h("p", { class: "status-error" }, `No connection to ${c.display_name} yet: make one in Power Apps (Connections), then come back.`),
+      got.connections.length ? h("label", { class: "ca-field" }, h("span", {}, "Connection"), choice) : errorNote(`No connection to ${c.display_name} yet: make one in Power Apps (Connections), then come back.`),
       ...(c.tabular ? [h("label", { class: "ca-field" }, h("span", {}, "Add it as"), asKind), h("label", { class: "ca-field" }, h("span", {}, "Dataset"), dataset), h("label", { class: "ca-field" }, h("span", {}, "Table"), table)] : []),
     );
     buttons.append(button("Cancel", () => close()), button("Add", async () => {

@@ -16,7 +16,7 @@ import { api } from "./api";
 import { button, clear, h, toast } from "./dom";
 import { busyClick, loadingBlock } from "./loading";
 import type { Kernel } from "./workbenchKernel";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 export interface Snapshot {
   busy: boolean;
@@ -152,7 +152,7 @@ export function variablesPanel(onClose: () => void = () => undefined): Variables
     try {
       last = await api<Snapshot>(`/workbench/kernels/${kernel.id}/variables`);
     } catch (e) {
-      clear(body, h("p", { class: "status-error" }, (e as Error).message));
+      clear(body, errorNote(e));
       return;
     }
     draw();

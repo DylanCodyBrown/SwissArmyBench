@@ -158,7 +158,7 @@ def test_the_apis_page_authors_a_call_into_structures(
     status.dblclick()
     screen.locator(".structure-edit").fill("open")
     screen.locator(".structure-edit").press("Enter")
-    expect(screen.locator(".api-body-problems li")).to_have_count(0)
+    expect(screen.locator(".api-body-problems .error-note")).to_have_count(0)
     shot(page, "apis-author")
 
     # Send: the answer opens in Structures, the call its origin.

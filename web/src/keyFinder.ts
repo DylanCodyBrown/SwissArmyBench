@@ -23,7 +23,7 @@ import { mdTable, type SandboxCard } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
 import { api, grid, gridId, token } from "./api";
 import { button, clear, formatCount, h, icon, toast } from "./dom";
-import { errorHere, errorNote } from "./errorNote";
+import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
 import { busy, busyButton, loadingBlock } from "./loading";
 import { isKnownPair, loadRelationships } from "./relationships";
 
@@ -293,7 +293,7 @@ function uniqueKeyTable(found: UniqueKey | undefined, source: string): HTMLEleme
   if (!found) return null;
   const heading = h("h3", { class: "kf-heading" }, `Most distinct column combination in ${source}`);
   if (found.stopped) {
-    return h("div", { class: "kf-unique" }, heading, h("p", { class: "status-error" }, "Stopped at the time limit. Filter the grid first."));
+    return h("div", { class: "kf-unique" }, heading, warningNote({ what: "Stopped at the time limit. Filter the grid first." }));
   }
   const steps = found.steps ?? [];
   const rows = found.rows_checked ?? 0;
@@ -373,6 +373,6 @@ async function showSample(pair: Pair, slot: HTMLElement): Promise<void> {
       ),
     );
   } catch (e) {
-    clear(slot, h("span", { class: "status-error" }, (e as Error).message));
+    clear(slot, errorMark((e as Error).message));
   }
 }

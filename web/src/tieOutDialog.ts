@@ -16,7 +16,7 @@ import { type Context } from "./panes";
 import { saveBlob } from "./profileView";
 import { sentToast } from "./sandboxShow";
 import { busyClick, loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface Choice {
   name: string;
@@ -97,7 +97,7 @@ export async function openTieOut(cmp: CompareInfo, pair: [Context, Context]): Pr
   try {
     choices = await api(`/compares/${cmp.compare}/tie-out`);
   } catch (e) {
-    body.append(h("p", { class: "status-error" }, (e as Error).message));
+    body.append(errorNote(e));
     foot.append(button("Close", close));
     return;
   }
@@ -198,7 +198,7 @@ export async function openTieOut(cmp: CompareInfo, pair: [Context, Context]): Pr
     try {
       draw(await api<Report>(`/compares/${cmp.compare}/tie-out`, "POST", sent()));
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
 

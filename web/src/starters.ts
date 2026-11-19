@@ -14,7 +14,7 @@
 import { api } from "./api";
 import { button, clear, h, openDialog, toast } from "./dom";
 import { familyShown, familyWords, whenMode } from "./modes";
-import { errorHere } from "./errorNote";
+import { clearError, errorHere, showError } from "./errorNote";
 
 /** The type a snippet's drag carries: {"name", "language"}. */
 export const SNIPPET_DRAG = "application/x-sab-snippet";
@@ -204,7 +204,7 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
   };
 
   const { body, foot, close } = openDialog(form.name);
-  const error = h("p", { class: "status-error", role: "alert" });
+  const error = h("div", { class: "form-error" });
   const fields = h("div", { class: "form-grid snippet-fields" });
   form.placeholders.forEach((p, i) => {
     const id = `snippet-choice-${i}`;
@@ -229,12 +229,12 @@ export async function fillSnippet(name: string, dataset: string | null = null): 
       resolve(result);
     };
     const insert = async (): Promise<void> => {
-      error.textContent = "";
+      clearError(error);
       const values = Object.fromEntries(form.placeholders.map((p) => [p.name, value(p.name)]));
       try {
         finish(await send(values));
       } catch (e) {
-        error.textContent = `⚠ ${(e as Error).message}`;
+        showError(error, e);
       }
     };
     body.addEventListener("keydown", (e) => {

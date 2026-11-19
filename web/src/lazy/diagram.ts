@@ -70,7 +70,7 @@ export async function drawDiagram(host: HTMLElement, text: string, dark: boolean
     // On a syntax error Mermaid leaves its "Syntax error in text" picture in the page body,
     // under everything else: take it away, the card says what went wrong.
     for (const left of document.querySelectorAll(`#${id}, #d${id}`)) if (!host.contains(left)) left.remove();
-    host.textContent = `This diagram could not be drawn: ${(e as Error).message}`;
-    host.classList.add("error-text");
+    host.replaceChildren();
+    throw new Error(`This diagram could not be drawn: ${(e as Error).message}`);
   }
 }

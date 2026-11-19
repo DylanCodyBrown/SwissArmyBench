@@ -19,7 +19,7 @@ import { button, clear, formatCount, h, toast } from "./dom";
 import { loadingBlock } from "./loading";
 import { KIND_LABELS, editStep } from "./stepForms";
 import { state } from "./state";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark } from "./errorNote";
 
 let tab: "steps" | "code" = "steps";
 let counts: number[] = [];
@@ -160,7 +160,7 @@ function stepRow(step: StepJson, index: number): HTMLElement {
       ? h("span", { class: "meta" }, `${formatCount(before)} → ${formatCount(after)} rows`)
       : null,
     h("span", { class: "meta", "data-categorize": String(index) }),
-    broken ? h("span", { class: "error-text" }, info.step_error!.message) : null,
+    broken ? errorMark(info.step_error!.message) : null,
     blocked ? h("span", { class: "meta" }, "Not applied: earlier step broken") : null,
   );
   return row;
@@ -244,7 +244,6 @@ async function renderCode(body: HTMLElement): Promise<void> {
     body.append(h("p", { class: "hint" }, shown.reads));
     if (shown.note) body.append(h("p", { class: "hint" }, shown.note));
   } catch (e) {
-    status.textContent = (e as Error).message;
-    status.className = "status-error";
+    clear(status, errorMark((e as Error).message));
   }
 }

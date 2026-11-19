@@ -21,7 +21,7 @@ import { currentCompare, startCompare } from "./compare";
 import { pct } from "./keyFinder";
 import type { Context } from "./panes";
 import { isKnownPair, knownPairs, loadRelationships } from "./relationships";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface Pair {
   source_column: string;
@@ -36,7 +36,7 @@ interface Pair {
 export function openCompareDialog(left: Context, right: Context): void {
   const { body, foot, close } = openDialog(`Compare ${left.dataset} with ${right.dataset}`, true);
   body.classList.add("compare-dialog");
-  const status = h("p", { class: "hint", role: "status" }, "Finding shared columns…");
+  const status = h("div", { class: "hint", role: "status" }, "Finding shared columns…");
   const tbody = h("tbody", {});
   const rows: { pair: [string, string]; box: HTMLInputElement }[] = [];
   const compareButton = button("Compare", () => void go(), { class: "primary", title: "Line up on the ticked keys" });
@@ -105,8 +105,7 @@ export function openCompareDialog(left: Context, right: Context): void {
       if (!keep.size && !known.length && result.suggested_key && !rows.some((r) => r.pair.join("\u0000") === suggested)) addRow(result.suggested_key, ["", "", "", "unique on both sides"], true);
       for (const k of existing?.keys ?? []) if (!top.some((p) => p.source_column === k[0] && p.target_column === k[1])) addRow(k, ["", "", "", "current key"], true);
     } catch (e) {
-      status.textContent = (e as Error).message;
-      status.className = "status-error";
+      clear(status, errorNote(e));
     }
   })();
 

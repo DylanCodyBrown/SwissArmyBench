@@ -42,7 +42,7 @@ import { effectiveTheme } from "./theme";
 import { FRAME_SANDBOX } from "./workbenchHtml";
 import { menuButton } from "./workbenchMenu";
 import { type AppProblem, type AppSettings, type BlockState, type CanvasPage, type CanvasState, type CellLink, CELL_DRAG, copiedCell, draggedLink, type ExportResult, frameAddress, type LocalNotes, type MovePlan, type PageTest, partsOf, problemText, type SaveAsResult, type SavedPage, savedPages, type SessionRow } from "./workbenchStreamlit";
-import { errorHere, problemsHere } from "./errorNote";
+import { errorHere, errorNote, problemsHere } from "./errorNote";
 
 /** What Test this page answers: its counts and each block's failures, or the Python's problem. */
 export type TestResult = (PageTest & { page: string; name: string; failures: Record<string, { case: string; error: string }[]> }) | { page: string; problem: AppProblem };
@@ -679,11 +679,11 @@ export function canvasView(initial: SavedPage[], host: CanvasHost, initialSettin
     const said = mode === "edit" ? (page?.problems ?? []).filter((p) => !page!.blocks.some((b) => b.missing && p.includes(b.missing))) : [];
     clear(
       notes,
-      problem ? h("p", { class: "cv-problem", role: "alert" }, problemText(problem), problem.kind === "missing" ? button(`Install ${problem.packages.join(", ")}`, () => install(), { class: "ghost cv-install", icon: "import", title: problem.command }) : null) : null,
-      ...said.map((p) => h("p", { class: "cv-problem", role: "alert" }, p)),
+      problem ? errorNote(problemText(problem), { dismiss: false, fixes: problem.kind === "missing" ? [{ label: `Install ${problem.packages.join(", ")}`, icon: "import", run: () => install() }] : [] }) : null,
+      ...said.map((p) => errorNote(p, { dismiss: false })),
       // The page's last test: an error outside every block, or the test itself not finishing.
-      ...(mode === "edit" ? [...(page?.tested?.outside ?? []).map((f) => `${f.case}: ${f.error}`), ...(page?.tested?.problem ? [page.tested.problem] : [])] : []).map((p) => h("p", { class: "cv-problem cv-test-problem", role: "alert" }, p)),
-      ...(mode === "live" ? (state?.notes ?? []) : []).map((n) => h("p", { class: "cv-problem", role: "alert" }, n)),
+      ...(mode === "edit" ? [...(page?.tested?.outside ?? []).map((f) => `${f.case}: ${f.error}`), ...(page?.tested?.problem ? [page.tested.problem] : [])] : []).map((p) => h("div", { class: "cv-test-problem" }, errorNote(p, { dismiss: false }))),
+      ...(mode === "live" ? (state?.notes ?? []) : []).map((n) => errorNote(n, { dismiss: false })),
     );
     notes.hidden = !notes.childElementCount;
   }

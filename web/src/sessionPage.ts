@@ -25,7 +25,7 @@ import { openReference } from "./connectionsWindow";
 import { button, h, icon, recall, remember } from "./dom";
 import { dismissDialog, go, homeWindow, HOME_URL, layerOpened, layerShown, registerLayer, runArea, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { loadingBlock } from "./loading";
-import { errorHere, errorToast } from "./errorNote";
+import { errorHere, errorNote, errorToast } from "./errorNote";
 
 export interface Target {
   place: "grid" | "dataset" | "card" | "relationship" | "connection" | "blade" | "cell" | "document" | "area";
@@ -368,7 +368,7 @@ function drawSession(): void {
     redraw = null;
   });
   draw();
-  void load().then(draw, (e: Error) => list.replaceChildren(h("li", { class: "status-error" }, e.message)));
+  void load().then(draw, (e: Error) => list.replaceChildren(h("li", {}, errorNote(e))));
 }
 
 // The switch's state and what arrived before this page opened (a reload: the counted ones are gone).

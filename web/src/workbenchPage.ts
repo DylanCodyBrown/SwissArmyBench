@@ -106,7 +106,7 @@ import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
 import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
 import { installVariableAnywhere } from "./variableAnywhere";
-import { errorHere, errorToast } from "./errorNote";
+import { errorHere, errorNote, errorToast } from "./errorNote";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -995,7 +995,7 @@ async function drawDictionaryView(doc: Doc): Promise<void> {
     const found = await dictionaryTables(doc);
     drawDictionary(held.host, found, held.chosen, (table, column, text) => describe(doc, table, column, text));
   } catch (e) {
-    clear(held.host, h("p", { class: "error" }, (e as Error).message));
+    clear(held.host, errorNote(e, { dismiss: false }));
   }
 }
 

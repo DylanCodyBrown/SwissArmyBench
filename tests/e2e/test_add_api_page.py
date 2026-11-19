@@ -117,7 +117,7 @@ def test_add_api_from_a_file_and_from_the_form(
     # Try it on a document's table: with no key typed and none on this computer, said by its name.
     expect(dialog.get_by_label("ORDERS_API_KEY")).to_have_attribute("type", "password")
     preview.get_by_role("button", name="Try list_orders").click()
-    expect(preview.locator(".add-api-try .status-error")).to_contain_text("ORDERS_API_KEY", timeout=60000)
+    expect(preview.locator(".add-api-try .error-note")).to_contain_text("ORDERS_API_KEY", timeout=60000)
     shot(page, "add-api-from-a-file.png")
     dialog.get_by_role("button", name="Add", exact=True).click()
 

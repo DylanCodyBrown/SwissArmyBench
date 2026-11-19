@@ -34,7 +34,7 @@ import { busyButton, busyClick, loadingBlock } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
 import { openStructures } from "./structuresPage";
 import type { Part } from "./structureTree";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 /** A result's drag: {sql, python} (the code for each kind of cell). lazy/codeEditor.ts reads it. */
 export const EXPLORER_DRAG = "application/x-sab-explorer";
@@ -365,8 +365,8 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       element.dataset.searched = state.text.trim() || state.column;
     } catch (e) {
       if (n !== asked) return;
-      if (browse) clear(offers, h("p", { class: "status-error" }, errorText(e)));
-      else clear(results, h("p", { class: "status-error" }, errorText(e)));
+      if (browse) clear(offers, errorNote(e));
+      else clear(results, errorNote(e));
     }
   }
 
@@ -408,7 +408,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
           : await api<{ columns: string[]; rows: unknown[][] }>(`/connections/${encodeURIComponent(r.connection ?? "")}/preview`, "POST", r.place).then((g) => ({ ...g, total: null }));
       clear(under, ...tablePreview({ table: r.name, schema: r.place?.schema ?? "", columns: got.columns, rows: got.rows, total: got.total }));
     } catch (e) {
-      clear(under, h("p", { class: "status-error" }, errorText(e)));
+      clear(under, errorNote(e));
     }
   };
 

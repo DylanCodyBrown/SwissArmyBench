@@ -19,7 +19,7 @@
 import { api, grid, query, type ColumnInfo, type StepJson } from "./api";
 import { button, h, isBoolType, isDateType, isNumericType, isTextType, openDialog } from "./dom";
 import { state } from "./state";
-import { errorHere } from "./errorNote";
+import { errorHere, showError } from "./errorNote";
 
 type Params = Record<string, unknown>;
 interface Form {
@@ -412,7 +412,7 @@ export function editStep(kind: string, index?: number, preset: Params = {}): voi
   const form = FORMS[kind]?.(entering, { ...preset, ...(existing?.params ?? {}) });
   if (!form) return;
   const { body, foot, close } = openDialog(`${existing ? "Edit" : "Add"} step: ${KIND_LABELS[kind] ?? kind}`);
-  const error = h("p", { class: "status-error", role: "alert" });
+  const error = h("div", { class: "form-error" });
   body.append(form.element, error);
   const save = async (): Promise<void> => {
     try {
@@ -428,7 +428,7 @@ export function editStep(kind: string, index?: number, preset: Params = {}): voi
       if (broken) errorHere(`Step ${broken.index + 1}: ${broken.message}`);
       close();
     } catch (e) {
-      error.textContent = (e as Error).message;
+      showError(error, e);
     }
   };
   foot.append(button("Cancel", close), button(existing ? "Save step" : "Add step", () => void save(), { class: "primary" }));

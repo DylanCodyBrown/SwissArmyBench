@@ -13,6 +13,7 @@
 import { h, icon } from "./dom";
 import type { CodeEditor, Problem } from "./lazy/codeEditor";
 import { effectiveTheme } from "./theme";
+import { errorNote } from "./errorNote";
 
 export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
 export type Part = string | number;
@@ -286,7 +287,7 @@ export function mountText(text: string, format: Format, onChange: (text: string)
   const plain = h("textarea", { class: "mono structure-text-plain", spellcheck: false, "aria-label": label }, text) as HTMLTextAreaElement;
   plain.addEventListener("input", () => onChange(plain.value));
   const host = h("div", { class: "structure-text-host" }, plain);
-  const error = h("div", { class: "structure-text-error status-error", role: "status", hidden: true });
+  const error = h("div", { class: "structure-text-error", hidden: true });
   const element = h("div", { class: "structure-text" }, host, error);
   let editor: CodeEditor | null = null;
   let gone = false;
@@ -322,7 +323,7 @@ export function mountText(text: string, format: Format, onChange: (text: string)
     },
     setError: (message) => {
       error.hidden = !message;
-      error.textContent = message ?? "";
+      error.replaceChildren(...(message ? [errorNote(message, { dismiss: false })] : []));
       const found = message ? /line (\d+)(?:, column (\d+))?/.exec(message) : null;
       const problems: Problem[] = found
         ? [{ line: Number(found[1]), col: found[2] ? Number(found[2]) : null, endLine: Number(found[1]), endCol: null, message: message ?? "", hover: message ?? "", severity: "error", fixes: [] }]

@@ -18,7 +18,7 @@
 import { api } from "./api";
 import { button, clear, h } from "./dom";
 import { effectiveTheme } from "./theme";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 export interface LineageTarget {
   /** A cell of a notebook or script: its path (or, unsaved, its title) and its own number. */
@@ -280,7 +280,7 @@ export async function openLineage(target: LineageTarget, host: LineageHost, into
         },
         h("div", { class: "wb-lin-card-head" }, h("span", { class: "wb-lin-label" }, node.label), node.on_page ? h("span", { class: "wb-lin-page", title: "On the page" }, "page") : null),
         h("div", { class: "hint wb-lin-where" }, node.where || KINDS[node.kind]),
-        value?.error ? h("div", { class: "wb-lin-error error-text", role: "alert" }, `⚠ ${value.error}`) : null,
+        value?.error ? h("div", { class: "wb-lin-error" }, errorNote(value.error, { dismiss: false })) : null,
         ...items.map((item) => itemView(item, items.length > 1)),
         value?.busy ? h("div", { class: "hint" }, "busy") : null,
       );
@@ -304,7 +304,12 @@ export async function openLineage(target: LineageTarget, host: LineageHost, into
     if (text === drawn) return;
     drawn = text;
     const m = await diagrams();
-    await m.drawDiagram(chart, text, effectiveTheme().endsWith("dark"));
+    try {
+      await m.drawDiagram(chart, text, effectiveTheme().endsWith("dark"));
+    } catch (e) {
+      chart.replaceChildren(errorNote(e, { dismiss: false }));
+      return;
+    }
     shapes.clear();
     const svg = chart.querySelector("svg");
     if (svg) {

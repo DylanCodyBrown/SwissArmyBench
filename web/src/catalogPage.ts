@@ -26,6 +26,7 @@ import "./settingsWindow"; // the rail's Settings opens here too (open=settings)
 
 watchTheme();
 import { installVariableAnywhere } from "./variableAnywhere";
+import { errorNote } from "./errorNote";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -56,7 +57,7 @@ function showWelcome(how: Move = "auto"): void {
 /** Nothing at the address (a blade removed): said, with the way back. */
 function showMissing(words: string): void {
   setTitle(PAGE);
-  clear(detail, h("div", { class: "row-actions" }, backButton(PAGE, WELCOME)), h("p", { class: "status-error", role: "alert" }, words));
+  clear(detail, h("div", { class: "row-actions" }, backButton(PAGE, WELCOME)), errorNote(words));
 }
 
 /** The blade the screen shows ("" New blade), while it is open. */

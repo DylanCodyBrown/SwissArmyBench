@@ -15,6 +15,7 @@ import { saveBlob } from "./profileView";
 import { selection, shownTotal } from "./gridView";
 import { state } from "./state";
 import { busyClick } from "./loading";
+import { clearError, showError } from "./errorNote";
 
 export function openExport(): void {
   const info = state.info;
@@ -85,7 +86,7 @@ export function openExport(): void {
   };
   for (const el of [format, scope, neutralize]) el.addEventListener("change", sync);
   sync();
-  const error = h("p", { class: "status-error", role: "alert" });
+  const error = h("div", { class: "form-error" });
   body.append(
     h("fieldset", { class: "fieldset" }, h("legend", {}, "What and where"), h("div", { class: "form-grid" }, field("Rows", scope), field("Format", format), field("File name", file))),
     columnsField,
@@ -112,7 +113,7 @@ export function openExport(): void {
     save: save ? "1" : undefined,
   });
   const exportNow = async (save: boolean): Promise<void> => {
-    error.textContent = "";
+    clearError(error);
     try {
       if (save) {
         const result = await api<{ saved: string; message: string }>(`${grid}/export${query(params(true))}`);
@@ -124,7 +125,7 @@ export function openExport(): void {
       }
       close();
     } catch (e) {
-      error.textContent = e instanceof ApiError ? e.message : String(e);
+      showError(error, e);
     }
   };
   foot.append(button("Cancel", close), button("Save to export folder", busyClick("Saving…", () => exportNow(true)), { icon: "save", title: "~\\.swissarmybench\\exports" }), button("Download", busyClick("Exporting…", () => exportNow(false)), { icon: "export", class: "primary" }));

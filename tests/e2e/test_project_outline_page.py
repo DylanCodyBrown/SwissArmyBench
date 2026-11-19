@@ -115,9 +115,13 @@ def test_export_outline_writes_architecture_md_offers_it_and_its_diagrams_draw(
             host.className = "outline-check";
             host.style.cssText = "width:900px;height:600px;background:#fff";
             document.body.append(host);
-            await m.drawDiagram(host, text, false);
-            const failed = host.classList.contains("error-text");
-            out.push({ svg: !!host.querySelector("svg"), error: failed ? host.textContent : "" });
+            let error = "";
+            try {
+              await m.drawDiagram(host, text, false);
+            } catch (e) {
+              error = String(e && e.message ? e.message : e);
+            }
+            out.push({ svg: !!host.querySelector("svg"), error });
           }
           return out;
         }""",

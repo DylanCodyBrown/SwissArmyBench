@@ -177,7 +177,7 @@ def test_a_markdown_cells_mermaid_block_is_drawn_and_a_broken_one_says_why(
     expect(drawing.locator("g.node")).to_have_count(2)
     expect(shown.nth(0).locator("h2")).to_have_text("Flow")
     # A broken diagram says why, in its place.
-    broken = shown.nth(1).locator(".md-mermaid.error-text")
+    broken = shown.nth(1).locator(".md-mermaid .error-note")
     expect(broken).to_contain_text("This diagram could not be drawn")
     # A name in a diagram is filled as text: the value's own arrow draws no edge (its marks full-width).
     window(server, "run.primary")

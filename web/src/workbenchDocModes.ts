@@ -19,7 +19,7 @@ import { api } from "./api";
 import { button, clear, h, icon } from "./dom";
 import { took, when } from "./workbenchModes";
 import { variableBox } from "./variableBox";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 // ===== Notebook mode: the run order and the Outline =====
 
@@ -126,7 +126,7 @@ export function drawRunSettings(body: HTMLElement, path: string | null, vaults: 
   if (!path) return void clear(body, h("p", { class: "hint app-empty" }, "Save the script first"));
   void runSettings(path).then(
     (settings) => draw(settings),
-    (e: Error) => clear(body, h("p", { class: "error" }, e.message)),
+    (e: Error) => clear(body, errorNote(e)),
   );
   const draw = (settings: RunSettings): void => {
     const rows: Row[] = settings.variables.map((v) => ({ name: v.name, from: v.from, value: v.value, vault: v.vault, secret: v.secret }));
@@ -250,7 +250,7 @@ export function drawRunHistory(body: HTMLElement, path: string | null, runAgain:
       ),
     );
     clear(body, h("div", { class: "wb-history" }, list, detail));
-  }, (e: Error) => clear(body, h("p", { class: "error" }, e.message)));
+  }, (e: Error) => clear(body, errorNote(e)));
 }
 
 // ===== Data mode: the dictionary and lineage =====

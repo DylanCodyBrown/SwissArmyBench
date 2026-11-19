@@ -30,7 +30,7 @@ import { cellAt, drawSheet, letters, type Preview } from "./excelPreview";
 import { openStatements, openTemplates } from "./excelTemplates";
 import { busy as gate, markBusy } from "./loading";
 import { menuButton } from "./workbenchMenu";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 export const WORKBOOK_ENDING = ".design.json";
 const COL_W = 76;
@@ -401,7 +401,7 @@ export function excelView(path: string | null, host: ExcelHost, initial?: Workbo
       ...(state?.missing.length ? [`Not open: ${state.missing.join(", ")}`] : []),
       ...(state?.problems ?? []),
     ];
-    clear(notes, ...said.map((p) => h("p", { class: "cv-problem", role: "alert" }, p)));
+    clear(notes, ...said.map((p) => errorNote(p, { dismiss: false })));
     notes.hidden = !said.length;
   }
 

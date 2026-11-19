@@ -20,7 +20,7 @@ import { activeMode, familyShown, familyWords, onMode, whenMode } from "./modes"
 import type { Move } from "./nav";
 import { copyAsOwn, SNIPPET_DRAG, type StarterSummary, starters } from "./starters";
 import { busyClick } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark, errorNote } from "./errorNote";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -229,7 +229,7 @@ export function schemaDetails(label: string, catalog: string, dialect: string, s
     h("h2", {}, label),
     h("p", { class: "hint" }, `Dataset in ${catalog} · DAX`),
     note
-      ? h("p", { class: "status-error", role: "alert" }, note)
+      ? errorNote(note)
       : h("div", { class: "row-actions" }, button("Import its relationships", busyClick("Reading…", () => importRelationships(catalog, schema)), { icon: "import", class: "primary" })),
   ];
 }
@@ -695,7 +695,7 @@ export function mountRail(host: RailHost): Rail {
       data.kind === "table" && data.tableKind === "view" ? h("span", { class: "node-kind" }, "view") : null,
       data.kind === "table" && data.title ? h("span", { class: "node-kind" }, data.title) : null,
       // A dataset that could not be read: marked on itself only, the reason on hover and on its page.
-      data.note ? h("span", { class: "node-error", role: "img", "aria-label": `Error: ${data.note}`, title: data.note }, "!") : null,
+      data.note ? errorMark(data.note, { iconOnly: true }) : null,
       meta ? h("span", { class: "node-meta" }, meta) : null,
     );
     node.style.setProperty("--depth", String(depth)); // a custom property needs setProperty, not assignment

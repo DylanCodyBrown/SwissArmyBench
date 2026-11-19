@@ -50,7 +50,7 @@ def test_a_pasted_table_is_named_in_its_toast_and_any_tab_renamed_in_place(
     page.locator(".tab-item .tab-label", has_text="north_south").dblclick()
     page.keyboard.type("orders")
     page.keyboard.press("Enter")
-    expect(page.locator(".toast.error").last).to_contain_text("orders")
+    expect(page.locator(".error-note").last).to_contain_text("orders")
     expect(page.locator(".tab-item .tab-label", has_text="north_south")).to_be_visible()
 
     # The agent renames it: the page follows.

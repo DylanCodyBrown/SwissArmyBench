@@ -19,6 +19,7 @@ import { button, h, icon, openDialog } from "./dom";
 import { extensionPanel } from "./extensionPanel";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle } from "./nav";
 import { busyClick } from "./loading";
+import { errorNote } from "./errorNote";
 
 /** The page's name, in one place: the rail, the title. */
 export const EXTENSIONS = "Extensions";
@@ -199,7 +200,7 @@ function drawPage(): void {
         if (got.changing && !changing) started(got.changing.id, got.changing.action);
         else draw();
       },
-      (e: Error) => body.replaceChildren(h("p", { class: "status-error" }, e.message)),
+      (e: Error) => body.replaceChildren(errorNote(e)),
     );
   };
   element.addEventListener("close", () => {

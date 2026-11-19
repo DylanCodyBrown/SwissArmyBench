@@ -40,7 +40,7 @@ import { applySandboxTheme, loadThemes, sandboxDark, sandboxTheme, themeControls
 import { PAPERS, fitPages, makeMovable, moveCard, paginate, printPages, type Paper } from "./sandboxPages";
 import { effectiveTheme, gridZoom, onThemeChange, setTheme, themeChoice } from "./theme";
 import type { Drawn } from "./lazy/charts";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote, showError } from "./errorNote";
 
 type CardKind = "chart" | "note" | "table" | "diagram" | "graphviz" | "plotly" | "echarts" | "vegalite" | "image";
 
@@ -409,7 +409,7 @@ async function renderCards(body: HTMLElement): Promise<void> {
     cards = (await api<{ cards: Card[] }>("/cards")).cards;
     onBoard = cards.length;
   } catch (e) {
-    body.append(h("p", { class: "status-error" }, (e as Error).message));
+    body.append(errorNote(e));
     return;
   }
   if (!cards.length) {
@@ -559,11 +559,10 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
   makeMovable(element, header, card.id, order[index + 1] ?? null, () => void render());
   const dark = sandboxDark(); // Visualizations' theme, or the app's when it follows it
   const failed = (slot: HTMLElement, e: unknown): void => {
-    slot.textContent = `Could not draw: ${(e as Error).message}`;
-    slot.classList.add("error-text");
+    slot.replaceChildren(errorNote(e, { where: card.title || undefined, dismiss: false }));
   };
   if (card.error) {
-    content.append(h("p", { class: "error-text" }, `⚠ ${card.error}`));
+    content.append(errorNote(card.error, { where: card.title || undefined, dismiss: false }));
   } else if (card.kind === "note") {
     content.append(renderMarkdown(card.body ?? ""));
     content.addEventListener("dblclick", () => noteDialog(card));
@@ -573,7 +572,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     const slot = h("div", { class: "diagram", role: "img", "aria-label": card.title || "Diagram" });
     content.append(slot);
     pictures.set(card.id, async () => { const svg = slot.querySelector("svg"); return svg ? svgToPng(svg) : null; });
-    void diagrams().then((m) => m.drawDiagram(slot, card.body ?? "", dark));
+    void diagrams().then((m) => m.drawDiagram(slot, card.body ?? "", dark)).catch((e: unknown) => failed(slot, e));
   } else if (card.kind === "graphviz") {
     const slot = h("div", { class: "diagram", role: "img", "aria-label": card.title || "Graph" });
     content.append(slot);
@@ -612,7 +611,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     const source = card.body ?? "";
     pictures.set(card.id, async () => (IMAGE_DATA.test(source) ? source : null));
     if (IMAGE_DATA.test(source)) content.append(h("img", { class: "card-image", src: source, alt: card.title || "Image" }));
-    else content.append(h("p", { class: "error-text" }, "Unsupported image format"));
+    else content.append(errorNote("Unsupported image format", { where: card.title || undefined, dismiss: false }));
   } else if (card.kind === "table") {
     content.append(smallTable(card.columns ?? [], card.rows ?? []));
     if (card.capped) foot.textContent = "First 100 rows";
@@ -767,7 +766,7 @@ function chartDialog(): void {
   sync();
   void fill();
   const { body, foot, close } = openDialog("Add a chart");
-  const error = h("p", { class: "status-error", role: "alert" });
+  const error = h("div", { class: "form-error" });
   body.append(
     h("div", { class: "form-grid" }, field("Table", table), field("Type", mark), field("X axis", x), unitField, field("Aggregate", agg), field("Y axis", y), field("Series", color), field("Title", title)),
     error,
@@ -781,7 +780,7 @@ function chartDialog(): void {
       if (color.value && mark.value !== "heatmap" && mark.value !== "histogram") spec.color = { field: color.value };
       void api(`/grids/${encodeURIComponent(table.value)}/cards`, "POST", { kind: "chart", title: title.value, spec })
         .then(() => { close(); void render(); })
-        .catch((e: Error) => { error.textContent = e.message; });
+        .catch((e: Error) => { showError(error, e); });
     }, { class: "primary" }),
   );
 }

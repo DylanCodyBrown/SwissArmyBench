@@ -28,7 +28,7 @@ import { loadingBlock } from "./loading";
 import { baseName, copyProject, newProject, openProject, type ProjectState, when } from "./projectFile";
 import { type ProjectType, typeCard, typePicture } from "./projectTypes";
 import { cardActions, cardWords, offerPush, sharedSync } from "./scmPage";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark } from "./errorNote";
 
 export interface ProjectCard {
   path: string;
@@ -486,7 +486,7 @@ export function localProjectsRow(): HTMLElement {
   const row = h("p", { class: "team-local-projects" });
   const draw = async (): Promise<void> => {
     const read = await api<Folders>("/projects/folder").catch((e: Error) => {
-      row.replaceChildren(h("span", { class: "status-error" }, e.message));
+      row.replaceChildren(errorMark(e.message));
       return null;
     });
     if (!read) return;

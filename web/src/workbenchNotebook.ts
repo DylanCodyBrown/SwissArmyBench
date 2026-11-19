@@ -75,7 +75,7 @@ import { type Approval, type ApprovalNote, approvalNote, approve as approveOutpu
 import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName } from "./workbenchOutputs";
 import { CELL_DRAG, cleanName, copiedCell, copyCell, type EveryCell, MAX_CELL_NAME, mayUseStreamlit, PIECE_HEIGHT, type PieceTools, pieceTools, pieceView, type PieceSource, type StreamlitHost } from "./workbenchStreamlit";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 /** A SQL cell's first line as the kernel runs it (domain/notebooks.py sql_line). */
 export function sqlLine(connection: string | null): string {
@@ -493,10 +493,7 @@ export function notebookView(
       block.replaceWith(host);
       void diagrams()
         .then((m) => m.drawDiagram(host, text, dark()))
-        .catch(() => {
-          host.textContent = "This diagram could not be drawn: the diagram drawer did not load.";
-          host.classList.add("error-text");
-        });
+        .catch((e: unknown) => host.replaceChildren(errorNote(e, { dismiss: false })));
     }
   };
 

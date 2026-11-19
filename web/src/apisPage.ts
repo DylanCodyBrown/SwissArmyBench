@@ -39,7 +39,7 @@ import { promptForError } from "./missingPackages";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { mountText, mountTree, type Part, pathText, type Value } from "./structureTree";
 import { openStructures } from "./structuresPage";
-import { errorHere } from "./errorNote";
+import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
 
 /** The page's name, in one place. */
 export const APIS = "APIs";
@@ -240,7 +240,7 @@ function drawPage(): void {
         h("span", {}, `${c.calls.total ?? 0} call${c.calls.total === 1 ? "" : "s"} this session`),
       ),
       h("div", { class: "api-card-source muted" }, c.source.kind === "address" ? c.source.address : c.source.kind === "file" ? c.source.address : c.source.kind === "form" ? "Made with the form" : "Pasted", read ? ` · read ${read}` : ""),
-      c.problem ? h("p", { class: "status-error" }, c.problem) : null,
+      c.problem ? errorNote(c.problem) : null,
       h("div", { class: "api-card-actions" },
         button("Refresh", busyClick("Refreshing…", (b) => busy(b.closest<HTMLElement>(".api-card") ?? b, `Reading ${c.name} again…`, refresh(c.name))), { icon: "reset" }),
         c.source.kind === "address" ? h("label", { class: "autosave-switch" }, check, h("span", {}, "Check for changes")) : null,
@@ -468,10 +468,15 @@ function drawPage(): void {
     const params = op.parameters.filter((p) => p.in !== "header");
     const headers = op.parameters.filter((p) => p.in === "header");
     let body: Value = (op.body_saved ?? op.body?.example ?? null) as Value;
-    const problems = h("ul", { class: "api-body-problems status-error", "aria-live": "polite" });
+    const problems = h("div", { class: "api-body-problems", "aria-live": "polite" });
     const check = (): void => {
+      // The body against its schema: one warning, each problem in its list (it may still be sent).
       const found = op.body?.schema ? checkAgainst(body, op.body.schema, []) : [];
-      problems.replaceChildren(...found.slice(0, 20).map((p) => h("li", {}, p)));
+      problems.replaceChildren(
+        ...(found.length
+          ? [warningNote({ what: found.length === 1 ? found[0]! : `The body does not fit its schema in ${found.length} places.`, details: found.length > 1 ? found.slice(0, 20).join("\n") : undefined, dismiss: false })]
+          : []),
+      );
     };
     let bodyTree = mountTree(body, { depth: 3, label: "Body", onSet: (parts, v) => setAt(parts, v), onRename: (parts, key, to) => renameAt(parts, key, to) });
     const treeHost = h("div", { class: "api-body-tree" }, bodyTree.element);
@@ -541,7 +546,7 @@ function drawPage(): void {
         return;
       }
       result.replaceChildren(
-        h("p", {}, h("span", { class: `structures-status ${done.status < 300 ? "ok" : "bad"}` }, String(done.status)), ` ${done.ms} ms `, done.said ? h("span", { class: "status-error" }, done.said) : ""),
+        h("p", {}, h("span", { class: `structures-status ${done.status < 300 ? "ok" : "bad"}` }, String(done.status)), ` ${done.ms} ms `, done.said ? errorMark(done.said) : ""),
         done.suggest_table && !asTable.checked ? h("p", { class: "muted api-suggest" }, `It answers rows at ${done.suggest_table.records}: Return as table can make it a table.`) : "",
         button("Open in Structures", () => openStructures(done.structure), { icon: "structures" }),
       );
@@ -638,7 +643,7 @@ function drawPage(): void {
       if (answer.dry_run) {
         shown.replaceChildren(
           h("p", {}, `${answer.rows} rows, ${answer.calls} call${answer.calls === 1 ? "" : "s"}. Nothing was sent.`),
-          answer.missing?.length ? h("p", { class: "status-error" }, `Map these first: ${answer.missing.join(", ")}`) : "",
+          answer.missing?.length ? errorNote(`Map these first: ${answer.missing.join(", ")}`) : "",
           ...(answer.first ?? []).map((f, i) => h("details", { open: i === 0 }, h("summary", {}, `Request ${i + 1}`), h("pre", { class: "mono" }, JSON.stringify(f, null, 2)))),
         );
       } else {

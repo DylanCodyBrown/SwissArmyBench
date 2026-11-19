@@ -9,7 +9,7 @@
 import { api, download } from "./api";
 import { append, button, clear, h, openDialog, toast } from "./dom";
 import { type BladeKind, type BladeSetting, kindLabel, settingField } from "./bladeEditor";
-import { errorHere, errorToast } from "./errorNote";
+import { errorHere, errorNote, errorToast } from "./errorNote";
 
 interface ImportedBlade {
   name: string;
@@ -107,7 +107,7 @@ export async function importBlades(files: File[], onDone: () => void): Promise<v
   for (const item of items) {
     const card = h("section", { class: "import-card" });
     if (!item.blade) {
-      card.append(h("h3", {}, item.file), h("p", { class: "status-error" }, item.error ?? "Not a blade."));
+      card.append(h("h3", {}, item.file), errorNote(item.error ?? "Not a blade."));
       body.append(card);
       continue;
     }
@@ -245,7 +245,7 @@ export async function editBladeFolders(onDone: () => void): Promise<void> {
       render();
     }, { icon: "plus" })),
     state.problems.length
-      ? h("div", {}, h("h3", {}, "Unreadable blade files"), h("ul", {}, ...state.problems.map((p) => h("li", {}, h("code", {}, p.path), h("div", { class: "status-error" }, p.error)))))
+      ? h("div", {}, h("h3", {}, "Unreadable blade files"), h("ul", {}, ...state.problems.map((p) => h("li", {}, h("code", {}, p.path), errorNote(p.error)))))
       : null,
   );
   render();

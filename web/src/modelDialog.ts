@@ -17,7 +17,7 @@ import { button, clear, formatCount, h, isNumericType, markStaleOnChange, openDi
 import { selection, viewColumns } from "./gridView";
 import { state } from "./state";
 import { busyClick, loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
 const fmt = (v: unknown): string => (v === null || v === undefined ? "" : typeof v === "number" ? (Number.isFinite(v) ? number.format(v) : "∞") : String(v));
@@ -113,7 +113,7 @@ export async function openRegression(target?: string, predictors: string[] = [],
         }),
       );
     } catch (e) {
-      clear(results, h("p", { class: "status-error" }, (e as Error).message));
+      clear(results, errorNote(e));
     }
   };
   const add = async (step: { kind: string; params: Record<string, unknown> } | null): Promise<void> => {

@@ -15,7 +15,7 @@ import { sendCards } from "./analyzeMenu";
 import { formatTemporal } from "./gridView";
 import { state } from "./state";
 import { loadingBlock } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 interface Profile {
   column: string;
@@ -50,7 +50,7 @@ export async function renderColumnProfile(host: HTMLElement, column: string): Pr
   try {
     p = await api<Profile>(`${grid}/profile${query({ column, upto: state.previewUpto })}`);
   } catch (e) {
-    clear(host, h("p", { class: "status-error" }, (e as Error).message));
+    clear(host, errorNote(e));
     return;
   }
   const tiles = [
@@ -205,7 +205,7 @@ export async function openTableProfile(): Promise<void> {
       ),
     );
   } catch (e) {
-    clear(body, h("p", { class: "status-error" }, (e as Error).message));
+    clear(body, errorNote(e));
   }
   foot.append(
     button("Send to Visualizations", () => void (profiled ? sendCards(tableProfileCards(profiled, state.info?.dataset ?? "")) : undefined), { icon: "image" }),

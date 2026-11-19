@@ -17,7 +17,7 @@
 import { api, saidOf } from "./api";
 import { button, h, icon, openDialog, toast } from "./dom";
 import { loadingBlock, markBusy } from "./loading";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 export interface Missing {
   feature: string;
@@ -123,9 +123,8 @@ export function promptInstall(missing: Missing, options: PromptOptions = {}): Pr
     const { dialog, body, foot, close } = openDialog(words.title, false, { history: false });
     dialog.classList.add("missing-packages");
     dialog.dataset.packages = missing.packages.join(" ");
-    const state = h("p", { class: "missing-state", role: "status" });
-    const failed = h("pre", { class: "code-box missing-error", hidden: true });
-    body.append(h("p", { class: "missing-sentence" }, words.sentence), state, failed);
+    const state = h("div", { class: "missing-state", role: "status" });
+    body.append(h("p", { class: "missing-sentence" }, words.sentence), state);
     let done = false;
     let busy = false;
     const finish = (installed: boolean): void => {
@@ -147,7 +146,6 @@ export function promptInstall(missing: Missing, options: PromptOptions = {}): Pr
       later.disabled = true;
       const restore = markBusy(go, "Installing…"); // the one loading state (loading.ts)
       dialog.classList.add("busy");
-      failed.hidden = true;
       state.className = "missing-state";
       state.replaceChildren(loadingBlock(`Installing ${listed(missing.packages)}…`, { inline: true }));
       try {
@@ -157,10 +155,8 @@ export function promptInstall(missing: Missing, options: PromptOptions = {}): Pr
         restore();
         later.disabled = false;
         dialog.classList.remove("busy");
-        state.className = "missing-state status-error";
-        state.replaceChildren("The install failed.");
-        failed.textContent = installError(error);
-        failed.hidden = false;
+        state.className = "missing-state";
+        state.replaceChildren(errorNote({ what: "The install failed.", where: listed(missing.packages), details: installError(error), dismiss: false }));
         go.querySelector(".btn-label")!.textContent = "Try again";
         go.setAttribute("aria-label", "Try again");
         return;

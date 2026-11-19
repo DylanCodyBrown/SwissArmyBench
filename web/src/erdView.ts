@@ -24,7 +24,7 @@ import { currentModel, onRelationshipsChange, projectScope, scopeSwitch } from "
 import { importRelationships, openRelationships } from "./relationshipsDialog";
 import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
 
 let host: HTMLElement;
 let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
@@ -168,7 +168,7 @@ async function render(): Promise<void> {
     drawn = erd.mermaid;
     marked();
   } catch (e) {
-    slot.textContent = (e as Error).message;
+    slot.replaceChildren(errorNote(e, { dismiss: false }));
   }
 }
 

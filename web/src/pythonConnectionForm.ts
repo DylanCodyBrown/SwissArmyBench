@@ -25,6 +25,7 @@ import type { CodeEditor } from "./lazy/codeEditor";
 import { backButton } from "./nav";
 import { effectiveTheme } from "./theme";
 import { previewLine } from "./variableBox";
+import { errorNote } from "./errorNote";
 
 interface Source {
   name: string;
@@ -158,7 +159,7 @@ export function showPythonForm(host: PythonFormHost): void {
   const description = h("input", { type: "text", value: form.description ?? "", "aria-label": "Description", placeholder: "Optional" }) as HTMLInputElement;
   const rowLimit = h("input", { type: "number", min: 1, step: 1, value: form.row_limit ? String(form.row_limit) : "", placeholder: "10000", "aria-label": "Rows to open" }) as HTMLInputElement;
   const result = h("div", { class: "connection-result", role: "status" });
-  const failed = (e: unknown): void => void result.replaceChildren(h("p", { class: "status-error" }, errorText(e)));
+  const failed = (e: unknown): void => void result.replaceChildren(errorNote(e));
 
   // ===== the three boxes =====
   let waiting = 0;

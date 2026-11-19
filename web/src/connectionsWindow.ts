@@ -56,7 +56,7 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, toast } from "./dom";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
-import { clearError, errorHere, errorNote, showError } from "./errorNote";
+import { clearError, errorHere, errorMark, errorNote, showError } from "./errorNote";
 import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
@@ -429,7 +429,7 @@ onNotice((notice) => {
 function catalogWord(c: Connection): HTMLElement | null {
   const state = c.catalog_state?.state;
   if (state === "loading") return h("span", { class: "hint" }, "loading catalog…");
-  if (state === "failed") return h("span", { class: "status-error", title: c.catalog_state?.error ?? "" }, "catalog not loaded");
+  if (state === "failed") return errorMark("catalog not loaded", { title: c.catalog_state?.error ?? "" });
   return null;
 }
 
@@ -618,7 +618,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     } catch (e) {
       if (mine !== drawing) return;
       clear(foot);
-      clear(body, h("p", { class: "status-error" }, (e as Error).message));
+      clear(body, errorNote(e));
       return;
     }
     if (mine !== drawing) return;
@@ -751,7 +751,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       ...(config.sign_in ? term("Sign in", config.sign_in) : []),
       ...(usage.about?.length ? term("Server", h("span", { class: "connection-about" }, ...usage.about.map((line) => h("span", {}, line)))) : []),
       ...config.settings.flatMap((f) => term(words(f.name), typeof f.value === "boolean" ? (f.value ? "Yes" : "No") : String(f.value))),
-      ...config.passwords.flatMap((p) => term(words(p.name), h("span", { class: p.from === "missing" ? "status-error" : "" }, passwordSource(p)))),
+      ...config.passwords.flatMap((p) => term(words(p.name), p.from === "missing" ? errorMark(passwordSource(p)) : h("span", {}, passwordSource(p)))),
       ...config.variables.flatMap((v) => term(v.name, v.from === "vault" ? `${v.vault ?? ""} (${v.secret ?? ""})` : v.from)),
       ...(config.vault_all ? term("Secrets", "Every secret, each under its own name") : []),
       ...config.vault_entries.flatMap((e) => term(e.variable, h("code", {}, e.secret))),
@@ -780,7 +780,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       tools,
       localNotes(usage.local, "connection-local"),
       tested,
-      usage.error && (usage.status === "failing" || usage.status === "resuming") ? h("p", { class: "status-error connection-error" }, usage.error) : null,
+      usage.error && (usage.status === "failing" || usage.status === "resuming") ? errorNote(usage.error, { where: name, dismiss: false }) : null,
       h(
         "div",
         { class: "connection-detail" },
@@ -822,7 +822,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
   /** A view that could not be drawn (a connection removed since, a type no longer offered): said, with
    *  the way back to the list. */
   const failedView = (e: unknown): void => {
-    clear(body, h("p", { class: "status-error", role: "alert" }, errorText(e)));
+    clear(body, errorNote(e));
     clear(foot, backButton("Connections", urlOf(LIST)));
   };
   let typesAsked: Promise<Form[]> | null = null;
@@ -1242,7 +1242,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           result.replaceChildren();
           readWhenReady();
         },
-        (e: Error) => result.replaceChildren(h("p", { class: "status-error" }, e.message)),
+        (e: Error) => result.replaceChildren(errorNote(e)),
       );
     });
 
@@ -1283,7 +1283,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("p", { class: "status-ok" }, `It works: ${worked(r)}.`),
           // A table's first rows (a Dataverse environment's), or a file's.
           ...(r.preview ? ("table" in r.preview ? tablePreview(r.preview as unknown as TablePreview) : previewOf(r.preview)) : []),
-          r.preview_error ? h("p", { class: "status-error" }, `Its rows could not be read: ${r.preview_error}`) : "",
+          r.preview_error ? errorNote(`Its rows could not be read: ${r.preview_error}`) : "",
         );
       } catch (e) {
         failed(e, () => void test());
