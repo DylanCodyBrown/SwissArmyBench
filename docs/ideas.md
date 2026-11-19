@@ -5806,3 +5806,55 @@ The survey of the desktop app (read only) listed small fixes; each was checked b
   disk, Reload (POST /datasets/{name}/reload: read again in place, its grids and steps kept), Not now (the stamp
   taken as it is now: said again only on the next change). Never reloaded by itself; a file that is gone is not
   said. The agent: `tabs_reload` (`not_now`).
+
+## Join a team: one Team box in Settings, one repository (the owner, 2026-11-19; built, branch team-join)
+
+The owner: "you have made linking a meta store and shared project folder way too difficult; the settings menu
+makes no sense". Decided with the owner: **one GitHub repository** holds the team library and the team's shared
+projects (its `projects/`); **Settings only** (one Team box, first after Theme); the screen says **Team library**.
+
+Built:
+- **The Team box** replaces Settings' Meta store folder, Projects folders and GitHub sections. No team: "Share
+  connections, variables and projects with your team." with **Join a team…** and **Start a team…**; joined: one
+  row, "Team: owner/repo", the sync words, **Pull**, **Push** and "…" (Open on GitHub, Set up this computer, Show
+  its folder, Leave the team). Under both: "New projects go in <folder> · Change…". **Advanced** (folded, closed):
+  the Team library folder and the Shared projects folder as their own paths (Change…, Default / None) and Set up
+  this computer, for a team that keeps them in two repositories or syncs another way.
+- **Join a team… / Start a team…** is one dialog with a strip of its steps (GitHub sync, Sign in, Repository or
+  Name, Set up); it opens at the first step still to do. Install hands over to the Extensions machinery (the app
+  restarts); the step is kept in the state folder's `team.json` (never localStorage) for a day, and the new
+  window's start (libraryNotices) opens Settings, whose Team box opens the flow where it was. Sign in: Sign in
+  with GitHub (the device flow) first, Use a token folded under it (open when the device flow is not available).
+  The repositories are those the account can push to, newest push first, searchable.
+- **The local copy's place:** the state folder's `team/<owner>-<repo>/`, not Documents/Swiss Army Bench/Team:
+  the library's own default already lives in the state folder (`~/.swissarmybench/library`) and nothing asks
+  the user for its path; the projects in it are reached from the Projects page, so the folder need not be seen
+  (Show its folder opens it). A second Join of the same repository pulls into the same copy; a folder there
+  holding other files is refused, said.
+- **Start a team:** a private repository (the account's or one of its organisations') made with GitHub's first
+  commit, then the layout written (README.md saying what goes where, .gitignore with local/ and .sab/data/,
+  projects/README.md so the folder exists on GitHub), this computer's library copied in (local/ too, kept here
+  by the .gitignore; its own README.md and .gitignore replaced) and pushed as one commit. The token needs
+  Administration to make a repository: the token's steps say so.
+- **Leave:** asked first ("Keep a copy of the team's connections, vaults, variables and blades in this computer's
+  own library?": Keep a copy / Leave without a copy). The library and the shared projects folder go back to what
+  they were before joining (kept in team.json); with a copy, every team item this library lacks is copied (an
+  item it has, different, stays as it is, counted). The local copy stays on disk; the message says where.
+- **One link for both folders:** the shared projects folder inside the team library has no link of its own: the
+  Git extension's sync finds the link above it (`_covering`), so a shared card's Pull and Push, its words and
+  the footer's mark work as before; a card's Push still sends only its project's files.
+- **The agent:** `team_status` (repositories and owners as options), `team_join`, `team_start`, `team_leave`
+  (each on Allow; `team_leave` without keep returns the question); Pull and Push are `github_pull`/`github_push`.
+  Signing in stays the user's own. The base finds the extension that syncs with GitHub by what it provides
+  (`provides=("team",)` in the catalog), never by its id; the extension hands the base its TeamPort through
+  services/hooks.py's `team`.
+- **Words:** Set up from the meta store is **Set up this computer**; the Git extension's words say the team
+  library; the Source Control page's quick pick says Team library folder.
+
+Decisions and notes:
+- **Design principle 7.9 and the brief:** the brief listed the Joined row's sync word as "up to date / 2 changes
+  to push / behind: Pull"; 7.9 says no confirmation labels, so the row says nothing while up to date and shows the
+  word only when there is something to do. No other rule there contradicts this work.
+- The library's counts and the shared catalog's counts left Settings with the Meta store folder (7.1).
+- Not changed (another branch's file): tour.ts's Settings card still says "the meta store folder your team
+  shares, the projects folders"; it should say "your team".
