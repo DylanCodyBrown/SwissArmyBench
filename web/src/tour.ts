@@ -289,7 +289,8 @@ const SEEN = "tour.seen";
 /** How long a card waits for its control before it says it is not here. */
 const WAIT_MS = 2500;
 
-/** The Projects page's Tour button, with the "New here?" bubble until the tour is opened once. */
+/** The Projects page's Tour button, with the "New here?" bubble until the tour is opened once. While the bubble
+ *  is there it is the one tour button (grid.css hides Tour beside it, feel-a: two said the same thing). */
 export function tourButton(): HTMLElement {
   const btn = button("Tour", () => openTour(), {
     icon: "help",

@@ -48,6 +48,8 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
 - A cell's number never changes and is never reused: `#7` in a notebook, `# %% [7]` in a script.
   `@cell7` in a comment links to it; `workbench_cell_goto` goes there. `workbench_cell_name` names one.
 - SQL cell: `%%sql <connection>` (the source's own SQL; files and DataFrames through DuckDB).
+  With no connection (DuckDB) it also reads a table open in Grids by its name (its view, steps applied).
+  A Python cell's missing open table: `workbench_window` command `tables.add` gives the document its cell.
 - DAX cell: `%%dax Finance/Sales model`; `workbench_dax_add`.
 - HTML cell: `%%html`, a design in a walled-off frame; `{{ name }}` is filled from the kernel when it
   runs. `workbench_html_add`, `workbench_html_cells`, `workbench_html_run`, `workbench_html_resize`,

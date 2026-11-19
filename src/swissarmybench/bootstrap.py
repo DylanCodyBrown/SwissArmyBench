@@ -514,7 +514,11 @@ def bootstrap(
         now=time.time,
         files_of=files_of,
     )
-    table_cells = TableCells(ws, datasets.origins)
+    table_cells = TableCells(
+        ws,
+        datasets.origins,
+        table_reader.query_to_arrow_stream,  # type: ignore[arg-type]
+    )
     project_files = ProjectFiles()
     # What the extensions that are on hand back once they are built (services/hooks.py): the documents the
     # Workbench windows hold, what stops with a kernel or a window, a canvas, an app's file.

@@ -345,6 +345,21 @@ textarea {
   resize: vertical;
 }
 
+/* A badge after words on a line (a relationship's "inactive", "in use") keeps a space from them. */
+.set-text .badge {
+  margin-left: 6px;
+}
+
+/* Search boxes look like the other inputs (the Variables page's had the browser's own border, feel-a);
+   :where() keeps this at no weight, so a search box styled by its own class keeps its own look. */
+:where(input[type="search"]) {
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -2551,6 +2566,26 @@ button.link {
   opacity: 1;
 }
 
+/* The grid page's tabs (feel-a): a tab's basis is its least width, so the row fills before it wraps: at
+   1024px nine tables still sit on one row, each as wide as the row allows (up to 200px, the name ellipsed);
+   wrapping is for many. The table in front shows its whole name. A tab's close button is the active or
+   hovered tab's (the room is its name's otherwise), as a browser's narrow tabs; the keyboard still reaches
+   it (focus-within). The Workbench's tabs (.wb-tab) keep their own. */
+.tabs-row .tab-item {
+  flex: 1 1 76px;
+  max-width: 200px;
+  min-width: 76px;
+  padding-left: 10px;
+}
+
+.tabs-row .tab-item.active {
+  flex: 0 0 auto;
+}
+
+.tabs-row .tab-item:not(.active):not(.in-split):not(:hover):not(:focus-within) .tab-close {
+  display: none;
+}
+
 .tab-end {
   flex: 1;
   align-self: stretch;
@@ -3716,6 +3751,11 @@ body.agent-view .titlebar {
   flex-wrap: wrap; /* a narrow window (the rail beside it): the bubble goes under its button */
   align-items: center;
   gap: 6px;
+}
+
+/* A first visit: the "New here? Take the tour" bubble is the tour's one button; Tour comes once it is seen. */
+.tour-slot:has(.tour-bubble) > .tour-btn {
+  display: none;
 }
 
 .tour-btn.tour-new .icon-svg {
@@ -6677,6 +6717,11 @@ body.wb-dragging-tab * {
   background: var(--accent-soft);
 }
 
+/* "No matches": inside the list's inset, as an item's words sit. */
+.wb-palette-list > li.hint {
+  padding: 8px 12px 4px;
+}
+
 .wb-palette-item.off {
   opacity: 0.5;
 }
@@ -6835,6 +6880,47 @@ body.wb-dragging-tab * {
   padding: 3px 6px;
   border-bottom: 1px solid var(--border);
   border-radius: 8px 8px 0 0;
+}
+
+/* A cell's kind and connection: quiet pickers like the head's other tools, not the browser's own
+   boxes (feel-a). A border shows on hover and focus; the chevron is drawn in the theme's muted colour. */
+.wb-cell-head > select {
+  min-height: 24px;
+  padding: 1px 22px 1px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 12px) 55%,
+    calc(100% - 8px) 55%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  color: var(--fg);
+  font-size: 0.92em;
+  appearance: none;
+  cursor: pointer;
+}
+
+.wb-cell-head > select:hover,
+.wb-cell-head > select:focus-visible {
+  border-color: var(--border-strong);
+  background-color: var(--row-hover);
+}
+
+.wb-cell-head > select option {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+@media (forced-colors: active) {
+  .wb-cell-head > select {
+    border-color: ButtonText;
+    background-image: none;
+    appearance: auto;
+  }
 }
 
 .wb-cell-head .spacer,
@@ -10436,6 +10522,8 @@ body.has-rail .area-page {
 
 .settings-page > .fieldset {
   margin: 0;
+  /* A box as tall as its row's tallest keeps its own lines at the top, never spread over the height. */
+  align-content: start;
 }
 
 /* ----- the Connections page: a card each ----- */
@@ -11139,7 +11227,7 @@ body.sql-window dialog[open] textarea.code-input {
 
 .claude-side {
   display: grid;
-  grid-template-columns: 130px minmax(0, 1fr) auto;
+  grid-template-columns: 8.5em minmax(0, 1fr) auto; /* the two rows line up; the path has the room */
   align-items: center;
   gap: 6px 10px;
 }

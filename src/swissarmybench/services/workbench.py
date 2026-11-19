@@ -347,6 +347,11 @@ class Workbench:
         """A running kernel by its id (the editors' intelligence asks it; None: not running)."""
         return self._running.get(kernel_id)
 
+    def open_tables(self) -> list[str]:
+        """The tables open in Grids (a tab each): what a SQL cell's missing table may be."""
+        ws = self.ws
+        return [i.name for i in ws.store.all() if ws.grids.first_for(i.name) is not None]
+
     def _kernel(self, kernel_id: str) -> Kernel:
         kernel = self._running.get(kernel_id)
         if kernel is None:
@@ -405,13 +410,23 @@ class Workbench:
             usage = ""  # a SQL cell's error is IPython's usage error, written to stderr
             async for item in kernel.execute(code, stdin=stdin):
                 if "error_detail" in item:
-                    item = {"error_detail": errors.explain_detail(item["error_detail"], kernel.python)}
+                    item = {
+                        "error_detail": errors.explain_detail(
+                            item["error_detail"], kernel.python, self.open_tables()
+                        )
+                    }
                 elif item.get("output_type") == "stream" and item.get("name") == "stderr":
                     usage = (usage + str(item.get("text", "")))[-20_000:]
+                    if kind in ("sql", "dax") and "UsageError" in usage:
+                        continue  # the error panel says it once (feel-a: never the raw text above it too)
                 if "done" in item and kind in ("sql", "dax") and "UsageError" in usage:
                     message = usage[usage.index("UsageError") :].split(":", 1)[-1].strip()
                     entry = sql_error_entry(message)
-                    yield {"error_detail": errors.explain_detail({"chain": [entry]})}
+                    yield {
+                        "error_detail": errors.explain_detail(
+                            {"chain": [entry]}, open_tables=self.open_tables()
+                        )
+                    }
                 if item.get("done", {}).get("dead"):
                     await self.stop(kernel_id)  # gone: it no longer counts against the limit
                 yield item

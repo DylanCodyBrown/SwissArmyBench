@@ -6442,3 +6442,44 @@ Release notes (pending):
 - The status bar never sums an id column, and shows Sum and Average to the column's scale.
 - Copy with headers and Copy as Markdown on a cell's menu.
 - A notebook cell shows how long it ran, and says "Starting Python…" on the first run.
+
+## Feel, part A: SQL sees the open tables, and the polish bugs (the owner approved the feel survey, 2026-11-19; built, branch feel-a)
+
+### Built
+- **A DuckDB SQL cell sees the open grids by their names** (`%%sql` with no connection, `sab.sql(query)`, a
+  Workbench SQL cell on DuckDB): when DuckDB says a table is missing and a grid of that name is open (any case),
+  the kernel asks `GET /workbench/tables/{name}/arrow` for the grid's view, its steps applied, every row, and
+  registers it for that one query (`orders: the open table in Grids, 20,000 rows as its grid shows them`).
+  Read-only, read again on every query, never kept in the kernel; this Python's own table of the name wins. At
+  most 20 such tables a query. The server audits each read (`table_read_by_sql`).
+- **The missing table's error** (domain/errors.py): DuckDB's "Table with name X does not exist!" is caught
+  (`missing_table`); a "Did you mean" naming one of DuckDB's own tables (pg_*, duckdb_*, sqlite_*,
+  information_schema, pragma_*) is dropped from the message and from the fixes; a close name of the user's stays
+  a fix. The explanation says the table this query cannot see, and the panel's words point "above", where the
+  message is. When the name is open in Grids (a Python cell's `duckdb.sql(...)`, or the app away) the first fix is
+  "orders is open in Grids: add its table cell" (kind `table`): the document takes the table's read-only cell
+  (workbenchPage.ts giveTable; a cell already in another document stays there and that is said). The agent's
+  `workbench_window` command `tables.add` does the same. A SQL cell's raw `UsageError:` text is no longer
+  printed above the panel: the panel says it once.
+- **Polish:** tabs fill a row before they wrap (each tab's basis its least width, up to 200px, the name
+  ellipsed with its full name on hover; the front tab its whole name; another tab's × on hover or focus, as
+  browsers' narrow tabs), so nine tables sit on one row at 1024px; the palette's "No matches" inside the
+  list's inset; Find data closes on one Escape (text or not) and Ctrl+Shift+P closes it before the palette
+  opens; Settings' boxes keep their lines at the top (no spread radios, no tall Beta buttons), Claude's two
+  pickers line up with the path's room (Check for updates left to the coordinator's change), the agent prompt names "the Swiss
+  Army Bench MCP server"; the tour is one button (the "New here?" bubble on a first visit, Tour once seen: grid.css hides Tour while the
+  bubble is there);
+  every search box without a style of its own looks like the other inputs; a relationship's "inactive" and
+  "in use" badges keep a space; the ERD's status bar says ERD only; a cell's kind and connection pickers are
+  quiet, the app's own (border on hover, a drawn chevron; the system's in forced colours).
+
+### Decisions
+- The grid's view goes over as Arrow on demand, not a view in the kernel's DuckDB: the kernel is another
+  process; the read is per query so a step changed in the grid is seen by the next run.
+- Only a missing **undotted** name is looked up (a dotted one is a connection's table, already handled).
+
+### Release note (pending)
+- A notebook's DuckDB SQL reads the tables open in Grids by their names, with their steps.
+- A missing table's error is said once, without DuckDB's own-table guess; a table open in Grids is one click
+  from its table cell.
+- Tabs fit nine to a row at 1024px; Find data closes on one Escape; Settings' boxes tidied; one tour button.

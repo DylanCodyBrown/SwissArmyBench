@@ -250,7 +250,7 @@ export function claudeSection(): HTMLElement {
     const found = s?.found ?? [];
     const select = h(
       "select",
-      { "aria-label": NAMES[kind], class: `claude-choice`, "data-kind": kind, disabled: !found.length },
+      { "aria-label": NAMES[kind], class: `claude-choice`, "data-kind": kind, disabled: !found.length, title: s?.chosen ?? "" },
       ...(found.length ? found.map((f) => h("option", { value: f.path, selected: f.path === s?.chosen, title: f.source }, kind === "desktop" && f.name !== "Claude" ? `${f.name}: ${f.path}` : f.path)) : [h("option", { value: "" }, "Not found")]),
     ) as HTMLSelectElement;
     select.addEventListener("change", () => void put({ [kind]: select.value }));

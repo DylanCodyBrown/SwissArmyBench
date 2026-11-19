@@ -26,8 +26,9 @@ import { contextMenu, currentDocument, errorText, sendToAgent } from "./workbenc
 import type { Problem } from "./lazy/codeEditor";
 
 export interface Fix {
-  /** cell: a code cell holding `text`, added below the failing one (a script copies it). */
-  kind: "replace" | "import" | "install" | "define" | "cell";
+  /** cell: a code cell holding `text`, added below the failing one (a script copies it). table: the read-only
+   *  cell of `name`, a table open in Grids, given to the document. */
+  kind: "replace" | "import" | "install" | "define" | "cell" | "table";
   title: string;
   target?: string;
   text?: string;
@@ -147,7 +148,7 @@ export function errorPanel(detail: ErrorDetail, traceback: HTMLElement | null, a
   for (const note of entry.notes ?? []) parts.push(h("p", { class: "hint" }, note));
   if (entry.group?.length) parts.push(h("ul", { class: "wb-err-group" }, ...entry.group.map((g) => h("li", { class: "mono" }, g))));
   if (entry.fixes.length) {
-    parts.push(h("div", { class: "wb-err-fixes", role: "group", "aria-label": "Fixes" }, ...entry.fixes.map((f) => button(f.title.replace(/`/g, ""), () => actions.fix(f, detail), { icon: f.kind === "install" ? "import" : f.kind === "define" ? "play" : f.kind === "cell" ? "plus" : "edit", class: "ghost" }))));
+    parts.push(h("div", { class: "wb-err-fixes", role: "group", "aria-label": "Fixes" }, ...entry.fixes.map((f) => button(f.title.replace(/`/g, ""), () => actions.fix(f, detail), { icon: f.kind === "install" ? "import" : f.kind === "define" ? "play" : f.kind === "cell" || f.kind === "table" ? "plus" : "edit", class: "ghost" }))));
   }
   if (frame && (frame.values.length || frame.locals.length)) {
     parts.push(

@@ -446,7 +446,8 @@ src/swissarmybench/
                          custom order (moved left and right), the filters, the types explained for beginners
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
-                         run the cell that makes a name); where a SQL error points
+                         run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
+                         the missing table (DuckDB's own-table "Did you mean" dropped)
     packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
@@ -634,7 +635,8 @@ src/swissarmybench/
                          when its bytes change (write); seams: UsedTables.used(project) (the tables the project
                          uses) and Portability.verdict(connection) (default: "Not checked yet")
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
-                         query); a document's Tables group arranged; where each table came from
+                         query); a document's Tables group arranged; where each table came from; an open
+                         table's grid view as Arrow for a kernel's DuckDB SQL naming it (view)
     hooks.py             what an extension hands the base's services once built (late binding): the documents
                          the Workbench windows hold, a canvas, what stops with a kernel or a window, an app's
                          own file, the cells shown live, a new project's app; each a plain default with none on
@@ -800,7 +802,8 @@ src/swissarmybench/
   client/kernel_intel.py Jedi's answers (the member list, signatures, hovers): its Interpreter over a kernel's
                          namespace, asked in the kernel; its Script the server runs where no kernel has
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
-                         files (CSV, workbook sheets, folders) and DataFrames in DuckDB; %%dax
+                         files (CSV, workbook sheets, folders), DataFrames and the tables open in Grids (their
+                         views, read when named) in DuckDB; %%dax
                          <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
   client/visualizations_client.py a figure, picture, table or text as a card on the Analyze board
                          (duck-typed); sab.visualizations and sab.sandbox, the old names, one release

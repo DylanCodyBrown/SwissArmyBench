@@ -1593,6 +1593,7 @@ def test_workspace_shows_grids_as_tabs(browser: Browser, server: dict[str, Any])
     assert reloaded.index("tab_three") < reloaded.index("tab_one")
 
     # The tab's close button closes the grid on the server; the dataset stays.
+    tabs.filter(has_text="tab_one").hover()  # another tab's close shows on hover (feel-a)
     tabs.filter(has_text="tab_one").get_by_role("button", name="Close tab_one").click()
     expect(tabs.filter(has_text="tab_one")).to_have_count(0)
     open_grids = {g["dataset"] for g in call(server, "GET", "/grids")["grids"]}

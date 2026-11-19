@@ -3884,3 +3884,30 @@ Not checked:
 - **Not checked:** Edge and the desktop app (Chromium here); the shortcuts sheet with the Workbench's Jupyter
   command mode keys in a long session; the header card on a 100-column table's horizontal scroll; values of
   DECIMAL and TIMESTAMP columns ticked in the checklist (they go through JSON as the profile's top values do).
+
+## Feel, part A (2026-11-19, branch feel-a)
+
+- Checked: tests/test_errors.py (DuckDB 2.0's "Table with name X does not exist!" wording, the system-table
+  guess dropped, a close name kept, the open table's fix); tests/test_sql_sees_grids.py against a running server
+  and a real kernel (the grid's view with its steps as Arrow, any case, 404 in the refusal shape; `sab.sql` with
+  no connection reads it, a step removed is seen by the next query, this Python's own table wins, an unknown name
+  keeps DuckDB's error; a Workbench SQL cell reads it, and a typo's error comes once, without `pg_`);
+  tests/e2e/test_feel_polish_page.py in Chromium (the SQL cell and its error, a Python cell's Add its table cell,
+  nine tabs on one row at 1024px, the palette's empty line, Find data's Escape and Ctrl+Shift+P, Settings,
+  the Variables search box, the ERD's status bar, the cell pickers).
+- DuckDB 2.0: a grid's cursor can hold an unfinished result from the view cache's work, so `cursor.sql(...)`
+  refused ("unfinished result from execute()"); the view is read with `execute(...).to_arrow_reader()` (its
+  copy warning silenced there) and written batch by batch.
+- Not checked: the desktop app's Qt WebEngine (Chromium only); the screen-reader reading of the hidden tab
+  close buttons (they reach the keyboard by focus-within).
+- The whole suite with Chromium in one process (1 h 01 min, other builders' suites running beside it): 4,751
+  passed, 58 skipped, 18 failed. Mine and fixed: the Power Apps notebook rules' test expected DuckDB's own
+  `pg_tables` as a candidate (now none); the tour test on Projects looked for Tour beside the bubble (the
+  bubble is the one button now); the grid tab bar's rules first reached the Workbench's tabs too (they share
+  `.tab-item`: now scoped to `.tabs-row`); test_ui's tab close now hovers first (another tab's close shows on
+  hover). Not mine: test_variable_refs_page (2) and test_workbench_page's key vault (psycopg and
+  azure-identity are not installed here: the missing-package prompt covers the form), test_copilot_page's
+  private project (fails before this branch too), and test_workbench_groups, test_panels_page, test_tour,
+  test_table_cells_page, test_text_cells_page, test_scm_page, test_html_cells_page, test_workbench_page's first
+  save and test_apis / test_structures_routes, which pass alone or fail the same on the branch's base under load
+  (test_workbench_groups 3 runs on each: the same flakes).

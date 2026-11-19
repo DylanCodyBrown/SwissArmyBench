@@ -7,6 +7,7 @@ A fix is something the Workbench can do with one click:
     install   install `package` into this document's Python (`%pip install`, which uses uv without pip)
     define    run the cell that makes `name` (the page finds it among the cells)
     cell      add a code cell holding `text` below the failing one (a script: copy it)
+    table     give the document the read-only cell of `name`, a table open in Grids (a SQL cell named it)
 The research behind it: docs/ideas.md (the error panel, 2026-11-14). The explanations are our own,
 written for data work; nothing leaves the computer.
 """
@@ -253,7 +254,13 @@ def explain(entry: dict[str, Any]) -> dict[str, Any]:
         if line:
             fixes.append({"kind": "cell", "title": "Read the table instead", "text": line.group(0)})
     elif kind == "UsageError" or ("Error" in kind and _sql_text(message)):
-        text = "The SQL did not run: the database's own message is below."
+        absent = missing_table(message)
+        text = (
+            f"The SQL names a table this query cannot see: {_quote(absent)}. Open it in Grids, read it with "
+            "a cell, or check the name's spelling."
+            if absent
+            else "The SQL did not run: the database's own words are above."
+        )
     else:
         text = ""
     sql = sql_position(message)
@@ -268,7 +275,52 @@ def explain(entry: dict[str, Any]) -> dict[str, Any]:
             target = str(facts.get("name") or _name_in(message) or "")
             if target:
                 fixes += _replace(target, [found.group(1)])
-    return {"title": title, "explanation": text, "fixes": _unique(fixes), "sql": sql}
+    shown = _without_system_guess(message)
+    if shown != message:
+        title = f"{kind}: {shown}" if shown else kind
+    return {"title": title, "message": shown, "explanation": text, "fixes": _unique(fixes), "sql": sql}
+
+
+# DuckDB's own tables and views: its "Did you mean" offers one when nothing of the user's is close.
+_SYSTEM = re.compile(r"^(pg_|duckdb_|sqlite_|information_schema|pragma_)", re.IGNORECASE)
+_GUESS = re.compile(r'\s*Did you mean "([^"]+)"\??')
+
+
+def _without_system_guess(message: str) -> str:
+    """The message without a "Did you mean" that names one of DuckDB's own tables (pg_prepared_statements
+    for `orders`): it points away from the user's tables."""
+    found = _GUESS.search(message)
+    if found and _SYSTEM.match(found.group(1).split(".")[-1]):
+        return (message[: found.start()] + message[found.end() :]).rstrip()
+    return message
+
+
+def missing_table(message: str) -> str | None:
+    """The table a SQL error says is missing: DuckDB's "Table with name orders does not exist!" (any name,
+    spaces too) and the "Table "x" does not exist" of others."""
+    found = re.search(r'Table with name "?(.+?)"? does not exist', message) or re.search(
+        r'[Tt]able "([^"\n]+)" does not exist', message
+    )
+    return found.group(1).strip() if found else None
+
+
+def _offer_open_table(entry: dict[str, Any], open_tables: list[str]) -> None:
+    """A SQL error's missing table that is open in Grids: its read-only cell, one click away (first)."""
+    sql = entry.get("sql") or {}
+    absent = str(sql.get("missing") or "")
+    if not absent or not missing_table(str(entry.get("message", ""))):
+        return
+    name = next((t for t in open_tables if t.lower() == absent.lower()), None)
+    if name is None:
+        return
+    entry["explanation"] = (
+        f"{_quote(name)} is open in Grids, but this document has no cell for it yet, so the query cannot "
+        "see it. Add its table cell (its steps as one DuckDB query) and run this cell again."
+    )
+    title = f"{name} is open in Grids: add its table cell"
+    entry["fixes"] = [{"kind": "table", "title": title, "name": name}] + [
+        f for f in entry.get("fixes", []) if f.get("kind") != "replace"
+    ]
 
 
 def _unique(fixes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -303,11 +355,12 @@ def sql_position(message: str) -> dict[str, Any] | None:
         prefix = len(f"LINE {at.group(1)}: ")
         found["col"] = max(1, len(at.group(3)) - prefix + 1)
         found["shown"] = shown
-    missing = re.search(r'(?:column|Column) "?([\w.]+)"? (?:not found|does not exist)', message) or re.search(
-        r'Table "([\w.]+)" does not exist|table "?([\w.]+)"? does not exist', message
-    )
+    missing = re.search(r'(?:column|Column) "?([\w.]+)"? (?:not found|does not exist)', message)
     if missing:
-        found["missing"] = next(g for g in missing.groups() if g)
+        found["missing"] = missing.group(1)
+    elif table := missing_table(message):
+        found["missing"] = table
+    message = _without_system_guess(message)
     candidates = re.search(r"Candidate bindings: (.+?)(?:\n|$)", message) or re.search(
         r"Did you mean \"(.+?)\"", message
     )
@@ -318,11 +371,16 @@ def sql_position(message: str) -> dict[str, Any] | None:
     return found or None
 
 
-def explain_detail(detail: dict[str, Any], python: str | None = None) -> dict[str, Any]:
+def explain_detail(
+    detail: dict[str, Any], python: str | None = None, open_tables: list[str] | None = None
+) -> dict[str, Any]:
     """The kernel's error detail with each exception's words added; `where` names the place in your own
     code the error went through last ("cell [3], line 2" or "report.py, line 7"). A package missing from
-    the kernel's Python (`python`) is said in the one missing-package shape too (domain/packages.py)."""
+    the kernel's Python (`python`) is said in the one missing-package shape too (domain/packages.py). A SQL
+    error naming a table that is open in Grids (`open_tables`, any case) offers that table's cell."""
     chain = [entry | explain(entry) for entry in detail.get("chain", []) if isinstance(entry, dict)]
+    for entry in chain:
+        _offer_open_table(entry, open_tables or [])
     out = dict(detail) | {"chain": chain}
     last = chain[-1] if chain else None
     wanted = [f["package"] for e in chain for f in e.get("fixes", []) if f.get("kind") == "install"]
