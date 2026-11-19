@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, TypeVar
@@ -39,6 +40,8 @@ from swissarmybench.server.beta_requests import report
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, TimedOut
 
 T = TypeVar("T")
+# A route's handler: a request in, a response out.
+Handler = Callable[[Request], Awaitable[Response]]
 
 # JavaScript numbers are exact only up to 2**53; larger integers travel as text.
 _JS_SAFE_INTEGER: int = 2**53 - 1
@@ -124,6 +127,18 @@ def error_response(error: Exception) -> Response:
     ):
         report(error, response.status_code)
     return response
+
+
+def safely(handler: Handler) -> Handler:
+    """`handler` with any error it raises answered by `error_response` (its status, the one shape)."""
+
+    async def guarded(request: Request) -> Response:
+        try:
+            return await handler(request)
+        except Exception as error:
+            return error_response(error)
+
+    return guarded
 
 
 def refusal(

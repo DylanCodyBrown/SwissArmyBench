@@ -17,26 +17,15 @@ POST /apis/{name}/delete                 {"confirm"?}: the code that uses it; wi
 
 from __future__ import annotations
 
-from typing import Any
-
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.api_explorer import Explorer
 
 
 def routes(explorer: Explorer) -> list[BaseRoute]:
-    def safely(handler: Any) -> Any:
-        async def guarded(request: Request) -> Response:
-            try:
-                return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:
-                return error_response(error)
-
-        return guarded
-
     def name(request: Request) -> str:
         return str(request.path_params["name"])
 

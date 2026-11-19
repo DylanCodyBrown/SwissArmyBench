@@ -6,26 +6,12 @@ POST   /desktop/open     {page: home | workbench | blades}: opened in the shell 
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.desktop import Desktop
-
-Handler = Callable[[Request], Awaitable[Response]]
-
-
-def safely(handler: Handler) -> Handler:
-    async def run(request: Request) -> Response:
-        try:
-            return await handler(request)
-        except Exception as error:
-            return error_response(error)
-
-    return run
 
 
 def routes(desktop: Desktop) -> list[BaseRoute]:

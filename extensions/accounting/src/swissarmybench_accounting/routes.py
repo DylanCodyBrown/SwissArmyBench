@@ -34,7 +34,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench_accounting import design as rules
 from swissarmybench_accounting import runtime
 from swissarmybench_accounting.service import Accounting
@@ -44,15 +44,6 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 def routes(accounting: Accounting, mode: dict[str, Any], functions: Any) -> list[BaseRoute]:
     live = accounting.ws.live
-
-    def safely(handler: Any) -> Any:
-        async def guarded(request: Request) -> Response:
-            try:
-                return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:
-                return error_response(error)
-
-        return guarded
 
     async def changed(design_id: str, request: Request) -> None:
         """Every window showing the design draws it again (an agent's edit shows at once)."""

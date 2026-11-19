@@ -37,27 +37,17 @@ from __future__ import annotations
 
 import json
 from collections.abc import AsyncIterator
-from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, json_response, read_json, safely
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
 
 
 def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
-    def safely(handler: Any) -> Any:
-        async def guarded(request: Request) -> Response:
-            try:
-                return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:
-                return error_response(error)
-
-        return guarded
-
     async def home(request: Request) -> Response:
         return json_response(workbench.home())
 
