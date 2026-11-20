@@ -96,7 +96,10 @@ a variable by its name.
   they name one table. A Delta table's version or time: `"orders@v12"`, `"orders@2026-11-01"`.
 - Every setting may come from an environment variable (`blades_fill` with `{"<id>": {"value": v, "env":
   "SHAREPOINT_TENANT_ID"}}`; a setting's `suggested_env` is the form's name). SharePoint signs in by
-  username and password (ROPC) first; ROPC cannot do MFA (the error says so).
+  username and password (ROPC) first; ROPC (and SQL Server's Entra password) cannot do MFA: the form's
+  `sign_ins[].note` and the AADSTS50076/50079 error name the way that can, "Username, with multi-factor
+  sign-in" (the lakes, SharePoint, Dataverse, SQL Server, Azure SQL; the user approves it in a browser or
+  with a device code, so it only works on their machine).
 - Writes are Write starters (dry run first); SharePoint documents' files are the SharePoint starters.
 
 ## Reading one

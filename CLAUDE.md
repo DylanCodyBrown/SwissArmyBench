@@ -299,7 +299,9 @@ src/swissarmybench/
                          with a token, a SAS or a key-signed SAS; S3 by httpfs), a Delta log read here, the one
                          reader (delta_scan, else deltalake, else the log and read_parquet over HTTPS), the writes
     entra.py             Microsoft Entra sign-in as text for the five: as you, managed identity, an app
-                         registration (a vault's secret), ROPC (MSAL or stdlib; AADSTS codes in plain words)
+                         registration (a vault's secret), ROPC (MSAL or stdlib; AADSTS codes in plain words), and
+                         MultiFactorSignIn (a username with MFA: a browser, else a device code; the encrypted token
+                         cache and the account remembered; Dataverse and SQL Server use it too)
     sharepoint.py        SharePoint through Graph as text: lists (typed columns, lookups, people, $filter,
                          $batch writes retried on 429) and documents (each library's file index, CSV/Parquet/
                          JSON-lines files and workbook sheets and named tables as tables, kept by eTag)
@@ -1092,6 +1094,9 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          copilot_standin.py (GitHub's Copilot Language Server stood in for: stdio LSP, a made-up
                          device flow and made-up suggestions),
                          test_architecture.py (the layers, the depth, the plain client),
+                         driver_check.py (stdlib only: every starter's code against its installed client: calls,
+                         keywords, SQL Server's connection strings; test_connection_drivers.py runs it, again in
+                         SWISSARMYBENCH_DRIVERS_PYTHON),
                          lake_standins.py (Entra, the ADLS Gen2 DFS API over a made-up lake, OneLake, and Graph
                          for a made-up SharePoint site, all on 127.0.0.1),
                          trino_standin.py (a Trino over HTTPS asking for a client certificate; made-up

@@ -71,6 +71,7 @@ def test_a_dataverse_environment_is_added_through_the_form_browsed_and_opened_as
             "App registration, its secret from a key vault",
             "Managed identity (in Azure: a Function App, App Service or VM)",
             "As you (Azure command line or browser)",
+            "Username, with multi-factor sign-in (a browser window, or a code on another device)",
         ]
     )
     expect(dialog.locator(".sign-in-local .local-only")).to_have_count(0)

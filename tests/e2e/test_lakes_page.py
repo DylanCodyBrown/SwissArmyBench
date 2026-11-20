@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
+from swissarmybench.domain import entra
 from tests import lake_standins as made_up
 from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
 from tests.test_lakes import SITE, datalake_code, sharepoint_code
@@ -99,6 +100,19 @@ def test_a_sharepoint_list_connection_is_added_through_the_form_and_its_tables_b
     sign_in = dialog.get_by_role("combobox", name="Sign in")
     expect(sign_in.locator("option").first).to_have_text("Username and password (ROPC)")
     expect(sign_in).to_have_value("0")
+    # A username and password cannot do MFA: one line says so and names the way that can (2026-11-20).
+    note = dialog.locator(".sign-in-note")
+    expect(note).to_have_text(entra.NO_MFA_NOTE)
+    sign_in.select_option(label=entra.MFA_LABEL)
+    not_now(page, 2)
+    expect(note).to_have_count(0)
+    expect(dialog.locator(".sign-in-local")).to_contain_text(
+        "Only works on your machine: it needs you to approve the sign-in."
+    )
+    shot(page, "lakes-mfa.png", dialog)
+    sign_in.select_option("0")
+    not_now(page, 2)
+    expect(note).to_have_text(entra.NO_MFA_NOTE)
     dialog.get_by_role("textbox", name="Name", exact=True).fill("Team")
     code = dialog.locator("textarea.connection-code")
     for label, key, value in (

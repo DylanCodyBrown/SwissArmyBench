@@ -445,7 +445,7 @@ def test_sql_server_and_azure_sql_sign_in_every_way(template: str) -> None:
     starter = next(t for t in TEMPLATES if t.id == template)
     ways = {label: (mark, code) for label, mark, code in starter.sign_ins}
     assert starter.code == starter.sign_ins[0][2]  # the first way is the starter's own code
-    assert len(ways) == (8 if template == "sqlserver" else 7)
+    assert len(ways) == (9 if template == "sqlserver" else 8)  # multi-factor sign-in since 2026-11-20
     assert "User name and password (SQL login)" in ways and any("managed identity" in w for w in ways)
     for label, (mark, code) in ways.items():
         assert mark in code and sum(mark in other for _, other in ways.values()) == 1  # tells them apart
@@ -476,7 +476,7 @@ def test_the_form_offers_the_ways_to_sign_in_new_and_saved(client: TestClient) -
     }
     assert client.post("/connections", json=body, headers=AUTH).status_code == 200
     saved = client.get("/connections/Sales", headers=AUTH).json()
-    assert len(saved["sign_ins"]) == 7 and mfa["mark"] in saved["code"]
+    assert len(saved["sign_ins"]) == 8 and mfa["mark"] in saved["code"]
 
 
 def test_a_sign_in_that_opens_a_window_is_told_apart() -> None:

@@ -757,8 +757,14 @@ Click a card for its **detail**:
   - What the tenant needs: the admin setting **Dataset Execute Queries REST API** on, service principals allowed to use the Power BI APIs (for an app registration, which must also be a member of the workspace), and Read and Build permission on each dataset.
 - **Lakes and SharePoint** (their own group on the Connections page): five kinds whose tables their own
   code lists and reads, each signed in one of the same ways (**As you**, **Managed identity**, **App
-  registration, its secret from a key vault**; SharePoint first offers **Username and password (ROPC)**,
-  with or without the app's client secret). Every setting (tenant, client id, username, site, account,
+  registration, its secret from a key vault**, and **Username, with multi-factor sign-in (a browser
+  window, or a code on another device)**; SharePoint first offers **Username and password (ROPC)**,
+  with or without the app's client secret). A username and password cannot do multi-factor sign-in (the
+  form says so beside it): an account with MFA picks **Username, with multi-factor sign-in**, which opens a
+  browser window with the username filled in (or shows a code to type on another device when no browser can
+  open) and remembers the sign-in in the system's own encrypted token cache, so MFA is asked again only
+  when Microsoft wants it. It works on your computer only (it needs you to approve the sign-in). Dataverse,
+  SQL Server and Azure SQL offer the same way. Every setting (tenant, client id, username, site, account,
   container, workspace, root...) may come **From an environment variable** (the form suggests a name,
   `SHAREPOINT_TENANT_ID`; this computer's value is its default), so a function app runs the exported code
   with only its application settings. Passwords and secrets come from the keyring, a key vault or an
@@ -834,7 +840,7 @@ Click a card for its **detail**:
   - `API_<name>.py` is standard library only, so it runs anywhere, an Azure Function included: one documented method per operation, retries on 429 and 5xx, every page read (a next link, a page token, a page number or an offset), and array answers as DataFrames when pandas is there (else lists of dicts). Its secrets are arguments or environment variables, never written in it. In a notebook beside it: `from API_Orders import OrdersApi`, then `OrdersApi().list_orders(status="open")`.
   - An API's tables are exactly its web calls with **Return as table** on (off until you say so): then a SQL cell (`%%sql Orders`, then `SELECT ... FROM list_orders`) and `sab.read("Orders", "list_orders")` read it.
 - **A key vault** (Azure Key Vault, AWS, Google, HashiCorp, 1Password, a `.env` file, Windows Credential Manager or the macOS Keychain): fill in its address and save. **Every secret in the vault** is on by default: each secret becomes an environment variable under its own name (`SqlPassword` stays `SqlPassword`; `Sql--Password` becomes `Sql__Password`, Azure's convention; `warehouse-password` becomes `warehouse_password`), and a secret added to the vault later is there at the next kernel. Once its address is filled in, the form lists the vault's secrets by name: leave a box empty and the secret keeps its own name (shown faintly), or type a name to map it to that variable. Untick Every secret to choose them instead.
-- **An Azure Key Vault signs in** **As you** (Azure CLI, VS Code or Windows sign-in) or as a
+- **An Azure Key Vault signs in** **As you** (the Azure command line or Azure PowerShell) or as a
   **Managed identity**, for runs in Azure (a Function App, App Service or VM; fill in a client id for a
   user-assigned identity). Nothing is entered on this computer to open a vault: an app registration
   (Power BI's, say) lives in the vault, as entries other connections use. An exported script reads the

@@ -101,7 +101,7 @@ def saved_connection(client: TestClient, standin: made_up.StandIn, **more: Any) 
 # ===== the form =====
 
 
-def test_the_form_asks_for_the_address_and_signs_in_three_ways(client: TestClient) -> None:
+def test_the_form_asks_for_the_address_and_signs_in_four_ways(client: TestClient) -> None:
     types_ = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
     form = types_["dataverse"]
     assert (form["label"], form["connection"], form["dialect"]) == ("Dataverse", "database", "dataverse")
@@ -116,6 +116,7 @@ def test_the_form_asks_for_the_address_and_signs_in_three_ways(client: TestClien
         "App registration, its secret from a key vault",
         "Managed identity (in Azure: a Function App, App Service or VM)",
         "As you (Azure command line or browser)",
+        "Username, with multi-factor sign-in (a browser window, or a code on another device)",  # 2026-11-20
     ]
     codes = [w["code"] for w in form["sign_ins"]]
     for at, way in enumerate(form["sign_ins"]):  # each way's mark is in its own code only

@@ -54,6 +54,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+from swissarmybench.domain import entra
 from swissarmybench.domain.catalogs import quote_identifier
 
 if TYPE_CHECKING:  # the model is imported where it is built: the plain client imports this module
@@ -141,6 +142,11 @@ ERRORS: dict[str, tuple[str, str]] = {
         "The server did not answer in time.",
         "Check the server's name and the network; raise the login timeout for a slow link.",
     ),
+    "mfa": (
+        "The account needs multi-factor sign-in (AADSTS50076, or AADSTS50079 to set it up): a user name and "
+        "password sign-in cannot do MFA.",
+        "Pick the sign-in '" + entra.MFA_LABEL + "' instead, or an app registration.",
+    ),
     "kerberos": (
         "Windows sign-in found no Kerberos ticket on this computer.",
         "Run kinit user@REALM first (Linux, macOS), or sign in another way.",
@@ -149,6 +155,8 @@ ERRORS: dict[str, tuple[str, str]] = {
 # mssql-python says the server's words without its number: each known number by its words (lower case,
 # the first that a message holds wins, so the longer phrase comes first).
 WORDS: tuple[tuple[str, str], ...] = (
+    ("aadsts50076", "mfa"),  # Entra's own codes first: its message also says the login failed
+    ("aadsts50079", "mfa"),
     ("is not allowed to access the server", "40615"),
     ("not currently available", "40613"),
     ("the service has encountered an error processing your request", "40197"),
@@ -746,7 +754,9 @@ class SqlServer:
         return self._token[0]
 
     def uses_token(self):
-        return self.sign_in in ("entra_you", "managed_identity", "app_secret", "app_certificate", "token")
+        return self.sign_in in (
+            "entra_you", "entra_mfa", "managed_identity", "app_secret", "app_certificate", "token"
+        )
 
     def _open(self):
         driver = self.driver()
@@ -994,15 +1004,26 @@ _WAYS: dict[str, tuple[str, str, str, str]] = {
     ),
     "windows": ("Windows sign-in", "", "", ""),
     "entra_you": (
-        "Microsoft Entra: as you (Azure command line, VS Code, else a browser)",
-        "from azure.identity import (\n    AzureCliCredential,\n    ChainedTokenCredential,\n"
-        "    InteractiveBrowserCredential,\n    VisualStudioCodeCredential,\n)\n",
-        "# Signed in as you: the Azure command line (az login), Visual Studio Code, else a browser window.\n"
+        "Microsoft Entra: as you (Azure command line, else a browser)",
+        "from azure.identity import AzureCliCredential, ChainedTokenCredential, "
+        "InteractiveBrowserCredential\n",
+        "# Signed in as you: the Azure command line (az login), else a browser window.\n"
         'tenant_id = ""  # empty: your own tenant\n'
         "credential = ChainedTokenCredential(\n"
         "    AzureCliCredential(tenant_id=tenant_id or None),\n"
-        "    VisualStudioCodeCredential(tenant_id=tenant_id or None),\n"
         "    InteractiveBrowserCredential(tenant_id=tenant_id or None),\n)\n\n",
+        "    credential=credential,\n",
+    ),
+    "entra_mfa": (
+        entra.MFA_LABEL,
+        "",
+        "# Signed in as you with multi-factor sign-in: a browser window with your username filled in\n"
+        "# (or, where none can open, a code to type on another device), remembered afterwards. The token\n"
+        "# goes beside the connection string (mssql-python's own ActiveDirectoryInteractive neither fills\n"
+        "# in the username nor remembers the sign-in outside Windows: it would ask for MFA every run).\n"
+        + entra.MFA_CLASS.lstrip("\n")
+        + "\n\n"
+        'credential = MultiFactorSignIn(tenant_id="my-tenant-id", username="my_user@my-company.com")\n\n',
         "    credential=credential,\n",
     ),
     "managed_identity": (
@@ -1051,6 +1072,7 @@ ORDER: dict[str, tuple[str, ...]] = {
         "app_secret",
         "entra_default",
         "entra_password",
+        "entra_mfa",
         "windows",
         "entra_you",
         "app_certificate",
@@ -1061,6 +1083,7 @@ ORDER: dict[str, tuple[str, ...]] = {
         "sql_login",
         "entra_default",
         "entra_password",
+        "entra_mfa",
         "entra_you",
         "app_certificate",
     ),
@@ -1171,6 +1194,14 @@ def is_old(code_text: str) -> bool:
     return "import pyodbc" in head and "pyodbc.drivers()" in head
 
 
+# As you's imports before 2026-11-20, when its chain held VisualStudioCodeCredential (azure-identity's works
+# only on Windows with azure-identity-broker, so it left the chain; an older code keeps its own lines).
+_OLDER_YOU_IMPORTS = (
+    "from azure.identity import (\n    AzureCliCredential,\n    ChainedTokenCredential,\n"
+    "    InteractiveBrowserCredential,\n    VisualStudioCodeCredential,\n)\n"
+)
+
+
 def upgraded(code_text: str) -> str:
     """An older code made again on mssql-python with the same settings: its head (the imports its way
     needs and the runtime) is today's, its own lines after the runtime (the credential,
@@ -1181,6 +1212,8 @@ def upgraded(code_text: str) -> str:
     at = code_text.index(_OLD_END) + len(_OLD_END)
     tail = code_text[at:]
     imports = _WAYS[str(way_of(code_text))][1]  # the way's own imports, as its code() has them
+    if "VisualStudioCodeCredential(" in tail:  # as you, before 2026-11-20: its chain kept as the user had it
+        imports = _OLDER_YOU_IMPORTS
     tail = _OLD_DRIVER.sub("", tail)
     runtime = RUNTIME[: RUNTIME.index(_OLD_END) + len(_OLD_END)]
     return _IMPORTS + (f"\n{imports}" if imports else "") + runtime + tail

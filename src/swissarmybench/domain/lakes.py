@@ -291,7 +291,7 @@ class OneLake(Lake):
 
 _HEAD = entra.IMPORTS.replace("import time\n", "import struct\nimport time\n") + "\nimport duckdb\n"
 _BODY = entra.COMMON + code.STORES + code.DELTA + code.WRITER + code.READER
-_ENTRA = {"you": entra.YOU, "managed": entra.MANAGED, "app": entra.APP}
+_ENTRA = {"you": entra.YOU, "managed": entra.MANAGED, "app": entra.APP, "mfa": entra.MFA}
 
 # ===== OneLake =====
 
@@ -400,6 +400,7 @@ _ENTRA_WAYS: tuple[tuple[str, str, str], ...] = (
     (entra.SIGN_INS[2][0], entra.APP_MARK, "app"),
     (entra.SIGN_INS[1][0], entra.MANAGED_MARK, "managed"),
     (entra.SIGN_INS[0][0], entra.YOU_MARK, "you"),
+    (entra.MFA_LABEL, entra.MFA_MARK, "mfa"),
 )
 ONELAKE_SIGN_INS: tuple[tuple[str, str, str], ...] = tuple(
     (label, mark, _onelake(way)) for label, mark, way in _ENTRA_WAYS

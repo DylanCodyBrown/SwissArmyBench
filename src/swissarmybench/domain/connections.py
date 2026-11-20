@@ -18,7 +18,7 @@ import re
 import unicodedata
 from typing import Any
 
-from swissarmybench.domain import portability, python_connections, sql_server
+from swissarmybench.domain import entra, portability, python_connections, sql_server
 from swissarmybench.domain.blades import env_name_for_secret
 
 __all__ = ["env_name_for_secret"]  # with the rules below: a vault's secret as a variable
@@ -169,7 +169,11 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "vault_all": bool(template.get("vault_all")),
         # Ways to sign in, each its own code (SQL Server, Azure SQL): the form's Sign in, each with what it
         # leans on that only this computer has (domain/portability.py; [] for a way that runs anywhere).
-        "sign_ins": portability.sign_ins(template.get("id"), template.get("sign_ins") or []),
+        # A username-and-password way says, in one line, that it cannot do multi-factor sign-in (way_note).
+        "sign_ins": [
+            {**way, "note": way_note(str(way.get("mark") or ""))}
+            for way in portability.sign_ins(template.get("id"), template.get("sign_ins") or [])
+        ],
         # What the kind itself leans on (an ODBC driver, a file on this disk): the form's amber note.
         "local": portability.as_json(
             portability.check(str(template.get("code") or ""), template.get("id"), sign_in=False)
@@ -191,6 +195,14 @@ def form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
         "read": template.get("read"),
         "variables": list(template.get("variables") or []),
     }
+
+
+def way_note(mark: str) -> str:
+    """The one line a way to sign in says beside it on the form: a username and password (ROPC, SQL Server's
+    Entra password) cannot do multi-factor sign-in, and which way can."""
+    if mark in entra.NO_MFA_MARKS or mark == sql_server.mark("entra_password"):
+        return entra.NO_MFA_NOTE
+    return ""
 
 
 # ===== where a password comes from =====

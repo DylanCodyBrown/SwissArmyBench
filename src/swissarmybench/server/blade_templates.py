@@ -542,9 +542,11 @@ conn = pymysql.connect(
         "mariadb",
         "MariaDB",
         "mysql",
-        """import mariadb
+        # PyMySQL, as MySQL's: MariaDB speaks MySQL's protocol, and the mariadb package has wheels for
+        # Windows only (elsewhere pip builds it against MariaDB Connector/C, which a Function App lacks).
+        """import pymysql
 
-conn = mariadb.connect(
+conn = pymysql.connect(
     host="my-server",
     port=3306,
     database="my_database",
@@ -552,6 +554,7 @@ conn = mariadb.connect(
     password=secret("password"),
 )""",
         INFORMATION_SCHEMA.replace("'pg_catalog', 'sys'", "'mysql', 'performance_schema', 'sys'"),
+        "Connects with PyMySQL (MariaDB speaks MySQL's protocol): nothing else to install.",
     ),
     _db(
         "oracle",
@@ -971,7 +974,7 @@ VAULTS: tuple[Template, ...] = (
         vault_mapping=(("WAREHOUSE_PASSWORD", "warehouse-password"),),
         note="Signs in as you here, or as the managed identity of the Azure app it runs in.",
         sign_ins=(
-            ("As you (Azure CLI, VS Code or Windows sign-in)", "DefaultAzureCredential", AZURE_VAULT_YOU),
+            ("As you (Azure command line or Azure PowerShell)", "DefaultAzureCredential", AZURE_VAULT_YOU),
             (
                 "Managed identity (in Azure: a Function App, App Service or VM)",
                 "ManagedIdentityCredential",

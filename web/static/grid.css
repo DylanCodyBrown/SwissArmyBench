@@ -10525,6 +10525,13 @@ body.has-rail .area-page {
   margin-top: 4px;
 }
 
+/* A username-and-password sign-in's one line: it cannot do multi-factor sign-in, and which way can. */
+.sign-in-note {
+  margin: 4px 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .connection-about {
   display: grid;
   gap: 2px;

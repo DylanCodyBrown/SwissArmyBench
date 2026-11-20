@@ -70,8 +70,13 @@ WINDOWS = LocalOnly(
 )
 AS_YOU = LocalOnly(
     "as_you",
-    "it signs in as you (the Azure command line, VS Code or a browser window)",
+    "it signs in as you (the Azure command line or a browser window)",
     _VAULT_OR_IDENTITY,
+)
+MFA = LocalOnly(
+    "mfa",
+    "it needs you to approve the sign-in",
+    "an app registration or a managed identity",
 )
 CERTIFICATE = LocalOnly(
     "certificate",
@@ -114,6 +119,8 @@ _CLOUD = re.compile(r"""["'](?:https?|s3|s3a|gs|gcs|az|abfss?|azure|hf|r2)://"""
 
 # (rule, a pattern only code of that kind holds). The first rule a code matches is said once.
 RULES: tuple[tuple[LocalOnly, re.Pattern[str]], ...] = (
+    # Multi-factor sign-in (domain/entra.py MFA_CLASS) before as you: its browser credential is its own.
+    (MFA, re.compile(r"^class MultiFactorSignIn\b", re.MULTILINE)),
     (ODBC, re.compile(r"^\s*(?:import\s+pyodbc|from\s+pyodbc\s+import)\b", re.MULTILINE)),
     (
         WINDOWS,
@@ -143,6 +150,7 @@ SQL_SERVER_WAYS: dict[str, LocalOnly] = {
     "windows": WINDOWS,
     "entra_integrated": WINDOWS,
     "entra_you": AS_YOU,
+    "entra_mfa": MFA,
     "app_certificate": CERTIFICATE,
 }
 # A certificate or keystore setting holding a plain path (not from an environment variable).
@@ -179,6 +187,8 @@ def _check(code: str, kind: str, passwords: tuple[str, ...], sign_in: bool) -> t
             add(SQL_SERVER_WAYS[way])
     elif sign_in:
         for rule, pattern in RULES:
+            if rule is AS_YOU and any(f is MFA for f in found):
+                continue  # the multi-factor way's browser credential: said once, as its own
             if pattern.search(code or "") and not (rule is ODBC and kind in KINDS):
                 add(rule)
         if _FILE_SETTING.search(code or ""):

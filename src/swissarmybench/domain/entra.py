@@ -43,6 +43,13 @@ MANAGED_MARK: str = "IDENTITY_HEADER"
 APP_MARK: str = "# Sign in as an app registration"
 ROPC_MARK: str = "# A public app registration"
 ROPC_SECRET_MARK: str = "# The app registration's client secret too"  # noqa: S105 (a mark in code, not a secret)
+MFA_MARK: str = "class MultiFactorSignIn"
+# The multi-factor way's name, as the form and the refusals say it (the owner, 2026-11-20: "the dataverse
+# connection didnt support mfa with user and password").
+MFA_LABEL: str = "Username, with multi-factor sign-in (a browser window, or a code on another device)"
+# Said on the form beside every username-and-password way (ROPC; SQL Server's Entra password): Microsoft's
+# protocol for them has no step for a second factor.
+NO_MFA_NOTE: str = f"This sign-in cannot do multi-factor sign-in: for an account with MFA pick {MFA_LABEL}."
 
 IMPORTS: str = """import base64
 import datetime
@@ -97,6 +104,103 @@ def sign_in(scope):
     return answer["access_token"], float(answer.get("expires_on") or time.time() + 3600)
 '''
 
+# A username signed in by multi-factor sign-in: one class the five kinds, Dataverse and SQL Server share.
+# Its methods import what they use (azure-identity by name), so it is pasted into any connection's code.
+MFA_CLASS: str = '''
+
+class MultiFactorSignIn:
+    """Signed in as `username` by Microsoft's multi-factor sign-in: a browser window (azure-identity's
+    InteractiveBrowserCredential, the username filled in), or, where no browser can open, a code typed on
+    another device (DeviceCodeCredential). The tokens go into the system's own encrypted token cache and the
+    account is remembered (its ids and name, never a token: ~/.IdentityService/swissarmybench-*.json), so a
+    later run signs in silently and asks for MFA again only when Microsoft wants it. get_token(scope) is
+    azure-identity's own: the token, and when it runs out."""
+
+    def __init__(self, tenant_id, username):
+        self.tenant_id, self.username, self.credential = tenant_id or "organizations", username, None
+
+    def record_file(self):
+        import hashlib
+        import os
+
+        name = hashlib.sha256(f"{self.tenant_id}|{self.username}".lower().encode()).hexdigest()[:16]
+        return os.path.join(os.path.expanduser("~"), ".IdentityService", f"swissarmybench-{name}.json")
+
+    def made(self, kind, cached):
+        import importlib
+
+        identity = importlib.import_module("azure.identity")
+        options = {"tenant_id": self.tenant_id}
+        if kind == "browser" and self.username:
+            options["login_hint"] = self.username
+        if cached:  # the system's encrypted cache (Windows, the macOS keychain, the Linux keyring)
+            options["cache_persistence_options"] = identity.TokenCachePersistenceOptions(name="swissarmybench")
+            try:
+                with open(self.record_file(), encoding="utf-8") as file:
+                    options["authentication_record"] = identity.AuthenticationRecord.deserialize(file.read())
+            except (OSError, ValueError, KeyError):
+                pass
+        made = identity.InteractiveBrowserCredential if kind == "browser" else identity.DeviceCodeCredential
+        return made(**options), "authentication_record" in options
+
+    def keep(self, record):
+        import os
+
+        try:
+            path = self.record_file()
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            handle = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(handle, "w", encoding="utf-8") as file:
+                file.write(record.serialize())
+        except OSError:  # not remembered: the next run asks again
+            pass
+
+    def get_token(self, *scopes, **options):
+        import importlib
+
+        if self.credential is not None:
+            return self.credential.get_token(*scopes, **options)
+        unavailable = importlib.import_module("azure.identity").CredentialUnavailableError
+        for kind in ("browser", "device code"):
+            for cached in (True, False):  # no encrypted cache here: this run's memory only
+                try:
+                    credential, known = self.made(kind, cached)
+                    if not known:
+                        record = credential.authenticate(scopes=list(scopes))
+                        if cached:
+                            self.keep(record)
+                    found = credential.get_token(*scopes, **options)
+                except unavailable:
+                    break  # no browser opens here: a code typed on another device instead
+                except (ValueError, ImportError, NotImplementedError):  # no encrypted cache can be had here
+                    if cached:
+                        continue
+                    raise
+                self.credential = credential
+                return found
+        raise RuntimeError("Multi-factor sign-in could not open a browser or show a code here.")
+'''
+
+MFA: str = (
+    """
+# Sign in as yourself with multi-factor sign-in: a browser window opens with your username filled in (or,
+# where none can, a code to type on another device). Remembered afterwards: MFA again only when Microsoft
+# asks for it. A username and password (ROPC) cannot do MFA; this can.
+tenant_id = "my-tenant-id"
+username = "my-user@my-company.com"
+"""
+    + MFA_CLASS
+    + '''
+mfa = MultiFactorSignIn(tenant_id, username)
+
+
+def sign_in(scope):
+    """The token Microsoft gave for this scope, and when it runs out."""
+    found = mfa.get_token(scope)
+    return found.token, found.expires_on
+'''
+)
+
 _REQUEST = '''
 
 def token_request(form, what):
@@ -142,7 +246,7 @@ def _ropc(confidential: bool) -> str:
         f'''
 # Sign in with a username and password (ROPC: the resource owner password credentials grant). The
 # password comes from the keyring, a key vault or an environment variable: never typed into the code.
-# ROPC cannot do multi-factor sign-in: an account that needs MFA signs in as you instead.
+# ROPC cannot do multi-factor sign-in: an account with MFA picks "Username, with multi-factor sign-in".
 {comment}tenant_id = "my-tenant-id"
 client_id = "my-client-id"
 username = "my-user@my-company.com"
@@ -184,10 +288,9 @@ class AzureError(RuntimeError):
 ENTRA_WORDS = {
     "AADSTS50126": "Microsoft Entra refused the username or password (AADSTS50126): check them.",
     "AADSTS50076": "The account needs multi-factor sign-in (AADSTS50076): a username and password sign-in "
-    "(ROPC) cannot do MFA. Sign in as you (Azure command line or browser), or with an app registration.",
+    "(ROPC) cannot do MFA. Pick the sign-in 'MFA_LABEL' instead, or an app registration.",
     "AADSTS50079": "The account must set up multi-factor sign-in (AADSTS50079): a username and password "
-    "sign-in (ROPC) cannot do MFA. Sign in as you (Azure command line or browser), or with an app "
-    "registration.",
+    "sign-in (ROPC) cannot do MFA. Pick the sign-in 'MFA_LABEL' instead, or an app registration.",
     "AADSTS7000218": "The app registration needs \"Allow public client flows\" turned on (its "
     "Authentication page, Advanced settings), or sign in with its client secret too (AADSTS7000218).",
     "AADSTS65001": "Consent is missing for the Microsoft Graph permissions this connection uses: "
@@ -266,14 +369,21 @@ class Token:
         return f"Token({self.scope!r})"
 '''
 
+COMMON = COMMON.replace("MFA_LABEL", MFA_LABEL)
+
 # The form's Sign in: (label, a text only that way's code holds, its sign-in text).
 SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("As you (Azure command line or browser)", YOU_MARK, YOU),
     ("Managed identity (in Azure: a Function App, App Service or VM)", MANAGED_MARK, MANAGED),
     ("App registration, its secret from a key vault", APP_MARK, APP),
 )
+# Beside the username-and-password ways: multi-factor sign-in, for an account ROPC cannot sign in (MFA).
+MFA_SIGN_IN: tuple[str, str, str] = (MFA_LABEL, MFA_MARK, MFA)
 # SharePoint offers the username and password first (the owner's own SharePoint connection).
 ROPC_SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("Username and password (ROPC)", ROPC_MARK, ROPC),
     ("Username and password, with the app's client secret (ROPC)", ROPC_SECRET_MARK, ROPC_SECRET),
+    MFA_SIGN_IN,
 )
+# The ways a username and password sign in by: each says on the form that it cannot do MFA (NO_MFA_NOTE).
+NO_MFA_MARKS: tuple[str, ...] = (ROPC_MARK, ROPC_SECRET_MARK)

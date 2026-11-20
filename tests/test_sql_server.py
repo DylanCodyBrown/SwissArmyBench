@@ -379,7 +379,7 @@ def test_the_connection_string_uses_only_keys_mssql_python_takes(server: FakeSer
     }  # mssql_python.constants._ALLOWED_CONNECTION_STRING_PARAMS (it refuses any other key)
     names = runtime()
     for way in sql_server.ORDER["sqlserver"]:
-        if way in ("entra_you", "app_certificate", "managed_identity", "app_secret"):
+        if way in ("entra_you", "entra_mfa", "app_certificate", "managed_identity", "app_secret"):
             continue  # a token: below
         names["SqlServer"](
             "sql01.shop.local",
@@ -665,7 +665,7 @@ def test_a_closed_connection_opens_again_for_the_next_try(server: FakeServer) ->
 
 @pytest.mark.parametrize("template", ["sqlserver", "azuresql"])
 def test_every_way_to_sign_in_runs(
-    server: FakeServer, template: str, monkeypatch: pytest.MonkeyPatch
+    server: FakeServer, template: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     identity = types.ModuleType("azure.identity")
 
@@ -676,14 +676,22 @@ def test_every_way_to_sign_in_runs(
         def get_token(self, scope: str) -> Any:
             return types.SimpleNamespace(token="made-up", expires_on=4_000_000_000)
 
+        def authenticate(self, scopes: list[str]) -> Any:  # multi-factor sign-in: the account remembered
+            return types.SimpleNamespace(serialize=lambda: "{}")
+
     for name in (
         "AzureCliCredential",
         "ChainedTokenCredential",
         "InteractiveBrowserCredential",
-        "VisualStudioCodeCredential",
+        "DeviceCodeCredential",
         "CertificateCredential",
+        "TokenCachePersistenceOptions",
     ):
         setattr(identity, name, Credential)
+    identity.CredentialUnavailableError = RuntimeError  # type: ignore[attr-defined]
+    identity.AuthenticationRecord = types.SimpleNamespace(deserialize=lambda text: text)  # type: ignore[attr-defined]
+    monkeypatch.setenv("HOME", str(tmp_path))  # the multi-factor way's remembered account lands here
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     monkeypatch.setitem(sys.modules, "azure", types.ModuleType("azure"))
     monkeypatch.setitem(sys.modules, "azure.identity", identity)
     for label, mark, code in sql_server.sign_ins(template):

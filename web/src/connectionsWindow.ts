@@ -155,7 +155,7 @@ interface Form {
   /** A database: how many rows a table opens with as a grid (none: 10,000). */
   row_limit?: number | null;
   /** Ways to sign in, each its own code; `mark` is text only that code holds. */
-  sign_ins?: { label: string; mark: string; code: string; local?: LocalNote[] }[];
+  sign_ins?: { label: string; mark: string; code: string; local?: LocalNote[]; note?: string }[];
   /** What the kind itself leans on that only this computer has (an ODBC driver, a file on this disk). */
   local?: LocalNote[];
   /** The note a password saved on this computer (the keyring) carries. */
@@ -1406,7 +1406,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     // What the chosen way leans on that only this computer has: said beside it, amber.
     const signInNote = h("div", { class: "sign-in-local" });
     const noteSignIn = (): void => {
-      signInNote.replaceChildren(localNotes(ways[Number(signInSelect.value)]?.local) ?? "");
+      const way = ways[Number(signInSelect.value)];
+      // A username and password: that it cannot do multi-factor sign-in, and which way can (one line).
+      const line = way?.note ? h("p", { class: "sign-in-note" }, way.note) : null;
+      signInNote.replaceChildren(...[localNotes(way?.local), line].filter((x): x is HTMLElement => x !== null));
     };
     noteSignIn();
     signInSelect.addEventListener("change", noteSignIn);

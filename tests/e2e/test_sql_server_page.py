@@ -49,7 +49,7 @@ def test_sql_server_signs_in_every_way_with_its_options_folded(browser: Browser,
     sign_in = dialog.get_by_role("combobox", name="Sign in")
     # A way that runs on a Function App or a hosted Streamlit app first (the owner, 2026-11-17).
     expect(sign_in.locator("option:checked")).to_have_text("User name and password (SQL login)")
-    expect(sign_in.locator("option")).to_have_count(8)
+    expect(sign_in.locator("option")).to_have_count(9)
     expect(dialog.locator(".local-only")).to_have_count(0)
     expect(code_box(dialog)).not_to_have_value(re.compile("pyodbc"))
     server_box = dialog.get_by_role("textbox", name="Server", exact=True)
@@ -63,6 +63,15 @@ def test_sql_server_signs_in_every_way_with_its_options_folded(browser: Browser,
     expect(note).to_contain_text("On a Function App or hosted Streamlit app use")
     expect(dialog.locator(".connection-passwords")).to_have_count(0)
     shot(page, "sql-server-windows-warning")
+    # The Entra password cannot do MFA: one line names the way that can, which is this machine's only.
+    sign_in.select_option(label="Microsoft Entra: user name and password")
+    expect(dialog.locator(".sign-in-note")).to_contain_text("This sign-in cannot do multi-factor sign-in")
+    sign_in.select_option(label="Username, with multi-factor sign-in (a browser window, or a code on another device)")
+    expect(dialog.locator(".sign-in-note")).to_have_count(0)
+    expect(note).to_contain_text("Only works on your machine: it needs you to approve the sign-in.")
+    expect(code_box(dialog)).to_have_value(re.compile(r"MultiFactorSignIn\(tenant_id="))
+    expect(dialog.get_by_role("textbox", name="Tenant id", exact=True)).to_be_visible()  # its own boxes
+    shot(page, "sql-server-mfa")
     # A user name and password: the server typed stays, a Password box appears, from a variable at first.
     sign_in.select_option(label="User name and password (SQL login)")
     expect(dialog.locator(".sign-in-local .local-only")).to_have_count(0)

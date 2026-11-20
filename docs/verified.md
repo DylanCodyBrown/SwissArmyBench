@@ -4144,3 +4144,56 @@ The owner's Trino needs only its root CA (no password, no client certificate), k
 sign-in, Root certificate only (no password): auth=None, verify from a file or ${NAME} (certificate_file), no amber note.
 tests/test_keystores.py and test_keystore_vault.py: 142 passed.
 0.0.30 from the release: install.sh into an empty home folder gave 0.0.30; the desktop app (Xvfb) started its server, and 40 s after the app closed it was gone.
+
+## Every connection type against its client (2026-11-20, branch connection-audit)
+
+Drivers in a scratch Python 3.12 (uv, a fresh install each, never the app's dependencies): mssql-python 1.18.0
+(mssql-python-odbc 18.6.2.2), python-tds 1.17.1, azure-identity 1.27.0, azure-keyvault-secrets 4.12.0, msal 1.39.0,
+psycopg 3.3.9, PyMySQL 1.2.4, mariadb 1.1.15, oracledb 26.1.0, snowflake-connector-python 5.2.0,
+google-cloud-bigquery 3.47.0, redshift_connector 2.2.0, databricks-sql-connector 4.9.0, ibm_db 3.3.0, teradatasql
+20.0.0.76, trino 0.340.0, clickhouse-connect 1.13.0, hdbcli 2.30.32, vertica-python 1.4.0, pyodbc 5.5.0, boto3
+1.44.7, google-cloud-secret-manager 2.32.0, hvac 2.4.0, python-dotenv 1.2.4, keyring 25.7.0, deltalake 1.6.6,
+pyjks 20.0.0, cryptography 50.0.2, duckdb 2.0.1.
+
+tests/driver_check.py over every way of every type (89 codes and the 17 SQL Server connection strings): in that
+Python no problem; skipped only pyodbc (libodbc.so.2: unixODBC is not pip's). It found hdbcli's compiled connect
+saying nothing (SAP's documented properties listed). Read by hand in the installed packages: mssql-python's
+allowed connection-string keys (every key the SqlServer object writes is one) and its Authentication handling
+(Default, Interactive, DeviceCode, MSI, ServicePrincipal in Python; ActiveDirectoryPassword and Integrated passed
+to its bundled ODBC Driver 18); Connection.timeout is the query timeout and connect(timeout=) the login's; a
+statement handle's _cancel is there (SQLCancel). DuckDB 2.0.1's azure secret PROVIDER access_token, s3
+credential_chain PROFILE, the http secret's EXTRA_HTTP_HEADERS: made. deltalake's account_name, sas_token,
+bearer_token, use_fabric_endpoint: taken (unknown keys are ignored silently, so aws_profile is from delta-rs's
+AWS_PROFILE, read in any case; not proven by a request). Wheels on PyPI for Python 3.12: every driver has
+Windows, macOS and Linux but mariadb (Windows only: now PyMySQL) and ibm_db (no Linux arm64); pyodbc needs an ODBC
+driver manager and driver outside pip (the amber note).
+
+Connected for real (the test bed, made-up data): PostgreSQL (psycopg), MySQL and MariaDB (PyMySQL, the MariaDB
+server), SQLite, a DuckDB file, CSV, Excel, Parquet and a folder, each with its starter's own catalog. The
+stand-ins: Trino (test_keystores, test_keystore_vault: trino, pyjks and cryptography installed), Dataverse's Web
+API and SQL endpoint (python-tds), the lakes and SharePoint (deltalake installed), SQL Server's fake driver: 239
+passed in the drivers Python. Multi-factor sign-in through the Dataverse, Data Lake and SharePoint stand-ins with a
+made-up azure.identity (the browser, the device code when no browser opens, the account remembered and a later
+run silent, no encrypted cache); the real azure-identity takes every keyword it gives (tenant_id, login_hint,
+cache_persistence_options, authentication_record; AuthenticationRecord serialize/deserialize, authenticate(scopes)).
+
+| Type | Ways | Result |
+| --- | --- | --- |
+| SQL Server, Azure SQL | SQL login; managed identity; app registration (vault secret); the driver's default; Entra password; Windows; as you; certificate | OK; as you fixed (VisualStudioCodeCredential out); Entra password says it cannot do MFA |
+| SQL Server, Azure SQL | Username, with multi-factor sign-in | new |
+| PostgreSQL, MySQL, Oracle (thin), SQLite, DuckDB, Snowflake, BigQuery, Redshift, Databricks, Db2, Teradata, ClickHouse, SAP HANA, Vertica | one each | OK |
+| MariaDB | one | fixed: PyMySQL (mariadb's wheels are Windows only) |
+| Trino | password; root certificate only; client certificate (vault; file) | OK |
+| SAP ASE, Access, any ODBC | one each (pyodbc) | OK, amber (an ODBC driver; Access Windows only) |
+| Power BI | app registration (vault; typed); browser | OK |
+| Dataverse | app registration; managed identity; as you | OK; multi-factor sign-in new |
+| OneLake, Data Lake, Delta | app registration; managed identity; as you; account key; SAS; S3 key; folder; S3 profile | OK; multi-factor sign-in new |
+| SharePoint lists, documents | ROPC; ROPC with secret; as you; managed identity; app registration | OK; ROPC says it cannot do MFA; multi-factor sign-in new |
+| CSV, Excel, Parquet, JSON, folder; your own Python; Blank | one each | OK |
+| Azure Key Vault | as you; managed identity | as you's label fixed (VS Code and Windows sign-in need azure-identity-broker) |
+| AWS Secrets Manager, Parameter Store, Google Secret Manager, HashiCorp Vault, 1Password, .env, the OS keyring | one each | OK (their methods read in the installed packages) |
+
+Not checked: a real Microsoft tenant (no browser sign-in or device code against Microsoft; no real SQL Server,
+Dataverse, OneLake, SharePoint or Key Vault), Snowflake, BigQuery, Redshift, Databricks, Db2, Teradata, ClickHouse,
+HANA, Vertica, Oracle and Trino servers (their keywords only), an ODBC driver (none here), Windows and macOS, the
+encrypted token cache on a desktop (Linux here has no keyring: the fallback ran).

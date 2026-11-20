@@ -6674,3 +6674,41 @@ the palette, the New menu and the tour; Edit in Power BI Desktop's dry run on th
   need to open the vault and read it again. A variable name is never given twice: a vault's secret whose name
   is taken comes as VAULTNAME_NAME. Their names are read again by themselves at start; the card says how
   many variables each vault gives.
+
+## Every connection type against its client (the owner, 2026-11-20: "I saw a lot of connection types that were not actually supported by those clients"; and "the dataverse connection didnt support mfa with user and password"; built, branch connection-audit)
+
+Every starter of the Add connection forms, each way to sign in, checked against the library a fresh install gets
+(tests/driver_check.py: compiles; every function, class and keyword exists in the installed library; SQL Server's
+connection strings through mssql-python's own parser and Authentication values). tests/test_connection_drivers.py
+runs it over every way (a driver not installed is skipped) and again in SWISSARMYBENCH_DRIVERS_PYTHON.
+
+### Fixed and removed
+- **Removed** from SQL Server's and Azure SQL's "as you" chain: VisualStudioCodeCredential. azure-identity's works
+  only on Windows with the azure-identity-broker package (which the code never installs) and the VS Code Azure
+  Resources extension, so it never signed anyone in. The way is "Microsoft Entra: as you (Azure command line, else a
+  browser)". A saved code keeps its own chain (Update to the new driver keeps its import).
+- **Fixed** Azure Key Vault's "As you (Azure CLI, VS Code or Windows sign-in)": DefaultAzureCredential's VS Code and
+  Windows (broker) parts need azure-identity-broker too; now "As you (Azure command line or Azure PowerShell)".
+  The amber reason for "as you" no longer names VS Code.
+- **Fixed** MariaDB: its starter used the mariadb package, whose wheels are Windows only (Linux and macOS build it
+  against MariaDB Connector/C, which a Function App lacks); it is PyMySQL now (MariaDB speaks MySQL's protocol),
+  checked against a real MariaDB (the test bed).
+- Everything else matched its library: see docs/verified.md for the table.
+
+### Multi-factor sign-in
+- A new way, **Username, with multi-factor sign-in (a browser window, or a code on another device)**: Dataverse
+  (Web API and SQL endpoint: one sign_in), SQL Server and Azure SQL (after the Entra password), OneLake, Data Lake,
+  Delta on Azure (after As you), SharePoint lists and documents (after the two ROPC ways). One class,
+  domain/entra.py MultiFactorSignIn: azure-identity's InteractiveBrowserCredential (login_hint the username, the
+  tenant), DeviceCodeCredential when no browser opens; TokenCachePersistenceOptions(name="swissarmybench") (the
+  system's encrypted cache; none on a Linux without a keyring: that run's memory only) and the AuthenticationRecord
+  kept (~/.IdentityService/swissarmybench-<hash>.json, 0600: ids and the username, never a token), so later runs are
+  silent and MFA is asked only when Microsoft wants it.
+- SQL Server: the token from that credential beside the connection string, not mssql-python's
+  ActiveDirectoryInteractive. It exists (mssql-python 1.18), but outside Windows it is an in-memory
+  InteractiveBrowserCredential per process with no username hint: MFA on every Test, kernel and run.
+- Amber: "Only works on your machine: it needs you to approve the sign-in. On a Function App or hosted Streamlit app
+  use an app registration or a managed identity." (portability MFA; before "as you", said once).
+- Every ROPC way and SQL Server's Entra password (ActiveDirectoryPassword) says one line on the form (the way's
+  `note`): it cannot do multi-factor sign-in, pick the new way. AADSTS50076 and AADSTS50079 name it (Entra's
+  words in the lake and SharePoint code; SQL Server's error table, before its "login failed").

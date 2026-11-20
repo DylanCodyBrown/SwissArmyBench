@@ -17,7 +17,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from swissarmybench.domain import connection_tables as ct
-from swissarmybench.domain import lakes, sharepoint
+from swissarmybench.domain import entra, lakes, sharepoint
 from swissarmybench.domain.connection_swap import Place
 from swissarmybench.server.blade_templates import BY_ID
 from tests import lake_standins as made_up
@@ -132,9 +132,9 @@ def test_the_five_kinds_are_connection_types_with_their_own_sign_ins(client: Tes
     # A way that runs on a Function App or a hosted Streamlit app first; as you (this machine's only) last.
     assert (
         labels("onelake")[0] == "App registration, its secret from a key vault"
-        and len(labels("onelake")) == 3
+        and len(labels("onelake")) == 4
     )
-    assert labels("onelake")[-1] == "As you (Azure command line or browser)"
+    assert labels("onelake")[-2:] == ["As you (Azure command line or browser)", entra.MFA_LABEL]
     assert "Account key, from a key vault" in labels("datalake") and "SAS token, from a key vault" in labels(
         "datalake"
     )

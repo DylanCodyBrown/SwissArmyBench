@@ -46,7 +46,7 @@ def _why_not() -> str | None:
     for database in ("postgres", "mariadb"):
         if "missing" in (STATE.get(database) or {"missing": database}):
             return f"The test bed has no {database}: {STATE[database].get('missing', '')}"
-    for module in ("psycopg", "mariadb", "nbclient"):
+    for module in ("psycopg", "pymysql", "nbclient"):
         if importlib.util.find_spec(module) is None:
             return f"The test bed's drivers are not in this Python ({module}): see tools/testbed/README.md."
     return None

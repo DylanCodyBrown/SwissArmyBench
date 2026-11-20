@@ -38,6 +38,8 @@ from __future__ import annotations
 
 import re
 
+from swissarmybench.domain import entra
+
 TEMPLATE: str = "dataverse"
 DIALECT: str = "dataverse"
 SCHEMA: str = "dbo"  # the one schema, as the SQL endpoint names its tables
@@ -660,6 +662,9 @@ def _code(sign_in: str, imports: str = "") -> str:
 YOU: str = _code(_YOU, "\nfrom azure.identity import DefaultAzureCredential\n")
 MANAGED: str = _code(_MANAGED)
 APP: str = _code(_APP)
+# A username with multi-factor sign-in (the owner, 2026-11-20: "the dataverse connection didnt support mfa
+# with user and password"): a browser window or a code on another device, remembered (domain/entra.py).
+MFA: str = _code(entra.MFA)
 
 # The form's Sign in: (label, a text only that way's code holds, its code). The app registration comes
 # first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as you, this machine's
@@ -669,4 +674,5 @@ SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("App registration, its secret from a key vault", 'client_secret = secret("client secret")', APP),
     ("Managed identity (in Azure: a Function App, App Service or VM)", "IDENTITY_HEADER", MANAGED),
     ("As you (Azure command line or browser)", "DefaultAzureCredential", YOU),
+    (entra.MFA_LABEL, entra.MFA_MARK, MFA),
 )
