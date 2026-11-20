@@ -702,6 +702,20 @@ their own, run in an IPython kernel on this computer.
 
 **Connections** on the rail opens the Connections page: a card for each of your databases, files and connections made of your own Python (key vaults are on the **Variables** page), with its type, a status (**Works**, **Ready**: not used yet, **Needs a password**: one is in none of its places, **Failing**: its last call or its catalog failed) and how many times it has been called this session. **Add connection** at the top makes one with a form for its type. APIs are not here: they are on the **APIs** page. A database's password comes from this computer (the system keyring), an environment variable, or a key vault.
 
+**Find connections on this computer…** (beside Add connection and Import…) looks, only when you click it, at
+the connections your other tools keep: ODBC data sources, SSMS (registered servers and recent connections),
+DBeaver, Azure Data Studio, VS Code (mssql, SQLTools), JetBrains IDEs (DataGrip, IntelliJ, PyCharm), pgAdmin 4,
+MySQL Workbench, HeidiSQL, and Office's .odc and .udl files; then, for a few seconds, it searches your app
+settings folders for connection strings and database addresses ("found by searching"; Cancel stops it). It
+changes nothing in those tools and never reads a password (nor browsers, password managers, key stores, .ssh,
+or cloud sync folders). One row per connection, with every tool it was found in; **Already added** for one you
+have; a kind Swiss Army Bench has no connection for yet is shown but cannot be ticked. Tick the ones you want
+(**Select all**, the search box), **Import**: each becomes a connection of its kind with its password a
+variable that is not set yet (**Needs a password** on its card: set it once on the Variables page or Set up
+this computer). SQL Server and Azure SQL use mssql-python (no ODBC driver); a Windows sign-in, an ODBC data
+source or a file on this disk keep the amber "Only works on your machine". For you: `connections_find`, then
+`connections_import_found(ids)`; both wait for the user's Allow.
+
 Click a card for its **detail**:
 
 - **Used in:** every notebook and script cell that uses it (a SQL cell `%%sql Warehouse`, a DAX cell, `sab.sql("Warehouse", …)`, `sab.dax`, `sab.read`, `sab.blade`, `sab.connection`; a table's read-only cell is marked **Table cell**), every Streamlit app block on such a cell, and every open grid read from it. Click one to open that cell in the Workbench (or the grid). A name in a comment, or inside some other text, is not a use. The documents looked in are your recent ones, the ones open in the Workbench and the open project's.

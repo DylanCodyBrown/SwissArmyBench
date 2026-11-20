@@ -43,6 +43,7 @@ from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
 from swissarmybench.adapters.folders import is_folder, make_folder
 from swissarmybench.adapters.folders import listing as folder_listing
 from swissarmybench.adapters.folders import places as folder_places
+from swissarmybench.adapters.found_connections import ConnectionFinder
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
 from swissarmybench.adapters.library import LibraryFolder
 from swissarmybench.adapters.live_updates import LiveUpdates
@@ -133,6 +134,7 @@ from swissarmybench.services.extensions import Extensions
 from swissarmybench.services.file_dialogs import FileDialogs
 from swissarmybench.services.file_watch import FileWatch
 from swissarmybench.services.folders import Folders
+from swissarmybench.services.found_connections import FoundConnections
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.inbox import Inbox
@@ -201,6 +203,7 @@ class Services:
     catalogs: CatalogService
     blades: BladeService
     connections: ConnectionService
+    found_connections: FoundConnections
     connection_usage: ConnectionUsage
     apis: Apis
     structures: Structures
@@ -845,6 +848,21 @@ def bootstrap(
         vault_values=vault_values,
     )
     connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
+    # Find connections on this computer (the owner, 2026-11-20): the known tools' files and the hint scan of
+    # the app settings folders, read-only, on the user's click; never this app's own state folder or library.
+    found_connections = FoundConnections(
+        ws,
+        ConnectionFinder(
+            home=settings.find_home,
+            system=settings.find_system,
+            skip=lambda: (state_dir, library_folder.root),
+        ),
+        TEMPLATES,
+        blades,
+        lambda data, who: connections.save(data, None, who),
+        variables,
+        approvals,
+    )
 
     def every_connection() -> list[tuple[str, str, str]]:
         """(name, kind, code) of each connection: an app registration's users (they read its variables)."""
@@ -1302,6 +1320,7 @@ def bootstrap(
         catalogs=catalogs,
         blades=blades,
         connections=connections,
+        found_connections=found_connections,
         connection_usage=connection_usage,
         apis=apis,
         structures=structures,

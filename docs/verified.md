@@ -4055,3 +4055,20 @@ changes (desktop/profile/version.txt; cookies and local storage kept). test_desk
 0.0.28 from the release: install.sh into an empty home folder gave 0.0.28; the desktop app (Xvfb) started its server,
 cleared its page cache once and wrote desktop/profile/version.txt (0.0.28); 40 s after the app closed the server was
 gone.
+
+
+## Find connections on this computer (2026-11-20, branch find-connections)
+
+Checked here (Linux, Chromium): every reader against made-up files written as each tool writes them (DBeaver,
+RegSrvr.xml, UserSettings.xml, Azure Data Studio and VS Code settings.json with comments, JetBrains dataSources.xml
+with its .local.xml and recentProjects.xml, a pgadmin4.db made in the test, MySQL Workbench connections.xml, HeidiSQL
+portable_settings.txt, odbc.ini, a .dsn, an .odc, a UTF-16 .udl) and a fake registry for ODBC.INI and HeidiSQL; the
+finder over a made-up Windows and Linux home with decoys (a browser profile, a password manager, .ssh, a 300 KB file,
+a binary, this app's own folder) never opened; no made-up password in any answer, the state folder, the library or
+the audit log; merge, Already added, the import's connections and variables; the agent's scan and import refused
+without Allow and done with it; the browser test: Find, tick two, Import, the two cards (Needs a password).
+**Not checked (needs the owner's computer):** a real scan on Windows: the real registry (64- and 32-bit views),
+real SSMS 18-21 UserSettings.xml (its exact layout is from memory: the reader is tolerant), real DBeaver, DataGrip,
+pgAdmin (a database pgAdmin holds open), HeidiSQL's registry and how long the hint scan takes over a full AppData;
+macOS not run at all.
+

@@ -255,6 +255,27 @@ class Variables:
         await self._changed(who, "change_variable" if was else "add_variable", made.name, kept=made.origin)
         return {"variable": self._one(made.name), "kernels": self._kernels()}
 
+    def taken(self) -> set[str]:
+        """Every name a variable has here: this computer's own and the ones a key vault gives."""
+        return {d.name for d in self._defined()} | set(self._vault_of())
+
+    async def declare(self, names: list[str], who: str = "user") -> list[str]:
+        """Keyring variables named but not set on this computer yet (a found connection's password: Set it
+        asks once, never typed by the app). A name already here is left as it is. The names added."""
+        defined = self._defined()
+        have = {d.name for d in defined} | set(self._vault_of())
+        added = [rules.check_name(n) for n in dict.fromkeys(names) if n not in have]
+        if not added:
+            return []
+        if len(defined) + len(added) > rules.MAX_VARIABLES:
+            raise rules.VariableError(f"This computer keeps at most {rules.MAX_VARIABLES} variables.")
+        self._write([*defined, *(rules.Defined(n, "keyring") for n in added)])
+        for name in added:
+            self.ws.audit.write(who, "add_variable", name, kept="keyring")
+        self.apply()
+        await self.ws.live.broadcast({"type": "variables_changed"})
+        return added
+
     def _forget(self, name: str) -> None:
         try:
             self._secrets.delete(name)

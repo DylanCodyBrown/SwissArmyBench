@@ -411,6 +411,17 @@ src/swissarmybench/
     connections.py       which blades are connections (database, file, key vault), the Add connection form, a
                          password's source (renamed in the code: secret("WAREHOUSE_PASSWORD")), a vault's
                          secret names as variables (warehouse-password -> WAREHOUSE_PASSWORD)
+    found_connections.py Find connections on this computer (the owner, 2026-11-20): Found and Source (no field
+                         for a password), kinds from a tool's words, connection strings, JDBC and database URLs,
+                         objects with a host, port and database; every password cut out (clean); the list (merged,
+                         Already added by its settings, kinds with no connection said); a row's import body from
+                         its starter's code (its sign-in's way; its password secret("<NAME>_PASSWORD"))
+    found_readers.py     the known tools read exactly (ODBC registry values, odbc.ini, .dsn; SSMS RegSrvr.xml and
+                         UserSettings.xml; DBeaver data-sources.json, never credentials-config.json; Azure Data
+                         Studio and VS Code settings.json; JetBrains dataSources.xml and its projects; pgAdmin 4's
+                         rows; MySQL Workbench; HeidiSQL; .odc, .udl), PLACES (each tool's file per system), the
+                         hint scan (connection-shaped strings; SKIP_NAMES: browsers, password managers, key stores,
+                         sync caches, this app's own; size, count and time caps)
     notebooks.py         the Workbench's notebooks (.ipynb; a SQL cell is a %%sql code cell, a DAX cell a
                          %%dax one, an HTML cell a %%html one with its pane's height in its metadata) and scripts;
                          each cell's number (never changes, never reused), its name (a label, in its
@@ -573,6 +584,9 @@ src/swissarmybench/
                          process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
+    found_connections.py Find connections on this computer: the scan off the loop (Cancel), the last list in memory,
+                         import (each a connection by ConnectionService.save, its password a variable declared not
+                         set); the agent's scan and import on the user's Allow
     session_log.py       the Session page: the audit heard (Heard), this session's entries in memory, the
                          `session_entry` notice; Follow the agent (follow.json; 403 for the agent)
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
@@ -695,6 +709,9 @@ src/swissarmybench/
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
     views.py             the view cache and windows
     catalogs.py          loaded catalogs: tree queries and search in the locked DuckDB
+    found_connections.py Find connections on this computer: each tool's files found per system (a stand-in home and
+                         system for tests: SWISSARMYBENCH_FIND_HOME, _FIND_SYSTEM), the registry read through a
+                         seam (named values only; winreg on Windows), pgAdmin's database read-only, the hint walk
     blades.py            saved blades (the library's connections/, vaults/, blades/<name>.blade.py: one portable
                          file each, written only when its text changes), blade folders (.blade.py files found
                          by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
@@ -752,7 +769,7 @@ src/swissarmybench/
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, explorer, library,
-                         shared_catalog, team). Every route serves
+                         shared_catalog, team, found_connections). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -876,7 +893,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Analyze and the ERD to the front, workbenchPage.ts a cell; never while the user
-                         types; the rail's count); connectionsWindow.ts the
+                         types; the rail's count); findConnections.ts the Connections page's Find connections on this computer… (the scan gated
+                         with Cancel, the list: search, Select all, Already added, no connection yet, the amber mark;
+                         Import); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls; no APIs);
                          connectionAccess.ts a card's Access section (what its app registrations reach, when and
                          where checked, Check again);
