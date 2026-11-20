@@ -2548,6 +2548,34 @@ def connections_test(a: dict[str, Any]) -> Any:
     return api.call("POST", "/connections/test", body)
 
 
+# ----- Find connections on this computer: the known tools (DBeaver, SSMS, ODBC...) and the hint scan -----
+
+
+@command(
+    "connections_find",
+    "Find connections on this computer (DBeaver, SSMS, ODBC, Azure Data Studio, VS Code, JetBrains, pgAdmin, "
+    "MySQL Workbench, HeidiSQL, Office .odc/.udl, then a search of the app settings folders): waits for the "
+    "user's Allow. Rows: id, name, kind, server, database, user, from, already, supported (never a password)",
+    opt("hints", "false: the known tools only (no search).", "bool"),
+    opt("cancel", "Stop the running search.", "bool"),
+)
+def connections_find(a: dict[str, Any]) -> Any:
+    if a.get("cancel"):
+        return api.call("POST", "/connections/found/cancel", {})
+    body = {"hints": False} if a.get("hints") is False else {}
+    return api.call("POST", "/connections/found", body)
+
+
+@command(
+    "connections_import_found",
+    "Import rows of the last connections_find as library connections (each password a variable not set on "
+    "this computer): on the user's Allow",
+    req("ids", "The rows' ids.", "json"),
+)
+def connections_import_found(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/connections/found/import", {"ids": a["ids"]})
+
+
 # ----- a connection from your own Python: three boxes and where its variables come from -----
 
 _PYTHON_ARGS = (

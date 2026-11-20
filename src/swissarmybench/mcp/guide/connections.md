@@ -71,6 +71,17 @@ a variable by its name.
   `{"<id>": {"value": path, "env": "TRINO_KEYSTORE_PATH"}}`; `env: null` makes it a plain path again.
   An export and a script's run settings then list the variable.
 
+## Found on this computer
+- `connections_find`: the connections the user's tools keep (ODBC data sources, SSMS, DBeaver, Azure Data
+  Studio, VS Code's mssql and SQLTools, JetBrains, pgAdmin 4, MySQL Workbench, HeidiSQL, Office .odc and
+  .udl), then a few seconds' search of the app settings folders (`searched: true`; `hints=false` skips it).
+  It reads through the user's folders, so it waits for the user's Allow. Read-only; never a password.
+- Each row: `id`, `name`, `kind`, `server`, `database`, `user`, `from` (each tool, and its folder),
+  `already` (the library's connection it is), `supported` (false: `why`, no connection of its kind yet),
+  `local` (Only works on your machine). The same connection from several tools is one row.
+- `connections_import_found(ids)` (on Allow): each a library connection from its starter's code, its
+  password a variable named and not set here (`variables`): the user sets it once (Set up this computer).
+
 ## Lakes and SharePoint
 - Five kinds (`connections_types`, group "Lakes and SharePoint"): `onelake`, `datalake`, `delta`,
   `sharepoint` (lists), `sharepoint_docs` (libraries). Their own code lists and reads their tables; the

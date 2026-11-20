@@ -14,6 +14,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_catalog.py        catalogs (a source's names and types)
   routes_blades.py         blades (saved code that loads): the user's alone
   routes_connections.py    connections (database and file blades, seen apart): the user's alone
+  routes_found_connections.py  Find connections on this computer: the known tools and the hint scan, import
   routes_connection_tables.py  a connection's tables: the tree, Open all, DuckDB SQL naming them
   routes_connection_swap.py  a table's connection swapped (its steps kept), every table of a deleted
                            one moved, the code that named it pointed at the new one
@@ -99,6 +100,7 @@ from swissarmybench.server import (
     routes_extensions,
     routes_file_dialogs,
     routes_folders,
+    routes_found_connections,
     routes_grids,
     routes_intellisense,
     routes_kind_colours,
@@ -315,6 +317,7 @@ def create_app(
             *routes_blades.routes(ctx.blades),
             *routes_connection_swap.routes(ctx.connection_swap),
             *routes_connection_tables.routes(ctx.connection_tables, ctx.blades, ctx.connections),
+            *routes_found_connections.routes(ctx.found_connections),
             *routes_connections.routes(
                 ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
             ),

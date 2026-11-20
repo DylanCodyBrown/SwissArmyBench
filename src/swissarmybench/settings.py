@@ -86,6 +86,19 @@ def _claude_standin() -> Path | None:
     return Path(override) if override else None
 
 
+def _find_home() -> Path | None:
+    """SWISSARMYBENCH_FIND_HOME (tests): Find connections on this computer looks only under this folder, as
+    if it were the home folder (the system's own folders below it too)."""
+    override = env("SWISSARMYBENCH_FIND_HOME")
+    return Path(override) if override else None
+
+
+def _find_system() -> str | None:
+    """SWISSARMYBENCH_FIND_SYSTEM (tests): windows, mac or linux, the layout of the folders found."""
+    override = env("SWISSARMYBENCH_FIND_SYSTEM")
+    return override if override in ("windows", "mac", "linux") else None
+
+
 def _seconds(name: str, default: float) -> Callable[[], float]:
     """A lifecycle time: SWISSARMYBENCH_LIFE_<NAME> overrides it in seconds (tests, a real run)."""
 
@@ -167,6 +180,10 @@ class Settings:
     # Launch Claude (services/claude.py): a stand-in for finding and starting Claude (tests); None: the real
     # ones.
     claude_standin: Path | None = field(default_factory=_claude_standin)
+    # Find connections on this computer (services/found_connections.py): a stand-in home folder and system
+    # (tests); None: this computer's own.
+    find_home: Path | None = field(default_factory=_find_home)
+    find_system: str | None = field(default_factory=_find_system)
     catalogs_at_once: int = 2
     # Start-up's catalogs wait for the app's first window, at most this long (services/catalog_loading.py).
     catalogs_start_wait_seconds: float = 15.0
