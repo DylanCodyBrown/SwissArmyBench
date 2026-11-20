@@ -59,7 +59,7 @@ import { accessSection } from "./connectionAccess";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
 import { clearError, errorHere, errorMark, errorNote, showError, warningNote } from "./errorNote";
-import { namesVariable, variableBox } from "./variableBox";
+import { forgetVariables, namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
 import { openFindConnections } from "./findConnections";
@@ -1218,6 +1218,22 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     // Every secret (a new vault's default): each one under its own name, new ones too; a box renames one.
     const every = h("input", { type: "checkbox", checked: editing ? Boolean(form.vault_all) : true, "aria-label": "Every secret in the vault" }) as HTMLInputElement;
     const mapRows: { secret: string; env: HTMLInputElement; use: HTMLInputElement; row: HTMLElement }[] = [];
+    // The names other sources give (your variables, other vaults), for the rows' inline check.
+    let takenNames: Map<string, string> | null = null;
+    let takenAsked: Promise<void> | null = null;
+    const loadTaken = (): Promise<void> =>
+      (takenAsked ??= api<{ variables: { name: string; from: string; vault?: string; kept?: string }[] }>("/variables").then(
+        (r) => {
+          takenNames = new Map(
+            r.variables
+              .filter((v) => (v.from === "vault" ? v.vault !== editing : Boolean(v.kept)))
+              .map((v) => [v.name, v.from === "vault" ? (v.vault ?? "a key vault") : "your variables"]),
+          );
+        },
+        () => undefined,
+      ));
+    // The names the form's read listed: kept with the save, so the vault's variables are there at once.
+    let readNames: string[] | null = null;
     const mapBody = h("tbody", {});
     const mapFilter = h("input", { type: "search", placeholder: "Filter", "aria-label": "Filter the secrets", hidden: true }) as HTMLInputElement;
     /** A secret's row. `mapped`: the variable it was given; none, and it takes the vault's own name. */
@@ -1226,8 +1242,20 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       const tick = h("input", { type: "checkbox", checked: use, "aria-label": `Use ${secret}` }) as HTMLInputElement;
       const own = envFor(secret);
       const variable = h("input", { type: "text", class: "mono", value: mapped && mapped !== own ? mapped : "", placeholder: own, spellcheck: false, "aria-label": `${secret}: the variable's name` }) as HTMLInputElement;
-      variable.addEventListener("input", () => (tick.checked = true));
-      const row = h("tr", {}, h("td", {}, tick), h("td", {}, h("code", {}, secret)), h("td", {}, variable));
+      const cell = h("td", {}, variable);
+      // One name, one variable: a name typed here that another source gives is said before saving.
+      const check = (): void => {
+        cell.querySelector(".error-mark")?.remove();
+        const typedName = variable.value.trim();
+        const by = typedName ? takenNames?.get(typedName) : undefined;
+        if (by) cell.append(errorMark(`${typedName} is already a variable (from ${by}). Pick another name.`));
+      };
+      variable.addEventListener("input", () => {
+        tick.checked = true;
+        check();
+      });
+      void loadTaken().then(check);
+      const row = h("tr", {}, h("td", {}, tick), h("td", {}, h("code", {}, secret)), cell);
       mapRows.push({ secret, env: variable, use: tick, row });
       mapBody.insertBefore(row, newRow);
       mapFilter.hidden = mapRows.length <= 10;
@@ -1269,6 +1297,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           newSecret.focus();
           return;
         }
+        readNames = r.names.map((m) => m.secret);
         for (const m of r.names) addMapping(m.secret, null, false);
         result.replaceChildren(h("p", { class: "status-ok" }, `${r.names.length} secret${r.names.length === 1 ? "" : "s"}`));
       } catch (e) {
@@ -1358,9 +1387,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     const save = async (): Promise<void> => {
       try {
         await typedToVariables();
-        const body = { ...sent(), secrets: typed() };
+        const body = { ...sent(), secrets: typed(), ...(isVault && readNames ? { vault_names: readNames } : {}) };
         await (editing ? api(`/connections/${encodeURIComponent(editing)}`, "PUT", body) : api("/connections", "POST", body));
         toast(`Saved ${name.value.trim()}.`);
+        if (isVault) forgetVariables(); // the ${ list read again: the vault's variables are in it now
         if (what.then) what.then(name.value.trim());
         else savedNow(name.value.trim());
       } catch (e) {

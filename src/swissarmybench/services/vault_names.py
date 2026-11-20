@@ -16,7 +16,7 @@ time I update or reopen the app my Vault variables disappear").
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from typing import Any, Protocol
 
 from swissarmybench.domain import connections as connection_rules
@@ -41,9 +41,19 @@ class Files(Protocol):
 
 
 class KeptVaultNames:
-    def __init__(self, files: Files, now: Callable[[], str]) -> None:
+    def __init__(
+        self,
+        files: Files,
+        now: Callable[[], str],
+        vaults: Callable[[], list[Blade]] = lambda: [],
+        defined: Callable[[], Iterable[str]] = lambda: (),
+    ) -> None:
         self._files = files
         self._now = now  # ISO 8601 in UTC
+        # Every vault blade, and the names of the user's own variables (variables.toml, local/, the keyring):
+        # one name, one variable (bootstrap points them at the blade store and the Variables page).
+        self.vaults = vaults
+        self.defined = defined
         self._cache: dict[str, rules.Remembered | None] = {}  # by file name
         self._failed: dict[str, str] = {}  # vault (case folded) -> why its last read failed
         self._reading: set[str] = set()  # vaults (case folded) being read now
@@ -54,21 +64,68 @@ class KeptVaultNames:
             self._cache[name] = rules.parse(self._files.read(name))
         return self._cache[name]
 
+    def _input(self, blade: Blade, secrets: Sequence[str] | None = None) -> rules.VaultIn:
+        found = self.remembered(blade.name)
+        kept = dict(found.names) if found is not None else {}
+        listed = list(secrets) if secrets is not None else list(kept)
+        return rules.VaultIn(blade.name, dict(blade.vault_mapping), blade.vault_all, listed, kept)
+
+    def _inputs(self, fresh: Mapping[str, Sequence[str]] | None = None) -> list[rules.VaultIn]:
+        fresh = fresh or {}
+        return [self._input(b, fresh.get(b.name)) for b in self.vaults() if b.kind == "vault"]
+
+    def reserved(self, inputs: Sequence[rules.VaultIn] | None = None) -> dict[str, str]:
+        """The names that keep their plain name, and whose: the user's variables, the vaults' own entries."""
+        return rules.reserved(self.defined(), self._inputs() if inputs is None else inputs)
+
+    def assigned(self, fresh: Mapping[str, Sequence[str]] | None = None) -> dict[str, rules.Assigned]:
+        """Every vault's variables, no name given twice (`fresh`: a vault's names as just read)."""
+        inputs = self._inputs(fresh)
+        return rules.assign(inputs, self.reserved(inputs))
+
     def mapping(self, blade: Blade) -> dict[str, str]:
-        """A vault that loads every secret: its remembered variables (variable -> secret), the user's
-        renames kept. Any other blade: none."""
+        """A vault that loads every secret: its variables (variable -> secret) from its remembered names, a
+        name taken elsewhere prefixed with the vault's. Any other blade: none."""
         if blade.kind != "vault" or not blade.vault_all:
             return {}
-        found = self.remembered(blade.name)
-        return found.mapping(blade.vault_mapping) if found is not None else {}
+        found = self.assigned().get(blade.name)
+        return dict(found.mapping) if found is not None else {}
+
+    def notes(self) -> dict[str, dict[str, tuple[str, str]]]:
+        """Each vault's prefixed variables: the plain name and what took it."""
+        return {name: dict(a.notes) for name, a in self.assigned().items() if a.notes}
+
+    def kept_of(self, vault: str) -> dict[str, str]:
+        """secret -> the variable it was given (a kernel's load gives the same names)."""
+        found = self.remembered(vault)
+        return dict(found.names) if found is not None else {}
+
+    def taken(self, skip_vault: str | None = None) -> dict[str, str]:
+        """Every name a variable has, and whose (a vault's name, or your variables); `skip_vault`'s own left
+        out (its form being saved)."""
+        out = {name: rules.YOURS for name in self.defined()}
+        for vault, found in self.assigned().items():
+            if skip_vault is not None and vault.casefold() == skip_vault.casefold():
+                continue
+            for env in found.mapping:
+                out.setdefault(env, vault)
+        return out
 
     def record(self, vault: str, found: Iterable[Any]) -> bool:
-        """A read's names kept (names only). Whether they changed (the file is written only then)."""
+        """A read's names kept (names only), each with the variable it is given. Whether they changed (the
+        file is written only then)."""
         vault = vault.strip()
         if not vault:
             return False
         self._failed.pop(vault.casefold(), None)
-        names = rules.rows(found)
+        secrets = [secret for secret, _ in rules.rows(found)]
+        blade = next((b for b in self.vaults() if b.kind == "vault" and b.name == vault), None)
+        names = rules.rows(secrets)
+        if blade is not None and blade.vault_all:
+            given = self.assigned({vault: secrets}).get(vault)
+            if given is not None:
+                by_secret = {secret: env for env, secret in given.mapping.items()}
+                names = rules.rows({"secret": s, "env": by_secret.get(s, "")} for s in secrets)
         was = self.remembered(vault)
         if was is not None and was.names == names and was.vault == vault:
             return False
@@ -88,9 +145,7 @@ class KeptVaultNames:
         if blade.kind != "vault":
             return None
         found = self.remembered(blade.name)
-        count = len(blade.vault_mapping)
-        if blade.vault_all:
-            count = len(found.mapping(blade.vault_mapping)) if found is not None else len(blade.vault_mapping)
+        count = len(self.mapping(blade)) if blade.vault_all else len(blade.vault_mapping)
         out: dict[str, Any] = {"count": count, "read_at": found.read_at if found is not None else None}
         if blade.name.casefold() in self._reading:
             out["reading"] = True

@@ -33,6 +33,7 @@ from swissarmybench.domain import (
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import project_scope as scope_rules
+from swissarmybench.domain import vault_names as vault_rules
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
     Blade,
@@ -455,11 +456,25 @@ class BladeService:
         return {"shown": str(path)}
 
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
+        read_names: list[str] | None = None
         if isinstance(body, dict):
             self._table_free(body.get("table"), str(body.get("name") or previous or ""))
+            if body.get("kind") == "vault":
+                body = dict(body)
+                # The form's read: the vault's names as it showed them, kept with the save (names only).
+                listed = body.pop("vault_names", None)
+                if isinstance(listed, list):
+                    read_names = [str(n) for n in listed if isinstance(n, str) and n.strip()]
+                self._vault_names_free(body, previous)
         blade = self._blades.save(body, previous)
-        if self.kept_names is not None and blade.kind == "vault" and previous and previous != blade.name:
-            self.kept_names.rename(previous, blade.name)  # its remembered names follow it
+        if self.kept_names is not None and blade.kind == "vault":
+            if previous and previous != blade.name:
+                self.kept_names.rename(previous, blade.name)  # its remembered names follow it
+            # Its variables given out again (one name, one variable), from the names just read or kept.
+            found = self.kept_names.remembered(blade.name)
+            names = read_names if read_names is not None else (found.secrets() if found is not None else None)
+            if names is not None and self.kept_names.record(blade.name, names):
+                await self.ws.live.broadcast({"type": "variables_changed"})
         if isinstance(body, dict) and isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(blade.name, body["secrets"])
         self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
@@ -470,6 +485,29 @@ class BladeService:
             for told in self.web_call_saved:
                 await told(str(blade.web_call["api"]))
         return self.summary(blade)
+
+    def _vault_names_free(self, body: dict[str, Any], previous: str | None) -> None:
+        """A vault's own entries: no variable name given twice (the owner, 2026-11-20), not by its own rows,
+        the user's variables or another vault."""
+        if self.kept_names is None:
+            return
+        rows = body.get("vault_mapping")
+        envs = (
+            [str(r.get("env") or "").strip() for r in rows if isinstance(r, dict)]
+            if isinstance(rows, list)
+            else []
+        )
+        own = str(previous or body.get("name") or "")
+        taken = self.kept_names.taken(skip_vault=own)
+        seen: set[str] = set()
+        for env in envs:
+            if not env:
+                continue
+            if env in seen:
+                raise BladeError(vault_rules.taken_words(env, str(body.get("name") or own)))
+            seen.add(env)
+            if env in taken:
+                raise BladeError(vault_rules.taken_words(env, taken[env]))
 
     async def remove(self, name: str, who: str = "user") -> dict[str, Any]:
         """Delete a blade. A connection's: the relationships its tables held go from the ones in use too
@@ -793,7 +831,7 @@ class BladeService:
                     "label": v.name,
                     "code": v.code,
                     "variable": v.variable,
-                    "mapping": v.vault_mapping,
+                    "mapping": self.remembered(v) | dict(v.vault_mapping),  # its names as given out here
                     "every": v.vault_all,
                     "secrets": self._blades.saved_secrets(v),
                 }

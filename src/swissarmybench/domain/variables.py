@@ -142,7 +142,7 @@ def put(
         raise VariableError('A variable is kept "from" value (a plain value) or keyring (a secret).')
     before = next((d for d in defined if d.name == name), None)
     if before is None and name in vault_of:
-        raise VariableError(f"{name} comes from {vault_of[name]}: rename it there, or choose another name.")
+        raise VariableError(f"{name} is already a variable (from {vault_of[name]}). Pick another name.")
     if before is None and len(defined) >= MAX_VARIABLES:
         raise VariableError(f"This computer keeps at most {MAX_VARIABLES} variables.")
     value = body.get("value")
@@ -205,6 +205,8 @@ class ConnectionFacts:
     vault: bool = False
     every: bool = False  # a vault that loads every secret it holds
     read_only: bool = False  # a pack's or a blade folder's
+    # A vault's variables named with its prefix (another had the plain name): variable -> (plain, taken by).
+    notes: Mapping[str, tuple[str, str]] = field(default_factory=dict)
 
 
 def variable_shaped(secret: str) -> bool:
@@ -299,6 +301,7 @@ class Variable:
     set: bool = False
     vault_read_only: bool = False
     uses: list[Use] = field(default_factory=list)
+    note: str | None = None  # a vault's prefixed name: why (the plain one was taken)
 
     @property
     def secret(self) -> bool:
@@ -322,6 +325,8 @@ class Variable:
         }
         if self.source == "vault":
             out |= {"vault": self.vault, "vault_secret": self.vault_secret}
+            if self.note:
+                out["note"] = self.note
         if self.owner:
             out["owner"] = self.owner
         if self.defined is not None:
@@ -362,13 +367,16 @@ def listing(
     for c in connections:
         if not c.vault:
             continue
-        if c.every:
+        if c.every and not c.vault_mapping:  # its names not read on this computer yet
             every.append(c.name)
         for variable, secret in c.vault_mapping.items():
             v = at(variable)
             if v.source == "missing":
                 v.source, v.vault, v.vault_secret, v.set = "vault", c.name, secret, True
                 v.vault_read_only = c.read_only
+                if variable in c.notes:
+                    plain, by = c.notes[variable]
+                    v.note = f"named {variable}: {plain} was taken by {by}"
     for d in defined:
         v = at(d.name)
         v.defined = d
@@ -486,7 +494,8 @@ def check_rename(variables: Sequence[Variable], body: Any) -> tuple[Variable, st
         raise VariableError(f"{v.name} is its name already.")
     clash = next((o for o in variables if o.name == to and (o.defined or o.source == "vault")), None)
     if clash is not None:
-        raise VariableError(f"{to} is a variable already.")
+        by = clash.vault if clash.source == "vault" and clash.vault else "your variables"
+        raise VariableError(f"{to} is already a variable (from {by}). Pick another name.")
     if v.defined is None and not (v.source == "vault" and not v.vault_read_only):
         where = v.owner or v.vault or "this computer's environment"
         raise VariableError(

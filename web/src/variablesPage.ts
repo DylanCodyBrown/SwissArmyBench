@@ -57,6 +57,7 @@ interface Variable {
   uses: Use[];
   vault?: string;
   vault_secret?: string;
+  note?: string; // a vault's name prefixed: the plain one was taken
   owner?: string;
   kept?: "value" | "keyring";
   local?: boolean;
@@ -268,6 +269,7 @@ function drawVariables(at?: string): void {
     const cell = h("div", { class: "variable-value" });
     if (v.from === "vault") {
       cell.append(h("span", { class: "variable-vault" }, icon("key"), h("span", {}, v.vault ?? ""), h("span", { class: "muted" }, " · "), h("span", { class: "mono" }, v.vault_secret ?? "")));
+      if (v.note) cell.append(h("span", { class: "variable-note muted" }, v.note));
     } else if (v.hidden) {
       const shown = h("span", { class: "mono variable-dots" }, DOTS);
       const show = button("Show", async () => {

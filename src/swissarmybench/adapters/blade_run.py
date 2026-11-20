@@ -123,43 +123,38 @@ def run_code(
     return names[variable], names
 
 
-def run_vault(
-    code: str,
-    variable: str,
-    mapping: dict[str, str],
-    secrets: dict[str, str],
-    label: str = "the vault",
-    every: bool = False,
-    listed: list[str] | None = None,
-) -> dict[str, str]:
-    """Run a vault blade and set its environment variables. The blade's variable is a function from a
-    secret's name in the vault to its value; `mapping` is environment variable -> secret name. `every`:
-    every secret its names() lists, each under its own name (domain/blades.py every_secret), the mapping
-    only renaming. Returns the variables set, with their values (for this Python only: the server never
-    keeps them). `listed`, with `every`: given the names its names() listed (names only, kept by the
-    server: services/vault_names.py)."""
+def open_vault(
+    code: str, variable: str, secrets: dict[str, str], label: str = "the vault", every: bool = False
+) -> tuple[Callable[[str], Any], list[str] | None]:
+    """Run a vault blade's code: its getter (a secret's name -> its value) and, with `every`, the names its
+    names() lists (None without `every`)."""
     getter, made = run_code(code, variable, secrets, label)
     if not callable(getter):
         raise BladeRunError(
             f"{label}'s variable {variable!r} must be a function that takes a secret's name and returns its "
             f"value; it is a {type(getter).__name__}."
         )
-    if every:
-        lister = made.get("names")
-        if not callable(lister):
-            raise BladeRunError(
-                f"{label} loads every secret, but its code has no names() to list them: add one, or "
-                "choose the secrets it loads."
-            )
-        try:
-            found = [str(n) for n in lister()]
-        except BaseException as error:
-            if isinstance(error, KeyboardInterrupt | SystemExit):
-                raise
-            raise _failure(error, secrets, f"{label}, listing its secrets") from None
-        if listed is not None:
-            listed.extend(found)
-        mapping = blades.every_secret(found, mapping)
+    if not every:
+        return getter, None
+    lister = made.get("names")
+    if not callable(lister):
+        raise BladeRunError(
+            f"{label} loads every secret, but its code has no names() to list them: add one, or "
+            "choose the secrets it loads."
+        )
+    try:
+        return getter, [str(n) for n in lister()]
+    except BaseException as error:
+        if isinstance(error, KeyboardInterrupt | SystemExit):
+            raise
+        raise _failure(error, secrets, f"{label}, listing its secrets") from None
+
+
+def read_vault(
+    getter: Callable[[str], Any], mapping: dict[str, str], secrets: dict[str, str], label: str = "the vault"
+) -> dict[str, str]:
+    """Each entry's value (variable -> secret's name in the vault), set as this Python's environment
+    variables; the values returned (for this Python only: the server never keeps them)."""
     values: dict[str, str] = {}
     for env, name in mapping.items():
         try:
@@ -173,6 +168,25 @@ def run_vault(
         values[env] = str(value)
     os.environ.update(values)
     return values
+
+
+def run_vault(
+    code: str,
+    variable: str,
+    mapping: dict[str, str],
+    secrets: dict[str, str],
+    label: str = "the vault",
+    every: bool = False,
+) -> dict[str, str]:
+    """Run a vault blade and set its environment variables. The blade's variable is a function from a
+    secret's name in the vault to its value; `mapping` is environment variable -> secret name. `every`:
+    every secret its names() lists, each under its own name (domain/blades.py every_secret), the mapping
+    only renaming. Returns the variables set, with their values (for this Python only: the server never
+    keeps them)."""
+    getter, found = open_vault(code, variable, secrets, label, every)
+    if found is not None:
+        mapping = blades.every_secret(found, mapping)
+    return read_vault(getter, mapping, secrets, label)
 
 
 def run_catalog(

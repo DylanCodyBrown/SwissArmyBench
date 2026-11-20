@@ -13539,6 +13539,11 @@ dialog.find-data .dialog-body {
   gap: 4px;
 }
 
+.variable-note {
+  display: block;
+  font-size: 12px;
+}
+
 .variables-vault-stale {
   display: flex;
   align-items: center;

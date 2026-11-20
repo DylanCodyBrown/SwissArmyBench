@@ -199,7 +199,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `relationship-sets/`, `variables.toml`, `colours.toml`, `catalog/` (the shared catalog, below), `local/` (this
   computer only, git-ignored: `local/variables.toml`, and `local/vault-names/<vault>.json`, a key vault's secret
   names and their variables as last read here, never a value, so a vault that loads every secret gives its
-  variables from the first second after a start; the owner, 2026-11-20), README.md and .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
+  variables from the first second after a start; one name, one variable: a vault's name already taken is given
+  as `<VAULT>_<NAME>`; the owner, 2026-11-20), README.md and .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
   nothing changes no byte. Never a secret, token, password or row in it (nor in a project): a connection names
   where its password comes from (keyring, environment, vault), resolved on each computer by its name; a
   clone asks for each missing one. This computer's older stores (blades/*.json, variables.json, colours.toml,
@@ -391,8 +392,10 @@ src/swissarmybench/
                          (merge markers and broken JSON said), a listing applied (gone since a date, pruned after N
                          days), the model's keys and relationships added, a deletion taken out, a project's usage
     vault_names.py       a key vault's secret names remembered (local/vault-names/<vault>.json: the names, each one's
-                         variable, the time read; sorted, byte-stable, never a value), read back as the vault's
-                         variables (a renamed secret's name kept)
+                         variable as given out, the time read; sorted, byte-stable, never a value); one name, one
+                         variable (assign: your variables and a vault's own entries keep theirs, a vault that
+                         loads every secret gives a taken one as <VAULT>_<NAME>, then _2; a name given before
+                         kept while free, so none jumps between starts); the refusal's one sentence
     library_setup.py     Set up this computer: each vault (readable, its sign-in, the variables it gives), the
                          values to type once, each connection's status (works, needs, only works here), shared
                          projects not set up here, the count's words, the notice

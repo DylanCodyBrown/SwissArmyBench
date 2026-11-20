@@ -362,6 +362,7 @@ def bootstrap(
         blade: Blade, mode: str, typed: dict[str, str], extra: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         job = blade_runner.payload(blade_store, blade, mode, typed, extra)
+        given_out(job)
         kind = "catalog" if mode == "catalog" else "blade"
         # A connection's run through the app (a catalog load, a table read, a query, a test) is a call
         # the Connections page counts (services/connection_usage.py; memory only).
@@ -375,6 +376,21 @@ def bootstrap(
         about = answer.get("about") if isinstance(answer, dict) else None
         connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
         return answer
+
+    def given_out(job: dict[str, Any]) -> None:
+        """A vault that loads every secret: its names as given out here (no variable twice, a taken one
+        prefixed), the ones it lists now given out the same way (`yours`, `kept`: a kernel's load)."""
+        job["yours"] = sorted(kept_vault_names.defined())
+        for vault in job.get("vaults") or []:
+            if isinstance(vault, dict) and vault.get("every"):
+                label = str(vault.get("label") or "")
+                vault["kept"] = kept_vault_names.kept_of(label)
+                try:
+                    vault["mapping"] = kept_vault_names.mapping(blade_store.get(label)) | dict(
+                        vault["mapping"]
+                    )
+                except KeyError:
+                    pass
 
     async def vault_values(wanted: dict[str, dict[str, str]]) -> tuple[dict[str, str], list[str]]:
         """A scheduled script's variables from key vaults (vault -> variable -> secret), and what failed."""
@@ -413,6 +429,7 @@ def bootstrap(
         job = blade_runner.load_payload(blade_store)
         if job is None:
             return {}, []
+        given_out(job)
         try:
             answer = await blade_runner.run(job, settings.vault_timeout_seconds)
         except blade_runner.RefreshError as error:
@@ -870,7 +887,11 @@ def bootstrap(
         kernels=workbench.kernel_count,
         vault_values=vault_values,
         remembered=blades.remembered,
+        renamed_notes=kept_vault_names.notes,
     )
+    # One name, one variable: the vaults' names given out around the user's own variables.
+    kept_vault_names.vaults = blade_store.all
+    kept_vault_names.defined = variables.defined_names
     connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
     # Find connections on this computer (the owner, 2026-11-20): the known tools' files and the hint scan of
     # the app settings folders, read-only, on the user's click; never this app's own state folder or library.

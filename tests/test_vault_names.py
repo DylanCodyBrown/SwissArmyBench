@@ -80,12 +80,6 @@ def test_the_file_is_names_only_sorted_and_byte_stable() -> None:
     assert rules.parse(text) == made
     assert json.loads(text)["names"][1] == {"env": "api_key", "secret": "api-key"}
     assert text.endswith("}\n") and rules.file_name("Team vault") == "team_vault.json"
-    # The user's rename is kept; the rest take their own names.
-    assert made.mapping({"WAREHOUSE_PASSWORD": "warehouse-password"}) == {
-        "api_key": "api-key",
-        "Api__Key": "Api--Key",
-        "WAREHOUSE_PASSWORD": "warehouse-password",
-    }
     assert rules.parse("not json") is None and rules.parse('{"format": 99, "vault": "x"}') is None
     empty = rules.Remembered("Empty", (), "")
     assert rules.parse(rules.render(empty)) == empty

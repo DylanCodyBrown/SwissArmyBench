@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from playwright.sync_api import Browser, expect
+from playwright.sync_api import Browser, Locator, Page, expect
 
 from swissarmybench.client import push_client
-from tests.e2e.test_ui import browser, call  # noqa: F401
+from tests.e2e.test_ui import browser, call, not_now  # noqa: F401
 
 
 @contextmanager
@@ -106,4 +106,64 @@ def test_a_vaults_variables_are_there_after_a_restart(
         stale.get_by_role("button", name="Read again").click()
         expect(stale).to_have_count(0, timeout=20000)
         expect(card.locator(".variables-vault-count")).to_have_text("3 variables", timeout=20000)
+        page.context.close()
+
+
+def owners_vault(listed: Path) -> str:
+    return (
+        "import json\nfrom pathlib import Path\n\n\ndef names():\n"
+        f"    return json.loads(Path(r'{listed}').read_text())\n\n\ndef get(name):\n    return 'made-up'\n"
+    )
+
+
+def offered_for(page: Page, typed: str) -> Locator:
+    """Connections, Add connection, PostgreSQL, the Password box: the dollar-brace list for `typed`."""
+    dialog = page.locator(".area-page[data-page='connections']")
+    page.locator(".nav-rail [data-area='connections']").click()
+    page.get_by_role("button", name="Add connection").first.click()
+    page.locator(".connection-type", has_text="PostgreSQL").click()
+    not_now(page)
+    password = dialog.get_by_label("Password", exact=True)
+    password.click()
+    password.press_sequentially(typed)
+    return dialog.get_by_role("listbox", name="Variables")
+
+
+def test_the_owners_steps_add_read_save_then_the_dollar_brace(
+    browser: Browser,  # noqa: F811
+    tmp_path: Path,
+) -> None:
+    """The owner (0.0.29): "I mapped the vars in the vault, then went back to Connections and they don't show
+    when I type the dollar-brace." The suggested names kept, nothing typed over them."""
+    listed = tmp_path / "names.json"
+    listed.write_text(json.dumps(["warehouse-password", "crm-key"]))
+    with server(tmp_path) as first:
+        url = push_client.push(pd.DataFrame({"region": ["North"], "sales": [12]}), name="regions")
+        page = browser.new_context(viewport={"width": 1300, "height": 820}).new_page()
+        page.goto(url)
+        expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
+        dialog = page.locator(".area-page[data-page='connections']")
+        page.locator(".nav-rail [data-area='variables']").click()
+        page.locator('.area-page[data-page="variables"]').get_by_role("button", name="Add key vault").click()
+        page.locator(".variables-vault-types .connection-type", has_text="Azure Key Vault").click()
+        not_now(page)
+        dialog.locator("summary", has_text="Python code").click()
+        code = dialog.get_by_role("textbox", name="The Python this connection runs")
+        code.fill(owners_vault(listed))
+        code.dispatch_event("change")
+        expect(dialog.locator(".vault-map tbody tr:not(.vault-new)")).to_have_count(2)  # read by itself
+        dialog.locator(".area-page-foot").get_by_role("button", name="Save").click()
+        expect(dialog.locator(".area-page-title")).to_contain_text("Azure Key Vault", timeout=20000)
+        offered = offered_for(page, "${warehouse")
+        expect(offered.get_by_role("option").first).to_contain_text("warehouse_password")
+        expect(offered.get_by_role("option").first).to_contain_text("Key vault · Azure Key Vault")
+        page.context.close()
+        assert {v["name"] for v in call(first, "GET", "/variables")["variables"]} >= {"crm_key"}
+    with server(tmp_path):  # the same after a restart
+        url = push_client.push(pd.DataFrame({"region": ["North"], "sales": [12]}), name="regions")
+        page = browser.new_context(viewport={"width": 1300, "height": 820}).new_page()
+        page.goto(url)
+        expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
+        offered = offered_for(page, "${crm")
+        expect(offered.get_by_role("option").first).to_contain_text("crm_key")
         page.context.close()

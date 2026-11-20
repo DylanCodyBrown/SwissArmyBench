@@ -67,7 +67,7 @@ def test_a_secret_name_is_never_a_plain_value_and_names_are_checked() -> None:
         rules.put([], {"name": "SHOP_PASSWORD", "value": "x", "from": "value"}, {})
     with pytest.raises(rules.VariableError, match="letters, digits"):
         rules.put([], {"name": "9 bad", "value": "x"}, {})
-    with pytest.raises(rules.VariableError, match="comes from Team vault"):
+    with pytest.raises(rules.VariableError, match=r"already a variable \(from Team vault\)"):
         rules.put(
             [],
             {"name": "WAREHOUSE_PASSWORD", "value": "x", "from": "keyring"},
