@@ -103,6 +103,19 @@ CERTIFICATE_FILE = '''def certificate_file(value):
                 "certificate's PEM text (a key vault's)."
             )
         raise ValueError(f"The certificate{where} is neither a file's path nor PEM text (or base64 of it).")
+    # A PEM kept as a key vault secret through the portal's one-line box: its line breaks as spaces or as the
+    # two letters \\n; each block laid out again (its base64 joined and cut at 64).
+    import re
+
+    text = text.replace("\\\\r\\\\n", "\\n").replace("\\\\n", "\\n").replace("\\r", "")
+
+    def _laid_out(found):
+        body = "".join(found.group(2).split())
+        lines = "\\n".join(body[i : i + 64] for i in range(0, len(body), 64))
+        return f"-----BEGIN {found.group(1)}-----\\n{lines}\\n-----END {found.group(1)}-----\\n"
+
+    if "\\n" not in text:  # one line: its breaks were spaces
+        text = re.sub(r"-----BEGIN ([A-Z0-9 ]+)-----(.*?)-----END \\1-----", _laid_out, text, flags=re.S)
     folder = tempfile.mkdtemp(prefix="sab-certificate-")  # only you can read it (0700)
     atexit.register(shutil.rmtree, folder, True)
     path = os.path.join(folder, "certificate.pem")

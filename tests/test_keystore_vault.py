@@ -119,6 +119,11 @@ def values(m: made_up.Material) -> dict[str, tuple[str, str]]:
         "PEM text (Key Vault's PEM content type)": (pem, ""),
         "PEM text, its key encrypted": (made_up.pem_text(m, made_up.PASSWORD), made_up.PASSWORD),
         "base64 of PEM text": (b64(pem.encode()), ""),
+        # A PEM pasted into the portal's one-line secret box (the owner, 2026-11-20: "the .pem is stored as a
+        # secret not a certificate"): its line breaks became spaces, or the two letters backslash and n.
+        "PEM secret, line breaks as spaces": (" ".join(pem.split("\n")), ""),
+        "PEM secret, line breaks as backslash n": ("\\n".join(pem.split("\n")), ""),
+        "PEM secret, Windows line breaks as backslash r n": ("\\r\\n".join(pem.split("\n")), ""),
     }
 
 
@@ -131,6 +136,9 @@ def values(m: made_up.Material) -> dict[str, tuple[str, str]]:
         "PEM text (Key Vault's PEM content type)",
         "PEM text, its key encrypted",
         "base64 of PEM text",
+        "PEM secret, line breaks as spaces",
+        "PEM secret, line breaks as backslash n",
+        "PEM secret, Windows line breaks as backslash r n",
     ],
 )
 def test_a_vaults_value_is_read_as_the_keystore(m: made_up.Material, way: str) -> None:
@@ -202,6 +210,9 @@ def test_a_certificate_file_is_a_path_or_the_vaults_text_written_only_for_you(
         (m.ca_pem.decode(), m.ca_pem.decode()),
         (b64(m.ca_pem), m.ca_pem.decode()),  # base64 of the PEM
         (made_up.pem_text(m), made_up.pem_text(m)),  # a key with its certificates (sslkey and sslcert)
+        # The portal's one-line secret box: line breaks as spaces, or as the two letters backslash and n.
+        (" ".join(m.ca_pem.decode().split("\n")), m.ca_pem.decode()),
+        ("\\n".join(m.ca_pem.decode().split("\n")), m.ca_pem.decode()),
     ):
         path = make(value)
         assert path != value and Path(path).name == "certificate.pem"

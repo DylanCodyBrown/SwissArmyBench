@@ -4130,3 +4130,10 @@ Windows.
 
 The whole suite: the quick tests 4,807 passed (test_desktop_shell failed under load, 2 of 2 alone); the browser
 tests 394 passed (test_launch_page failed under load, passes alone).
+
+## A PEM kept as a key vault secret (2026-11-20)
+
+The owner keeps the .pem as a secret, not a certificate. A PEM pasted into the portal's one-line box arrives with
+its line breaks as spaces or as the two letters backslash-n: the keystore reader and certificate_file() lay each
+block out again. tests/test_keystore_vault.py: spaces, \\n and \\r\\n for the keystore, spaces and \\n for a
+certificate file; 32 passed.

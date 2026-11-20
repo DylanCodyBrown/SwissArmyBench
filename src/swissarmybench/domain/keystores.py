@@ -85,6 +85,21 @@ KEYSTORE_FILES = '''def keystore_files(path, password, alias=""):
         text = path.strip()
         data = b""
         if "-----BEGIN" in text:
+            # A PEM kept as a key vault SECRET (the owner, 2026-11-20): the portal's one-line box loses its
+            # line breaks (spaces instead) or keeps them as the two letters \\n; each block is laid out again
+            # (its base64 joined and cut at 64), so either reads as the file did.
+            import re
+
+            text = text.replace("\\\\r\\\\n", "\\n").replace("\\\\n", "\\n").replace("\\r", "")
+
+            def _laid_out(found):
+                body = "".join(found.group(2).split())
+                lines = "\\n".join(body[i : i + 64] for i in range(0, len(body), 64))
+                return f"-----BEGIN {found.group(1)}-----\\n{lines}\\n-----END {found.group(1)}-----\\n"
+
+            if "\\n" not in text:  # one line: its breaks were spaces
+                block = r"-----BEGIN ([A-Z0-9 ]+)-----(.*?)-----END \\1-----"
+                text = re.sub(block, _laid_out, text, flags=re.S)
             data = text.encode()
         else:
             try:
