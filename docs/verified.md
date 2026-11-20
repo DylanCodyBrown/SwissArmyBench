@@ -4072,3 +4072,12 @@ real SSMS 18-21 UserSettings.xml (its exact layout is from memory: the reader is
 pgAdmin (a database pgAdmin holds open), HeidiSQL's registry and how long the hint scan takes over a full AppData;
 macOS not run at all.
 
+
+## 0.0.29 before release (2026-11-20)
+
+The whole suite with Find connections merged: the quick tests 4,776 passed, none failed; the browser tests 391
+passed, 2 failed under `-n 2`. test_scm_page's footer-mark test was a real bug (the Source Control page drew a new
+commit box on each refresh, so a message being typed was lost and the commit refused: fixed in scmPage.ts, the box
+kept and its focus given back; 10 of 10 runs pass). test_sql_server_page's script-export test fails about 1 run in 4
+even alone (the file picker's first folder sometimes wins over a folder typed as it opens; the stale-answer guard is
+there, the cause not yet found): known, not from these changes.
