@@ -396,7 +396,7 @@ def test_trino_links_a_pem_over_https_with_a_password() -> None:
     names = {"user", "server", "port", "catalog", "scheme", "certificate file", "trust server certificate"}
     assert set(found) == names
     assert found["trust server certificate"].value is False  # checked: the certificate is not checked
-    assert found["scheme"].value == "https" and found["certificate file"].placeholder
+    assert found["scheme"].value == "https" and found["certificate file"].value == ""
     assert picker(found["certificate file"].to_json(), "trino") == "file"  # Browse… offers .pem files
     assert read_code(code).secrets == ["password"]  # the Password box: keyring, variable or vault
     # The .pem wins even where REQUESTS_CA_BUNDLE names another bundle (requests prefers that otherwise).

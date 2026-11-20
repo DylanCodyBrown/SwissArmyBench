@@ -19,6 +19,22 @@ runs the same in the app, a Workbench kernel, an exported script and an Azure Fu
              as every certificate file may). The file is never copied
   password   always `secret("TRINO_KEYSTORE_PASSWORD")`: the keyring, the environment or a vault
 
+From a key vault (the owner, 2026-11-20: "we need to make it possible that certificates can be retrieved
+from the vault for the Trino connection"), Trino's third way to sign in (TRINO_VAULT):
+
+  the value  `keystore = os.environ["TRINO_CLIENT_CERTIFICATE"]`, a `${NAME}` (12.7) the form points at a
+             vault's variable. Azure Key Vault keeps a certificate with its private key as a secret whose
+             value is the base64 PKCS#12 (content type application/x-pkcs12), or PEM text: the same
+             keystore_files reads a value that is not a file's path as base64 PKCS#12 or JKS (told by
+             the decoded first bytes), or as PEM with a BEGIN line. The bytes land only in the two 0600
+             files above: never the library, a project, a log or an answer (an error never says them)
+  password   its own variable, `keystore_password = os.environ["NAME"]` from its box's `${NAME}`: none
+             by default (Key Vault's own exports have none). A password is never a setting, except this
+             one written as a variable: the form's box takes `${NAME}` or nothing, never a typed value
+             (blades.py)
+  where      on a Function App the vault is read by its managed identity (the export's FROM_VAULTS), so
+             this way carries no "only works on your machine" note: nothing of it is on this disk
+
 Pure text and rules: no I/O.
 """
 
@@ -31,14 +47,20 @@ JCEKS_MAGIC: bytes = b"\xce\xce\xce\xce"
 PATH_VARIABLE: str = "TRINO_KEYSTORE_PATH"
 PASSWORD_NAME: str = "TRINO_KEYSTORE_PASSWORD"  # noqa: S105 (a secret's name, never its value)
 MARK: str = "CertificateAuthentication"  # how the form tells this way to sign in from the others
+# The key vault's way: the keystore is a variable's value (the form's sign-in tells it by VAULT_MARK, tried
+# before MARK, which its code holds too).
+VAULT_VARIABLE: str = "TRINO_CLIENT_CERTIFICATE"
+VAULT_MARK: str = 'keystore = os.environ["'
 
 
 def keystore_format(data: bytes) -> str:
-    """JKS, JCEKS, PKCS#12, or "" (none of those), by the file's first bytes."""
+    """JKS, JCEKS, PEM, PKCS#12, or "" (none of those), by the first bytes."""
     if data[:4] == JKS_MAGIC:
         return "JKS"
     if data[:4] == JCEKS_MAGIC:
         return "JCEKS"
+    if b"-----BEGIN" in data[:4096]:
+        return "PEM"
     if data[:1] == b"\x30":
         return "PKCS#12"
     return ""
@@ -47,22 +69,44 @@ def keystore_format(data: bytes) -> str:
 # The helper written into the connection's code. Standard library and cryptography; pyjks for JKS.
 KEYSTORE_FILES = '''def keystore_files(path, password, alias=""):
     """The keystore's private key and certificate chain as two PEM files only you can read, removed
-    when this Python ends: (certificate, key). PKCS#12, JKS or JCEKS, told by the file's first bytes."""
+    when this Python ends: (certificate, key). PKCS#12, JKS, JCEKS or PEM, told by the first bytes.
+    `path`: the keystore's file, or the keystore itself as a key vault keeps a certificate (base64
+    PKCS#12 or JKS, or PEM text)."""
     import atexit
     import base64
     import os
     import shutil
     import tempfile
 
-    if not os.path.isfile(path):
-        named = sorted(k for k, v in os.environ.items() if v == path)
-        raise FileNotFoundError(
-            f"No keystore file at {path}" + (f" (from {', '.join(named)})" if named else "") + ". "
-            "Choose it again here; where the code runs elsewhere (a function app), set its variable "
-            "to the file's path there."
-        )
-    with open(path, "rb") as file:
-        data = file.read()
+    if os.path.isfile(path):
+        with open(path, "rb") as file:
+            data = file.read()
+    else:  # a key vault's certificate (a variable's value): base64 PKCS#12 or JKS, or PEM text
+        text = path.strip()
+        data = b""
+        if "-----BEGIN" in text:
+            data = text.encode()
+        else:
+            try:
+                raw = base64.b64decode("".join(text.split()), validate=True)
+            except ValueError:
+                raw = b""
+            known = raw[:1] == b"\\x30" or raw[:4] in (b"\\xfe\\xed\\xfe\\xed", b"\\xce\\xce\\xce\\xce")
+            if len(raw) >= 32 and (known or b"-----BEGIN" in raw[:4096]):
+                data = raw
+        if not data:
+            named = sorted(k for k, v in os.environ.items() if v == path)
+            if len(path) < 400 and "\\n" not in path:
+                raise FileNotFoundError(
+                    f"No keystore file at {path}" + (f" (from {', '.join(named)})" if named else "") + ". "
+                    "Choose it again here; where the code runs elsewhere (a function app), set its variable "
+                    "to the file's path there."
+                )
+            raise ValueError(  # never the value itself: it may hold a key
+                "The keystore" + (f" from {', '.join(named)}" if named else "") + " is neither a "
+                "file's path nor a certificate: a key vault keeps one as base64 PKCS#12 (or JKS), or as "
+                "PEM text with its private key."
+            )
     magic = data[:4]
     if magic in (b"\\xfe\\xed\\xfe\\xed", b"\\xce\\xce\\xce\\xce"):
         kind = "JKS" if magic == b"\\xfe\\xed\\xfe\\xed" else "JCEKS"
@@ -100,6 +144,39 @@ KEYSTORE_FILES = '''def keystore_files(path, password, alias=""):
                 ) from None
         key = entry.pkey_pkcs8
         chain = [der for _, der in entry.cert_chain]
+    elif b"-----BEGIN" in data[:4096]:  # PEM: the certificates and the private key, as text
+        import re
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            NoEncryption,
+            PrivateFormat,
+            PublicFormat,
+            load_pem_private_key,
+        )
+
+        try:
+            found = x509.load_pem_x509_certificates(data)
+        except ValueError:
+            found = []
+        pattern = rb"-----BEGIN ((?:[A-Z]+ )*)PRIVATE KEY-----.+?-----END \\1PRIVATE KEY-----"
+        block = re.search(pattern, data, re.S)
+        if block is None or not found:
+            raise ValueError("The PEM holds no private key with its certificate.")
+        try:
+            loaded = load_pem_private_key(block.group(0), password.encode() if password else None)
+        except TypeError:  # a password for a key that has none, or none for one that has
+            if not password:
+                raise ValueError("The PEM's private key is encrypted: give its password.") from None
+            loaded = load_pem_private_key(block.group(0), None)
+        except ValueError:
+            raise ValueError("The PEM's password is wrong: its private key could not be opened.") from None
+        spki = PublicFormat.SubjectPublicKeyInfo
+        mine = loaded.public_key().public_bytes(Encoding.DER, spki)
+        found.sort(key=lambda c: c.public_key().public_bytes(Encoding.DER, spki) != mine)  # the leaf first
+        key = loaded.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption())
+        chain = [c.public_bytes(Encoding.DER) for c in found]
     elif magic[:1] == b"\\x30":
         from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption, PrivateFormat, pkcs12
 
@@ -117,7 +194,9 @@ KEYSTORE_FILES = '''def keystore_files(path, password, alias=""):
         key = store.key.private_bytes(Encoding.DER, PrivateFormat.PKCS8, NoEncryption())
         chain = [c.certificate.public_bytes(Encoding.DER) for c in (store.cert, *store.additional_certs)]
     else:
-        raise ValueError("The keystore's format is not known: it is not PKCS#12 (.p12, .pfx), JKS or JCEKS.")
+        raise ValueError(
+            "The keystore's format is not known: it is not PKCS#12 (.p12, .pfx), JKS, JCEKS or PEM."
+        )
 
     def pem(label, der):
         lines = base64.encodebytes(der).decode().replace("\\n", "")
@@ -138,16 +217,17 @@ KEYSTORE_FILES = '''def keystore_files(path, password, alias=""):
     return made[0], made[1]
 '''
 
-# Trino's two ways to sign in (server/blade_templates.py): the user's password, or the keystore.
+# Trino's ways to sign in (server/blade_templates.py): the user's password, or the client certificate
+# (from a key vault, or a keystore file on this computer).
 TRINO_BASIC = """import requests
 import trino
 
 user = "my_user"
-verify = r"C:\\certs\\my-company-ca.pem"
+verify = ""  # the certificate authority's .pem; empty: the system's own
 trust_server_certificate = False
 
 session = requests.Session()
-session.verify = False if trust_server_certificate else verify
+session.verify = False if trust_server_certificate else (verify or True)
 session.trust_env = False  # this .pem, even where REQUESTS_CA_BUNDLE names another
 
 conn = trino.dbapi.connect(
@@ -169,14 +249,14 @@ import trino
 user = "my_user"
 keystore = r"C:\\certs\\my.keystore"
 keystore_alias = ""  # the entry to use when the keystore holds more than one key
-verify = r"C:\\certs\\my-company-ca.pem"
+verify = ""  # the certificate authority's .pem; empty: the system's own
 trust_server_certificate = False
 
 
 {KEYSTORE_FILES}
 
 session = requests.Session()
-session.verify = False if trust_server_certificate else verify
+session.verify = False if trust_server_certificate else (verify or True)
 session.trust_env = False  # this .pem, even where REQUESTS_CA_BUNDLE names another
 
 certificate, private_key = keystore_files(keystore, secret("{PASSWORD_NAME}"), keystore_alias)
@@ -191,7 +271,40 @@ conn = trino.dbapi.connect(
     request_timeout=600,  # seconds: a long query is not cut off (the client's own default is 30)
 )"""
 
+TRINO_VAULT = f"""import os
+
+import requests
+import trino
+
+user = "my_user"
+keystore = os.environ["{VAULT_VARIABLE}"]  # a key vault's certificate: base64 PKCS#12, or PEM
+keystore_password = ""  # its variable when it has one (${{NAME}}); Key Vault's own have none
+keystore_alias = ""  # the entry to use when the keystore holds more than one key
+verify = ""  # the certificate authority's .pem (a key vault's too); empty: the system's own
+trust_server_certificate = False
+
+
+{KEYSTORE_FILES}
+
+session = requests.Session()
+session.verify = False if trust_server_certificate else (verify or True)
+session.trust_env = False  # this .pem, even where REQUESTS_CA_BUNDLE names another
+
+certificate, private_key = keystore_files(keystore, keystore_password, keystore_alias)
+conn = trino.dbapi.connect(
+    host="my-server",
+    port=443,
+    user=user,
+    catalog="hive",
+    http_scheme="https",
+    auth=trino.auth.{MARK}(certificate, private_key),
+    http_session=session,
+    request_timeout=600,  # seconds: a long query is not cut off (the client's own default is 30)
+)"""
+
+# The key vault's way before the file's: its code holds MARK too, and the form takes the first that fits.
 SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("Username and password", "BasicAuthentication", TRINO_BASIC),
-    ("Client certificate (keystore)", MARK, TRINO_KEYSTORE),
+    ("Client certificate (from a key vault)", VAULT_MARK, TRINO_VAULT),
+    ("Client certificate (a file on this computer)", MARK, TRINO_KEYSTORE),
 )

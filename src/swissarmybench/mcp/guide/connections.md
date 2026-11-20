@@ -63,9 +63,14 @@ a variable by its name.
 - A missing package: any answer may carry `missing` {feature, packages, python, command} (a form,
   `blades_inspect`, a failed test or refresh, a YAML API document). `python` "app": `blades_install`
   them into the app's own Python, then do it again. The user sees the same as a prompt.
-- Ways to sign in: a type's `sign_ins` each carry their own code. Trino: a password, or a client
-  certificate from a keystore file (PKCS#12, JKS, JCEKS; `keystore`, `keystore_alias`,
+- Ways to sign in: a type's `sign_ins` each carry their own code. Trino: a password; a client
+  certificate from a key vault (`keystore` set to `${NAME}`, a vault's variable holding the base64
+  PKCS#12 or PEM text; `keystore_password` a `${NAME}` or empty, never a typed value; runs on a Function
+  App); or from a keystore file (PKCS#12, JKS, JCEKS; `keystore`, `keystore_alias`,
   `secret("TRINO_KEYSTORE_PASSWORD")`; JKS needs the pyjks package).
+- Any certificate file setting (`verify`, `sslrootcert`, `sslcert`, `sslkey`, `ssl_ca`) set to one
+  `${NAME}` with no default may hold the certificate's PEM text from a vault: the code reads it with
+  `certificate_file(...)`. No answer ever holds the certificate, only the variable's name.
 - A certificate or keystore file setting (a setting whose `env` key is present) may come from an
   environment variable, this computer's path its default: `blades_fill` with
   `{"<id>": {"value": path, "env": "TRINO_KEYSTORE_PATH"}}`; `env: null` makes it a plain path again.

@@ -113,8 +113,9 @@ _PLACES: dict[str, tuple[str, int]] = {
     "user": ("who", 0),
     "tenant_id": ("who", 3),  # an app registration's (Microsoft Entra), then its client id
     "client_id": ("who", 4),
-    "keystore": ("who", 1),  # a client certificate's keystore (Trino), and its entry
-    "keystore_alias": ("who", 2),
+    "keystore": ("who", 1),  # a client certificate's keystore (Trino), its password's variable, its entry
+    "keystore_password": ("who", 2),
+    "keystore_alias": ("who", 3),
     "encrypt": ("security", 0),
     "certificate file": ("security", 1),
     "trust server certificate": ("security", 2),
