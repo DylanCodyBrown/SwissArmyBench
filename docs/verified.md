@@ -4052,3 +4052,6 @@ The owner, on 0.0.27, still saw the `{x}` buttons 0.0.27 removed: `/static` answ
 WebEngine's cache kept 0.0.26's scripts (heuristic freshness). Now `/static` answers `Cache-Control: no-cache` (a
 304 when unchanged: tests/test_static_cache.py), and the desktop app clears its HTTP cache once when its version
 changes (desktop/profile/version.txt; cookies and local storage kept). test_desktop_shell passed three times.
+0.0.28 from the release: install.sh into an empty home folder gave 0.0.28; the desktop app (Xvfb) started its server,
+cleared its page cache once and wrote desktop/profile/version.txt (0.0.28); 40 s after the app closed the server was
+gone.
