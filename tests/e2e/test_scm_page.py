@@ -260,8 +260,15 @@ def test_the_footer_mark_and_a_shared_card(
     (shared / "Close" / "plan.md").write_text("alpha\nmine and theirs\n")
     (shared / "Close" / "plan.md.theirs").unlink()
     page.locator('.scm-sidebar .pane-header [data-codicon="refresh"]').first.click()
+    # Refresh drawn: the file is a change now, no longer a merge change.
+    expect(page.locator('.scm-sidebar .monaco-list-row[data-group="merge"]')).to_have_count(0)
+    expect(page.locator('.scm-sidebar .monaco-list-row[data-path="Close/plan.md"]')).to_have_count(1)
     box = page.locator('.scm-sidebar textarea[data-which="shared"]')
     box.fill("Resolve the plan")
+    # A redraw while typing (a notice, Refresh) keeps the words, the focus and the caret in the box.
+    with page.expect_request(lambda r: "/git/history" in r.url):  # asked once the side bar is drawn again
+        page.locator('.scm-sidebar .pane-header [data-codicon="refresh"]').first.evaluate("e => e.click()")
+    assert box.evaluate("e => e === document.activeElement && e.value === 'Resolve the plan'")
     box.press("Control+Enter")
     # Nothing staged: VS Code's question, then every change is committed.
     page.locator(".scm-dialog").get_by_role("button", name="Yes").click()

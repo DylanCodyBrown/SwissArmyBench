@@ -501,6 +501,9 @@ function drawPage(): void {
   };
 
   const drawSidebar = (): void => {
+    // The message box being typed in keeps its focus and caret though its row is drawn again.
+    const typing = [...inputBoxes.values()].find((k) => k.box === document.activeElement)?.box;
+    const caret = typing ? [typing.selectionStart, typing.selectionEnd, typing.selectionDirection] as const : null;
     const repos = changes?.repositories ?? [];
     const scmActions = current
       ? actionBar(
@@ -534,6 +537,10 @@ function drawPage(): void {
     parts.push(paneHeader("graph", "GRAPH", graphActions));
     if (!collapsedPanes.has("graph")) parts.push(graphBody);
     sidebar.replaceChildren(...parts.map((p) => (p.classList.contains("pane-body") ? p : h("div", { class: "pane" }, p))));
+    if (typing && caret && typing.isConnected && document.activeElement !== typing) {
+      typing.focus({ preventScroll: true });
+      typing.setSelectionRange(caret[0], caret[1], caret[2]);
+    }
     sidebar.classList.toggle("graph-collapsed", collapsedPanes.has("graph"));
     if (!collapsedPanes.has("graph")) drawGraph();
   };
@@ -607,28 +614,43 @@ function drawPage(): void {
       ),
     );
 
+  // Each repository's message box is made once and kept across redraws (a notice, Refresh, a stage): the
+  // words typed, the caret and the focus stay with it, as VS Code's input box does. Its keys commit on the
+  // repository as last drawn.
+  const inputBoxes = new Map<string, { box: HTMLTextAreaElement; editor: HTMLElement; fit: () => void }>();
+  const drawnRepos = new Map<string, Repository>();
   const inputRow = (repo: Repository): HTMLElement => {
+    drawnRepos.set(repo.which, repo);
     const placeholder = `Message (Ctrl+Enter to commit on "${repo.branch}")`;
-    const box = h("textarea", { class: "scm-input-box", rows: 1, placeholder, "aria-label": "Source Control Input", spellcheck: "true", "data-which": repo.which }) as HTMLTextAreaElement;
-    box.value = messages.get(repo.which) ?? "";
-    const fit = (): void => {
-      box.style.height = "auto";
-      box.style.height = `${Math.min(Math.max(box.scrollHeight, 20), 134)}px`;
-    };
-    box.addEventListener("input", () => {
-      messages.set(repo.which, box.value);
-      fit();
-    });
-    box.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        void commit(repo);
-      }
-    });
+    let kept = inputBoxes.get(repo.which);
+    if (!kept) {
+      const which = repo.which;
+      const box = h("textarea", { class: "scm-input-box", rows: 1, placeholder, "aria-label": "Source Control Input", spellcheck: "true", "data-which": which }) as HTMLTextAreaElement;
+      box.value = messages.get(which) ?? "";
+      const fit = (): void => {
+        box.style.height = "auto";
+        box.style.height = `${Math.min(Math.max(box.scrollHeight, 20), 134)}px`;
+      };
+      box.addEventListener("input", () => {
+        messages.set(which, box.value);
+        fit();
+      });
+      box.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          const latest = drawnRepos.get(which);
+          if (latest) void commit(latest);
+        }
+      });
+      const editor = h("div", { class: "scm-editor" }, h("div", { class: "scm-editor-container" }, box));
+      box.addEventListener("focus", () => editor.classList.add("synthetic-focus"));
+      box.addEventListener("blur", () => editor.classList.remove("synthetic-focus"));
+      kept = { box, editor, fit };
+      inputBoxes.set(which, kept);
+    }
+    const { box, editor, fit } = kept;
+    box.placeholder = placeholder;
     window.requestAnimationFrame(fit);
-    const editor = h("div", { class: "scm-editor" }, h("div", { class: "scm-editor-container" }, box));
-    box.addEventListener("focus", () => editor.classList.add("synthetic-focus"));
-    box.addEventListener("blur", () => editor.classList.remove("synthetic-focus"));
     return h("div", { class: "monaco-list-row scm-input-row", role: "treeitem" }, h("div", { class: "scm-input" }, editor));
   };
 
@@ -1101,6 +1123,8 @@ function drawPage(): void {
     const done = await after(call<{ pushed: number; words: string }>("/git/commit", "POST", { which: repo.which, message, paths, sync: syncFirst }), (d) => d.words);
     if (done) {
       messages.delete(repo.which);
+      const kept = inputBoxes.get(repo.which);
+      if (kept) kept.box.value = "";
       histories.delete(repo.which);
       await load();
     }
