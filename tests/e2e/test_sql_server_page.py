@@ -66,7 +66,9 @@ def test_sql_server_signs_in_every_way_with_its_options_folded(browser: Browser,
     # The Entra password cannot do MFA: one line names the way that can, which is this machine's only.
     sign_in.select_option(label="Microsoft Entra: user name and password")
     expect(dialog.locator(".sign-in-note")).to_contain_text("This sign-in cannot do multi-factor sign-in")
-    sign_in.select_option(label="Username, with multi-factor sign-in (a browser window, or a code on another device)")
+    sign_in.select_option(
+        label="Username, with multi-factor sign-in (a browser window, or a code on another device)"
+    )
     expect(dialog.locator(".sign-in-note")).to_have_count(0)
     expect(note).to_contain_text("Only works on your machine: it needs you to approve the sign-in.")
     expect(code_box(dialog)).to_have_value(re.compile(r"MultiFactorSignIn\(tenant_id="))
