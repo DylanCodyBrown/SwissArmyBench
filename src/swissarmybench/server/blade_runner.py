@@ -522,13 +522,16 @@ def _names(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
 
 
 def _load(job: dict[str, Any]) -> dict[str, Any]:
-    """Every vault's entries: {"values": {variable: value}, "problems": [a vault that failed, why]}. One
-    vault failing leaves the others' values (a kernel still starts)."""
+    """Every vault's entries: {"values": {variable: value}, "problems": [a vault that failed, why], "names":
+    {a vault that loads every secret: the secret names it listed}}. One vault failing leaves the others'
+    values (a kernel still starts). The names are names only (the server keeps them: vault_names.py)."""
     from swissarmybench.adapters.blade_run import BladeRunError, run_vault
 
     values: dict[str, str] = {}
     problems: list[str] = []
+    names: dict[str, list[str]] = {}
     for vault in job.get("vaults", []):
+        listed: list[str] = []
         try:
             values.update(
                 run_vault(
@@ -538,15 +541,18 @@ def _load(job: dict[str, Any]) -> dict[str, Any]:
                     vault["secrets"],
                     vault["label"],
                     bool(vault.get("every")),
+                    listed,
                 )
             )
+            if vault.get("every"):
+                names[str(vault["label"])] = listed
         except BladeRunError as error:
             message = str(error)
             for secret in [*vault["secrets"].values(), *values.values()]:
                 if secret and len(secret) >= 3:
                     message = message.replace(secret, "****")
             problems.append(message)
-    return {"values": values, "problems": problems}
+    return {"values": values, "problems": problems, "names": names}
 
 
 def _tested(value: Any) -> dict[str, Any]:

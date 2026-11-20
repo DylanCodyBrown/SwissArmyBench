@@ -71,6 +71,7 @@ from swissarmybench.adapters.variables import (
     VariableKeyring,
     backup_copies,
 )
+from swissarmybench.adapters.vault_names import VaultNameFiles
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
@@ -171,6 +172,7 @@ from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
 from swissarmybench.services.updates import Updates
 from swissarmybench.services.variables import Variables
+from swissarmybench.services.vault_names import KeptVaultNames, VaultNamesAtStart
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WorkbenchWindow
 from swissarmybench.services.workspace import Addresses, Workspace
@@ -209,6 +211,7 @@ class Services:
     structures: Structures
     api_explorer: ApiExplorer
     catalog_loading: CatalogLoading
+    vault_names_at_start: VaultNamesAtStart
     connection_tables: ConnectionTablesService
     folders: Folders
     file_dialogs: FileDialogs
@@ -329,6 +332,12 @@ def bootstrap(
     # sets, variables and colours, in one folder made to be a Git repository, whatever project is open;
     # Settings points it elsewhere (library.json: the path only). README.md and .gitignore made on first use.
     library_folder = LibraryFolder(settings.library_dir, state_dir / "library.json" if audit_log else None)
+    # A key vault's secret names as last read here (the library's local/vault-names/: names only, never a
+    # value): a vault that loads every secret gives its variables from the first second after a start.
+    kept_vault_names = KeptVaultNames(
+        VaultNameFiles((lambda: library_folder.root) if audit_log else None, library_folder.ensure),
+        lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+    )
     blade_store = BladeStore(
         library_folder.root,
         made=library_folder.ensure,
@@ -413,6 +422,10 @@ def bootstrap(
                 why = f"Reading the vaults took over {seconds:.0f} seconds: this kernel started without them."
             return {}, [why]
         values = {str(k): str(v) for k, v in dict(answer.get("values") or {}).items()}
+        # A vault that loads every secret: the names it listed, kept (names only).
+        for vault, listed in dict(answer.get("names") or {}).items():
+            if isinstance(listed, list):
+                await blades.keep_names(str(vault), connection_rules.vault_names(listed))
         return values, [str(p) for p in answer.get("problems") or []]
 
     # ===== the workspace: the ports every use case shares =====
@@ -488,9 +501,19 @@ def bootstrap(
         python=sys.executable,
         environ=os.environ,
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
+        kept_names=kept_vault_names,
     )
     catalog_loading = CatalogLoading(
         ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, live.windows
+    )
+    # A vault that loads every secret: its names read again once the first window is open (kept meanwhile).
+    vault_names_at_start = VaultNamesAtStart(
+        blades,
+        kept_vault_names,
+        live.broadcast,
+        settings.auto_read_vaults,
+        settings.catalogs_at_once,
+        live.windows,
     )
     # Relationship sets come from the person's own folder and the shared folders, which are the blade
     # folders: one team folder carries blades and sets alike.
@@ -846,6 +869,7 @@ def bootstrap(
         run_settings=script_runs,
         kernels=workbench.kernel_count,
         vault_values=vault_values,
+        remembered=blades.remembered,
     )
     connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
     # Find connections on this computer (the owner, 2026-11-20): the known tools' files and the hint scan of
@@ -1326,6 +1350,7 @@ def bootstrap(
         structures=structures,
         api_explorer=api_explorer,
         catalog_loading=catalog_loading,
+        vault_names_at_start=vault_names_at_start,
         connection_tables=connection_tables,
         folders=Folders(
             folder_listing,

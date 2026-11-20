@@ -197,7 +197,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   repository: `~/.swissarmybench/library` (Settings' Library folder points it at another, a clone of a team's;
   `library.json` keeps the path): `connections/`, `vaults/`, `blades/<name>.blade.py`, `apis/<name>/`,
   `relationship-sets/`, `variables.toml`, `colours.toml`, `catalog/` (the shared catalog, below), `local/` (this
-  computer only, git-ignored), README.md and .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
+  computer only, git-ignored: `local/variables.toml`, and `local/vault-names/<vault>.json`, a key vault's secret
+  names and their variables as last read here, never a value, so a vault that loads every secret gives its
+  variables from the first second after a start; the owner, 2026-11-20), README.md and .gitignore made on first use. One file per item, the same text for the same thing: a save that changes
   nothing changes no byte. Never a secret, token, password or row in it (nor in a project): a connection names
   where its password comes from (keyring, environment, vault), resolved on each computer by its name; a
   clone asks for each missing one. This computer's older stores (blades/*.json, variables.json, colours.toml,
@@ -388,6 +390,9 @@ src/swissarmybench/
                          used_by, present/gone; the file's text (sorted, one table per block, byte-stable), read back
                          (merge markers and broken JSON said), a listing applied (gone since a date, pruned after N
                          days), the model's keys and relationships added, a deletion taken out, a project's usage
+    vault_names.py       a key vault's secret names remembered (local/vault-names/<vault>.json: the names, each one's
+                         variable, the time read; sorted, byte-stable, never a value), read back as the vault's
+                         variables (a renamed secret's name kept)
     library_setup.py     Set up this computer: each vault (readable, its sign-in, the variables it gives), the
                          values to type once, each connection's status (works, needs, only works here), shared
                          projects not set up here, the count's words, the notice
@@ -685,6 +690,11 @@ src/swissarmybench/
                          the listing, one table, the ERD's model, the Explorer's tables
     library_setup.py     Set up this computer: the vaults checked in child processes, the checklist, Move to
                          a vault
+    vault_names.py       a key vault's names kept as they are read (the form, Set up this computer, a kernel's
+                         load), written only when they change; given as its variables (Variables, the ${ list,
+                         context.md, the checklist, a kernel's names); read again once the first window is open
+                         (child processes, a few at once, never one that signs in with a window; a failure keeps
+                         them: "Names from <time>: Read again"); a deleted or renamed vault's file follows
     project_scope.py     the open project's documents, and import: documents from another project folder or a
                          loose file into the project; an older project's connections and blades
                          into the library (services/library.py's take)
@@ -716,6 +726,7 @@ src/swissarmybench/
                          file each, written only when its text changes), blade folders (.blade.py files found
                          by their header), an API's blades in apis/<name>/, favourites; secrets via keyring
     shared_catalog.py    the catalog/ folder's files: stamps, read, written atomically only when the bytes change
+    vault_names.py       local/vault-names/'s files: read, written atomically only when the bytes change, removed
     app_registrations.py app-registrations/ (a file each, its .access.json beside it) and the access report's
                          read-only calls (Microsoft's sign-in, Power BI's groups, datasets, one COUNTROWS; MicrosoftProbe:
                          Azure SQL by mssql-python with the token, Dataverse's WhoAmI and roles, Graph's site, lists

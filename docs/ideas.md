@@ -6605,3 +6605,22 @@ the palette, the New menu and the tour; Edit in Power BI Desktop's dry run on th
   object (no YAML in the domain); Toad, Navicat, SQL Developer, Snowflake's SnowSQL config and DataGrip's
   per-project user names beyond dataSources.local.xml are not read yet.
 
+
+## A key vault's variables kept over a restart (the owner, 2026-11-20: "Every time I update or reopen the app my Vault variables disappear. I have to go to the key vault, open it and read the variables all over again."; built, branch vault-names)
+
+- **Cause:** a vault saved with "Every secret in the vault" (vault_all, the form's default) writes no names to its
+  file; they came only from reading the vault (the form, a kernel's start), in memory.
+- **Built:** every read of a vault's names is kept in the library's `local/vault-names/<vault>.json` (git-ignored;
+  names and each one's variable, the time read; sorted, byte-stable, written only when the names change; never a
+  value). The Variables page, the `${` list, context.md, Set up this computer and a Workbench kernel's Variables
+  pane read them as the vault's variables at once. Once the first window is open each such vault is read again in
+  a child process (a few at once; a vault that signs in with a window skipped); a failure keeps the names and the
+  vault's card says "Names from <time>" with Read again. The vault's card shows how many variables it gives. A
+  deleted vault's file goes, a renamed one's follows, a file whose vault is gone goes at start.
+- **Decisions:** the form's default stays Every secret (the owner's earlier choice). The file's time is when these
+  names were first read (a read that gives the same names writes nothing). A draft vault read in the form is kept
+  under its typed name (pruned at start if never saved). Read again is the existing `connections_vault_secrets`
+  (no new command). `auto_read_vaults` (Settings) is off in the tests' make_client, on in the app.
+- **Release note:** Key vaults that load every secret keep their variables when the app restarts or updates: no
+  need to open the vault and read it again. Their names are read again by themselves at start; the card says how
+  many variables each vault gives.

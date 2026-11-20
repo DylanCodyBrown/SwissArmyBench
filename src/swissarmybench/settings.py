@@ -164,6 +164,8 @@ class Settings:
     # start-up (but not one that signs in with a browser window: that one on first use), and on first use;
     # so many at once.
     auto_load_catalogs: bool = True
+    # A vault that loads every secret: its names read again at start (services/vault_names.py).
+    auto_read_vaults: bool = True
     # The update check (services/updates.py): the one request that leaves the computer, at start and every
     # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
     update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)

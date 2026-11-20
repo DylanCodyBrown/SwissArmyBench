@@ -130,12 +130,14 @@ def run_vault(
     secrets: dict[str, str],
     label: str = "the vault",
     every: bool = False,
+    listed: list[str] | None = None,
 ) -> dict[str, str]:
     """Run a vault blade and set its environment variables. The blade's variable is a function from a
     secret's name in the vault to its value; `mapping` is environment variable -> secret name. `every`:
     every secret its names() lists, each under its own name (domain/blades.py every_secret), the mapping
     only renaming. Returns the variables set, with their values (for this Python only: the server never
-    keeps them)."""
+    keeps them). `listed`, with `every`: given the names its names() listed (names only, kept by the
+    server: services/vault_names.py)."""
     getter, made = run_code(code, variable, secrets, label)
     if not callable(getter):
         raise BladeRunError(
@@ -155,6 +157,8 @@ def run_vault(
             if isinstance(error, KeyboardInterrupt | SystemExit):
                 raise
             raise _failure(error, secrets, f"{label}, listing its secrets") from None
+        if listed is not None:
+            listed.extend(found)
         mapping = blades.every_secret(found, mapping)
     values: dict[str, str] = {}
     for env, name in mapping.items():

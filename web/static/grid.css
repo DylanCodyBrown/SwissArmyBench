@@ -13533,6 +13533,21 @@ dialog.find-data .dialog-body {
   border-color: var(--accent);
 }
 
+.variables-vault-cards > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.variables-vault-stale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--warn);
+  font-size: 12px;
+}
+
 .variables-vault-types {
   display: flex;
   flex-wrap: wrap;

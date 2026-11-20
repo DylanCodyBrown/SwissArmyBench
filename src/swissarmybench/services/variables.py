@@ -91,8 +91,11 @@ class Variables:
         run_settings: RunSettings,
         kernels: Callable[[], int] = lambda: 0,
         vault_values: VaultValues | None = None,
+        remembered: Callable[[Blade], dict[str, str]] = lambda blade: {},
     ) -> None:
         self._vault_values = vault_values
+        # A vault that loads every secret: the variables its names last read give (services/vault_names.py).
+        self._remembered = remembered
         self.ws = ws
         self._kept = kept
         self._secrets = secrets
@@ -157,7 +160,7 @@ class Variables:
                 out.append(
                     rules.ConnectionFacts(
                         blade.name,
-                        vault_mapping=dict(blade.vault_mapping),
+                        vault_mapping=self._remembered(blade) | dict(blade.vault_mapping),
                         vault=True,
                         every=blade.vault_all,
                         read_only=bool(blade.pack),
@@ -228,7 +231,7 @@ class Variables:
             variable: blade.name
             for blade in self._blades.all()
             if blade.kind == "vault"
-            for variable in blade.vault_mapping
+            for variable in self._remembered(blade) | dict(blade.vault_mapping)
         }
 
     async def _changed(self, who: str, action: str, name: str, **details: Any) -> None:

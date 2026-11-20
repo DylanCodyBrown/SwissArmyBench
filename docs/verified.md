@@ -4082,3 +4082,16 @@ kept and its focus given back; 10 of 10 runs pass). test_sql_server_page's scrip
 even alone (the file picker's first folder sometimes wins over a folder typed as it opens; the stale-answer guard is
 there, the cause not yet found): known, not from these changes.
 0.0.29 from the release: install.sh into an empty home folder gave 0.0.29; the desktop app (Xvfb) started its server, and 40 s after the app closed it was gone.
+
+
+## A key vault's names kept over a restart (2026-11-20, branch vault-names)
+
+Checked (tests/test_vault_names.py, tests/e2e/test_vault_names_page.py in Chromium): a made-up vault whose names()
+reads a made-up file: read once, a new app on the same state folder lists its variables at once (Variables, GET
+/variables, Set up this computer); the same names read again change no byte; the form's read kept under its name;
+a rename moves the file, a delete removes it, a gone vault's file goes at start; the start-up read brings a new
+name, and a failing one keeps the names with the card's error and time; a kernel's vault load hands back the names
+it listed; no made-up value in any file of the state folder. In the browser: read, server stopped and started, the
+row and the `${` list there, the card's "2 variables", "Names from" after the failed start-up read, Read again.
+**Not checked:** a real Azure Key Vault (its sign-in at start without a window: DefaultAzureCredential's
+non-interactive chain is assumed quiet), and an update (a restart stands in for it: the library folder is the same).

@@ -36,6 +36,8 @@ class BladeAccess(Protocol):
 
     async def vault_names(self, data: Any) -> dict[str, Any]: ...
 
+    def remembered(self, blade: Blade) -> dict[str, str]: ...
+
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]: ...
 
 
@@ -102,8 +104,8 @@ class LibrarySetup:
         for v in vaults:
             readable, error, listed = self._checked.get(v.name, (None, "", ()))
             given = tuple(sorted(v.vault_mapping)) if v.vault_mapping else listed
-            if v.vault_all:
-                given = tuple(sorted({*given, *listed}))
+            if v.vault_all:  # its names as read now, else as last read on this computer
+                given = tuple(sorted({*given, *listed, *self._blades.remembered(v)}))
             if readable is False:
                 unreadable |= {name: v.name for name in given}
             vault_rows.append(rules.Vault(v.name, str(v.template or ""), readable, error, given))

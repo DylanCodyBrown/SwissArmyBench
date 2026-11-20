@@ -276,6 +276,10 @@ def create_app(
         catalogs = asyncio.create_task(
             ctx.catalog_loading.at_start_later(ctx.settings.catalogs_start_wait_seconds)
         )
+        # A vault that loads every secret: its names read again, the same way (kept meanwhile).
+        vault_names = asyncio.create_task(
+            ctx.vault_names_at_start.at_start_later(ctx.settings.catalogs_start_wait_seconds)
+        )
         ctx.extensions.bring_back()  # a preinstalled extension an update from a built-in version lacks
         autosave = asyncio.create_task(ctx.sab_projects.run_autosave())  # the open project's switch
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
@@ -288,6 +292,7 @@ def create_app(
             life.cancel()
         shared.cancel()
         catalogs.cancel()
+        vault_names.cancel()
         watch.cancel()
         context_md.cancel()
         autosave.cancel()

@@ -52,6 +52,7 @@ from swissarmybench.domain.packages import blade_feature, connection_feature, mi
 from swissarmybench.domain.packs import CROSS_LISTED
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
+from swissarmybench.services.vault_names import KeptVaultNames
 from swissarmybench.services.workspace import Refused, Workspace
 
 _PIP_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._\-]{0,99}(\[[A-Za-z0-9,._\-]{1,100}\])?")
@@ -128,8 +129,11 @@ class BladeService:
         python: str,
         environ: Mapping[str, str],
         reveal: Callable[[str], None] | None = None,
+        kept_names: KeptVaultNames | None = None,
     ) -> None:
         self.ws = ws
+        # A vault's secret names, kept on this computer as they are read (services/vault_names.py).
+        self.kept_names = kept_names
         # Show its file: the system's file manager at a blade's file (server/file_manager.py); the user's.
         self._reveal = reveal
         self._blades = blades
@@ -279,10 +283,19 @@ class BladeService:
         names: set[str] = set()
         for blade in self._blades.all():
             names.update(blade.vault_mapping)
+            names.update(self.remembered(blade))  # a vault that loads every secret: its names kept here
             names.update(blade.env_names)
             names.update(blade.secrets)
             names.update(read.name for read in blade.env_reads)  # a connection from the user's own Python
         return sorted(names)
+
+    def remembered(self, blade: Blade) -> dict[str, str]:
+        """A vault that loads every secret: the variables its names last read give (variable -> secret)."""
+        return self.kept_names.mapping(blade) if self.kept_names is not None else {}
+
+    def vault_state(self, blade: Blade) -> dict[str, Any] | None:
+        """A vault card's line: its variables' count, when its names were read, a failed read's words."""
+        return self.kept_names.state(blade) if self.kept_names is not None else None
 
     def needs_passwords(self, blade: Blade | str, everything: list[Blade] | None = None) -> list[str]:
         """The passwords a connection or blade asks for that nothing on this computer gives (its keyring,
@@ -445,6 +458,8 @@ class BladeService:
         if isinstance(body, dict):
             self._table_free(body.get("table"), str(body.get("name") or previous or ""))
         blade = self._blades.save(body, previous)
+        if self.kept_names is not None and blade.kind == "vault" and previous and previous != blade.name:
+            self.kept_names.rename(previous, blade.name)  # its remembered names follow it
         if isinstance(body, dict) and isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(blade.name, body["secrets"])
         self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
@@ -460,14 +475,17 @@ class BladeService:
         """Delete a blade. A connection's: the relationships its tables held go from the ones in use too
         (the owner, 2026-11-17: "when a connection is delete from the app just remove the associated
         relationships it held"); saved relationship sets stay."""
-        connection = False
+        connection = vault = False
         try:
             gone = self._blades.get(name)
             word = _kind_word(gone.kind, gone.template)
             connection = connection_kind(gone.kind, gone.template) not in (None, "vault")
+            vault = gone.kind == "vault"
         except Exception:
             word = "blade"
         self._blades.remove(name)
+        if vault and self.kept_names is not None:
+            self.kept_names.forget(name)  # its remembered names go with it
         self.ws.audit.write(who, "remove_blade", name, kind=word)
         answer: dict[str, Any] = {"removed": name}
         if connection:
@@ -623,6 +641,7 @@ class BladeService:
             if blade.kind != "vault":
                 raise BladeError(f"{blade.name} is not a vault.")
             answer = await self._run_blade(blade, "names", self._typed_values(blade, data))
+            kept_as = blade.name
         else:
             # A draft may map nothing yet: it is read as plain code (its mapping is not needed to list).
             draft = {**data, "kind": "other", "name": str(data.get("name") or "").strip() or "Vault"}
@@ -634,8 +653,20 @@ class BladeService:
             answer = await self._run_blade(
                 blade, "names", self._typed_values(blade, data), {"secrets": values}
             )
+            kept_as = str(data.get("name") or "").strip()  # the form's vault, saved under this name
         found = answer.get("names")
-        return {"names": None if found is None else connection_rules.vault_names(found)}
+        names = None if found is None else connection_rules.vault_names(found)
+        if names is not None and kept_as:
+            await self.keep_names(kept_as, names)
+        return {"names": names}
+
+    async def keep_names(self, vault: str, names: list[dict[str, str]]) -> bool:
+        """A vault's names as just read, kept on this computer (names only); the pages told when they
+        changed. Whether they did."""
+        if self.kept_names is None or not self.kept_names.record(vault, names):
+            return False
+        await self.ws.live.broadcast({"type": "variables_changed"})
+        return True
 
     # ===== analysis blades: the user's own analyses in the Analyze menu =====
 
