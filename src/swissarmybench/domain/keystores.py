@@ -256,6 +256,32 @@ conn = trino.dbapi.connect(
     request_timeout=600,  # seconds: a long query is not cut off (the client's own default is 30)
 )"""
 
+# No password and no client certificate: only the server's certificate checked, against its root certificate
+# authority (the owner, 2026-11-20: "my .pem is the root CA with no password" / "this file is the only
+# connection option I need"). Its root CA: a file's path, or `${NAME}` from a key vault (certificate_file).
+TRINO_ROOT_CA = """import requests
+import trino
+
+user = "my_user"  # the name Trino records your queries under (no password is sent)
+verify = ""  # the root CA's .pem: a file's path, or a key vault's secret (${NAME}); empty: the system's
+trust_server_certificate = False
+
+session = requests.Session()
+session.verify = False if trust_server_certificate else (verify or True)
+session.trust_env = False  # this .pem, even where REQUESTS_CA_BUNDLE names another
+
+conn = trino.dbapi.connect(
+    host="my-server",
+    port=443,
+    user=user,
+    catalog="hive",
+    http_scheme="https",
+    auth=None,  # no sign-in: the connection is trusted by the server's certificate alone
+    http_session=session,
+    request_timeout=600,  # seconds: a long query is not cut off (the client's own default is 30)
+)"""
+ROOT_CA_MARK = "auth=None,  # no sign-in"
+
 TRINO_KEYSTORE = f"""import os
 
 import requests
@@ -320,6 +346,7 @@ conn = trino.dbapi.connect(
 # The key vault's way before the file's: its code holds MARK too, and the form takes the first that fits.
 SIGN_INS: tuple[tuple[str, str, str], ...] = (
     ("Username and password", "BasicAuthentication", TRINO_BASIC),
+    ("Root certificate only (no password)", ROOT_CA_MARK, TRINO_ROOT_CA),
     ("Client certificate (from a key vault)", VAULT_MARK, TRINO_VAULT),
     ("Client certificate (a file on this computer)", MARK, TRINO_KEYSTORE),
 )

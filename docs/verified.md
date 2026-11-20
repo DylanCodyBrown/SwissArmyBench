@@ -4137,3 +4137,9 @@ The owner keeps the .pem as a secret, not a certificate. A PEM pasted into the p
 its line breaks as spaces or as the two letters backslash-n: the keystore reader and certificate_file() lay each
 block out again. tests/test_keystore_vault.py: spaces, \\n and \\r\\n for the keystore, spaces and \\n for a
 certificate file; 32 passed.
+
+## Trino: root certificate only (2026-11-20)
+
+The owner's Trino needs only its root CA (no password, no client certificate), kept as a key vault secret. A fourth
+sign-in, Root certificate only (no password): auth=None, verify from a file or ${NAME} (certificate_file), no amber note.
+tests/test_keystores.py and test_keystore_vault.py: 142 passed.

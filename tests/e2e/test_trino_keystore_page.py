@@ -25,7 +25,7 @@ pytest.importorskip("trino", reason="the trino client is not installed in this P
 SHOTS = os.environ.get("SAB_SHOTS")  # a folder: the screenshots are written there too
 VAULT_WAY = "Client certificate (from a key vault)"
 FILE_WAY = "Client certificate (a file on this computer)"
-WAYS = ["Username and password", VAULT_WAY, FILE_WAY]
+WAYS = ["Username and password", "Root certificate only (no password)", VAULT_WAY, FILE_WAY]
 
 
 @pytest.fixture(scope="module")

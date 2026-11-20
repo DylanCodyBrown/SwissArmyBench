@@ -288,6 +288,19 @@ def test_the_keystores_password_is_a_variable_or_none_never_a_typed_value() -> N
     )
 
 
+def test_the_root_ca_only_way_takes_its_ca_from_a_vault_secret_and_sends_no_password() -> None:
+    """The owner (2026-11-20): "my .pem is the root CA with no password" / "this file is the only connection
+    option I need" / "I'm storing that CA in a secret var in the vault"."""
+    code = keystores.TRINO_ROOT_CA
+    assert "secret(" not in code and "auth=None" in code
+    setting = by_name(code)["certificate file"]
+    wrapped = apply_settings(code, {setting.id: "${" + CA + "}"})
+    assert f'verify = certificate_file(os.environ["{CA}"])' in wrapped
+    assert wrapped.count("def certificate_file(value):") == 1
+    compile(wrapped, "trino root ca", "exec")
+    assert portability.check(wrapped, "trino") == []  # no amber note: it runs on a Function App
+
+
 def test_a_certificate_from_a_vault_is_wrapped_for_the_driver_and_read_back() -> None:
     code = keystores.TRINO_VAULT
     setting = by_name(code)["certificate file"]

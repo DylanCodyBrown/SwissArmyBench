@@ -201,13 +201,14 @@ def test_trino_signs_in_three_ways_and_the_keystore_asks_for_its_password_by_nam
     trino = types["trino"]
     assert [w["label"] for w in trino["sign_ins"]] == [
         "Username and password",
+        "Root certificate only (no password)",
         "Client certificate (from a key vault)",
         "Client certificate (a file on this computer)",
     ]
-    # Only the file says it works only here; the password's and the vault's run on a Function App.
-    assert [bool(w["local"]) for w in trino["sign_ins"]] == [False, False, True]
-    assert trino["sign_ins"][2]["local"][0]["key"] == "file_setting"
-    code = trino["sign_ins"][2]["code"]
+    # Only the file works only here; the password, the root CA and the vault run on a Function App.
+    assert [bool(w["local"]) for w in trino["sign_ins"]] == [False, False, False, True]
+    assert trino["sign_ins"][3]["local"][0]["key"] == "file_setting"
+    code = trino["sign_ins"][3]["code"]
     assert code == keystores.TRINO_KEYSTORE and trino["code"] == keystores.TRINO_BASIC
     assert 'secret("TRINO_KEYSTORE_PASSWORD")' in code and "trino.auth.CertificateAuthentication(" in code
     inspected = client.post("/blades/inspect", json={"code": code, "template": "trino"}, headers=AUTH).json()
