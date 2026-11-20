@@ -4205,3 +4205,5 @@ amber note and the no-MFA line). ruff, ruff format, mypy, npm typecheck and buil
 ## 0.0.31 before release (2026-11-20)
 
 The connection audit and multi-factor sign-in merged; quick suite 4825 passed, 49 skipped; ruff and format clean.
+
+0.0.31 from the release: the released install.sh into an empty home folder installed 0.0.31 (with the Streamlit extension 0.0.31); the desktop app (Xvfb) started its server, and the server stopped 30 s after the app was ended (beta log: start 18:11:04, stop 18:12:42).
