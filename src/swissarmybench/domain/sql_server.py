@@ -1250,6 +1250,21 @@ WHERE o.type IN ('U', 'V') AND o.is_ms_shipped = 0
 ORDER BY 2, 3, 8"""
 
 
+# A server that takes only part of SQL Server's language (Dataverse's SQL endpoint: "Unsupported sql
+# function PARSENAME"; the owner, 2026-11-20) cannot run CATALOG: its tables are listed from
+# INFORMATION_SCHEMA instead, which every SQL Server-speaking endpoint has (no rows, no descriptions).
+PLAIN_CATALOG = """SELECT TABLE_CATALOG AS table_catalog, TABLE_SCHEMA AS table_schema,
+       TABLE_NAME AS table_name, 'BASE TABLE' AS table_type, COLUMN_NAME AS column_name,
+       DATA_TYPE AS data_type, IS_NULLABLE AS is_nullable, ORDINAL_POSITION AS ordinal_position
+FROM INFORMATION_SCHEMA.COLUMNS
+ORDER BY TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION"""
+
+
+def plain_catalog_for(command: str) -> str | None:
+    """The plainer listing to try when `command` (the rich SQL Server catalog) fails; None for any other."""
+    return PLAIN_CATALOG if command.strip() == CATALOG.strip() else None
+
+
 def count_sql(schema: str, table: str) -> str:
     """A table's rows from sys.partitions (no COUNT(*) over the table); a view's are counted."""
     name = ".".join(quote_identifier(p, "sqlserver") for p in (schema, table) if p)

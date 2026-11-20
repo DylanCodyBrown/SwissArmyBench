@@ -24,7 +24,7 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from swissarmybench.domain import blades, python_connections
+from swissarmybench.domain import blades, python_connections, sql_server
 from swissarmybench.domain.blades import Package
 from swissarmybench.domain.blades import parse_code as parse
 from swissarmybench.domain.blades import read_code as read
@@ -178,7 +178,19 @@ def run_catalog(
     what = f"{label}'s catalog command"
     try:
         if language == "sql":
-            return _sql_rows(value, command)
+            try:
+                return _sql_rows(value, command)
+            except Exception as error:
+                # SQL Server's rich listing on an endpoint that takes only part of its language (Dataverse's
+                # SQL endpoint refuses PARSENAME): the plain INFORMATION_SCHEMA listing; if that fails too,
+                # the first error is the one said.
+                plain = sql_server.plain_catalog_for(command)
+                if plain is None:
+                    raise
+                try:
+                    return _sql_rows(value, plain)
+                except Exception:
+                    raise error from None
         if language == "python":
             result = _run(command, names, f"<blade {label} catalog>")
             if result is None:

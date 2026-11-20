@@ -4082,3 +4082,9 @@ kept and its focus given back; 10 of 10 runs pass). test_sql_server_page's scrip
 even alone (the file picker's first folder sometimes wins over a folder typed as it opens; the stale-answer guard is
 there, the cause not yet found): known, not from these changes.
 0.0.29 from the release: install.sh into an empty home folder gave 0.0.29; the desktop app (Xvfb) started its server, and 40 s after the app closed it was gone.
+
+## A SQL Server connection on a partial endpoint (2026-11-20)
+
+The owner's FI Dataverse (a SQL Server connection on Dataverse's SQL endpoint) failed to list its tables: the
+endpoint refuses PARSENAME. The rich SQL Server listing now falls back to INFORMATION_SCHEMA.COLUMNS when it fails
+(the first error said if that fails too); tests/test_partial_sql_server_catalog.py (a stand-in endpoint).
