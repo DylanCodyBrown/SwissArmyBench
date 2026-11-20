@@ -4143,3 +4143,4 @@ certificate file; 32 passed.
 The owner's Trino needs only its root CA (no password, no client certificate), kept as a key vault secret. A fourth
 sign-in, Root certificate only (no password): auth=None, verify from a file or ${NAME} (certificate_file), no amber note.
 tests/test_keystores.py and test_keystore_vault.py: 142 passed.
+0.0.30 from the release: install.sh into an empty home folder gave 0.0.30; the desktop app (Xvfb) started its server, and 40 s after the app closed it was gone.
