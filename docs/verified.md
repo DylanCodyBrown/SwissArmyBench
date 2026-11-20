@@ -4201,3 +4201,7 @@ encrypted token cache on a desktop (Linux here has no keyring: the fallback ran)
 The whole suite (Chromium): the quick tests 4,835 passed, 39 skipped; the browser tests 395 passed, 15 skipped
 (the Connections forms touched: test_sql_server_page, test_dataverse_page, test_lakes_page say the MFA way, its
 amber note and the no-MFA line). ruff, ruff format, mypy, npm typecheck and build clean.
+
+## 0.0.31 before release (2026-11-20)
+
+The connection audit and multi-factor sign-in merged; quick suite 4825 passed, 49 skipped; ruff and format clean.
