@@ -74,7 +74,8 @@ def test_the_format_is_told_by_the_first_bytes_never_the_name(m: made_up.Materia
     assert keystores.keystore_format(made_up.pkcs12_bytes(m)) == "PKCS#12"
     assert keystores.keystore_format(made_up.jks_bytes(m)) == "JKS"
     assert keystores.keystore_format(b"\xce\xce\xce\xce" + b"\0" * 8) == "JCEKS"
-    assert keystores.keystore_format(b"-----BEGIN CERTIFICATE-----") == ""
+    assert keystores.keystore_format(b"-----BEGIN CERTIFICATE-----") == "PEM"
+    assert keystores.keystore_format(b"PK\x03\x04 a zip") == ""
 
 
 def read_and_check(m: made_up.Material, path: Path, alias: str = "") -> tuple[str, str]:
@@ -138,9 +139,13 @@ def test_the_errors_are_said_plainly(
     with pytest.raises(ValueError, match="no private key"):
         read(str(only_certs), made_up.PASSWORD)
     pem = tmp_path / "lake.pem"
-    pem.write_bytes(m.ca_pem)
-    with pytest.raises(ValueError, match="format is not known: it is not PKCS#12"):
+    pem.write_bytes(m.ca_pem)  # PEM, but only a certificate
+    with pytest.raises(ValueError, match="The PEM holds no private key with its certificate"):
         read(str(pem), made_up.PASSWORD)
+    other = tmp_path / "lake.zip"
+    other.write_bytes(b"PK\x03\x04 made-up zip")
+    with pytest.raises(ValueError, match="format is not known: it is not PKCS#12"):
+        read(str(other), made_up.PASSWORD)
     gone = str(tmp_path / "gone.keystore")
     with pytest.raises(FileNotFoundError, match=r"No keystore file at .*gone.keystore\. Choose it again"):
         read(gone, made_up.PASSWORD)
@@ -191,14 +196,18 @@ def test_a_java_keystore_without_pyjks_asks_for_it(m: made_up.Material, tmp_path
 # ===== the form =====
 
 
-def test_trino_signs_in_two_ways_and_the_keystore_asks_for_its_password_by_name(client: TestClient) -> None:
+def test_trino_signs_in_three_ways_and_the_keystore_asks_for_its_password_by_name(client: TestClient) -> None:
     types = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
     trino = types["trino"]
     assert [w["label"] for w in trino["sign_ins"]] == [
         "Username and password",
-        "Client certificate (keystore)",
+        "Client certificate (from a key vault)",
+        "Client certificate (a file on this computer)",
     ]
-    code = trino["sign_ins"][1]["code"]
+    # Only the file says it works only here; the password's and the vault's run on a Function App.
+    assert [bool(w["local"]) for w in trino["sign_ins"]] == [False, False, True]
+    assert trino["sign_ins"][2]["local"][0]["key"] == "file_setting"
+    code = trino["sign_ins"][2]["code"]
     assert code == keystores.TRINO_KEYSTORE and trino["code"] == keystores.TRINO_BASIC
     assert 'secret("TRINO_KEYSTORE_PASSWORD")' in code and "trino.auth.CertificateAuthentication(" in code
     inspected = client.post("/blades/inspect", json={"code": code, "template": "trino"}, headers=AUTH).json()
@@ -209,8 +218,9 @@ def test_trino_signs_in_two_ways_and_the_keystore_asks_for_its_password_by_name(
     assert "env" not in fields["server"] and "env" not in fields["user"]  # no other field is mapped
     assert {p["pip"] for p in inspected["packages"]} >= {"trino", "pyjks", "cryptography", "requests"}
     # The form's parts: the keystore and its entry beside the user; each a file the chooser picks.
-    assert form_order(["user", "keystore", "keystore_alias", "certificate file"])["who"] == [
-        "user", "keystore", "keystore_alias",
+    order = form_order(["user", "keystore_alias", "keystore", "keystore_password", "certificate file"])
+    assert order["who"] == [
+        "user", "keystore", "keystore_password", "keystore_alias",
     ]  # fmt: skip
     assert picker({"name": "keystore", "key": "keystore"}, "trino") == "file"
     assert picker({"name": "client key file", "key": "sslkey"}, "postgres") == "file"

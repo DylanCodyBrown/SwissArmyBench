@@ -820,7 +820,8 @@ def _detect(code: str) -> tuple[_Found, ...]:
     found: dict[tuple[int, int], _Found] = {}
 
     def add(node: ast.Constant, name: str, key: str, where: str) -> None:
-        if _SECRET_WORDS.search(key) or node.end_lineno is None or node.end_col_offset is None:
+        none = key in certificate_files.VARIABLE_ONLY and node.value == ""  # a password's variable: none
+        if (_SECRET_WORDS.search(key) and not none) or node.end_lineno is None or node.end_col_offset is None:
             return
         start = _char(lines, starts, node.lineno, node.col_offset)
         end = _char(lines, starts, node.end_lineno, node.end_col_offset)
@@ -845,10 +846,10 @@ def _detect(code: str) -> tuple[_Found, ...]:
     def add_refs(node: ast.expr, name: str, key: str, where: str) -> bool:
         """A setting written as the variables it reads (12.7; variable_refs.setting_read): its value is
         the box's text. False when the expression is not one of those."""
-        read = refs.setting_read(node)
+        read = refs.setting_read(certificate_files.unwrapped(node))  # certificate_file(os.environ[...]) too
         if (
             read is None
-            or _SECRET_WORDS.search(key)
+            or (_SECRET_WORDS.search(key) and key not in certificate_files.VARIABLE_ONLY)
             or node.end_lineno is None
             or node.end_col_offset is None
         ):
@@ -1068,6 +1069,12 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
             new = refs.literal(new)  # $${X} typed: the text ${X}
             if spot.setting.number and isinstance(old, str):  # was a variable read as a number
                 old = 0
+        if spot.setting.key in certificate_files.VARIABLE_ONLY and str(new or ""):
+            # A password is never written into the code: its variable, or none (never the typed text).
+            raise FillError(
+                f"{spot.setting.key} takes a variable on its own, such as ${{NAME}}, or nothing: a password "
+                "is never written into the code."
+            )
         if variable:
             text = str(new)
             if "\n" in text:
@@ -1110,6 +1117,8 @@ def apply_settings(code: str, values: dict[str, Any]) -> str:
         parse_code(code)
     except BladeCodeError as error:
         raise FillError(f"That value would break the code: {error}") from None
+    if certificate_files.HELPER in code:  # certificate_file(...) defined while a setting calls it
+        code = certificate_files.with_helper(code)
     return certificate_files.with_import_os(code) if needs_os else code
 
 
@@ -1124,11 +1133,20 @@ def _reads_variables(spot: _Found, text: str) -> str:
             f"{s.key} is part of a connection string here, which cannot read a variable: type its value, "
             "or write the connection with its settings as keywords."
         )
+    found = refs.parts(text.strip())
+    alone = len(found) == 1 and isinstance(found[0], refs.Ref) and not found[0].default
+    if s.key in certificate_files.VARIABLE_ONLY and not alone:  # no typed text beside it, no default
+        raise FillError(
+            f"{s.key} takes a variable on its own, such as ${{NAME}}, or nothing: a password is never "
+            "written into the code."
+        )
     number = ("float" if isinstance(s.value, float) else "int") if s.number else None
     try:
-        return refs.setting_code(text, s.key, lambda p: _string_literal(p, spot.raw or "\\" in p), number)
+        code = refs.setting_code(text, s.key, lambda p: _string_literal(p, spot.raw or "\\" in p), number)
     except ValueError as error:
         raise FillError(str(error)) from None
+    # A certificate a driver reads by path, its box one variable: a key vault's PEM text works too.
+    return f"{certificate_files.HELPER}({code})" if certificate_files.wraps(s.name, text) else code
 
 
 def env_settings(code: str) -> list[dict[str, str]]:

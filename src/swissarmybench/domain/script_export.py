@@ -47,7 +47,8 @@ from dataclasses import dataclass, field
 
 from swissarmybench.domain import cell_facts, dataverse, python_connections, table_cells
 from swissarmybench.domain import script_runtime as runtime
-from swissarmybench.domain.blades import env_name_for_secret, env_settings
+from swissarmybench.domain import variable_refs as refs
+from swissarmybench.domain.blades import BladeCodeError, detect_settings, env_name_for_secret, env_settings
 from swissarmybench.domain.codegen import python_string, variable_name
 from swissarmybench.domain.connections import env_name_for
 from swissarmybench.domain.script_runtime import Secret
@@ -900,9 +901,11 @@ def plan(
         made.update(table_cells.facts(rewritten).made)
         body = _FUTURE.sub("", rewritten).strip("\n")
         blocks.append(Block(label, (*before, *opened, *([body] if body.strip() else []))))
-    # The vaults the used pieces' passwords come from, and their own.
+    # The vaults the used pieces' passwords and settings' variables come from, and their own.
+    vault_pieces = [p for p in by_name.values() if p.kind == "vault"]
     for name in list(used):
-        for secret in by_name[name.casefold()].secrets:
+        piece_of = by_name[name.casefold()]
+        for secret in (*piece_of.secrets, *setting_sources(piece_of, vault_pieces)):
             if secret.where in ("vault", "every") and secret.vault and secret.vault not in used:
                 if by_name.get(secret.vault.casefold()) is None:
                     why = f"its {secret.variable} comes from the key vault {secret.vault}, which the app does not have"
@@ -914,9 +917,9 @@ def plan(
         settings += list(piece.secrets)
         if piece.kind == "secret":
             settings += [Secret(n, n, "typed", vault=piece.name) for n in piece.env_names]
-        # A certificate or keystore file mapped to a variable (the file itself never travels).
+        # A setting's variable: a file's path (never the file) or a key vault's (a certificate).
         files = [m["variable"] for m in env_settings(piece.code)] if piece.connection else []
-        settings += [Secret(v, v, "file", blade=piece.name, required=False) for v in files]
+        settings += setting_sources(piece, vault_pieces) if piece.connection else []
         settings += [
             Secret(r.name, r.name, "environment", blade=piece.name, required=False)
             for r in python_connections.env_reads(piece.code, piece.read)
@@ -1381,6 +1384,33 @@ def secret_sources(
                     blade=name,
                 )
             )
+    return out
+
+
+def setting_sources(piece: Piece, vaults: Sequence[Piece]) -> list[Secret]:
+    """Each variable a connection's settings read (`${NAME}`, or a file's mapping): a vault's entry when one
+    maps it (or loads every secret and it has no default: a vault's certificate), read there (FROM_VAULTS)."""
+    if not piece.connection:
+        return []
+    try:
+        found = detect_settings(piece.code)
+    except BladeCodeError:
+        return []
+    reads: dict[str, bool] = {s.env: False for s in found if s.env}  # variable -> named with no default
+    for s in found:
+        for ref in refs.find(s.text or ""):
+            reads[ref.name] = reads.get(ref.name, False) or ref.default is None
+    every = next((v.name for v in vaults if v.vault_all and v.name != piece.name), None)
+    out: list[Secret] = []
+    for variable, bare in reads.items():
+        mapped = next((v for v in vaults if variable in v.vault_mapping and v.name != piece.name), None)
+        if mapped is not None:
+            entry = mapped.vault_mapping[variable]
+            out.append(Secret(variable, variable, "vault", vault=mapped.name, entry=entry, blade=piece.name))
+        elif bare and every is not None:
+            out.append(Secret(variable, variable, "every", vault=every, blade=piece.name))
+        else:
+            out.append(Secret(variable, variable, "file", blade=piece.name, required=False))
     return out
 
 

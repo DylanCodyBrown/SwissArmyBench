@@ -119,6 +119,18 @@ def jks_bytes(
     return bytes(jks.KeyStore.new(kind, entries).saves(password))
 
 
+def pem_text(m: Material, password: str | None = None) -> str:
+    """The client's private key, its certificate and the authority's, as one PEM text: what Azure Key Vault
+    keeps for a certificate made with the PEM content type (the key first, then the leaf, then its chain)."""
+    encryption: serialization.KeySerializationEncryption = (
+        serialization.BestAvailableEncryption(password.encode()) if password else serialization.NoEncryption()
+    )
+    key = m.client_key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, encryption
+    )
+    return (key + _pem(m.client_cert) + m.ca_pem).decode()
+
+
 def _arguments(kind: str) -> list[dict[str, Any]]:
     """A type's arguments as Trino sends them (a varchar's length)."""
     return [{"kind": "LONG", "value": 2147483647}] if kind == "varchar" else []

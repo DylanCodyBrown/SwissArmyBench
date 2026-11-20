@@ -325,10 +325,15 @@ src/swissarmybench/
                          source; the form's ways, a starter's tags, an export's warning
     certificate_files.py a certificate or keystore file setting (verify, sslrootcert, sslcert, sslkey, keystore)
                          as a path or `os.environ.get("NAME", r"<this computer's path>")`: read back, written,
-                         `import os` added; blades.env_settings lists the mappings (export, Run settings)
+                         `import os` added; blades.env_settings lists the mappings (export, Run settings);
+                         a key vault's certificate (2026-11-20): a box of one `${NAME}` written as
+                         `certificate_file(os.environ["NAME"])` (CERTIFICATE_FILE in the code while used: a path
+                         as itself, PEM text or base64 of it as a 0600 file removed at exit); VARIABLE_ONLY (the
+                         vault keystore's password: a variable or none, never typed)
     keystores.py         Trino's client certificate: the keystore read inside the connection's own code
-                         (PKCS#12 by cryptography, JKS/JCEKS by pyjks, by its first bytes), its key and chain
-                         as 0600 PEM files removed at exit; the two sign-ins' code
+                         (PKCS#12 by cryptography, JKS/JCEKS by pyjks, PEM, by its first bytes; a file, or a
+                         key vault's value: base64 PKCS#12/JKS or PEM text), its key and chain as 0600 PEM files
+                         removed at exit; the three sign-ins' code (password, from a key vault, a file here)
     snippets.py          snippets (a blade kind): text for a cell with <<name>> placeholders, what each asks
                          for (read from its name), a value written safely for where it stands (DAX, Python, HTML)
     packages.py          the pip packages a blade's imports need (re-exported by blades.py); a missing package

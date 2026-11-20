@@ -6579,6 +6579,36 @@ native query); its one dataset connection follows Read Power BI from in SQL, DAX
 Access section; access reports for Azure SQL, Dataverse, SharePoint and the lakes; closed features stay closed in
 the palette, the New menu and the tour; Edit in Power BI Desktop's dry run on the Power BI page.
 
+## Trino's client certificate from a key vault (the owner, 2026-11-20: "we need to make it possible that certificates can be retrieved from the vault for the Trino connection"; built, branch trino-vault-cert)
+
+- **Three ways to sign in** (domain/keystores.py SIGN_INS): Username and password; **Client certificate (from a
+  key vault)** (TRINO_VAULT, before the file's way: its code holds the file way's mark too, and the form takes the
+  first that fits; its own mark `keystore = os.environ["`); **Client certificate (a file on this computer)** (the
+  old keystore way, renamed).
+- **The vault's value is the keystore:** `keystore = os.environ["NAME"]` (the box's `${NAME}`, a vault's variable).
+  keystore_files reads a value that is not a file's path as base64 PKCS#12 or JKS (by the decoded first bytes) or
+  PEM text (a BEGIN line; the leaf found by its public key), the same reader, the same 0600 files removed at exit.
+  A file's PEM works too now. An error never holds the value (a long value is "neither a file's path nor a
+  certificate", the variable named).
+- **Its password:** `keystore_password`, a variable or none (Key Vault's own have none). The one password that is a
+  setting, and only as a variable or empty (certificate_files.VARIABLE_ONLY): a typed value is refused by
+  blades_fill, so it never lands in the code. Every other password stays `secret("...")`.
+- **Every certificate file from a vault:** a certificate file setting (verify, sslrootcert, sslcert, sslkey, ssl_ca,
+  ssl_cert, ssl_key) whose box is exactly one `${NAME}` (no default) is written
+  `certificate_file(os.environ["NAME"])`; CERTIFICATE_FILE is put in the code while a setting uses it and taken out
+  with its last use. A path as itself; PEM text (or base64 of it) as a 0600 file in a 0700 folder removed at exit.
+  `${NAME:-path}` stays the plain mapped path (a default says it is a path). A keystore is never wrapped.
+- **No amber note on the vault way:** Trino's CA `verify` defaults to empty (the system's trusted authorities) in all
+  three ways, so the password way and the vault way run on a Function App; the file way keeps the note. A path typed
+  into a certificate's box brings the note back, as before.
+- **The export:** a setting's variable a vault maps (or a vault that loads every secret gives, for a `${NAME}` with
+  no default) is FROM_VAULTS, read by the vault's own code where it runs (script_export.setting_sources), and the
+  vault is written out; the certificate is never in the script.
+- **The agent:** the same through connections_test, connections_add and blades_fill (the golden rule); no answer
+  holds the certificate. No new command.
+- **Release note:** Trino signs in with a client certificate from a key vault (base64 PKCS#12 or PEM), and any
+  certificate file (PostgreSQL, MySQL, Trino's CA) may come from a vault's variable; it runs on a Function App.
+
 ## Find connections on this computer (the owner, 2026-11-20: "Is it possible to scan the computer's common apps for connections and import them. DBeaver, SSMS, ODBC, etc." / "You could scan the app directory for hints of what to search for"; built, branch find-connections)
 
 - **Release note:** Connections, **Find connections on this computer…**: the connections DBeaver, SSMS, ODBC, Azure

@@ -4088,3 +4088,21 @@ there, the cause not yet found): known, not from these changes.
 The owner's FI Dataverse (a SQL Server connection on Dataverse's SQL endpoint) failed to list its tables: the
 endpoint refuses PARSENAME. The rich SQL Server listing now falls back to INFORMATION_SCHEMA.COLUMNS when it fails
 (the first error said if that fails too); tests/test_partial_sql_server_catalog.py (a stand-in endpoint).
+
+## Trino's client certificate from a key vault (2026-11-20, branch trino-vault-cert)
+
+tests/test_keystore_vault.py (made-up keys, certificates and vaults): the keystore helper reads base64 PKCS#12
+(no password, a password, in 64-character lines), PEM text (plain and with an encrypted key), base64 of PEM and
+base64 JKS; the errors never hold the value; the files are 0600 in a 0700 folder and gone when the Python ends
+(a child process). certificate_file: a path as itself, PEM and base64 PEM as a 0600 file, removed at exit. The
+settings: the vault way's variables, its password a variable or none (a typed one refused), a wrapped certificate
+read back and the helper taken out with its last use, PostgreSQL and MySQL certificate files. Against the made-up
+Trino that asks for a client certificate: Test, save and Open as grid by the agent, with the certificate as
+base64 PKCS#12, PEM text and base64 JKS (with its password from the vault), every call signed by it; nothing of
+it in an answer or any file under the test's folder (state, library), no temporary folder left; an exported
+script run in a fresh process reads it from the made-up vault and signs in. Browser (Chromium):
+tests/e2e/test_trino_keystore_page.py's vault way (the variables typed, a typed password refused, Test works, no
+amber note; the file way's note). That file's older test looked for a box labelled Password, which the form names
+by its variable (TRINO KEYSTORE PASSWORD) since before this change; fixed. Not checked: a real Azure Key Vault (its
+secret's value format is from Microsoft's documentation), a real Trino, a Workbench kernel's read (the same code),
+Windows.
