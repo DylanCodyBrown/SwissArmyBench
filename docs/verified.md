@@ -4081,3 +4081,4 @@ commit box on each refresh, so a message being typed was lost and the commit ref
 kept and its focus given back; 10 of 10 runs pass). test_sql_server_page's script-export test fails about 1 run in 4
 even alone (the file picker's first folder sometimes wins over a folder typed as it opens; the stale-answer guard is
 there, the cause not yet found): known, not from these changes.
+0.0.29 from the release: install.sh into an empty home folder gave 0.0.29; the desktop app (Xvfb) started its server, and 40 s after the app closed it was gone.
