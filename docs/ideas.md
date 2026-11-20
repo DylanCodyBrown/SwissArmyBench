@@ -6578,3 +6578,30 @@ Release notes: a Power BI project's export writes its original Power Query back 
 native query); its one dataset connection follows Read Power BI from in SQL, DAX cells and Compare; a connection's
 Access section; access reports for Azure SQL, Dataverse, SharePoint and the lakes; closed features stay closed in
 the palette, the New menu and the tour; Edit in Power BI Desktop's dry run on the Power BI page.
+
+## Find connections on this computer (the owner, 2026-11-20: "Is it possible to scan the computer's common apps for connections and import them. DBeaver, SSMS, ODBC, etc." / "You could scan the app directory for hints of what to search for"; built, branch find-connections)
+
+- **Release note:** Connections, **Find connections on this computer…**: the connections DBeaver, SSMS, ODBC, Azure
+  Data Studio, VS Code, JetBrains, pgAdmin 4, MySQL Workbench, HeidiSQL and Office keep, and a few seconds' search of
+  the app settings folders, listed in one place to tick and import; never a password.
+- Built: domain/found_connections.py (the model, parsing, the list, the import body), domain/found_readers.py (the
+  readers as data and pure functions, PLACES per system, the hint scan and what it never opens),
+  adapters/found_connections.py (files per system, the registry through a seam, pgAdmin read-only, the walk with
+  its caps and Cancel), services/found_connections.py, routes_found_connections.py, web/src/findConnections.ts;
+  `connections_find` and `connections_import_found`, both on the user's Allow.
+- Decisions: on the click only, read-only; no Found field can hold a password, every string scrubbed again;
+  nothing found is kept but in memory (the last list, for import by id) and the audit says counts only. An ODBC data
+  source whose driver we have a connection for, with its server, imports as that kind (SQL Server on mssql-python,
+  portable); else as an ODBC data source (amber). Windows sign-in imports with SQL Server's windows way (amber). A
+  connection's name keeps letters, digits, spaces, `_ - .` (Shop (dev) -> Shop dev). A `Server=` + `Database=`
+  string with no driver named reads as SQL Server (.NET's SqlClient). The password is
+  `secret("<NAME>_PASSWORD")` and that keyring variable is declared, not set (Needs a password on its card).
+  Already added is the same kind family (SQL Server and Azure SQL; MySQL and MariaDB), server (localhost, ., (local)
+  and 127.0.0.1 alike; a named instance its own) and database, or the same file or data source. The hint scan reads
+  JSON, XML, .config, INI, .properties, TOML, YAML (strings only), .conf, .dsn, .odc, .udl up to 256 KB, 4 levels, 4,000
+  files, 4 seconds; Windows AppData Roaming and Local and ProgramData, macOS Application Support, Linux ~/.config
+  and ~/.local/share (not /etc: only its odbc.ini is read). SSMS 17's SqlStudio.bin (binary) is said, not read.
+- Open: Power BI Desktop is left to the Power BI extension; a YAML object (host, port, database) is not read as an
+  object (no YAML in the domain); Toad, Navicat, SQL Developer, Snowflake's SnowSQL config and DataGrip's
+  per-project user names beyond dataSources.local.xml are not read yet.
+

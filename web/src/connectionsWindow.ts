@@ -10,7 +10,8 @@
  *            address the dialog had (open=connections), over whichever page you are on
  *   [CARDS]  a card each, grouped (databases, files, your own code, key vaults): its type's icon, its
  *            name, its type, its status (works, ready, needs a password, failing: a cheap check, never a
- *            run) and its calls this session. Add connection and Add API in the heading row
+ *            run) and its calls this session. Add connection, Import… and Find connections on this computer…
+ *            (findConnections.ts) in the heading row
  *   [DETAIL] a card's click (at=detail&name=): where it is used (each notebook or script cell, canvas
  *            block and open grid; a click opens that cell in the Workbench, or the grid), its
  *            configuration (type, settings, sign-in, each password's source by kind and name: never a
@@ -61,6 +62,7 @@ import { clearError, errorHere, errorMark, errorNote, showError, warningNote } f
 import { namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { openImport } from "./projectImport";
+import { openFindConnections } from "./findConnections";
 import { pickSheets } from "./openFile";
 import { type Missing, noticeMissing, promptForError, reminder } from "./missingPackages";
 import { touring } from "./tourButton";
@@ -604,7 +606,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
   /** The heading row's actions: Add connection, on the cards only (Add API is the APIs page's, 2026-11-17). */
   const listActions = (on: boolean): void => {
     actions.replaceChildren(
-      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts)
+      ...(on ? [button("Add connection", () => move(TYPES, () => void showTypes()), { icon: "plus", class: "primary" }), button("Import…", () => void openImport("connections").then((done) => done && showList()), { icon: "import" }), button("Find connections on this computer…", () => void openFindConnections().then((made) => void (made.length && showList())), { icon: "desktop" })] : []), // Import: from another project or this computer's saved ones (projectImport.ts); Find: the tools this computer has (findConnections.ts)
     );
   };
   const detailUrl = (name: string): string => urlOf({ at: "detail", type: null, name });
