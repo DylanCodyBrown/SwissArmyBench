@@ -5,4 +5,4 @@ it can be removed on the Extensions page. It registers itself under the entry-po
 `swissarmybench.extensions` (extension.py). Released with the base, at the base's version.
 """
 
-__version__: str = "0.0.29"
+__version__: str = "0.0.30"

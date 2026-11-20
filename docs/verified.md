@@ -4125,3 +4125,8 @@ amber note; the file way's note). That file's older test looked for a box labell
 by its variable (TRINO KEYSTORE PASSWORD) since before this change; fixed. Not checked: a real Azure Key Vault (its
 secret's value format is from Microsoft's documentation), a real Trino, a Workbench kernel's read (the same code),
 Windows.
+
+## 0.0.30 before release (2026-11-20)
+
+The whole suite: the quick tests 4,807 passed (test_desktop_shell failed under load, 2 of 2 alone); the browser
+tests 394 passed (test_launch_page failed under load, passes alone).

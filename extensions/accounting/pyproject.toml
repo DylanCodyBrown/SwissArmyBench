@@ -1,13 +1,13 @@
 [project]
 name = "swissarmybench-accounting"
 # The base's version: the base and its extensions are released together (build.py checks it).
-version = "0.0.29"
+version = "0.0.30"
 description = "Swiss Army Bench Accounting: Excel workbooks built by a Python automation; cession statements and invoices from templates."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 requires-python = ">=3.12"
 # The grid server it plugs into (openpyxl, duckdb and pyarrow come with it).
-dependencies = ["swissarmybench[server]==0.0.29"]
+dependencies = ["swissarmybench[server]==0.0.30"]
 
 # How the base finds it (src/swissarmybench/extensions.py): the group, its id, its module.
 [project.entry-points."swissarmybench.extensions"]
