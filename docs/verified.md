@@ -4197,3 +4197,7 @@ Not checked: a real Microsoft tenant (no browser sign-in or device code against 
 Dataverse, OneLake, SharePoint or Key Vault), Snowflake, BigQuery, Redshift, Databricks, Db2, Teradata, ClickHouse,
 HANA, Vertica, Oracle and Trino servers (their keywords only), an ODBC driver (none here), Windows and macOS, the
 encrypted token cache on a desktop (Linux here has no keyring: the fallback ran).
+
+The whole suite (Chromium): the quick tests 4,835 passed, 39 skipped; the browser tests 395 passed, 15 skipped
+(the Connections forms touched: test_sql_server_page, test_dataverse_page, test_lakes_page say the MFA way, its
+amber note and the no-MFA line). ruff, ruff format, mypy, npm typecheck and build clean.
