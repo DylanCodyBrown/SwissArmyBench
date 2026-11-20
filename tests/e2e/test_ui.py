@@ -603,7 +603,9 @@ def test_the_plus_tab_builds_a_table_from_a_query(browser: Browser, server: dict
     call(server, "POST", f"/grids/{grid_of(url)}/steps", {"steps": [north]})
     page = open_grid(browser, url)
 
-    page.get_by_role("button", name="New table from a query").click()
+    # The + is the New query page (the owner, 2026-11-20): Open tables (DuckDB) first; a click, the draft.
+    page.get_by_role("button", name="New query").click()
+    page.locator(".new-query-choice", has_text="Open tables (DuckDB)").click()
     draft = page.locator(".tab-draft")
     expect(draft).to_have_attribute("aria-selected", "true")
     view = page.locator("#query-view")

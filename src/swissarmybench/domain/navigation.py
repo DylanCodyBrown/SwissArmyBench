@@ -66,9 +66,11 @@ EVERYWHERE: tuple[str, ...] = (
     "add_connection",
     "add_api",
 )
-# Each window's own views. `grid:<id>` and `blade:<name>` name one.
+# Each window's own views. `grid:<id>` and `blade:<name>` name one. The home page's New query page (the "+",
+# the grids with none open: the owner, 2026-11-20) is new_query; query is its draft, query:<connection> the
+# draft with Query from set to that connection (a click on the page).
 OWN: dict[str, tuple[str, ...]] = {
-    "home": ("query", "grid:<id>"),
+    "home": ("new_query", "query", "query:<connection>", "grid:<id>"),
     "catalog": ("blade:<name>", "new_blade"),
     "workbench": (),
 }
@@ -113,7 +115,7 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
         notice["new_window"] = True
     if kind == "grid":
         notice["grid"] = name
-    elif kind in ("blade", "connection"):
+    elif kind in ("blade", "connection") or (kind == "query" and name):
         notice["name"] = name
     return notice
 

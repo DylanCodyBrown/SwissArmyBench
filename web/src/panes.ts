@@ -24,7 +24,7 @@
  *          [TAB RIGHT-CLICK] -> tabMenu(): Compare with… -> compareWith(id), Rename -> renameInPlace(), Close -> closeGrid(id)
  *          [DRAG TAB]       onto a tab's edge -> moveTab();  onto a tab's middle or the grid -> splitWith()
  *          [DRAFT TAB]      click -> showQueryView(); × -> closeDraft(); label -> renameDraft()
- *          [NEW TAB +]      -> newQueryTab()  (opens the draft, or brings the open one forward)
+ *          [NEW TAB +]      -> newQueryTab()  (the New query page: startView.ts; a choice there -> openQueryDraft())
  *          [OPEN BUTTON]    -> openMenu.showOpenDialog()  (the tables in your running Python sessions)
  *          [PANE]           pointer down -> activateGrid(id)
  *          [CLOSE THIS SIDE]-> unsplit(keep)
@@ -58,7 +58,8 @@ let view: AppView = "grid";
 const agentViewListeners: (() => void)[] = [];
 // The "+" tab's draft: the name of the table its query will build. `serial` tells queryTab.ts a
 // new draft from the one it last drew (a closed draft's query is not carried into the next).
-let draft: { serial: number; name: string } | null = null;
+// `from`: the Query from the New query page chose ("" the open tables, else a connection's name).
+let draft: { serial: number; name: string; from: string } | null = null;
 let draftSerial = 0;
 
 /** Analyze tab: Analyze full width, in place of the grids. */
@@ -80,7 +81,7 @@ export function currentView(): AppView {
   return view;
 }
 
-/** The Grids landing: a table that arrives takes its place. */
+/** The New query page (the Grids landing, and the "+"): a table that arrives takes its place. */
 export function viewingLanding(): boolean {
   return view === "grids";
 }
@@ -97,7 +98,8 @@ let syncing: Move | null = null;
 function addressOf(): string {
   const now = new URLSearchParams(location.search);
   const out = new URLSearchParams();
-  if (view !== "grid") out.set("view", VIEW_WORDS[view]);
+  // The New query page over open grids is view=new (the "+"): view=grids is the grids, the page only with none.
+  if (view !== "grid") out.set("view", view === "grids" && order.length ? "new" : VIEW_WORDS[view]);
   // A dialog's own words, while it is on screen (one closed a moment ago leaves them behind).
   if (now.get("open") && layerShown() === now.get("open")) {
     for (const key of LAYER_PARAMS) {
@@ -114,7 +116,7 @@ function addressOf(): string {
 export function placeName(): string {
   if (view === "agent") return "Analyze";
   if (view === "erd") return "ERD";
-  if (view === "grids") return "Grids";
+  if (view === "grids") return "New query";
   if (view === "query") return draft?.name || "New query";
   return activeId && contexts.has(activeId) ? label(activeId) : "";
 }
@@ -143,12 +145,13 @@ export async function showPlace(url: URL): Promise<void> {
   const named = url.searchParams.get("view");
   if (named === "analyze" || named === "visualizations" || named === "sandbox") setView("agent", "replace");
   else if (named === "erd" || named === "diagram") setView("erd", "replace");
-  else if (named === "query") await newQueryTab("replace");
+  else if (named === "query") await openQueryDraft(url.searchParams.get("from"), "replace");
   else if (named === "start") {
     // The old Start view (one release): the Projects page (projectsPage.ts), in this entry's place.
     setView(order.length ? "grid" : "grids", "replace");
     visit(withParams({ view: null, open: "projects", at: null, type: null, name: null }), "replace");
-  } else if (named === "grids" || (!order.length && url.pathname === "/workspace")) setView(order.length ? "grid" : "grids", "replace");
+  } else if (named === "new") setView("grids", "replace"); // the New query page, over the grids too (the "+")
+  else if (named === "grids" || (!order.length && url.pathname === "/workspace")) setView(order.length ? "grid" : "grids", "replace");
   else {
     const id = url.pathname.startsWith("/g/") ? decodeURIComponent(url.pathname.slice(3)) : "";
     setView("grid", "replace");
@@ -170,19 +173,33 @@ export function showQueryView(how: Move = "auto"): void {
   setView("query", how);
 }
 
-export function currentDraft(): { serial: number; name: string } | null {
+export function currentDraft(): { serial: number; name: string; from: string } | null {
   return draft;
 }
 
-/** The "+": open a draft named query_<n> (the first n no dataset uses), or show the open one. */
+/** The "+" (Ctrl+T, Ctrl+N; the owner, 2026-11-20: "this should just be a new query page, with the active
+ *  connections and you can click one to start a new grid sql"): the New query page, startView.ts. */
 export async function newQueryTab(how: Move = "auto"): Promise<void> {
-  if (!draft) {
-    const { datasets } = await api<{ datasets: { name: string }[] }>("/datasets");
-    const taken = new Set(datasets.map((d) => d.name));
-    let n = 1;
-    while (taken.has(`query_${n}`)) n += 1;
+  setView("grids", how);
+}
+
+/** The New query page's choice: a draft named query_<n> (the first n no dataset uses; an open draft keeps
+ *  its name but starts again) with Query from set to `from` ("" the open tables, else a connection).
+ *  `from` null: the open draft as it is (Back and Forward to it, a reload), or a new one on the open tables. */
+export async function openQueryDraft(from: string | null, how: Move = "auto"): Promise<void> {
+  if (!draft || from !== null) {
+    let name = draft?.name;
+    if (!name) {
+      const { datasets } = await api<{ datasets: { name: string }[] }>("/datasets");
+      const taken = new Set(datasets.map((d) => d.name));
+      let n = 1;
+      while (taken.has(`query_${n}`)) n += 1;
+      name = `query_${n}`;
+    }
     draftSerial += 1;
-    draft = { serial: draftSerial, name: `query_${n}` };
+    draft = { serial: draftSerial, name, from: from ?? "" };
+    // Already in front (the agent's query:<connection> over the draft): queryTab.ts draws the new one.
+    if (view === "query") for (const listener of agentViewListeners) listener();
   }
   showQueryView(how);
 }
@@ -765,7 +782,7 @@ function render(): void {
     // Analyze, the ERD and the Workbench are the rail's (rail.ts, the owner, 2026-11-16): only grids here.
     ...arrange(tabs),
     draft ? draftTab(draft.name) : null,
-    button("New table from a query", () => void newQueryTab(), { icon: "plus", iconOnly: true, class: "ghost tab-new" }),
+    button("New query", () => void newQueryTab(), { icon: "plus", iconOnly: true, class: `ghost tab-new${view === "grids" ? " active" : ""}` }),
     openFileButton(),
     openMenuButton(),
     h("div", {

@@ -4664,7 +4664,8 @@ def app_audit(a: dict[str, Any]) -> Any:
         "to",
         "the rail: projects (the mark), data (browse tables), grids, analyze, erd, notebooks, scripts, "
         "apps, blades, connections, variables, session, settings; back, forward, add_connection, add_api; home: "
-        "query, grid:<id>; catalog (the blades page): blade:<name>, new_blade",
+        "new_query (the New query page), query, query:<connection> (its draft, Query from set), grid:<id>; "
+        "catalog (the blades page): blade:<name>, new_blade",
     ),
     opt("window", "home (default), catalog or workbench."),
     opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),

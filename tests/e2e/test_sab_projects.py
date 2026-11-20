@@ -332,19 +332,21 @@ def test_the_tour_is_offered_on_the_projects_page_only(
     page.context.close()
 
 
-def test_the_grid_page_with_no_table_is_the_grids_landing_and_the_mark_opens_projects(
+def test_the_grid_page_with_no_table_is_the_new_query_page_and_the_mark_opens_projects(
     browser: Browser, server: dict[str, Any], fresh: Path
 ) -> None:
     """The owner (2026-11-18): "give this button its own page for projects dont share the grid as the home
-    page". The grid page is only the grids: with no table and no project, its landing (and a link to
-    Projects); the mark, the rail's first item, opens Projects over it; Back returns."""
+    page". The grid page is only the grids: with no table and no project, the New query page (2026-11-20:
+    no Open a file, Paste or Projects link on it); the mark, the rail's first item, opens Projects over it;
+    Back returns."""
     made_up_projects(server, fresh)
     page = home(browser, server, "?view=grids")
-    landing = page.locator(".landing-page")
+    landing = page.locator(".new-query-page")
     expect(landing).to_be_visible(timeout=20000)
     expect(page.locator(".workspace")).to_have_attribute("data-view", "grids")
-    expect(landing.get_by_role("button", name="Open a file…")).to_be_visible()
-    expect(landing.locator(".landing-projects")).to_contain_text("No project is open.")
+    expect(landing.get_by_role("heading", name="New query")).to_be_visible()
+    expect(landing.get_by_role("button", name="Open a file…")).to_have_count(0)
+    expect(landing.get_by_role("link", name="Projects")).to_have_count(0)
     projects = page.locator('.area-page[data-page="projects"]')
     expect(projects).to_have_count(0)
     mark = page.locator(".nav-rail-item").first
@@ -366,9 +368,6 @@ def test_the_grid_page_with_no_table_is_the_grids_landing_and_the_mark_opens_pro
     page.go_back()
     expect(projects).to_have_count(0)
     expect(landing).to_be_visible()
-    # The landing's link goes there too.
-    landing.get_by_role("link", name="Projects").click()
-    expect(projects).to_be_visible()
     page.context.close()
     dark = home(browser, server, "?open=projects", dark=True)
     expect(dark.locator('.area-page[data-page="projects"] .explorer-card')).to_have_count(3, timeout=20000)

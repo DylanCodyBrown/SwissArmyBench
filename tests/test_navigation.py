@@ -49,6 +49,18 @@ def test_each_window_names_the_places_it_has() -> None:
     assert "grid:<id>" in rules.places("home") and "query" not in rules.places("workbench")
 
 
+def test_the_new_query_page_and_a_draft_on_a_connection() -> None:
+    """The owner, 2026-11-20: "this should just be a new query page, with the active connections and you
+    can click one to start a new grid sql": the page (new_query), and a draft with Query from set
+    (query:<name>)."""
+    assert rules.place("home", "new_query") == {"window": "home", "to": "new_query"}
+    assert rules.place("home", "query") == {"window": "home", "to": "query"}
+    assert rules.place("home", "query:Warehouse") == {"window": "home", "to": "query", "name": "Warehouse"}
+    assert rules.said(rules.place("home", "query:Warehouse")) == "home window to query Warehouse"
+    with pytest.raises(rules.NavigationError, match="cannot go to 'new_query'"):
+        rules.place("workbench", "new_query")
+
+
 def test_every_rail_area_is_a_place_from_every_window() -> None:
     """The rail (2026-11-16): each area, in the rail's order, from each window, as a rail click goes."""
     assert rules.AREAS == (  # in the order of the work (the owner, 2026-11-17)

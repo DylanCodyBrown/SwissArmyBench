@@ -4207,3 +4207,15 @@ amber note and the no-MFA line). ruff, ruff format, mypy, npm typecheck and buil
 The connection audit and multi-factor sign-in merged; quick suite 4825 passed, 49 skipped; ruff and format clean.
 
 0.0.31 from the release: the released install.sh into an empty home folder installed 0.0.31 (with the Streamlit extension 0.0.31); the desktop app (Xvfb) started its server, and the server stopped 30 s after the app was ended (beta log: start 18:11:04, stop 18:12:42).
+
+## The New query page (2026-11-20, branch new-query-page)
+
+The grid page with no table open and the tab row's "+" (Ctrl+T, Ctrl+N) are one New query page (startView.ts).
+Checked in Chromium with made-up SQLite connections (tests/e2e/test_new_query_page.py): with no table open the page
+lists the two connections (their kind, their colour) and none of the old landing's buttons; a click opens the draft
+with Query from set to that connection, typing goes after "FROM ", Run builds the table there; with a grid open the
+"+" shows Open tables (DuckDB) first, the first choice has the keys, ArrowDown and Enter open the next; the agent's
+app_navigate new_query and query:<connection> do the same. The updated e2e tests (the + tab, Query from, the desktop
+keys, the Projects landing) pass. Quick suite 4826 passed, 49 skipped; e2e suite (-n 2) 396 passed, 15 skipped.
+Not checked: a search past 8 connections and the "needs a password" mark in a browser (no test makes them), and
+Edge.

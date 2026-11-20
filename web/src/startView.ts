@@ -4,10 +4,15 @@
  * file … ask about autosave … we start in grids"; 2026-11-18: "give this button its own page for projects
  * dont share the grid as the home page": the Start view left for the Projects page, projectsPage.ts.)
  *
- * ROUTING: [GRIDS]    /workspace?view=grids: the grid page with no table open, a project open or not: Open a
- *                     file, Paste, Query (the "+" tab), the connections (each its tables) and the catalog, the
- *                     project's tables that did not come back, each with its fix; with no project, a link to
- *                     Projects
+ * ROUTING: [NEW QUERY]  /workspace?view=grids (no grid open) or view=new (the "+" over grids): the New query
+ *                     page (the owner, 2026-11-20: "get rid of all of this this should just be a new query page, with the active connections and you can click
+ *                     one to start a new grid sql"): the grid page with no table open, and the "+" (Ctrl+T,
+ *                     Ctrl+N). Open tables (DuckDB) first while a grid is open, then each connection that runs
+ *                     SQL (queryTab.ts queryConnections: Query from's own list), its kind in words, its colour,
+ *                     a password missing here; a click (or Enter) opens the draft with Query from set
+ *                     (panes.ts openQueryDraft); arrows move between them; a search past 8. No connection: the
+ *                     empty state (Add connection, Try it with sample data). The project's tables that did not
+ *                     come back, each with its fix, below. Open a file and Paste are the tab row's and Ctrl+V.
  *          [PROJECT]  in the Application row, before Zoom: the project's name (● with unsaved changes),
  *                     Save (Ctrl+S), Copy to…, Close, the Autosave switch
  *          [FIXES]    a strip under the tabs, only while a table did not come back: its one click
@@ -15,11 +20,12 @@
  */
 import { api, onNotice, token } from "./api";
 import { button, clear, h, icon } from "./dom";
-import { openLayer, PROJECTS_URL, visit, withParams } from "./nav";
-import { newQueryTab, onAgentView, viewingLanding } from "./panes";
+import { visit, withParams } from "./nav";
+import { gridList, onAgentView, openQueryDraft, viewingLanding } from "./panes";
 import { answerAsked, autosaveSwitch, closeProject, copyProject, exportOutline, fixTable, loadProject, mountProject, onBeforeSave, onProject, type Problem, privateSwitch, projectLabel, projectState, type ProjectState, reportLayout, saveProject, setAutosave, setPrivate } from "./projectFile";
-import { PROJECTS } from "./projectsPage";
-import { openFile } from "./openFile";
+import { queryConnections, type QueryConnection } from "./queryTab";
+import { openConnectionTypes } from "./connectionsWindow";
+import { emptyState } from "./emptyState";
 import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
 import { errorHere } from "./errorNote";
 
@@ -28,8 +34,9 @@ let host: HTMLElement;
 let group: HTMLElement;
 let strip: HTMLElement;
 let shownSerial = -1;
-let paste: () => void = () => undefined;
-let connections: { name: string; connection: string; needs_password: unknown; tables_kind?: string | null }[] = [];
+let connections: QueryConnection[] = [];
+let loaded = false;
+let search = "";
 
 const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
 
@@ -49,14 +56,13 @@ export async function openInWorkbench(path?: string): Promise<void> {
 }
 
 /** `home`: the page's tabs as a project keeps them (the order, the one in front), and putting them back
- *  when a project opens; `paste`: the clipboard's table, as Ctrl+V would. */
-export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: HTMLElement, home: { layout: () => Record<string, unknown>; restore: (layout: Record<string, unknown>) => void; paste: () => void }): void {
+ *  when a project opens. */
+export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: HTMLElement, home: { layout: () => Record<string, unknown>; restore: (layout: Record<string, unknown>) => void }): void {
   host = element;
   group = appGroup;
   strip = fixes;
-  paste = home.paste;
   mountProject();
-  void loadConnections(); // the landing's connections, a project open or not
+  void loadConnections(); // the New query page's connections, a project open or not
   onConnectionChange(() => {
     if (lastState) drawFixes(lastState);
   });
@@ -75,9 +81,13 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
     }
     if (!state.project) shownSerial = -1;
   });
-  onAgentView(() => draw(projectState()));
+  onAgentView(() => {
+    draw(projectState());
+    if (lastState) drawFixes(lastState);
+    if (viewingLanding()) focusFirst();
+  });
   onNotice((notice) => {
-    if (notice.type === "blades_changed" && projectState().project) void loadConnections();
+    if (notice.type === "blades_changed") void loadConnections();
   });
   onBeforeSave(() => reportLayout("home", home.layout()));
   document.addEventListener("keydown", (e) => {
@@ -91,81 +101,120 @@ export function mountStart(element: HTMLElement, appGroup: HTMLElement, fixes: H
 
 async function loadConnections(): Promise<void> {
   try {
-    connections = (await api<{ connections: typeof connections }>("/connections")).connections.filter((c) => c.connection !== "vault" && c.tables_kind !== "api");
+    connections = await queryConnections();
   } catch {
     connections = [];
   }
+  loaded = true;
   draw(projectState());
 }
 
-// ===== the Grids landing =====
+// ===== the New query page =====
 
 function draw(state: ProjectState): void {
   // Drawn whether or not it is in front (hidden behind the grids), so it never keeps a fix that is gone.
   if (host) drawLanding(state);
 }
 
-/** The catalog page, on one connection's catalog (or all of them). */
-function openCatalog(name?: string): void {
-  const hash = new URLSearchParams({ ...(token ? { token } : {}), ...(name ? { catalog: name } : {}) }).toString();
-  location.assign(`/catalog${hash ? `#${hash}` : ""}`);
+/** A choice: the draft, Query from set ("" the open tables). */
+function choice(from: string, name: string, words: string, extra: { connection?: boolean; needs?: string | null } = {}): HTMLElement {
+  const item = h(
+    "button",
+    {
+      type: "button",
+      class: "new-query-choice",
+      "data-from": from,
+      ...(extra.connection ? { "data-connections": name } : {}),
+      onclick: () => void openQueryDraft(from).catch((e: Error) => errorHere(e)),
+    },
+    h("span", { class: "new-query-icon", "aria-hidden": "true" }, icon(extra.connection ? "plug" : "grids")),
+    h("span", { class: "new-query-text" }, h("strong", {}, name), h("span", { class: "new-query-kind" }, words)),
+    extra.needs ? h("span", { class: "new-query-needs", title: extra.needs }, icon("warning"), extra.needs) : null,
+  );
+  return h("li", {}, item);
+}
+
+/** Arrows move between the choices (and from the search into them); Enter is the button's own. */
+function onListKey(e: KeyboardEvent): void {
+  const items = [...host.querySelectorAll<HTMLButtonElement>(".new-query-choice")].filter((b) => !b.closest("li")?.hidden);
+  if (!items.length) return;
+  const at = items.indexOf(document.activeElement as HTMLButtonElement);
+  const move: Record<string, number> = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+  if (at < 0 && (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End")) return; // the search box's caret
+  let next: number | null = null;
+  if (e.key in move) next = at < 0 ? 0 : (at + move[e.key]! + items.length) % items.length;
+  else if (e.key === "Home") next = 0;
+  else if (e.key === "End") next = items.length - 1;
+  if (next === null) return;
+  e.preventDefault();
+  items[next]!.focus();
+}
+
+/** On show: the search (past 8 connections), else the first choice, takes the keys. */
+function focusFirst(): void {
+  requestAnimationFrame(() => {
+    // Only when nothing else has the keys (a page over it, the rail, a box being typed in keep them).
+    const now = document.activeElement;
+    if (!viewingLanding() || (now && now !== document.body && !now.classList.contains("tab-new"))) return;
+    host.querySelector<HTMLElement>(".new-query-search, .new-query-choice")?.focus({ preventScroll: true });
+  });
 }
 
 function drawLanding(state: ProjectState): void {
   const problems = state.project?.problems ?? [];
+  const gridsOpen = gridList().length > 0;
+  const many = connections.length > 8;
+  const list = h(
+    "ul",
+    { class: "new-query-list", "aria-label": "Query from" },
+    gridsOpen ? choice("", "Open tables (DuckDB)", "The grids open here, as they show them") : null,
+    ...connections.map((c) => choice(c.name, c.name, c.type, { connection: true, needs: c.needsPassword })),
+  );
+  const filter = (): void => {
+    const words = search.trim().toLocaleLowerCase();
+    for (const li of list.querySelectorAll<HTMLElement>("li")) li.hidden = !!words && !(li.textContent ?? "").toLocaleLowerCase().includes(words);
+  };
+  const searchBox = many
+    ? h("input", {
+        type: "search",
+        class: "new-query-search",
+        placeholder: "Search connections",
+        "aria-label": "Search connections",
+        "data-no-variables": "",
+        value: search,
+        oninput: (e: Event) => {
+          search = (e.target as HTMLInputElement).value;
+          filter();
+        },
+        onkeydown: (e: KeyboardEvent) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          list.querySelector<HTMLButtonElement>("li:not([hidden]) .new-query-choice")?.click();
+        },
+      })
+    : null;
+  if (many) filter();
+  const none = loaded && !connections.length
+    ? emptyState({ icon: "plug", line: "Add a connection to query its tables in its own SQL.", action: { label: "Add connection", icon: "plus", run: () => openConnectionTypes() } })
+    : null;
+  const hadFocus = host.contains(document.activeElement) ? (document.activeElement as HTMLElement).dataset.from : undefined;
   clear(
     host,
     h(
       "div",
-      { class: "start-page landing-page" },
-      h(
-        "section",
-        { class: "start-section", "aria-label": "Bring data in" },
-        h("h2", {}, "Grids"),
-        h(
-          "div",
-          { class: "start-actions" },
-          button("Open a file…", () => void openFile(), { icon: "folder", class: "start-action" }),
-          button("Paste", () => paste(), { icon: "copy", class: "start-action", title: "Ctrl+V" }),
-          button("Query", guard(() => newQueryTab("push")), { icon: "sql", class: "start-action" }),
-        ),
-        // No project open: the way to one (the Projects page, the rail's mark).
-        state.project
-          ? null
-          : h("p", { class: "landing-projects" }, "No project is open. ", h(
-              "a",
-              {
-                href: PROJECTS_URL,
-                class: "landing-projects-link",
-                onclick: (e: MouseEvent) => {
-                  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
-                  e.preventDefault();
-                  openLayer("projects");
-                },
-              },
-              PROJECTS,
-            )),
-      ),
-      h(
-        "section",
-        { class: "start-section", "aria-label": "From a connection" },
-        h("h2", {}, "From a connection"),
-        h(
-          "div",
-          { class: "landing-connections" },
-          ...connections.map((c) =>
-            // Its tables as a tree (connectionTree.ts, on the Connections page): Open, Open all, Copy name.
-            button(c.name, () => visit(withParams({ open: "connections", at: "detail", type: null, name: c.name })), { icon: "plug", class: "start-action", title: c.needs_password ? `${c.name}: needs a password on this computer` : c.name }),
-          ),
-          button("Catalog", () => openCatalog(), { icon: "folder", class: "start-action" }),
-          button("Add connection", () => visit(withParams({ open: "connections", at: "types", type: null, name: null })), { icon: "plus", class: "start-action" }),
-        ),
-      ),
+      { class: "start-page new-query-page", onkeydown: onListKey },
+      h("h1", { class: "new-query-title" }, "New query"),
+      searchBox,
+      gridsOpen || connections.length ? list : null,
+      none,
       problems.length
         ? h("section", { class: "start-section landing-fixes", "aria-label": "Tables to bring back" }, h("h2", {}, "Tables"), ...problems.map((p) => fixRow(p)))
         : null,
     ),
   );
+  // A redraw (a connection saved, the list read) keeps the choice that had the keys.
+  if (hadFocus !== undefined) host.querySelector<HTMLElement>(`.new-query-choice[data-from="${CSS.escape(hadFocus)}"]`)?.focus();
+  else if (viewingLanding()) focusFirst();
 }
 
 // ===== the Application row's project group =====

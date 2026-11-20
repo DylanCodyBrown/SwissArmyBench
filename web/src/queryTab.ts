@@ -16,6 +16,9 @@
  * SQL (POST /datasets/{name}/connection-query), and the table remembers where, so Run again goes back there;
  * Add a connection… opens the Connections page's types, and the new one is offered when it is saved.
  *
+ * The New query page (startView.ts: the "+", and the grid page with no table open) offers the same choices as
+ * Query from (queryConnections(), the one rule) and opens the draft with its choice already set.
+ *
  * ROUTING: [TRAY TOGGLE]  -> setOpen()                  (one row, or the editor too)
  *          [QUERY FROM]   -> sourcePicker()             (Grids, each connection that runs SQL, Add a connection…)
  *          [TABLE NAME]   -> panes.renameDraft()        (the draft only; a built table keeps its name)
@@ -70,9 +73,27 @@ interface Source {
 }
 
 /** A connection the picker offers: one that runs a query in its own SQL. */
-interface QueryConnection {
+export interface QueryConnection {
   name: string;
   dax: boolean;
+  /** Its kind in words (PostgreSQL, SQL Server, Power BI workspace…). */
+  type: string;
+  /** A password with no source on this computer: its words, else null. */
+  needsPassword: string | null;
+}
+
+/** The connections a query can run on (Query from, and the New query page): the one rule. A database
+ *  connection runs a query in its own SQL; Dataverse's Web API side does not (only its SQL endpoint). */
+export async function queryConnections(): Promise<QueryConnection[]> {
+  const { connections } = await api<{ connections: { name: string; connection: string; type?: string; tables_kind?: string | null; needs_password?: { message?: string } | null }[] }>("/connections");
+  return connections
+    .filter((c) => c.connection === "database" && c.tables_kind !== "dataverse_web")
+    .map((c) => ({
+      name: c.name,
+      dax: c.tables_kind === "powerbi",
+      type: c.type || (c.tables_kind === "powerbi" ? "Power BI workspace" : "Database"),
+      needsPassword: c.needs_password ? (c.needs_password.message ?? "Needs a password on this computer") : null,
+    }));
 }
 
 interface Tray {
@@ -92,6 +113,7 @@ let drawnSerial = 0;
 /** The draft's Query from: Grids until the user picks a connection. */
 const draftSource: Source = { connection: "", dataset: "" };
 let drawPicker: (() => Promise<void>) | null = null;
+let pickSource: ((name: string) => void) | null = null;
 // Monaco has one theme for every editor, so any editor can switch it.
 let lastEditor: SqlEditor | null = null;
 // Each built table's tray, by grid id, so a closed tab frees its editor.
@@ -118,10 +140,12 @@ async function showDraft(): Promise<void> {
   const tray = await draftTray;
   if (drawnSerial !== draft.serial) {
     // A new draft: its own name, and a fresh query (a closed draft's text is not carried over).
+    // Query from as the New query page chose it: a connection starts from a plain SELECT in its SQL.
     drawnSerial = draft.serial;
     nameInput.value = draft.name;
-    tray.editor.setValue(firstQuery());
-    tray.report(hint());
+    pickSource?.(draft.from);
+    tray.editor.setValue(draft.from ? "SELECT *\nFROM " : firstQuery());
+    if (!draft.from) tray.report(hint());
   }
   tray.editor.focus();
   await refreshNames(tray.editor);
@@ -139,6 +163,7 @@ async function buildDraft(): Promise<Tray> {
   const picker = sourcePicker();
   const tray = await createTray("", () => void runDraft(), hint(), nameInput, picker.element);
   drawPicker = picker.draw;
+  pickSource = picker.pick;
   void picker.draw();
   const gridHost = h("div", { class: "query-blank" });
   clear(
@@ -225,7 +250,7 @@ async function runAgain(ctx: Context, tray: Tray): Promise<void> {
 
 /** The draft's picker: Grids (the open tables, in DuckDB), each connection that runs SQL, Add a connection…;
  *  a Power BI workspace asks for its dataset beside it. */
-function sourcePicker(): { element: HTMLElement; draw: () => Promise<void> } {
+function sourcePicker(): { element: HTMLElement; draw: () => Promise<void>; pick: (name: string) => void } {
   const ADD = "\u0000add";
   const select = h("select", { class: "query-source", "aria-label": "Query from" });
   const dataset = h("input", { type: "text", class: "query-dataset", "aria-label": "Power BI dataset", placeholder: "Dataset", spellcheck: "false", hidden: true });
@@ -238,11 +263,7 @@ function sourcePicker(): { element: HTMLElement; draw: () => Promise<void> } {
   };
   const draw = async (): Promise<void> => {
     try {
-      const { connections } = await api<{ connections: { name: string; connection: string; tables_kind?: string | null }[] }>("/connections");
-      // A database connection runs a query in its own SQL; Dataverse's Web API side does not (only its SQL endpoint).
-      known = connections
-        .filter((c) => c.connection === "database" && c.tables_kind !== "dataverse_web")
-        .map((c) => ({ name: c.name, dax: c.tables_kind === "powerbi" }));
+      known = await queryConnections();
     } catch {
       known = [];
     }
@@ -272,7 +293,15 @@ function sourcePicker(): { element: HTMLElement; draw: () => Promise<void> } {
     sync();
   });
   dataset.addEventListener("input", () => { draftSource.dataset = dataset.value.trim(); });
-  return { element: h("span", { class: "query-from" }, h("span", { class: "query-from-label" }, "from"), select, dataset), draw };
+  // The New query page's choice (the list may still be loading: draw() keeps it once it is there).
+  const pick = (name: string): void => {
+    draftSource.connection = name;
+    draftSource.dataset = "";
+    dataset.value = "";
+    if (known.length || !name) select.value = name;
+    sync();
+  };
+  return { element: h("span", { class: "query-from" }, h("span", { class: "query-from-label" }, "from"), select, dataset), draw, pick };
 }
 
 // ===== THE TRAY =====

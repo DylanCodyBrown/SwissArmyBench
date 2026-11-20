@@ -78,7 +78,10 @@ def test_the_browsers_keys_are_the_apps_only_in_the_app(
         expect(tab(page, "east_orders")).to_have_count(1, timeout=15000)
         back = [g for g in call(server, "GET", "/grids")["grids"] if g["dataset"] == "east_orders"]
         assert len(back) == 1 and back[0]["steps"] == 1  # its step came back with it
-        page.keyboard.press("Control+t")
+        page.keyboard.press("Control+t")  # the New query page: its first choice has the keys, Enter opens it
+        expect(page.locator(".new-query-page")).to_be_visible()
+        expect(page.locator(".new-query-choice").first).to_be_focused()
+        page.keyboard.press("Enter")
         expect(page.locator(".tab-item.tab-draft.active")).to_have_count(1)
         page.keyboard.press("Control+w")  # the query draft closes
         expect(page.locator(".tab-item.tab-draft")).to_have_count(0)

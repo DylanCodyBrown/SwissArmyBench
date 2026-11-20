@@ -2955,6 +2955,12 @@ body.agent-view .titlebar {
   margin: 0 2px;
 }
 
+/* The New query page in front (startView.ts): its "+" marked, as a tab in front is. */
+.tab-new.active {
+  background: var(--raised);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
 .query-view {
   display: none;
   grid-area: query;
@@ -9603,16 +9609,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   display: block;
 }
 
-/* With no project open: the way to one, the Projects page. */
-.landing-projects {
-  margin: 12px 0 0;
-  color: var(--muted);
-}
-
-.landing-projects-link {
-  color: var(--accent);
-}
-
 /* The Projects page (projectsPage.ts): the tour in its heading row, the explorer under it. */
 .area-page-actions > .tour-slot,
 .area-page-actions > .tour-btn {
@@ -9621,21 +9617,95 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   gap: 8px;
 }
 
-/* The Grids landing: the ways to bring data in, the project's connections, the tables to fix. */
-.landing-connections {
+/* The New query page (startView.ts; the owner, 2026-11-20): the open tables and each connection that runs SQL,
+   one click to a draft with Query from set. Each connection wears its colour as a stripe. */
+.new-query-title {
+  margin: 0;
+  font-size: 1.4em;
+  font-weight: 600;
+}
+
+.new-query-search {
+  max-width: 420px;
+}
+
+.new-query-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.new-query-list > li[hidden] {
+  display: none;
+}
+
+.new-query-choice {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 4px 0 0 var(--conn-a, var(--border-strong));
 }
 
-.landing-connections .btn {
-  max-width: 260px;
+.new-query-choice:hover {
+  border-color: var(--border-strong);
+  background: var(--raised);
 }
 
-.landing-connections .btn span {
+.new-query-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.new-query-icon {
+  flex: none;
+  color: var(--conn-a, var(--muted));
+}
+
+.new-query-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.new-query-text strong,
+.new-query-kind {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.new-query-kind {
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+.new-query-needs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--warn);
+  font-size: 0.86em;
+  white-space: nowrap;
+}
+
+.new-query-needs .icon-svg {
+  width: 14px;
+  height: 14px;
 }
 
 .landing-fixes .project-fix {

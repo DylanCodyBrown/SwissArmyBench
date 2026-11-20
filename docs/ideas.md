@@ -6695,6 +6695,14 @@ runs it over every way (a driver not installed is skipped) and again in SWISSARM
   checked against a real MariaDB (the test bed).
 - Everything else matched its library: see docs/verified.md for the table.
 
+### The New query page (built 2026-11-20)
+- The owner, on the Grids landing and the tab row's "+": "get rid of all of this this should just be a new query
+  page, with the active connections and you can click one to start a new grid sql". One page for both
+  (startView.ts): Open tables (DuckDB) first while a grid is open, then the connections Query from offers (one rule:
+  queryTab.ts queryConnections); a click opens the draft with Query from set and the editor's cursor after FROM.
+  Open a file, Paste, Query, Catalog, Add connection and the Projects link left it (the folder button and Ctrl+V
+  stay); no connection is the empty state. The agent: app_navigate new_query and query:<connection>.
+
 ### Multi-factor sign-in
 - A new way, **Username, with multi-factor sign-in (a browser window, or a code on another device)**: Dataverse
   (Web API and SQL endpoint: one sign_in), SQL Server and Azure SQL (after the Entra password), OneLake, Data Lake,

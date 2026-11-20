@@ -1052,10 +1052,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          the Team box's local projects row and Advanced's shared projects folder);
                          projectImport.ts the import dialog (documents, connections, blades: from another
                          project folder, a file, this computer);
-                         startView.ts the grid page's Grids landing (/workspace?view=grids: no table open, a
-                         project open or not: Open a file, Paste, Query, the connections, the project's tables to
-                         fix, and with no project a link to Projects; the Start view left for projectsPage.ts,
-                         2026-11-18), the project's group in the
+                         startView.ts the New query page (/workspace?view=grids, view=new over grids: the grid page with no table
+                         open, and the tab row's "+", Ctrl+T, Ctrl+N; the owner, 2026-11-20): Open tables (DuckDB)
+                         first while a grid is open, then each connection that runs SQL (queryTab.ts
+                         queryConnections, Query from's one list: its kind, colour, a password missing here); a
+                         click or Enter opens the draft with Query from set (panes.ts openQueryDraft; the agent's
+                         app_navigate query:<connection>); arrows move, a search past 8; no connection: the empty
+                         state; the project's tables to fix below; queryTab.ts the draft (the SQL tray over a
+                         blank grid) and a built table's tray; the project's group in the
                          Application row (Save, Copy to…, Close, Autosave) and the strip of tables to fix;
                          connectionColours.ts each connection's colour worn by whatever names it
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the

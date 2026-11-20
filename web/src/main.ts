@@ -385,12 +385,6 @@ async function start(): Promise<void> {
         }
       }
     },
-    // The Grids landing's Paste: the clipboard's table, as Ctrl+V (the browser may ask first).
-    paste: () =>
-      void navigator.clipboard.readText().then(
-        (text) => (text.includes("\t") && text.includes("\n") ? pasteAsDataset(text) : errorHere("Copy a table first, then press Ctrl+V.")),
-        () => errorHere("Press Ctrl+V to paste a table."),
-      ),
   });
   mountRibbon($(".ribbon"), openColumnProfile);
   mountPanes($(".tabs-row"), $(".panes"), () => refreshPanel());

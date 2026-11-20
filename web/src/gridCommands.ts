@@ -11,7 +11,7 @@
  *                    menu is listed entry by entry
  *   Steps            the strip's Undo, Redo, Clear the steps and View steps (a step's own Remove is
  *                    in the list under "N steps", which the palette does not open)
- *   Tabs             Go to each tab; New table from a query, Open file…, Tables; for the table in
+ *   Tabs             Go to each tab; New query, Open file…, Tables; for the table in
  *                    front: Compare with…, Rename, Close
  *   Cell             the cell menu's entries, on the cell in front (View value, Copy, Keep these…)
  *
@@ -40,7 +40,7 @@ import { errorHere } from "./errorNote";
 /** The keys the page already has, shown beside the command they run. */
 const KEYS: Record<string, string> = {
   // The desktop app's (desktopApp.ts): the browser's keys are the app's there.
-  ...(inApp() ? { "Tabs: New table from a query": "Ctrl+T" } : {}),
+  ...(inApp() ? { "Tabs: New query": "Ctrl+T" } : {}),
   "Steps: Undo": "Ctrl+Z",
   "Steps: Redo": "Ctrl+Y",
   "Application: Zoom in": "Ctrl+=",

@@ -19,7 +19,8 @@ def test_a_new_query_runs_on_the_grids_or_on_a_connection(
 ) -> None:
     shop(server, tmp_path_factory.mktemp("shop_query_from"))
     page = open_grid(browser, orders_url)
-    page.get_by_role("button", name="New table from a query").click()
+    page.get_by_role("button", name="New query").click()
+    page.locator(".new-query-choice", has_text="Open tables (DuckDB)").click()
     view = page.locator("#query-view")
     source = view.get_by_role("combobox", name="Query from")
     expect(source).to_have_value("")  # Grids, the open tables

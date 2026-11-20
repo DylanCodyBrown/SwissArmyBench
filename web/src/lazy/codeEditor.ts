@@ -1381,7 +1381,12 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
   addVariableAction(editor);
   return {
     value: () => editor.getValue(),
-    setValue: (text) => editor.setValue(text),
+    setValue: (text) => {
+      // The cursor after the text: a new query's "FROM " is where the typing goes on.
+      editor.setValue(text);
+      const model = editor.getModel();
+      if (model) editor.setPosition(model.getPositionAt(text.length));
+    },
     focus: () => editor.focus(),
     setTheme: (t) => monaco.editor.setTheme(THEMES[t] ?? "vs"),
     setNames: (columns, tables) => {

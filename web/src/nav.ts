@@ -581,7 +581,10 @@ function agentUrl(n: NavNotice): string {
   // A connection's detail on the Connections page: where it is used, its configuration, its calls.
   if (n.to === "connection" && n.name) return withParams({ open: "connections", at: "detail", type: null, name: n.name });
   const home = { open: null, at: null, type: null, name: null };
-  if (n.to === "analyze" || n.to === "erd" || n.to === "query") return withParams({ ...home, view: n.to }, HOME_URL);
+  if (n.to === "analyze" || n.to === "erd") return withParams({ ...home, view: n.to }, HOME_URL);
+  // The New query page, and its draft (query:<connection>: Query from set, as a click on the page does).
+  if (n.to === "new_query") return withParams({ ...home, view: "new" }, HOME_URL);
+  if (n.to === "query") return withParams({ ...home, view: "query", from: n.name ?? null }, HOME_URL);
   if (n.to === "grid" && n.grid) return `/g/${encodeURIComponent(n.grid)}`;
   if (n.to === "catalog") return withParams({ catalog: n.catalog ?? null, database: null, schema: n.schema ?? null, table: n.table ?? null, blade: null }, "/catalog");
   if (n.to === "blade") return withParams({ blade: n.name ?? "" }, "/catalog");
