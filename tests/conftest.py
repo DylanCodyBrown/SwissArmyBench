@@ -108,6 +108,8 @@ def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
         max_total_bytes=overrides.pop("max_total_bytes", 512 * 1024 * 1024),
         # Catalogs loading themselves start child processes: off unless a test is about them.
         auto_load_catalogs=overrides.pop("auto_load_catalogs", False),
+        # A vault's names read again at start: a child process each, off unless a test is about it.
+        auto_read_vaults=overrides.pop("auto_read_vaults", False),
         **overrides,
     )
     return TestClient(create_app(PORT, TOKEN, settings), base_url=BASE)

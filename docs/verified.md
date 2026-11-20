@@ -4088,3 +4088,22 @@ there, the cause not yet found): known, not from these changes.
 The owner's FI Dataverse (a SQL Server connection on Dataverse's SQL endpoint) failed to list its tables: the
 endpoint refuses PARSENAME. The rich SQL Server listing now falls back to INFORMATION_SCHEMA.COLUMNS when it fails
 (the first error said if that fails too); tests/test_partial_sql_server_catalog.py (a stand-in endpoint).
+
+
+## A key vault's names kept over a restart (2026-11-20, branch vault-names)
+
+Checked (tests/test_vault_names.py, tests/e2e/test_vault_names_page.py in Chromium): a made-up vault whose names()
+reads a made-up file: read once, a new app on the same state folder lists its variables at once (Variables, GET
+/variables, Set up this computer); the same names read again change no byte; the form's read kept under its name;
+a rename moves the file, a delete removes it, a gone vault's file goes at start; the start-up read brings a new
+name, and a failing one keeps the names with the card's error and time; a kernel's vault load hands back the names
+it listed; no made-up value in any file of the state folder. In the browser: read, server stopped and started, the
+row and the `${` list there, the card's "2 variables", "Names from" after the failed start-up read, Read again.
+One name, one variable (tests/test_vault_name_collisions.py): two vaults with the same secret (the first by
+name keeps it, the other prefixed, its note), a vault secret against a keyring variable (yours keeps it), a
+vault entry that collides refused with the one sentence (the agent too), add and rename refused, the names the
+same over a restart and a read again, a kernel's load giving the same names as the page; no made-up value
+written. In the browser, the owner's steps: Add key vault, the code, read by itself, Save with the suggested
+names, Connections, Add connection, PostgreSQL, Password, `${warehouse`: listed; after a restart `${crm`: listed.
+**Not checked:** a real Azure Key Vault (its sign-in at start without a window: DefaultAzureCredential's
+non-interactive chain is assumed quiet), and an update (a restart stands in for it: the library folder is the same).

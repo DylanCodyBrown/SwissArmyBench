@@ -6605,3 +6605,42 @@ the palette, the New menu and the tour; Edit in Power BI Desktop's dry run on th
   object (no YAML in the domain); Toad, Navicat, SQL Developer, Snowflake's SnowSQL config and DataGrip's
   per-project user names beyond dataSources.local.xml are not read yet.
 
+
+## A key vault's variables kept over a restart (the owner, 2026-11-20: "Every time I update or reopen the app my Vault variables disappear. I have to go to the key vault, open it and read the variables all over again."; built, branch vault-names)
+
+- **Cause:** a vault saved with "Every secret in the vault" (vault_all, the form's default) writes no names to its
+  file; they came only from reading the vault (the form, a kernel's start), in memory.
+- **Built:** every read of a vault's names is kept in the library's `local/vault-names/<vault>.json` (git-ignored;
+  names and each one's variable, the time read; sorted, byte-stable, written only when the names change; never a
+  value). The Variables page, the `${` list, context.md, Set up this computer and a Workbench kernel's Variables
+  pane read them as the vault's variables at once. Once the first window is open each such vault is read again in
+  a child process (a few at once; a vault that signs in with a window skipped); a failure keeps the names and the
+  vault's card says "Names from <time>" with Read again. The vault's card shows how many variables it gives. A
+  deleted vault's file goes, a renamed one's follows, a file whose vault is gone goes at start.
+- **Decisions:** the form's default stays Every secret (the owner's earlier choice). The file's time is when these
+  names were first read (a read that gives the same names writes nothing). A draft vault read in the form is kept
+  under its typed name (pruned at start if never saved). Read again is the existing `connections_vault_secrets`
+  (no new command). `auto_read_vaults` (Settings) is off in the tests' make_client, on in the app.
+- **One name, one variable (the owner, 2026-11-20: "make sure that we handle env variable collisions by not
+  allowing duplicate variables, and if any overlap in the vault then they get prefixed by the vault name"):**
+  domain/vault_names.py assign gives every vault's variables at once: your own variables (variables.toml, local/,
+  the keyring) and a vault's explicit entries keep their names; a vault that loads every secret gives a taken
+  name as `<VAULT>_<NAME>` (the vault's name upper case, letters, digits and _), then `_2`; two such vaults:
+  the one whose name sorts first keeps it. The variable given is kept in the names file, and a name given
+  before stays while it is free, so it never jumps between starts (decision: a vault that arrives later and
+  sorts first does not take a name already given out; it is the one prefixed). A Workbench kernel's load lists
+  every vault first and gives the names by the same function (the server sends your variables' names and
+  each vault's kept ones), so the kernel's environment and the Variables page agree; a connection's run gets
+  the same names for what is remembered. Adding or renaming a variable, or a vault entry, to a taken name is
+  refused: "X is already a variable (from Team Vault). Pick another name." (the agent alike); the vault form
+  marks a row that collides as it is typed. The Variables page says why a name is prefixed ("named
+  TEAM_VAULT_X: X was taken by Finance"); the `${` list already shows each one's source and vault.
+- **The owner's live case (0.0.29):** "I mapped the vars in the vault, then went back to Connections and they
+  don't show when I type the dollar-brace." With Every secret ticked the form saves only renamed rows, and the
+  listing never named a vault_all vault's variables. Now the form's read names go with the save (vault_names,
+  kept in the names file, never in the vault's own file) and the listing gives them at once; the form reads
+  the `${` list again after saving. tests/e2e/test_vault_names_page.py does the owner's steps.
+- **Release note:** Key vaults that load every secret keep their variables when the app restarts or updates: no
+  need to open the vault and read it again. A variable name is never given twice: a vault's secret whose name
+  is taken comes as VAULTNAME_NAME. Their names are read again by themselves at start; the card says how
+  many variables each vault gives.

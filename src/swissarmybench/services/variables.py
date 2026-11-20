@@ -91,8 +91,14 @@ class Variables:
         run_settings: RunSettings,
         kernels: Callable[[], int] = lambda: 0,
         vault_values: VaultValues | None = None,
+        remembered: Callable[[Blade], dict[str, str]] = lambda blade: {},
+        renamed_notes: Callable[[], dict[str, dict[str, tuple[str, str]]]] = lambda: {},
     ) -> None:
+        # A vault's variables given a prefixed name (another had the plain one): the plain name and who.
+        self._renamed_notes = renamed_notes
         self._vault_values = vault_values
+        # A vault that loads every secret: the variables its names last read give (services/vault_names.py).
+        self._remembered = remembered
         self.ws = ws
         self._kept = kept
         self._secrets = secrets
@@ -108,6 +114,14 @@ class Variables:
 
     def _defined(self) -> list[rules.Defined]:
         return rules.read_defined(*self._kept.read())
+
+    def defined_names(self) -> list[str]:
+        """The names of this computer's own variables (they keep their names: a vault's taken one is
+        prefixed, services/vault_names.py)."""
+        try:
+            return [d.name for d in self._defined()]
+        except Exception:  # a file that cannot be read: no names held back
+            return []
 
     def shareable(self) -> dict[str, str]:
         """The plain values that may be shared (not this computer's only, never a keyring's): Export to Power
@@ -148,6 +162,7 @@ class Variables:
 
     def _facts(self) -> list[rules.ConnectionFacts]:
         out = []
+        notes = self._renamed_notes()
         for blade in self._blades.all():
             kind = connection_rules.connection_kind(blade.kind, blade.template)
             if blade.kind == "snippet":
@@ -157,10 +172,11 @@ class Variables:
                 out.append(
                     rules.ConnectionFacts(
                         blade.name,
-                        vault_mapping=dict(blade.vault_mapping),
+                        vault_mapping=self._remembered(blade) | dict(blade.vault_mapping),
                         vault=True,
                         every=blade.vault_all,
                         read_only=bool(blade.pack),
+                        notes=notes.get(blade.name, {}),
                     )
                 )
                 continue
@@ -228,7 +244,7 @@ class Variables:
             variable: blade.name
             for blade in self._blades.all()
             if blade.kind == "vault"
-            for variable in blade.vault_mapping
+            for variable in self._remembered(blade) | dict(blade.vault_mapping)
         }
 
     async def _changed(self, who: str, action: str, name: str, **details: Any) -> None:

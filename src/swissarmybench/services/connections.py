@@ -86,6 +86,9 @@ class ConnectionService:
                     entries = vault.vault_mapping.items()
                     more["entries"] = [{"env": env, "secret": secret} for env, secret in entries]
                     more["every"] = vault.vault_all
+                    # How many variables it gives; a vault that loads every secret: when its names were
+                    # read, and why the last read failed (its remembered names kept: services/vault_names.py).
+                    more["names"] = self._blades.vault_state(vault)
                 found.append(b | more)
         found.sort(key=lambda c: (order[c["connection"]], not c.get("pinned"), str(c["name"]).casefold()))
         return {"connections": found}  # each with its code_name (the blades list names them)

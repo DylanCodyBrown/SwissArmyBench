@@ -522,31 +522,56 @@ def _names(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
 
 
 def _load(job: dict[str, Any]) -> dict[str, Any]:
-    """Every vault's entries: {"values": {variable: value}, "problems": [a vault that failed, why]}. One
-    vault failing leaves the others' values (a kernel still starts)."""
-    from swissarmybench.adapters.blade_run import BladeRunError, run_vault
+    """Every vault's entries: {"values": {variable: value}, "problems": [a vault that failed, why], "names":
+    {a vault that loads every secret: the secret names it listed}}. One vault failing leaves the others'
+    values (a kernel still starts). Every vault is listed first, then the names are given out as the server
+    gives them (domain/vault_names.py assign: `reserved`, each vault's `kept`): no variable twice, a taken
+    one prefixed with its vault's name. The names are names only (the server keeps them: vault_names.py)."""
+    from swissarmybench.adapters.blade_run import BladeRunError, open_vault, read_vault
+    from swissarmybench.domain import vault_names as naming
 
     values: dict[str, str] = {}
     problems: list[str] = []
+    names: dict[str, list[str]] = {}
+    opened: list[tuple[dict[str, Any], Any]] = []
+
+    def failed(vault: dict[str, Any], error: BladeRunError) -> None:
+        message = str(error)
+        for secret in [*vault["secrets"].values(), *values.values()]:
+            if secret and len(secret) >= 3:
+                message = message.replace(secret, "****")
+        problems.append(message)
+
     for vault in job.get("vaults", []):
         try:
-            values.update(
-                run_vault(
-                    vault["code"],
-                    vault["variable"],
-                    vault["mapping"],
-                    vault["secrets"],
-                    vault["label"],
-                    bool(vault.get("every")),
-                )
+            getter, found = open_vault(
+                vault["code"], vault["variable"], vault["secrets"], vault["label"], bool(vault.get("every"))
             )
         except BladeRunError as error:
-            message = str(error)
-            for secret in [*vault["secrets"].values(), *values.values()]:
-                if secret and len(secret) >= 3:
-                    message = message.replace(secret, "****")
-            problems.append(message)
-    return {"values": values, "problems": problems}
+            failed(vault, error)
+            continue
+        if found is not None:
+            names[str(vault["label"])] = found
+        opened.append((vault, getter))
+    inputs = [
+        naming.VaultIn(
+            str(v["label"]),
+            dict(v["mapping"]),
+            bool(v.get("every")),
+            names.get(str(v["label"]), []),
+            dict(v.get("kept") or {}),
+        )
+        for v, _ in opened
+    ]
+    reserved = naming.reserved([str(n) for n in job.get("yours") or []], inputs)  # your variables first
+    given = naming.assign(inputs, reserved)
+    for vault, getter in opened:
+        mapping = given[str(vault["label"])].mapping
+        try:
+            values.update(read_vault(getter, mapping, vault["secrets"], vault["label"]))
+        except BladeRunError as error:
+            failed(vault, error)
+    return {"values": values, "problems": problems, "names": names}
 
 
 def _tested(value: Any) -> dict[str, Any]:

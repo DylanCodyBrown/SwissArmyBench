@@ -28,12 +28,14 @@ import { api, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { connectionIcon, openReference } from "./connectionsWindow";
 import { append, button, h, icon, toast } from "./dom";
-import { loadingBlock } from "./loading";
+import { busyClick, loadingBlock } from "./loading";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { errorHere, errorNote } from "./errorNote";
 import { emptyState } from "./emptyState";
 
 type Source = "vault" | "value" | "keyring" | "env" | "missing";
+/** A vault card's line (GET /connections names): its variables, when its names were read, a failed read. */
+type Names = { count: number; read_at?: string | null; error?: string; reading?: boolean };
 
 interface Use {
   kind: "connection" | "notebook" | "script" | "run_settings";
@@ -55,6 +57,7 @@ interface Variable {
   uses: Use[];
   vault?: string;
   vault_secret?: string;
+  note?: string; // a vault's name prefixed: the plain one was taken
   owner?: string;
   kept?: "value" | "keyring";
   local?: boolean;
@@ -136,7 +139,7 @@ function drawVariables(at?: string): void {
   // ----- the key vaults: each one's detail and form are the Connections page's -----
   const openVault = (name: string): void => visit(withParams({ open: "connections", at: "detail", type: null, name }));
   const loadVaults = async (): Promise<void> => {
-    let found: { name: string; connection: string; template?: string | null; type?: string | null }[];
+    let found: { name: string; connection: string; template?: string | null; type?: string | null; every?: boolean; names?: Names | null }[];
     try {
       found = (await api<{ connections: typeof found }>("/connections")).connections.filter((c) => c.connection === "vault");
     } catch {
@@ -159,12 +162,32 @@ function drawVariables(at?: string): void {
                     icon(connectionIcon(v.template, "vault")),
                     h("strong", {}, v.name),
                     h("span", { class: "muted" }, v.type ?? "Key vault"),
+                    v.names ? h("span", { class: "muted variables-vault-count" }, v.names.count === 1 ? "1 variable" : `${v.names.count} variables`) : null,
                   ),
+                  v.names?.error ? staleNames(v.name, v.names) : null,
                 ),
               ),
             ),
           ]
         : []),
+    );
+  };
+  // A vault that loads every secret whose last read failed: its names are the ones read before.
+  const staleNames = (name: string, names: Names): HTMLElement => {
+    const at = names.read_at ? new Date(names.read_at).toLocaleString() : "";
+    return h(
+      "p",
+      { class: "variables-vault-stale", title: names.error ?? "" },
+      icon("warning"),
+      h("span", {}, at ? `Names from ${at}` : "Not read"),
+      button("Read again", busyClick("Reading…", async () => {
+        try {
+          await api("/connections/vaults/secrets", "POST", { name });
+        } catch (e) {
+          errorHere(e);
+        }
+        await loadVaults();
+      }), { class: "link" }),
     );
   };
   const showVaultTypes = async (): Promise<void> => {
@@ -246,6 +269,7 @@ function drawVariables(at?: string): void {
     const cell = h("div", { class: "variable-value" });
     if (v.from === "vault") {
       cell.append(h("span", { class: "variable-vault" }, icon("key"), h("span", {}, v.vault ?? ""), h("span", { class: "muted" }, " · "), h("span", { class: "mono" }, v.vault_secret ?? "")));
+      if (v.note) cell.append(h("span", { class: "variable-note muted" }, v.note));
     } else if (v.hidden) {
       const shown = h("span", { class: "mono variable-dots" }, DOTS);
       const show = button("Show", async () => {
