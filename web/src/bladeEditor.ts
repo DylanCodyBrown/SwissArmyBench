@@ -1004,8 +1004,7 @@ export async function editBlade(
   try {
     detail = await api<BladeDetail>(path(name));
   } catch (error) {
-    clear(host);
-    errorHere(error);
+    clear(host, h("div", { class: "code-ide-missing" }, errorNote(error))); // in place (9.5): its tab says it
     return;
   }
   void whenMode(); // the open project's mode: Copilot's ghost text where an extension declares it
@@ -1143,7 +1142,7 @@ export async function editBlade(
   void ide.ready.then((e) => {
     const at = window.document.activeElement;
     if (fresh) e.reveal(fresh.line, 5);
-    if (fresh || !at || at === window.document.body || at.closest(".ide-editor")) e.focus();
+    if (!at || at === window.document.body || at.closest(".ide-editor, dialog")) e.focus();
   });
   // Opened with packages missing: the prompt in the user's face.
   if (detail.inspect?.missing) void promptInstall(detail.inspect.missing, { then: reopen });

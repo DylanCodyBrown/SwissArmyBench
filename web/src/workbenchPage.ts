@@ -2433,6 +2433,8 @@ function bladeDoc(name: string | null, fresh?: { line: number }): void {
     });
     return;
   }
+  const already = docs.find((d) => d.kind === "blade" && d.title === name);
+  if (already) return void show(already); // one tab a blade
   const doc = makeDoc("blade", name, null, null);
   editingBlade = true;
   const done = (): void => { editingBlade = false; close(doc); };
@@ -2539,6 +2541,15 @@ codexHooks.mark = codex.mark;
 // The rail's Blades (rail.ts) on this page, and an address that names the pane: the Blades pane, focused.
 window.addEventListener("sab-blades", () => codex.showLower());
 if (new URLSearchParams(location.search).get("pane") === "blades") window.setTimeout(() => codex.showLower(), 0);
+/** ?blade=<name> (the old /catalog?blade=, a Session link, the agent's blade:<name>): that blade's tab here; an
+ *  empty name: New blade. The word leaves the address once it is shown (a reload does not open it again). */
+function bladeAsked(url: URL): void {
+  if (PAGE !== "scripts" || !url.searchParams.has("blade")) return;
+  const name = url.searchParams.get("blade") ?? "";
+  void go(withParams({ blade: null }), "replace");
+  codex.showLower();
+  bladeDoc(name || null);
+}
 
 // ===== the code's own zoom (the owner, 2026-11-21: "Can the blade ide be zoomable"; the same on this page) =====
 // Ctrl + wheel and Ctrl+= / Ctrl+- / Ctrl+0 over the documents size the code alone (8 to 40 px), per page,
@@ -2569,7 +2580,7 @@ const stepCode = (by: number): void => void setCodeFont(codeFont + by * (codeFon
 layout.source.addEventListener(
   "wheel",
   (e) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
+    if (!(e.ctrlKey || e.metaKey) || (e.target as Element | null)?.closest?.(".code-ide")) return; // a blade's own zoom
     e.preventDefault();
     e.stopPropagation();
     stepCode(e.deltaY < 0 ? 1 : -1);
@@ -2579,7 +2590,7 @@ layout.source.addEventListener(
 layout.source.addEventListener(
   "keydown",
   (e) => {
-    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || (e.target as Element | null)?.closest?.(".code-ide")) return;
     const by = e.key === "=" || e.key === "+" ? 1 : e.key === "-" ? -1 : e.key === "0" ? 0 : null;
     if (by === null) return;
     e.preventDefault();
@@ -3670,6 +3681,7 @@ const fileAsked = (() => {
 // document forward again.
 mountNav("workbench", {
   show: (url) => {
+    bladeAsked(url);
     const k = codeKindOf(url.searchParams.get("kind"));
     if (k && url.searchParams.get("view") === "list") showLanding(k);
     else {
@@ -3681,6 +3693,7 @@ mountNav("workbench", {
 mountNavRail("workbench");
 startNav();
 if (fileAsked) void open(fileAsked);
+window.setTimeout(() => bladeAsked(new URL(location.href)), 0);
 // Beta mode (the beta log and Leave a note…) in this window too; nothing while it is off.
 mountBeta("workbench", { window: POPPED ? "popout" : "main", tabs: () => docs.map((d) => kindOf(d)) });
 // What is sent to the agent or Analyze names the document it came from.
@@ -3723,6 +3736,8 @@ document.addEventListener(
   (e) => {
     const id = WINDOW_KEYS[keyName(e)] ?? APP_KEYS[keyName(e)];
     if (!id) return;
+    // A blade's tab is an IDE of its own (codeIde.ts): its Save and Run take Ctrl+S and F5 there.
+    if ((id === "file.save" || id === "run.primary") && (e.target as Element | null)?.closest?.(".code-ide")) return;
     // F5 would reload the window (stopping every kernel), F1 open the browser's help: the window's own.
     e.preventDefault();
     e.stopPropagation();

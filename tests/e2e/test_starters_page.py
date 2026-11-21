@@ -156,9 +156,9 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
     page.get_by_role("searchbox", name="Search blades").fill("")
     # A starter opens read-only; Copy as your own makes the user's copy and opens it.
     listed.locator(".starter-item", has_text="Power BI refresh dataset").locator(".blade-name").click()
-    detail = page.locator("#detail")
+    detail = page.locator(".code-ide:visible")  # its tab on the Scripts page (2026-11-21)
     expect(detail.locator(".ide-readonly")).to_have_text("read-only")
-    expect(detail.locator(".code-ide .monaco-editor")).to_be_visible(timeout=20000)
+    expect(detail.locator(".monaco-editor")).to_be_visible(timeout=20000)
     shot(page, "2-a-power-bi-action")
     detail.get_by_role("button", name="More").click()
     page.get_by_role("menuitem", name="Copy as your own").click()

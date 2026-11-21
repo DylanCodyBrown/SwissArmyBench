@@ -24,7 +24,9 @@ def test_each_window_names_the_places_it_has() -> None:
     # 2026-11-19: Visualizations is Analyze).
     assert rules.place("home", " sandbox ") == {"window": "home", "to": "analyze"}
     assert rules.place("workbench", "visualizations") == {"window": "workbench", "to": "analyze"}
-    assert rules.place("catalog", "diagram") == {"window": "catalog", "to": "erd"}
+    assert rules.place("scripts", "diagram") == {"window": "scripts", "to": "erd"}
+    # The old blades page went (2026-11-21): its window is the Scripts page's, one release.
+    assert rules.place("catalog", "diagram") == {"window": "scripts", "to": "erd"}
     # The Start view is the Projects page (the owner, 2026-11-18): its old name, one release.
     assert rules.place("home", "start") == {"window": "home", "to": "projects"}
     assert rules.place("workbench", " start ") == {"window": "workbench", "to": "projects"}
@@ -34,7 +36,7 @@ def test_each_window_names_the_places_it_has() -> None:
     with pytest.raises(rules.NavigationError):
         rules.place("catalog", "catalog:Warehouse/sales/orders")
     assert rules.place("catalog", "blade:refresh_sales") == {
-        "window": "catalog",
+        "window": "scripts",
         "to": "blade",
         "name": "refresh_sales",
     }
@@ -42,7 +44,7 @@ def test_each_window_names_the_places_it_has() -> None:
     # A connection's detail on the Connections page (2026-11-16), from every window.
     for window in rules.WINDOWS:
         assert rules.place(window, "connection:Warehouse") == {
-            "window": window,
+            "window": rules.OLD_WINDOWS.get(window, window),
             "to": "connection",
             "name": "Warehouse",
         }
@@ -81,7 +83,8 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "extensions",
         "settings",
     )
-    for window in rules.WINDOWS:
+    for old in rules.WINDOWS:
+        window = rules.OLD_WINDOWS.get(old, old)
         for area in rules.AREAS:
             assert area in rules.places(window)
             # Grids is the home page's tabbed grids, only the grids; projects (the mark) and home are
@@ -103,7 +106,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
 @pytest.mark.parametrize(
     ("window", "to", "words"),
     [
-        ("tray", "home", "window is one of home, catalog, workbench, notebooks, scripts"),
+        ("tray", "home", "window is one of home, workbench, notebooks, scripts"),
         ("home", "", "to is where to go: home, projects, connections, apis, structures, variables"),
         ("home", None, "to is where to go"),
         (
@@ -112,11 +115,11 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
             "The home window cannot go to 'kitchen'. It can go to: home, projects, connections, apis",
         ),
         ("workbench", "query", "The workbench window cannot go to 'query'"),
-        ("catalog", "grid:g1", "The catalog window cannot go to 'grid:g1'"),
+        ("scripts", "grid:g1", "The scripts window cannot go to 'grid:g1'"),
         ("home", "grid:", "cannot go to 'grid:'"),
         ("catalog", "blade:", "cannot go to 'blade:'"),
         ("workbench", "connection:", "cannot go to 'connection:'"),
-        ("catalog", "catalog:Warehouse", "The catalog window cannot go to 'catalog:Warehouse'"),
+        ("scripts", "catalog:Warehouse", "The scripts window cannot go to 'catalog:Warehouse'"),
         ("home", "grid:" + "g" * 600, "longer than 512"),
     ],
 )
@@ -142,19 +145,12 @@ def test_the_window_is_told_and_the_audit_log_says_where(tmp_path: Path) -> None
                 "grid": "g7",
                 "by": "agent",
             }
-        # The blades page is a window of its own: only an open one is told.
+        # A blade's tab is the Scripts page's (the old blades page's window read as it): only an open one
+        # is told.
         assert (
             client.post("/navigate", json={"window": "catalog", "to": "back"}, headers=AGENT).status_code
             == 409
         )
-        with client.websocket_connect("/ws?catalog=1", headers=AUTH | HOST) as catalog:
-            assert (
-                client.post(
-                    "/navigate", json={"window": "catalog", "to": "blade:x"}, headers=AGENT
-                ).status_code
-                == 200
-            )
-            assert catalog.receive_json()["name"] == "x"
         refused = client.post("/navigate", json={"window": "workbench", "to": "back"}, headers=AGENT)
         assert refused.status_code == 409 and "No Notebooks or Scripts page is open" in refused.text
         assert "home window to grid g7" in client.get("/audit", headers=AUTH).text

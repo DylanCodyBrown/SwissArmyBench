@@ -6873,3 +6873,17 @@ Decisions:
   cursor in its body, Properties open (the only time they open by themselves).
 - The agent: blades_new(name, kind), blades_header_set(name, fields) (none: the fields and values).
 - The editor never showed the header (it is Properties'), so "fold the header away" holds as built.
+
+## The old blades page goes (built 2026-11-21, branch scripts-rest)
+
+- /catalog redirects (302) to /scripts?pane=blades, every query word kept: ?blade=<name> opens that blade's tab
+  (one tab a blade; the word leaves the address once shown), ?blade= New blade, ?open=settings the layer.
+  catalogPage.ts and static/catalog.html are gone; the build has no catalog page.
+- The Blades pane's head: New blade (+) and one "…" (Import blades…, Import from a project…, Export every blade,
+  Blade folders…, Packs…) instead of a row of icons (8.14).
+- The agent: app_navigate's window "catalog" is read as "scripts" for one release; blade:<name> and new_blade are
+  the Scripts page's. desktop_open's "blades" opens /scripts?pane=blades; a .blade.py opened with the app opens
+  its tab there. sab.load's address is the Catalog page (/workspace?open=data).
+- Elsewhere (the Session page's links, Analyze's "your analyses"): openBladeOnScripts tells the open Scripts
+  window (POST /navigate) or opens one on the address.
+- In a blade's tab on the Scripts page, Ctrl+S, F5 and the code's zoom keys are the blade IDE's, not the page's.

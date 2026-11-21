@@ -198,7 +198,9 @@ def test_the_service_keeps_only_what_the_agent_reads() -> None:
     shell = Shell()
     service = Desktop(shell, audit, "6.12.0")
     assert asyncio.run(service.open({"page": "blades"}, "agent")) == {"opened": "blades"}
-    assert shell.opened == ["/catalog"] and audit.said == [("agent", "desktop_open", {"page": "blades"})]
+    assert shell.opened == ["/scripts?pane=blades"] and audit.said == [
+        ("agent", "desktop_open", {"page": "blades"})
+    ]
     said = asyncio.run(service.status())
     assert said["qt"] == "6.12.0" and "name" not in said["windows"][0]
 

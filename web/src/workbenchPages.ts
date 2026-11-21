@@ -112,3 +112,14 @@ export function splitSession(storage: Storage, oldKey: string): void {
     storage.setItem(`${oldKey}:${page}`, JSON.stringify({ docs: mine, current: mine.length - 1, project: saved?.project ?? null }));
   }
 }
+
+/** A blade's tab on the Scripts page, from anywhere (the old blades page went, 2026-11-21: blades are the
+ *  Scripts page's Blades pane). The open Scripts window is told (as the agent's app_navigate tells it); else
+ *  one opens on it (?pane=blades&blade=<name>; "" is New blade). */
+export async function openBladeOnScripts(name: string | null): Promise<void> {
+  const to = name ? `blade:${name}` : "new_blade";
+  const told = await api("/navigate", "POST", { window: "scripts", to }).then(() => true, () => false);
+  const query = new URLSearchParams({ pane: "blades", ...(name !== null ? { blade: name } : {}) });
+  bringPage("scripts", `${pageUrl("scripts")}?${query.toString()}`, {}, told);
+  if (told) window.open("", PAGE_WINDOW.scripts)?.focus();
+}

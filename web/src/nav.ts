@@ -587,8 +587,9 @@ function agentUrl(n: NavNotice): string {
   if (n.to === "query") return withParams({ ...home, view: "query", from: n.name ?? null }, HOME_URL);
   if (n.to === "grid" && n.grid) return `/g/${encodeURIComponent(n.grid)}`;
   if (n.to === "catalog") return withParams({ catalog: n.catalog ?? null, database: null, schema: n.schema ?? null, table: n.table ?? null, blade: null }, "/catalog");
-  if (n.to === "blade") return withParams({ blade: n.name ?? "" }, "/catalog");
-  if (n.to === "new_blade") return withParams({ blade: "" }, "/catalog");
+  // A blade's tab on the Scripts page (the old blades page went, 2026-11-21).
+  if (n.to === "blade") return withParams({ pane: "blades", blade: n.name ?? "" }, "/scripts");
+  if (n.to === "new_blade") return withParams({ pane: "blades", blade: "" }, "/scripts");
   return "";
 }
 

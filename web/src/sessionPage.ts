@@ -28,6 +28,7 @@ import { loadingBlock } from "./loading";
 import { errorHere, errorNote, errorToast } from "./errorNote";
 import { emptyState } from "./emptyState";
 import { launchClaude } from "./claudeLaunch";
+import { openBladeOnScripts } from "./workbenchPages";
 
 export interface Target {
   place: "grid" | "dataset" | "card" | "relationship" | "connection" | "blade" | "cell" | "document" | "area";
@@ -254,8 +255,7 @@ export function goToTarget(t: Target | null): void {
     return;
   }
   if (t.place === "blade" && t.name) {
-    if (location.pathname === "/catalog") visit(withParams({ open: null, at: null, type: null, name: null, blade: t.name }, "/catalog"));
-    else location.assign(`/catalog?blade=${encodeURIComponent(t.name)}`);
+    void openBladeOnScripts(t.name); // its tab on the Scripts page (the old blades page went, 2026-11-21)
     return;
   }
   if (t.place === "area" && t.area && !["grids", "analyze", "erd"].includes(t.area)) {

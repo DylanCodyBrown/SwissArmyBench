@@ -251,8 +251,10 @@ def create_app(
         return FileResponse(settings.web_root / "index.html", headers={"Cache-Control": "no-store"})
 
     async def catalog_page(request: Request) -> Response:
-        # Blades and the catalog explorer, in a tab of its own (plan decision 18).
-        return FileResponse(settings.web_root / "catalog.html", headers={"Cache-Control": "no-store"})
+        # The old blades page (the owner, 2026-11-21: blades move into the Scripts page): its Blades pane, and
+        # ?blade=<name> that blade's tab there (an empty name: New blade). The #token goes with the redirect.
+        query = urlencode({"pane": "blades"} | dict(request.query_params))  # ?blade= and a layer's open= kept
+        return RedirectResponse(f"{workbench_pages.url_of('scripts')}?{query}", status_code=302)
 
     async def workbench_page(request: Request) -> Response:
         # The old address: notebooks and scripts are two pages now (the owner, 2026-11-21), /notebooks

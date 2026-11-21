@@ -241,9 +241,11 @@ def test_inspect_templates_and_install_checks(client: TestClient) -> None:
         assert refused.status_code == 400, packages
 
 
-def test_the_catalog_page_is_served_without_the_token(client: TestClient) -> None:
-    page = client.get("/catalog")
-    assert page.status_code == 200 and "<title>" in page.text
+def test_the_old_blades_page_goes_to_the_scripts_pages_blades(client: TestClient) -> None:
+    page = client.get("/catalog", follow_redirects=False)
+    assert page.status_code == 302 and page.headers["location"] == "/scripts?pane=blades"
+    named = client.get("/catalog?blade=Warehouse%20sales", follow_redirects=False)
+    assert named.headers["location"] == "/scripts?pane=blades&blade=Warehouse+sales"
 
 
 # ===== portable blades: export, import, folders, favourites =====

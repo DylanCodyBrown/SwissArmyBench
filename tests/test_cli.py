@@ -168,7 +168,7 @@ NOT_COMMANDS = {
     "/g/{}": "page shell",
     "/": "page shell: the bare address goes on to /workspace",
     "/workspace": "page shell",
-    "/catalog": "page shell",
+    "/catalog": "the old blades page: a redirect to the Scripts page's Blades",
     "/workbench": "the old address: redirects to the Notebooks or Scripts page",
     "/notebooks": "page shell: the Notebooks page (the agent works its files and kernels directly)",
     "/scripts": "page shell: the Scripts page (the agent works its files and kernels directly)",

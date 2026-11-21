@@ -530,13 +530,19 @@ export function mountRail(host: RailHost): Rail {
         "div",
         { class: "rail-head" },
         h("h2", { id: "blades-title" }, "Connections and blades"),
-        button("Import blades", () => chooseBladeFiles(() => void loadBlades()), { icon: "import", iconOnly: true, class: "ghost", title: "Import .blade.py or zip" }),
-        // From another project, or this computer's saved blades (projectImport.ts).
-        button("Import from a project", () => void openImport("blades").then((done) => done && loadBlades()), { icon: "project", iconOnly: true, class: "ghost", title: "From another project, or this computer's" }),
-        button("Export every blade", () => void exportBlades(), { icon: "export", iconOnly: true, class: "ghost" }),
-        button("Blade folders", () => void editBladeFolders(() => void loadBlades()), { icon: "folder", iconOnly: true, class: "ghost" }),
-        button("Packs", () => void openPacks(() => void loadBlades()), { icon: "group", iconOnly: true, class: "ghost" }),
-        button("New blade", () => void newBlade(), { icon: "plus", class: "ghost" }),
+        button("New blade", () => void newBlade(), { icon: "plus", iconOnly: true, class: "ghost", title: "New blade" }),
+        // Import (review first), export, blade folders and packs in one "…" (design principle 8.14: no row of icons).
+        button("Blades menu", (e?: Event) => {
+          const at = ((e?.currentTarget as HTMLElement | null) ?? bladesHost).getBoundingClientRect();
+          showMenu(at.left, at.bottom + 2, "Blades menu", [
+            ["import", "Import blades…", () => chooseBladeFiles(() => void loadBlades())],
+            ["project", "Import from a project…", () => void openImport("blades").then((done) => done && loadBlades())],
+            ["export", "Export every blade", () => void exportBlades()],
+            "-",
+            ["folder", "Blade folders…", () => void editBladeFolders(() => void loadBlades())],
+            ["group", "Packs…", () => void openPacks(() => void loadBlades())],
+          ]);
+        }, { icon: "more", iconOnly: true, class: "ghost", title: "More" }),
       ),
       // The list always shows (its Connections heading has Add connection); the search only once there is something to search.
       blades.length || starterFamilies.length

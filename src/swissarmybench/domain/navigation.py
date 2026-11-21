@@ -15,8 +15,10 @@ from __future__ import annotations
 
 from typing import Any
 
-# The windows that move: the home page (/workspace), the blades page (/catalog), the Workbench.
+# The windows that move: the home page (/workspace), the Notebooks and Scripts pages. "catalog", the old
+# blades page's (it went 2026-11-21: the Scripts page's Blades pane), is read as "scripts" for one release.
 WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench", "notebooks", "scripts")
+OLD_WINDOWS: dict[str, str] = {"catalog": "scripts"}
 # The Notebooks and Scripts pages are two Workbench windows (the owner, 2026-11-21: "notebooks and scripts
 # should not reuse the same page"); "workbench" is either, the one the user was last in.
 CODE_WINDOWS: tuple[str, ...] = ("notebooks", "scripts")
@@ -75,10 +77,9 @@ EVERYWHERE: tuple[str, ...] = (
 # draft with Query from set to that connection (a click on the page).
 OWN: dict[str, tuple[str, ...]] = {
     "home": ("new_query", "query", "query:<connection>", "grid:<id>"),
-    "catalog": ("blade:<name>", "new_blade"),
     "workbench": (),
     "notebooks": (),
-    "scripts": (),
+    "scripts": ("blade:<name>", "new_blade"),  # a blade's tab on the Scripts page, New blade
 }
 NAMED: tuple[str, ...] = ("grid", "blade", "connection")
 MAX_NAME: int = 512
@@ -90,7 +91,7 @@ class NavigationError(ValueError):
 
 def places(window: str) -> tuple[str, ...]:
     """What `window` can be sent to, as the agent writes it."""
-    return EVERYWHERE + OWN[window]
+    return EVERYWHERE + OWN[OLD_WINDOWS.get(window, window)]
 
 
 def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
@@ -98,7 +99,8 @@ def place(window: Any, to: Any, new_window: Any = None) -> dict[str, Any]:
     `new_window` (notebooks, scripts, apps): in a Workbench window of its own."""
     window = "home" if window is None else window
     if window not in WINDOWS:
-        raise NavigationError(f"window is one of {', '.join(WINDOWS)}.")
+        raise NavigationError(f"window is one of {', '.join(w for w in WINDOWS if w not in OLD_WINDOWS)}.")
+    window = OLD_WINDOWS.get(window, window)
     if not isinstance(to, str) or not to.strip():
         raise NavigationError(f"to is where to go: {', '.join(places(window))}.")
     to = SAME.get(to.strip(), to.strip())
