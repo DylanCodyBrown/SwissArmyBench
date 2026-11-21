@@ -131,10 +131,18 @@ The owner: "since its probably hell to find sandbox objects and clean them up la
 files sandbox_data.py etc." / "dont mix them into the app scaffold". So everything that exists only for testing here
 is in files whose names start with `sandbox`, beside the app's files and never inside them:
 
-| File | What it holds |
-|---|---|
-| `sandbox_data.py` | the sandbox's tables: each one's source (the connection and table it was read from once), its key, its baseline and checkpoints by name |
-| `sandbox/` | the sandbox's rows (`sandbox.duckdb`, `baseline.duckdb`, checkpoints; Git-ignored), moved out of `.sab/sandbox/` |
+The owner: "They are a mirror image of the app that runs with the adapter but never share the app's guts." Each
+app file the adapter reads has its sandbox mirror with the same shape; the adapter loads one side or the other, and
+the two never import each other:
+
+| The app's file | Its sandbox mirror | The mirror holds |
+|---|---|---|
+| `connections.py` | `sandbox_connections.py` | each connection's stand-in: the same names, backed by sandbox tables (never the real code, variables or secrets) |
+| `data.py` | `sandbox_data.py` | the sandbox's tables: where each was read from once, its key, the baseline and checkpoints by name |
+| (none: rows are not kept) | `sandbox/` | the rows: `sandbox.duckdb`, `baseline.duckdb`, checkpoints (Git-ignored; moved out of `.sab/sandbox/`) |
+
+`API.py`, `app.py` and the widgets are not mirrored: the same code runs on both sides, because it only ever calls
+the adapter.
 
 - The app's own files (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`, the deliverable) never name the
   sandbox. Which backend the adapter uses is decided where it runs: a local sandbox API run here gets the sandbox,
