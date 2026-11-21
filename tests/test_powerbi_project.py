@@ -310,7 +310,7 @@ def test_a_pbix_imported_as_a_project_ready_to_work(tmp_path: Path, standin: mad
         # F: the gates: the features this project type keeps closed, the first-open pop-up once, the switch.
         gates = ok(client.get("/app/gates", headers=AGENT))
         closed = {c["area"] for c in gates["closed"]}
-        assert {"analyze", "scripts", "apps", "blades", "apis", "structures"} <= closed
+        assert {"analyze", "scripts", "blades", "apis", "structures"} <= closed
         assert not closed & {"powerbi", "grids", "erd", "notebooks", "connections", "settings", "projects"}
         assert gates["line"] == "This Power BI project keeps {feature} closed."
         assert gates["first_open"].startswith(

@@ -84,6 +84,17 @@ class Library:
 
     # ===== what it is =====
 
+    def folder(self) -> Any:
+        """The library folder (a Path): an extension keeps its own items in it (the Streamlit extension's
+        widgets/), made on first use as the base's are."""
+        return self._folder.root
+
+    def made(self) -> None:
+        """The library's README.md and .gitignore, made when it is first written to."""
+        ensure = getattr(self._folder, "ensure", None)
+        if callable(ensure):
+            ensure()
+
     def info(self) -> dict[str, Any]:
         root = self._folder.root
         return {

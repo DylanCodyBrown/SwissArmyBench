@@ -74,6 +74,12 @@ export interface IdeOptions {
   editor?: Partial<CodeEditorOptions>;
   /** Where the panel's height and the Properties pane's fold are remembered (localStorage), per host. */
   remember?: string;
+  /** The host's own controls in the bar, before Run (the Widgets window's Code | Preview switch). */
+  actions?: HTMLElement[];
+  /** Shown in the editor's place while the host says (setStage(true)): the Widgets window's Preview. */
+  stage?: HTMLElement;
+  /** Properties open until the user closes it (default: closed until asked for). */
+  propertiesOpen?: boolean;
 }
 
 export interface CodeIde {
@@ -89,6 +95,10 @@ export interface CodeIde {
   /** Something else unsaved (the host's Properties): the dirty dot shows for it too. */
   setExtraDirty(dirty: boolean): void;
   setName(name: string): void;
+  /** Properties opened or closed (its switch's work; no argument: the other way). */
+  toggleProperties(shown?: boolean): void;
+  /** The host's stage in the editor's place (true), or the editor again (false). */
+  setStage(shown: boolean): void;
   output: IdeOutput;
   /** The Result tab's content (null: empty). */
   showResult(content: HTMLElement | null): void;
@@ -338,6 +348,7 @@ export function codeIde(options: IdeOptions): CodeIde {
     saveBtn,
     saveAsBtn,
     cancelBtn,
+    ...(options.actions ?? []),
     runBtn,
     propsBtn,
     moreBtn,
@@ -349,7 +360,8 @@ export function codeIde(options: IdeOptions): CodeIde {
   const editorHost = h("div", { class: "ide-editor", "data-own-zoom": "", "aria-label": `${options.name} code` }, h("pre", { class: "code-box ide-plain" }, options.value));
   const props = options.properties ? h("aside", { class: "ide-props", "aria-label": "Properties" }, h("h3", { class: "ide-props-title" }, "Properties"), options.properties) : null;
   // Design principle 8.14 ("Never crowd the place where code is written"): closed until asked for.
-  let propsShown = remembered(options.remember, "props") === "on";
+  const keptProps = remembered(options.remember, "props");
+  let propsShown = keptProps === null ? !!options.propertiesOpen : keptProps === "on";
   function setProps(shown: boolean): void {
     propsShown = shown;
     if (props) props.hidden = !shown;
@@ -362,7 +374,8 @@ export function codeIde(options: IdeOptions): CodeIde {
   const { output, showTab } = panel;
   const split = panel.splitter(() => center);
 
-  const center = h("div", { class: "ide-center" }, editorHost, split, panel.element);
+  const stageHost = options.stage ? h("div", { class: "ide-stage", hidden: true }, options.stage) : null;
+  const center = h("div", { class: "ide-center" }, editorHost, stageHost, split, panel.element);
   const element = h("div", { class: "code-ide" }, bar, noteHost, h("div", { class: "ide-body" }, center, props));
   setProps(propsShown);
 
@@ -486,7 +499,7 @@ export function codeIde(options: IdeOptions): CodeIde {
       language: options.language,
       value: pending,
       theme: options.theme(),
-      keys: { ...(given.keys ?? {}), f5: () => void doRun(), ctrlEnter: () => void doRun() },
+      keys: options.run ? { ...(given.keys ?? {}), f5: () => void doRun(), ctrlEnter: () => void doRun() } : given.keys,
       intel: given.intel
         ? {
             ...given.intel,
@@ -527,6 +540,16 @@ export function codeIde(options: IdeOptions): CodeIde {
     },
     setName: (name) => {
       nameEl.textContent = name;
+    },
+    toggleProperties: (shown) => setProps(shown ?? !propsShown),
+    setStage: (shown) => {
+      if (!stageHost) return;
+      stageHost.hidden = !shown;
+      editorHost.hidden = shown;
+      if (!shown) {
+        editor?.layout();
+        editor?.focus();
+      }
     },
     output,
     showResult: panel.showResult,

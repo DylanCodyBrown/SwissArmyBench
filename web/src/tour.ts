@@ -238,11 +238,11 @@ export const STOPS: readonly Stop[] = [
   },
   {
     icon: "page",
-    word: "Apps",
-    line: "A Streamlit app built from your notebook's cells, laid out on a canvas and played live in place. Export it to run on its own. Click Apps on the rail.",
-    clue: "A Streamlit app laid out on a canvas from your notebook's cells.",
-    target: [rail("apps")],
-    when: railShown("apps"),
+    word: "Canvas",
+    line: "A Streamlit app laid out on a canvas: draw containers, drag widgets in from the Widgets pane, set their properties, then Play, Launch or Export. Click Canvas on the rail; Widgets beside it opens the window where widgets are written.",
+    clue: "A Streamlit app drawn on a canvas from widgets.",
+    target: [rail("canvas")],
+    when: railShown("canvas"),
   },
   {
     icon: "image",

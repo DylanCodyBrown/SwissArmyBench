@@ -78,7 +78,7 @@ def test_with_it_apps_are_on_the_rail_and_the_card_says_preinstalled(
     card = page.locator(".extension-card[data-extension='streamlit']")
     expect(card.locator(".extension-status")).to_have_text("Preinstalled", timeout=15000)
     expect(card.get_by_role("button", name="Remove")).to_be_visible()
-    expect(page.locator(".nav-rail [data-area='apps']")).to_be_visible()
+    expect(page.locator(".nav-rail [data-area='canvas']")).to_be_visible()
     shot(page, "streamlit-preinstalled.png")
     page.context.close()
 
@@ -89,12 +89,12 @@ def test_the_bi_base_has_no_apps_and_offers_the_extension(browser: Browser, base
     expect(card.locator(".extension-status")).to_have_text("Available", timeout=15000)
     expect(card.get_by_role("button", name="Install")).to_be_visible()
     expect(page.locator(".nav-rail [data-area='notebooks']")).to_be_visible()
-    expect(page.locator(".nav-rail [data-area='apps']")).to_be_hidden()
+    expect(page.locator(".nav-rail [data-area='canvas']")).to_be_hidden()
     shot(page, "streamlit-off-extensions.png")
     page.context.close()
     # The Workbench: notebooks and scripts, no Apps.
     work = open_page(browser, base, "/workbench?kind=notebook&view=list")
     expect(work.locator(".nav-rail [data-area='scripts']")).to_be_visible(timeout=15000)
-    expect(work.locator(".nav-rail [data-area='apps']")).to_be_hidden()
+    expect(work.locator(".nav-rail [data-area='canvas']")).to_be_hidden()
     shot(work, "streamlit-off-workbench.png")
     work.context.close()

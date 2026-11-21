@@ -31,7 +31,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
-| `streamlit_`, `canvas_`, `build_`, `builds_`, `perf_` | apps, designer, launches | `canvas_inspect`, `app_launch`, `perf_hints` |
+| `widgets_`, `canvas_` | widgets, the canvas, launches | `widgets_new`, `canvas_insert_widget`, `app_launch` |
 | `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |
 | `files_`, `app_`, `extensions_` | files; page, mode, gates; extensions | `app_context`, `app_gates`, `extensions_list` |
 | `desktop_` | app windows | `desktop_open`, `app_lifecycle` |
@@ -43,7 +43,7 @@ Power BI (`powerbi_import_project`, `powerbi_source`, `powerbi_edit_plan`), Copi
 No prefix: `guide`, `commands`, `health`.
 
 ## Rules
-- Exports that copy rows (`table_export`, `streamlit_export`, `project_save` with keep_rows, `project_copy`
+- Exports that copy rows (`table_export`, `canvas_export`, `project_save` with keep_rows, `project_copy`
   with data), `app_update`, `extensions_install`, `library_set_folder`, `team_join`, `sharing_start`,
   `projects_folders`, `project_share`, `powerbi_edit_apply` wait for Allow.
 - No password value comes back. Any typed box takes `${NAME}` (`$${X}`: the text), SQL a bound

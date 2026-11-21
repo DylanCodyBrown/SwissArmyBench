@@ -1,18 +1,12 @@
 """A project's builds/ folder (domain/builds.py): each build a folder of text files, written whole and only
-when its bytes change; the analyzer's files in a launch's run folder (sab_perf.py beside the pages, its
-switch and its records)."""
+when its bytes change."""
 
 from __future__ import annotations
 
-import os
 import shutil
 from pathlib import Path
 
 from swissarmybench.adapters.atomic_files import write_atomic
-
-PERF_SOURCE: Path = Path(__file__).resolve().parents[1] / "server" / "sab_perf.py"
-PERF_ON: str = "sab_perf.on"
-PERF_LOG: str = "sab_perf.jsonl"
 
 
 class BuildFiles:
@@ -68,39 +62,3 @@ class BuildFiles:
         return str(Path(*parts))
 
     # ----- the analyzer's files in a run folder -----
-
-    @staticmethod
-    def perf_helper() -> str:
-        return PERF_SOURCE.read_text(encoding="utf-8")
-
-    @staticmethod
-    def perf_switch(folder: str, on: bool) -> None:
-        flag = Path(folder) / PERF_ON
-        if on:
-            flag.write_text("on\n", encoding="utf-8")
-        else:
-            try:
-                flag.unlink()
-            except FileNotFoundError:
-                pass
-
-    @staticmethod
-    def perf_records(folder: str, offset: int) -> tuple[list[str], int]:
-        """The analyzer's record lines written since `offset` (bytes), and the new offset."""
-        path = Path(folder) / PERF_LOG
-        try:
-            with path.open("rb") as held:
-                held.seek(offset)
-                data = held.read(20_000_000)
-        except FileNotFoundError:
-            return [], offset
-        whole = data.rfind(b"\n") + 1
-        lines = data[:whole].decode("utf-8", "replace").splitlines()
-        return lines, offset + whole
-
-    @staticmethod
-    def perf_clear(folder: str) -> None:
-        try:
-            os.remove(Path(folder) / PERF_LOG)
-        except FileNotFoundError:
-            pass

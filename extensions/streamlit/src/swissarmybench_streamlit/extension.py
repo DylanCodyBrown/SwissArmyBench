@@ -1,30 +1,28 @@
 """The Streamlit extension as the base reads it (swissarmybench/extensions.py; its entry point:
 `streamlit = "swissarmybench_streamlit.extension"` in the group `swissarmybench.extensions`). Preinstalled:
 the installers and each update install it beside the base; Remove on the Extensions page takes it away, and
-the app is the BI base without it (no Apps area, no Streamlit canvas; its tools say which extension they
-need).
+the app is the BI base without it (no Canvas, no Widgets; its tools say which extension they need).
 
   ID, NAME, DESCRIPTION, ADDS   the extension, said for the Extensions page and context.md
   PROJECT_TYPE, MODE            the Streamlit project and its mode, as DATA (Plans/editions.plan.md, "Project
-                                modes"): the Streamlit canvas, the Streamlit, Components, Controllers and Text
-                                and layout families, Python, the agent's tool group, the export
+                                modes"): the Streamlit canvas, its widgets' framework, Python, the
+                                agent's tool groups, the export
   BASE_MODE_ADDS                what it adds to the base's own mode while it is on: today's app offers the
                                 Streamlit canvas in every BI project, as it did before it was an extension
   FRONT_END                     the front-end plug-ins it names (they live in the shared web/)
   AREAS, commands()             its agent commands (commands.py) and their areas, added to the base's registry
-  STARTERS                      its starter families (starters/*.blade.py), beside the base's
+  STARTERS                      its starter families (starters/*.blade.py: snippets for a widget's code)
   SECRET_PATHS, SESSION_RULES   its live pages' secret path, its Session page words
   routes(services)              its routes, its services built from the base's (this is its composition root);
-                                it fills the base's hooks (services/hooks.py): the documents the windows hold,
-                                a canvas, what stops with a kernel or a window, an app's own file
+                                it fills the base's hooks (services/hooks.py): an old app file said, a new
+                                project's canvas
   stop(services)                its Streamlit processes and their temporary folders, when the server stops
-  scaffold(name, data_names)    a Streamlit project's own files: app.ipynb and the app's canvas
+  scaffold(name, data_names)    a Streamlit project's own files: an empty canvas
 """
 
 from __future__ import annotations
 
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -33,25 +31,23 @@ from swissarmybench_streamlit import __version__
 ID = "streamlit"
 NAME = "Streamlit"
 VERSION = __version__
-DESCRIPTION = "Build Streamlit apps from your notebooks' cells."
+DESCRIPTION = "Build Streamlit apps from widgets on a canvas."
 ADDS = [
-    "The Apps area and the Streamlit canvas: pages of blocks, each a link to a cell",
-    "Live cells: a Python cell that calls Streamlit shows its page in place",
-    "App mode: page settings, the live page's state, controllers and Test this page",
-    "Export (an app that runs alone) and Save as (the project's pages/*.py)",
-    "The Streamlit, Components, Controllers and Text and layout starters",
+    "Widgets: your own in the library and 56 prebuilt ones, each with its properties",
+    "The Widgets window: write a widget with completion and help, Run it in place",
+    "The Canvas: draw containers, insert widgets, set their properties; Play, Launch, Export",
 ]
 PACKAGE = "swissarmybench-streamlit"
 PROJECT_TYPE = "streamlit"
-# The front-end plug-ins it names (in the shared web/: the canvas, live cells, App mode's panels).
-FRONT_END = ["streamlit-canvas", "live-cells"]
+# The front-end plug-ins it names (in the shared web/: the Canvas page, the Widgets window).
+FRONT_END = ["streamlit-canvas", "widgets"]
 # Its commands' area (cli/commands.py AREAS: the prefix, then what it works on).
 AREAS = (
-    ("streamlit", "Streamlit: an app's canvas (pages of blocks linked to cells), Play, export, Save as"),
-    ("canvas", "The canvas's designer: the property pane (uses, state, cache), Toolbox, containers, events"),
-    ("builds", "Builds: every launch of an app, kept in its project's builds/ (list, compare)"),
-    ("build", "One build: run it again, restore its code into the app"),
-    ("perf", "The Performance Analyzer: a launched app's reruns, calls, caches, web socket, hints"),
+    ("canvas", "The Canvas: pages of containers and widget instances in px, sizing, snap, Play, Export"),
+    (
+        "widgets",
+        "Widgets: the library's and the prebuilt ones, their properties (types, masks), run alone, previews",
+    ),
 )
 FAMILIES = ["Streamlit", "Components", "Controllers", "Text and layout"]
 MODE: dict[str, Any] = {
@@ -62,14 +58,16 @@ MODE: dict[str, Any] = {
     "families": FAMILIES,
     "languages": ["python"],
     "cell_kinds": [],
-    "tools": ["streamlit_"],
+    "tools": ["canvas_", "widgets_"],
+    # The app framework its canvas uses: the Widgets browser and the canvas show that framework's widgets.
+    "widget_framework": "streamlit",
     "export": ["app", "pages"],
     # For a beginner choosing a project type (New project).
     "title": "Streamlit app",
     "for_whom": "Anyone who wants a small web app on their data, for themselves or their team.",
     "explain": (
-        "Your notebook's cells become an app: drag a cell onto a page, and its chart, table or filter shows "
-        "there. A filter on one block drives every block that reads its value."
+        "Draw containers on a canvas and insert widgets: charts, tables, filters and buttons, each with its "
+        "properties. A filter widget sets a value the other widgets read."
     ),
     "example": "A sales dashboard with a region filter, a chart by month and a table of the top customers.",
 }
@@ -77,8 +75,8 @@ MODE: dict[str, Any] = {
 BASE_MODE_ADDS: dict[str, list[str]] = {"canvases": ["streamlit"]}
 
 STARTERS = str(Path(__file__).resolve().parent / "starters")
-LIVE_PREFIX = "/streamlit/live/"
-SECRET_PATHS = (LIVE_PREFIX,)
+LIVE_RUN = "/streamlit/run/"  # a widget run alone and a canvas's Play (server/live_runs.py LiveRuns)
+SECRET_PATHS = (LIVE_RUN,)
 SESSION_RULES: dict[str, Any] = {}  # its words are the base's today (domain/session_log.py's app rules)
 
 
@@ -100,120 +98,163 @@ def describe() -> dict[str, Any]:
 def routes(services: Any) -> list[Any]:
     """Its routes, its services built from the base's (bootstrap's Services), and the base's hooks filled."""
     from swissarmybench.server import streamlit_proxy
-    from swissarmybench_streamlit.adapters.streamlit_files import AppFiles
-    from swissarmybench_streamlit.domain import streamlit_cells
-    from swissarmybench_streamlit.server import routes_canvas, routes_controllers, routes_streamlit
-    from swissarmybench_streamlit.server.streamlit_apps import Runner
-    from swissarmybench_streamlit.services.canvas_pane import CanvasPane
-    from swissarmybench_streamlit.services.controllers import Controllers
-    from swissarmybench_streamlit.services.streamlit import StreamlitApps
-    from swissarmybench_streamlit.services.streamlit_documents import AppFile
-
-    # A canvas's pages and a document's live cells, written to a temporary folder of the app's own and run
-    # in the document's own Python (Streamlit is never this app's dependency).
-    app_files = AppFiles()
-    runner = Runner(report=lambda *e: services.process_event("streamlit", *e))
-    documents = services.documents
-    apps = StreamlitApps(
-        services.ws,
-        app_files,
-        runner,
-        services.export_writer,
-        now=time.time,
-        read_document=documents.read,
-        environment_of=documents.environment,
-        project_files=services.project_files,
-        table_cells=services.table_cells.group_cells,
-        arrange=services.table_cells.arrange,
-        approvals=services.agent.approvals,
-        data_export=services.data_export,
-        local_notes=services.script_exports.local_notes,
-        query_module=services.script_exports.query_module,
-    )
-    # A canvas page's controllers: its check, Test this page (AppTest in the app's Python), thin cells.
-    controllers = Controllers(apps, app_files, runner, services.project_files)
-    # The property pane and the designer (the owner, 2026-11-19): what a block uses, its state and cache.
-    pane = CanvasPane(
-        apps,
-        variables=getattr(getattr(services, "variables", None), "listing", None),
-        lineage=getattr(getattr(services, "lineage", None), "trace", None),
-        is_set=lambda name: name in os.environ,
-        places=getattr(getattr(services, "catalogs", None), "places", None),
-    )
-    services.canvas_pane = pane
-    services.streamlit = apps  # its stop, and tests
-    # Launch, builds and the Performance Analyzer (2026-11-19): builds/ in the project, a run of its own.
     from swissarmybench.settings import Settings
     from swissarmybench_streamlit.adapters.build_files import BuildFiles
-    from swissarmybench_streamlit.server import routes_launch
-    from swissarmybench_streamlit.services.launch import LAUNCH_PATH, Launches
+    from swissarmybench_streamlit.adapters.streamlit_files import AppFiles
+    from swissarmybench_streamlit.adapters.widget_files import (
+        CanvasFiles,
+        PreviewFiles,
+        WidgetFiles,
+        folder_names,
+        read_text,
+    )
+    from swissarmybench_streamlit.server import routes_canvases, routes_widgets
+    from swissarmybench_streamlit.server.live_runs import LiveRuns
+    from swissarmybench_streamlit.server.previews import Previewer
+    from swissarmybench_streamlit.server.streamlit_apps import Runner
+    from swissarmybench_streamlit.services.canvas import Canvases
+    from swissarmybench_streamlit.services.open_tables import OpenTables
+    from swissarmybench_streamlit.services.widgets import Widgets
 
-    launches = Launches(apps, app_files, BuildFiles(), runner, services.project_files)
-    services.launches = launches
-    services.controllers = controllers
+    # A widget run alone and a canvas's Play: written to a temporary folder of the app's own and run in the
+    # project's Python (Streamlit is never this app's dependency), passed through at /streamlit/run/.
+    app_files = AppFiles()
+    runner = Runner(report=lambda *e: services.process_event("streamlit", *e))
+    live_runs = LiveRuns(app_files, runner)
+    settings = getattr(services, "settings", None) or Settings()
+    library = getattr(services, "library", None)
+    documents = services.documents
+
+    def project_folder() -> str | None:
+        projects = getattr(services, "sab_projects", None)
+        project = (projects.state().get("project") or {}) if projects is not None else {}
+        folder = project.get("folder")
+        return str(folder) if folder else None
+
+    def variable_names() -> list[str]:
+        listing = getattr(getattr(services, "variables", None), "listing", None)
+        found = (listing().get("variables") or []) if listing else []
+        return [str(v.get("name")) for v in found if isinstance(v, dict) and v.get("name")]
+
+    def project_python() -> str | None:
+        folder = project_folder()
+        if not folder:
+            return None
+        try:
+            return documents.environment(str(Path(folder) / "data.ipynb"))  # type: ignore[no-any-return]
+        except Exception:
+            return None
+
+    tables = OpenTables(services.ws, services.export_writer)
+    widgets = Widgets(
+        services.ws,
+        WidgetFiles(
+            library.folder if library is not None else None, made=library.made if library else lambda: None
+        ),
+        live_runs,
+        services.agent.approvals,
+        tables=tables.columns,
+        table_data=tables.data,
+        project_python=project_python,
+        previews=PreviewFiles(Path(settings.state_dir) / "widget-previews"),
+        variables=lambda: set(os.environ),
+        variable_names=variable_names,
+        project_folder=project_folder,
+    )
+    # The Canvas: the project's <app>.canvas.json files, every change rule-checked, kept and undoable.
+    canvases = Canvases(
+        services.ws,
+        CanvasFiles(),
+        widgets,
+        live_runs,
+        services.agent.approvals,
+        app_files,
+        project_folder=project_folder,
+        read_data_py=lambda folder: read_text(str(Path(folder) / "data.py")),
+        list_folder=folder_names,
+        real_path=lambda path: os.path.realpath(os.path.expanduser(path)),
+        builds=BuildFiles(),
+    )
+    # Each widget's preview, rendered headless once (Play's own builder and run) and kept by its hash.
+    previewer = Previewer(widgets, live_runs)
+    services.widgets = widgets
+    services.canvases = canvases
+    services.live_runs = live_runs
+    services.previewer = previewer
 
     hooks = services.hooks
-    hooks.documents = apps.documents
-    hooks.unsaved = apps.unsaved
-    hooks.held = apps.held
-    hooks.canvas = apps.canvas
-    hooks.read_trace = app_files.read_trace
-    hooks.kernel_stopped = apps.kernel_stopped
-    hooks.stop_orphans = apps.stop_orphans
-    hooks.canvas_references = streamlit_cells.canvas_references
-    hooks.app_document = AppFile()
-    hooks.live_cells = streamlit_cells.live_cells
+    hooks.app_document = GoneApp()  # an old .stapp.json: said in one line
     hooks.project_app = project_app
-    hooks.app_pages = streamlit_cells.outline_pages
-    # Share… (the base's services/sharing.py): a launched app's own port, tunnelled to the organization.
+    hooks.app_pages = canvas_pages
+    web_root = getattr(settings, "web_root", Settings().web_root)
+    # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
     from swissarmybench_streamlit.services import sharing_target
 
-    services.share_target = sharing_target.wire(services, launches, runner)
+    services.share_target = sharing_target.wire(services, live_runs, runner, canvases.title_of)
     return [
-        *routes_streamlit.routes(apps),
-        *routes_controllers.routes(controllers),
-        *routes_canvas.routes(pane, apps),
-        *routes_launch.routes(
-            launches, getattr(getattr(services, "settings", None), "web_root", Settings().web_root)
-        ),
-        *streamlit_proxy.routes(apps.port_of),
-        *streamlit_proxy.routes(
-            launches.port_of, prefix=LAUNCH_PATH, what="This launched app", tap=launches.tap
-        ),
+        *routes_widgets.routes(widgets, previewer, web_root),
+        *routes_canvases.routes(canvases, web_root),
+        *streamlit_proxy.routes(live_runs.port_of, prefix=LIVE_RUN, what="This widget or canvas"),
     ]
+
+
+class GoneApp:
+    """An old app canvas (.stapp.json) opened in the Workbench: app notebooks were replaced by widgets."""
+
+    def open(self, text: str, full: str) -> dict[str, Any]:
+        from swissarmybench_streamlit.domain.canvas_model import OLD_SAID
+
+        raise ValueError(OLD_SAID)
+
+    def write(self, body: dict[str, Any], path: str) -> str:
+        from swissarmybench_streamlit.domain.canvas_model import OLD_SAID
+
+        raise ValueError(OLD_SAID)
 
 
 async def stop(services: Any) -> None:
     """When the server stops: no Streamlit process outlives it, nor its temporary folder."""
-    launches = getattr(services, "launches", None)
-    if launches is not None:
-        await launches.stop_all()
+    previewer = getattr(services, "previewer", None)
+    if previewer is not None:
+        await previewer.stop()
+    live_runs = getattr(services, "live_runs", None)
+    if live_runs is not None:
+        await live_runs.stop_all()
     shared = getattr(services, "share_target", None)
     if shared is not None:
         await shared.close_all()
-    apps = getattr(services, "streamlit", None)
-    if apps is not None:
-        await apps.stop_all()
+
+
+def canvas_pages(path: str, text: str) -> list[tuple[str, list[tuple[str, int]]]]:
+    """A canvas's pages for the project's outline (its widgets are no notebook's cells: none linked)."""
+    from swissarmybench_streamlit.domain import canvas_model
+
+    if not path.endswith(canvas_model.SUFFIX):
+        return []
+    try:
+        canvas = canvas_model.read(text).canvas
+    except canvas_model.CanvasError as error:
+        raise ValueError(str(error)) from None
+    return [(str(page["name"]), []) for page in canvas.get("pages", [])]
 
 
 def project_app(name: str) -> dict[str, Any]:
     """A new project's app (the base's BI project, as before this was an extension): an empty canvas named
     after the project, and Streamlit in its requirements."""
-    from swissarmybench_streamlit.domain import streamlit_cells
+    from swissarmybench_streamlit.domain import canvas_build, canvas_model
 
-    canvas = f"{streamlit_cells.slug(name)}{streamlit_cells.APP_SUFFIX}"
-    return {"files": {canvas: streamlit_cells.write_app([])}, "requirements": ["streamlit>=1.36"]}
+    canvas = f"{canvas_build.slug(name)}{canvas_model.SUFFIX}"
+    return {
+        "files": {canvas: canvas_model.write(canvas_model.new_canvas(name))},
+        "requirements": ["streamlit>=1.43"],
+    }
 
 
 def scaffold(name: str, data_names: list[str]) -> dict[str, Any]:
-    """A Streamlit project's own files (beside data.ipynb and data.py): app.ipynb, the app notebook its
-    blocks' cells go in (starting from data.py's names), and the app's canvas."""
-    from swissarmybench.domain import notebooks
-
-    first = f"from data import {', '.join(data_names)}" if data_names else "import data"
+    """A Streamlit project's own files (beside data.ipynb and data.py): an empty canvas, nothing else (the
+    owner, 2026-11-21: app notebooks were replaced by widgets)."""
     made = project_app(name)
-    files = {"app.ipynb": notebooks.write_notebook([notebooks.Cell("code", first)]), **made["files"]}
-    return {"app": False, "files": files, "requirements": list(made["requirements"])}
+    return {"app": False, "files": dict(made["files"]), "requirements": list(made["requirements"])}
 
 
 def commands() -> dict[str, Any]:
@@ -221,3 +262,10 @@ def commands() -> dict[str, Any]:
     from swissarmybench_streamlit.commands import COMMANDS
 
     return COMMANDS
+
+
+def gone_commands() -> dict[str, str]:
+    """Its commands that went (the old app canvas's), each with why: an old call says so."""
+    from swissarmybench_streamlit.commands import GONE
+
+    return GONE

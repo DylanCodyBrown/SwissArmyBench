@@ -15,7 +15,8 @@
  *   [DOCS]    that kind's documents: the open ones first (in front marked, unsaved marked), then the
  *             project's (with no project open: this computer's recent ones of that kind). A click brings
  *             an open one forward, or opens the file.
- *   [KINDS]   Notebooks in a project: under Data notebook (data.ipynb) and App notebooks (every other),
+ *   [KINDS]   Notebooks in a project: under Data notebook (data.ipynb) and Notebooks (every other: app notebooks
+ *             were replaced by widgets, 2026-11-21),
  *             after the Transformations (the owner, 2026-11-16: "data notebooks and app notebooks");
  *             a notebook outside the project under Notebooks. Each card's icon is its kind's.
  *
@@ -69,9 +70,8 @@ export const KIND_TITLES: Record<Kind, { title: string; one: string }> = {
 };
 
 /** The Notebooks page's groups: each notebook's role, its heading. */
-const KINDS: ["data" | "app" | "", string][] = [
+const KINDS: ["data" | "", string][] = [
   ["data", "Data notebook"],
-  ["app", "App notebooks"],
   ["", "Notebooks"],
 ];
 
@@ -176,7 +176,7 @@ export function mountLanding(host: LandingHost): Landing {
       all.push([doc, false]);
       list.append(card(k, doc, false));
     }
-    const kinds = (k as Kind) === "notebook" ? KINDS.map(([role, title]) => [role, title, all.filter(([d]) => notebookRole(d.path) === role)] as const) : [];
+    const kinds = (k as Kind) === "notebook" ? KINDS.map(([role, title]) => [role, title, all.filter(([d]) => (notebookRole(d.path) === "data" ? "data" : "") === role)] as const) : [];
     if (kinds.some(([role, , docs]) => role && docs.length)) {
       // In a project: the data notebook, then the app notebooks (and any notebook from outside it).
       list.replaceWith(

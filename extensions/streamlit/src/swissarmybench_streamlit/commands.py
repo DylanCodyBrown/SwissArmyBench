@@ -1,12 +1,11 @@
-"""The Streamlit extension's agent commands (the golden rule: every action on its canvas and live cells is one
-of these). The base's registry (swissarmybench/cli/commands.py) takes them when the extension is on, so each
-is an MCP tool and a `sab` command too; with it off, a call says which extension it needs. Standard library
+"""The Streamlit extension's agent commands (the golden rule: every action on the Canvas and in the Widgets window
+is one of these). The base's registry (swissarmybench/cli/commands.py) takes them when the extension is on, so
+each is an MCP tool and a `sab` command too; with it off, a call says which extension it needs. Standard library
 only (the `sab` command reads them).
 
-A Streamlit app is a document of its own: pages of blocks, each block a link to a Python, Markdown or HTML
-cell of a notebook or script (a Markdown or HTML cell is st.markdown or st.html on the page). There is no
-Streamlit kind of cell: a Python cell that calls Streamlit is shown live in its cell. The window's commands
-work on what is in front; the streamlit_* commands on an app by its id.
+A canvas (the owner, 2026-11-21) is a project's `<app>.canvas.json`: pages of containers placed in pixels, each
+holding containers and widget instances. A widget is the library's `widgets/<name>.widget.py`. canvas_* change a
+canvas as the user does (each change checked by the layout's rules and undoable); widgets_* work the widgets.
 """
 
 from __future__ import annotations
@@ -14,667 +13,447 @@ from __future__ import annotations
 from typing import Any
 
 from swissarmybench.cli import api
-from swissarmybench.cli.commands import Command, CommandError, Registrar, _q, _window, opt, req
+from swissarmybench.cli.commands import Command, Registrar, _q, opt, req
 
 COMMANDS: dict[str, Command] = {}
 
 
 command = Registrar(COMMANDS)
 
+# The app notebook, its old canvas (.stapp.json), its designer and its live cells went (the owner, 2026-11-21:
+# "Creating a widget is what will replace the concept of app cells and app notebooks"): an old call says so.
+GONE: dict[str, str] = {
+    name: f"{name} went (2026-11-21): app notebooks and their canvases were replaced by widgets and the Canvas: "
+    "widgets_* make and run widgets, canvas_* build a page of them."
+    for name in [
+        "A function's cache decorator in a cell's code: st.cache_data or st.cache_resource, its settings, or none",
+        "A widget's event handler: a function stub in its cell and on_change= (or on_click=) set",
+        "Install Streamlit into the app's Python (when streamlit_run says so)",
+        "The front canvas: its app id (for streamlit_*), page, blocks or live page",
+        "build_relaunch",
+        "build_restore",
+        "builds_compare",
+        "canvas_add",
+        "canvas_add_handler",
+        "canvas_arrange",
+        "canvas_bind",
+        "canvas_cache_clear",
+        "canvas_container",
+        "canvas_inspect",
+        "canvas_outline",
+        "canvas_set_cache",
+        "canvas_set_default",
+        "canvas_set_property",
+        "canvas_state_set",
+        "canvas_table",
+        "canvas_toolbox",
+        "go inside with streamlit_block_change parent, slot)",
+        "perf_attach",
+        "perf_hints",
+        "perf_session",
+        "streamlit_address",
+        "streamlit_app",
+        "streamlit_apps",
+        "streamlit_block_change",
+        "streamlit_block_place",
+        "streamlit_block_remove",
+        "streamlit_cells",
+        "streamlit_check",
+        "streamlit_close",
+        "streamlit_export",
+        "streamlit_install",
+        "streamlit_open",
+        "streamlit_page_add",
+        "streamlit_page_change",
+        "streamlit_page_remove",
+        "streamlit_page_settings",
+        "streamlit_run",
+        "streamlit_save",
+        "streamlit_save_as",
+        "streamlit_state",
+        "streamlit_stop",
+        "streamlit_test",
+        "workbench_canvas",
+        "workbench_canvas_edit",
+        "workbench_canvas_move_to_data",
+        "workbench_canvas_play",
+        "workbench_live_cells",
+        "workbench_live_resize",
+        "workbench_live_run",
+        "workbench_new_app",
+    ]
+}
 
-@command("workbench_new_app", "A new Streamlit app (an empty canvas) as a Workbench tab")
-def workbench_new_app(a: dict[str, Any]) -> Any:
-    return _window("file.newApp", {})
+
+def _command(canvas: str, kind: str, body: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(canvas)}/command", {"kind": kind, **body})
+
+
+def _given(a: dict[str, Any], *names: str) -> dict[str, Any]:
+    return {n: a[n] for n in names if a.get(n) is not None}
 
 
 @command(
-    "workbench_canvas",
-    "The front canvas: its app id (for streamlit_*), page, blocks or live page",
+    "canvas_open",
+    "Open a project's canvas (<app>.canvas.json) by its path, or make one by its name: its id, model, version",
+    opt("path", "The canvas file's path."),
+    opt("name", "A new canvas's name (in the open project's folder)."),
 )
-def workbench_canvas(a: dict[str, Any]) -> Any:
-    return _window("canvas.state", {})
+def canvas_open(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/streamlit/canvases", _given(a, "path", "name") | {"create": True})
 
 
 @command(
-    "workbench_canvas_play",
-    "Play the front canvas: the live page in place",
-    opt("page", "The page to show (its id; default: the one in front)."),
+    "canvas_list",
+    "The open project's canvases (and old .stapp.json files, said)",
+    opt("folder", "Another project folder."),
 )
-def workbench_canvas_play(a: dict[str, Any]) -> Any:
-    return _window("canvas.play", {"page": a["page"]} if a.get("page") else {})
-
-
-@command("workbench_canvas_edit", "Back from the live page to the front canvas's blocks")
-def workbench_canvas_edit(a: dict[str, Any]) -> Any:
-    return _window("canvas.edit", {})
+def canvas_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/streamlit/canvases" + (f"?folder={_q(a['folder'])}" if a.get("folder") else ""))
 
 
 @command(
-    "streamlit_cells",
-    "Every Python cell that calls Streamlit, and every Markdown and HTML cell (kind), by document (the "
-    "Streamlit cells pane)",
-    opt("folder", "A project's folder: its files on disk too."),
+    "canvas_state",
+    "A canvas: pages, containers, widget instances (px), version, missing widgets, marked values, notes",
+    req("canvas", "The canvas's id (canvas_open gives it)."),
 )
-def streamlit_cells(a: dict[str, Any]) -> Any:
-    folder = f"?folder={_q(a['folder'])}" if a.get("folder") else ""
-    return api.call("GET", "/streamlit/cells" + folder)
+def canvas_state(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}")
 
 
 @command(
-    "workbench_live_cells",
-    "The front document's cells that call Streamlit (shown live): makes, reads, state",
-)
-def workbench_live_cells(a: dict[str, Any]) -> Any:
-    return _window("streamlit.list", {})
-
-
-@command("workbench_live_run", "Run the front document's live cells")
-def workbench_live_run(a: dict[str, Any]) -> Any:
-    return _window("streamlit.run", {})
-
-
-@command(
-    "workbench_live_resize",
-    "Size a live cell's pane in the front document",
-    req("number", "The cell's own number.", "int"),
-    opt("height", "Pixels, 60 to 2000 (without it: the usual height).", "int"),
-)
-def workbench_live_resize(a: dict[str, Any]) -> Any:
-    args = {"number": a["number"]} | ({"height": a["height"]} if a.get("height") is not None else {})
-    return _window("streamlit.resize", args)
-
-
-@command("streamlit_apps", "The open Streamlit apps: canvases, and each open document's own")
-def streamlit_apps(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/streamlit/apps")
-
-
-@command(
-    "streamlit_open",
-    "Open a Streamlit app's file (a canvas) without the window",
-    opt("path", "A .stapp.json file (without it: a new canvas)."),
-)
-def streamlit_open(a: dict[str, Any]) -> Any:
-    body = {"path": a["path"]} if a.get("path") else {"canvas": True, "pages": []}
-    return api.call("POST", "/streamlit/apps", body)
-
-
-@command(
-    "streamlit_app",
-    "A canvas's pages, blocks (link, place, makes, reads, state, missing) and problems",
-    req("app", "The app's id (streamlit_apps lists them)."),
-)
-def streamlit_app(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}")
-
-
-@command(
-    "streamlit_run",
-    "Play a canvas: its pages from the linked cells as they are now, tables read again",
-    req("app", "The app's id."),
-)
-def streamlit_run(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/run")
-
-
-@command(
-    "streamlit_page_settings",
-    "A canvas's page settings: title, icon, layout (wide, centered), logo, colours (theme)",
-    req("app", "The app's id."),
-    req("settings", '{"title": "Sales", "layout": "centered", "colours": {"primary": "#c8102e"}}', "json"),
-)
-def streamlit_page_settings(a: dict[str, Any]) -> Any:
-    return api.call("PUT", f"/streamlit/apps/{_q(a['app'])}/settings", a["settings"])
-
-
-@command(
-    "streamlit_state",
-    "The live page's session state (State panel): each key, its value, its block",
-    req("app", "The app's id."),
-)
-def streamlit_state(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/session")
-
-
-@command(
-    "streamlit_address",
-    "A running app's addresses: the app, each page, each live cell",
-    req("app", "The app's id."),
-)
-def streamlit_address(a: dict[str, Any]) -> Any:
-    state = api.call("GET", f"/streamlit/apps/{_q(a['app'])}")
-    if not state["running"]:
-        return {"running": False, "problem": state["problem"], "hint": "streamlit_run starts it."}
-    base = state["address"].rsplit(state["path"], 1)[0]
-    return {
-        "running": True,
-        "app": state["address"],
-        "pages": {p["name"]: base + p["address"] for p in state.get("pages", []) if p["address"]},
-        "cells": {p["cell"]: base + p["preview"] for p in state.get("pieces", []) if p["preview"]},
-    }
-
-
-@command("streamlit_stop", "Stop a Streamlit app's process", req("app", "The app's id."))
-def streamlit_stop(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/stop")
-
-
-@command("streamlit_close", "Close a Streamlit app opened with streamlit_open", req("app", "The app's id."))
-def streamlit_close(a: dict[str, Any]) -> Any:
-    return api.call("DELETE", f"/streamlit/apps/{_q(a['app'])}")
-
-
-@command(
-    "streamlit_install",
-    "Install Streamlit into the app's Python (when streamlit_run says so)",
-    req("app", "The app's id."),
-)
-def streamlit_install(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/install")
-
-
-@command(
-    "streamlit_save",
-    "Save a canvas to its file (.stapp.json: pages, blocks, links, page settings; no code)",
-    req("app", "The app's id."),
-    opt("path", "Where (default: the file it was opened from)."),
-)
-def streamlit_save(a: dict[str, Any]) -> Any:
-    state = api.call("GET", f"/streamlit/apps/{_q(a['app'])}")
-    path = a.get("path") or state["document"]
-    if not path:
-        raise CommandError("Send path: this app has no file yet.")
-    if not path.lower().endswith(".stapp.json"):
-        path += ".stapp.json"
-    saved = api.call(
-        "POST",
-        "/workbench/save",
-        {"path": path, "pages": state["pages"], "settings": state.get("settings"), "force": True},
-    )
-    api.call("PUT", f"/streamlit/apps/{_q(a['app'])}", {"document": saved["path"]})
-    return saved
-
-
-@command(
-    "streamlit_export",
-    "Export a canvas as an app that runs alone (app.py, pages, the tables' rows as Parquet). Waits for "
-    "the user's approval click (the folder and the tables it copies); declined, nothing is written.",
-    req("app", "The app's id."),
-    req("folder", "Where it goes (made when it is not there)."),
-)
-def streamlit_export(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/export", {"folder": a["folder"]})
-
-
-@command(
-    "streamlit_save_as",
-    "Save as: the app's project as one zip (data.py, pages/*.py, sources); no rows, no secrets. A project "
-    "with no data.ipynb gets one first: when it would hold a pasted table's rows, waits for the user's approval click",
-    req("app", "The app's id (saved: its folder is the project)."),
-    req("path", "The zip's path."),
-)
-def streamlit_save_as(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/save-as", {"path": a["path"]})
-
-
-@command(
-    "streamlit_page_add",
-    "Add a page to a canvas",
-    req("app", "The app's id."),
-    opt("name", "The page's name (default: Page N)."),
-)
-def streamlit_page_add(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST", f"/streamlit/apps/{_q(a['app'])}/pages", {"name": a["name"]} if a.get("name") else {}
-    )
-
-
-@command(
-    "streamlit_page_change",
-    "Rename a canvas's page, or move it among the pages",
-    req("app", "The app's id."),
-    req("page", "The page's id (p1...)."),
-    opt("name", "Its new name."),
-    opt("index", "Its new place among the pages, from 0.", "int"),
-)
-def streamlit_page_change(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("name", "index") if a.get(k) is not None}
-    return api.call("PATCH", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}", body)
-
-
-@command(
-    "streamlit_page_remove",
-    "Remove a page from a canvas",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-)
-def streamlit_page_remove(a: dict[str, Any]) -> Any:
-    return api.call("DELETE", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}")
-
-
-@command(
-    "streamlit_block_place",
-    "Place a Python, Markdown or HTML cell's link on a canvas's page (as dragging it there)",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-    req("document", "The saved notebook's or script's path."),
-    req("cell", "The cell's own number.", "int"),
-    opt("row", "Its row, from 1 (default: after the last block).", "int"),
-    opt("column", "The column it starts in, 1 to 12.", "int"),
-    opt("w", "Its width in columns, 2 to 12 (default 6).", "int"),
-    opt("h", "Its height in 40-pixel rows (default: its content's).", "int"),
-)
-def streamlit_block_place(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("document", "cell", "row", "column", "w", "h") if a.get(k) is not None}
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks", body)
-
-
-@command(
-    "streamlit_block_change",
-    "Move or resize a block on the 12-column grid, or send it to another page",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-    req("block", "The block's id (b1...: streamlit_app lists them)."),
-    opt("row", "Its row, from 1.", "int"),
-    opt("column", "The column it starts in, 1 to 12.", "int"),
-    opt("insert", "true: a new row at `row`.", "bool"),
-    opt("w", "Its width in columns, 2 to 12.", "int"),
-    opt("h", "Its height in 40-pixel rows; 0: its content's.", "int"),
-    opt("to_page", "Another page's id, to send it there."),
-    opt("parent", 'A container\'s id, to put it inside ("": back on the page).'),
-    opt("slot", "Which of the container's slots (a column, a tab), from 0.", "int"),
-    opt("hidden", "Hidden while designing.", "bool"),
-    opt("locked", "Locked: the designer does not move or size it.", "bool"),
-    opt("props", 'A container\'s own properties: {"widths": [2, 1]}, {"labels": ["A", "B"]}...', "json"),
-    opt(
-        "view",
-        'A SQL or DAX block\'s view: {"as": "table" | "bar" | "line" | "area" | "metric", "x", "y", '
-        '"column", "label", "cache": false}; {} the table, cached.',
-        "json",
-    ),
-)
-def streamlit_block_change(a: dict[str, Any]) -> Any:
-    body: dict[str, Any] = {k: a[k] for k in ("row", "column", "insert", "w") if a.get(k) is not None}
-    if a.get("h") is not None:
-        body["h"] = a["h"] or None
-    if a.get("to_page"):
-        body["page"] = a["to_page"]
-    if a.get("parent") is not None:
-        body["parent"] = a["parent"] or None
-    body |= {k: a[k] for k in ("slot", "hidden", "locked", "props", "view") if a.get(k) is not None}
-    path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}"
-    return api.call("PATCH", path, body)
-
-
-@command(
-    "streamlit_block_remove",
-    "Take a block off its page",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-    req("block", "The block's id."),
-)
-def streamlit_block_remove(a: dict[str, Any]) -> Any:
-    path = f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}"
-    return api.call("DELETE", path)
-
-
-# A canvas page's controllers (docs/ideas.md, controllers, 2026-11-15): a cell's header line
-# `# Makes: region: str = "All"; by_region: table = orders` is its contract.
-
-
-@command(
-    "streamlit_check",
-    "A canvas's contract check: defaults used, contract problems, names made twice, cycles; controllers",
-    req("app", "The app's id."),
-    opt("page", "One page's id (default: every page)."),
-)
-def streamlit_check(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/check", params={"page": a.get("page")})
-
-
-@command(
-    "streamlit_test",
-    "Test this page: AppTest tries each controller's values; each block's failures",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-)
-def streamlit_test(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/test")
-
-
-@command(
-    "workbench_canvas_move_to_data",
-    "Move a front-canvas block's model work (filter, group, join) into a named cell of data.ipynb",
-    req("block", "The block's id (its thin hint: streamlit_app)."),
-)
-def workbench_canvas_move_to_data(a: dict[str, Any]) -> Any:
-    return _window("canvas.moveToData", {"block": a["block"]})
-
-
-# The canvas's property pane and designer (the owner, 2026-11-19): whatever is selected, what it uses, its
-# Streamlit state and cache. A change to a cell's CODE is made in its open document by the window that holds
-# the app (like typing; the editor's Undo takes it back): only the characters it names change. "Now" changes
-# the RUNNING app only.
-
-
-def _code_path(a: dict[str, Any]) -> str:
-    return f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/blocks/{_q(a['block'])}/code"
-
-
-_BLOCK = (req("app", "The app's id."), req("page", "The page's id."), req("block", "The block's id."))
-_WIDGET = opt("widget", "Which element of its cell, from 0 (canvas_inspect lists them; default 0).", "int")
-
-
-@command(
-    "canvas_inspect",
-    "The property pane: a block (properties, widgets, uses, used by, state, cache, exported code), a page, or "
-    "the app",
-    req("app", "The app's id."),
-    opt("page", "A page's id (without it: the app)."),
-    opt("block", "A block's id."),
-)
-def canvas_inspect(a: dict[str, Any]) -> Any:
-    asked = {"page": a.get("page"), "block": a.get("block")}
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/inspect", params=asked)
-
-
-@command(
-    "canvas_table",
-    "A table a block uses: its columns and types, its grid's steps in words, its first rows",
-    req("name", "The table's name as Python names it (canvas_inspect: uses.tables)."),
-)
-def canvas_table(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/tables/{_q(a['name'])}")
-
-
-@command(
-    "canvas_set_default",
-    "A widget's default (value=, index= or default= in its cell's code; a plain value only)",
-    *_BLOCK,
-    req("value", 'The default: 5, "North", ["a", "b"], true.', "json"),
-    _WIDGET,
-)
-def canvas_set_default(a: dict[str, Any]) -> Any:
-    body = {
-        "do": "set",
-        "widget": a.get("widget") or 0,
-        "name": "default",
-        "value": a["value"],
-        "apply": True,
-    }
-    return api.call("POST", _code_path(a), body)
-
-
-@command(
-    "canvas_set_property",
-    "A widget's property in its cell's code (label, options, key, help...): set to a plain value, or reset",
-    *_BLOCK,
-    req("name", "The property, as Streamlit names it."),
-    opt("value", "Its value (JSON). Without it: reset (taken out of the call).", "json"),
-    _WIDGET,
-)
-def canvas_set_property(a: dict[str, Any]) -> Any:
-    body: dict[str, Any] = {"widget": a.get("widget") or 0, "name": a["name"], "apply": True}
-    body |= {"do": "set", "value": a["value"]} if a.get("value") is not None else {"do": "reset"}
-    return api.call("POST", _code_path(a), body)
-
-
-@command(
-    "canvas_bind",
-    "Bind a widget's property: to a name another cell makes, a session state key, a variable, or an expression",
-    *_BLOCK,
-    req("name", "The property (value, options, disabled...)."),
-    req("kind", "name, state, variable or expression."),
-    req("target", "The name, the key, the variable, or the expression."),
-    _WIDGET,
-)
-def canvas_bind(a: dict[str, Any]) -> Any:
-    body = {"do": "bind", "widget": a.get("widget") or 0, "apply": True}
-    return api.call("POST", _code_path(a), body | {k: a[k] for k in ("name", "kind", "target")})
-
-
-@command(
-    "canvas_add_handler",
-    "A widget's event handler: a function stub in its cell and on_change= (or on_click=) set",
-    *_BLOCK,
-    _WIDGET,
-    opt("event", "on_change, on_click, on_submit or on_select (default: the widget's own)."),
-    opt("handler", "The function's name (default: on_<key>_<event>)."),
-)
-def canvas_add_handler(a: dict[str, Any]) -> Any:
-    body = {"do": "handler", "widget": a.get("widget") or 0, "apply": True}
-    return api.call("POST", _code_path(a), body | {k: a[k] for k in ("event", "handler") if a.get(k)})
-
-
-@command(
-    "canvas_set_cache",
-    "A function's cache decorator in a cell's code: st.cache_data or st.cache_resource, its settings, or none",
-    *_BLOCK,
-    req("function", "The function's name (canvas_inspect: cache)."),
-    opt("kind", "data, resource or none (default: data)."),
-    opt("settings", '{"ttl": 600, "max_entries": 100, "show_spinner": false}; null resets one.', "json"),
-    opt("document", "A cell this one calls: its file (canvas_inspect: cache)."),
-    opt("cell", "That cell's number.", "int"),
-)
-def canvas_set_cache(a: dict[str, Any]) -> Any:
-    kind = a.get("kind") or "data"
-    body: dict[str, Any] = {
-        "do": "cache",
-        "function": a["function"],
-        "kind": None if kind == "none" else kind,
-    }
-    body |= {k: a[k] for k in ("settings", "document", "cell") if a.get(k) is not None}
-    return api.call("POST", _code_path(a), body | {"apply": True})
-
-
-@command(
-    "canvas_state_set",
-    "Now: set a session state key in the RUNNING app (not the code), or forget it",
-    req("app", "The app's id (playing)."),
-    req("key", "The key (canvas_inspect: a widget's state_key; streamlit_state lists them)."),
-    opt("value", "Its value (JSON).", "json"),
-    opt("forget", "true: take the key out (its widget starts from its default).", "bool"),
-)
-def canvas_state_set(a: dict[str, Any]) -> Any:
-    body: dict[str, Any] = {"key": a["key"]}
-    body |= {"forget": True} if a.get("forget") else {"value": a.get("value")}
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/now", body)
-
-
-@command(
-    "canvas_cache_clear",
-    "Now: clear a cached function's cache in the RUNNING app (or every cache)",
-    req("app", "The app's id (playing)."),
-    opt("function", "The function's name (default: every cache)."),
-)
-def canvas_cache_clear(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/now", {"clear": a.get("function") or "*"})
-
-
-@command(
-    "canvas_toolbox",
-    "The Toolbox: every Streamlit element and container with its properties; with element: its new cell's code",
-    opt("app", "The app's id (with element)."),
-    opt("element", "An element's id (slider, selectbox...): the cell a drop makes."),
-)
-def canvas_toolbox(a: dict[str, Any]) -> Any:
-    if a.get("element"):
-        if not a.get("app"):
-            raise CommandError("Send app with element: the cell's names are free of that app's.")
-        return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/toolbox", {"element": a["element"]})
-    return api.call("GET", "/streamlit/toolbox")
-
-
-@command(
-    "canvas_container",
-    "Add a layout container to a page: columns, tabs, expander, container, form, sidebar or popover (blocks "
-    "go inside with streamlit_block_change parent, slot)",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-    req("kind", "columns, tabs, expander, container, form, sidebar or popover."),
+    "canvas_add_container",
+    "Draw a container on a page or in a container (px of the layout's design width: desktop 1200, phone 390; "
+    "without x and y: the first free place). The other layout places it by itself",
+    req("canvas", "The canvas's id."),
+    opt("page", "The page's id (default: the first)."),
+    opt("parent", "A container's id to nest it in."),
+    opt("x", "Left, px.", "int"),
+    opt("y", "Top, px.", "int"),
+    opt("w", "Width, px.", "int"),
+    opt("h", "Height, px.", "int"),
     opt(
         "props",
-        'Its properties (canvas_toolbox lists them): {"widths": [2, 1]}, {"label": "Details"}.',
+        "title, border, padding, height (fit, fixed), scrollable, resizable, background, columns.",
         "json",
     ),
-    opt("parent", "A container to put it inside."),
-    opt("slot", "Which of that container's slots, from 0.", "int"),
-    opt("row", "Its row, from 1.", "int"),
-    opt("column", "The column it starts in, 1 to 12.", "int"),
-    opt("w", "Its width in columns (default 12).", "int"),
+    opt("layout", "desktop (default) or phone: whose places these are."),
 )
-def canvas_container(a: dict[str, Any]) -> Any:
-    body = {
-        k: a[k] for k in ("kind", "props", "parent", "slot", "row", "column", "w") if a.get(k) is not None
-    }
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/containers", body)
-
-
-@command(
-    "canvas_arrange",
-    "Arrange several blocks as one change: left, right, centre, top, bottom, same_width, same_height, "
-    "distribute; or reset (Reset layout)",
-    req("app", "The app's id."),
-    req("page", "The page's id."),
-    req("how", "How (reset needs no blocks)."),
-    opt("blocks", 'The blocks\' ids, the first the one the others follow: ["b1", "b2"].', "json"),
-)
-def canvas_arrange(a: dict[str, Any]) -> Any:
-    body = {"how": a["how"]} | ({"blocks": a["blocks"]} if a.get("blocks") is not None else {})
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/pages/{_q(a['page'])}/arrange", body)
-
-
-@command(
-    "canvas_outline",
-    "The Document Outline: a page as a tree (containers, their slots, blocks) in reading order",
-    req("app", "The app's id."),
-    opt("page", "One page's id (default: every page)."),
-)
-def canvas_outline(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/outline", params={"page": a.get("page")})
-
-
-@command(
-    "canvas_add",
-    "Add a Toolbox element to the front canvas: a named cell in the app notebook and its block (as a drop)",
-    req("element", "The element's id (canvas_toolbox lists them): slider, selectbox, bar_chart..."),
-    opt("parent", "A container to put it inside."),
-    opt("slot", "Which of that container's slots, from 0.", "int"),
-    opt("row", "Its row, from 1.", "int"),
-    opt("column", "The column it starts in, 1 to 12.", "int"),
-)
-def canvas_add(a: dict[str, Any]) -> Any:
-    return _window(
-        "canvas.add",
-        {k: a[k] for k in ("element", "parent", "slot", "row", "column") if a.get(k) is not None},
+def canvas_add_container(a: dict[str, Any]) -> Any:
+    return _command(
+        a["canvas"], "add_container", _given(a, "page", "parent", "x", "y", "w", "h", "props", "layout")
     )
 
 
-# Launch, build history and the Performance Analyzer (2026-11-19): every launch is a build in the project's
-# builds/<app>/<n>/; the analyzer records only while it is attached.
+@command(
+    "canvas_insert_widget",
+    "Insert a widget into a container (no container: one is made around it); its values override its defaults",
+    req("canvas", "The canvas's id."),
+    req("widget", "The widget's name (widgets_list)."),
+    opt("parent", "The container's id."),
+    opt("page", "The page's id."),
+    opt("x", "Left in the container, px.", "int"),
+    opt("y", "Top in the container, px.", "int"),
+    opt("values", "Property values (JSON object).", "json"),
+    opt("layout", "desktop (default) or phone: whose places these are."),
+)
+def canvas_insert_widget(a: dict[str, Any]) -> Any:
+    return _command(
+        a["canvas"], "insert_widget", _given(a, "widget", "parent", "page", "x", "y", "values", "layout")
+    )
+
+
+@command(
+    "canvas_move",
+    "Move or resize a container or widget (px), or put it in another container (parent; empty: the page)",
+    req("canvas", "The canvas's id."),
+    req("id", "The container's or widget's id."),
+    opt("x", "Left, px.", "int"),
+    opt("y", "Top, px.", "int"),
+    opt("w", "Width, px.", "int"),
+    opt("h", "Height, px.", "int"),
+    opt("parent", "A container's id; empty for the page."),
+    opt("layout", "desktop (default) or phone: whose places these are."),
+)
+def canvas_move(a: dict[str, Any]) -> Any:
+    body = _given(a, "id", "x", "y", "w", "h", "layout")
+    if "parent" in a and a["parent"] is not None:
+        body["parent"] = a["parent"]
+    return _command(a["canvas"], "move", body)
+
+
+@command(
+    "canvas_set_container",
+    "A container's properties: title, border, padding, height (fit, fixed), scrollable, resizable, background, "
+    "columns",
+    req("canvas", "The canvas's id."),
+    req("id", "The container's id."),
+    req("props", "The properties to set (JSON object).", "json"),
+)
+def canvas_set_container(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "set_container", {"id": a["id"], "props": a["props"]})
+
+
+@command(
+    "canvas_show",
+    "Show a container or widget in both layouts, or in only one (desktop or phone)",
+    req("canvas", "The canvas's id."),
+    req("id", "The container's or widget's id."),
+    req("show", "both, desktop or phone."),
+)
+def canvas_show(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
+
+
+@command(
+    "canvas_set_values",
+    "A widget instance's property values (null: back to the widget's default)",
+    req("canvas", "The canvas's id."),
+    req("id", "The instance's id."),
+    req("values", "Property values (JSON object).", "json"),
+)
+def canvas_set_values(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "set_values", {"id": a["id"], "values": a["values"]})
+
+
+@command(
+    "canvas_replace_widget",
+    "An instance's widget replaced (a missing one's Replace): its place kept",
+    req("canvas", "The canvas's id."),
+    req("id", "The instance's id."),
+    req("widget", "The new widget's name."),
+)
+def canvas_replace_widget(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "replace_widget", {"id": a["id"], "widget": a["widget"]})
+
+
+@command(
+    "canvas_delete",
+    "Delete a container (with what it holds) or a widget instance (undoable)",
+    req("canvas", "The canvas's id."),
+    req("id", "The container's or instance's id."),
+)
+def canvas_delete(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "delete", {"id": a["id"]})
+
+
+@command(
+    "canvas_set",
+    "The canvas's sizing, shared by both layouts: columns (a guide), row_height, gap, snap, step (1, 2, 4, 8, grid)",
+    req("canvas", "The canvas's id."),
+    opt("columns", "Columns, 1 to 48.", "int"),
+    opt("row_height", "Row height, px.", "int"),
+    opt("gap", "Gap, px.", "int"),
+    opt("snap", "Snap on or off.", "bool"),
+    opt("step", "1, 2, 4, 8 or grid.", "any"),
+)
+def canvas_set(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "sizing", _given(a, "columns", "row_height", "gap", "snap", "step"))
+
+
+@command(
+    "canvas_page",
+    "A canvas's pages: add one (no page), rename one (name), move one (index), or remove one (remove)",
+    req("canvas", "The canvas's id."),
+    opt("page", "The page's id."),
+    opt("name", "Its name."),
+    opt("index", "Its new place, from 0.", "int"),
+    opt("remove", "true: remove the page.", "bool"),
+)
+def canvas_page(a: dict[str, Any]) -> Any:
+    if not a.get("page"):
+        return _command(a["canvas"], "add_page", _given(a, "name"))
+    if a.get("remove"):
+        return _command(a["canvas"], "remove_page", {"page": a["page"]})
+    return _command(a["canvas"], "change_page", _given(a, "page", "name", "index"))
+
+
+@command("canvas_undo", "Undo the canvas's last change", req("canvas", "The canvas's id."))
+def canvas_undo(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/undo", {})
+
+
+@command("canvas_redo", "Redo the canvas's change undone last", req("canvas", "The canvas's id."))
+def canvas_redo(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/redo", {})
+
+
+@command(
+    "canvas_play",
+    "Play a canvas: its pages built and run live (its address); with check: every page headless, each widget's "
+    "errors",
+    req("canvas", "The canvas's id."),
+    opt("page", "The page's id to show."),
+    opt("check", "true: run headless (AppTest) and say each page's errors.", "bool"),
+)
+def canvas_play(a: dict[str, Any]) -> Any:
+    if a.get("check"):
+        return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/check", {})
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/play", _given(a, "page"))
+
+
+@command(
+    "canvas_stop",
+    "Stop a canvas's Play (run play, the default) or its launched app (run launch)",
+    req("canvas", "The canvas's id."),
+    opt("run", "play or launch."),
+)
+def canvas_stop(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/stop", _given(a, "run"))
+
+
+@command(
+    "canvas_export",
+    "Export a canvas as an app that runs alone on a hosted Streamlit app (app.py, pages, the widgets inlined, the "
+    "tables' rows as Parquet). Waits for the user's Allow; declined, nothing is written",
+    req("canvas", "The canvas's id."),
+    req("folder", "Where it goes."),
+)
+def canvas_export(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/export", {"folder": a["folder"]})
 
 
 @command(
     "app_launch",
-    "Launch a Streamlit app (Visual Studio's F5): a new build in builds/<app>/<n>/, run in its own window",
-    req("app", "The canvas's id (streamlit_apps lists them)."),
-    opt("analyzer", "true: the Performance Analyzer records from its first load.", "bool"),
+    "Launch a canvas (Visual Studio's F5): a new build in builds/<app>/<n>/, run in its own window",
+    req("canvas", "The canvas's id."),
 )
 def app_launch(a: dict[str, Any]) -> Any:
-    body = {"analyzer": True} if a.get("analyzer") else {}
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/launch", body)
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/launch", {})
 
 
-@command("app_stop", "Stop a launched Streamlit app", req("app", "The canvas's id."))
-def app_stop(a: dict[str, Any]) -> Any:
-    return api.call("DELETE", f"/streamlit/apps/{_q(a['app'])}/launch")
+# ===== widgets (the owner, 2026-11-21: a widget replaces app cells and app notebooks) =====
 
 
 @command(
-    "builds_list",
-    "An app's builds, newest first: number, time, what changed in words, its result, saved analyzer sessions",
-    req("app", "The canvas's id."),
-    opt("build", "One build's number: its files (read-only).", "int"),
+    "widgets_list",
+    "Every widget of the canvas's framework: the library's, then the prebuilt ones (read-only), with their "
+    "properties (name, type, mask, default)",
+    opt("q", "Words to search names, descriptions, groups and tags."),
 )
-def builds_list(a: dict[str, Any]) -> Any:
-    if a.get("build") is not None:
-        return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}")
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/builds")
+def widgets_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/streamlit/widgets" + (f"?q={_q(a['q'])}" if a.get("q") else ""))
 
 
 @command(
-    "builds_compare",
-    "Two builds' code file by file: changed, added, removed, each side's text",
-    req("app", "The canvas's id."),
-    req("a", "The first build's number.", "int"),
-    req("b", "The second build's number.", "int"),
+    "widgets_get", "One widget: its header, code, properties and file", req("name", "The widget's name.")
 )
-def builds_compare(a: dict[str, Any]) -> Any:
+def widgets_get(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/widgets/{_q(a['name'])}")
+
+
+@command(
+    "widgets_new",
+    "A new widget in the library (widgets/<name>.widget.py); top-level plain values in its code are its properties",
+    opt("name", "Small letters, digits and _ (default: a free one)."),
+    opt("description", "One line."),
+    opt("code", "Its Streamlit code (default: a starting template)."),
+)
+def widgets_new(a: dict[str, Any]) -> Any:
     return api.call(
-        "GET", f"/streamlit/apps/{_q(a['app'])}/builds/compare", params={"a": a["a"], "b": a["b"]}
+        "POST", "/streamlit/widgets", {k: a[k] for k in ("name", "description", "code") if a.get(k)}
     )
 
 
 @command(
-    "build_relaunch",
-    "Run an old build again, its code as it was built",
-    req("app", "The canvas's id."),
-    req("build", "The build's number.", "int"),
+    "widgets_save",
+    "Save a widget's code (below its header; the header is kept)",
+    req("name", "The widget's name."),
+    req("code", "Its whole code."),
 )
-def build_relaunch(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}/launch")
+def widgets_save(a: dict[str, Any]) -> Any:
+    return api.call("PUT", f"/streamlit/widgets/{_q(a['name'])}", {"code": a["code"]})
 
 
 @command(
-    "build_restore",
-    "Restore a build's code into the app: its cells' code (undoable in their documents) and its layout",
-    req("app", "The canvas's id."),
-    req("build", "The build's number.", "int"),
+    "widgets_header",
+    "A widget's name, description, group or size, written into its file's header only; a new name renames every "
+    "canvas instance",
+    req("name", "The widget's present name."),
+    opt("new_name", "Its new name."),
+    opt("description", "Its new description."),
+    opt("group", "Buttons, Inputs, Data, Charts, Text, Filters, Forms or Other."),
 )
-def build_restore(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}/restore")
+def widgets_header(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("description", "group") if a.get(k) is not None}
+    if a.get("new_name"):
+        body["name"] = a["new_name"]
+    return api.call("PATCH", f"/streamlit/widgets/{_q(a['name'])}", body)
 
 
 @command(
-    "perf_attach",
-    "Attach the Performance Analyzer to a launched app (it records only while attached)",
-    req("app", "The canvas's id (its launch must be running)."),
-    opt("on", "false: pause; true (default): record.", "bool"),
-    opt("clear", "true: start a new session.", "bool"),
-    opt("detach", "true: detach (nothing more is recorded).", "bool"),
-    opt("save", "true: save the session into its build (perf-<time>.json).", "bool"),
+    "widgets_properties",
+    "A widget's properties (each with its type and mask), or those of code not saved yet",
+    opt("name", "The widget's name."),
+    opt("code", "Code to read instead."),
 )
-def perf_attach(a: dict[str, Any]) -> Any:
-    path = f"/streamlit/apps/{_q(a['app'])}/perf"
-    if a.get("detach"):
-        return api.call("DELETE", path)
-    if a.get("save"):
-        return api.call("POST", f"/streamlit/apps/{_q(a['app'])}/perf/save")
-    body = {k: a[k] for k in ("on", "clear") if a.get(k) is not None}
-    return api.call("POST", path, body)
+def widgets_properties(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/streamlit/widgets/properties", {k: a[k] for k in ("name", "code") if a.get(k)})
 
 
 @command(
-    "perf_session",
-    "The analyzer's session: each rerun (trigger, each block's time), calls, caches, the web socket's messages",
-    req("app", "The canvas's id."),
-    opt("build", "A build's number, with `file`: a saved session.", "int"),
-    opt("file", "A saved session's file (perf-<time>.json; builds_list names them)."),
+    "widgets_set_property",
+    "A property's default, written into only its own characters in the widget's code (checked first)",
+    req("name", "The widget's name."),
+    req("property", "The property."),
+    req("value", "Its new value (JSON: a string, a number, true...).", "any"),
 )
-def perf_session(a: dict[str, Any]) -> Any:
-    if a.get("build") is not None and a.get("file"):
-        return api.call(
-            "GET", f"/streamlit/apps/{_q(a['app'])}/builds/{int(a['build'])}/perf/{_q(a['file'])}"
+def widgets_set_property(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST",
+        f"/streamlit/widgets/{_q(a['name'])}/property",
+        {"property": a["property"], "value": a["value"]},
+    )
+
+
+@command(
+    "widgets_run",
+    "Run a widget alone, headless (AppTest): what it drew, its errors (each failing widget's own panel), its "
+    "address when live is true",
+    req("name", "The widget's name."),
+    opt("values", "Property values to run it with (JSON object).", "json"),
+    opt("live", "Also run it as a live page and give its address.", "bool"),
+)
+def widgets_run(a: dict[str, Any]) -> Any:
+    body = {"values": a.get("values") or {}}
+    checked = api.call("POST", f"/streamlit/widgets/{_q(a['name'])}/check", body)
+    if a.get("live"):
+        checked["live"] = api.call(
+            "POST", f"/streamlit/widgets/{_q(a['name'])}/run", body | {"window": "agent"}
         )
-    if a.get("build") is not None or a.get("file"):
-        raise CommandError("A saved session takes both build and file.")
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/perf")
+    return checked
 
 
 @command(
-    "perf_hints",
-    "The analyzer's hints in plain words: what to change, and where",
-    req("app", "The canvas's id."),
+    "widgets_copy",
+    "Copy a widget (a prebuilt one) into the library as your own",
+    req("name", "The widget to copy."),
+    opt("new_name", "The copy's name (default: my_<name>)."),
 )
-def perf_hints(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/perf/hints")
+def widgets_copy(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST",
+        f"/streamlit/widgets/{_q(a['name'])}/copy",
+        {"name": a["new_name"]} if a.get("new_name") else {},
+    )
+
+
+@command(
+    "widgets_delete",
+    "Delete a widget from the library. Waits for the user's Allow; declined, nothing is deleted",
+    req("name", "The widget's name."),
+)
+def widgets_delete(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/streamlit/widgets/{_q(a['name'])}")
+
+
+@command(
+    "widgets_preview",
+    "A widget's small rendered preview (PNG): its state (ready with its address, coming, failed with why)",
+    req("name", "The widget's name."),
+    opt("theme", "light or dark."),
+)
+def widgets_preview(a: dict[str, Any]) -> Any:
+    return api.call(
+        "GET", f"/streamlit/widgets/{_q(a['name'])}/preview?theme={_q(a.get('theme') or 'light')}"
+    )

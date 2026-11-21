@@ -5340,6 +5340,11 @@ def _add_extensions() -> None:
         made = getattr(module, "commands", None)
         for name, cmd in (made() if callable(made) else {}).items():
             REGISTRY.setdefault(name, cmd)
+        # Its commands that went: an old call says why (as the base's GONE_NAMES).
+        gone = getattr(module, "gone_commands", None)
+        for name, said in (gone() if callable(gone) else {}).items():
+            if name not in REGISTRY:
+                GONE_NAMES.setdefault(name, said)
         known = {area for area, _ in AREAS}
         AREAS = AREAS + tuple(a for a in getattr(module, "AREAS", ()) if a[0] not in known)
     _arrange()  # an extension's commands in an area of the base's (workbench_canvas...) go with it

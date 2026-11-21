@@ -10,7 +10,6 @@ import pytest
 
 from swissarmybench.domain import connection_usage as usage
 from swissarmybench.domain import notebooks
-from swissarmybench_streamlit.domain import streamlit_cells as canvases
 
 
 def _plain(cells: list[notebooks.Cell]) -> str:
@@ -102,18 +101,6 @@ def test_a_script_cell_and_a_tables_load_are_found_and_the_table_cell_is_told_ap
     found = usage.script_references("/work/totals.py", "totals.py", text, "Warehouse")
     assert [(r.cell, r.kind) for r in found] == [(3, "script"), (5, "script")]
     assert found[1].name == "Totals"
-
-
-def test_a_canvas_block_is_a_use_when_its_cell_is_one() -> None:
-    using = [
-        usage.Reference("/work/orchard.ipynb", "orchard.ipynb", "notebook", "%%sql", "%%sql Warehouse", 1)
-    ]
-    blocks = [canvases.Block("b1", "orchard.ipynb", 1), canvases.Block("b2", "orchard.ipynb", 2, column=7)]
-    app = canvases.write_app([canvases.Page("p1", "Overview", blocks)])
-    found = canvases.canvas_references("/work/sales.stapp.json", "sales", app, using)
-    assert [(r.kind, r.page, r.block, r.cell, r.line) for r in found] == [
-        ("app", "Overview", "b1", 1, "orchard.ipynb @cell1")
-    ]
 
 
 def test_the_calls_count_by_kind_and_the_card_word_follows_them() -> None:

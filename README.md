@@ -46,16 +46,16 @@ What a grid page does:
   the app and nothing loads from the internet. `{{ total }}` is filled with a Python variable when
   the cell runs (a value as text, a table as its first 50 rows); such a cell turns yellow (Out of
   date · Run) when its HTML or a variable it names changes. In a notebook file it is a `%%html` cell.
-- **Streamlit apps:** a data-first way to build one. A Python cell that calls Streamlit shows live in
-  its cell; any open table is there by name as a DataFrame. **New app** opens a canvas as a Workbench
-  tab (its own file, `sales.stapp.json`): drag any Python cell onto it, or copy and paste it, and it
-  becomes a block that links to the cell, on a 12-column grid, on as many pages as you like. **Play**
-  shows the page live in place; **Edit** goes back to the blocks. A cell that makes a name
-  (`region = st.selectbox(...)`) drives every block on the page that reads it. **Export** writes a
-  folder that runs on its own; **Save as zip** zips the project to add to your own app. Streamlit runs in
-  the notebook's own Python and is not installed with the app. Cells can be named; the Data panel's
-  **Streamlit cells** lists every cell that calls Streamlit by name, to drag onto a canvas. Any tab
-  pops out into a Workbench window of its own (its unsaved changes and kernel go with it), and back.
+- **Streamlit apps, from widgets:** a **widget** is a small Streamlit program kept in your library (56 come
+  with the app: buttons, inputs, tables, metrics, charts, text, filters, forms); its top-level values are its
+  properties, each with a mask (a colour picker, a table picker, a column picker, a date, a number with its
+  range). **Widgets** on the rail opens the Widgets window: write one with completion and help, **Run** it in
+  place. **Canvas** on the rail lays a page out: draw containers on a grid (snap to 1 px or to the grid's
+  cells), drag widgets in from the Widgets pane, set their properties; **Play**, **Launch** (a build kept in
+  the project's builds/), **Export** (a folder that runs on a hosted Streamlit app). Streamlit runs in the
+  project's own Python and is not installed with the app. App notebooks were replaced by widgets (2026-11-21).
+- **Tabs pop out:** any Workbench tab pops out into a window of its own (its unsaved changes and kernel go
+  with it), and back.
 - **Panels:** Settings can switch off any panel of the Workbench or the grid page; every one is on
   again the next time Swiss Army Bench starts.
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and

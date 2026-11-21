@@ -61,12 +61,12 @@ CATALOG: tuple[Extension, ...] = (
     Extension(
         "streamlit",
         "Streamlit",
-        "Build Streamlit apps from your notebooks' cells.",
-        ("The Apps area", "The Streamlit canvas", "App mode", "Streamlit, Components, Controllers starters"),
+        "Build Streamlit apps from widgets on a canvas.",
+        ("The Canvas", "Widgets: your own and 56 prebuilt", "The Widgets window", "Streamlit starters"),
         "preinstalled",
         "swissarmybench-streamlit",
         project_type="streamlit",
-        tools=("streamlit_", "workbench_canvas", "workbench_live_", "workbench_new_app"),
+        tools=("canvas_", "widgets_", "app_launch"),
     ),
     Extension(
         "accounting",

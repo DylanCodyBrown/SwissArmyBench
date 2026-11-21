@@ -98,6 +98,8 @@ python_version = "3.12"
 # Each extension's own package (extensions/<id>/src) too.
 files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "extensions/powerbi/src"]
 mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src:extensions/powerbi/src"
+# The prebuilt widgets are a Streamlit app's code (Streamlit is never the app's dependency): run by AppTest instead.
+exclude = ["extensions/streamlit/src/swissarmybench_streamlit/widgets/"]
 
 [[tool.mypy.overrides]]
 # These ship no type information.
@@ -179,6 +181,8 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # An extension's starters too (their snippets' lines are the lines the user gets).
 "extensions/powerapps/src/swissarmybench_powerapps/starters/**" = ["E501"]
 "extensions/streamlit/src/swissarmybench_streamlit/starters/**" = ["S310", "E501"]
+# The prebuilt widgets: the code a user gets, its markup on one line as written.
+"extensions/streamlit/src/swissarmybench_streamlit/widgets/**" = ["S310", "E501"]
 "extensions/streamlit/src/swissarmybench_streamlit/commands.py" = ["E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]

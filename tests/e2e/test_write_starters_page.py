@@ -21,10 +21,10 @@ from playwright.sync_api import Browser, expect
 
 from swissarmybench.client import push_client
 from tests.e2e.test_starters_page import blades, family
-from tests.e2e.test_streamlit_page import open_window, saved_notebook, shot
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.e2e.test_workbench_page import wait_until
+from tests.e2e.workbench_helpers import open_window, saved_notebook, shot
 
 ORDERS = pd.DataFrame(
     {"order_id": [1, 2, 3], "region": ["North", "South", "East"], "amount": [12.5, 40.0, 7.25]}

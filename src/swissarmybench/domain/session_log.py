@@ -67,7 +67,7 @@ def _file(value: Any) -> str:
 
 def _area_of_document(path: Any) -> str:
     text = str(path or "").lower()
-    if text.endswith(".stapp.json"):
+    if text.endswith((".canvas.json", ".stapp.json")):
         return "apps"
     if text.endswith(".ipynb"):
         return "notebooks"

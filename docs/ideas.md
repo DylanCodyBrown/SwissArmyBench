@@ -6721,6 +6721,116 @@ runs it over every way (a driver not installed is skipped) and again in SWISSARM
   `note`): it cannot do multi-factor sign-in, pick the new way. AADSTS50076 and AADSTS50079 name it (Entra's
   words in the lake and SharePoint code; SQL Server's error table, before its "login failed").
 
+## Widgets and the Canvas (the owner, 2026-11-21; built, branch widgets-canvas)
+
+His words: "I actually have a better idea than a app notebook, we can add a section called widgets that makes more
+since for our version of app notebooks anyway. and we should just build widgets and be able to browse them in the
+selected app framework ... we can pack in tons of prebuilt widgets that can drag to the canvas. and instead of Apps
+on rail we could call it Canvas. we dont wanna muddy the gui for the canvas. I want a simple grid container layout
+with sizing options at the top, we can drag and draw containers or right click and insert all available streamlit
+widgets that we create like buttons and tables, click in to see their properties and edit them ... containers must
+have a property to make them scrollable and even resizable. Creating a widget is what will replace the concept of
+app cells and app notebooks. Widgets should be on the rail as well but it does not open in the normal app pane it is
+a new tab completely separate from the app without the rail ... The the user clicks run and the widget transforms in
+place into the object you wrote. The properties pane should expose any variables that was created to configure the
+widget and should auto detect its type with masks." Then: "The we need to make the canvas builder robust"; "we need
+a way to insert widgets, and we need a pane on the right that shows available widgets with a small preview of it
+rendered with its name and description which can be entered in the properties menu of the widget builder"; "size
+and zoom controls should be at the bottom"; "should be able to turn on snap to", "with a very fine precision",
+"finer than the precision I see in this mockup"; "the widgets should be hover to see a larger preview and they
+should not share a pane ... a button at the bottom called properties that allows us to completely hide the
+properties pane ... undo play launch export should be in the bottom bar as well".
+
+Decisions:
+- A widget is the library's `widgets/<name>.widget.py` (a `swissarmybench-widget` TOML header: name, description,
+  framework, group, tags, size and min_size in grid cells; then its code). Its properties are its top-level plain
+  values, found with ast, never run: types and masks bool (switch), int and float (number, `# a..b` a range), str,
+  colour, date, datetime, time, choice (`Literal[...]`, `# choices:`), table, column (`# column of <property>`, else
+  the first table property), variable (`os.environ["NAME"]`, `"${NAME}"`), path, list and dict (JSON). An annotation
+  wins over the guess and says when the value disagrees. The comment lines above are its help. A value is checked
+  (a bad colour, a column not in the table, a variable not set here: one sentence and the fix) and written into only
+  its own characters. The header is written alone (Name checked live; a rename follows every canvas's instances).
+- 56 prebuilt widgets ship with the extension (`swissarmybench_streamlit/widgets/`, read-only, Copy as your own),
+  each drawn from made-up sample data when no table is picked; a test runs all of them with AppTest.
+- The Widgets window is `static/widget.html` (its own build page, no rail): the list, Monaco with the Workbench's
+  intelligence over a kernel of its own (primed with the runtime, so `from sab_canvas import table` completes),
+  Copilot's ghost text where on. It is built on codeIde.ts (the blade IDE's shell: the slim bar, Monaco, its
+  Properties pane, the Output | Result | Problems panel; codeIde gained `actions`, `stage`, `propertiesOpen`,
+  `setStage` and `toggleProperties`, generic). One two-state switch, **Code | Preview** (the coordinator,
+  2026-11-21), replaced Run and Edit: Preview (F5, chosen over Ctrl+Shift+V because F5 already meant run in
+  the Workbench and the blade IDE) runs the widget through the Streamlit proxy (/streamlit/run/) and shows it in
+  the editor's place; Code (Esc) goes back; a failing run is the error panel in the Preview with "Go to line N in
+  the code" (the line also marked); the view is remembered per widget in sessionStorage. Its panes fold (Ctrl+B,
+  Ctrl+Alt+B), as design principle 8.14 asks.
+- The Canvas is a page of its own (`static/canvas.html`, with the rail; the rail's Apps is Canvas, `apps` answers
+  as `canvas` one release in app_navigate, `?kind=app` goes to the page). Its file is `<app>.canvas.json`, a
+  project file, sorted and byte-stable (format 2). **Two layouts, Phone and Desktop** (the owner, 2026-11-21:
+  "Canvas should only have two layouts phone portrait and desktop just like powerapps but ... always resizable";
+  domain/canvas_layouts.py): every item is in both, `at: {desktop: {x, y, w, h}, phone: {...}}`, x and w fractions
+  of the parent's width (6 digits: a pixel round-trips at both design widths), y and h pixels; `show` (both,
+  desktop, phone). The pixel engine (canvas_model.py) keeps its rules: each layout is viewed in pixels at its
+  design width (desktop 1200, phone 390), the command applied there, the fractions written back; an item new to
+  one layout is placed in the other (phone: stacked full width under what is there, in reading order; desktop:
+  the first free place at its size). Format 1 files are read as desktop with a phone layout made (said once).
+  The built page fills the browser's width (layout wide): each box `left: calc((100% + 2px) * fx - 1px)` inside a
+  bordered parent, desktop CSS by default and the phone's under `@media (max-width: 767px)`, so it picks its layout
+  by width with no rerun; the page root is `flex: none` (Streamlit's own `flex: 1 1 0%` made it 0 px high). The
+  canvas view previews any width in the layout's range by its frame's right-edge handle (desktop 768-1920,
+  phone 320-767, its px shown), x and w drawn scaled; layout and preview width kept per canvas for the session.
+  Play's address is the app's own (the played page is its default): a page's path said "Page not found" first.
+  Columns, row height and gap are a guide to snap to, never a limit. Snap (on by default, kept with the canvas) puts edges on the step (1, 2, 4, 8 px or a grid
+  cell) and on other items' edges and centres within 4 screen pixels with guides (canvasSnap.ts's maths); Alt places
+  freely for one drag; arrows nudge by the step (Shift ten, Alt one pixel); the dots thin out to stay 12 screen
+  pixels apart; zoom scales the view only and is kept per canvas for the session.
+- The layout's rules live in the model (domain/canvas_model.py) for the user's moves and the agent's alike: no
+  overlap among siblings, nothing leaves its container or the page's width, no widget below its min_size, no
+  container smaller than what it holds; a widget dropped into a full container grows it (its siblings settle
+  down). Changing the width scales what is on the page; changing the columns moves each edge that sat on a column
+  line to the new nearest line, then settles. A command that breaks a rule is refused with why.
+- The built page reproduces the pixels: the page is an st.container keyed `sab-page` (CSS: position relative, the
+  page's width and its height); each container and widget is an st.container keyed `sab-<id>` placed absolutely by
+  its key's CSS (a child inside a bordered container takes the 1 px border off), scrollable is st.container's own
+  height, resizable is CSS `resize: both`, padding and background are CSS. The e2e test measures the played boxes
+  against the canvas within 1 px. The pages folder is `app_pages/` (a `pages/` folder Streamlit would list as pages
+  of its own beside st.navigation's).
+- One builder for Play, Launch, a widget run alone, a preview and Export (canvas_build.py): each widget is run by
+  `sab_canvas.render` with its properties' values (its assignments made `pass`, line numbers kept), wrapped: its
+  failure is its own error panel in its place, a missing table or variable is said there, a slow one shows the
+  spinner; the page runs on.
+- Robust: every change is a command saved at once (atomically, only when its bytes change) and undoable (Ctrl+Z,
+  Ctrl+Y); each carries the version it was made on (another window's change is a notice and the canvas as it is
+  now, never written over); a file changed on disk is read again before anything is written; a broken file is
+  reported with its line, a copy kept beside it, never written over; a newer format opens read-only; an instance
+  of a widget gone from the library is a placeholder with Replace and Remove; overrides of properties a widget's
+  code no longer has are dropped and said once; a value that no longer fits its type is marked and the default
+  used on the page. A test drives 40 random sequences of 60 commands and checks every rule after each step.
+- Previews: each widget rendered once off screen through Play's own run path and photographed by Qt WebEngine (the
+  desktop app's own engine, already a dependency) in a child process; kept in the state folder's widget-previews/
+  by the widget file's hash and the theme; one at a time in the background; the gallery shows a placeholder until
+  it is there, a failing one's mark.
+- The Canvas's layout (the owner's, with the coordinator's mockup): the top row holds the page tabs and +, and at
+  its right end Play and Export as a block of their own (the owner, 2026-11-21: "Move play launch export to a
+  right click in the canvas", then, on the coordinator's plan, "make them look permanent and pronounced"): Play
+  the page's primary button (34 px, the accent fill, bold 14 px, a soft shadow) with its ▾ (Launch, Ctrl+F5),
+  Stop in its place while the app plays or is launched; Export a raised secondary button; never folded, the tabs
+  scroll instead. The same group (Play Shift+F5, Launch Ctrl+F5, Export… Ctrl+Shift+E; Stop while running) ends
+  every right-click menu of the canvas. Launch with the Performance Analyzer is not offered: the analyzer was not
+  carried over to the widget canvas. The bottom bar holds the sizing with Desktop | Phone and the preview width,
+  Snap and its step, Undo and Redo, the Widgets and Properties toggles and the zoom; Properties (nearest the canvas) and Widgets (far right) are two panes, each resizable and hidden
+  completely by its toggle (remembered per canvas; a hidden Properties pane stays hidden on a selection, its button
+  shows a dot); a card's hover shows its preview at 480 px.
+
+What went (dropped, the owner's "Drop support for app notebooks and the old canvases"): app notebooks (app.ipynb in a
+new Streamlit project), `.stapp.json` canvases (opening one says "App notebooks and their canvases were replaced by
+widgets"), live Streamlit cells in notebooks, the Streamlit cells pane, cell links, the controllers' `# Makes:`
+contract and Test this page, thin cells and Move to data.ipynb, the designer (the property pane on cells' code, the
+Toolbox of raw Streamlit elements, containers of blocks, arrange, the outline), App mode's page settings and State,
+the Performance Analyzer, and every command of theirs (an old call says why). The data notebook stays (data.ipynb,
+its SQL and table cells, data.py; Notebooks and Scripts for data work). The Streamlit starters stay as snippets.
+Their front-end modules are still in web/src, unreachable (workbenchCanvas.ts, canvasPane.ts, canvasLaunch.ts,
+canvasToolbox.ts, workbenchStreamlit.ts, workbenchCellsPane.ts, workbenchApp.ts, workbenchStarters.ts,
+perfPage.ts): taking them out of workbenchPage.ts is its own change.
+
 ## The blade IDE (built 2026-11-21, branch blade-ide)
 
 The owner (2026-11-21), on the blade screen: "this entire panel should be an ide, with small save, saves, cancel
@@ -6858,7 +6968,7 @@ the app's install ("Sharing needs devtunnel: Install now"), into the state folde
 Decisions:
 - **What goes through the tunnel:** only the app's own 127.0.0.1 port. For a launched Streamlit app that is a *shared
   run*: a second Streamlit process of the launch's own run folder (the same build and tables), at the address's root,
-  in the canvas's Python (server/streamlit_apps.py SHARED_FLAGS: `--server.baseUrlPath=` (root),
+  in the launch's Python (server/streamlit_apps.py SHARED_FLAGS: `--server.baseUrlPath=` (root),
   `--server.enableCORS=true` and `--server.enableXsrfProtection=true` forced over an app's own config.toml,
   `--server.fileWatcherType=none`, `--server.runOnSave=false`; `--server.address=127.0.0.1` as every run). Why it
   works behind the tunnel unchanged: devtunnel rewrites Host to `localhost` and Origin to `http(s)://localhost` by
@@ -6890,19 +7000,13 @@ Decisions:
   Allow (it publishes outward). The Session log: "Shared <app> with the organization", "Stopped sharing <app> (why)":
   never the link, a tunnel id or a token.
 - **The page (generic):** web/src/shareApp.ts: `openShareDialog({kind, id, title})` and `shareMark(app)` (also
-  `globalThis.sabShare`). **Not wired into today's canvasLaunch.ts:** the widgets-canvas branch replaces the canvas
-  and its Launch (services/launch.py and routes_launch.py go); the canvas wires it in at the merge (below).
+  `globalThis.sabShare`). On the new Canvas (merged from widgets-canvas): **Share…** in Play's ▾ (beside Stop the
+  launched app) and in every right-click menu's run group while the app is launched; the Shared mark beside Play.
+  The backend target reads LiveRuns' `launch-<canvas>` run (its folder and Python: `launched`) and hears
+  `LiveRuns.ended` (the run stopped, or written again by a new Launch): the share ends with it.
 - **Power Apps' dev server does not fit:** Run live loads the code app into Power Apps' own player from the local
   dev server (`_localAppUrl`), so a colleague's browser could not use a tunnelled dev server as the app; Push to the
   environment is how a code app is shared. The seam stays open (hooks.share_targets[kind]).
-
-The canvas's wiring (for the widgets-canvas merge): where Play's ▾ menu lists Launch, add "Share…" (enabled while the
-launch runs) calling `openShareDialog({kind: "streamlit", id: <canvas id as the share target knows it>, title})`,
-the same item on the canvas's right-click menu, and put `shareMark(app)` beside the Launch / Stop control. The backend
-target (extensions/streamlit services/sharing_target.py) reads `Launches.running(app)` (python, folder, title,
-number) and listens on `Launches.stopped`; with launch.py gone it takes LiveRuns' launch run instead (its folder and
-Python for the key `launch-<canvas>`), and LiveRuns' stop of that key calls `hooks.sharing.app_stopped("streamlit",
-<canvas>)`.
 
 Not done: the tenant's display name ("Your organization: <name>") — devtunnel's `user show` does not say it; Graph
 would need another sign-in, so "Your organization" stands alone until a source is found.

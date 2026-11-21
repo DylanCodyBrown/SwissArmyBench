@@ -1,7 +1,7 @@
 # ruff: noqa: F811
 """Beta notes (the owner, 2026-11-15): right-click anything, "Leave a note…", and the note is in the beta
 log with a description of what was clicked, never its data. A ribbon button, a grid cell, a Workbench
-tab, a canvas block and a code editor each take a note; a text box keeps its own menu and copy and paste;
+tab and a code editor each take a note; a text box keeps its own menu and copy and paste;
 the picture is there only when ticked; beta mode off takes the item away at once, on brings it back.
 Made-up data only."""
 
@@ -163,28 +163,10 @@ def test_notes_on_a_workbench_tab_a_canvas_block_and_the_editor_then_beta_mode_o
         expect(form).to_have_count(0)
         assert "monaco" in notes(server)[-1]["element"]["path"] and "text" not in notes(server)[-1]["element"]
 
-        # ----- a canvas block: the cell dragged onto a new app's canvas, then its note
-        menu(page, "Workbench menu", "New Streamlit app")
-        expect(tabs).to_have_count(2)
-        tabs.nth(0).click()
-        page.locator(".wb-cell").first.locator(".wb-number").drag_to(tabs.nth(1))
-        tabs.nth(1).click()
-        block = page.locator(".cv-block").first
-        expect(block).to_be_visible()
-        leave_note(page, block.locator(".cv-block-name"), "This block should be wider")
-        block_note = notes(server)[-1]
-        # (no project is open, so the notebook stays a plain one though it feeds an app: 2026-11-16)
-        assert "cv-block" in block_note["element"]["path"] and block_note["tabs"] == ["notebook", "page"]
-
         # ----- beta mode off, from the Workbench's "…": no mark, no item, at once
         menu(page, "Workbench menu", "Turn beta mode off")
         expect(page.locator(".wb-status .beta-mark")).to_be_hidden()
         assert call(server, "GET", "/beta")["on"] is False
-        block.locator(".cv-block-name").click(button="right")
-        # The block's own menu (Lineage) stays; its beta item goes.
-        expect(page.get_by_role("menuitem", name="Lineage")).to_be_visible()
-        expect(page.get_by_role("menuitem", name="Leave a note…")).to_have_count(0)
-        page.keyboard.press("Escape")
         tabs.nth(0).click()
         editor.click(button="right")
         expect(page.locator(".monaco-menu .action-label", has_text="Send to the agent").first).to_be_visible()
@@ -202,5 +184,3 @@ def test_notes_on_a_workbench_tab_a_canvas_block_and_the_editor_then_beta_mode_o
     finally:
         context.close()
         call(server, "PUT", "/beta", {"on": True})
-        for app in call(server, "GET", "/streamlit/apps")["apps"]:
-            call(server, "DELETE", f"/streamlit/apps/{app['app']}")

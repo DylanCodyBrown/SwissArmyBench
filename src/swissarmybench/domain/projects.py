@@ -395,14 +395,14 @@ def project_files(names: Iterable[str]) -> list[str]:
         lowered = name.lower()
         if lowered == DATA_NOTEBOOK:
             return 0
-        if lowered.endswith((".stapp.json", ".design.json")):
+        if lowered.endswith((".canvas.json", ".stapp.json", ".design.json")):
             return 1
         return 2 if lowered.endswith(".ipynb") else 3
 
     wanted = [
         n
         for n in set(names)
-        if n.lower().endswith((".py", ".ipynb", ".stapp.json", ".design.json"))
+        if n.lower().endswith((".py", ".ipynb", ".canvas.json", ".stapp.json", ".design.json"))
         and not n.startswith(".")
         and n.lower() not in (DATA_FILE, TEXT_FILE)
     ]

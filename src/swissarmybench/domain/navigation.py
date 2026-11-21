@@ -42,7 +42,8 @@ AREAS: tuple[str, ...] = (
     "blades",
     "scripts",  # beside Blades (the owner, 2026-11-21: "scripts and blades should be beside each other")
     "notebooks",
-    "apps",
+    "canvas",  # 2026-11-21: the Apps area is the Canvas (its own page)
+    "widgets",  # 2026-11-21: the Widgets window (its own, no rail)
     "analyze",
     "session",
     "extensions",
@@ -55,10 +56,11 @@ SAME: dict[str, str] = {
     "visualizations": "analyze",  # 2026-11-19: Visualizations is the Analyze page
     "diagram": "erd",
     "start": "projects",
+    "apps": "canvas",  # 2026-11-21: Apps is the Canvas
     "catalog": "data",  # 2026-11-21: the Data Catalog is the Catalog
 }
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
-CODE: tuple[str, ...] = ("notebooks", "scripts", "apps")
+CODE: tuple[str, ...] = ("notebooks", "scripts")
 # Every window: home (the mark), the rail's areas, the browser's Back and Forward, a connection's
 # detail on the Connections page, and the forms inside Connections.
 EVERYWHERE: tuple[str, ...] = (

@@ -175,6 +175,16 @@ NOT_COMMANDS = {
     "/static": "page files",
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
+    "/streamlit/run/{}": "a widget alone or a canvas played, in a frame: widgets_run, canvas_play",
+    "/streamlit/run/{}/{}": "the same: their pages' own files and socket",
+    "/streamlit/canvas": "page shell: the Canvas page (the agent works canvases with canvas_*)",
+    "/streamlit/canvases/{}/stop": "the Canvas's Edit after Play (its run stopped): canvas_play's address",
+    "/streamlit/widget": "page shell: the Widgets window (the agent works widgets with widgets_*)",
+    "/streamlit/widgets/check-name": "the Name box's live check: widgets_header says it on a rename",
+    "/streamlit/widgets/context": "the pickers' choices: tabs_list and variables_list",
+    "/streamlit/widgets/check-value": "a property's live check: widgets_set_property checks it",
+    "/streamlit/widgets/stop": "the Widgets window's Edit (its run stopped); widgets_run runs headless",
+    "/streamlit/widgets/{}/preview.png": "the preview's picture: widgets_preview gives its address",
     "/streamlit/launch/{}": "a launched app's pages, in a window of its own: app_launch says where",
     "/streamlit/launch/{}/{}": "the same: the launched app's own files and socket",
     "/streamlit/perf": "page shell: the Performance Analyzer's window (perf_session is its data)",
@@ -771,6 +781,9 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # +300 (2026-11-19): a first run's datasets_sample (Try it with sample data) and app_rail (the
     # rail's names).
     # +300 (2026-11-19, feel-b): column_values, the Filter form's checklist of a column's values and counts.
+    # +1,000 (2026-11-21): widgets (the owner: "Creating a widget is what will replace the concept of app
+    # cells and app notebooks"): widgets_list, _get, _new, _save, _header, _properties, _set_property, _run,
+    # _copy, _delete, _preview.
     # 99,500 (2026-11-21): the Notebooks and Scripts pages (the owner: "notebooks and scripts should not reuse
     # the same page"; the Scripts page a Python IDE): project_tree, workbench_outline, _definition,
     # _references, _rename, _search, _format, workbench_window's page, and the blade tab's commands.

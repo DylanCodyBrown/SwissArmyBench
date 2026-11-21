@@ -6,7 +6,9 @@ app on a port of its own as the share target. Made-up names only; nothing leaves
 from __future__ import annotations
 
 import os
+import re
 import socket
+import urllib.request
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -17,8 +19,10 @@ from playwright.sync_api import Browser, expect
 from swissarmybench.server.app import create_app
 from swissarmybench.services.sharing import Opened
 from swissarmybench.settings import Settings
-from tests.e2e.test_ui import browser  # noqa: F401
+from tests.e2e.test_canvas_page import open_canvas
+from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.live_server import running
+from tests.streamlit_helpers import needs_streamlit
 
 SHOTS = os.environ.get("SWISSARMYBENCH_SHARE_SHOTS")
 
@@ -119,3 +123,52 @@ def test_share_install_sign_in_link_copy_and_stop(browser: Browser, own_server: 
     expect(page.locator("#mark")).to_be_hidden()
     assert own_server["target"].closed == ["regional-sales"]
     context.close()
+
+
+@needs_streamlit
+def test_share_a_launched_canvas_app_from_plays_menu(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+    tmp_path: Path,
+) -> None:
+    """The new Canvas: Launch, then Play's ▾ has Share…; the link's port is a shared run of the launch at
+    the root of its own 127.0.0.1 port (never the server's); the Shared mark beside Play; the launch's stop
+    ends it."""
+    project = tmp_path / "shop"
+    project.mkdir()
+    made = call(server, "POST", "/streamlit/canvases", {"name": "Regional sales", "folder": str(project)})
+    canvas = made["canvas"]
+    page = open_canvas(browser, server, Path(made["path"]))
+    with page.context.expect_page(timeout=180_000):
+        page.locator(".cvs-top .cvs-play-more").click()
+        page.locator(".cvs-menu .cvs-menu-item", has_text="Launch").click()
+    expect(page.locator(".cvs-top .cvs-play")).to_have_text("Stop", timeout=180_000)
+    page.bring_to_front()
+    page.locator(".cvs-top .cvs-play-more").click()
+    items = page.locator(".cvs-menu .cvs-menu-item")
+    expect(items).to_have_count(2)
+    expect(items.last).to_have_text("Share…")
+    items.last.click()
+    dialog = page.locator("dialog.share-dialog")
+    expect(dialog.locator("h2")).to_have_text("Share regional_sales")
+    if dialog.locator(".share-install").count():
+        dialog.locator(".share-install").click()
+    dialog.locator(".share-device-code").click()
+    expect(dialog.locator(".share-start")).to_be_visible(timeout=20_000)
+    dialog.locator(".share-start").click()
+    expect(dialog).to_have_attribute("data-state", "sharing", timeout=120_000)
+    url = dialog.locator(".share-link").input_value()
+    port = int(re.search(r"-(\d+)\.usw2\.devtunnels\.ms/$", url).group(1))  # type: ignore[union-attr]
+    assert port != server["port"]
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/_stcore/health", timeout=10) as answer:
+        assert answer.status == 200  # a Streamlit at the root of its own port: the shared run
+    page.keyboard.press("Escape")
+    expect(page.locator(".cvs-top .cvs-share .share-mark")).to_be_visible()
+    if SHOTS:
+        page.wait_for_timeout(400)
+        page.locator(".cvs-top").screenshot(path=str(Path(SHOTS) / "canvas-shared-mark.png"))
+    # The launch's stop ends the share: the link ends with its app.
+    page.locator(".cvs-top .cvs-play").click()
+    expect(page.locator(".cvs-top .cvs-share .share-mark")).to_be_hidden(timeout=20_000)
+    assert call(server, "GET", f"/sharing?kind=streamlit&app={canvas}")["shares"] == []
+    page.context.close()

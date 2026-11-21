@@ -10,7 +10,6 @@ With SWISSARMYBENCH_EXPLORER_SHOTS set to a folder, the tests also save screensh
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import sqlite3
@@ -140,35 +139,6 @@ def test_the_pane_beside_the_data_notebook_and_a_script(
     # Ctrl+Shift+E again: closed.
     page.keyboard.press("Control+Shift+E")
     expect(page.locator(".wb-explorer")).to_be_hidden()
-    page.context.close()
-
-
-def test_app_mode_has_the_streamlit_cells(browser: Browser, server: dict[str, Any], tmp_path: Path) -> None:
-    folder = tmp_path / "views"
-    folder.mkdir()
-    cell: dict[str, Any] = {
-        "cell_type": "code",
-        "source": "# Region filter\nimport streamlit as st\nst.write('plums')",
-        "metadata": {"swissarmybench": {"number": 1}},
-        "outputs": [],
-        "execution_count": None,
-    }
-    plain = {"cells": [cell], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}
-    (folder / "views.ipynb").write_text(json.dumps(plain), encoding="utf-8")
-    page = workbench(browser, server)
-    window(server, "file.open", path=str(folder / "views.ipynb"))
-    window(server, "file.newApp")
-    cells = page.locator(".wb-mode-left .wb-st")
-    expect(cells).to_be_visible(timeout=20000)
-    # Grouped by document: an earlier test's open project lists its own cells (its SQL cells as Queries,
-    # 2026-11-19), so this notebook's group is the one read.
-    views = cells.locator(".wb-st-doc").filter(has=page.locator(".wb-st-doc-name", has_text="views"))
-    expect(views.locator(".wb-st-cell .wb-data-label")).to_have_text(["Region filter"], timeout=20000)
-    # Starters is the other left panel (one a side).
-    window(server, "data.starters", show=True)
-    expect(page.locator(".wb-mode-left .wb-mode-starters")).to_be_visible()
-    expect(cells).to_have_count(0)
-    shot(page, "explorer-app-mode")
     page.context.close()
 
 

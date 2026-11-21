@@ -39,26 +39,27 @@ class FakeRunner:
         return FakeProcess(8611)
 
 
-class FakeLaunches:
+class FakeRuns:
     def __init__(self) -> None:
-        self.stopped: list[Any] = []
-        self.launched: dict[str, Any] = {}
+        self.ended: list[Any] = []
+        self.running: dict[str, tuple[str, str]] = {}
 
-    def running(self, app: str) -> Any:
-        return self.launched.get(app)
+    def launched(self, key: str) -> tuple[str, str] | None:
+        return self.running.get(key)
 
 
 def test_the_shared_run_is_the_launchs_own_folder_on_a_port_of_its_own() -> None:
     async def run() -> None:
-        launches, runner = FakeLaunches(), FakeRunner()
-        target = StreamlitShare(launches, runner)  # type: ignore[arg-type]
+        runs, runner = FakeRuns(), FakeRunner()
+        target = StreamlitShare(runs, runner, lambda app: "Sales POC")
         with pytest.raises(Conflict, match="Launch it first"):
             await target.open("sales")
-        launches.launched["sales"] = SimpleNamespace(
-            python="/made/up/python", folder="/made/up/run", title="Sales POC", number=3
-        )
+        runs.running["canvas-sales"] = ("/made/up/play", "/made/up/python")  # Play is not a launch
+        with pytest.raises(Conflict, match="Launch it first"):
+            await target.open("sales")
+        runs.running["launch-sales"] = ("/made/up/run", "/made/up/python")
         opened = await target.open("sales")
-        assert opened.port == 8611 and opened.title == "Sales POC · build 3"
+        assert opened.port == 8611 and opened.title == "Sales POC"
         assert runner.started == [("/made/up/python", "/made/up/run")]
         assert target.port("sales") == 8611
         await target.close("sales")
@@ -77,13 +78,16 @@ def test_a_launchs_end_ends_its_share() -> None:
 
         hooks = Hooks()
         hooks.sharing = Sharing()
-        launches, runner = FakeLaunches(), FakeRunner()
-        target = sharing_target.wire(SimpleNamespace(hooks=hooks), launches, runner)  # type: ignore[arg-type]
+        runs, runner = FakeRuns(), FakeRunner()
+        target = sharing_target.wire(SimpleNamespace(hooks=hooks), runs, runner, lambda app: app)
         assert hooks.share_targets["streamlit"] is target
-        launches.launched["sales"] = SimpleNamespace(python="p", folder="f", title="Sales POC", number=1)
+        runs.running["launch-sales"] = ("f", "p")
         await target.open("sales")
-        for stopped in launches.stopped:
-            await stopped("sales")
+        for ended in runs.ended:
+            await ended("canvas-sales")  # Play's run: not the launch
+        assert told == [] and target.port("sales") == 8611
+        for ended in runs.ended:
+            await ended("launch-sales")
         assert told == [("streamlit", "sales")] and target.port("sales") is None
 
     asyncio.run(run())
@@ -110,3 +114,46 @@ def test_the_shared_flags_are_set_only_for_a_shared_run(monkeypatch: pytest.Monk
     assert "--server.enableCORS=true" in shared_line and "--server.enableXsrfProtection=true" in shared_line
     assert "--server.address=127.0.0.1" in shared_line  # never anything but this computer
     assert "--server.runOnSave=true" not in shared_line
+
+
+def test_live_runs_say_when_a_run_ends_or_is_written_again(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from swissarmybench_streamlit.server.live_runs import LiveRuns
+
+    class Files:
+        def folder(self) -> str:
+            return str(tmp_path)
+
+        def touch(self, folder: str, name: str) -> None:
+            return None
+
+        def write_table(self, folder: str, name: str, data: bytes) -> None:
+            return None
+
+        def remove(self, folder: str) -> None:
+            return None
+
+    class Runner:
+        async def check(self, python: str) -> dict[str, Any]:
+            return {"missing": []}
+
+        async def start(self, python: str, folder: str, base: str) -> FakeProcess:
+            return FakeProcess(8622)
+
+    async def run() -> None:
+        runs = LiveRuns(Files(), Runner())
+        heard: list[str] = []
+
+        async def ended(key: str) -> None:
+            heard.append(key)
+
+        runs.ended.append(ended)
+        await runs.run("launch-sales", {"app.py": "import streamlit"}, {}, "python")
+        assert heard == [] and runs.launched("launch-sales") == (str(tmp_path), "python")
+        await runs.run("launch-sales", {"app.py": "import streamlit as st"}, {}, "python")  # launched again
+        assert heard == ["launch-sales"]
+        await runs.stop("launch-sales")
+        assert heard == ["launch-sales", "launch-sales"] and runs.launched("launch-sales") is None
+
+    asyncio.run(run())

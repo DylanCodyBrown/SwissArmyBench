@@ -17,7 +17,6 @@ import urllib.error
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 import pandas as pd
 import pytest
@@ -39,7 +38,8 @@ AREAS = [
     "blades",
     "scripts",  # beside Blades (the owner, 2026-11-21)
     "notebooks",
-    "apps",
+    "canvas",
+    "widgets",
     "analyze",
     "session",
     "extensions",
@@ -57,7 +57,8 @@ NAMES = [
     "Blades",
     "Scripts",
     "Notebooks",
-    "Apps",
+    "Canvas",
+    "Widgets",
     "Analyze",
     "Session",
     "Extensions",
@@ -86,8 +87,6 @@ def orchard(server: dict[str, Any]) -> Iterator[str]:
         call(server, "DELETE", f"/grids/{grid_of(url)}")
     except Exception:  # noqa: S110 (closed by the test)
         pass
-    for app in call(server, "GET", "/streamlit/apps")["apps"]:
-        call(server, "DELETE", f"/streamlit/apps/{app['app']}")
 
 
 def rail(page: Page) -> Any:
@@ -155,7 +154,7 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     connections = area(page, "connections").bounding_box()
     assert settings and connections and settings["y"] > connections["y"] + 150
     # The code areas wear their kind colours.
-    for name, kind in (("notebooks", "notebook"), ("scripts", "script"), ("apps", "app")):
+    for name, kind in (("notebooks", "notebook"), ("scripts", "script")):
         expect(area(page, name)).to_have_class(re.compile(rf"\bkm-{kind}\b"))
     shot(page, "rail-home")
 
@@ -254,8 +253,8 @@ def keyboard_and_tips(browser: Browser, orchard: str) -> None:
     expect(current(page)).to_have_attribute("data-area", "projects")
     # The tip on hover.
     page.evaluate("document.activeElement.blur()")
-    area(page, "apps").hover()
-    expect(area(page, "apps").locator(".nav-rail-tip")).to_be_visible()
+    area(page, "canvas").hover()
+    expect(area(page, "canvas").locator(".nav-rail-tip")).to_be_visible()
     shot(page, "rail-tip")
     page.mouse.move(700, 400)
     page.context.close()
@@ -345,57 +344,6 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     middle.value.close()
     expect(page).to_have_url(re.compile(r"/scripts"))  # this tab stayed where it was
     page.context.close()
-
-
-def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
-    browser: Browser, server: dict[str, Any], orchard: str, tmp_path: Path
-) -> None:
-    """The owner (2026-11-16): "do we still get a cell navigator to help build the streamlit app page?"
-    Apps on the rail: the canvas's Streamlit cells panel (once the Data panel's, App mode's own since
-    2026-11-17) on its left, side by side with the rail and the canvas; a cell from it drags onto the page."""
-    book = tmp_path / "rail mockups.ipynb"
-    cells = [{"kind": "code", "source": FILTER}, {"kind": "code", "source": TOTAL}]
-    call(server, "POST", "/workbench/save", {"path": str(book), "cells": cells})
-    workbench = browser.new_context(
-        viewport={"width": 1400, "height": 860}, device_scale_factor=2 if SHOTS else 1
-    ).new_page()
-    workbench.goto(
-        f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}&open={quote(str(book))}"
-    )
-    expect(workbench.locator(".wb-tab")).to_have_count(1, timeout=20000)
-    area(workbench, "apps").click()
-    expect(workbench.get_by_role("menu")).to_have_count(0)
-    workbench.get_by_role("button", name="Workbench menu", exact=True).click()  # no top bar (2026-11-21)
-    workbench.get_by_role("menuitem", name="New Streamlit app", exact=True).click()
-    board = workbench.locator(".cv-board")
-    expect(board).to_be_visible(timeout=20000)
-    expect(current(workbench)).to_have_attribute("data-area", "apps")
-    side = workbench.locator(".wb-mode-left")
-    pane = side.locator(".wb-st")
-    expect(pane.locator(".wb-st-cell")).to_have_count(2, timeout=20000)
-    # Side by side: the rail, then the cells, then the canvas.
-    assert left_of(workbench, ".wb-mode-left") >= right_edge(workbench) - 0.5
-    box = side.bounding_box()
-    assert box is not None and left_of(workbench, ".cv-board") >= box["x"] + box["width"] - 1
-    # Starters is the other left panel.
-    expect(workbench.locator(".wb-status").get_by_role("button", name="Starters", exact=True)).to_have_count(
-        1
-    )
-    pane.locator(".wb-st-cell").nth(1).drag_to(board)
-    expect(workbench.locator(".cv-block")).to_have_count(1, timeout=10000)
-    expect(workbench.locator(".cv-block .cv-block-where")).to_have_text("rail mockups.ipynb @cell2")
-    expect(pane.locator(".wb-st-cell.placed")).to_have_count(1)
-    shot(workbench, "rail-apps-cells-pane")
-    # Closed, the app chosen on the Apps page opens it again (no menu anywhere).
-    workbench.locator(".wb-status").get_by_role("button", name="Cells", exact=True).click()
-    expect(side.locator(".wb-st")).to_have_count(0)
-    area(workbench, "notebooks").click()
-    area(workbench, "apps").click()
-    expect(workbench.get_by_role("menu")).to_have_count(0)
-    workbench.locator(".wb-landing-card").first.click()
-    expect(board).to_be_visible()
-    expect(side.locator(".wb-st-list")).to_be_visible()
-    workbench.context.close()
 
 
 def test_the_steps_window_is_only_the_transformations(browser: Browser, orchard: str) -> None:
