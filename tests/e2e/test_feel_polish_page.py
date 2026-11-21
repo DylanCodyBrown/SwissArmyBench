@@ -1,7 +1,7 @@
 # ruff: noqa: F811
 """SQL sees the open tables, and the polish bugs (feel-a, 2026-11-19), in a real browser: a notebook's DuckDB
 SQL cell reads an open grid by its name; a missing table's error is said once, without DuckDB's own-table
-guess; a Python cell's missing open table offers its table cell; at 1024px nine tabs sit on one row;
+guess; a Python cell's missing open table offers its table cell; every grid tab is as wide as its name;
 the palette's "No matches" sits in the list's inset; one Escape closes Find data and Ctrl+Shift+P then works;
 Settings' boxes keep their lines at the top, the agent prompt names the app; the Variables page's search
 box looks like the other inputs; the ERD's status bar says ERD only; a cell's kind and connection pickers
@@ -87,9 +87,7 @@ def test_a_python_cells_missing_open_table_offers_its_table_cell(
         close_tables(server)
 
 
-def test_nine_tabs_fit_one_row_at_1024px_and_the_front_one_shows_its_name(
-    browser: Browser, server: dict[str, Any]
-) -> None:
+def test_every_tab_is_as_wide_as_its_name(browser: Browser, server: dict[str, Any]) -> None:
     close_tables(server)
     names = ["regions", "stores", "customers", "categories", "products", "calendar", "orders", "order_lines"]
     for name in names:
@@ -99,16 +97,20 @@ def test_nine_tabs_fit_one_row_at_1024px_and_the_front_one_shows_its_name(
     try:
         tabs = page.locator(".tabs-row .tab-item")
         expect(tabs).to_have_count(9)
-        tops = {round(t["y"]) for t in tabs.evaluate_all("ts => ts.map(t => t.getBoundingClientRect())")}
-        assert max(tops) - min(tops) <= 2, tops  # one row (the front tab sits a pixel lower)
-        label = page.locator(".tab-item.active .tab-label")
-        assert label.evaluate("e => e.scrollWidth <= e.clientWidth")
+        # Each tab is as wide as its whole name (the owner, 2026-11-21): no name is cut.
+        cut = page.locator(".tabs-row .tab-label").evaluate_all(
+            "ls => ls.filter(l => l.scrollWidth > l.clientWidth).map(l => l.textContent)"
+        )
+        assert cut == [], cut
+        # A tab keeps its width when hovered (the close button keeps its room).
+        other_width = tabs.filter(has_text="t_regions").evaluate("e => e.getBoundingClientRect().width")
         # The others' close buttons show on hover; the front one's always.
         expect(page.locator(".tab-item.active .tab-close")).to_be_visible()
         other = tabs.filter(has_text="t_regions")
         expect(other.locator(".tab-close")).to_be_hidden()
         other.hover()
         expect(other.locator(".tab-close")).to_be_visible()
+        assert abs(other.evaluate("e => e.getBoundingClientRect().width") - other_width) < 1
         # The ERD's status bar is the ERD's, not the grid's behind it.
         page.locator(".nav-rail [data-area='erd']").click()
         expect(page.locator(".statusbar #status")).to_have_text("ERD")

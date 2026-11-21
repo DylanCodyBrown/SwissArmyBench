@@ -2545,24 +2545,24 @@ button.link {
   opacity: 1;
 }
 
-/* The grid page's tabs (feel-a): a tab's basis is its least width, so the row fills before it wraps: at
-   1024px nine tables still sit on one row, each as wide as the row allows (up to 200px, the name ellipsed);
-   wrapping is for many. The table in front shows its whole name. A tab's close button is the active or
-   hovered tab's (the room is its name's otherwise), as a browser's narrow tabs; the keyboard still reaches
-   it (focus-within). The Workbench's tabs (.wb-tab) keep their own. */
+/* The grid page's tabs: each as wide as its whole name (the owner, 2026-11-21), up to 360px (then cut, the
+   full name on hover); tabs that do not fit wrap onto another row. A tab's close button keeps its room on every
+   tab and shows on the active or hovered one (the keyboard reaches it: focus-within). The Workbench's tabs
+   (.wb-tab) keep their own. */
 .tabs-row .tab-item {
-  flex: 1 1 76px;
-  max-width: 200px;
-  min-width: 76px;
+  flex: 0 0 auto; /* each tab as wide as its name (the owner, 2026-11-21: "tabs ... never auto width to the text") */
+  max-width: 360px; /* only a very long name is cut, with its full name on hover */
+  min-width: 0;
   padding-left: 10px;
 }
 
-.tabs-row .tab-item.active {
-  flex: 0 0 auto;
+.tabs-row .tab-item .tab-label {
+  flex: 0 1 auto;
 }
 
+/* The close button keeps its room on every tab, so a tab's width never jumps on hover. */
 .tabs-row .tab-item:not(.active):not(.in-split):not(:hover):not(:focus-within) .tab-close {
-  display: none;
+  visibility: hidden;
 }
 
 .tab-end {
