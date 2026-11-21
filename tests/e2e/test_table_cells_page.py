@@ -27,7 +27,7 @@ def open_workbench(browser: Browser, server: dict[str, Any], path: Path | None =
     page = browser.new_context(viewport={"width": 1500, "height": 950}).new_page()
     opened = f"&open={quote(str(path))}" if path else ""
     page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}{opened}")
-    expect(page.locator(".wb-tabs .tab-item" if path else ".wb-welcome").first).to_be_visible(timeout=20000)
+    expect(page.locator(".wb-tabs .tab-item" if path else ".wb-codex").first).to_be_visible(timeout=20000)
     return page
 
 

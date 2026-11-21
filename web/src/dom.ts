@@ -179,6 +179,8 @@ const ICONS: Record<string, string> = {
   // ----- projects (projectFile.ts, projectImport.ts) -----
   // A project: a page with its corner folded, the app's cross on it.
   project: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M12 10v6M9 13h6"/>',
+  // The rail's Home (the owner, 2026-11-21: "a + is confusing just make this a normal icon"): a house.
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   // The rail's areas (rail.ts, 2026-11-16; Settings is the cog, Notebooks, Scripts and Apps their documents'
   // icons): the Analyze board's cards, the ERD's two tables and their join, a blade, a plug; Grids: a grid's tabs.
   sandbox: '<rect x="3" y="3" width="8" height="10" rx="1.5"/><rect x="13" y="3" width="8" height="6" rx="1.5"/><rect x="13" y="11" width="8" height="10" rx="1.5"/><rect x="3" y="15" width="8" height="6" rx="1.5"/>',

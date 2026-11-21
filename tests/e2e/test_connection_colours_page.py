@@ -203,7 +203,7 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     page = browser.new_context(viewport={"width": 1500, "height": 950}, device_scale_factor=2).new_page()
     page.on("dialog", lambda d: d.accept())
     page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
-    expect(page.locator(".wb-top")).to_be_visible(timeout=20000)
+    expect(page.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (2026-11-21)
 
     def window(command: str, **args: Any) -> Any:
         return call(server, "POST", "/workbench/window", {"command": command, "args": args}, agent=True)[
@@ -230,6 +230,9 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     call(server, "PUT", "/connection-colours/Ledger", {"colour": RUST})
     wait_worn(page, ".wb-cell", shown(page, server, "Ledger"))
 
+    # A script is the Scripts page's (2026-11-21): its stripe there, then back to the Notebooks page.
+    page.goto(f"http://127.0.0.1:{server['port']}/scripts")
+    expect(page.locator(".wb-codex.page-scripts")).to_be_visible(timeout=20000)
     window("file.open", path=str(script))
     page.wait_for_function("() => document.querySelector('[class*=sab-stripe-]') !== null", timeout=20000)
     shot(page, "5-script-stripe")

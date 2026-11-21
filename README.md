@@ -879,8 +879,8 @@ version). An extension package registers itself under the entry-point group `swi
 `extensions_list`, `extensions_install` and `extensions_remove` (both wait for your Allow).
 
 **Git** (an extension, available): GitHub sync for the meta store and shared projects with no Git on the computer
-(clone, connect, pull with line merges and conflicts beside the file, push fast-forward only), a **Source Control**
-page that is VS Code's Source Control view and graph with Monaco's diff editor, and a footer mark when the open
+(clone, connect, pull with line merges and conflicts beside the file, push fast-forward only), a **Git**
+page (the rail's Git) that is VS Code's Source Control view and graph with Monaco's diff editor, and a footer mark when the open
 project is out of sync. Sign in with a fine-grained token (kept in the keyring only). Code adapted from VS Code (MIT)
 is listed in THIRD_PARTY_NOTICES.md.
 

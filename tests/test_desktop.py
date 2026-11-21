@@ -169,7 +169,7 @@ def test_the_door_and_the_agents_commands(monkeypatch: pytest.MonkeyPatch, tmp_p
         assert said["name"] == "Swiss Army Bench" and said["running"] is False and said["windows"] == []
         opened = client.post("/desktop/open", headers=AGENT, json={"page": "workbench"})
         assert opened.status_code == 200 and opened.json() == {"opened": "workbench"}
-        assert shell.opened == ["/workbench"]
+        assert shell.opened == ["/notebooks"]
         assert client.post("/desktop/open", headers=AUTH, json={}).json() == {"opened": "home"}
         said = client.get("/desktop", headers=AUTH).json()
         assert said["running"] is True

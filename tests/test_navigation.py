@@ -66,15 +66,15 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     assert rules.AREAS == (  # in the order of the work (the owner, 2026-11-17)
         "projects",  # the mark, the rail's first item: the Projects page (2026-11-18)
         "connections",
+        "apis",
+        "structures",  # beside APIs (2026-11-21)
         "variables",
         "data",  # the one place to browse tables (2026-11-17)
         "grids",
         "erd",
-        "apis",
-        "structures",
         "blades",
+        "scripts",  # beside Blades (2026-11-21)
         "notebooks",
-        "scripts",
         "canvas",  # the Apps area renamed (2026-11-21)
         "widgets",  # the Widgets window (2026-11-21)
         "analyze",
@@ -105,13 +105,13 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
 @pytest.mark.parametrize(
     ("window", "to", "words"),
     [
-        ("tray", "home", "window is one of home, catalog, workbench"),
-        ("home", "", "to is where to go: home, projects, connections, variables, data, grids, erd"),
+        ("tray", "home", "window is one of home, catalog, workbench, notebooks, scripts"),
+        ("home", "", "to is where to go: home, projects, connections, apis, structures, variables"),
         ("home", None, "to is where to go"),
         (
             "home",
             "kitchen",
-            "The home window cannot go to 'kitchen'. It can go to: home, projects, connections, variables",
+            "The home window cannot go to 'kitchen'. It can go to: home, projects, connections, apis",
         ),
         ("workbench", "query", "The workbench window cannot go to 'query'"),
         ("catalog", "grid:g1", "The catalog window cannot go to 'grid:g1'"),
@@ -158,7 +158,7 @@ def test_the_window_is_told_and_the_audit_log_says_where(tmp_path: Path) -> None
             )
             assert catalog.receive_json()["name"] == "x"
         refused = client.post("/navigate", json={"window": "workbench", "to": "back"}, headers=AGENT)
-        assert refused.status_code == 409 and "No Workbench window is open" in refused.text
+        assert refused.status_code == 409 and "No Notebooks or Scripts page is open" in refused.text
         assert "home window to grid g7" in client.get("/audit", headers=AUTH).text
 
 

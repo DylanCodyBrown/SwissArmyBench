@@ -107,8 +107,17 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   (`sab.create_workspace()`); code goes in the **Workbench** (our own notebooks and scripts on an
   IPython kernel, [Plans/workbench-and-connections.plan.md](Plans/workbench-and-connections.plan.md)),
   Jupyter or Python in the terminal (marimo was built in, then stripped on the owner's call, 2026-11).
-  **Rule: code always opens in its own browser window, never in the grid page** (the rail's Notebooks,
-  Scripts and Apps open it), so it can sit on another screen; saved workspaces; the desktop app (PySide6 windows,
+  **Rule: code always opens in its own browser window, never in the grid page**, so it can sit on another
+  screen. **Notebooks and Scripts are two pages** (the owner, 2026-11-21: "notebooks and scripts should not reuse
+  the same page they are seperate things"): /notebooks (the window sab-notebooks: notebooks, and an app's canvas
+  beside them) and /scripts (sab-scripts: every .py, never a notebook), each its own explorer on the left, tabs,
+  session and layout; a file opens on its kind's page from anywhere, a wrong-kind take is refused in one line
+  (domain/workbench_pages.py, web/src/workbenchPages.ts); /workbench redirects. **The Scripts page is a Python
+  IDE** ("this is meant to expose the high level code of everything in the app for fine tuning"): Files (the
+  project's scripts by module with outlines, Project code, the library's Connections, APIs, Key vaults, Widgets;
+  Generated, read-only, with Fine-tune as a script) above Blades (a blade opens as a tab: bladeDoc, the blade
+  IDE's seam); F12, Shift+F12, F2, Shift+Alt+F, Ctrl+Shift+F, F11 full screen, Ctrl+B; every code file
+  follows a change anywhere (the file_changed notice); a made file saved by hand is kept from a regenerate; saved workspaces; the desktop app (PySide6 windows,
   its pages in Qt WebEngine; built 2026-11-18, the browser secondary); and a Power BI style relationships view
   with autodetection. VS Code is optional.
 - **The golden rule (the owner, 2026-11-14): every single thing the user can do, the agent can do
@@ -503,6 +512,13 @@ src/swissarmybench/
                          inside strings (sab.connection("|"), os.environ["|"], secret("|"), sab.blade("|")),
                          the small lint (compile, undefined names, unused imports, f-strings, == None, bare
                          except) and its fixes, where an import goes, SQL's syntax by sqlglot, the ranking
+    workbench_pages.py   Notebooks and Scripts, two pages (2026-11-21): which page a file or a kind opens on, the
+                         one line a wrong-kind take is refused with, the old /workbench addresses, a command's page
+    code_tree.py         the pages' explorers: a .py's module (scripts/etl/load.py is etl.load), its outline by ast,
+                         the groups (Your scripts, Project code, made files and what they are made from, the
+                         library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (data first)
+    script_ide.py        the Scripts IDE's rules: search and replace across the scripts (regex, case, word), a
+                         rename's plan and preview that never writes a made file, a Python name checked
     script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
                          plain value, a key vault, never a secret's value), the variables a script needs,
                          a scheduled run's plan, a run's record
@@ -664,6 +680,12 @@ src/swissarmybench/
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
     kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
                          restarts (kind_colours.json)
+    script_ide.py        the Scripts IDE: its tree (the project's code, the library's, Generated), go to definition,
+                         references and rename over the project's modules (the editors' one Jedi world), search
+                         and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
+    code_files.py        code files that update themselves everywhere: `file_changed` {path, hash, by} on the app's
+                         writes (touched) and on a look every few seconds at the project's and library's .py and
+                         .ipynb (off the loop); its listeners (a made file saved by hand: project_scope.saw)
     script_runs.py       a script's run settings (run_settings.json), Run as scheduled, its run history
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
@@ -789,6 +811,9 @@ src/swissarmybench/
     live_updates.py      the pages' and VS Code windows' sockets (the app's windows counted for the server's life)
     folders.py           a folder's contents for the page's own picker (hidden ones on request), its places (Home,
                          Desktop, Documents, Downloads), New folder
+    code_files.py        a code file's stamp and hash, a folder's code files (hidden folders, caches, environments out)
+    script_ide.py        Jedi's go to definition, references and rename (ScriptCode), a file read and written
+                         atomically, Ruff's format on stdin
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
     intellisense.py      Jedi's Project and Environment per folder and Python, the project's modules read,
                          pyflakes, Ruff in the document's Python (on stdin; never installed by itself), DuckDB's parser
@@ -807,7 +832,7 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots,
                          explorer, library,
-                         shared_catalog, team, found_connections). Every route serves
+                         shared_catalog, team, found_connections, script_ide). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -912,9 +937,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Settings, Connections), every other dialog an entry Back closes, backButton (named
                          for where it goes), crumbs, setTitle (the page, then the place), app_navigate;
                          rail.ts is the slim icon rail down the left of every page and window, in the order of
-                         the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; the red mark first,
-                         Projects, and 24px icons so more fit, 2026-11-18): Projects, Connections, APIs, Variables, Data, Grids, ERD, Structures,
-                         Blades, Notebooks, Scripts, Canvas, Widgets, Analyze, Session, Settings at the
+                         the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; 24px icons so more
+                         fit, 2026-11-18; 2026-11-21: Home first, a house, "just call it home instead of projects";
+                         Structures beside APIs; Scripts beside Blades; Catalog; Git): Home, Connections, APIs,
+                         Structures, Variables, Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
+                         Scripts, Notebooks, Canvas, Widgets, Analyze, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
@@ -1039,6 +1066,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchCellsPane.ts (App mode's Streamlit cells panel: every cell that calls
                          Streamlit, by name: dragged onto a canvas), workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
+                         workbenchPages.ts (Notebooks and Scripts, two pages: the page of a file or a kind, this
+                         window's, openOnPage and bringPage by the windows' names, the old session split once);
+                         codeExplorer.ts (each page's explorer on the left: the server's groups, a module's outline
+                         as typed, marks, search, New; folds to a strip with Ctrl+B and resizes; on Scripts, Blades
+                         below with a splitter); workbenchIde.ts (the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F
+                         and Ctrl+Shift+F over /scripts/*);
                          workbenchCommands.ts (every window action by one name: the palette (recent first), the keys (? lists
                          them: the shortcuts sheet, the grid page's too), and
                          the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command

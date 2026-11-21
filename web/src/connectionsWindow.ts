@@ -51,8 +51,9 @@
  *          [RELATIONSHIPS] POST /connections/{name}/relationships (a Power BI dataset's, merged)
  *          [INSTALL] POST /blades/install {packages}, then POST /blades/inspect (is it installed now?)
  */
+import { openOnPage } from "./workbenchPages";
 import { showAddApi } from "./addApi";
-import { api, onNotice, token } from "./api";
+import { api, onNotice } from "./api";
 import { slotLine, slotsSection } from "./connectionSlots";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
@@ -315,7 +316,6 @@ export function setCellOpener(open: (path: string, cell: number | null) => Promi
   cellOpener = open;
 }
 
-const WORKBENCH_WINDOW = "swissarmybench-workbench";
 
 /** A reference's click: its cell in the Workbench (this window's, else the Workbench window, opened on
  *  it when there is none), or its grid on the home page. */
@@ -338,14 +338,8 @@ export async function openReference(ref: Reference): Promise<void> {
     await cellOpener(ref.document, ref.cell);
     return;
   }
-  try {
-    await api("/workbench/window", "POST", { command: "file.openCell", args: { path: ref.document, ...(ref.cell ? { cell: ref.cell } : {}) } });
-    window.open("", WORKBENCH_WINDOW)?.focus();
-  } catch {
-    // No Workbench window yet: one, opened on the file at the cell.
-    const words = new URLSearchParams({ ...(token ? { token } : {}), open: ref.document, ...(ref.cell ? { cell: String(ref.cell) } : {}) });
-    window.open(`/workbench#${words.toString()}`, WORKBENCH_WINDOW)?.focus();
-  }
+  // On its page: a notebook's cell on the Notebooks page, a script on the Scripts page (workbenchPages.ts).
+  await openOnPage(ref.document, { cell: ref.cell ?? null });
 }
 
 /** A reference as the detail lists it: the document's icon, its name and cell, how it names the

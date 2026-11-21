@@ -51,8 +51,10 @@ def open_window(
     )
     page = context.new_page()
     opened = f"&open={quote(str(path))}" if path else ""
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}{opened}")
-    expect(page.locator(".wb-tab" if path else ".wb-welcome").first).to_be_visible(timeout=20000)
+    # A .py on the Scripts page, anything else on the Notebooks page (2026-11-21).
+    where = "scripts" if path and path.suffix == ".py" else "notebooks"
+    page.goto(f"http://127.0.0.1:{server['port']}/{where}#token={server['token']}{opened}")
+    expect(page.locator(".wb-tab" if path else ".wb-codex").first).to_be_visible(timeout=20000)
     return page
 
 

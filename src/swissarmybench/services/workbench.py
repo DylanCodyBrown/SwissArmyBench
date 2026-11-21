@@ -15,6 +15,7 @@ from swissarmybench.domain import (
     errors,
     html_cells,
     notebook_flow,
+    workbench_pages,
 )
 from swissarmybench.domain import environments as envs
 from swissarmybench.domain import notebooks as rules
@@ -512,7 +513,11 @@ class Workbench:
             "taken": False,
         }
         if to is not None:
-            await self.ws.live.broadcast({"type": "workbench_handoff", "id": handoff_id, "to": to})
+            # Its page (notebooks or scripts): a window of the other page never takes it.
+            page = workbench_pages.page_of_kind(body["document"].get("kind"))
+            await self.ws.live.broadcast(
+                {"type": "workbench_handoff", "id": handoff_id, "to": to, "page": page}
+            )
         return {"id": handoff_id}
 
     def take_handoff(self, handoff_id: str, body: Any) -> dict[str, Any]:
@@ -526,6 +531,15 @@ class Workbench:
             raise Conflict("Another window took that document already.")
         if held["to"] not in (None, "main", window):
             raise Conflict("That document is on its way to another window.")
+        # A notebook never lands on the Scripts page, nor a script on the Notebooks page (the owner,
+        # 2026-11-21): the window says its page; the drop is refused in one line.
+        page = body.get("page")
+        if page is not None:
+            if page not in workbench_pages.PAGES:
+                raise ValueError("page is notebooks or scripts.")
+            wrong = workbench_pages.wrong_page(held["document"].get("kind"), page)
+            if wrong:
+                raise Conflict(wrong)
         held["taken"] = True
         kernel = held["kernel"] if held["kernel"] in self._running else None
         if kernel is not None:

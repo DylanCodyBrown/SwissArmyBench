@@ -14,6 +14,7 @@
  *          POST /connections/{name}/open-dataset {dataset}   POST /connections/{name}/relationships
  *          POST /workbench/window {command: "cell.insertBelow"}
  */
+import { bringPage, PAGE_WINDOW } from "./workbenchPages";
 import { api } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
@@ -44,7 +45,7 @@ export interface Tree {
   groups: TreeGroup[];
 }
 
-export const WORKBENCH_WINDOW = "swissarmybench-workbench";
+export const WORKBENCH_WINDOW = PAGE_WINDOW.notebooks;
 const SHOWN = 400; // tables drawn at once in a group (the search finds the rest)
 
 /** A query's text for a new %%sql cell on a table. */
@@ -56,8 +57,8 @@ export function cellQuery(sql: string): string {
 export async function queryInNotebook(sql: string): Promise<void> {
   const source = cellQuery(sql);
   try {
-    await api("/workbench/window", "POST", { command: "cell.insertBelow", args: { kind: "sql", source } });
-    window.open("", WORKBENCH_WINDOW)?.focus();
+    await api("/workbench/window", "POST", { command: "cell.insertBelow", args: { kind: "sql", source }, page: "notebooks" });
+    bringPage("notebooks", "/notebooks", {}, true); // a cell is a notebook's: the Notebooks page (workbenchPages.ts)
     toast("A SQL cell is in the notebook.");
   } catch {
     await navigator.clipboard.writeText(`%%sql\n${source}`).catch(() => undefined);

@@ -14,7 +14,9 @@ from swissarmybench.services.workspace import Conflict, Workspace
 NOT_OPEN: dict[str, str] = {
     "home": "No home window is open: the app's launcher, or `swissarmybench open`, opens it.",
     "catalog": "No blades page is open: the home page's Blades and catalog opens it.",
-    "workbench": "No Workbench window is open: the home page's Workbench tab opens it.",
+    "workbench": "No Notebooks or Scripts page is open: the rail's Notebooks or Scripts opens it.",
+    "notebooks": "No Notebooks page is open: the rail's Notebooks opens it.",
+    "scripts": "No Scripts page is open: the rail's Scripts opens it.",
 }
 
 
@@ -61,10 +63,13 @@ class Navigation:
         notice = rules.place(body.get("window"), body.get("to"), body.get("new_window"))
         live = self.ws.live
         window = notice["window"]
+        # The Notebooks or Scripts page's window (either for "workbench"): the notice says "workbench".
+        page = window if window in rules.CODE_WINDOWS else None
         message = {"type": "navigate"} | notice | {"by": who}
-        if window == "workbench":
+        if page is not None or window == "workbench":
+            message["window"] = "workbench"
             # The Workbench window the user was last in, as workbench_window's commands are.
-            if not live.workbench_open() or not await live.tell_workbench(message):
+            if not live.workbench_open(page) or not await live.tell_workbench(message, page):
                 raise Conflict(NOT_OPEN[window])
         else:
             if not (live.page_open() if window == "home" else live.catalog_open()):

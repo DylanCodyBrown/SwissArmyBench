@@ -149,7 +149,7 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         expect(bubble).to_have_count(0)  # seen: gone for good
         expect(tour).to_have_class("tour tour-dim")  # the welcome card has nothing to point at
         # Projects: this page, its mark on the rail lit up.
-        to_word(page, tour, "Projects")
+        to_word(page, tour, "Home")
         expect(row).to_be_visible()
 
         # Its two made-up tables arrive as tabs, beside the user's, and the Projects page stays.
@@ -161,7 +161,7 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         expect(tabs.filter(has_text="tour_orders_2")).to_have_count(1)
         assert {"tour_orders", "tour_orders_2", "tour_customers"} <= datasets(server)
         expect(row).to_be_visible()
-        expect(tour.locator(".tour-word")).to_have_text("Projects")
+        expect(tour.locator(".tour-word")).to_have_text("Home")
         lights_up(tour, page.locator('.nav-rail [data-area="projects"]'))
 
         # A rail page: it goes there and lights up the page's own button.
@@ -186,7 +186,7 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         if SHOTS:
             page.screenshot(path=str(Path(SHOTS) / "tour-using-a-variable.png"))
         # Hands on: type it, then right-click it, with a made-up variable the tour adds for itself.
-        to_word(page, tour, "Data Catalog")
+        to_word(page, tour, "Catalog")
         assert PRACTICE in variables(server)
         # The grids: its orders table in front, its tab lit up.
         to_word(page, tour, "Grid")

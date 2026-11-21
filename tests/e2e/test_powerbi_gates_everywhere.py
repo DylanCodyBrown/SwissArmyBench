@@ -55,7 +55,7 @@ def test_gates_reach_the_palette_new_entries_an_address_and_the_tour(
         if scheme == "light":
             # The Workbench: the palette's New script and the New menu's New script show the line instead.
             work = context.new_page()
-            work.goto(f"{base}/workbench#token={server['token']}")
+            work.goto(f"{base}/scripts#token={server['token']}")  # the Scripts page (2026-11-21)
             expect(work.locator(".nav-rail")).to_be_visible(timeout=20000)
             expect(work.locator('.nav-rail-item[data-area="scripts"]')).to_be_hidden()  # the gates are known
             work.keyboard.press("Control+Shift+P")

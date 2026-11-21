@@ -31,8 +31,12 @@ class DataExport:
         project_files: ProjectFiles,
         arrange: Callable[[Any], Awaitable[dict[str, Any]]],
         held: Callable[[str], Any],
+        edited: Callable[[str], set[str]] = lambda folder: set(),
     ) -> None:
         self._project = project_files
+        # The made files the user edited by hand (Scripts IDE: .sab/hand-edited.json): never overwritten
+        # silently (the owner, 2026-11-21).
+        self._edited = edited
         self._arrange = arrange  # a notebook's cells with its tables' cells as the grid has them now
         self._held = held  # an open document as its window holds it (`every`, `dictionary`), or None
 
@@ -52,8 +56,9 @@ class DataExport:
             cells = notebooks.read_cells(arranged["cells"])
         return [DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells]
 
-    async def data(self, folder: str, title: str) -> projects.DataModule | None:
-        """data.py written again from the folder's data.ipynb (None: the folder has no data.ipynb)."""
+    async def data(self, folder: str, title: str, replace: bool = False) -> projects.DataModule | None:
+        """data.py written again from the folder's data.ipynb (None: the folder has no data.ipynb). One edited
+        by hand is kept (made, not written) unless `replace`."""
         try:
             cells = await self.data_cells(folder)
         except (notebooks.NotebookError, ValueError, OSError):
@@ -65,13 +70,20 @@ class DataExport:
         if said is None:
             said = data_dictionary.of_notebook(self._project.read(folder, projects.DATA_NOTEBOOK))
         made = projects.data_module(title, cells, said)
-        self._project.write(folder, projects.DATA_FILE, made.text)
+        if replace or projects.DATA_FILE not in self._edited(folder):
+            self._project.write(folder, projects.DATA_FILE, made.text)
         return made
 
-    async def export_data(self, folder: str, title: str) -> dict[str, Any]:
-        """Export data.py: the project's data.ipynb's code cells in order, as a module."""
+    async def export_data(self, folder: str, title: str, replace: bool = False) -> dict[str, Any]:
+        """Export data.py: the project's data.ipynb's code cells in order, as a module. data.py edited by hand
+        asks first (Conflict: Keep my edits, Replace or Compare) unless `replace`."""
+        if not replace and projects.DATA_FILE in self._edited(folder):
+            raise Conflict(
+                "data.py was edited by hand: keep your edits, or export again with Replace "
+                "(Compare shows both)."
+            )
         try:
-            made = await self.data(folder, title)
+            made = await self.data(folder, title, replace)
         except PermissionError as error:
             raise Conflict(str(error)) from None
         if made is None:

@@ -20,7 +20,8 @@ import type { ProjectState } from "./projectFile";
 import { tourButton } from "./tourButton";
 
 /** The page's name, in one place: the rail, the title. */
-export const PROJECTS = "Projects";
+// Home (the owner, 2026-11-21: "just call it home instead of projects"); its address stays open=projects.
+export const PROJECTS = "Home";
 
 let shown: PageElement | null = null;
 

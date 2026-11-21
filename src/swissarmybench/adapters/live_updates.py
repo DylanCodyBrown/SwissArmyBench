@@ -42,6 +42,8 @@ class LiveUpdates:
         # workbench_window commands go to it.
         self._workbenches: list[WebSocket] = []
         self._window_of: dict[WebSocket, str] = {}  # a Workbench window's id (its kernels carry it)
+        # Which page a Workbench window is (notebooks or scripts: domain/workbench_pages.py).
+        self._page_of: dict[WebSocket, str] = {}
         # When a caller was last told to open a window, until that window connects.
         self._window_promised: float | None = None
         # The blades pages (/catalog): app_navigate's catalog window.
@@ -66,6 +68,7 @@ class LiveUpdates:
         window: str | None = None,
         catalog: bool = False,
         page: bool = True,
+        code_page: str | None = None,
     ) -> None:
         self.changes += 1  # a window opened: context.md's Windows
         self._sockets.add(websocket)
@@ -77,6 +80,8 @@ class LiveUpdates:
             self._workbenches.append(websocket)
             if window:
                 self._window_of[websocket] = window
+            if code_page in ("notebooks", "scripts"):
+                self._page_of[websocket] = code_page
         if grid:
             self._grid_of[websocket] = grid
         if workspace:
@@ -91,6 +96,7 @@ class LiveUpdates:
         self._pages.discard(websocket)
         self._grid_of.pop(websocket, None)
         self._window_of.pop(websocket, None)
+        self._page_of.pop(websocket, None)
         self._workspaces.discard(websocket)
         self._catalogs.discard(websocket)
         if websocket in self._workbenches:
@@ -128,14 +134,18 @@ class LiveUpdates:
         """The ids of the Workbench windows open now (a kernel started by one stops after it is gone)."""
         return {w for ws, w in self._window_of.items() if ws in self._sockets}
 
-    def workbench_open(self) -> bool:
-        """True when a Workbench window is connected."""
-        return any(ws in self._sockets for ws in self._workbenches)
+    def _of_page(self, page: str | None) -> list[WebSocket]:
+        # A window that never said its page (an older page) is any page's.
+        return [ws for ws in self._workbenches if page is None or self._page_of.get(ws) in (None, page)]
 
-    async def tell_workbench(self, message: dict[str, Any]) -> int:
-        """Send one notice to the Workbench window the user was last in (1), or 0 when none took it.
-        With two Workbench windows open, both answering would let the wrong one win."""
-        for websocket in reversed(list(self._workbenches)):
+    def workbench_open(self, page: str | None = None) -> bool:
+        """True when a Workbench window (of that page: notebooks or scripts) is connected."""
+        return any(ws in self._sockets for ws in self._of_page(page))
+
+    async def tell_workbench(self, message: dict[str, Any], page: str | None = None) -> int:
+        """Send one notice to the Workbench window (of that page) the user was last in (1), or 0 when none
+        took it. With two Workbench windows open, both answering would let the wrong one win."""
+        for websocket in reversed(self._of_page(page)):
             try:
                 await asyncio.wait_for(websocket.send_json(message), SEND_TIMEOUT_SECONDS)
                 return 1

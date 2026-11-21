@@ -52,3 +52,9 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
 ## Packs (blades and relationship sets from a Claude Code marketplace)
 - `packs_list`: installed packs (read-only; Save a copy to change one) and editable clones.
 - `packs_new` makes a marketplace folder; `packs_add` copies saved blades and relationship sets into an editable pack.
+
+## On the Scripts page (2026-11-21)
+
+The blades live below the Scripts page's files (the rail's Blades lands there): a blade opens as a tab of the
+Scripts IDE, its code editable, its Properties beside it, Run with its Output, Result and Problems; a starter's Save
+is refused with Copy as your own. The library's connections, APIs and vaults are in the files above, edited in place.

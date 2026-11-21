@@ -169,7 +169,9 @@ NOT_COMMANDS = {
     "/": "page shell: the bare address goes on to /workspace",
     "/workspace": "page shell",
     "/catalog": "page shell",
-    "/workbench": "page shell: the Workbench window (the agent works its files and kernels directly)",
+    "/workbench": "the old address: redirects to the Notebooks or Scripts page",
+    "/notebooks": "page shell: the Notebooks page (the agent works its files and kernels directly)",
+    "/scripts": "page shell: the Scripts page (the agent works its files and kernels directly)",
     "/static": "page files",
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
@@ -780,7 +782,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # +1,000 (2026-11-21): widgets (the owner: "Creating a widget is what will replace the concept of app
     # cells and app notebooks"): widgets_list, _get, _new, _save, _header, _properties, _set_property, _run,
     # _copy, _delete, _preview.
-    assert size < 97_600, f"the tool list is {size} characters"
+    # 99,500 (2026-11-21): the Notebooks and Scripts pages (the owner: "notebooks and scripts should not reuse
+    # the same page"; the Scripts page a Python IDE): project_tree, workbench_outline, _definition,
+    # _references, _rename, _search, _format, workbench_window's page, and the blade tab's commands.
+    assert size < 99_500, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

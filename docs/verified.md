@@ -4299,3 +4299,22 @@ connection), Streamlit apps and exported automations (outside the app, by design
 writes of the Write starters run in a kernel (they are not sab.sql). Not checked: Edge; the agent's cancel of
 the user's query through a real Allow click in a browser (the route is tested); a kernel's waiting cell line in a
 real Workbench kernel (the client's no-gate paths are tested, the lease routes are tested over HTTP).
+
+## Notebooks and Scripts, two pages; the Scripts IDE (2026-11-21, branch separate-pages)
+
+Checked: the page rules (tests/test_workbench_pages.py: which page a file or kind opens on, the refusal's line, the
+old addresses, a command's page; over HTTP the two pages, the redirect, /workbench/open's page, a notebook's take
+refused on the Scripts page, the agent naming a page that is not open); the IDE (tests/test_script_ide.py,
+tests/test_script_ide_rules.py: the tree of a made-up project with packages, pages, made files and no notebook,
+outlines, definition and references across modules, rename's preview skipping data.py then applied with a
+file_changed each, search and replace, Format without Ruff said, Fine-tune making a script that compiles, data.py
+edited by hand kept and Export data.py asking, file_changed on a save, an outside edit and a deletion). In Chromium
+(tests/e2e/test_scripts_ide_page.py): the rail's Notebooks (only notebooks) and Scripts (another window, no notebook
+tab, a .py there), the notebook not put on the Scripts page; two scripts opened from the explorer as two named tabs,
+switched, the outline's click to the line, completion across modules, a diagnostic, run of the line, F12 into
+functions.py, full screen and Escape, the explorer's fold; Blades below the files and the rail's Blades landing
+there, a starter opened as a tab; the same script in two windows following a save, and an outside edit while dirty
+asking. The e2e tests that assumed one mixed Workbench were moved to the two pages.
+
+Not checked: the desktop app's own full screen (none built); Ruff's format itself (Ruff is not beside the test
+Python here: said, skipped); the debugger (not built).

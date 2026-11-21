@@ -21,6 +21,7 @@ import json
 from collections.abc import Callable
 from typing import Any, Protocol
 
+from swissarmybench.domain import code_tree
 from swissarmybench.domain import project_scope as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.library import saved_json
@@ -109,6 +110,76 @@ class ProjectScope:
                 for d in listed
             ],
         }
+
+    # ===== the explorer of the Notebooks and Scripts pages (domain/code_tree.py) =====
+
+    def tree(self, page: Any) -> dict[str, Any]:
+        """The explorer's groups for a page: {"page": "scripts"} every .py of the open project by module, each
+        with its outline; {"page": "notebooks"} its notebooks, the data notebook first. No project: none."""
+        if page not in ("notebooks", "scripts"):
+            raise ValueError("page is notebooks or scripts.")
+        current = self._projects.current
+        if current is None:
+            return {"project": None, "page": page, "groups": []}
+        files = [f[0].replace("\\", "/") for f in self._files.files(current.folder)]
+        if page == "notebooks":
+            groups = code_tree.notebook_tree(files)
+        else:
+            texts: list[tuple[str, str | None]] = []
+            for relative in files:
+                if not relative.endswith(".py") or not code_tree.listed(relative):
+                    continue
+                try:
+                    body = self._files.read_file(current.folder, relative)
+                    texts.append((relative, body[:2_000_000].decode("utf-8", "replace")))
+                except OSError:
+                    texts.append((relative, None))
+            groups = code_tree.script_tree(texts, self.edited_by_hand())
+        for group in groups:
+            for item in group["files"]:
+                item["full"] = rules.inside(current.folder, item["path"])
+        return {"project": current.name, "folder": current.folder, "page": page, "groups": groups}
+
+    HAND = ".sab/hand-edited.json"
+
+    def edited_in(self, folder: str) -> set[str]:
+        """A project's made files (data.py, pages/*.py) edited by hand: never overwritten silently."""
+        try:
+            found = json.loads(self._files.read_file(folder, self.HAND).decode("utf-8"))
+        except (OSError, ValueError):
+            return set()
+        return {str(p) for p in found if isinstance(p, str)} if isinstance(found, list) else set()
+
+    def edited_by_hand(self) -> list[str]:
+        current = self._projects.current
+        return sorted(self.edited_in(current.folder)) if current is not None else []
+
+    def saw(self, path: str, who: str) -> None:
+        """A save of the user's or the agent's (code_files.touched): a made file of the open project is edited
+        by hand from now on (its tree's pencil; a regenerate asks)."""
+        current = self._projects.current
+        if current is None or who not in ("user", "agent"):
+            return
+        root = current.folder.replace("\\", "/").rstrip("/") + "/"
+        full = path.replace("\\", "/")
+        if not full.startswith(root):
+            return
+        relative = full[len(root) :]
+        if not code_tree.made_from(relative):
+            return
+        edited = self.edited_in(current.folder)
+        if relative in edited:
+            return
+        body = json.dumps(sorted(edited | {relative}), indent=1) + "\n"
+        self._files.write_into(current.folder, self.HAND, body.encode("utf-8"))
+
+    @staticmethod
+    def outline(body: Any) -> dict[str, Any]:
+        """A module's outline as typed ({"text"}): its classes, methods, functions and constants."""
+        text = body.get("text") if isinstance(body, dict) else None
+        if not isinstance(text, str):
+            raise ValueError('Send {"text": "the module\'s text"}.')
+        return code_tree.outline(text)
 
     # ===== what a place offers =====
 

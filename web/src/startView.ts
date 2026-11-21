@@ -18,7 +18,8 @@
  *          [FIXES]    a strip under the tabs, only while a table did not come back: its one click
  *          [ASKED]    `swissarmybench open <folder>` with unsaved work open: the page asks
  */
-import { api, onNotice, token } from "./api";
+import { bringPage, openOnPage } from "./workbenchPages";
+import { api, onNotice } from "./api";
 import { button, clear, h, icon } from "./dom";
 import { visit, withParams } from "./nav";
 import { gridList, onAgentView, openQueryDraft, viewingLanding } from "./panes";
@@ -29,7 +30,6 @@ import { emptyState } from "./emptyState";
 import { forgetSwap, onConnectionChange, openMoveChooser, recentSwaps, undoSwap } from "./swapConnection";
 import { errorHere } from "./errorNote";
 
-const WORKBENCH = "swissarmybench-workbench";
 let host: HTMLElement;
 let group: HTMLElement;
 let strip: HTMLElement;
@@ -42,17 +42,9 @@ const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: 
 
 /** Open the Workbench window on `path` (a notebook or script), or bring it forward with that file. */
 export async function openInWorkbench(path?: string): Promise<void> {
-  if (path) {
-    try {
-      await api("/workbench/window", "POST", { command: "file.open", args: { path } });
-      window.open("", WORKBENCH)?.focus();
-      return;
-    } catch {
-      /* no Workbench window yet: one, opened on the file */
-    }
-  }
-  const words = new URLSearchParams({ token, ...(path ? { open: path } : {}) });
-  window.open(`/workbench#${words.toString()}`, WORKBENCH)?.focus();
+  // On its page: a notebook on the Notebooks page, a script on the Scripts page (workbenchPages.ts).
+  if (path) await openOnPage(path);
+  else bringPage("notebooks");
 }
 
 /** `home`: the page's tabs as a project keeps them (the order, the one in front), and putting them back

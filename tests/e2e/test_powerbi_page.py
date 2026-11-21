@@ -232,13 +232,17 @@ def test_a_power_bi_workspace_is_added_browsed_opened_its_relationships_drawn_an
     wait_until(lambda: "[dax]" in window("doc.read")["text"])
     window("cell.addDax", dataset="Finance/Sales model", source="EVALUATE TOPN(2, 'Customer')")
     text = window("doc.read")["text"]
-    assert text.splitlines() == [
-        "# %% [1] [dax]",
-        "import swissarmybench as sab",
+    # On the Scripts page the script is the only document: the open tables' region comes first (2026-11-21).
+    lines = text.splitlines()
+    first = next(i for i, line in enumerate(lines) if re.match(r"# %% \[\d+\] \[dax\]", line))
+    # (its import of sab is the tables region's there)
+    found = [re.sub(r"\[\d+\] \[dax\]", "[n] [dax]", line) for line in lines[first:]]
+    assert [line for line in found if line != "import swissarmybench as sab"] == [
+        "# %% [n] [dax]",
         'result = sab.dax("Finance/Budget model", """',
         "EVALUATE ",
         '""")',
-        "# %% [2] [dax]",
+        "# %% [n] [dax]",
         'result = sab.dax("Finance/Sales model", """',
         "EVALUATE TOPN(2, 'Customer')",
         '""")',

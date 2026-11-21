@@ -218,14 +218,15 @@ def test_query_insert_and_drag_into_a_workbench_cell_and_the_pop_out(
     page = home(browser, server)
     bench = page.context.new_page()
     bench.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
-    expect(bench.locator(".wb-top")).to_be_visible(timeout=20000)
+    expect(bench.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (2026-11-21)
 
     def window(command: str, **args: Any) -> Any:
-        return call(server, "POST", "/workbench/window", {"command": command, "args": args}, agent=True)[
-            "result"
-        ]
+        body = {"command": command, "args": args, "page": "notebooks"}  # this window's page (2026-11-21)
+        return call(server, "POST", "/workbench/window", body, agent=True)["result"]
 
+    bench.wait_for_timeout(1000)  # the page's start (its restore) settles first
     window("file.newNotebook")
+    expect(bench.locator(".wb-tab", has_text="Untitled notebook")).to_be_visible(timeout=20000)
     window("cell.insertBelow", kind="sql", source="")
     page.bring_to_front()
     page.locator('.nav-rail [data-area="data"]').click()

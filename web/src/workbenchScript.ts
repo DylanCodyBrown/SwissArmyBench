@@ -44,7 +44,7 @@ import { inlineSource } from "./inlineCompletion";
 import { cellConnections, colourOf, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
 import { h } from "./dom";
-import type { CodeEditor, LineNote, ScriptOutline } from "./lazy/codeEditor";
+import type { CodeEditor, IdeMoves, LineNote, ScriptOutline } from "./lazy/codeEditor";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { type ConsoleView, loadEditors, type RunOrigin } from "./workbenchConsole";
 import { pythonCompleter } from "./workbenchCompletion";
@@ -214,7 +214,7 @@ export function scriptView(
   changed: () => void,
   names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[]; datasets?: string[] },
   file: ScriptFile,
-  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void; arguments?: () => string; ranFile?: (ok: boolean, seconds: number) => void } = {},
+  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void; arguments?: () => string; ranFile?: (ok: boolean, seconds: number) => void; ide?: IdeMoves } = {},
 ): ScriptView {
   const editorHost = h("div", { class: "wb-script-editor" });
   let editor: CodeEditor | null = null;
@@ -787,6 +787,7 @@ export function scriptView(
     const intel = pythonIntel(kernel, { notebook: false, document: docName });
     const intelKey = `${Math.random()}`;
     editor = m.createCodeEditor(editorHost, {
+      pageZoom: true, // the page's code zoom (Ctrl+wheel, Ctrl+= - 0)
       language: "python",
       value: initial,
       theme: theme(),
@@ -798,6 +799,7 @@ export function scriptView(
         text: editor?.value() ?? initial,
       })),
       keys: { f5: () => void runFile(), ctrlEnter: () => void runSelection(), shiftEnter: () => void runSelection(), f1: hooks.help },
+      ide: hooks.ide, // the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F (workbenchIde.ts)
       complete: (text, offset) => intel.complete(text, offset).then((found) => found ?? python(text, offset)),
       intel: {
         signature: intel.signature,

@@ -46,7 +46,8 @@ AREAS = (
     ),
 )
 # The rail's area it adds (the page draws it from this; web/ never names the extension), and the footer's mark.
-RAIL = ({"area": "scm", "name": "Source Control", "icon": "source-control", "mark": "/git/mark"},)
+# Git (the owner, 2026-11-21: "rename ... Source Control to GIT"; the tool's own spelling).
+RAIL = ({"area": "scm", "name": "Git", "icon": "source-control", "mark": "/git/mark"},)
 
 
 def _area(what: str) -> tuple[str, str, dict[str, Any]]:

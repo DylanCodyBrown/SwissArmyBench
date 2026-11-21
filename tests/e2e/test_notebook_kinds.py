@@ -36,7 +36,7 @@ def workbench(browser: Browser, server: dict[str, Any], query: str = "") -> Page
     page = browser.new_context(viewport={"width": 1500, "height": 950}, device_scale_factor=2).new_page()
     page.on("dialog", lambda d: d.accept())
     page.goto(f"http://127.0.0.1:{server['port']}/workbench{query}#token={server['token']}")
-    expect(page.locator(".wb-top")).to_be_visible(timeout=20000)
+    expect(page.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (2026-11-21)
     return page
 
 
@@ -85,6 +85,24 @@ def test_a_projects_notebooks_wear_their_kind_on_tabs_cards_and_files(
     # The agent sees the same kinds.
     roles = {d["title"]: d.get("role") for d in window(server, "documents")["documents"]}
     assert roles["data.ipynb"] == "data" and roles["pickers.ipynb"] == "app", roles
+    # The Notebooks page's explorer (2026-11-21): the data notebook first, then the rest, each its icon.
+    explorer = page.locator(".wb-codex.page-notebooks")
+    heads = explorer.locator(".wb-codex-group-head > span:not(.wb-codex-count)")
+    expect(heads).to_have_text(["Data notebook", "Notebooks"], timeout=20000)
+    data_files = explorer.locator(".wb-codex-group[data-group='data'] .wb-codex-file")
+    expect(data_files).to_have_count(1)
+    expect(data_files.first.locator("svg").first).to_have_attribute("data-icon", "dataNotebook")
+    apps = explorer.locator(".wb-codex-group[data-group='notebooks'] .wb-codex-file")
+    expect(apps).to_have_count(2)
+    expect(apps.locator("svg[data-icon='appNotebook']")).to_have_count(2)
+    shot(page, "notebooks-page-two-groups")
+    # New on that page makes an app notebook (the project has one data notebook).
+    page.get_by_role("button", name="Workbench menu", exact=True).click()
+    page.get_by_role("menuitem", name="New app notebook", exact=True).click()
+    made = tab(page, "Untitled notebook")
+    expect(made).to_have_attribute("data-kind", "appNotebook", timeout=20000)
+    expect(made.locator(".wb-tab-icon")).to_have_attribute("title", "App notebook")
+    shot(page, "new-app-notebook")
 
 
 def test_the_data_explorer_is_beside_every_document(
@@ -110,9 +128,9 @@ def test_the_data_explorer_is_beside_every_document(
 
 def test_a_notebook_outside_a_project_is_plain(browser: Browser, server: dict[str, Any]) -> None:
     page = workbench(browser, server, "?kind=notebook&view=list")
-    top = page.locator(".wb-top")
-    expect(top.get_by_role("button", name="New notebook")).to_be_visible(timeout=20000)
-    top.get_by_role("button", name="New notebook").click()
+    new = page.locator(".wb-landing").get_by_role("button", name="New notebook")
+    expect(new).to_be_visible(timeout=20000)
+    new.click()
     made = tab(page, "Untitled notebook")
     expect(made).to_have_attribute("data-kind", "notebook", timeout=20000)
     expect(made.locator(".wb-tab-icon")).to_have_attribute("data-icon", "notebook")

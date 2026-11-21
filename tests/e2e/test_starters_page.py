@@ -313,6 +313,8 @@ def test_in_a_script_a_snippet_is_a_cell_of_its_own(
     browser: Browser, server: dict[str, Any], orders: None
 ) -> None:
     workbench = open_window(browser, server)
+    workbench.goto(workbench.url.split("/notebooks")[0].split("/workbench")[0] + "/scripts")  # its page
+    expect(workbench.locator(".wb-codex.page-scripts")).to_be_visible(timeout=20000)
     window(server, "file.newScript")
     expect(workbench.locator(".wb-script-editor .monaco-editor")).to_be_visible(timeout=20000)
     window(

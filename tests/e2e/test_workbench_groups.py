@@ -35,9 +35,9 @@ def titles(group: Locator) -> list[str]:
 
 
 def three_tabs(workbench: Page) -> None:
-    """Two notebooks and a script in the one group."""
+    """Three notebooks in the one group (a script is the Scripts page's since 2026-11-21)."""
     start(workbench)
-    start(workbench, "New script")
+    start(workbench)
     start(workbench)
     expect(workbench.locator(".wb-tab")).to_have_count(3, timeout=20000)
 
@@ -67,7 +67,7 @@ def test_groups_split_right_and_down_by_command_and_come_back_after_a_reload(
     window(server, "group.splitRight")
     expect(groups).to_have_count(2)
     expect(workbench.locator(".wb-gsplit.row > .wb-group")).to_have_count(2)
-    assert titles(groups.nth(0)) == ["Untitled notebook 1", "Untitled script 2"]
+    assert titles(groups.nth(0)) == ["Untitled notebook 1", "Untitled notebook 2"]
     assert titles(groups.nth(1)) == ["Untitled notebook 3"]
     expect(groups.nth(1)).to_have_class(re.compile(r"\bfocused\b"))
     # Only the focused group's row has the controls.
@@ -77,7 +77,7 @@ def test_groups_split_right_and_down_by_command_and_come_back_after_a_reload(
     # Focus the first group (the agent's command), then Split down from the palette.
     window(server, "group.focus", group=0)
     expect(groups.nth(0)).to_have_class(re.compile(r"\bfocused\b"))
-    expect(groups.nth(0).get_by_role("button", name="Run file")).to_be_visible()  # the script is in front
+    expect(groups.nth(0).get_by_role("button", name="Run all")).to_be_visible()
     workbench.keyboard.press("Control+Shift+P")
     workbench.get_by_role("combobox", name="Command").fill("split down")
     workbench.keyboard.press("Enter")
@@ -89,7 +89,7 @@ def test_groups_split_right_and_down_by_command_and_come_back_after_a_reload(
     # A splitter moves by keyboard.
     sash = workbench.locator(".wb-gsash.row")
     sash.focus()
-    remembered = "() => sessionStorage.getItem('workbench-documents')"
+    remembered = "() => sessionStorage.getItem('workbench-documents:notebooks')"
     before = workbench.evaluate(remembered)
     workbench.keyboard.press("ArrowRight")
     expect(sash).to_have_attribute("aria-valuenow", "53")
@@ -101,7 +101,7 @@ def test_groups_split_right_and_down_by_command_and_come_back_after_a_reload(
     expect(groups).to_have_count(3, timeout=20000)
     assert [titles(groups.nth(i)) for i in range(3)] == [
         ["Untitled notebook 1"],
-        ["Untitled script 2"],
+        ["Untitled notebook 2"],
         ["Untitled notebook 3"],
     ]
     expect(workbench.locator(".wb-gsplit.row > .wb-gsplit.column > .wb-group")).to_have_count(2)
@@ -111,7 +111,7 @@ def test_groups_split_right_and_down_by_command_and_come_back_after_a_reload(
     )
     assert abs(flex - 1.06) < 0.02  # the splitter's place too
     # Closing a group's last tab removes the group.
-    groups.nth(1).get_by_role("button", name="Close Untitled script 2").click()
+    groups.nth(1).get_by_role("button", name="Close Untitled notebook 2").click()
     expect(groups).to_have_count(2)
     expect(workbench.locator(".wb-gsplit.column")).to_have_count(0)
     workbench.close()
@@ -128,11 +128,11 @@ def test_tabs_reorder_and_split_by_drag_with_the_five_way_guide(
     first = group.locator(".wb-tab").first.bounding_box()
     assert first
     drag(workbench, group.locator(".wb-tab").nth(2), first["x"] + 8, first["y"] + first["height"] / 2)
-    assert titles(group) == ["Untitled notebook 3", "Untitled notebook 1", "Untitled script 2"]
+    assert titles(group) == ["Untitled notebook 3", "Untitled notebook 1", "Untitled notebook 2"]
     # Drag a tab to the group's right edge: the guide shows where it goes, and it splits right.
     body = group.locator(".wb-gbody").bounding_box()
     assert body
-    tab = group.locator(".wb-tab", has_text="Untitled script 2")
+    tab = group.locator(".wb-tab", has_text="Untitled notebook 2")
     box = tab.bounding_box()
     assert box
     workbench.mouse.move(box["x"] + 20, box["y"] + 10)
@@ -145,11 +145,11 @@ def test_tabs_reorder_and_split_by_drag_with_the_five_way_guide(
     expect(workbench.locator(".wb-compass")).to_be_visible()
     expect(workbench.locator(".wb-drop")).to_have_attribute("data-zone", "right")
     expect(workbench.locator(".wb-drop-zone")).to_have_text("Split right")
-    expect(workbench.locator(".wb-tab-ghost")).to_contain_text("Untitled script 2")
+    expect(workbench.locator(".wb-tab-ghost")).to_contain_text("Untitled notebook 2")
     workbench.mouse.up()
     groups = workbench.locator(".wb-group")
     expect(groups).to_have_count(2)
-    assert titles(groups.nth(1)) == ["Untitled script 2"]
+    assert titles(groups.nth(1)) == ["Untitled notebook 2"]
     expect(workbench.locator(".wb-compass")).to_have_count(0)
     # Drag a tab to the lower part of the other group: split down there.
     right = groups.nth(1).locator(".wb-gbody").bounding_box()
@@ -189,7 +189,7 @@ def test_tabs_reorder_and_split_by_drag_with_the_five_way_guide(
     window(server, "tab.moveLeft", index=window(server, "documents")["groups"][0]["in_front"])
     assert titles(groups.nth(0)) == ["Untitled notebook 1", "Untitled notebook 3"]
     window(server, "group.moveTab", group=1, position=0)
-    assert titles(groups.nth(1)) == ["Untitled notebook 1", "Untitled script 2"]
+    assert titles(groups.nth(1)) == ["Untitled notebook 1", "Untitled notebook 2"]
     # A splitter dragged by its grip.
     sash = workbench.locator(".wb-gsash.row")
     grip = sash.bounding_box()
@@ -282,7 +282,7 @@ def test_the_data_panel_folds_and_table_opens_a_file_and_a_connections_table(
         panel.get_by_role("button", name="Add a blade").click()
         expect(flyout.get_by_role("heading", name="Connections and blades")).to_be_visible()
         expect(flyout.locator(".blade-item", has_text="Shop")).to_be_visible()
-        workbench.locator(".wb-top").click()
+        workbench.locator(".wb-status").click()  # a click elsewhere
         expect(flyout).to_be_hidden()
         workbench.close()
     finally:
@@ -323,9 +323,9 @@ def test_the_status_bar_has_the_kernel_its_menu_the_environment_and_the_panes(
     assert window(server, "view.toggleConsole", show=False) == {"shown": False}
     expect(workbench.locator(".wb-console")).to_be_hidden()
     expect(bar.get_by_role("button", name="Console")).to_have_attribute("aria-pressed", "false")
-    # The top bar names the document, with a dot while it has unsaved changes.
-    expect(workbench.locator(".wb-top .wb-name")).to_contain_text("Untitled notebook 1")
-    expect(workbench.locator(".wb-top .wb-name-dot")).to_be_visible()
+    # No top bar (2026-11-21): the tab names the document, with a dot while it has unsaved changes.
+    expect(workbench.locator(".wb-tab.dirty .wb-tab-dirty").first).to_have_text("●")
+    expect(workbench.locator(".wb-tab .tab-label").first).to_have_text("Untitled notebook 1")
     workbench.close()
 
 
@@ -337,7 +337,6 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
     items = workbench.get_by_role("menu", name="Workbench menu").get_by_role("menuitem")
     names = [
         "New notebook",
-        "New script",
         "Open…",
         "In this project…",
         "Split right",
@@ -346,9 +345,10 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
     ]
     for name in names:
         expect(items.filter(has_text=name)).to_have_count(1)
+    expect(items.filter(has_text="New script")).to_have_count(0)  # the Scripts page's (2026-11-21)
     workbench.get_by_role("menuitem", name="New notebook").click()
-    for name in ("Save", "Save as…"):
-        expect(workbench.locator(".wb-top").get_by_role("button", name=name, exact=True)).to_be_enabled()
+    # No top bar: Save in the document's row, Save as… in its menu (Ctrl+S, Ctrl+Shift+S).
+    expect(workbench.locator(".wb-gcontrols").get_by_role("button", name="Save", exact=True)).to_be_enabled()
     workbench.get_by_role("button", name="Add cell").first.click()
     expect(workbench.get_by_role("menu", name="Cell kinds").locator(".wb-menu-text")).to_have_text(
         ["Python", "SQL", "DAX", "HTML", "Markdown"]
@@ -370,7 +370,7 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
     ):
         expect(items.filter(has_text=name)).to_have_count(1)
     workbench.keyboard.press("Escape")
-    menu(workbench, "Workbench menu", "New script")
+    start(workbench, "New script")  # on the Scripts page
     expect(workbench.get_by_role("button", name="Run file")).to_be_visible()
     # A script has no "+ Cell" (the owner, 2026-11-17: cells are a notebook's).
     expect(workbench.get_by_role("button", name="Add cell")).to_have_count(0)
@@ -379,10 +379,10 @@ def test_every_action_of_the_old_toolbar_is_in_a_menu(browser: Browser, server: 
         workbench.get_by_role("menu", name="Document menu").get_by_role("menuitem", name="Run statement")
     ).to_be_visible()
     workbench.keyboard.press("Escape")
-    # The new tab's "+" offers what starts there.
+    # The new tab's "+" offers what starts there: on the Scripts page, a script only.
     workbench.get_by_role("button", name="New tab").click()
-    expect(
-        workbench.get_by_role("menu", name="New tab").get_by_role("menuitem", name="New notebook")
-    ).to_be_visible()
+    new_tab = workbench.get_by_role("menu", name="New tab")
+    expect(new_tab.get_by_role("menuitem", name="New script")).to_be_visible()
+    expect(new_tab.get_by_role("menuitem", name="New notebook")).to_have_count(0)
     workbench.keyboard.press("Escape")
     workbench.close()

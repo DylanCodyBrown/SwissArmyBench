@@ -242,7 +242,7 @@ def test_a_file_opened_with_the_app_is_read_by_its_path(
         assert names == ["orders", "orders_2"]
         # A notebook with no Workbench window open: a Workbench window that opens it (no token in the page).
         page = launch.file_page(str(notebook), info)
-        assert page.startswith("/workbench?file=") and "analysis.ipynb" in page
+        assert page.startswith("/notebooks?file=") and "analysis.ipynb" in page
         assert rules.page_of(page) == page
         with pytest.raises(rules.ShellError, match="opens CSV"):
             launch.file_page(str(tmp_path / "notes.docx"), info)

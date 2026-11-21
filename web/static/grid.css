@@ -10176,9 +10176,6 @@ html.rail-names .nav-rail-toggle {
   padding: 0 12px 0 18px;
 }
 
-html.rail-names .nav-rail-mark {
-  padding-left: 17px;
-}
 
 html.rail-names .nav-rail-name {
   display: block;
@@ -19711,6 +19708,339 @@ body:has(.cat-main > .blade-host > .code-ide) .cat-top {
   display: none;
 }
 
+/* ===== the Notebooks and Scripts pages' explorer (codeExplorer.ts; the owner, 2026-11-21) =====
+   No top bar on either page: the layout has the whole height; the explorer is always on the left. */
+.workbench-page[data-page] {
+  grid-template-rows: minmax(0, 1fr);
+}
+.wb-top[hidden] {
+  display: none;
+}
+.wb-codex {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: calc(260px * var(--ui-zoom, 1));
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+.wb-codex-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 4px 12px;
+  min-height: 36px;
+}
+.wb-codex-title {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.wb-codex-search {
+  margin: 2px 8px 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.86rem;
+}
+.wb-codex-body {
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+.wb-codex-none,
+.wb-codex-body > .hint {
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+.wb-codex-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.wb-codex-group-head .icon-svg,
+.wb-codex-fold .icon-svg {
+  width: 12px;
+  height: 12px;
+}
+.wb-codex-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+.wb-codex-empty {
+  padding: 0 24px;
+  margin: 2px 0 6px;
+  font-size: 0.84rem;
+}
+.wb-codex-file-row {
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+}
+.wb-codex-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wb-codex-file,
+.wb-codex-symbol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.wb-codex-symbol {
+  width: 100%;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+.wb-codex-file:hover,
+.wb-codex-symbol:hover {
+  background: var(--row-hover);
+}
+.wb-codex-file.front {
+  background: var(--selected);
+}
+.wb-codex-file.open .wb-codex-name {
+  font-weight: 600;
+}
+.wb-codex-file .icon-svg,
+.wb-codex-symbol .icon-svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+.page-scripts .wb-codex-file .icon-svg {
+  color: var(--kind-script);
+}
+.page-notebooks .wb-codex-file .icon-svg {
+  color: var(--kind-notebook);
+}
+.wb-codex-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-codex-dirty {
+  color: var(--accent);
+}
+.wb-codex-mark {
+  margin-left: auto;
+  color: var(--muted);
+}
+.wb-codex-mark.edited {
+  color: var(--warn);
+}
+.wb-codex-action {
+  font-size: 0.78rem;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.wb-creator {
+  display: grid;
+  place-items: center;
+}
+/* The explorer folds to a strip (Ctrl+B) and resizes (its sash); full screen hides all but the tabs and code. */
+.wb-codex {
+  position: relative;
+}
+.wb-codex-strip {
+  display: none;
+}
+.wb-codex.closed {
+  width: 32px !important;
+}
+.wb-codex.closed > :not(.wb-codex-strip) {
+  display: none;
+}
+.wb-codex.closed .wb-codex-strip {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wb-codex-sash {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+.wb-codex-sash:hover,
+.wb-codex-sash:focus-visible {
+  background: var(--focus);
+  opacity: 0.4;
+}
+body.wb-full .nav-rail,
+body.wb-full .wb-codex,
+body.wb-full .wb-explorer,
+body.wb-full .wb-console-pane,
+body.wb-full .wb-env,
+body.wb-full .wb-status {
+  display: none !important;
+}
+body.wb-full.has-rail {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+/* The elsewhere bar over a document whose file changed (code_files.py's notice). */
+.wb-elsewhere {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--warn-soft);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+/* The Scripts IDE's lists: references, search, a rename's preview. */
+.ide-results-file {
+  margin: 4px 0 10px;
+}
+.ide-results-file > strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ide-result,
+.ide-change {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ide-result:hover {
+  background: var(--row-hover);
+}
+.ide-result-line {
+  min-width: 3em;
+  color: var(--muted);
+  text-align: right;
+}
+.ide-change del {
+  color: var(--error);
+}
+.ide-change ins {
+  color: var(--ok);
+  text-decoration: none;
+}
+.ide-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ide-search {
+  flex: 1;
+  padding: 4px 8px;
+  font: inherit;
+}
+.ide-skipped {
+  color: var(--warn);
+}
+/* The Scripts page's left side: Files above Blades, a splitter between, each folds. */
+.wb-codex.stacked {
+  display: flex;
+  flex-direction: column;
+}
+.wb-codex-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.wb-codex-pane.folded > :not(.wb-codex-head) {
+  display: none;
+}
+.wb-codex-pane-fold {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wb-codex-pane-fold .icon-svg {
+  width: 12px;
+  height: 12px;
+}
+.wb-codex-lower {
+  border-top: 1px solid var(--border);
+}
+.wb-codex-lower-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.wb-codex-hsash {
+  flex: 0 0 5px;
+  cursor: row-resize;
+  background: transparent;
+}
+.wb-codex-hsash:hover,
+.wb-codex-hsash:focus-visible {
+  background: var(--focus);
+  opacity: 0.4;
+}
+.wb-blades-pane {
+  padding: 0 4px;
+}
+.wb-generated {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 8px;
+  background: var(--surface);
+}
+
 /* ===== a connection's slots (connectionSlots.ts) and the Queries window (queriesWindow.ts) ===== */
 
 .connection-card {
@@ -20112,3 +20442,14 @@ body.queries-window {
 .cvs-run .cvs-export { padding: 0 14px; background: var(--surface); color: var(--fg); border: 1.5px solid var(--border-strong); border-radius: 7px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
 .cvs-run .cvs-export:hover { background: var(--row-hover); }
 .cvs-run .btn-label { display: inline !important; }
+
+/* Full screen: the documents take the whole height and width (the console's and Variables' room gone too). */
+body.wb-full .wb-col-left {
+  flex: 1 !important;
+  grid-template-rows: minmax(0, 1fr) 0 0 !important;
+}
+body.wb-full .wb-col-left > .wb-split,
+body.wb-full .wb-split.vertical,
+body.wb-full .wb-col-right {
+  display: none !important;
+}
