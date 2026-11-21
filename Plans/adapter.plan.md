@@ -152,16 +152,47 @@ the adapter.
 - Other sandbox-only things the user or the agent makes (made-up seed rows, test endpoints, test widgets) go in
   `sandbox_*.py` files too, so they are found and removed the same way.
 
-### The project contract is the extension's, as data
+### The project contract is the extension's, as JSON
 
 The owner: "The contract for a project should be laid out by the extensions as they are added so the app kernel
-doesn't require a change." The base declares only the core files (`sab_adapter.py`, `connections.py`, `API.py`,
-`data.py`, `README.md`, `requirements.txt`, `.sab/`). Each extension declares the rest of its project type in its
-manifest, beside MODE, as one `PROJECT` value: each file or folder it owns, made or yours, what grows it (a canvas
-page, a measure, a sheet) and how its sections are marked. The base reads that list to scaffold, grow, list, check
-and export a project; it never names an extension's file. Adding a project type (Databricks next) is a new manifest
-and its writers, with no change to the base. A test checks every installed extension's PROJECT against the shared
-shape and that no base file names an extension's files.
+doesn't require a change" / "A project's contract is laid out in json. Everything including the ide language. The
+back end always remains python based with the duckdb adapter being the entry for data and apis in and out."
+
+- Each project type is one JSON file, `<type>.project.json`, shipped by its extension (the base ships `bi`'s): its
+  files and folders, what the editors offer (languages, cell kinds, the IDE's language per file pattern), its canvas,
+  what grows each file, its export, its words. The base reads only this file to scaffold, grow, list, check, open
+  and export a project; it never names an extension's file, and the front end draws what the JSON says.
+- **What may vary:** anything in the JSON: the files, the IDE's languages (a code app's TypeScript and TSX, a
+  Databricks project's PySpark and Databricks SQL), the canvas, the deliverable.
+- **What never varies:** the back end is Python; data and API payloads go in and out only through the DuckDB
+  adapter (`sab_adapter.py`); the core files are the base's. A JSON contract can add, never replace, them.
+- Today's `MODE` value in each extension.py moves into this file (one source, not two). A test checks each
+  installed contract against the shared JSON schema, and that no base file names an extension's file.
+
+A sketch (the Power BI type):
+
+```json
+{
+  "format": 1,
+  "type": "powerbi",
+  "name": "Power BI",
+  "deliverable": "a Power BI report",
+  "core": "base",
+  "languages": {"*.py": "python", "*.ipynb": "python", "*.tmdl": "tmdl", "*.dax": "dax", "*.m": "powerquery"},
+  "cells": ["python", "sql", "dax"],
+  "files": [
+    {"path": "data.ipynb", "owner": "user", "made_from": null, "grows_on": ["table"]},
+    {"path": "model.py", "owner": "app", "made_from": "the model", "grows_on": ["relationship", "measure"],
+     "section": "# --- {kind}: {name} ---"},
+    {"path": "powerbi/", "owner": "app", "made_from": "model.py and connections.py", "grows_on": ["export"]}
+  ],
+  "canvas": null,
+  "export": {"target": "powerbi", "files": ["powerbi/"]},
+  "areas": ["projects", "powerbi", "connections", "variables", "data", "grids", "erd", "notebooks", "session",
+            "settings"],
+  "words": {"for_whom": "For anyone who works on a Power BI report and wants its data checked at the source."}
+}
+```
 
 ### A Power BI project (mock-up)
 
