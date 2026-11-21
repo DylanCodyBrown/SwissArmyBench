@@ -125,6 +125,17 @@ and variables"), each new thing one new, clearly marked section in its one file,
 Removing a thing removes its section. Nothing is written for a connection, endpoint or variable the project never
 uses.
 
+### The project contract is the extension's, as data
+
+The owner: "The contract for a project should be laid out by the extensions as they are added so the app kernel
+doesn't require a change." The base declares only the core files (`sab_adapter.py`, `connections.py`, `API.py`,
+`data.py`, `README.md`, `requirements.txt`, `.sab/`). Each extension declares the rest of its project type in its
+manifest, beside MODE, as one `PROJECT` value: each file or folder it owns, made or yours, what grows it (a canvas
+page, a measure, a sheet) and how its sections are marked. The base reads that list to scaffold, grow, list, check
+and export a project; it never names an extension's file. Adding a project type (Databricks next) is a new manifest
+and its writers, with no change to the base. A test checks every installed extension's PROJECT against the shared
+shape and that no base file names an extension's files.
+
 ### A Power BI project (mock-up)
 
 ```
