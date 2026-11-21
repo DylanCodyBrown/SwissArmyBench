@@ -17,6 +17,9 @@ columns lined up by name, and a column saying which file each row came from.
 
 A column one file lacks is empty in its rows. Values are read as text first, then pandas finds numbers
 and dates, as it does for one file. The files are only read.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `combine_csvs`, the one
+you call, is last.
 """
 
 from pathlib import Path

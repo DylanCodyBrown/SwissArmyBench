@@ -22,6 +22,9 @@ to write, in their own words, in this conversation. It signs in through the conn
 
 Each write is one Delta commit (all of it or none of it), made by the deltalake package. A vacuum keeps
 at least 168 hours (7 days): less is refused unless allow_shorter=True is set here, in the cell.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `write_delta`, the one you
+call, is last.
 """
 
 from typing import Any

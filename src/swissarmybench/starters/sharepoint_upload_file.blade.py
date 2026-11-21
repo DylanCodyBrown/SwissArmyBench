@@ -16,6 +16,9 @@ ending .xlsx) or CSV; a file on this computer as it is. A document of that name 
 
 Dry run first: as it stands it says what it would upload and changes nothing; pass dry_run=False to
 upload. An agent uploads only after you said to, in your own words.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `upload_file`, the one you
+call, is last.
 """
 
 from typing import Any

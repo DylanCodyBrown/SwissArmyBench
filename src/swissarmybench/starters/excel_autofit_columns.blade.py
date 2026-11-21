@@ -15,6 +15,9 @@
 
 Excel's own autofit needs Excel running; this measures each value's text instead (close, not exact).
 Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `autofit`, the
+one you call, is last.
 """
 
 from pathlib import Path

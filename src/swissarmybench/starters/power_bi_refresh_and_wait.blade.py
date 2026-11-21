@@ -22,6 +22,9 @@ as "Finance/Sales model"; or pass workspace="..."). The connection's own sign-in
 of its secret. Errors from Power BI arrive as PowerBIActionError, in plain words.
 
 Power BI's requests: POST .../datasets/{dataset}/refreshes, then GET .../datasets/{dataset}/refreshes
+
+Laid out top to bottom: the workspace and its sign-in, then this starter's own functions;
+`refresh_and_wait`, the one you call, is last.
 """
 
 import json

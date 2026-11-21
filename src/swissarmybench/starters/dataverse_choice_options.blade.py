@@ -21,6 +21,9 @@ DataverseActionError, in plain words.
 Dataverse's request: GET .../EntityDefinitions(LogicalName='<table>')/Attributes(LogicalName=
 '<column>')/Microsoft.Dynamics.CRM.PicklistAttributeMetadata?$expand=OptionSet (State and Status
 columns: StateAttributeMetadata, StatusAttributeMetadata)
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `choice_options`, the one
+you call, is last.
 """
 
 import re

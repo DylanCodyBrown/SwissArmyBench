@@ -14,6 +14,9 @@
 
 Only the first cell's value is kept, as in Excel: the others in the range are emptied. Returns the
 workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `merge`, the
+one you call, is last.
 """
 
 from pathlib import Path

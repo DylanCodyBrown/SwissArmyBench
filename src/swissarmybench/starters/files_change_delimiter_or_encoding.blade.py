@@ -17,6 +17,9 @@
 The file's own delimiter is found from its first lines unless `from_delimiter` names it. The source is
 never changed, and a file already at the new path is written over only with overwrite=True. Returns the
 new file's path. Standard library only.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `convert_csv`, the one you
+call, is last.
 """
 
 import csv

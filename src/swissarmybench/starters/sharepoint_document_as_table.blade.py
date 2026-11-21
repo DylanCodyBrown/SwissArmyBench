@@ -16,6 +16,9 @@ JSON-lines file, or a workbook's sheet or named table (its first sheet when none
 
 Downloaded into memory only, never written to disk; an unchanged file is downloaded once (kept by its
 eTag). header_row is the row holding the column names (1: the first).
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `document_table`, the one
+you call, is last.
 """
 
 from typing import Any

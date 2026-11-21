@@ -15,6 +15,9 @@
 
 Colours are hex (C00000 is a deep red, DDEBF7 a pale blue). What is not given stays as it was.
 Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `style_cells`,
+the one you call, is last.
 """
 
 from copy import copy

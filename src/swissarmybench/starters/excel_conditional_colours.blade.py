@@ -16,6 +16,9 @@ they change in Excel.
     color_rule("C:/reports/sales.xlsx", "Summary", "C2:C9", "between", 10, 20)
 
 Rules: >, >=, <, <=, =, !=, between. Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `color_rule`,
+the one you call, is last.
 """
 
 from pathlib import Path

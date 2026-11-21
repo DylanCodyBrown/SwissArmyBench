@@ -23,6 +23,11 @@ Everything it needs is written out here:
 It needs no Swiss Army Bench, and it holds no password and no row of data: each password is read
 from an environment variable (SETTINGS below), each table is read again from where it comes from.
 
+How it is laid out, top to bottom: REQUIREMENTS (its packages, checked before any is imported),
+SETTINGS (each environment variable it reads), the helpers, each connection's, vault's and blade's
+own code when it uses any, run() (the cells, in order), and main() last: what `python {file}` and
+an Azure Function call.
+
 Run it from any Python {python_version} or later:
 
     python {file}             checks its packages (REQUIREMENTS below), then runs
@@ -567,6 +572,9 @@ The first cell checks its packages and says the exact `pip install` for this ker
 `INSTALL = True` there to install them). Its requirements, for a requirements.txt:
 
 {requirements_txt}
+
+How it is laid out, top to bottom: the package check, the settings cell, the helpers, each
+connection's, vault's and blade's own code when it uses any, then the cells, in order.
 
 The settings cell is tagged `parameters`, so papermill can pass any of them. Give passwords as
 environment variables rather than parameters: papermill writes its parameters into the notebook it
