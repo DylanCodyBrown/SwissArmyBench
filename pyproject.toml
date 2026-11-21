@@ -175,6 +175,9 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # set up sys.path before importing, and hold long command lines.
 "tools/**" = ["S603", "S607", "S110", "E402", "E501"]
 "build.py" = ["S603", "S607"]
+# The made-up business: its SQL is built from fixed table names and whole numbers, never a caller's text.
+"tools/testbed/large_company.py" = ["S608"]
+"tests/test_large_company.py" = ["S608"]
 # The starter pack: its Power BI blades reach the REST API at the address their workspace connection holds,
 # and a snippet's lines (DAX, HTML, a piece for a Python cell) are kept as the cell will hold them.
 "src/swissarmybench/starters/**" = ["S310", "E501"]
@@ -203,3 +206,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "medium: a test on the made-up business's medium scale (SWISSARMYBENCH_TEST_MEDIUM=1 runs it)",
+    "slow: a long test skipped by default (SWISSARMYBENCH_TEST_SLOW=1 runs it)",
+]
