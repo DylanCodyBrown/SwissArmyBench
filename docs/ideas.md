@@ -7741,3 +7741,9 @@ Decisions:
 - Left for the second pass (their builders merge first): everything under extensions/streamlit, the local
   sandbox API and sandbox files, codeIde.ts, canvas*.ts, widget*.ts, workbenchPage.ts.
 
+
+## One adapter (the owner, 2026-11-21)
+The owner's model replaces the per-feature data paths: API -> sab_adapter.py -> tables; Connections -> sab_adapter.py
+-> Grids; Grids -> Notebooks; Grids, Blades, Variables, Structures -> Widgets -> Canvas. The adapter streams reads and
+writes and holds nothing; grids (named Arrow tables) are the only data kept; an export is the fewest files that build
+the app. The per-source mock clients are dropped (the owner: "use my model"). Plan: Plans/adapter.plan.md.
