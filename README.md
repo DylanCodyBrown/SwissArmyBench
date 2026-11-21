@@ -56,8 +56,6 @@ What a grid page does:
   project's own Python and is not installed with the app. App notebooks were replaced by widgets (2026-11-21).
 - **Tabs pop out:** any Workbench tab pops out into a window of its own (its unsaved changes and kernel go
   with it), and back.
-- **Panels:** Settings can switch off any panel of the Workbench or the grid page; every one is on
-  again the next time Swiss Army Bench starts.
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
   variables; `data.py` is its export, and what your notebooks and pages import (`from data import
   orders`). The app's canvas exports `pages/*.py` the same way.

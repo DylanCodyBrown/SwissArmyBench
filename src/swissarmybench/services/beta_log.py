@@ -246,7 +246,7 @@ class BetaLog:
         return {"id": self._write(entry)}
 
     async def note(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """A beta note: the user's words, the element, the panels, the last actions, the last errors."""
+        """A beta note: the user's words, the element, the last actions, the last errors."""
         if not self.on:
             raise Refused("Beta mode is off: turn it on in Settings to leave a note.")
         entry = rules.note(body, self._learned())

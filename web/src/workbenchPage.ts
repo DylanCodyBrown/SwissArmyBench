@@ -77,7 +77,6 @@ import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFil
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
-import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
@@ -711,7 +710,6 @@ function notebookModes(doc: Doc): void {
     title: "Outline",
     icon: "outline",
     where: "side",
-    panel: "workbench.outline",
     draw: (body) => {
       const flow = flows.get(doc);
       const view = doc.notebook!;
@@ -753,13 +751,13 @@ function scriptModes(doc: Doc): void {
   if (isApiFile(doc)) {
     // API.py: its endpoints beside the code, Try it there (closed until asked for: design principle 8.14). Its
     // Run is Run API, so it has no run settings or history of a script's.
-    doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", panel: "workbench.endpoints", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
+    doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
     return;
   }
   const chosen = { at: 0 };
   historyAt.set(doc, chosen);
-  doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", panel: "workbench.runSettings", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
-  doc.modes.add({ id: "runHistory", title: "Run history", icon: "history", where: "bottom", panel: "workbench.runHistory", draw: (body) => drawRunHistory(body, doc.path, () => void runScheduled(doc), chosen) });
+  doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
+  doc.modes.add({ id: "runHistory", title: "Run history", icon: "history", where: "bottom", draw: (body) => drawRunHistory(body, doc.path, () => void runScheduled(doc), chosen) });
 }
 
 /** Run as scheduled: saved first, then the script as a fresh process with no app; the history shows it. */
@@ -893,11 +891,6 @@ function modeSwitch(doc: Doc): HTMLElement | null {
     pick("Present", "eye", presenting, () => void present(doc, true)),
   );
 }
-
-onPanels(() => {
-  for (const d of docs) d.modes?.follow();
-  drawStatus();
-});
 
 // ----- a document MOVES to another Workbench window (the owner, 2026-11-15) -----
 // Popped out into a window of its own, or moved back to the main window: its unsaved text, its cell
@@ -1318,7 +1311,7 @@ async function showLineage(target?: LineageTarget & { number?: number }, into?: 
 
 /** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
-  if (doc !== current || layout.state().console || !panelOn("workbench.console")) return;
+  if (doc !== current || layout.state().console) return;
   layout.toggle("console", true);
   drawStatus();
 }
@@ -1929,7 +1922,7 @@ function topEntries(): MenuEntry[] {
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
     { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
     null,
-    ...(panelOn("workbench.explorer") ? [{ label: shown ? "Close the Data Explorer" : "Data Explorer", icon: "zoom", keys: "Ctrl+Shift+E", run: () => void runCommand("view.explorer") }] : []),
+    { label: shown ? "Close the Data Explorer" : "Data Explorer", icon: "zoom", keys: "Ctrl+Shift+E", run: () => void runCommand("view.explorer") },
     { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
     { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
     null,
@@ -3062,9 +3055,7 @@ const COMMANDS: Command[] = [
   { id: "mode.panel", group: "View", title: "Show or hide a panel of the document in front (Outline, Run settings, Run history)", args: 'panel: "outline", "runSettings" or "runHistory"; show: true or false (default: the other way)', when: () => !!current?.modes, whyNot: "the document in front has no panels", run: (a) => {
     const panel = text(a, "panel");
     const doc = current!;
-    const names: Record<string, string> = { outline: "Outline", runSettings: "Run settings", runHistory: "Run history" };
-    if (panel && names[panel] && !panelOn(`workbench.${panel}`)) throw new Error(turnedOff(names[panel]));
-    if (!panel || !doc.modes!.panels().some((p) => p.id === panel)) throw new Error(`The document in front has these panels: ${doc.modes!.panels().map((p) => p.id).join(", ") || "none (turned off in Settings)"}.`);
+    if (!panel || !doc.modes!.panels().some((p) => p.id === panel)) throw new Error(`The document in front has these panels: ${doc.modes!.panels().map((p) => p.id).join(", ") || "none"}.`);
     const show = a.show === undefined ? undefined : a.show === true;
     const open = doc.modes!.toggle(panel, show);
     drawStatus();
@@ -3104,7 +3095,7 @@ const COMMANDS: Command[] = [
   // View
   { id: "palette", group: "View", title: "Show every command", keys: "Ctrl+Shift+P", run: () => openPalette() },
   { id: "view.source", group: "View", title: "Go to the source", keys: "Ctrl+1", run: () => layout.focus("source") },
-  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
+  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
   // Full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable"): the tabs and the editor fill
@@ -3115,17 +3106,17 @@ const COMMANDS: Command[] = [
   ...(PAGE === "scripts"
     ? [{ id: "search.scripts", group: "Find", title: "Search in scripts…", keys: "Ctrl+Shift+F", run: () => (searchScripts({ openAt: (p: string, line: number) => void openAt(p, line) }, () => (current?.script ? { path: () => current!.path, text: () => current!.script!.text(), python: () => current!.python, replaceText: (t: string) => current!.script!.replaceText(t), reveal: (line: number) => current!.script!.reveal(line) } : null)), { opened: true }) }]
     : []),
-  { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: (a) => {
+  { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", run: (a) => {
     const show = typeof a.show === "boolean" ? a.show : undefined;
     return { open: explorerPane.toggle(show), popped: false };
   } },
-  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
+  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();
     drawStatus();
     return { shown };
   } },
-  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.console"), whyNot: turnedOff("The Console"), run: (a) => {
+  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", run: (a) => {
     const shown = layout.toggle("console", typeof a.show === "boolean" ? a.show : undefined);
     drawStatus();
     return { shown };
@@ -3163,7 +3154,7 @@ const COMMANDS: Command[] = [
   // The open tables and the blades' variables (once the Data panel's; the Data Explorer finds them)
   { id: "data.list", agentOnly: true, group: "Data", title: "The open tables and the blades' variables (the Data Explorer finds more: explorer.search)", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed" }) },
   // The Data Explorer (workbenchExplorer.ts, dataExplorer.ts): its search, its Insert, popping out and back
-  { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: async (a) => {
+  { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", run: async (a) => {
     const kinds = Array.isArray(a.kinds) ? a.kinds.map(String) : typeof a.kinds === "string" ? a.kinds.split(",") : [];
     const state: ExplorerState = { text: text(a, "text") ?? "", kinds, connection: text(a, "connection") ?? "", column: text(a, "column") ?? "", scroll: 0 };
     explorerPane.toggle(true);
@@ -3177,7 +3168,7 @@ const COMMANDS: Command[] = [
     return explorerInsert({ ...(typeof insert.sql === "string" ? { sql: insert.sql } : {}), ...(typeof insert.python === "string" ? { python: insert.python } : {}) });
   } },
   { id: "explorer.target", agentOnly: true, group: "Data", title: "Where the Data Explorer's Insert goes: the focused document and its cell", run: () => explorerTarget() },
-  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out: the Data page in a window of its own, with its search", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: () => popExplorer() },
+  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out: the Data page in a window of its own, with its search", run: () => popExplorer() },
   { id: "tables.transformations", group: "Tables", title: "Show a table's transformations (its read-only cell, wherever it lives)", args: "table: the table's name", run: (a) => {
     const table = text(a, "table");
     if (!table) throw new Error("Send the table's name.");
@@ -3430,14 +3421,6 @@ onNotice((notice) => {
   if (["grid_updated", "dataset_updated"].includes(notice.type)) lineageNoticed();
 });
 
-// A panel turned off in Settings is gone (grid.css, by <body>'s class); an open console or Variables
-// closes with it, and stays closed until it is turned on again and opened.
-onPanels(() => {
-  if (!panelOn("workbench.console") && layout.state().console) layout.toggle("console", false);
-  if (!panelOn("workbench.variables") && layout.state().right) layout.toggle("right", false);
-  drawStatus();
-});
-
 watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
 // The open project's mode changed (a project opened or closed): New's language and the cell kinds follow.
 onNotice((notice) => {
@@ -3451,7 +3434,6 @@ window.addEventListener("message", (e: MessageEvent) => {
   if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => errorToast(err));
 });
 void Promise.all([
-  loadPanels(),
   loadKindColours(),
   refreshHome(),
   loadConnections(),

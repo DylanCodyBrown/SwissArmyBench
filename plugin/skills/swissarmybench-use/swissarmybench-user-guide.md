@@ -244,9 +244,8 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 ### Settings
 
-Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
+Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser) and the setup prompt for connecting an agent.
 
-**Panels** has a switch for each panel: in the Workbench the Data Explorer, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Outline, Run settings and Run history; and on every page, the navigation rail.
 
 **Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
 

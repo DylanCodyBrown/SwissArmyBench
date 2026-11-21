@@ -305,7 +305,7 @@ def element(value: Any, aliases: Aliases | None) -> dict[str, Any]:
 
 def note(body: Any, aliases: Aliases | None) -> dict[str, Any]:
     """A note as the page sends it. The note's own words are kept as the user typed them; everything the
-    page worked out (the element, the panels, the actions) is redacted."""
+    page worked out (the element, the actions) is redacted."""
     if not isinstance(body, dict):
         raise BetaError('Send {"text": "what is wrong", "element": {...}}.')
     text = body.get("text")
@@ -328,7 +328,6 @@ def note(body: Any, aliases: Aliases | None) -> dict[str, Any]:
         "page": slug(body.get("page")),
         "window": slug(body.get("window")),
         "element": element(body.get("element"), aliases),
-        "panels": listed("panels", 40, 40),
         "tabs": listed("tabs", 40, 40),
         "actions": listed("actions", MAX_ACTIONS, 80),
         "page_errors": [

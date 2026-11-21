@@ -3925,17 +3925,6 @@ def app_gates(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "app_panels",
-    "The panels' switches in Settings (all on at each start); with set, turn some off or on",
-    opt("set", '{"workbench.console": false, "grid.ribbon": true}', "json"),
-)
-def app_panels(a: dict[str, Any]) -> Any:
-    if a.get("set") is not None:
-        return api.call("PUT", "/panels", a["set"])
-    return api.call("GET", "/panels")
-
-
-@command(
     "app_session",
     "The Session page's log: what you (and the user) made or changed this session, newest first, each "
     "with its area and its object; and whether the user follows you (their switch, read-only to you)",
@@ -4046,7 +4035,7 @@ def app_beta_log(a: dict[str, Any]) -> Any:
     return api.call("GET", "/beta/log", params={k: a.get(k) for k in ("kind", "since", "limit")})
 
 
-@command("app_beta_notes", "The user's beta notes: words, element, panels, last actions")
+@command("app_beta_notes", "The user's beta notes: words, element, last actions")
 def app_beta_notes(a: dict[str, Any]) -> Any:
     return api.call("GET", "/beta/notes")
 

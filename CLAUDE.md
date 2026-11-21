@@ -146,7 +146,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
   window or the grid page's Ctrl+K), tabs that pop out into windows of their own (and move
-  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
+  back) with their unsaved text and kernel, Kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
   Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
@@ -512,7 +512,6 @@ src/swissarmybench/
                          the missing table (DuckDB's own-table "Did you mean" dropped)
     packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
-    panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
                          (the package check, settings, the vault by managed identity, connections)
@@ -737,7 +736,6 @@ src/swissarmybench/
                          a Script over the project; the app's names; Ruff or pyflakes where there; a worker
                          thread, a one-second budget, superseded requests skipped); what each editor shows,
                          for the agent (workbench_complete, workbench_signature, workbench_problems)
-    panels.py            the panels' switches: in memory, shared by every window (panels_changed)
     modes.py             project modes: the open project's type (.sab/project.json) to its mode (canvases,
                          families, languages, cell kinds, tool group, export); GET /app/mode, app_mode; the rail's
                          areas the on extensions add (GET /app/areas: their RAIL, and the footer's mark route)
@@ -912,7 +910,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
-                         projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
+                         projects, project_scope, project_outline, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
                          explorer, library,

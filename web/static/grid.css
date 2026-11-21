@@ -8165,39 +8165,6 @@ body.dropping-file::after {
   pointer-events: none;
 }
 
-/* ===== panels turned off in Settings (panels.ts): gone, not folded ===== */
-
-body.panel-off-workbench-explorer .wb-explorer,
-body.panel-off-workbench-explorer .wb-status .wb-explorer-toggle,
-body.panel-off-workbench-streamlit .wb-data-section[data-panel="streamlit"],
-body.panel-off-workbench-console .wb-status .wb-console-toggle,
-body.panel-off-workbench-variables .wb-status .wb-variables-toggle,
-body.panel-off-workbench-status .wb-status,
-body.panel-off-grid-ribbon .ribbon,
-body.panel-off-grid-steps .steps-strip,
-body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusbar) {
-  display: none !important;
-}
-
-.panel-switches {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px 24px;
-}
-
-.panel-page {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.panel-page h4 {
-  margin: 0 0 2px;
-  color: var(--muted);
-  font-size: 0.86em;
-  font-weight: 600;
-}
-
 /* a snippet dragged over a cell of the Workbench; the Insert a snippet list */
 .wb-cell.snippet-over {
   outline: 2px dashed var(--accent);

@@ -34,45 +34,10 @@ import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, toast } from "./dom";
 import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
-import { loadPanels, panelList, setPanel } from "./panels";
 import { followSwitch } from "./sessionPage";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 import { errorHere } from "./errorNote";
 import { gatesSetting } from "./gates";
-
-/** One switch for each panel, by page. A panel turned off is gone from every window at once. */
-function panelsSection(): HTMLElement {
-  const grid = h("div", { class: "panel-switches" });
-  const draw = (): void => {
-    const pages = [...new Set(panelList().map((p) => p.page))];
-    grid.replaceChildren(
-      ...pages.map((page) =>
-        h(
-          "div",
-          { class: "panel-page", role: "group", "aria-label": page },
-          h("h4", {}, page),
-          ...panelList()
-            .filter((p) => p.page === page)
-            .map((p) =>
-              h(
-                "label",
-                { class: "check" },
-                h("input", {
-                  type: "checkbox",
-                  checked: p.on,
-                  dataset: { panel: p.id },
-                  onchange: (e: Event) => void setPanel(p.id, (e.target as HTMLInputElement).checked).catch((error: Error) => errorHere(error)),
-                }),
-                p.name,
-              ),
-            ),
-        ),
-      ),
-    );
-  };
-  void loadPanels().then(draw);
-  return h("fieldset", { class: "fieldset panels-fieldset" }, h("legend", {}, icon("panel"), "Panels"), grid);
-}
 
 /** The colour of each kind of Workbench document: app pages, notebooks, scripts. The server's (every
  *  window follows, kept across restarts); Default puts the theme's own back. */
@@ -166,7 +131,6 @@ function drawSettings(): void {
     ),
     teamSection(),
     gatesSetting(), // a project type's gates: Open every feature in this project
-    panelsSection(),
     kindColoursSection(),
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.
     h("fieldset", { class: "fieldset follow-fieldset" }, h("legend", {}, icon("session"), "Session"), followSwitch()),

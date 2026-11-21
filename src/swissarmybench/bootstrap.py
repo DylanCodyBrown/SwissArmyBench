@@ -164,7 +164,6 @@ from swissarmybench.services.local_api import LocalApi
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
-from swissarmybench.services.panels import Panels
 from swissarmybench.services.ports import INTERACTIVE as PRIORITY_INTERACTIVE
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
@@ -258,7 +257,6 @@ class Services:
     project_scope: ProjectScope
     project_outline: ProjectOutline
     script_exports: ScriptExports
-    panels: Panels
     session_log: SessionLog
     variables: Variables
     explorer: Explorer
@@ -1714,7 +1712,6 @@ def bootstrap(
             workbench.document_of,
         ),
         table_cells=table_cells,
-        panels=Panels(ws),
         modes=modes,
         switched_on=on_extensions,
         hooks=hooks,

@@ -45,7 +45,6 @@ import { HOME_URL, layerShown, mountNav, openLayer, setTitle, startNav, visit, w
 import { mountNavRail } from "./rail";
 import { renderKeyFinder } from "./keyFinder";
 import { mountBeta } from "./betaNotes";
-import { loadPanels } from "./panels";
 import { restoreCompare, showCompare } from "./compare";
 import { mountGridCommands } from "./gridCommands";
 import { mountFileChanged } from "./fileChanged";
@@ -342,7 +341,6 @@ async function start(): Promise<void> {
   mountStepsStrip(strip);
   $(".titlebar").hidden = true;
   mountBottomBar($(".statusbar"));
-  void loadPanels(); // a panel turned off in Settings is gone (grid.css, by <body>'s class)
   mountAiPanel(workspace, $("#ai-panel"), $(".splitter"));
   // An analysis's form opened from anywhere (the palette, a card's Run again) brings Analyze to the front;
   // its Change… finds a connection's table with the Data Explorer (Find data…).

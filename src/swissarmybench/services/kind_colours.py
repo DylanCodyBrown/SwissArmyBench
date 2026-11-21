@@ -1,5 +1,5 @@
 """Kind colours (domain/kind_colours.py): Settings and the agent read and set them; every window follows
-at once (the `kind_colours_changed` notice). Unlike the panels they last across restarts: a colour is a
+at once (the `kind_colours_changed` notice). They last across restarts: a colour is a
 choice the user made on purpose, kept in kind_colours.json in the state folder."""
 
 from __future__ import annotations

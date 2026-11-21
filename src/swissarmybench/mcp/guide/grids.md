@@ -57,7 +57,7 @@ steps strip counts the grid's steps; Edit steps opens them in a tab of their own
 ## The page
 - `app_snapshot(area)`: a PNG of what the user sees (app, ribbon, grid, steps, analyze or projects:
   the Projects page while it is open); the page's tab must be visible. It shows real values and is audited.
-- `app_panels`: Settings' panel switches (all on at each start). `app_rail(labels)`: the rail's names on or off (kept). `files_list`: a folder's files (`hidden` too); `files_new_folder`: a new folder in one. A system file dialog is the user's click only: pass paths to commands directly.
+- `app_rail(labels)`: the rail's names on or off (kept). `files_list`: a folder's files (`hidden` too); `files_new_folder`: a new folder in one. A system file dialog is the user's click only: pass paths to commands directly.
 - `app_navigate(to, window, new_window)`: move a window as the user does. `home` and `projects` (the mark,
   the rail's first item: the Projects page, every project as a card; `start`, its old name, still works),
   `back`, `forward`; the rail's areas from any window: `grids` (only the grids), `analyze`, `erd`, `notebooks`,
