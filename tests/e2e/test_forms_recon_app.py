@@ -176,9 +176,13 @@ def test_design_a_form_upload_excel_reconcile_a_month_and_see_the_differences(
     frame.get_by_role("button", name="Save the reconciliation").click()
     until(lambda: [r["recon_id"] for r in api(server, "GET", "/recons")], ["sales_ledger"], 60)
     frame.get_by_role("button", name="Run the reconciliation").click()
-    until(lambda: len(api(server, "GET", "/recons/sales_ledger/runs")), 1, 120)
+    # A run's row is listed as it starts and its counts are filled as it ends: wait for the counts.
+    until(
+        lambda: [{k: r[k] for k in want} for r in api(server, "GET", "/recons/sales_ledger/runs")],
+        [want],
+        120,
+    )
     run = api(server, "GET", "/recons/sales_ledger/runs")[0]
-    assert {k: run[k] for k in want} == want
     expect(frame.locator("[data-testid='stMetric']", has_text="Differences")).to_contain_text(
         "2", timeout=60000
     )

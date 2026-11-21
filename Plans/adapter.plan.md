@@ -111,6 +111,20 @@ writes only its own files, always with the same names in the same places for a p
 (never all at once at New project); the user and the agent may add any other files and folders beside them, and the
 app leaves those alone (it never moves, renames or regenerates them).
 
+The files grow as the user works (the owner: "the files grow as the user creates new connections/apis, structures
+and variables"), each new thing one new, clearly marked section in its one file, in the order it was made:
+
+| The user makes | The app adds |
+|---|---|
+| a connection | its section in `connections.py` (its list, read and write; its variables by name only) |
+| an endpoint | its function in `API.py` (yours to change after) |
+| a grid | its source and its DuckDB SQL in `data.py` |
+| a structure | its file in `structures/` and its line in `data.py` (a structure read as a grid) |
+| a variable | its name, where it comes from and what uses it in `README.md`'s Variables list (never its value) |
+
+Removing a thing removes its section. Nothing is written for a connection, endpoint or variable the project never
+uses.
+
 ### A Power BI project (mock-up)
 
 ```
