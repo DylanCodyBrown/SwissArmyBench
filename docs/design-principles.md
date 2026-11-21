@@ -646,6 +646,16 @@ settings, a path, Run settings, a project setting and a SQL query take `${NAME}`
   - The owner (2026-11-13): "You should probably talk to me first before designing anything"
 - **The browser draws; the server works.** Heavy page libraries load the first time they are needed.
 - **One command installs everything;** an editor is optional.
+- **Build the simplest thing for the task at hand** (the owner, 2026-11-21: "AI llms tend to over engineer code
+  for every use case Instead of focusing on creating the most simple thing for the task at hand. This is another
+  rule to good app design"). Write for the cases that exist today, not every case that might come:
+  - no layer, class, registry, option or setting with only one user; a function before a class, a plain value
+    before a configuration;
+  - no wrapper that only passes its arguments on, no copy of a helper that already exists, no defensive check
+    for a state that cannot happen;
+  - a second use earns the shared piece; a third earns the abstraction;
+  - when in doubt, delete it: less code is fewer bugs. A simplification never changes what the user sees or
+    the agent can do (that is a feature change, asked first).
 
 ## 13a. Kits: how the app grows
 
