@@ -167,7 +167,7 @@ def test_a_cell_is_as_wide_as_its_pane(browser: Browser, server: dict[str, Any])
     assert narrow < wide and room - narrow < 80, (narrow, room)
 
 
-def test_the_data_notebook_and_the_app_notebooks_have_icons_of_their_own(
+def test_the_data_notebook_has_an_icon_of_its_own(
     browser: Browser, server: dict[str, Any], orchard: dict[str, Any]
 ) -> None:
     folder: Path = orchard["folder"]
@@ -221,14 +221,14 @@ def test_the_data_notebook_and_the_app_notebooks_have_icons_of_their_own(
         return page.locator(".wb-tab", has_text=title).locator(".wb-tab-icon")
 
     expect(icon("data.ipynb")).to_have_attribute("data-icon", "dataNotebook", timeout=30000)
-    # In a project every other notebook is an app notebook, used by a canvas or not (2026-11-16).
-    expect(icon("scratch.ipynb")).to_have_attribute("data-icon", "appNotebook")
-    expect(icon("views.ipynb")).to_have_attribute("data-icon", "appNotebook", timeout=20000)
+    # In a project every other notebook is a plain one (app notebooks went, 2026-11-21).
+    expect(icon("scratch.ipynb")).to_have_attribute("data-icon", "notebook")
+    expect(icon("views.ipynb")).to_have_attribute("data-icon", "notebook", timeout=20000)
     # The Data panel's files and the landing's cards wear them too.
     for title, name in (
         ("data.ipynb", "dataNotebook"),
-        ("scratch.ipynb", "appNotebook"),
-        ("views.ipynb", "appNotebook"),
+        ("scratch.ipynb", "notebook"),
+        ("views.ipynb", "notebook"),
     ):
         expect(page.locator(".wb-file-open", has_text=title).locator("svg")).to_have_attribute(
             "data-icon", name
@@ -236,7 +236,7 @@ def test_the_data_notebook_and_the_app_notebooks_have_icons_of_their_own(
     # The page's explorer (2026-11-21) lists the project's notebooks, each with its kind's icon.
     explorer = page.locator(".wb-codex.page-notebooks")
     views = explorer.locator(".wb-codex-file[data-path='views.ipynb'] svg").first
-    expect(views).to_have_attribute("data-icon", "appNotebook", timeout=20000)
+    expect(views).to_have_attribute("data-icon", "notebook", timeout=20000)
     data = explorer.locator(".wb-codex-file[data-path='data.ipynb'] svg").first
     expect(data).to_have_attribute("data-icon", "dataNotebook")
     shot(page, "notebook-icons")

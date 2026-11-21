@@ -31,7 +31,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
-| `widgets_`, `canvas_` | widgets, the canvas, launches | `widgets_new`, `canvas_insert_widget`, `app_launch` |
+| `widgets_`, `canvas_` | widgets, the canvas, launches, builds | `widgets_new`, `canvas_insert_widget`, `canvas_builds` |
 | `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |
 | `files_`, `app_`, `extensions_` | files; page, mode, gates; extensions | `app_context`, `app_gates`, `extensions_list` |
 | `desktop_` | app windows | `desktop_open`, `app_lifecycle` |

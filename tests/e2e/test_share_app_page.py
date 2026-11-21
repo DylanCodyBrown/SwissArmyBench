@@ -141,14 +141,16 @@ def test_share_a_launched_canvas_app_from_plays_menu(
     page = open_canvas(browser, server, Path(made["path"]))
     with page.context.expect_page(timeout=180_000):
         page.locator(".cvs-top .cvs-play-more").click()
-        page.locator(".cvs-menu .cvs-menu-item", has_text="Launch").click()
+        page.locator(".cvs-menu .cvs-menu-item").filter(has=page.get_by_text("Launch", exact=True)).click()
     expect(page.locator(".cvs-top .cvs-play")).to_have_text("Stop", timeout=180_000)
     page.bring_to_front()
     page.locator(".cvs-top .cvs-play-more").click()
     items = page.locator(".cvs-menu .cvs-menu-item")
-    expect(items).to_have_count(2)
-    expect(items.last).to_have_text("Share…")
-    items.last.click()
+    # While launched: Stop, the Performance Analyzer, Share…, Builds… (the canvas-rest2 branch's merge).
+    expect(items).to_have_count(4)
+    share = items.filter(has_text="Share…")
+    expect(share).to_have_count(1)
+    share.click()
     dialog = page.locator("dialog.share-dialog")
     expect(dialog.locator("h2")).to_have_text("Share regional_sales")
     if dialog.locator(".share-install").count():

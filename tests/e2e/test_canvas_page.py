@@ -221,19 +221,19 @@ def test_build_a_page_on_the_canvas_and_play_it(
     # Play: the page live in place; its boxes where the canvas put them.
     # The run group is at the bottom of every right-click menu: a widget's, a container's, the empty grid's.
     assert page.locator(".cvs-bottom").get_by_role("button", name="Play").count() == 0
-    run_group = ["Play", "Launch", "Export…"]
-    # The top row's far right: Play (with its ▾: Launch) and Export, always shown.
+    run_group = ["Play", "Launch", "Launch with the Performance Analyzer", "Builds…", "Export…"]
+    # The top row's far right: Play (with its ▾: Launch, with the analyzer, Builds) and Export, always shown.
     expect(page.locator(".cvs-top .cvs-run .cvs-play")).to_have_text("Play")
     expect(page.locator(".cvs-top .cvs-run .cvs-export")).to_have_text("Export")
     page.locator(".cvs-top .cvs-play-more").click()
-    expect(page.locator(".cvs-menu .cvs-menu-item")).to_have_count(1)
-    expect(page.locator(".cvs-menu .cvs-menu-item .cvs-menu-key")).to_have_text("Ctrl+F5")
+    expect(page.locator(".cvs-menu .cvs-menu-item")).to_have_count(3)
+    expect(page.locator(".cvs-menu .cvs-menu-item .cvs-menu-key")).to_have_text(["Ctrl+F5", "Ctrl+Shift+F5"])
     page.keyboard.press("Escape")
     page.locator(".cvs-widget[data-widget='metric']").click(button="right")
     items = page.locator(".cvs-menu .cvs-menu-item")
     expect(items.last).to_contain_text("Export…")
     texts = items.all_inner_texts()
-    assert texts[-3].startswith("Play") and texts[0].startswith("Edit")
+    assert texts[-5].startswith("Play") and texts[0].startswith("Edit")
     page.keyboard.press("Escape")
     page.locator(".cvs-container[data-id='c1']").dispatch_event(
         "contextmenu", {"clientX": 300, "clientY": 300, "button": 2}
@@ -247,10 +247,9 @@ def test_build_a_page_on_the_canvas_and_play_it(
         "contextmenu", {"clientX": board["x"] + 300, "clientY": board["y"] + 400, "button": 2}
     )
     texts = [t.split("\n")[0].strip() for t in page.locator(".cvs-menu .cvs-menu-item").all_inner_texts()]
-    assert texts[:2] == ["Insert container", "Insert widget"] and texts[-3:] == run_group, texts
-    expect(page.locator(".cvs-menu .cvs-menu-item", has_text="Play").locator(".cvs-menu-key")).to_have_text(
-        "Shift+F5"
-    )
+    assert texts[:2] == ["Insert container", "Insert widget"] and texts[-5:] == run_group, texts
+    keys = page.locator(".cvs-menu .cvs-menu-item .cvs-menu-key").all_inner_texts()
+    assert keys[-4:] == ["F5", "Ctrl+F5", "Ctrl+Shift+F5", "Ctrl+Shift+E"], keys
     shot(page, "canvas-right-click-run-group")
     page.keyboard.press("Escape")
     page.locator(".cvs-top .cvs-play").click()
@@ -428,3 +427,76 @@ def test_a_widgets_description_changed_in_its_window_shows_on_its_card(
     description.blur()
     expect(card.locator(".cvs-card-desc")).to_have_text("Revenue for each region this month", timeout=20000)
     page.context.close()
+
+
+@needs_streamlit
+def test_launch_with_the_analyzer_then_compare_and_restore_builds(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+    orders: None,
+    tmp_path: Path,
+) -> None:
+    """Ctrl+Shift+F5 launches a build with the Performance Analyzer's window beside it, recording the launched
+    page's reruns by widget; a second launch (Ctrl+F5) after a change; Builds…: tick two and Compare (Monaco's
+    diff editor, canvas.json changed), then Restore build 1 (the label back) and Ctrl+Z (forward again)."""
+    project = tmp_path / "shop"
+    project.mkdir()
+    made = call(server, "POST", "/streamlit/canvases", {"name": "Sales", "folder": str(project)})
+    canvas = made["canvas"]
+
+    def send(kind: str, **body: Any) -> Any:
+        return call(server, "POST", f"/streamlit/canvases/{canvas}/command", {"kind": kind, **body})
+
+    send("add_container", x=0, y=0, w=600, h=300)
+    widget = send("insert_widget", parent="c1", widget="metric", values={"label": "Orders made up"})["made"]
+    page = open_canvas(browser, server, Path(made["path"]))
+    context = page.context
+    expect(page.locator(".cvs-widget[data-widget='metric']")).to_have_count(1)
+    page.locator(".cvs-board").focus()
+    with context.expect_page(timeout=60000) as first_window:
+        page.keyboard.press("Control+Shift+F5")
+    windows = [first_window.value]
+    # Both windows opened at once (about:blank), each sent on once the build has started (Playwright hears
+    # their navigations only while it is asked something: wait_for_timeout).
+    for _ in range(600):
+        if len(context.pages) >= 3 and any("/streamlit/perf" in p.url for p in context.pages):
+            break
+        page.wait_for_timeout(200)
+    analyzer = next(p for p in context.pages if "/streamlit/perf" in p.url)
+    app = next(p for p in context.pages if p not in (page, analyzer))
+    expect(app.get_by_text("Orders made up")).to_be_visible(timeout=120000)
+    expect(analyzer.locator(".pf-tabs")).to_be_visible(timeout=60000)
+    until(
+        lambda: call(server, "GET", f"/streamlit/canvases/{canvas}/perf")["reruns"] != [], True, seconds=120
+    )
+    del windows
+    reruns = call(server, "GET", f"/streamlit/canvases/{canvas}/perf")["reruns"]
+    assert reruns[0]["trigger"] == "first load"
+    assert any(b["title"] == f"metric ({widget})" for r in reruns for b in r["blocks"]), reruns
+    expect(analyzer.get_by_text(f"metric ({widget})").first).to_be_visible(timeout=30000)
+    shot(analyzer, "canvas-performance-analyzer")
+    # A change, then Ctrl+F5: build 2, with what changed in words.
+    send("set_values", id=widget, values={"label": "Revenue made up"})
+    page.locator(".cvs-board").focus()
+    page.keyboard.press("Control+F5")
+    until(lambda: len(call(server, "GET", f"/streamlit/canvases/{canvas}/builds")["builds"]), 2, seconds=120)
+    # Builds…: from Play's ▾.
+    page.locator(".cvs-top .cvs-play-more").click()
+    page.locator(".cvs-menu-item", has_text="Builds…").click()
+    dialog = page.locator(".bd")
+    expect(dialog.locator(".bd-row")).to_have_count(2, timeout=30000)
+    expect(dialog.locator(".bd-row[data-build='2'] .bd-changed")).to_contain_text("label changed")
+    dialog.get_by_label("Build 1").check()
+    dialog.get_by_label("Build 2").check()
+    page.locator(".bd-compare").click()
+    expect(page.locator(".bd-diff .monaco-diff-editor")).to_be_visible(timeout=60000)
+    expect(page.locator(".bd-file[data-file='canvas.json']")).to_be_visible()
+    shot(page, "canvas-builds-compare")
+    dialog.locator(".bd-row[data-build='1'] .bd-restore").click()
+    until(lambda: node(model(server, canvas), widget)["values"]["label"], "Orders made up", seconds=30)
+    page.keyboard.press("Escape")  # the dialog goes
+    page.locator(".cvs-board").focus()
+    page.keyboard.press("Control+z")
+    until(lambda: node(model(server, canvas), widget)["values"]["label"], "Revenue made up", seconds=30)
+    call(server, "DELETE", f"/streamlit/canvases/{canvas}/launch")
+    context.close()

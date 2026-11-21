@@ -170,9 +170,9 @@ def test_autosave_saves_after_a_change_and_not_when_off(tmp_path: Path) -> None:
         )
 
 
-def test_a_projects_notebooks_are_its_data_notebook_and_app_notebooks() -> None:
-    """In a project, data.ipynb (at its top) is THE data notebook and every other notebook is an app
-    notebook, used by a canvas or not yet (the owner, 2026-11-16: "data notebooks and app notebooks")."""
+def test_a_projects_notebooks_are_its_data_notebook_and_plain_ones() -> None:
+    """In a project, data.ipynb (at its top) is THE data notebook; every other notebook is plain (app
+    notebooks went, 2026-11-21: widgets on the Canvas replaced them)."""
     listed = [
         {"path": "data.ipynb", "kind": "notebook"},
         {"path": "views/sales.ipynb", "kind": "notebook"},
@@ -184,10 +184,7 @@ def test_a_projects_notebooks_are_its_data_notebook_and_app_notebooks() -> None:
     ]
     assert rules.notebook_roles(listed) == {
         "data.ipynb": "data",
-        "views/sales.ipynb": "app",
-        "scratch.ipynb": "app",
-        "Data.IPYNB": "data",
-        "more/data.ipynb": "app",  # one data notebook: the project's own, at its top
+        "Data.IPYNB": "data",  # one data notebook: the project's own, at its top (more/data.ipynb is plain)
     }
 
 
@@ -196,12 +193,12 @@ def test_a_notebooks_kind_inside_a_project_and_outside_one() -> None:
     is plain (data.ipynb stays the data notebook: its Data mode is its own)."""
     folder = "/work/orchard"
     assert rules.notebook_kind("/work/orchard/data.ipynb", folder) == "data"
-    assert rules.notebook_kind("/work/orchard/views/sales.ipynb", folder) == "app"
-    assert rules.notebook_kind("/work/orchard/views/data.ipynb", folder) == "app"
+    assert rules.notebook_kind("/work/orchard/views/sales.ipynb", folder) == ""
+    assert rules.notebook_kind("/work/orchard/views/data.ipynb", folder) == ""
     assert rules.notebook_kind("/elsewhere/scratch.ipynb", folder) == ""
     assert rules.notebook_kind("/elsewhere/scratch.ipynb", None) == ""
     assert rules.notebook_kind("/elsewhere/data.ipynb", None) == "data"
-    assert rules.notebook_kind("C:\\work\\orchard\\one.ipynb", "C:\\work\\orchard") == "app"
+    assert rules.notebook_kind("C:\\work\\orchard\\one.ipynb", "C:\\work\\orchard") == ""
     assert rules.notebook_kind("/work/orchardist/one.ipynb", folder) == ""
     assert rules.notebook_kind("/work/orchard/tidy.py", folder) is None  # not a notebook
 
@@ -226,7 +223,7 @@ def test_documents_and_dashboards_are_each_projects_own_connections_and_blades_t
         ok(client.post("/dashboards", json={"name": "Quarter"}, headers=AUTH))
         documents = ok(client.get("/project/documents?kind=notebook", headers=AUTH))
         assert [d["path"] for d in documents["documents"]] == ["analysis.ipynb", "data.ipynb"]
-        assert [d["role"] for d in documents["documents"]] == ["app", "data"]
+        assert [d.get("role") for d in documents["documents"]] == [None, "data"]
         assert documents["documents"][0]["full"] == str(Path(made["folder"]) / "analysis.ipynb")
         assert client.get("/project/documents?kind=sheet", headers=AUTH).status_code == 400
         ok(client.post("/project/save", json={}, headers=AUTH))

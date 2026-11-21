@@ -54,6 +54,10 @@ class Widgets:
         variables: Callable[[], set[str]] = set,
         variable_names: Callable[[], list[str]] = list,
         project_folder: Callable[[], str | None] = lambda: None,
+        data_tables: Callable[[], list[str]] = list,
+        connections: Callable[[], set[str]] | None = None,
+        connection_listing: Callable[[], Awaitable[dict[str, list[str] | None]]] | None = None,
+        read_connection_table: Callable[[str], Awaitable[bytes]] | None = None,
     ) -> None:
         self.ws = ws
         self._files = files  # adapters/widget_files.py WidgetFiles
@@ -67,6 +71,10 @@ class Widgets:
         self._variables = variables
         self._variable_names = variable_names  # the Variables page's names (a variable property's list)
         self._project_folder = project_folder
+        self._data_tables = data_tables  # the tables the project's data.py makes (data.ipynb's)
+        self._connections = connections  # the saved connections' names ([Conn].table)
+        self._connection_listing = connection_listing  # each connection's tables, as far as it is listed
+        self._read_connection_table = read_connection_table  # [Conn].table as Parquet, through the contract
 
     # ===== reading =====
 
@@ -94,9 +102,31 @@ class Widgets:
         except WidgetError as error:
             raise ValueError(f"{name}'s file does not read: {error}") from None
 
+    def _known_tables(self) -> dict[str, list[str] | None]:
+        """The open tables with their columns, then data.ipynb's (from data.py; columns not known here)."""
+        found = dict(self._tables())
+        try:
+            made = self._data_tables()
+        except Exception:  # data.py's own trouble: the open tables still count
+            made = []
+        for name in made:
+            found.setdefault(name, None)
+        return found
+
+    def _connection_names(self) -> set[str] | None:
+        if self._connections is None:
+            return None
+        try:
+            return set(self._connections())
+        except Exception:
+            return None
+
     def context(self, values: Mapping[str, Any] | None = None) -> props_rules.Context:
         return props_rules.Context(
-            tables=self._tables(), variables=self._variables(), values=dict(values or {})
+            tables=self._known_tables(),
+            variables=self._variables(),
+            values=dict(values or {}),
+            connections=self._connection_names(),
         )
 
     def _properties(self, code: str) -> tuple[list[props_rules.Property], dict[str, Any] | None]:
@@ -151,13 +181,35 @@ class Widgets:
             "kernel_setup": build_rules.kernel_setup(),
         }
 
-    def context_info(self) -> dict[str, Any]:
-        """What the Properties pane's pickers offer: the open tables with their columns, the variables."""
+    async def context_info(self) -> dict[str, Any]:
+        """What the Properties pane's pickers offer: the open tables with their columns, data.ipynb's
+        tables, each connection's tables as DuckDB SQL names them (`[Conn].table`; None: its catalog is
+        not listed yet, its table is typed), the variables."""
         try:
             names = sorted(set(self._variable_names()))
         except Exception:  # the Variables page's own trouble: the box still takes a name
             names = []
-        return {"tables": self._tables(), "variables": names, "project": self._project_folder()}
+        listing: dict[str, list[str] | None] = {}
+        if self._connection_listing is not None:
+            try:
+                listing = await self._connection_listing()
+            except Exception:  # a connection's own trouble: the other tables are still offered
+                listing = {}
+        open_tables = self._tables()
+        return {
+            "tables": self._known_tables(),
+            "open_tables": sorted(open_tables),
+            "data_tables": [t for t in self._data_tables_safe() if t not in open_tables],
+            "connection_tables": listing,
+            "variables": names,
+            "project": self._project_folder(),
+        }
+
+    def _data_tables_safe(self) -> list[str]:
+        try:
+            return list(self._data_tables())
+        except Exception:
+            return []
 
     def facts(self) -> dict[str, model.WidgetFacts]:
         made: dict[str, model.WidgetFacts] = {}
@@ -337,15 +389,22 @@ class Widgets:
         return str(chosen or self._project_python() or self.live.default_python())
 
     async def tables_for(self, names: set[str]) -> dict[str, bytes]:
-        """The open tables a run names, as Parquet (its widgets read data/<name>.parquet)."""
+        """The tables a run names, as Parquet (its widgets read data/<stem>.parquet): an open table after
+        its grid's steps, a connection's `[Conn].table` read through the connection-tables contract (so
+        through that connection's query limit, the one gate every connection run passes). A data.ipynb
+        table is data.py's, beside the app. One that cannot be read is left out: the widget says so in
+        its place."""
         out: dict[str, bytes] = {}
-        if self._table_data is None:
-            return out
         open_tables = self._tables()
-        for name in names:
-            if name in open_tables:
+        for name in sorted(names):
+            stem = build_rules.table_stem(name)
+            if props_rules.connection_of(name) is not None:
+                if self._read_connection_table is not None:
+                    with contextlib.suppress(Exception):
+                        out[stem] = await self._read_connection_table(name)
+            elif name in open_tables and self._table_data is not None:
                 with contextlib.suppress(Exception):
-                    out[name] = await self._table_data(name)
+                    out[stem] = await self._table_data(name)
         return out
 
     @staticmethod

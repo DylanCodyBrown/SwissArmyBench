@@ -19,15 +19,21 @@
  *                puts it in the selected container; hovering a card shows its preview large
  *   [BOTTOM]     sizing (Columns, Row height, Gap, Wide or Centred) | Snap and its step | Undo, Redo | Play,
  *                Launch, Export | Widgets, Properties | zoom (−, %, +, Fit). Narrow: the sizing folds into "…"
+ *   [RUN]        Play (F5) shows the page live in place; its ▾ and every right-click menu's run group: Launch
+ *                (Ctrl+F5: a build, its own window), Launch with the Performance Analyzer (Ctrl+Shift+F5: its
+ *                window beside, recording from the first load), Builds… (canvasBuilds.ts: Compare in Monaco's
+ *                diff editor, Restore), Export… (Ctrl+Shift+E)
  *   [ROBUST]     every change is a command the server checks (the layout's rules) and saves at once; each
  *                carries the version it was made on: another window's change is shown as a notice and the
  *                canvas as it is now, never written over; a missing widget is a placeholder (Replace, Remove);
  *                a broken file opens read-only with its line
  *
- * ROUTING: /streamlit/canvases (list, open), …/{canvas} (state), …/command, …/undo, …/redo, …/play, …/launch,
+ * ROUTING: /streamlit/canvases (list, open), …/{canvas} (state), …/command, …/undo, …/redo, …/play, …/launch
+ * (and …/builds, …/perf: routes_launch.py),
  * …/export; /streamlit/widgets (the gallery), …/{name}/preview, …/check-value.
  */
 import { api, ApiError, connect, onNotice, requireSession, saidOf } from "./api";
+import { analyzerAddress, openAnalyzer, openBuilds } from "./canvasBuilds";
 import { type Guide, type Rect } from "./canvasSnap";
 import { dotSpacing, gridLines, nudgeBy, snapRect, type Step } from "./canvasGrid";
 import { watchTheme } from "./catalogRail";
@@ -121,10 +127,10 @@ const previewWidth: Record<Layout, number> = { desktop: 1200, phone: 390 };
 const tabs = h("div", { class: "cvs-tabs", role: "tablist", "aria-label": "Pages" });
 // The top row's far right (the coordinator's plan, 2026-11-21): ▶ Play with its ▾ (Launch), and Export…; while
 // the app runs, Play is Stop. The right-click menu keeps the same group; the bottom bar holds none of them.
-const playButton = button("Play", () => void (running() ? stopRunning() : play()), { icon: "play", class: "cvs-play", title: "Play (Shift+F5)" });
+const playButton = button("Play", () => void (running() ? stopRunning() : play()), { icon: "play", class: "cvs-play", title: "Play (F5)" });
 const playMore = button("More ways to run", (e) => {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-  menu(r.left, r.bottom + 2, launched ? [{ label: "Stop the launched app", run: () => void stopLaunch() }, shareEntry()] : [{ label: "Launch", key: "Ctrl+F5", run: () => void launch() }]);
+  menu(r.left, r.bottom + 2, launchEntries(false));
 }, { icon: "down", iconOnly: true, class: "cvs-play-more" });
 const exportButton = button("Export", () => void exportApp(), { icon: "export", class: "cvs-export", title: "Export… (Ctrl+Shift+E)" });
 // Always shown, a block of their own (the owner: "make them look permanent and pronounced"): the tabs scroll.
@@ -773,10 +779,11 @@ function selectedContainer(): string | null {
 // Keys: arrows nudge, Delete removes, Ctrl+Z / Ctrl+Y, Esc, Insert.
 document.addEventListener("keydown", (e) => {
   // The run group's keys, anywhere on the page (the browser's own F5 never reloads the canvas).
+  // F5 Play, Ctrl+F5 Launch, Ctrl+Shift+F5 Launch with the Performance Analyzer (Visual Studio's keys).
   if (e.key === "F5" && state) {
     e.preventDefault();
-    if (e.ctrlKey || e.metaKey) void launch();
-    else if (e.shiftKey) void play();
+    if (e.ctrlKey || e.metaKey) void launch(e.shiftKey);
+    else void play();
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "e" && state) {
@@ -901,14 +908,29 @@ function menu(x: number, y: number, entries: MenuEntry[]): void {
   floating(element, x, y);
 }
 
-/** The run group at the bottom of every right-click menu (the owner, 2026-11-21): Play, Launch, Export…, each
- *  with its key; Stop instead while the page plays or the app is launched. */
+/** Play's ▾ (and the run group's middle): Launch, Launch with the Performance Analyzer, the analyzer's window
+ *  and Share… while launched, Builds…; Stop instead of Launch while the app is launched. */
+function launchEntries(group: boolean): MenuEntry[] {
+  const canvas = state?.canvas;
+  return [
+    launched ? { label: "Stop the launched app", group, run: () => void stopLaunch() } : { label: "Launch", key: "Ctrl+F5", group, run: () => void launch(false) },
+    launched
+      ? { label: "Performance Analyzer", disabled: !canvas, run: () => canvas && openAnalyzer(canvas) }
+      : { label: "Launch with the Performance Analyzer", key: "Ctrl+Shift+F5", run: () => void launch(true) },
+    // Share… (the share-app branch): the launched app's address for others, while it is launched.
+    ...(launched ? [shareEntry()] : []),
+    { label: "Builds…", disabled: !canvas, run: () => canvas && void openBuilds(canvas, buildsHost) },
+  ];
+}
+
+/** The run group at the bottom of every right-click menu (the owner, 2026-11-21): Play, Launch, Launch with
+ *  the Performance Analyzer, Builds…, Export…, each with its key; Stop instead while the page plays or the app is
+ *  launched. */
 function runGroup(after: boolean): MenuEntry[] {
   const playing = !live.hidden;
   return [
-    playing ? { label: "Stop playing", key: "Esc", group: after, run: () => stopPlay() } : { label: "Play", key: "Shift+F5", group: after, run: () => void play() },
-    launched ? { label: "Stop the launched app", run: () => void stopLaunch() } : { label: "Launch", key: "Ctrl+F5", run: () => void launch() },
-    ...(launched ? [shareEntry()] : []),
+    playing ? { label: "Stop playing", key: "Esc", group: after, run: () => stopPlay() } : { label: "Play", key: "F5", group: after, run: () => void play() },
+    ...launchEntries(false),
     { label: "Export…", key: "Ctrl+Shift+E", run: () => void exportApp() },
   ];
 }
@@ -1262,7 +1284,7 @@ function drawRun(): void {
   const on = running();
   playButton.replaceChildren(icon(on ? "stop" : "play"), h("span", { class: "btn-label" }, on ? "Stop" : "Play"));
   playButton.setAttribute("aria-label", on ? "Stop" : "Play");
-  playButton.title = on ? (!live.hidden ? "Stop playing (Esc)" : "Stop the launched app") : "Play (Shift+F5)";
+  playButton.title = on ? (!live.hidden ? "Stop playing (Esc)" : "Stop the launched app") : "Play (F5)";
   playButton.classList.toggle("running", on);
   const app = shareable();
   if (app && shareHolder.dataset.app !== app.id) {
@@ -1314,27 +1336,44 @@ async function stopLaunch(): Promise<void> {
   await api(`/streamlit/canvases/${state.canvas}/stop`, "POST", { run: "launch" }).catch((e) => showError(notice, e));
 }
 
-async function launch(): Promise<void> {
+/** Launch (Ctrl+F5): a new build run in a window of its own; `analyzer` (Ctrl+Shift+F5): the Performance
+ *  Analyzer recording from the first load, its window opened beside. */
+async function launch(analyzer = false): Promise<void> {
   if (!state) return;
   const opened = window.open("about:blank", `sab-launch-${state.canvas}`, "popup,width=1300,height=860");
-  await gated("Launching…", async () => {
+  // Both windows open now, on the key or click (a window opened after the wait would be blocked).
+  const perfWindow = analyzer ? openAnalyzer(state.canvas, undefined, "about:blank") : null;
+  await gated(analyzer ? "Launching with the Performance Analyzer…" : "Launching…", async () => {
     try {
-      const said = await api<{ ok: boolean; url?: string; title?: string; problem?: { message?: string } }>(`/streamlit/canvases/${state!.canvas}/launch`, "POST", {});
+      const said = await api<{ ok: boolean; url?: string; title?: string; problem?: { message?: string } }>(`/streamlit/canvases/${state!.canvas}/launch`, "POST", analyzer ? { analyzer: true } : {});
       if (!said.ok || !said.url) {
         opened?.close();
+        perfWindow?.close();
         return void showError(notice, new Error(said.problem?.message ?? "The app did not start."));
       }
       launched = true;
       drawRun();
       if (opened) opened.location.href = said.url;
       else showError(notice, new Error("The browser blocked the new window: allow pop-ups for this address."));
+      if (perfWindow) perfWindow.location.href = analyzerAddress(state!.canvas);
       toast(`${said.title ?? "The app"} launched.`);
     } catch (e) {
       opened?.close();
+      perfWindow?.close();
       showError(notice, e);
     }
   });
 }
+
+/** What the Builds dialog asks of the page: a relaunch's window is open, a restore's canvas is drawn. */
+const buildsHost = {
+  launched: (said: { title?: string }) => {
+    launched = true;
+    drawRun();
+    toast(`${said.title ?? "The build"} launched.`);
+  },
+  restored: (next: unknown) => take(next as State),
+};
 
 async function exportApp(): Promise<void> {
   if (!state) return;

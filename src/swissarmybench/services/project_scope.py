@@ -98,7 +98,7 @@ class ProjectScope:
             return {"project": None, "documents": []}
         files = self._files.files(current.folder)
         listed = rules.documents(files, kind or None)
-        # Each notebook's role (its icon and word): THE data notebook (data.ipynb), or an app notebook.
+        # THE data notebook's role (its icon and word): data.ipynb; every other notebook is plain.
         roles = rules.notebook_roles(listed)
         return {
             "project": current.name,

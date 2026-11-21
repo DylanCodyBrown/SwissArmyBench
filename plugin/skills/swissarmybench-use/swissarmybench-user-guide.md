@@ -74,7 +74,7 @@ window opens where you last left it. `swissarmybench open ~/sales` opens a proje
 
 **Extensions** (the puzzle piece at the bottom of the rail, above Settings) lists what plugs into Swiss Army Bench, one card each: its name, what it is for, what it adds, its status and version.
 
-- **Preinstalled:** Streamlit comes with every install, as an extension of its own (the Apps area, the Streamlit canvas, App mode, the Streamlit, Components, Controllers and Text and layout starters). Its card says **Preinstalled**, with **Remove**: without it the app is the base alone (no Apps area, no Streamlit canvas, a Streamlit app's file says which extension opens it), and **Install** brings it back. It never comes back by itself once you removed it.
+- **Preinstalled:** Streamlit comes with every install, as an extension of its own (the Canvas and the Widgets window, 56 prebuilt widgets, the Streamlit, Components, Controllers and Text and layout starters). Its card says **Preinstalled**, with **Remove**: without it the app is the base alone (no Canvas, no Widgets, a canvas's file says which extension opens it), and **Install** brings it back. It never comes back by itself once you removed it.
 - **Available:** Accounting (an Excel workbook built by a repeatable Python automation; cession statements and invoices), Power Apps (code apps) and GitHub Copilot (Copilot's code completion in the Workbench).
 - **Available:** **Install**, one click. The app closes, installs the extension for this same version and opens again in a window of its own; the card shows each stage while it works. If it fails, the app opens as it was and the status bar says why.
 - **Installed:** **Remove** (asked first), the same way.
@@ -116,7 +116,7 @@ The page has these parts:
 ### Getting around
 
 - **The rail** down the left of every page and window has an icon for each area, in the order you work: first **Home** (a house: the Projects page), then where the data comes from (**Connections**, **APIs**, **Structures**, **Variables**, **Catalog**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), tools and building (**Blades**, **Scripts**, **Notebooks**, **Apps**: the Streamlit canvas), presenting (**Analyze**), then the log (**Session**), and **Settings** at the bottom. **Notebooks** and **Scripts** are two pages, each a window of its own: a notebook opens only on the Notebooks page, a .py only on the Scripts page. The Scripts page is a Python IDE: the project's code by module on the left (with each module's outline, the library's connections and APIs, and what the app generates), the Blades below it, the files as tabs; F12 goes to a definition (into an installed library: its file opens in a tab of its own marked **read-only**), Shift+F12 lists the references, F2 renames across the project, Ctrl+Shift+F searches every script, F11 is full screen (in the desktop app the window goes full screen too) and Ctrl+B folds the explorer. **Debug a script:** click the gutter beside a line (or F9) for a breakpoint; right-click there for a conditional breakpoint (it stops only when a condition holds) or a log point (it prints a message with `{values}` instead of stopping). The bug button (Ctrl+Shift+D) starts debugging: the script runs in its kernel and pauses at a breakpoint, its line highlighted, with the panel below: Call stack, Variables (unfold a value), Watch (expressions shown at each stop), Output, and the Debug console (type an expression to evaluate it where it stopped). F5 continues, F10 steps over, F11 into, Shift+F11 out, Shift+F5 stops. Right-click a module in the explorer (or F2, Delete on it) to **Rename…** it (every import of it in the project follows, shown first), **Duplicate** it or **Delete** it (to the trash); an `__init__.py` also renames, deletes or adds to its package, and **New package** is at the explorer's head. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
-  - **Every icon lands on a page**, in the tab you are in: Grids, Analyze and the ERD on the grids' page; **Notebooks**, **Scripts** and **Apps** on that kind's page in the Workbench (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the blades page; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards. An app opened from the Apps page comes with its **Streamlit cells** panel beside the canvas, so the cells you can place are one drag away.
+  - **Every icon lands on a page**, in the tab you are in: Grids, Analyze and the ERD on the grids' page; **Notebooks** and **Scripts** on their own pages, **Canvas** on its page and **Widgets** in a window of its own (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the Scripts page's Blades pane; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Analyze, ERD, the Workbench, Settings, Connections and Blades are the rail's.
 - **The mark** (the red square at the top of the rail, on every page and window) takes you home: the **Projects** page, every project as a card (see Projects: a folder, below), with New project, Open project… and the Tour. It is a page of its own: the grids' page is only your grids, and with no table open it is the **New query** page (the same page the tab row's **+** opens, Ctrl+T): **Open tables (DuckDB)** while a grid is open, then each connection that runs SQL, with its kind and colour; click one (or arrow to it and press Enter) and a new query opens with **Query from** already set to it, the editor ready. Open a file is the folder button beside the **+**, and Ctrl+V pastes a table. From the Workbench, the blades page or the Key Finder window the mark brings the grids' window to the front showing Projects (and opens it if you closed it). **Alt+Home** does the same. The app opens on Projects when no table and no project is open.
@@ -246,7 +246,7 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
 
-**Panels** has a switch for each panel: in the Workbench the Data Explorer, the Streamlit cells, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Properties, State, Starters, Outline, Run settings and Run history; and on every page, the navigation rail.
+**Panels** has a switch for each panel: in the Workbench the Data Explorer, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Outline, Run settings and Run history; and on every page, the navigation rail.
 
 **Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
 
@@ -593,9 +593,9 @@ their own, run in an IPython kernel on this computer.
   data.ipynb (a notebook with a small table), where the tables are loaded and shaped, and its **app
   notebooks**, every other notebook in it (a notebook with a small page), where an app's pieces are
   written, whether a canvas uses them yet or not. A tab's icon says which (hover it for the word), and
-  the **Notebooks** page lists them under **Data notebook** and **App notebooks**, after the
-  Transformations. In a project, **New app notebook** makes one (a project has one data notebook). A
-  notebook outside a project is a plain notebook. The cells fill the width of their pane; a wide table
+  the **Notebooks** page lists them under **Data notebook** and **Notebooks**. Every other notebook is a
+  plain one (app notebooks were replaced by widgets on the Canvas, 2026-11-21); a cell that calls Streamlit
+  runs in the kernel like any other. The cells fill the width of their pane; a wide table
   in an output scrolls sideways inside its cell.
 - **The Data Explorer, on the left** (the status bar's **Data Explorer**, or Ctrl+Shift+E; off until
   you open it, then beside every document, the data notebook and scripts too; drag its right edge to
@@ -623,10 +623,9 @@ their own, run in an IPython kernel on this computer.
   group and a five-way guide shows where it goes: the middle moves it into that group, an edge splits
   the group that side. **Split right** (Ctrl+\\) and **Split down** are in the **…** menus too. Drag the
   bar between groups to size them; a group closes with its last tab. A tab's icon and coloured edge say
-  its kind, in its kind colour: violet for an app's page, blue for a notebook (`data.ipynb` with the
+  its kind, in its kind colour: blue for a notebook (`data.ipynb` with the
   data's own icon), green for a script. The group wears its front document's colour as a thin band, and
-  so do the Data Explorer's project files, the Streamlit cells (by the document they come from), the canvas's
-  blocks and the Recent and Move menus.
+  so do the Data Explorer's project files and the Recent and Move menus.
 - **Each group's row:** its tabs, then, for the group you are in, the document's controls: a
   notebook's **+ Cell** (Python, SQL, DAX, HTML, Streamlit, Markdown), **Run all** and **…**; a script's
   **+ Cell**, **Run file** and **…** (Run statement, Open…, Recent, Save as…, Interrupt, Restart, the
@@ -1174,9 +1173,8 @@ version never touches your copy.
   (`Total for {{ region }}: **{{ total_sales }}**`), callout, key figures table, what this page shows,
   executive summary, data dictionary entry, change log entry, footer with source and refresh time. What
   you type in a blank is written as text: a `*` or a `[` you type shows as itself.
-- **Streamlit pieces** (below: Learning Streamlit with the starter pieces): dropped into a notebook,
-  a piece fills an empty Python cell (or makes one) and names it, so it shows by name in the
-  Streamlit cells pane, ready for a canvas.
+- **Streamlit pieces** (below: Learning Streamlit with the starter pieces): snippets for a widget's
+  code (or a Python cell): each says what it makes and reads.
 - **Components** (below: Your own HTML and JavaScript in Streamlit): Streamlit pieces too, for a Python
   cell, each a piece of HTML, CSS and JavaScript of its own on the page: callout banner, animated KPI
   counter, sortable table, gauge, timeline, and four that send a value back to Python (clickable cards,
@@ -1443,9 +1441,10 @@ the code**. Each widget opens the way you left it this session. Ctrl+B folds the
 Properties.
 
 **The Canvas** (Canvas on the rail): a project's `<app>.canvas.json`. The top row holds the page tabs and, at
-its right end, always there: **Play** (Shift+F5; its ▾ has **Launch**, Ctrl+F5; while the app runs it is
-**Stop**) and **Export** (Ctrl+Shift+E). The same three are at the bottom of every right-click menu on the
-canvas (the empty grid, a container, a widget; Stop playing while it plays). The bottom bar **Desktop | Phone** (the two layouts), the sizing (Columns, Row height, Gap), **Snap** and its step (1, 2, 4, 8 px or a
+its right end, always there: **Play** (F5; its ▾ has **Launch**, Ctrl+F5, **Launch with the Performance
+Analyzer**, Ctrl+Shift+F5, and **Builds…**; while the app runs it is **Stop**) and **Export** (Ctrl+Shift+E).
+The same group is at the bottom of every right-click menu on the canvas (the empty grid, a container, a
+widget; Stop playing while it plays). The bottom bar **Desktop | Phone** (the two layouts), the sizing (Columns, Row height, Gap), **Snap** and its step (1, 2, 4, 8 px or a
 grid cell), Undo and Redo, the **Widgets** and **Properties** panes' toggles, and the zoom (Ctrl+wheel, Ctrl+plus, Ctrl+minus, Ctrl+0; Fit).
 - Drag on the empty grid to draw a **container**; drag one to move it (into another container too), its
   corner to size it. Snap puts edges on the step and on other items' edges and centres (guides show); hold
@@ -1467,6 +1466,18 @@ grid cell), Undo and Redo, the **Widgets** and **Properties** panes' toggles, an
 - **Play** shows the pages live in place; a widget that fails shows its own error there while the rest runs.
   **Launch** makes a build in the project's `builds/` and opens it in its own window. **Export** writes a
   folder that runs on a hosted Streamlit app (the page reproduces the canvas's pixels).
+- **Launch with the Performance Analyzer** opens the analyzer's window beside the app, recording from the
+  first load: each rerun (what triggered it: a widget, a page switch, the first load) with each widget's
+  time, the calls (outside requests, file reads), the caches, what travels over the web socket (kinds and
+  sizes, never content) and hints in plain words. **Save** keeps the session in its build.
+- **Builds…**: every launch, newest first, with what changed in words ("metric (w2): label changed").
+  Tick two and **Compare** (side by side, file by file), or **Compare with now**; **Open** one read-only;
+  **Relaunch**; **Restore** puts that build's canvas back as one change (Undo takes it back; your library's
+  widgets stay as they are).
+- **A table property** offers, in one list: made-up sample data, the open tables, data.ipynb's tables, and
+  each connection's tables as SQL names them (`[Shop].invoices`; a connection whose tables are not listed
+  yet: type its table). A connection's table is read when the page plays, through that connection's
+  query limit.
 - **Share…** (Play's ▾ and the right-click menus' last group, while the launched app runs) lets people in
   your organization open the launched app in their own browser after signing in with their Microsoft work
   account. It runs on this computer while it is shared: its queries run here, with your connections. There
@@ -1510,9 +1521,9 @@ amount), start a notebook, save it, and drag each piece onto an empty Python cel
 5. **Streamlit formatted table**, Table `in_dates`: the rows, the amount with two decimals and the date
    as a date (`st.dataframe` with `st.column_config`).
 
-Then **New Streamlit app**, drag the five from the Streamlit cells pane onto the canvas, and **Play**:
-pick a region or a range and every number, bar and row follows, because each piece reads what the one
-before it made. The order on the canvas is yours; the order they run in comes from their names.
+Then make each a widget (the Widgets window: **New widget**, the piece's code), place the widgets on a
+canvas, and **Play**. A filter widget that keeps its pick in `st.session_state` under a key of its own lets
+the others read it.
 
 ![A canvas page made of the five pieces after Play: the region and date filters, three metrics, a bar chart by product and the formatted table.](images/23-streamlit-starter-page.png)
 

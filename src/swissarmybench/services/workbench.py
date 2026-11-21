@@ -189,11 +189,7 @@ class Workbench:
         python = self._documents.environment(full) or self._kernels.beside(self._folder_of(full))
         if kind == "notebook":
             read, next_cell = rules.read_document(text)
-            # A Python cell that calls Streamlit is shown live in its cell (and never runs in the kernel).
-            live = set(self._hooks.live_cells([(c.number or 0, c.source) for c in read if c.kind == "code"]))
-            cells = [
-                c.to_json() | ({"live": True} if c.kind == "code" and c.number in live else {}) for c in read
-            ]
+            cells = [c.to_json() for c in read]
             return {
                 "path": full,
                 "kind": kind,
@@ -338,9 +334,15 @@ class Workbench:
         """The document a kernel was started for (None: not known, or no kernel)."""
         return self._documents_of.get(kernel_id) if kernel_id else None
 
-    def kernel_for(self, document: str) -> str | None:
-        """The running kernel a document was started for (the newest), None when none is."""
-        found = [k for k, d in self._documents_of.items() if k in self._running and d == document]
+    def kernel_for(self, path: str) -> str | None:
+        """The running kernel started for a document (the newest; None: none). Lineage's values come from
+        it when no extension holds the document (live cells went, 2026-11-21: nothing else says)."""
+        wanted = path.replace("\\", "/").casefold()
+        found = [
+            k
+            for k, d in self._documents_of.items()
+            if k in self._running and d.replace("\\", "/").casefold() == wanted
+        ]
         return found[-1] if found else None
 
     def running_documents(self) -> list[str]:

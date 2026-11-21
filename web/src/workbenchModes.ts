@@ -2,9 +2,8 @@
  * workbenchModes.ts: the Workbench's modes (2026-11-15): each document's own panels, beside it in its
  * group, so the panels follow the group they belong to (two groups side by side each keep theirs). [WIRE]
  *
- *   App       Properties (the selected block, else the page settings) on the right; State under it;
- *             on the left, Streamlit cells (the cells to build a page from) or Starters (2026-11-17: they
- *             were the Data panel's, which became the Data Explorer)
+ *   (App mode's Properties, State, Streamlit cells and Starters went with app notebooks, 2026-11-21: an app
+ *   is widgets on the Canvas, its own page)
  *   Notebook  Outline on the right
  *   Script    Run settings on the right; Run history under it
  *   Data      (data.ipynb) the Cells | Lineage | Dictionary switch is the document's own (workbenchDoc

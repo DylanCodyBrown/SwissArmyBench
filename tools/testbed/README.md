@@ -23,7 +23,7 @@ environment, never into the app's dependencies.
 
 Without the test bed up (Windows CI, a laptop without the databases), the use cases skip and say why.
 
-Use case 11 (a project played as a Streamlit page) needs a Python with Streamlit and ipykernel:
+Use case 11 (a widget on a canvas, played and exported) needs a Python with Streamlit and ipykernel:
 `SWISSARMYBENCH_STREAMLIT_PYTHON=<that python>`; without one it skips. The headless runs (2, 3, 5, 11)
 build the client wheel and a plain Python with `uv` (pandas, psycopg, nbconvert, Streamlit: from PyPI).
 `SWISSARMYBENCH_SHOTS=<folder>` keeps a screenshot of each use case (and use case 9's PDF);
@@ -43,7 +43,7 @@ build the client wheel and a plain Python with `uv` (pandas, psycopg, nbconvert,
 | 8 | Power BI's Invoices tied out against PostgreSQL's: the regions of the day the refresh missed are off | 10 |
 | 9 | a forecast of invoiced amounts sent to Visualizations, Page view, Print to PDF | 14 |
 | 10 | a story notebook: figures, a Markdown cell with live values, a table and a Mermaid diagram, an HTML cell | 20 |
-| 11 | a project: data.ipynb from PostgreSQL, a pages notebook, three Streamlit starters on a canvas, Play, a zip; the zip's page run by AppTest elsewhere | 40 |
+| 11 | a widget written in the Widgets window (its table PostgreSQL's invoices, open in the grid) and previewed, placed on a Streamlit project's canvas (Desktop and Phone), played, exported; the export run by AppTest in a plain Python | 33 |
 
 Use cases 1, 4 and 11 run again through the agent's MCP commands only (`test_1a`, `test_4a`, `test_11a`).
 

@@ -13,6 +13,7 @@ when it was read; Refresh drops them. Nothing is written to disk; no secret is i
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
@@ -173,6 +174,32 @@ class ConnectionTables:
                 f"{saved}'s tables could not be listed (its catalog did not load{why})."
             )
         return [Place(*p) for p in found]
+
+    async def listed(self, name: str, most: int = 500) -> list[str] | None:
+        """A connection's tables as DuckDB SQL names them (`[Conn].table`), only when its catalog is
+        already loaded (None: not yet; nothing is loaded for asking): a picker's list."""
+        saved, kind = self.kind(name)
+        found = await self._catalogs.places(saved)
+        if found is None:
+            return None
+        places = [Place(*p) for p in found]
+        shared = [
+            t
+            for t in {p.table.casefold() for p in places}
+            if sum(q.table.casefold() == t for q in places) > 1
+        ]
+        return sorted({rules.copy_name(saved, p, kind, shared) for p in places})[:most]
+
+    async def read_named(self, reference: str) -> Any:
+        """One table named as DuckDB SQL names it (`[Conn].table`) read whole, through the same read as a
+        query's (so through that connection's query limit and its line): its Arrow table."""
+        if not re.fullmatch(r"\[[^\[\];]{1,120}\]\.[^;]{1,300}", reference or ""):
+            raise rules.ConnectionSqlError("Name a connection's table as [Connection].table.")
+        # One reference, checked above (no statement of its own), read as a query names it.
+        prepared = await self.prepare(f"SELECT * FROM {reference}")  # noqa: S608
+        if len(prepared.tables) != 1:
+            raise rules.ConnectionSqlError(f"{reference[:120]} names no connection's table.")
+        return next(iter(prepared.tables.values()))
 
     async def read(self, name: str, place: Place, pushed: rules.Pushed | None = None) -> tuple[Kept, bool]:
         """One table read for a query: every row it needs, with what was sent to the source (`pushed`: its

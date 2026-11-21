@@ -186,7 +186,7 @@ _WINDOW_WORDS: dict[str, str] = {
     "html.resize": "Sized an HTML cell of {t}",
     "file.newNotebook": "Made a new notebook",
     "file.newScript": "Made a new script",
-    "file.newApp": "Made a new Streamlit app",
+    "file.newApp": "Opened the Canvas",
     "file.save": "Saved {t}",
     "file.saveAs": "Saved a copy of {t}",
     "file.exportScript": "Exported {t} as one script",

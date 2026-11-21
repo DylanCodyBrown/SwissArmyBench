@@ -189,7 +189,7 @@ NOT_COMMANDS = {
     "/streamlit/widgets/{}/preview.png": "the preview's picture: widgets_preview gives its address",
     "/streamlit/launch/{}": "a launched app's pages, in a window of its own: app_launch says where",
     "/streamlit/launch/{}/{}": "the same: the launched app's own files and socket",
-    "/streamlit/perf": "page shell: the Performance Analyzer's window (perf_session is its data)",
+    "/streamlit/perf": "page shell: the Performance Analyzer's window (canvas_perf is its data)",
     "/agent/context": "current_table",
     "/beta/page-errors": "a page's own error report (page plumbing): app_beta_log reads them",
     "/blades/{}/python": "its answer holds the saved password values for sab.blade: never the agent's",

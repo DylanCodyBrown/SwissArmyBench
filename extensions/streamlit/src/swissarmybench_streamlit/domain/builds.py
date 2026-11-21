@@ -24,7 +24,10 @@ from typing import Any
 BUILDS: str = "builds"
 BUILD_FILE: str = "build.json"
 CELLS_FILE: str = "cells.json"
-APP_FILE: str = "app.stapp.json"
+APP_FILE: str = "app.stapp.json"  # an old app notebook's build (before widgets): read, never written
+CANVAS_FILE: str = "canvas.json"  # the canvas's file as launched (format 2): Restore's
+WIDGETS_FILE: str = "sab_widgets.py"  # the library's widgets as launched, inlined
+PERF_HELPER: str = "sab_perf.py"  # beside a launch's pages only, never in a build
 PERF_PREFIX: str = "perf-"
 MAX_KEEP: int = 10_000  # every build, unless a setting trims to the last N
 
@@ -130,6 +133,103 @@ def changes(
             said.append(f"{named(cell)} taken off.")
     if pages_before is not None and digest(pages_before) != digest(pages_now):
         said.append("The layout changed.")
+    return said or ["Nothing changed."]
+
+
+def widget_code(module: str) -> dict[str, str]:
+    """Each widget's code in a build's sab_widgets.py (its `CODE['name'] = "..."` lines, read with ast: never
+    run)."""
+    import ast
+
+    try:
+        tree = ast.parse(module or "")
+    except SyntaxError:
+        return {}
+    found: dict[str, str] = {}
+    for node in tree.body:
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
+            continue
+        target = node.targets[0]
+        if (
+            isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "CODE"
+            and isinstance(target.slice, ast.Constant)
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            found[str(target.slice.value)] = node.value.value
+    return found
+
+
+def _instances(canvas: Mapping[str, Any]) -> dict[str, tuple[str, str, dict[str, Any]]]:
+    """Each widget instance by its id: its page, widget and values (containers are the layout's)."""
+    out: dict[str, tuple[str, str, dict[str, Any]]] = {}
+
+    def walk(children: Iterable[Mapping[str, Any]], page: str) -> None:
+        for child in children:
+            if child.get("kind") == "widget":
+                out[str(child.get("id"))] = (page, str(child.get("widget")), dict(child.get("values") or {}))
+            walk(child.get("children") or [], page)
+
+    for page in canvas.get("pages") or []:
+        walk(page.get("children") or [], str(page.get("name")))
+    return out
+
+
+def _places(canvas: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+
+    def walk(children: Iterable[Mapping[str, Any]]) -> None:
+        for child in children:
+            out[str(child.get("id"))] = (child.get("at"), child.get("show"), child.get("props"))
+            walk(child.get("children") or [])
+
+    for page in canvas.get("pages") or []:
+        walk(page.get("children") or [])
+    return out
+
+
+def canvas_changes(
+    before: str | None, now: str, widgets_before: str | None = None, widgets_now: str = ""
+) -> list[str]:
+    """What changed since the build before, in words, on the widget canvas (format 2): pages added or gone,
+    each widget instance added, taken off, given other values or another widget, the layout, and each
+    widget whose code changed in the library. The first build: "The first build"."""
+    if before is None:
+        return ["The first build."]
+    try:
+        old, new = json.loads(before), json.loads(now)
+    except ValueError:
+        return ["The canvas changed."] if digest(before) != digest(now) else ["Nothing changed."]
+    if not isinstance(old, dict) or "format" not in old:
+        return ["The first build on the Canvas (the build before is an app notebook's)."]
+    said: list[str] = []
+    pages_old = [str(p.get("name")) for p in old.get("pages") or []]
+    pages_new = [str(p.get("name")) for p in new.get("pages") or []]
+    said += [f"Page {p} added." for p in pages_new if p not in pages_old]
+    said += [f"Page {p} taken off." for p in pages_old if p not in pages_new]
+    was, now_ = _instances(old), _instances(new)
+    for key, (page, widget, values) in now_.items():
+        if key not in was:
+            said.append(f"{widget} ({key}) added on {page}.")
+        elif was[key][1] != widget:
+            said.append(f"{key} is {widget} now (was {was[key][1]}).")
+        elif was[key][2] != values:
+            changed = sorted(k for k in {*values, *was[key][2]} if values.get(k) != was[key][2].get(k))
+            said.append(f"{widget} ({key}): {', '.join(changed)} changed.")
+    said += [
+        f"{widget} ({key}) taken off {page}." for key, (page, widget, _) in was.items() if key not in now_
+    ]
+    if _places(old) != _places(new) or old.get("sizing") != new.get("sizing"):
+        said.append("The layout changed.")
+    if widgets_before is not None:
+        code_old, code_new = widget_code(widgets_before), widget_code(widgets_now)
+        said += [
+            f"The widget {name}'s code changed."
+            for name in sorted(code_new)
+            if name in code_old and code_old[name] != code_new[name]
+        ]
     return said or ["Nothing changed."]
 
 

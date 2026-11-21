@@ -61,7 +61,7 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
         return json_response(widgets.check_value(await body_of(request)))
 
     async def context(request: Request) -> Response:
-        return json_response(widgets.context_info())
+        return json_response(await widgets.context_info())
 
     async def stop(request: Request) -> Response:
         return json_response(await widgets.stop(await body_of(request)))
