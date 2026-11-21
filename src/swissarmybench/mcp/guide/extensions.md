@@ -80,9 +80,11 @@ from swissarmybench.cli.commands import Command, Registrar, req
 COMMANDS: dict[str, Command] = {}
 command = Registrar(COMMANDS)
 
+
 @command("inventory_status", "The inventory page's state")
 def inventory_status(a: dict[str, object]) -> object:
     return api.call("GET", "/inventory")
+
 
 @command("inventory_sync", "Sync a store's counts (waits for the user's Allow)", req("store", "Its name."))
 def inventory_sync(a: dict[str, object]) -> object:
