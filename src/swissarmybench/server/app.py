@@ -43,6 +43,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
+  routes_local_api.py      the project's local sandbox API: API.py, Run, Stop, calls, its log
   routes_sandbox.py        the project's sandbox: tables, Reset, checkpoints, an API's data calls
   routes_sharing.py        Share a running app with your organization (Microsoft Dev Tunnels)
   routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
@@ -114,6 +115,7 @@ from swissarmybench.server import (
     routes_library,
     routes_lifecycle,
     routes_lineage,
+    routes_local_api,
     routes_modes,
     routes_navigation,
     routes_packs,
@@ -322,6 +324,7 @@ def create_app(
         autosave.cancel()
         pruner.cancel()
         checker.cancel()
+        await ctx.local_api.stop_all()  # no local sandbox API outlives the server
         await ctx.sharing.stop_all()  # no share outlives the server (before the apps it tunnels to stop)
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.sab_projects.stop()
@@ -387,7 +390,8 @@ def create_app(
             *routes_library.routes(ctx.library, ctx.library_setup),
             *routes_team.routes(ctx.team),
             *routes_sharing.routes(ctx.sharing),
-            *routes_sandbox.routes(ctx.sandbox),
+            *routes_sandbox.routes(ctx.sandbox, ctx.local_api.data_keys),
+            *routes_local_api.routes(ctx.local_api, ctx.api_export),
             *routes_app_registrations.routes(ctx.app_registrations),
             *routes_shared_catalog.routes(ctx.shared_catalog),
             *routes_connection_colours.routes(ctx.connection_colours),

@@ -53,7 +53,7 @@ from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
-from swissarmybench.adapters.sandbox import SandboxFiles
+from swissarmybench.adapters.sandbox import ExportFolder, LocalApiFiles, SandboxFiles
 from swissarmybench.adapters.script_ide import ScriptCode
 from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
@@ -80,6 +80,7 @@ from swissarmybench.adapters.vault_names import VaultNameFiles
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
+from swissarmybench.domain import api_targets as api_target_rules
 from swissarmybench.domain import blade_tables, python_connections
 from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import connection_tables as connection_table_rules
@@ -90,6 +91,7 @@ from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import lifecycle as lifecycle_rules
+from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import sandbox as sandbox_rules
@@ -103,7 +105,7 @@ from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
-from swissarmybench.server import blade_runner, dialog_runner, file_manager
+from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
@@ -121,6 +123,7 @@ from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.analyze import Analyze
 from swissarmybench.services.api_explorer import Explorer as ApiExplorer
+from swissarmybench.services.api_export import ApiExport
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.app_registrations import AppRegistrations
 from swissarmybench.services.beta_log import BetaLog
@@ -157,6 +160,7 @@ from swissarmybench.services.library import Library
 from swissarmybench.services.library_setup import LibrarySetup
 from swissarmybench.services.lifecycle import Lifecycle
 from swissarmybench.services.lineage import Lineage
+from swissarmybench.services.local_api import LocalApi
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
@@ -265,6 +269,8 @@ class Services:
     team: Team
     sharing: Sharing
     sandbox: Sandbox
+    local_api: LocalApi
+    api_export: ApiExport
     shared_catalog: SharedCatalog
     app_registrations: AppRegistrations
     script_runs: ScriptRuns
@@ -1227,6 +1233,16 @@ def bootstrap(
         ignore=sandbox_ignore,
     )
     sandbox_alias = SandboxAlias(sandbox)
+    # The project's local sandbox API (API.py): hosted in a process of its own that gets only the sandbox.
+    local_api = LocalApi(
+        ws,
+        sandbox.folder,
+        LocalApiFiles(),
+        api_runs.start,
+        sandbox,
+        approvals,
+        data_url=lambda key: f"http://127.0.0.1:{port}/sandbox/data/{key}",
+    )
     explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
 
     async def open_work() -> dict[str, Any]:
@@ -1534,6 +1550,37 @@ def bootstrap(
     key_finder = KeyFinder(ws)
     tie_out = TieOut(compares)
 
+    # Export as one Python script: the document's cells, its connections' own code, ruff's check.
+    script_exports = ScriptExports(
+        ws,
+        blade_store,
+        read_document=documents.read,
+        write_document=documents.write,
+        arrange=table_cells.arrange,
+        lint=script_lint,
+        folder_of=lambda path: str(Path(path).expanduser().parent),
+        join=lambda folder, name: str(Path(folder) / name),
+        inline=apis.inline,  # an API_<name>.py the document imports travels inside the export
+    )
+    # A local sandbox API exported for its framework target: the real connections' own code.
+    api_export = ApiExport(
+        ws,
+        sandbox.folder,
+        lambda folder: LocalApiFiles.read(str(Path(folder) / local_api_rules.FILE)),
+        lambda: Path(api_runtime.__file__).read_text(encoding="utf-8"),
+        script_exports,
+        ExportFolder(sandbox.copy_now),
+        project_scope.edited_in,
+        approvals,
+    )
+    for extension in on_extensions:
+        for raw in getattr(extension, "API_TARGETS", ()) or ():
+            api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
+    local_api.target_ids = api_export.registry.ids
+    local_api.catalog = catalogs
+    intellisense.sandbox_clients = sandbox.mock_names
+    intellisense.sandbox_tables = sandbox.table_columns
+
     return Services(
         settings=settings,
         ws=ws,
@@ -1582,6 +1629,8 @@ def bootstrap(
         team=team,
         sharing=sharing,
         sandbox=sandbox,
+        local_api=local_api,
+        api_export=api_export,
         shared_catalog=shared_catalog,
         app_registrations=app_registrations,
         keys=key_finder,
@@ -1629,18 +1678,7 @@ def bootstrap(
         project_explorer=project_explorer,
         project_scope=project_scope,
         project_outline=project_outline,
-        # Export as one Python script: the document's cells, its connections' own code, ruff's check.
-        script_exports=ScriptExports(
-            ws,
-            blade_store,
-            read_document=documents.read,
-            write_document=documents.write,
-            arrange=table_cells.arrange,
-            lint=script_lint,
-            folder_of=lambda path: str(Path(path).expanduser().parent),
-            join=lambda folder, name: str(Path(folder) / name),
-            inline=apis.inline,  # an API_<name>.py the document imports travels inside the export
-        ),
+        script_exports=script_exports,
         live=live,
         workers=workers,
     )

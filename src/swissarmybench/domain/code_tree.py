@@ -19,11 +19,13 @@ from typing import Any
 # The groups in their order, each a folder of the tree.
 SCRIPTS = "scripts"  # Your scripts: scripts/ and its packages
 PROJECT = "project"  # Project code: data.py, the scaffold's modules, pages/*.py, the canvas's export
-GROUP_WORDS: dict[str, str] = {SCRIPTS: "Your scripts", PROJECT: "Project code"}
+API = "api"  # Local sandbox API: API.py and its exports (exports/api/<target>/)
+GROUP_WORDS: dict[str, str] = {SCRIPTS: "Your scripts", PROJECT: "Project code", API: "Local sandbox API"}
 # What the app makes in a project, and from where (said in the tab's bar: "Made from data.ipynb").
 _MADE_FROM: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^data\.py$"), "data.ipynb"),
     (re.compile(r"^pages/[^/]+\.py$"), "the app's canvas"),
+    (re.compile(r"^exports/api/[^/]+/"), "API.py"),  # a local sandbox API's export (domain/api_targets.py)
 )
 _SKIP = re.compile(r"(^|/)(\.[^/]*|__pycache__|\.venv|venv|node_modules|builds)(/|$)")
 _CONSTANT = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -102,12 +104,18 @@ def script_tree(files: Iterable[tuple[str, str | None]], edited: Iterable[str] =
     read)): Your scripts (scripts/ and its packages, folders kept), then Project code. Each file: path,
     name, module, made_from (a made file), edited (made but edited by hand), outline."""
     hand = set(edited)
-    groups: dict[str, list[dict[str, Any]]] = {SCRIPTS: [], PROJECT: []}
+    groups: dict[str, list[dict[str, Any]]] = {SCRIPTS: [], PROJECT: [], API: []}
     for relative, text in files:
         relative = relative.replace("\\", "/")
         if not relative.endswith(".py") or not listed(relative):
             continue
-        group = SCRIPTS if relative.startswith("scripts/") else PROJECT
+        group = (
+            SCRIPTS
+            if relative.startswith("scripts/")
+            else API
+            if relative == "API.py" or relative.startswith("exports/api/")
+            else PROJECT
+        )
         source = made_from(relative)
         groups[group].append(
             {
@@ -122,7 +130,9 @@ def script_tree(files: Iterable[tuple[str, str | None]], edited: Iterable[str] =
             }
         )
     out = []
-    for key in (SCRIPTS, PROJECT):
+    for key in (SCRIPTS, PROJECT, API):
+        if key == API and not groups[API]:
+            continue
         items = sorted(groups[key], key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
         out.append({"id": key, "name": GROUP_WORDS[key], "files": items})
     return out

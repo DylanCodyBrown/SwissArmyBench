@@ -223,6 +223,7 @@ class Translated:
 
 _REFUSED: tuple[tuple[type[exp.Expression], str, str], ...] = (
     (exp.Merge, "MERGE", "MERGE"),
+    (exp.Execute, "EXEC", "EXEC"),
     (exp.Create, "CREATE", "a CREATE statement"),
     (exp.Drop, "DROP", "a DROP statement"),
     (exp.Alter, "ALTER", "an ALTER statement"),
@@ -601,3 +602,55 @@ def list_where(filters: Any, columns: Sequence[str]) -> tuple[str, list[Any]]:
         else:
             raise SandboxError(f"The sandbox's mock cannot emulate the list filter {item[1]!r}.")
     return " AND ".join(parts), params
+
+
+# ===== "Will this work for real?": what a query names, checked against a catalog (never run) =====
+
+
+@dataclass
+class Named:
+    """A table a query names (its schema when it gives one) and the columns it names (unqualified ones are
+    the query's single table's when it reads one table, else unknown)."""
+
+    schema: str
+    table: str
+    columns: list[str] = field(default_factory=list)
+
+
+def names_in(sql: Any, dialect: str | None) -> list[Named]:
+    """The tables and columns a statement names, by sqlglot in the source's dialect (marks made sentinels
+    first, so `?` and `%s` parse). A statement it cannot read says so."""
+    word = dialect_of(dialect)
+    reads = SQLGLOT.get(word, "duckdb")
+    quoting = "tsql" if reads == "tsql" else "mysql" if reads == "mysql" else "ansi"
+    style = PARAMSTYLE.get(word, "qmark")
+    text = str(sql or "")
+    count = len(re.findall(r"\?|%s|:\w+|\$\d+", text)) + 5
+    try:
+        marked_sql, _ = marked(
+            text, list(range(count)) if style not in ("named", "pyformat") else {}, style, quoting
+        )
+    except SandboxError:
+        marked_sql = text
+    tree = sqlglot.parse_one(marked_sql, read=reads)
+    ctes = {c.alias_or_name.casefold() for c in tree.find_all(exp.CTE)}
+    tables = [t for t in tree.find_all(exp.Table) if t.name and t.name.casefold() not in ctes]
+    by_alias = {(t.alias_or_name or t.name).casefold(): t for t in tables}
+    found: dict[tuple[str, str], Named] = {}
+    for t in tables:
+        found.setdefault((t.db.casefold(), t.name.casefold()), Named(t.db, t.name))
+    for column in tree.find_all(exp.Column):
+        name = column.name
+        if not name or _SENTINEL_RE.match(name) or name == "*":
+            continue
+        owner = (
+            by_alias.get(column.table.casefold())
+            if column.table
+            else (tables[0] if len(tables) == 1 else None)
+        )
+        if owner is None:
+            continue
+        named = found[(owner.db.casefold(), owner.name.casefold())]
+        if name not in named.columns:
+            named.columns.append(name)
+    return list(found.values())

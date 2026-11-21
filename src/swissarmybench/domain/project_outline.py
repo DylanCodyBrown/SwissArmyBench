@@ -48,7 +48,11 @@ MAX_PURPOSE: int = 600
 # listed itself would change on its second write).
 _NOT_LAYOUT: frozenset[str] = frozenset({FILE_NAME.casefold(), ".gitignore"})
 _ROLE_WORDS: dict[str, str] = {"data": "the data notebook: it makes the tables", "app": "an app notebook"}
-_NAME_WORDS: dict[str, str] = {"readme.md": "what the project is for", "requirements.txt": "what to install"}
+_NAME_WORDS: dict[str, str] = {
+    "readme.md": "what the project is for",
+    "requirements.txt": "what to install",
+    "api.py": "the local sandbox API (its endpoints: Deliverables)",
+}
 _WORDS: dict[str, str] = {
     "notebook": "a notebook",
     "script": "a script",
@@ -340,7 +344,9 @@ def _plain(text: str) -> str:
 def _overview(o: Outline) -> list[str]:
     v = o.overview
     files = layout_files(v.files)
-    documents = [f for f in files if f.kind in ("notebook", "script", "app") and not f.made]
+    documents = [
+        f for f in files if f.kind in ("notebook", "script", "app") and not f.made and f.path != "API.py"
+    ]
     title = v.title or v.mode or "Swiss Army Bench"
     article = "an" if title[:1].lower() in "aeiou" else "a"
     delivers = f" whose deliverable is {v.deliverable}" if v.deliverable else ""
@@ -646,13 +652,15 @@ def _deliverables(o: Outline) -> list[str]:
     counts: dict[str, int] = {}
     for d in o.deliverables:
         counts[d.kind] = counts.get(d.kind, 0) + 1
-    order = ("notebook", "script", "app", "dashboard")
-    said = ", ".join(_plural(counts[k], k) for k in order if k in counts)
+    order = ("notebook", "script", "app", "api", "dashboard")
+    words = {"api": "local sandbox API"}
+    said = ", ".join(_plural(counts[k], words.get(k, k)) for k in order if k in counts)
     lines = [f"In short: {said}.", ""]
     headings = {
         "notebook": "Notebooks",
         "script": "Scripts",
         "app": "Apps",
+        "api": "Local sandbox API",
         "dashboard": "Visualizations dashboards",
     }
     for kind in order:
@@ -664,6 +672,9 @@ def _deliverables(o: Outline) -> list[str]:
             if kind == "dashboard":
                 shows = ", ".join(d.makes) or "no cards"
                 lines.append(f"- {code(d.name)}: reads {_names(d.reads)}; shows {shows} cards")
+            elif kind == "api":
+                lines.append(f"- {code(d.name)}: mocks {_names(d.reads)} over the sandbox; answers:")
+                lines += [f"  - {code(m)}" for m in d.makes]
             elif kind == "app":
                 lines.append(f"- {code(d.name)}: reads {_names(d.reads)}; links {_names(d.links)}")
             else:

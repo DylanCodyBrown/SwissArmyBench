@@ -4183,6 +4183,44 @@ def sharing_status(a: dict[str, Any]) -> Any:
     return api.call("GET", "/sharing" + query)
 
 
+_API = {
+    "state": ("GET", "/local-api"),
+    "new": ("POST", "/local-api/new"),
+    "settings": ("PUT", "/local-api/settings"),
+    "run": ("POST", "/local-api/run"),
+    "stop": ("POST", "/local-api/stop"),
+    "call": ("POST", "/local-api/call"),
+    "log": ("GET", "/local-api/log"),
+    "address": ("GET", "/local-api/address"),
+    "openapi": ("GET", "/local-api/openapi.json"),
+    "targets": ("GET", "/local-api/targets"),
+    "export": ("POST", "/local-api/export"),
+    "scaffold": ("POST", "/local-api/scaffold"),
+    "check": ("POST", "/local-api/check"),
+}
+
+
+@command(
+    "api",
+    "The project's local sandbox API, API.py (guide: sandbox); a write call waits for Allow",
+    req(
+        "action",
+        "state, new, settings, run, stop, call, log, address, openapi, targets, export, scaffold, check (guide).",
+    ),
+    opt(
+        "args",
+        'call: {"method", "path", "query"?, "body"?}; settings: {"name", "target", "base_path"}.',
+        "json",
+    ),
+)
+def api_command(a: dict[str, Any]) -> Any:
+    action = str(a["action"])
+    if action not in _API:
+        raise CommandError(f"action is one of: {', '.join(_API)}.")
+    method, path = _API[action]
+    return api.call(method, path, None if method == "GET" else dict(a.get("args") or {}), timeout=900)
+
+
 _SANDBOX = {
     "list": ("GET", "/sandbox"),
     "add": ("POST", "/sandbox/tables"),
@@ -5157,6 +5195,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ),
     ("team", "Settings' Team box: join, start or leave a team (one GitHub repository, its projects/)"),
     ("sharing", "Share a running app with your organization (Microsoft Dev Tunnels)"),
+    ("api", "The project's local sandbox API (API.py): run it, call it, export it for its target"),
     ("sandbox", "The project's sandbox: the tables a local sandbox API reads and writes, Reset, checkpoints"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),

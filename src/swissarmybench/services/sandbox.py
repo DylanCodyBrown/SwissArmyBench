@@ -70,6 +70,8 @@ class Files(Protocol):
 
     def reset(self) -> bool: ...
 
+    def reset_table(self, name: str) -> bool: ...
+
     def save_checkpoint(self, name: str) -> None: ...
 
     def restore_checkpoint(self, name: str) -> bool: ...
@@ -245,6 +247,29 @@ class Sandbox:
             return []
         return [str(t["name"]) for t in await self._run(self._files().tables)]
 
+    def table_columns(self) -> list[tuple[str, list[str]]]:
+        """Each sandbox table and its columns (API.py's SQL completion; off the loop is not needed: small)."""
+        if self._project() is None:
+            return []
+        files = self._files()
+        if not files.exists():
+            return []
+        return [(str(t["name"]), [str(c["name"]) for c in t["columns"]]) for t in files.tables()]
+
+    def mock_names(self) -> list[tuple[str, str]]:
+        """The names connection("…") takes in API.py: Sandbox, and each connection a sandbox table came
+        from, with the client it is mocked as (read from sandbox.json: no query)."""
+        if self._project() is None:
+            return []
+        meta = self._files().read_meta()
+        out = {rules.NAME: "the sandbox (plain DuckDB)"}
+        for info in meta.tables.values():
+            client = info.get("client") or {}
+            if client.get("connection"):
+                what = client.get("template") or client.get("dialect") or client.get("kind")
+                out.setdefault(str(client["connection"]), f"mock of its client ({what})")
+        return sorted(out.items(), key=lambda kv: (kv[0] != rules.NAME, kv[0].casefold()))
+
     async def names_and_columns(self) -> list[tuple[str, int, list[tuple[str, str]]]]:
         """The Catalog's Sandbox section: each table, its rows, its columns and types."""
         if self._project() is None:
@@ -344,9 +369,13 @@ class Sandbox:
     # ===== baseline, reset, checkpoints =====
 
     async def reset(self, body: Any = None, who: str = "user") -> dict[str, Any]:
-        """Every table back to the baseline: what the change log counted is undone."""
+        """Every table back to the baseline (or {"table"}: that one alone): what the change log counted is
+        undone."""
         files = self._files()
         meta = files.read_meta()
+        one = body.get("table") if isinstance(body, dict) else None
+        if one:
+            return await self._reset_one(files, meta, str(one), who)
         if who == "agent" and not await self._approvals.ask(
             rules.NAME,
             "reset the sandbox",
@@ -361,6 +390,24 @@ class Sandbox:
             files.write_meta(meta)
         await self._told(sorted(meta.tables), who, "sandbox_reset")
         return {"reset": True, "undone": undone}
+
+    async def _reset_one(self, files: Files, meta: rules.Meta, wanted: str, who: str) -> dict[str, Any]:
+        table, _ = await self._table(files, wanted)
+        counts = meta.log.get(table, rules.Counts())
+        if who == "agent" and not await self._approvals.ask(
+            rules.NAME,
+            "reset a sandbox table",
+            f"Put {table} back to the baseline ({rules.log_words({table: counts})})",
+        ):
+            raise Refused("The user declined (or did not answer): the table is as it was.")
+        async with self._lock:
+            if not await self._run(files.reset_table, table):
+                raise Conflict(f"{table} is not in the baseline: Set as baseline first.")
+            meta = files.read_meta()
+            undone = rules.log_json({table: meta.log.pop(table, rules.Counts())})
+            files.write_meta(meta)
+        await self._told([table], who, "sandbox_reset")
+        return {"reset": True, "table": table, "undone": undone}
 
     async def set_baseline(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         async with self._lock:
@@ -427,6 +474,12 @@ class Sandbox:
         arrow = await self._run(files.arrow, real)
         shown = await self._sources.show(rules.grid_name(real), arrow, False)
         return shown | {"table": real}
+
+    def copy_now(self, target: Any) -> None:
+        """The sandbox as it is now, copied whole (a local sandbox API's export, on the user's tick; called
+        off
+        the loop: the file's own lock keeps it whole)."""
+        self._files().copy_to(target)
 
     async def read_table(self, name: str) -> Any:
         """A sandbox table whole, as Arrow ([Sandbox].orders in DuckDB SQL)."""

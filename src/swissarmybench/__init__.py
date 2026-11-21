@@ -50,6 +50,7 @@ __all__ = [
     "ServerNotRunningError",
     "__version__",
     "analyze",
+    "api",
     "blade",
     "blades",
     "complete",
@@ -69,6 +70,7 @@ __all__ = [
 # Public name -> (module, attribute), imported when first asked for.
 _LAZY: dict[str, tuple[str, str]] = {
     "push": ("swissarmybench.client.push_client", "push"),
+    "api": ("swissarmybench.client.api_client", "api"),
     "load": ("swissarmybench.client.blades_client", "load"),
     "blade": ("swissarmybench.client.blades_client", "blade"),
     "blades": ("swissarmybench.client.blades_client", "blades"),

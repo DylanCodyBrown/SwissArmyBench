@@ -42,6 +42,7 @@ import { openStructures } from "./structuresPage";
 import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
 import { APIS } from "./lazyPages";
 import { sandboxPanel } from "./dataSandbox";
+import { localApisSection } from "./localApis";
 
 /** The page's name, in one place. */
 
@@ -204,11 +205,12 @@ function drawPage(): void {
     const got = await call<{ apis: Card[]; older: { name: string }[] }>("/apis");
     if (!got || !element.open) return;
     if (!got.apis.length && !got.older.length) {
-      body.replaceChildren(sandboxPanel(), h("div", { class: "apis-empty" }, h("p", { class: "empty-note" }, "No APIs yet.")));
+      body.replaceChildren(sandboxPanel(), localApisSection(), h("div", { class: "apis-empty" }, h("p", { class: "empty-note" }, "No APIs yet.")));
       return;
     }
     body.replaceChildren(
       sandboxPanel(),
+      localApisSection(),
       h("div", { class: "apis-cards", role: "list" }, ...got.apis.map(card)),
       ...(got.older.length
         ? [h("section", { class: "apis-older" }, h("h2", {}, "Older API connections"), h("p", { class: "muted" }, "Made before APIs were blades; they keep working."), h("ul", {}, ...got.older.map((o) => h("li", {}, icon("plug"), h("span", {}, o.name), button("Make into blades", () => void makeIntoBlades(o.name), { class: "ghost api-make-blades" })))))]

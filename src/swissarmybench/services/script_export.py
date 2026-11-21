@@ -24,6 +24,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import dataverse, notebooks, page_queries, portability
 from swissarmybench.domain import script_export as rules
+from swissarmybench.domain import script_runtime as runtime
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
 from swissarmybench.domain.script_export import ExportCell, Piece
@@ -197,6 +198,42 @@ class ScriptExports:
         if stopped:
             raise Refused("sab_queries.py was not written: " + "; ".join(dict.fromkeys(stopped)) + ".")
         return made
+
+    def connections_code(self, wanted: list[str]) -> dict[str, Any]:
+        """The connections a local sandbox API's export uses (services/api_export.py), each as its own code
+        (as a script export writes it: settings from the environment, a vault by managed identity), then
+        their registry and connection(name): {text, requirements, variables, notes}. Checked as an export
+        is: no saved password's value in it (Refused otherwise)."""
+        if not wanted:
+            return {"text": "", "requirements": [], "variables": [], "notes": []}
+        source = "import swissarmybench as sab\n" + "\n".join(
+            f"_c{i} = sab.connection({name!r})" for i, name in enumerate(wanted)
+        )
+        cells = [ExportCell("code", source)]
+        names = self._code_names()
+        pieces, values = self._pieces(wanted)
+        made = rules.plan("API", "API.py", cells, pieces, names)
+        shared = page_queries.shared_text(made)
+        text = "\n\n".join(
+            [
+                runtime.IMPORTS,
+                'log = logging.getLogger("connections")',
+                shared.settings_text,
+                shared.helpers,
+                *shared.pieces,
+                shared.registry,
+            ]
+        )
+        stopped = rules.check(text, values)
+        if stopped:
+            raise Refused("connections.py was not written: " + "; ".join(dict.fromkeys(stopped)) + ".")
+        _, listed = runtime.settings_block(made.settings)
+        return {
+            "text": text,
+            "requirements": list(shared.requirements.values()),
+            "variables": [str(v.get("variable")) for v in listed],
+            "notes": self.local_notes(wanted),
+        }
 
     def _code_names(self) -> dict[str, str]:
         """Each connection's variable in the Workbench (shop -> Shop), as services/blades.py names them."""

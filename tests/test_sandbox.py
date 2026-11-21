@@ -230,6 +230,12 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
         ok(client.post("/sandbox/checkpoints", json={"name": "after edits"}, headers=AUTH))
         ok(client.post("/sandbox/data", json={"op": "delete", "table": "orders", "all": True}, headers=AUTH))
         assert rows() == 0
+        # One table back alone first: the others keep their changes.
+        ok(client.post("/sandbox/data", json={"op": "delete", "table": "west", "all": True}, headers=AUTH))
+        one = ok(client.post("/sandbox/reset", json={"table": "west"}, headers=AUTH))
+        assert one["undone"] == {"west": {"inserted": 0, "updated": 0, "deleted": 2}}
+        assert ok(client.post("/sandbox/data", json={"op": "table", "table": "west"}, headers=AUTH))["rows"]
+        assert rows() == 0
         reset = ok(client.post("/sandbox/reset", json={}, headers=AUTH))
         assert reset["undone"]["orders"]["deleted"] == 4
         assert rows() == 3

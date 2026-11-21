@@ -20525,3 +20525,86 @@ body.wb-full .wb-col-right {
   margin: 4px 0;
   font-size: 13px;
 }
+.local-apis {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.local-api-name {
+  font-weight: 600;
+}
+.local-api-status {
+  color: var(--muted);
+}
+.local-api-status.on {
+  color: var(--ok-fg);
+}
+.local-api-base {
+  width: 9em;
+}
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.local-api-endpoints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.local-api-endpoint {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.local-api-endpoint-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-data {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.local-api-try {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.local-api-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.local-api-said.bad,
+.sandbox-tables td.bad {
+  color: var(--error);
+}
+.local-api-log h3 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.local-api-kept {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.local-api-compare pre {
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+}

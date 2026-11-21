@@ -7047,3 +7047,78 @@ ever" / "So this project now needs a new file in the back called API.py".
   release since 2026-11-16) went: GONE_NAMES says each is `analyze_*`; `visualizations_*` still run.
 - Agent: `sandbox_list`, `sandbox_add`, `sandbox_remove`, `sandbox_open`, `sandbox_reset` (waits for Allow),
   `sandbox_checkpoint` (save, delete, baseline), `sandbox_restore`.
+
+### Part 2: API.py, mock clients, hosted locally (built)
+- One local sandbox API per project: `API.py` at its top, the user's own file, made by New project (an older
+  project's on New local sandbox API…). Its settings are its header (`# /// swissarmybench-api`: name,
+  description, target, base_path), the blade file's style: the Scripts editor keeps it as comments, so the file
+  stays self-contained (the brief's .sab/api.json alternative was not needed).
+- Endpoints are typed functions under our `@endpoint(method, path)` (sab_api: server/api_runtime.py, standard
+  library, copied into each export). A path's names are parameters; a TypedDict, dataclass, dict or list
+  parameter is the JSON body; the rest the query's. `ApiError(status, words)`; `records(cursor)`.
+- `connection(name)` is a mock with the real client's shape (the owner's design change: "Things that get built
+  should always hand back to a client that mimics the connections client shape"): MockDbApi (any DB-API
+  database), MockSqlServer (the starter's SqlServer), MockDataverse (rows/read with OData, fetch with FetchXML,
+  the SQL endpoint's cursor), MockSharePoint (the lists starter's), MockDuckDB (`connection("Sandbox")`: a
+  table from a file or made empty). tests/test_sandbox_clients.py holds every public method of each real class
+  (taken from its starter's own code) against its mock, and runs one function through sqlite3 and its mock, and
+  through Dataverse's stand-in and its mock: the same answers. Not mocked yet (refused in one sentence naming
+  the kind): lakes, SharePoint documents, Power BI, a Python connection, an API connection; the Write starters
+  were not run against the mocks.
+- The mock speaks its source: its SQL (T-SQL, PostgreSQL, MySQL, Snowflake, SQLite, Oracle, Trino, DuckDB) and
+  marks (?, %s, %(n)s, :n, :1, $1) made DuckDB SQL by sqlglot on the server, each mark a numbered parameter in its
+  own order (OFFSET ? ROWS FETCH NEXT ? ROWS keeps its values); dbo.orders is orders; SELECT, INSERT, UPDATE,
+  DELETE only; MERGE, EXEC, CREATE, temporary tables, system views, a Web API call refused with the line.
+- "No never run against live data ever": no Live switch. The API's process (server/api_host.py, `python -I`, the
+  app's Python with Starlette and uvicorn) gets an environment made from nothing (domain/local_api.py
+  runner_env: the system's few, an empty home and state folder, its four SAB_ values), and the app's own client
+  functions (sab.connection, .blade, .read, .sql, .dax, .load) are taken over before API.py is imported: the
+  mock, or a refusal. Its one door is the sandbox's data route by a key of its own (/sandbox/data/<key>, a secret
+  path of the guard's). tests/test_local_api.py checks the environment holds no secret and the real client is
+  refused.
+- Hosted on 127.0.0.1 on a port the system gives, with a key of its own (Authorization: Bearer); started again
+  when API.py changes (a look each second while it runs); a start that fails says API.py's line. FastAPI is not
+  the app's dependency (it is not installed): the local host is Starlette, which FastAPI is built on; the
+  FastAPI target's export lists fastapi in its own requirements.
+- The APIs page: the sandbox's panel, then Local sandbox APIs (target, base path, Run/Stop, each endpoint's data
+  words, Try it with a made-up body from its model, problems with Go to line, the request log every 2 s), then
+  the imported APIs. A kernel: `sab.api().get(path)` through the app (timed, logged).
+- The agent: one `api(action)` command (state, new, settings, run, stop, call, log, address, openapi); a write
+  call waits for Allow.
+
+### Part 3: framework targets and Export (built)
+- Targets are data (domain/api_targets.py Target: id, label, words, render(bundle), run hint), a Registry the
+  extensions that are on add to (their API_TARGETS: {id, label, words, render, run}); backend only.
+- Each export: API.py as it is (the endpoints never change), sab_api.py (the one request handler every target
+  calls: sab_api.handle), connections.py (each connection the endpoints use as its own portable code, made by the
+  script export's machinery: settings from the environment, a vault by managed identity; `connection("Sandbox")`
+  a copy of the sandbox, data/sandbox.duckdb, only on the user's tick, copied to the temporary folder at start
+  since the platforms' package folders are read-only), openapi.json, README.md (the endpoints, files, how to run
+  it here, the deploy commands, the portability checklist with each "Only works on your machine" note, the
+  variables to set), requirements.txt. FastAPI: main.py, a route per endpoint (async, the endpoint in a thread),
+  its OpenAPI. Azure Functions: function_app.py (the v2 model: @app.function_name and @app.route per endpoint,
+  FUNCTION auth level), host.json (routePrefix "" so the paths are API.py's), local.settings.json (names, empty
+  values), .funcignore. AWS Lambda: lambda_function.py (REST 1.0 and HTTP 2.0 events, function URLs, a stage
+  stripped), template.yaml (SAM, Python 3.12, an HTTP API).
+- `exports/api/<target>/` is a made folder (code_tree's made_from: "API.py"): written only when bytes change, a
+  file the export no longer makes removed, a file edited by hand (.sab/hand-edited.json) kept until Replace;
+  Compare shows both. The zip the brief mentions was not built (the folder is the deliverable).
+- Checked: tests/test_api_export.py exports the three for one API.py whose endpoints use a made-up SQLite
+  connection, then runs each with no app against the REAL connection (its keyring password given as the
+  platform's variable): the Lambda handler with made-up REST and HTTP events, the Azure app's functions, the
+  FastAPI app served; the answers are the sandbox mock's. With SWISSARMYBENCH_EXPORT_PYTHON naming a Python that
+  has fastapi 0.165, azure-functions 1.26 and duckdb, the same test runs against the real packages (done
+  2026-11-21: passed); without, small stand-ins of their few names. FastAPI and azure-functions are never the
+  app's dependencies, only the exports' requirements.
+
+### Part 4: New endpoint from a table; the Scripts page (built)
+- New endpoint from a table (the Local sandbox APIs' button, a sandbox row's New endpoint, `api(scaffold)`):
+  the table and its key (its primary key by default; a column picked), then the CRUD set appended to API.py in
+  the source's own style (domain/api_scaffold.py); a name or path API.py has already is refused. Written to the
+  file (the Scripts page takes the change as any change on disk; it is not one undoable edit in an open editor:
+  the file is the user's, and a reload is what the page does with an edit from outside).
+- The Scripts page's explorer has a Local sandbox API group (API.py and exports/api/**: made, read-only, "made
+  from API.py"); completion in API.py: `connection("|")` offers Sandbox and each mocked connection, a table after
+  FROM/JOIN/INTO/UPDATE in an execute() string offers the sandbox's tables.
+- ARCHITECTURE.md lists API.py in the tree and, when it has endpoints, a Local sandbox API deliverable (what it
+  mocks, each method and path); it is not counted as a script.

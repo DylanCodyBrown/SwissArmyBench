@@ -17,6 +17,7 @@ In short: `Store analysis` is an Analysis project whose deliverable is a noteboo
 
 ```text
 Store analysis/
+├── API.py                      the local sandbox API (its endpoints: Deliverables)
 ├── app.ipynb                   an app notebook
 ├── daily.py                    a script
 ├── data.ipynb                  the data notebook: it makes the tables

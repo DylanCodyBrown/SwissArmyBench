@@ -32,6 +32,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import connection_tables as sql_names
 from swissarmybench.domain import intellisense as lint_rules
 from swissarmybench.domain import lineage as lineage_rules
+from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import notebooks, sab_files
 from swissarmybench.domain import packages as package_rules
 from swissarmybench.domain import project_outline as rules
@@ -284,7 +285,11 @@ class ProjectOutline:
         return project
 
     def _listed(self, folder: str) -> list[dict[str, Any]]:
-        listed = scope_rules.documents(self._files.files(folder))
+        # API.py is the project's local sandbox API: its endpoints are a deliverable of their own, not a
+        # script.
+        listed = [
+            d for d in scope_rules.documents(self._files.files(folder)) if d["path"] != local_api_rules.FILE
+        ]
         roles = scope_rules.notebook_roles(listed)
         return [d | {"role": roles.get(d["path"])} for d in listed][:MAX_DOCUMENTS]
 
@@ -623,7 +628,14 @@ class ProjectOutline:
             reads = tuple(sorted({str(c["dataset"]) for c in cards if c.get("dataset")}, key=str.casefold))
             kinds = tuple(sorted({str(c.get("kind") or "card") for c in cards}))
             out.append(rules.Deliverable("dashboard", str(board.get("name")), reads, kinds))
-        order = {"notebook": 0, "script": 1, "app": 2, "dashboard": 3}
+        api_text = self._text(folder, local_api_rules.FILE)
+        if api_text is not None:
+            api = local_api_rules.parse(api_text)
+            if api.endpoints:
+                reads = tuple(sorted({n for e in api.endpoints for n in e.connections}, key=str.casefold))
+                said = tuple(f"{e.method} {api.settings.base_path}{e.path}" for e in api.endpoints)
+                out.append(rules.Deliverable("api", local_api_rules.FILE, reads, said))
+        order = {"notebook": 0, "script": 1, "app": 2, "api": 3, "dashboard": 4}
         return sorted(out, key=lambda d: (order.get(d.kind, 9), d.name.casefold()))
 
     def _packages(self, folder: str) -> tuple[str, ...]:

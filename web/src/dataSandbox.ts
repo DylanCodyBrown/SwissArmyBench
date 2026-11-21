@@ -17,6 +17,7 @@ import { button, h, openDialog, toast } from "./dom";
 import { errorHere } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
+import { newEndpoint } from "./localApis";
 
 export interface SandboxTable {
   name: string;
@@ -100,6 +101,8 @@ export function sandboxPanel(): HTMLElement {
         h("td", { class: "muted" }, [t.changes.inserted && `${t.changes.inserted} inserted`, t.changes.updated && `${t.changes.updated} updated`, t.changes.deleted && `${t.changes.deleted} deleted`].filter(Boolean).join(", ")),
         h("td", { class: "sandbox-actions" },
           button("Open in Grids", busyClick("Opening…", (b) => act(b, "/sandbox/tables/open", { table: t.name }, "")), { icon: "rows" }),
+          button("New endpoint", () => void newEndpoint(t.name), { icon: "plus", title: `New endpoint from ${t.name}: its CRUD set in API.py` }),
+          button("Reset", busyClick("Resetting…", (b) => act(b, "/sandbox/reset", { table: t.name }, `${t.name} is back to its baseline.`)), { icon: "reset", iconOnly: true, title: `Reset ${t.name} alone` }),
           button("Remove", busyClick("Removing…", (b) => act(b, "/sandbox/tables/remove", { table: t.name }, `${t.name} is out of the sandbox.`)), { icon: "trash", iconOnly: true, title: `Remove ${t.name}` }),
         ),
       ),
