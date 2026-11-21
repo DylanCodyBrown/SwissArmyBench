@@ -6866,8 +6866,9 @@ Decisions:
   editor; Relaunch an old one; **Restore** puts its canvas.json back as ONE change through the canvas's rules
   (Undo takes it back) and leaves the library's widgets as they are (a widget changed since is said); an old app
   build has no canvas.json and says so. Routes /streamlit/canvases/{canvas}/launch, …/builds…, …/perf…; the
-  agent's app_launch(analyzer), app_stop, builds_list, builds_files, builds_compare, build_relaunch,
-  build_restore, perf_attach, perf_session, perf_hints, perf_save, perf_saved.
+  agent's app_launch (analyzer, stop), canvas_builds and canvas_perf, each by an action (the tool list's
+  budget: canvas_list, canvas_show and canvas_stop were folded into canvas_open, canvas_move and canvas_play and
+  answer one release; canvas_redo is canvas_undo redo=true).
 - **A table property takes `[Conn].table`**, in the same picker as the open tables and now data.ipynb's
   (data.py's top-level names, read with ast): grouped Sample, Open tables, data.ipynb, a group per connection
   (its loaded catalog's tables as SQL names them; not loaded yet: "Type a table of <Conn>…": nothing is loaded

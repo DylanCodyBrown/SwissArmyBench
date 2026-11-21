@@ -9,7 +9,7 @@
  *   [ANALYZER]  the Performance Analyzer's window (/streamlit/perf?canvas=): it records while it is open
  *
  * ROUTING: /streamlit/canvases/{canvas}/builds, …/builds/compare, …/builds/{n}, …/builds/{n}/launch,
- * …/builds/{n}/restore (routes_launch.py; the agent's builds_list, builds_compare, build_relaunch, build_restore).
+ * …/builds/{n}/restore (routes_launch.py; the agent's canvas_builds: list, files, compare, relaunch, restore).
  */
 import { api } from "./api";
 import { button, clear, h, openDialog } from "./dom";

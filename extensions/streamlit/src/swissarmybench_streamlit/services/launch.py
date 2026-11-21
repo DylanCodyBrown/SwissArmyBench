@@ -1,7 +1,6 @@
 """Launch, Builds and the Performance Analyzer on the widget Canvas (the owner, 2026-11-19: "think Visual
 Studio"; carried over to the Canvas of widgets, 2026-11-21). For the Canvas page and the agent alike
-(app_launch, app_stop, builds_list, builds_compare, build_relaunch, build_restore, perf_attach, perf_session,
-perf_hints, perf_save).
+(app_launch with stop; canvas_builds and canvas_perf, each by its action).
 
   launch    the canvas built by the one builder (domain/canvas_build.py) and kept as a build
             (builds/<app>/<n>/ at the project's top: the code exactly as launched, the canvas's file,

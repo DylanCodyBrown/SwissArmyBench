@@ -1,6 +1,5 @@
 """Launch, Builds and the Performance Analyzer on the Canvas (services/launch.py), for the Canvas page, the
-analyzer's window and the agent (app_launch, app_stop, builds_list, builds_files, builds_compare,
-build_relaunch, build_restore, perf_attach, perf_session, perf_hints, perf_save).
+analyzer's window and the agent (app_launch, canvas_builds and canvas_perf, each by its action).
 
   POST   /streamlit/canvases/{canvas}/launch              {"analyzer"?: true}: a new build, run in a window
   GET    /streamlit/canvases/{canvas}/launch              the running launch (its build) or none

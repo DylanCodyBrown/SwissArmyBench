@@ -1327,8 +1327,8 @@ def test_11a_the_agent_makes_the_same_canvas_through_its_commands_only(
     assert checked["ok"], checked
     launched = agent("app_launch", canvas=canvas)
     assert launched["build"] == 1
-    assert agent("builds_list", canvas=canvas)["builds"][0]["changed"] == ["The first build."]
-    agent("app_stop", canvas=canvas)
+    assert agent("canvas_builds", canvas=canvas)["builds"][0]["changed"] == ["The first build."]
+    agent("app_launch", canvas=canvas, stop=True)
     del company
 
 

@@ -1235,7 +1235,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          STARTERS, SECRET_PATHS (/streamlit/run/); routes(services) its composition root (widgets,
                          canvases, live runs, previews; the base's hooks: an old app file said, a new project's
                          canvas, the outline's canvas pages); scaffold (data.ipynb and an empty canvas)
-    commands.py          the agent's widgets_* and canvas_* tools, app_launch and app_stop, builds_*, build_*, perf_*;
+    commands.py          the agent's widgets_* and canvas_* tools (canvas_builds and canvas_perf by an action), app_launch;
+                         OLD_NAMES (canvas_list, canvas_show, canvas_stop answer one release);
                          GONE: the old app canvas's
                          commands, each said gone (cli/commands.py gone_commands)
     domain/widgets.py    a widget's file (library/widgets/<name>.widget.py: a swissarmybench-widget TOML header,

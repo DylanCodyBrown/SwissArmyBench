@@ -379,3 +379,19 @@ def test_the_analyzer_records_only_while_attached_and_names_the_widget(
     assert not (run / "sab_perf.on").exists()
     ok(client.delete(f"{base}/perf", headers=AUTH))
     assert launches._running[canvas].recording is None
+
+
+def test_the_folded_canvas_commands_answer_by_their_old_names() -> None:
+    """The tool list's budget (2026-11-21): builds and the analyzer are one tool each, by an action, and four
+    canvas tools were folded into others; the old names still answer, one release."""
+    from swissarmybench.cli import commands
+
+    assert commands.current_name("canvas_list") == "canvas_open"
+    assert commands.current_name("canvas_show") == "canvas_move"
+    assert commands.current_name("canvas_stop") == "canvas_play"
+    assert commands.OLD_ARGS[("canvas_play", "run")] == "stop"
+    assert "canvas_undo redo=true" in commands.GONE_NAMES["canvas_redo"]
+    for name in ("canvas_builds", "canvas_perf", "app_launch"):
+        assert name in commands.REGISTRY
+    with pytest.raises(ValueError, match="action is one of"):
+        commands.execute_result("canvas_builds", {"canvas": "cv1", "action": "everything"})

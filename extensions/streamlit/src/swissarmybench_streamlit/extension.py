@@ -43,9 +43,6 @@ PROJECT_TYPE = "streamlit"
 FRONT_END = ["streamlit-canvas", "widgets"]
 # Its commands' area (cli/commands.py AREAS: the prefix, then what it works on).
 AREAS = (
-    ("builds", "Builds: every launch of a canvas, kept in its project's builds/ (list, files, compare)"),
-    ("build", "One build: run it again, put its canvas back"),
-    ("perf", "The Performance Analyzer: a launched canvas's reruns, calls, caches, web socket, hints"),
     ("canvas", "The Canvas: pages of containers and widget instances in px, sizing, snap, Play, Export"),
     (
         "widgets",
@@ -313,6 +310,15 @@ def commands() -> dict[str, Any]:
     from swissarmybench_streamlit.commands import COMMANDS
 
     return COMMANDS
+
+
+def __getattr__(name: str) -> Any:
+    """The old names and arguments of its commands (cli/commands.py reads them as the base's)."""
+    if name in ("OLD_NAMES", "OLD_ARGS"):
+        from swissarmybench_streamlit import commands
+
+        return getattr(commands, name)
+    raise AttributeError(name)
 
 
 def gone_commands() -> dict[str, str]:

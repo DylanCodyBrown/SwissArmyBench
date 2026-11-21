@@ -74,6 +74,16 @@ GONE: dict[str, str] = {
 }
 
 
+# Names folded into others (2026-11-21, the tool list's budget), one release: an old call still answers.
+OLD_NAMES: dict[str, str] = {
+    "canvas_list": "canvas_open",
+    "canvas_show": "canvas_move",
+    "canvas_stop": "canvas_play",
+}
+OLD_ARGS: dict[tuple[str, str], str] = {("canvas_play", "run"): "stop"}
+GONE["canvas_redo"] = "canvas_redo went (2026-11-21): canvas_undo redo=true redoes."
+
+
 def _command(canvas: str, kind: str, body: dict[str, Any]) -> Any:
     return api.call("POST", f"/streamlit/canvases/{_q(canvas)}/command", {"kind": kind, **body})
 
@@ -84,21 +94,17 @@ def _given(a: dict[str, Any], *names: str) -> dict[str, Any]:
 
 @command(
     "canvas_open",
-    "Open a project's canvas (<app>.canvas.json) by its path, or make one by its name: its id, model, version",
+    "Open a canvas (<app>.canvas.json) by path, or make one by name: its id, model; neither: the project's list",
     opt("path", "The canvas file's path."),
     opt("name", "A new canvas's name (in the open project's folder)."),
+    opt("folder", "The list: another project folder."),
 )
 def canvas_open(a: dict[str, Any]) -> Any:
+    if not a.get("path") and not a.get("name"):  # the project's canvases (and old .stapp.json files, said)
+        return api.call(
+            "GET", "/streamlit/canvases" + (f"?folder={_q(a['folder'])}" if a.get("folder") else "")
+        )
     return api.call("POST", "/streamlit/canvases", _given(a, "path", "name") | {"create": True})
-
-
-@command(
-    "canvas_list",
-    "The open project's canvases (and old .stapp.json files, said)",
-    opt("folder", "Another project folder."),
-)
-def canvas_list(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/streamlit/canvases" + (f"?folder={_q(a['folder'])}" if a.get("folder") else ""))
 
 
 @command(
@@ -112,8 +118,8 @@ def canvas_state(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_add_container",
-    "Draw a container on a page or in a container (px of the layout's design width: desktop 1200, phone 390; "
-    "without x and y: the first free place). The other layout places it by itself",
+    "Draw a container on a page or in one (px at the layout's width: desktop 1200, phone 390; no x, y: a free "
+    "place)",
     req("canvas", "The canvas's id."),
     opt("page", "The page's id (default: the first)."),
     opt("parent", "A container's id to nest it in."),
@@ -154,7 +160,7 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_move",
-    "Move or resize a container or widget (px), or put it in another container (parent; empty: the page)",
+    "Move or resize an item (px), put it in another container (parent; empty: the page), or show it in one layout",
     req("canvas", "The canvas's id."),
     req("id", "The container's or widget's id."),
     opt("x", "Left, px.", "int"),
@@ -163,8 +169,13 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
     opt("h", "Height, px.", "int"),
     opt("parent", "A container's id; empty for the page."),
     opt("layout", "desktop (default) or phone: whose places these are."),
+    opt("show", "both, desktop or phone: the layouts it shows in."),
 )
 def canvas_move(a: dict[str, Any]) -> Any:
+    if a.get("show") and not any(a.get(k) is not None for k in ("x", "y", "w", "h", "parent")):
+        return _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
+    if a.get("show"):
+        _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
     body = _given(a, "id", "x", "y", "w", "h", "layout")
     if "parent" in a and a["parent"] is not None:
         body["parent"] = a["parent"]
@@ -181,17 +192,6 @@ def canvas_move(a: dict[str, Any]) -> Any:
 )
 def canvas_set_container(a: dict[str, Any]) -> Any:
     return _command(a["canvas"], "set_container", {"id": a["id"], "props": a["props"]})
-
-
-@command(
-    "canvas_show",
-    "Show a container or widget in both layouts, or in only one (desktop or phone)",
-    req("canvas", "The canvas's id."),
-    req("id", "The container's or widget's id."),
-    req("show", "both, desktop or phone."),
-)
-def canvas_show(a: dict[str, Any]) -> Any:
-    return _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
 
 
 @command(
@@ -257,14 +257,16 @@ def canvas_page(a: dict[str, Any]) -> Any:
     return _command(a["canvas"], "change_page", _given(a, "page", "name", "index"))
 
 
-@command("canvas_undo", "Undo the canvas's last change", req("canvas", "The canvas's id."))
+@command(
+    "canvas_undo",
+    "Undo a canvas's last change (redo=true: redo the last undone)",
+    req("canvas", "The canvas's id."),
+    opt("redo", "true: redo.", "bool"),
+)
 def canvas_undo(a: dict[str, Any]) -> Any:
+    if a.get("redo"):
+        return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/redo", {})
     return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/undo", {})
-
-
-@command("canvas_redo", "Redo the canvas's change undone last", req("canvas", "The canvas's id."))
-def canvas_redo(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/redo", {})
 
 
 @command(
@@ -274,21 +276,14 @@ def canvas_redo(a: dict[str, Any]) -> Any:
     req("canvas", "The canvas's id."),
     opt("page", "The page's id to show."),
     opt("check", "true: run headless (AppTest) and say each page's errors.", "bool"),
+    opt("stop", "play: stop the playing page (launch: the launched app)."),
 )
 def canvas_play(a: dict[str, Any]) -> Any:
+    if a.get("stop"):
+        return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/stop", {"run": a["stop"]})
     if a.get("check"):
         return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/check", {})
     return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/play", _given(a, "page"))
-
-
-@command(
-    "canvas_stop",
-    "Stop a canvas's Play (run play, the default) or its launched app (run launch)",
-    req("canvas", "The canvas's id."),
-    opt("run", "play or launch."),
-)
-def canvas_stop(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/stop", _given(a, "run"))
 
 
 @command(
@@ -304,120 +299,75 @@ def canvas_export(a: dict[str, Any]) -> Any:
 
 @command(
     "app_launch",
-    "Launch a canvas (Ctrl+F5): a new build in builds/<app>/<n>/, run in its own window; analyzer=true attaches "
-    "the Performance Analyzer from its first load (Ctrl+Shift+F5)",
+    "Launch a canvas (Ctrl+F5): a build in builds/<app>/<n>/, run in its own window; or stop it",
     req("canvas", "The canvas's id."),
-    opt("analyzer", "true: record with the Performance Analyzer from the first load.", "bool"),
+    opt("analyzer", "true: the Performance Analyzer records from the first load.", "bool"),
+    opt("stop", "true: stop the launched app.", "bool"),
 )
 def app_launch(a: dict[str, Any]) -> Any:
-    body = {"analyzer": True} if a.get("analyzer") else {}
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/launch", body)
-
-
-@command("app_stop", "Stop a canvas's launched app (its build stays)", req("canvas", "The canvas's id."))
-def app_stop(a: dict[str, Any]) -> Any:
-    return api.call("DELETE", f"/streamlit/canvases/{_q(a['canvas'])}/launch")
-
-
-@command(
-    "builds_list",
-    "A canvas's builds, newest first: number, time, what changed in words, result, saved analyzer sessions",
-    req("canvas", "The canvas's id."),
-)
-def builds_list(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/builds")
-
-
-@command(
-    "builds_files",
-    "One build's files as launched (read-only): app.py, the pages, sab_widgets.py, canvas.json, build.json",
-    req("canvas", "The canvas's id."),
-    req("build", "The build's number.", "int"),
-)
-def builds_files(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}")
-
-
-@command(
-    "builds_compare",
-    "Two builds file by file (changed, added, removed; each side's text); without b, build a against the canvas now",
-    req("canvas", "The canvas's id."),
-    req("a", "The first build's number.", "int"),
-    opt("b", "The second build's number (none: the canvas as it is now).", "int"),
-)
-def builds_compare(a: dict[str, Any]) -> Any:
-    more = f"&b={int(a['b'])}" if a.get("b") is not None else ""
-    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/builds/compare?a={int(a['a'])}{more}")
-
-
-@command(
-    "build_relaunch",
-    "Run an old build again, its own code as it was launched",
-    req("canvas", "The canvas's id."),
-    req("build", "The build's number.", "int"),
-)
-def build_relaunch(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}/launch", {})
-
-
-@command(
-    "build_restore",
-    "Put a build's canvas back as one change (canvas_undo takes it back); the library's widgets stay as they are",
-    req("canvas", "The canvas's id."),
-    req("build", "The build's number.", "int"),
-)
-def build_restore(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}/restore", {})
-
-
-@command(
-    "perf_attach",
-    "The Performance Analyzer on a launched canvas: attach (on), pause (on=false), a new session (clear), detach",
-    req("canvas", "The canvas's id."),
-    opt("on", "false: pause the recording.", "bool"),
-    opt("clear", "true: start a new session.", "bool"),
-    opt("detach", "true: stop recording and let go.", "bool"),
-)
-def perf_attach(a: dict[str, Any]) -> Any:
-    path = f"/streamlit/canvases/{_q(a['canvas'])}/perf"
-    if a.get("detach"):
+    path = f"/streamlit/canvases/{_q(a['canvas'])}/launch"
+    if a.get("stop"):
         return api.call("DELETE", path)
-    return api.call("POST", path, {k: a[k] for k in ("on", "clear") if a.get(k) is not None})
+    return api.call("POST", path, {"analyzer": True} if a.get("analyzer") else {})
+
+
+_BUILDS = ("list", "files", "compare", "relaunch", "restore")
 
 
 @command(
-    "perf_session",
-    "The analyzer's session: each rerun (trigger, each widget's time), calls, caches, the web socket, hints",
+    "canvas_builds",
+    "A canvas's builds: list, files, compare (build, b; no b: now), relaunch, restore (undoable)",
     req("canvas", "The canvas's id."),
+    opt("action", "list (default), files, compare, relaunch or restore."),
+    opt("build", "The build's number (files, relaunch, restore; compare's a).", "int"),
+    opt("b", "compare: the other build (none: the canvas now).", "int"),
 )
-def perf_session(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/perf")
+def canvas_builds(a: dict[str, Any]) -> Any:
+    action, c = a.get("action") or "list", _q(a["canvas"])
+    if action not in _BUILDS:
+        raise ValueError(f"action is one of {', '.join(_BUILDS)}.")
+    if action == "list":
+        return api.call("GET", f"/streamlit/canvases/{c}/builds")
+    if a.get("build") is None:
+        raise ValueError("Name the build: build=<its number>.")
+    n = int(a["build"])
+    if action == "compare":
+        b = f"&b={int(a['b'])}" if a.get("b") is not None else ""
+        return api.call("GET", f"/streamlit/canvases/{c}/builds/compare?a={n}{b}")
+    if action == "files":
+        return api.call("GET", f"/streamlit/canvases/{c}/builds/{n}")
+    if action == "relaunch":
+        return api.call("POST", f"/streamlit/canvases/{c}/builds/{n}/launch", {})
+    return api.call("POST", f"/streamlit/canvases/{c}/builds/{n}/restore", {})
+
+
+_PERF = ("session", "hints", "attach", "pause", "clear", "detach", "save", "saved")
 
 
 @command(
-    "perf_saved",
-    "A saved analyzer session, as it was recorded (builds_list names each build's sessions)",
+    "canvas_perf",
+    "The Performance Analyzer on a launch: its session (reruns, calls, caches, socket) and hints",
     req("canvas", "The canvas's id."),
-    req("build", "The build's number.", "int"),
-    req("file", "The session's file: perf-<time>.json."),
+    opt("action", "session (default), hints, attach, pause, clear, detach, save or saved."),
+    opt("build", "saved: the build's number.", "int"),
+    opt("file", "saved: perf-<time>.json."),
 )
-def perf_saved(a: dict[str, Any]) -> Any:
-    path = f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}/perf/{_q(a['file'])}"
-    return api.call("GET", path)
-
-
-@command("perf_hints", "The analyzer's hints in plain words", req("canvas", "The canvas's id."))
-def perf_hints(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/perf/hints")
-
-
-@command(
-    "perf_save",
-    "Save the analyzer's session into its build (perf-<time>.json)",
-    req("canvas", "The canvas's id."),
-)
-def perf_save(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/perf/save", {})
+def canvas_perf(a: dict[str, Any]) -> Any:
+    action, c = a.get("action") or "session", _q(a["canvas"])
+    if action not in _PERF:
+        raise ValueError(f"action is one of {', '.join(_PERF)}.")
+    if action == "session":
+        return api.call("GET", f"/streamlit/canvases/{c}/perf")
+    if action == "hints":
+        return api.call("GET", f"/streamlit/canvases/{c}/perf/hints")
+    if action == "detach":
+        return api.call("DELETE", f"/streamlit/canvases/{c}/perf")
+    if action == "save":
+        return api.call("POST", f"/streamlit/canvases/{c}/perf/save", {})
+    if action == "saved":
+        return api.call("GET", f"/streamlit/canvases/{c}/builds/{int(a['build'])}/perf/{_q(a['file'])}")
+    body = {"on": False} if action == "pause" else {"clear": True} if action == "clear" else {}
+    return api.call("POST", f"/streamlit/canvases/{c}/perf", body)
 
 
 # ===== widgets (the owner, 2026-11-21: a widget replaces app cells and app notebooks) =====
