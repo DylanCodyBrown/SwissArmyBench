@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 import re
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -24,11 +23,10 @@ from playwright.sync_api import Browser, Locator, Page, expect
 from swissarmybench.client import push_client
 from swissarmybench.server.blade_templates import POWERBI_VAULT
 from tests import powerbi_standin as made_up
-from tests.e2e.test_streamlit_page import LONG, metric, open_window, saved_notebook, shot
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server, steady_box  # noqa: F401
-from tests.e2e.test_workbench_page import menu, wait_until
-from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
+from tests.e2e.test_workbench_page import wait_until
+from tests.e2e.workbench_helpers import open_window, shot
 
 VAULT_CODE = f"""values = {{
     "powerbi-tenant-id": "{made_up.TENANT}",
@@ -312,56 +310,6 @@ def test_an_html_kpi_row_is_inserted_from_the_cells_menu_and_drawn(
     workbench.close()
 
 
-def test_a_streamlit_piece_names_its_cell_shows_in_the_pane_and_goes_on_a_canvas(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    book = tmp_path / "pieces.ipynb"
-    saved_notebook(server, book, None, [""])
-    workbench = open_window(browser, server, book)
-    cells = workbench.locator(".wb-cell")
-    expect(cells.first.locator(".monaco-editor")).to_be_visible(timeout=20000)
-    listed = blades(workbench)
-    family(listed, "Streamlit")
-    piece = listed.locator(".starter-item", has_text="Streamlit selectbox filter")
-    expect(piece.locator(".blade-kind")).to_have_text("Streamlit")
-    piece.drag_to(cells.first.locator(".monaco-editor"))
-    form = workbench.locator("dialog[open]")
-    expect(form.get_by_label("Table", exact=True)).to_have_value("orders")
-    expect(form.get_by_label("Column", exact=True)).to_have_value("region")
-    expect(form.get_by_label("Name", exact=True)).to_have_value("by_region")
-    expect(form.get_by_label("Label", exact=True)).to_have_value("Region")
-    form.get_by_role("button", name="Insert").click()
-    # The empty cell took the piece, and its name.
-    expect(cells.first.locator(".wb-cell-name")).to_have_value("Region filter")
-    expect(cells).to_have_count(1)
-    pane = workbench.locator(".wb-st")
-    # The agent inserts one too (golden rule): a new Python cell, named after the piece.
-    made = window(
-        server,
-        "snippet.insert",
-        name="Streamlit metric row",
-        values={"table": "orders", "value column": "amount"},
-    )
-    assert made["name"] == "Total sales row" and made["kind"] == "code"
-    workbench.keyboard.press("Control+s")
-    expect(workbench.locator(".wb-tab.active")).not_to_contain_text("●")
-    # From the pane (the canvas's own panel) onto a new app's canvas: a block called by the cell's name.
-    window(server, "view.explorer", show=False)  # its blade list was over the canvas's left
-    window(server, "file.newApp")
-    expect(pane.locator(".wb-st-cell .wb-data-label")).to_have_text(
-        ["Region filter", "Total sales row"], timeout=20000
-    )
-    expect(pane.locator(".wb-st-cell .wb-data-meta").first).to_have_text(
-        "@cell1makes by_region · reads orders"
-    )
-    pane.locator(".wb-st-cell").nth(0).drag_to(workbench.locator(".cv-board"))
-    blocks = workbench.locator(".cv-block")
-    expect(blocks).to_have_count(1)
-    expect(blocks.nth(0).locator(".cv-block-name")).to_have_text("Region filter")
-    expect(blocks.nth(0).locator(".cv-block-where")).to_have_text("pieces.ipynb @cell1")
-    workbench.close()
-
-
 def test_in_a_script_a_snippet_is_a_cell_of_its_own(
     browser: Browser, server: dict[str, Any], orders: None
 ) -> None:
@@ -392,43 +340,3 @@ GUIDE: list[tuple[str, dict[str, str]]] = [
         {"table": "in_dates", "value column": "amount", "date column": "order_date"},
     ),
 ]
-
-
-@needs_streamlit
-def test_the_guides_page_of_five_pieces_plays_live_on_a_canvas(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    assert STREAMLIT_PYTHON is not None
-    book = tmp_path / "guide.ipynb"
-    saved_notebook(server, book, STREAMLIT_PYTHON, [""])
-    workbench = open_window(browser, server, book)
-    expect(workbench.locator(".wb-cell .monaco-editor").first).to_be_visible(timeout=20000)
-    for at, (name, values) in enumerate(GUIDE):  # the first fills the empty cell, the rest follow it
-        window(server, "snippet.insert", name=name, values=values, **({"number": 1} if at == 0 else {}))
-    workbench.keyboard.press("Control+s")
-    pane = workbench.locator(".wb-st")
-    entries = pane.locator(".wb-st-cell")
-    # The documented code of a piece, as the learner reads it.
-    workbench.locator(".wb-cell").nth(1).scroll_into_view_if_needed()
-    shot(workbench, "6-a-streamlit-pieces-documented-code")
-    menu(workbench, "Workbench menu", "New Streamlit app")
-    board = workbench.locator(".cv-board")
-    expect(entries).to_have_count(5, timeout=20000)
-    for index in range(5):
-        entries.nth(index).drag_to(board)
-    expect(workbench.locator(".cv-block")).to_have_count(5)
-    # Laid out as the guide draws it: the two filters side by side, the metrics, the chart beside the table.
-    state = window(server, "canvas.state")
-    blocks = next(p for p in state["pages"] if p["id"] == state["page"])["blocks"]
-    places = {1: (1, 1, 6), 2: (1, 7, 6), 3: (2, 1, 12), 4: (3, 1, 5), 5: (3, 6, 7)}
-    for block in sorted(blocks, key=lambda b: b["cell"]):
-        row, column, wide = places[block["cell"]]
-        where = f"/streamlit/apps/{state['app']}/pages/{state['page']}/blocks/{block['id']}"
-        call(server, "PATCH", where, {"row": row, "column": column, "w": wide})
-    workbench.get_by_role("button", name="Play", exact=True).click()
-    live = workbench.frame_locator(".cv-frame")
-    expect(metric(live).first).to_be_visible(timeout=LONG)
-    expect(live.locator('[data-testid="stSelectbox"]')).to_be_visible()
-    expect(live.locator('[data-testid="stDataFrame"]')).to_be_visible(timeout=LONG)
-    shot(workbench, "7-a-canvas-page-of-five-starter-pieces-after-play")
-    workbench.close()

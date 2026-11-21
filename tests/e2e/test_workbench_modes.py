@@ -11,7 +11,6 @@ With SWISSARMYBENCH_MODES_SHOTS set to a folder, the tests also save screenshots
 from __future__ import annotations
 
 import json
-import re
 import urllib.error
 from collections.abc import Iterator
 from pathlib import Path
@@ -26,7 +25,7 @@ from swissarmybench.client import push_client
 from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
-from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
+from tests.streamlit_helpers import STREAMLIT_PYTHON
 
 SHOTS = env("SWISSARMYBENCH_MODES_SHOTS") or None
 ORDERS = pd.DataFrame(
@@ -161,111 +160,6 @@ def test_kind_colours_on_tabs_menus_and_settings(
     until(lambda: token(page, "script") != shown)
     assert token(page, "script") == "" or token(page, "script") != shown
     page.keyboard.press("Escape")
-    page.context.close()
-
-
-def test_app_mode_properties_wiring_tools_and_page_settings(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    canvas = page.locator(".cv")
-    blocks = canvas.locator(".cv-block")
-    expect(blocks).to_have_count(3, timeout=20000)
-    # The status bar: State and Properties in place of the console and Variables.
-    bar = page.locator(".wb-status")
-    expect(bar.get_by_role("button", name="Properties", exact=True)).to_be_visible()
-    expect(bar.get_by_role("button", name="State", exact=True)).to_be_visible()
-    expect(bar.get_by_role("button", name="Console", exact=True)).to_be_hidden()
-    bar.get_by_role("button", name="Properties", exact=True).click()
-    props = page.locator(".wb-mode-properties")
-    expect(props).to_be_visible()
-    # No block selected: the page settings.
-    expect(props.get_by_role("heading", name="Theme colours")).to_be_visible()
-    title = props.locator("input[data-field=title]")
-    title.fill("Sales")
-    title.press("Enter")
-    assert until(lambda: window(server, "canvas.settings")["title"] == "Sales")
-    props.get_by_role("button", name="Centred").click()
-    assert until(lambda: window(server, "canvas.settings")["layout"] == "centered")
-    # A block selected: its name, size, source cell (blue: a notebook's), makes, reads, feeds.
-    blocks.nth(0).click()
-    expect(blocks.nth(0)).to_have_class(re.compile(r"\bselected\b"))
-    expect(props.locator("input[data-field=name]")).to_have_value("Region filter")
-    expect(props.locator("input[data-field=width]")).to_have_value("4")
-    expect(props.locator(".app-source")).to_contain_text("app mockups.ipynb @cell1")
-    assert colour(page, ".app-source") == rgb(token(page, "notebook"))
-    expect(props.locator(".app-chip").first).to_have_text("region")
-    expect(props.locator(".app-feeds li")).to_have_count(2)
-    # Its controller (domain/controllers.py): a filter that makes region; and Lineage… opens the overlay.
-    expect(props.locator(".app-role")).to_have_text("Filter")
-    expect(props.locator('.app-make[data-name="region"]')).to_be_visible()
-    props.get_by_role("button", name="Lineage…").click()
-    overlay = page.get_by_role("dialog", name="Lineage")
-    expect(overlay.locator(".wb-lin-card.target")).to_contain_text("Region filter", timeout=20000)
-    page.keyboard.press("Escape")
-    expect(overlay).to_have_count(0)
-    # The wiring: a violet arrow to each block it feeds, the name it makes under it.
-    expect(canvas.locator(".cv-wires path[data-to]")).to_have_count(2)
-    expect(canvas.locator(".cv-wire-name")).to_have_text("region")
-    shot(page, "app-properties-wiring")
-    # Width from Properties; undo and redo.
-    props.locator("input[data-field=width]").fill("5")
-    props.locator("input[data-field=width]").press("Enter")
-    expect(props.locator("input[data-field=width]")).to_have_value("5", timeout=10000)
-    expect(blocks.nth(0)).to_have_attribute("data-w", "5", timeout=10000)
-    window(server, "canvas.undo")
-    expect(props.locator("input[data-field=width]")).to_have_value("4", timeout=10000)
-    window(server, "canvas.redo")
-    expect(props.locator("input[data-field=width]")).to_have_value("5", timeout=10000)
-    # Duplicate, align, zoom.
-    canvas.page.get_by_role("button", name="Duplicate", exact=True).click()
-    expect(blocks).to_have_count(4, timeout=10000)
-    window(server, "canvas.align", how="right")
-    state = window(server, "canvas.state")
-    front = next(p for p in state["pages"] if p["id"] == state["page"])
-    selected = window(server, "canvas.properties")["block"]
-    placed = next(b for b in front["blocks"] if b["id"] == selected["id"])
-    assert placed["column"] + placed["w"] == 13
-    assert window(server, "canvas.zoom", percent=80) == {"percent": 80}
-    expect(page.locator(".cv-zoom-level")).to_have_text("80%")
-    window(server, "canvas.zoom", percent=100)
-    # The agent reads Properties too; Escape puts the selection away.
-    blocks.nth(0).click()
-    page.keyboard.press("Escape")
-    expect(props.get_by_role("heading", name="Theme colours")).to_be_visible()
-    # Saved: the settings are in the app's file.
-    window(server, "file.save")
-    held = json.loads(app.read_text(encoding="utf-8"))
-    assert held["settings"] == {"title": "Sales", "layout": "centered"}
-    page.context.close()
-
-
-def test_the_starter_gallery_writes_a_named_cell_and_places_it(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    # Starters is the canvas's other left panel (the status bar's Starters, or data.starters).
-    page.locator(".wb-status").get_by_role("button", name="Starters", exact=True).click()
-    gallery = page.locator(".wb-starters-panel")
-    expect(gallery.locator(".wb-starter-family")).to_have_count(5, timeout=20000)
-    listed = window(server, "data.starterList")
-    assert [f["family"] for f in listed] == ["Filters", "Displays", "Layout", "Interaction", "Feedback"]
-    assert sum(len(f["starters"]) for f in listed) == 29
-    assert "pieces" not in page.locator(".wb-mode-left").inner_text().lower()
-    shot(page, "app-starters")
-    done = window(
-        server,
-        "canvas.addStarter",
-        name="Streamlit metric with change",
-        values={"table": "orders", "column": "amount", "label": "Total"},
-    )
-    assert done["document"].endswith("app mockups.ipynb")
-    expect(page.locator(".cv-block")).to_have_count(4, timeout=20000)
-    saved = json.loads((tmp_path / "sales" / "app mockups.ipynb").read_text(encoding="utf-8"))
-    assert len(saved["cells"]) == 4
     page.context.close()
 
 
@@ -480,30 +374,6 @@ def test_a_panel_turned_off_in_settings_is_gone(
             assert "turned off" in error.read().decode() or "none" in str(error)
     finally:
         call(server, "PUT", "/panels", {"workbench.properties": True})
-    page.context.close()
-
-
-@needs_streamlit
-def test_play_preview_phone_dark_and_the_state_panel(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    window(server, "canvas.play")
-    frame = page.frame_locator(".cv-frame")
-    expect(frame.locator('[data-testid="stMetricValue"]')).to_be_visible(timeout=60000)
-    window(server, "canvas.preview", device="phone", theme="dark")
-    expect(page.locator(".cv-device.cv-phone")).to_be_visible()
-    assert "dark_theme" in str(page.locator(".cv-frame").get_attribute("src"))
-    page.locator(".wb-status").get_by_role("button", name="State", exact=True).click()
-    state = page.locator(".wb-mode-state")
-    expect(state.locator('tr[data-key="region_pick"]')).to_be_visible(timeout=30000)
-    expect(state.locator('tr[data-key="region_pick"] td').nth(2)).to_have_text("Region filter")
-    rows = window(server, "canvas.session")
-    assert any(r["key"] == "region_pick" and r["block"] == "Region filter" for r in rows)
-    shot(page, "app-state-preview")
-    window(server, "canvas.resetState")
     page.context.close()
 
 

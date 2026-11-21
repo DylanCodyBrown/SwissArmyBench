@@ -14,7 +14,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from tests.conftest import AGENT, AUTH, make_client, push
-from tests.test_streamlit_apps import FakeRunner, answering
+from tests.streamlit_helpers import FakeRunner, answering
 
 ORDERS = pa.table({"month": ["2026-01", "2026-02"], "region": ["North", "South"], "revenue": [120.5, 98.0]})
 
@@ -177,7 +177,7 @@ def test_run_in_place_writes_the_widget_alone_with_its_values_and_the_tables_it_
     assert ran["ok"] and ran["url"].startswith("/streamlit/run/widget-w1-")
     python, folder, base = runner.started[0]
     assert python == "/p" and ran["url"].startswith(base)
-    page = (Path(folder) / "pages" / "sales_table.py").read_text()
+    page = (Path(folder) / "app_pages" / "sales_table.py").read_text()
     assert 'sab.render(\'sales_table\', {"table_name": "orders", "colour": "#000000"}, \'w1\')' in page
     assert (Path(folder) / "data" / "orders.parquet").is_file()
     assert "CODE['sales_table']" in (Path(folder) / "sab_widgets.py").read_text()

@@ -1,93 +1,46 @@
-# Streamlit: the canvas and projects
+# Streamlit: widgets and the Canvas
 
 The Streamlit extension (`swissarmybench-streamlit`), preinstalled with every install: the installers and
 each update put it in, and the user can remove it on the Extensions page. Without it the app is the BI base:
-no Apps area, no canvas, and a `streamlit_*` call says which extension it needs (`extensions_install
-id=streamlit` waits for the user's Allow). A Streamlit project (`project_new type="streamlit"`) starts with
-data.ipynb, app.ipynb and the canvas; a BI project gets the canvas too while the extension is on.
+no Canvas, no Widgets, and a `canvas_*` or `widgets_*` call says which extension it needs
+(`extensions_install id=streamlit` waits for the user's Allow). A Streamlit project (`project_new
+type="streamlit"`) starts with data.ipynb and an empty canvas; a BI project gets a canvas too.
 
-There is no Streamlit cell kind: a Python cell that calls `st.` shows live in its own cell (open tables
-are DataFrames by name, after their grid steps). It runs in the document's Streamlit app, in the
-notebook's own Python, on 127.0.0.1 only. A cell that makes a name (`region = st.selectbox(...)`)
-drives the cells on the same page that read it.
+App notebooks and the old `.stapp.json` canvases were replaced by widgets (2026-11-21): opening an old one
+says so in one line.
 
-## Live cells (the front document)
-- `workbench_live_cells` (makes, reads, state), `workbench_live_run`, `workbench_live_resize`.
-- `streamlit_cells`: every Python cell that calls Streamlit, by document (the Streamlit cells pane).
+## Widgets (the library's `widgets/<name>.widget.py`, shared like blades)
+- A widget is a header (name, description, framework, group, size and min_size in grid cells) and its
+  Streamlit code. Its top-level plain values are its properties, each typed with a mask: bool (switch), int
+  and float (number; `# 0..100` a range), str, colour (`"#1f77b4"`), date, datetime, time, choice
+  (`Literal[...]` or `# choices: a, b`), table (an open table's name; empty: made-up sample data), column
+  (a `# column of` comment naming its table property), variable (`os.environ["NAME"]` or `"${NAME}"`), path, list and dict. An
+  annotation wins over the guess. The comment lines above one are its help.
+- Its code imports the runtime: `from sab_canvas import table, key, sample, var` (`table(name)` the table,
+  `key("x")` a widget key of this instance's own, `var(NAME)` a variable).
+- `widgets_list` (q), `widgets_get`, `widgets_new` (name, description, code), `widgets_save` (code, the
+  header kept), `widgets_header` (new_name: checked, and every canvas instance renamed; description),
+  `widgets_properties` (of a widget, or of code not saved yet), `widgets_set_property` (a default, written
+  into only its own characters, checked first), `widgets_run` (headless with AppTest: each page's
+  `failed` errors and what it drew; live=true also gives a live address), `widgets_copy` (a prebuilt one
+  as your own: 56 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
+  state: ready with its address, coming, failed with why).
 
-## The canvas (an app: `<name>.stapp.json`, pages of blocks on a 12-column grid, links to cells, no code)
-- In the window: `workbench_new_app`, `workbench_canvas` (its app id), `workbench_canvas_play`,
-  `workbench_canvas_edit`, `workbench_cell_copy` then `workbench_cell_paste` (a block).
-- By app id, no window needed: `streamlit_open`, `streamlit_apps`, `streamlit_app` (pages, blocks,
-  problems), `streamlit_page_add`, `streamlit_page_change`, `streamlit_page_remove`,
-  `streamlit_block_place` (a saved document's cell onto a page), `streamlit_block_change` (move,
-  resize, another page), `streamlit_block_remove`, `streamlit_save`, `streamlit_close`.
-- Play: `streamlit_run`, then `streamlit_address`; `streamlit_stop`. Missing Streamlit: the problem
-  is {kind "missing", feature, packages, python, command}; `streamlit_install` (into the notebook's
-  Python; it is never the app's own dependency), then run again.
-- Controllers: a cell's header line `# Makes: region: str = "All"; by_region: table = orders` is its
-  contract (types: str int float bool date list table any; a table's default is a table's name;
-  `# Role: filter|action|view` optional). A block whose maker is not on the page reads the default.
-  `streamlit_app` gives each block's `controller` (role, makes with types and defaults, widgets),
-  `defaults`, `contract`, `thin` and `failures`; `streamlit_check` the check alone (cycles, names made
-  twice). `streamlit_test(app, page)`: Test this page (Streamlit's AppTest in the app's Python tries
-  each controller's values; each block's failures). `workbench_canvas_move_to_data(block)`: a thin
-  hint's model work into a named cell of data.ipynb, one `from data import ...` line left.
-- `streamlit_export`: a folder that runs alone (app.py, pages, the tables as Parquet). It copies rows,
-  so it waits for the user's Allow.
-- `streamlit_save_as`: the project as one zip (data.py, pages/*.py, sources; no rows, no secrets).
-
-## Project folders (a folder that starts with the data: guide projects)
-- data.ipynb: each table's cell (its load and its grid steps as DuckDB SQL) and the user's own cells.
-  data.py is its export, never edited by hand; pages and other notebooks start `from data import ...`.
-- `project_new(name, app=true)`: a project folder (data.ipynb, data.py, a canvas, notebooks), opened. `project_files`,
-  `project_export_data` (data.py again), `workbench_project_open` (its files as tabs).
-- A pasted table has no source to read again: data.py gets a marked stub. When data.ipynb would hold
-  pasted rows, `streamlit_save_as` waits for the user's Allow (`project_new` keeps rows out of it).
-
-## App mode
-- `streamlit_page_settings` (title, icon, layout wide or centered, logo, theme colours: written into the
-  saved pages and the zip as st.set_page_config, st.logo and .streamlit/config.toml); `streamlit_state`
-  (the live page's session state, each key with its block).
-- In the window: "canvas.select", "canvas.properties", "canvas.settings", "canvas.session",
-  "canvas.resetState", "canvas.undo", "canvas.redo", "canvas.duplicate", "canvas.align", "canvas.zoom",
-  "canvas.preview" (desktop, tablet, phone; light or dark), "canvas.addStarter" (a starter written as a
-  named cell of the mockups notebook, then placed), "data.starters", "data.starterList".
-
-## The property pane and the designer (canvas_*)
-- `canvas_inspect` (app; page; block): what the pane draws. A block: its `widgets` (each Streamlit element its
-  cell calls: `index`, `call`, `arguments` as literal, name, state, variable or expression, `state_key`, `now`,
-  `default`, `events`, `params`), `uses` (tables, variables, connections, cells, used_by, lineage), `cache`,
-  `code` (what the page runs for it). `canvas_table` (a table's columns, steps in words, first rows).
-- A cell's CODE changes only in the characters named, in its open document (the window that holds the app
-  makes it, like typing): `canvas_set_default` (value=, index= or default=), `canvas_set_property` (any
-  property; without value: reset), `canvas_bind` (kind name, state, variable or expression),
-  `canvas_add_handler` (a stub and on_change= or on_click=), `canvas_set_cache` (kind data, resource or none;
-  settings ttl, max_entries, show_spinner, persist). Code that is not a plain value is refused: change it in
-  its cell. An app opened without a window (`streamlit_open`) is refused too: open it in the Workbench.
-- Now, the RUNNING app only (Play first): `canvas_state_set` (a session state key, or forget), `canvas_cache_clear`.
-- Designing: `canvas_toolbox` (the elements and containers; with element: its cell's code), `canvas_add` (an
-  element as a cell of the app notebook and its block, on the front canvas), `canvas_container` (columns, tabs,
-  expander, container, form, sidebar, popover), `streamlit_block_change` (parent, slot: into a container;
-  hidden; locked; props: a container's own), `canvas_arrange` (left, right, centre, top, bottom, same_width,
-  same_height, distribute; reset), `canvas_outline` (the page as a tree).
-- In the window: "canvas.add", "canvas.selectMany", "canvas.arrange", "canvas.view" (snaplines, rulers,
-  sampleRows, width), "canvas.panel" (toolbox, outline), "streamlit.addToApp" (the selected cell onto the page).
-
-## SQL and DAX blocks; fragments
-- A `%%sql <connection>` or `%%dax <connection>/<dataset>` cell goes on a page like any cell: its page code is
-  the script exporter's call into sab_queries.py beside the pages (the connections written out; no magic line).
-  `{{ name }}` in its query is a page value: bound as a parameter (SQL), a DAX literal; never pasted.
-  `streamlit_block_change` view={"as": "bar", "x": .., "y": ..} (table, bar, line, area, metric; "cache":
-  false). `canvas_inspect`'s `query`: connection, dataset, params (each with the block that gives it), tables.
-  `canvas_add` element=sql_query or dax_query makes the cell and its block.
-- The export runs a block whose widgets feed only itself as an st.fragment (`canvas_inspect`'s `fragment`).
-
-## Launch, builds, the Performance Analyzer
-- `app_launch` (analyzer=true: recording from its first load): a new build in the project's
-  builds/<app>/<n>/ (the code as exported, cells.json, build.json: what changed, result), run in its own window
-  (`address`). `app_stop`. `builds_list` (build=: its files), `builds_compare` (a, b), `build_relaunch`,
-  `build_restore` (its cells' code back, in the open documents; the layout).
-- The analyzer records only while attached: `perf_attach` (on=false pauses; clear; detach; save: into the
-  build), `perf_session` (reruns with trigger and each block's ms, calls, caches, the socket's kinds and
-  sizes; build= and file=: a saved one), `perf_hints`.
+## The Canvas (`<app>.canvas.json`, a project file; every place and size in pixels)
+- `canvas_list`, `canvas_open` (path, or name: a new one), `canvas_state` (model, version, `missing`
+  instances whose widget is gone, `marks`: an instance's values that no longer fit, `notes` said once).
+- A page holds containers; a container holds containers and widget instances placed in its box. The
+  rules hold for every command: nothing overlaps its siblings or leaves its container or the page's width
+  (wide 1200 px, centered 704 px), a widget is never smaller than its min_size; a refused command says why.
+- `canvas_add_container` (page, parent, x, y, w, h, props: title, border, padding, height fit or fixed,
+  scrollable, resizable, background, columns), `canvas_insert_widget` (widget, parent: no container makes
+  one around it; x, y; values), `canvas_move` (x, y, w, h; parent: into another container, empty for the
+  page), `canvas_set_container`, `canvas_set_values` (null: back to the default), `canvas_replace_widget`,
+  `canvas_delete`, `canvas_set` (columns: a guide that re-flows, the row height, gap, width, snap, step 1, 2,
+  4, 8 or grid), `canvas_page` (add, rename, move, remove), `canvas_undo`, `canvas_redo`.
+- `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
+  `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window), `canvas_export` (a
+  folder that runs on a hosted Streamlit app: app.py, app_pages/*.py, sab_canvas.py, sab_widgets.py, the tables
+  it names as Parquet, data.py; it copies rows, so it waits for the user's Allow).
+- The page reproduces the canvas's pixels: each container and widget is an st.container placed
+  absolutely by its key's CSS. A widget that fails shows its own error in its place; the page runs on.

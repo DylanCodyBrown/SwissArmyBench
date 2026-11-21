@@ -166,6 +166,8 @@ NOT_COMMANDS = {
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
     "/streamlit/run/{}": "a widget alone or a canvas played, in a frame: widgets_run, canvas_play",
     "/streamlit/run/{}/{}": "the same: their pages' own files and socket",
+    "/streamlit/canvas": "page shell: the Canvas page (the agent works canvases with canvas_*)",
+    "/streamlit/canvases/{}/stop": "the Canvas's Edit after Play (its run stopped): canvas_play's address",
     "/streamlit/widget": "page shell: the Widgets window (the agent works widgets with widgets_*)",
     "/streamlit/widgets/check-name": "the Name box's live check: widgets_header says it on a rename",
     "/streamlit/widgets/context": "the pickers' choices: tabs_list and variables_list",

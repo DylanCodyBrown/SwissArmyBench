@@ -158,3 +158,19 @@ class PreviewFiles:
         path = self.path(key)
         if path is not None:
             write_atomic(path.with_suffix(".failed"), said[:2000])
+
+
+def read_text(path: str) -> str | None:
+    """A small text file (a project's data.py), or None when it is not there."""
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def folder_names(folder: str) -> list[str]:
+    """The names of a folder's files (a project's canvases)."""
+    try:
+        return sorted(p.name for p in Path(folder).iterdir() if p.is_file())
+    except OSError:
+        return []

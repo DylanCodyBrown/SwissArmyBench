@@ -1403,69 +1403,49 @@ To check a notebook without the app (a scheduled run, a build): run
 It runs every cell in the notebook's own folder and ends with exit code 1 and a report naming each
 cell that failed or whose output changed.
 
-### Streamlit apps: a canvas of blocks linked to cells
+### Widgets and the Canvas (a Streamlit app)
 
-Build a Streamlit app from the Python cells of your notebooks and scripts, and their Markdown and HTML
-cells. There is no Streamlit kind of cell: write Python.
+App notebooks and their canvases (`.stapp.json`) were replaced by **widgets** (the owner, 2026-11-21: "Creating
+a widget is what will replace the concept of app cells and app notebooks"). Opening an old one says so in one
+line; the data notebook (data.ipynb, data.py) stays.
 
-- **A cell that calls Streamlit is live.** A Python cell with `st.something(...)` in it (or a call
-  through the name it imports streamlit under) shows live in its own cell, its widgets working: click
-  the cell's head (or Enter) for its code, click away for the page. Every open table is there by name
-  as a DataFrame (`orders`), after its grid steps. It runs in the document's Streamlit app, not in the
-  kernel, so Run all leaves it out of the kernel. A cell that only imports streamlit is a plain cell.
-- **Names link cells:** a cell that makes a name (`region = st.selectbox("Region", ...)`) drives every
-  cell on the same page that reads `region`, wherever each sits.
-- **New Streamlit app** (a group's **+**, the top bar's **…**, Start an app on the empty page, the
-  palette) opens a **canvas** as a tab: the app's
-  pages, each a 12-column grid. It is saved as its own file, `<name>.stapp.json` (Ctrl+S): pages,
-  blocks and their places, and links to cells. No code is copied into it.
-- **Markdown and HTML cells go on a page too.** A Markdown cell is `st.markdown` on the page, an HTML
-  cell `st.html` (with Streamlit's `unsafe_allow_javascript=True` only when it holds a `<script>`).
-  Their `{{ names }}` are filled on the page by the same rules as in the notebook, from the blocks that
-  make them: a filter making `region` drives a Markdown block that says `Sales in {{ region }}`, and
-  the run order counts the names. A name no block makes shows as *{{ name }} not found*. Their blocks
-  are marked **T**.
-- **Put a cell on the canvas:** drag any Python, Markdown or HTML cell by its number (`#3`) or its head onto the canvas
-  (from the same window: onto the app's tab; from another Workbench window: onto the grid itself).
-  Or copy it (**C** in command mode, More: Copy; in a script the palette's "Copy the cell") and paste
-  on the canvas (**Ctrl+V**). The notebook must be saved first: a block links to a cell of a file.
-  **V** in a notebook pastes the copied cell itself.
-- **Name a cell:** type a name in its head, after its number (or More: Name…; in a script, the words
-  after its marker: `# %% [7] Region filter`). The name shows in the cell's head, on its block and in
-  the Streamlit cells pane; links still go by the cell's number.
-- **The Streamlit cells panel** (on the canvas's left; Cells in the status bar) lists every cell that calls
-  Streamlit, from the open notebooks and scripts and the project's files, by name, and under **Text**
-  each Markdown and HTML cell (marked **T**). Drag one onto a
-  canvas to place it; click one to go to it. A cell already on the canvas page in front has a check.
-- **A block** shows the cell's name (or its first comment line, or its first line), its file and `@cell` number,
-  and what it makes and reads. Drag it to move it (or the arrow keys), drag its corner to resize it
-  (arrow keys on the corner; a double-click fits its height), Delete takes it off. The X of a page's
-  tab removes the page; double-click a tab (or F2) renames it; **New page** adds one.
-- **Play** (in the tab's row of controls, beside **Edit**: the one in front is raised) runs the page from the linked cells as they are now (saved or not) and shows it live in
-  place. **Edit** goes back to the blocks. When a linked cell, a table it reads or the layout changes
-  while the page shows, the button says **Out of date · Play**. Nothing runs by itself.
-- **A block whose cell was deleted, or whose file is gone,** says so in red with the path and the
-  number.
-- **Its own window:** a tab's right-click menu, or the document's **…** menu (Open in its own window),
-  moves a notebook, a script or a canvas into a Workbench window of its own, for another screen: its
-  unsaved changes and its running kernel go with it. **Move to the main window** brings it back. Drag
-  a cell (or a Streamlit cells entry) from one window onto a canvas in the other.
-- **Streamlit is not installed with Swiss Army Bench.** It runs in the notebook's own Python (its
-  environment). If that Python lacks it, Play asks at once: "Streamlit apps needs streamlit, pandas
-  and pyarrow", **Install now** (into that Python, then it plays) or **Not now** (the cell or the
-  canvas keeps an **Install** button).
-- **Export…** writes a folder that runs alone: `app.py`, `app_pages/`, the data as Parquet in
-  `data/`, `requirements.txt`. Run it with `streamlit run app.py`. A page with a Markdown or HTML
-  block that names a value comes with `sab_text.py` beside `app.py`: the rules that fill the names,
-  standard library only, so nothing new is installed (a block that runs a script asks for Streamlit
-  1.52 or later in `requirements.txt`).
-- **Save as zip…** zips the app's **project** to add to your own Streamlit app: `pages/*.py` (each starts
-  with `from data import ...`), `data.py`, `requirements.txt`, `README.txt`, and the sources
-  (data.ipynb, the canvas, the notebooks it links to), and `sab_text.py` when a Markdown or HTML block
-  names a value (copy it beside `data.py`; the zip's README says so). No rows and no passwords go into
-  the zip.
-- **Private.** The Streamlit process listens on this computer only, and stops when its window or the
-  server does.
+**A widget** is a small Streamlit program kept in your library (`widgets/<name>.widget.py`, shared with your
+team like blades). Its top-level plain values are its **properties**: `title = "Sales"` is a text box,
+`show = True` a switch, `count = 5  # 1..20` a number with a range, `colour = "#1f77b4"` a colour picker,
+`start = "2026-01-01"` a date, `kind: Literal["line", "bar"] = "line"` a dropdown, `table_name = ""  # table`
+a table picker (empty: made-up sample data), `x = "month"  # column of table_name` a column picker,
+`key = os.environ["ORDERS_KEY"]` a variable. The comment lines above one are its help. 56 prebuilt widgets
+come with the app (buttons, inputs, tables, metrics, KPI rows, charts, text, callouts, filters, forms): they
+are read-only; **Copy as your own** to change one.
+
+**The Widgets window** (Widgets on the rail; a window of its own, no rail): the list on the left (yours, then
+the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,
+signatures, help and lint over a kernel of its own, and **Properties** on the right: **Name** (checked as you
+type: available, taken, not a valid name; a rename follows every canvas that uses it), **Description**, then
+each property with its mask. A value is checked before it is kept and written into its own characters in
+the code. **Run** (F5) turns the code into the running widget in place; **Edit** (Esc) turns it back. Ctrl+B
+folds the list, Ctrl+Alt+B the Properties.
+
+**The Canvas** (Canvas on the rail): a project's `<app>.canvas.json`. The top bar holds the page tabs; the
+bottom bar the sizing (Columns, Row height, Gap, Wide or Centred), **Snap** and its step (1, 2, 4, 8 px or a
+grid cell), Undo and Redo, **Play**, **Launch**, **Export**, the **Widgets** and **Properties** panes'
+toggles, and the zoom (Ctrl+wheel, Ctrl+plus, Ctrl+minus, Ctrl+0; Fit).
+- Drag on the empty grid to draw a **container**; drag one to move it (into another container too), its
+  corner to size it. Snap puts edges on the step and on other items' edges and centres (guides show); hold
+  Alt to place freely. Arrows nudge by the step (Shift: ten steps, Alt: one pixel). Places are kept in
+  pixels, so a fine placement stays.
+- **Widgets** pane: a card per widget with its rendered preview; hover for a larger one. Drag a card into a
+  container, or double-click (or Insert) to put it in the selected container. Right-click a container:
+  **Insert widget ▸**, Insert container, Scrollable, Resizable by viewers, Delete.
+- **Properties** pane: a widget's properties (its values here override the widget's defaults; ↺ goes back to
+  the default), **Edit widget** (the Widgets window), its size; a container's title, border, scrollable,
+  resizable, height, padding, columns inside, background and size.
+- Every change is saved at once and can be undone. Another window's change is shown with a notice, never
+  written over. A widget deleted from the library stays as a placeholder with **Replace** and **Remove**.
+- **Play** shows the pages live in place; a widget that fails shows its own error there while the rest runs.
+  **Launch** makes a build in the project's `builds/` and opens it in its own window. **Export** writes a
+  folder that runs on a hosted Streamlit app (the page reproduces the canvas's pixels).
+- **The agent:** `widgets_*` and `canvas_*` (the guide's Streamlit topic); its export waits for your Allow.
 
 ### Learning Streamlit with the starter pieces
 
@@ -1540,26 +1520,6 @@ unless you set Pin to the bottom to no.
 
 ![A Streamlit page made of Text and layout and Controllers starters: a title and subtitle, a callout, the region filter, a section heading, the rows, and the footer pinned at the window's bottom.](images/25-text-and-layout-page.png)
 
-### Controllers: contracts, Test this page, thin cells
-
-- **A contract** is a cell's header line that says what it makes, with types and defaults:
-  `# Makes: region: str = "All"; by_region: table = orders` (types: str, int, float, bool, date, list,
-  table, any; a table's default is another table's name). `# Role: filter`, `action` or `view` says
-  its role; without it the app reads it from the code.
-- **A block whose filter is not on the page** reads the filter's defaults, and says so quietly on the
-  block (`region = 'All' · Region filter is not on this page`), so a page of charts runs before its
-  filter is placed. A contract the code does not keep is said in red.
-- **Test this page** (beside Play) runs the page with Streamlit's own test runner, in your notebook's
-  Python: as it opens, then each filter's values one at a time (a dropdown's options, a slider's ends,
-  a switch both ways, a text that matches nothing, a click) and each address parameter it reads. A
-  block that fails turns red with the value that broke it; a short message says how many values were
-  tried.
-- **Thin cells:** a view that filters, groups or joins a table shows **Move to data.ipynb**. Those
-  lines become a named cell at the end of the project's data.ipynb, and the view keeps one line that
-  reads them back (`from data import big`). Both documents change as if typed: save them.
-- **The agent:** `streamlit_app` gives each block's controller, defaults and failures; `streamlit_check`,
-  `streamlit_test`, `workbench_canvas_move_to_data`.
-
 ### Your own HTML and JavaScript in Streamlit (the Components starters)
 
 When Streamlit has no widget that looks or acts the way you want, you can put HTML, CSS and JavaScript
@@ -1616,19 +1576,6 @@ applies there too.
 Each kind of document has its own panels, beside it in its group (two groups side by side keep their
 own). The status bar shows the document in front's panels as toggles.
 
-- **App** (a Streamlit app's canvas): click a block and **Properties** shows its name (the cell's own:
-  renaming it renames the cell), its width and height, its **Source cell** in its notebook's colour (a
-  click goes there), what it makes and reads, the blocks it **Feeds**, and its widget's value while the
-  page plays; as a **Controller**, its role (Filter, Action, View or Model work), what it makes with
-  its types and defaults, and what is wrong with its `# Makes:` line; and **Lineage…**, the flow back to
-  the data. Violet arrows over the board show its wiring. With no block selected, Properties holds the
-  **page settings**: title, icon, Wide or Centred, a logo and the theme's colours, written into the saved
-  pages and the zip as `st.set_page_config`, `st.logo` and `.streamlit/config.toml`. Edit's tools: undo,
-  redo, align, duplicate, zoom. Play shows **Desktop**, **Tablet** or **Phone**, and **Light** or **Dark**
-  for the app only. **State** (under the canvas) lists what the live page's session holds, each key with
-  its block; **Reset state** starts the page again fresh. The canvas's **Starters** panel (on its left, Starters in the status bar)
-  shows the Streamlit starters by family: drag one onto the page (or click it), fill its form, and it
-  becomes a named cell of the project's mockups notebook, placed where you dropped it.
 - **Notebook:** a cell you changed since it ran says **edited**; one that reads a name made again since
   it ran says **out of date**. **Outline** lists the headings and named cells, the stale ones marked.
   The selected cell offers **Run up to here**. A DataFrame's output has **Open as grid**. **Present**
@@ -1644,75 +1591,6 @@ own). The status bar shows the document in front's panels as toggles.
   made it). Type a description: it is kept in data.ipynb and written into data.py as comments.
   **Lineage** draws the selected cell's lineage (else the last cell's) in place: the same flow and
   values as the Lineage overlay; a double-click on a step goes back to Cells, at that cell.
-
-### App mode: the property pane and the designer
-
-**Properties** (the status bar's toggle) is one pane for whatever is selected on a Streamlit app's canvas: a
-block, the page (click the board), or the app.
-
-- **Properties.** A block's name, cell, place and size, then every property of the Streamlit element its cell
-  calls (label, options, help…), Categorized or A to Z, with a search box; the line at the foot says what the
-  focused property does. Type a value and press Enter: the cell's code changes in only those characters, and
-  Undo (the canvas's or the editor's) takes it back. A property that is code (`value=load()`) is shown
-  read-only with Go to cell. Right-click a property: Reset to default, Bind to a name, session state, a
-  variable or an expression, Go to cell.
-- **Uses.** The tables, variables, connections and cells the block depends on, each a link, and what is used
-  by it. A table opens in the pane (its columns, its steps in words, its first rows) with Open as grid.
-- **Streamlit.** State: a widget's Key, its value **Now** (the running app only: Play first) and its
-  **Default** (written into the cell). Cache: a cached function's ttl, max_entries, show_spinner and persist;
-  Cache this function; Clear this cache (the running app only).
-- **Events.** Add handler writes `def on_region_change():` into the cell, sets `on_change=`, and goes to it.
-- **Code.** The exact code the page runs for the block.
-
-**Designing a page.** The **Toolbox** lists every Streamlit element and layout container: drag one onto the
-page (or click it). An element becomes a named cell of the app notebook and its block. **Containers**
-(columns, tabs, expander, container, form, sidebar, popover) hold blocks and other containers: drop a block
-into one. The **Outline** shows the page as a tree: click to select, drag a row onto a slot to move it in,
-the eye hides a block while you design, the pin locks it. Ctrl+click (or drag over the board) selects
-several: Align then lines them up, makes them the same size or spreads them, as one change. Guides appear
-where a block you drag or size lines up with another. Arrow keys move a block (Shift: three columns),
-Ctrl+D duplicates, Delete takes it off the page. View shows the ruler and sample rows; Wide, Centered and
-Phone set the page's width. Everything exports as plain Streamlit.
-
-**SQL and DAX queries on a page.** A SQL cell (`%%sql Shop -> by_region`) or a DAX cell (`%%dax Finance/Sales
-model`) goes on a page like a Python cell; the Toolbox's **SQL query** and **DAX query** make one. Its result
-shows as a table; Properties' **SQL query** section picks its connection (a DAX block's dataset), **Show as**
-(a table, a bar, line or area chart, a metric), and **Cache** (on by default). Write `{{ region }}` in the query
-where a widget's value goes: the page sends it as a bound parameter (SQL) or a DAX literal, never pasted into
-the query's text; **Parameters** shows which block gives each value. The export runs anywhere: the connections
-go into `sab_queries.py` beside the pages, their passwords read from the environment.
-
-**Fragments.** A block whose widgets feed only itself reruns alone (`st.fragment`): Properties says
-**Reruns: Alone (fragment)** or **The whole page**.
-
-**Several blocks selected** show every property they share: their size, Locked and Hidden, a query's Show as,
-and each property of the element their cells share (set on all at once; Mixed where they differ). A binding
-through session state (a widget's value bound to `st.session_state["level"]`) is drawn on the board as a dashed
-line with its key. A Python cell that calls Streamlit has **Add to app** in its bar. In Uses, a connection
-opens its own card and a variable the Variables page at its name.
-
-### Launch, builds and the Performance Analyzer
-
-**Launch** (the canvas's bar, Ctrl+F5) builds the app and runs it in a window of its own, titled
-"orders · build 3"; **F5** launches it with the Performance Analyzer attached. Launch again replaces the
-running one; **Stop** ends it.
-
-**Every launch is a build**, a folder in your project: `builds/<app>/<number>/` holds the code exactly as
-launched (app.py, the pages, sab_queries.py, data.py, requirements.txt), the canvas's file, each cell's code,
-and `build.json` (when, what changed in words, whether it started, the first load's time). Builds are text
-and go into Git with the project; no rows and no passwords are in them. **Builds** lists them newest first:
-tick two and **Compare** shows each changed file side by side; **Open** shows one build's files; **Relaunch**
-runs an old build; **Restore** puts its cells' code back into your notebooks (Undo takes it back) and its
-layout on the canvas.
-
-**The Performance Analyzer** opens in its own window from the canvas while the app runs, and records only
-while it is open (**Pause**, **Clear**, **Save into the build**). **Timeline**: each rerun, what started it
-(the widget that changed, a page switch), its time, and each block's time under it. **Calls**: each query,
-web request and file read. **Cache**: each cached function's calls, hits and misses. **Web socket**: what
-travelled to the page, by element (a dataframe, a chart, markdown), the biggest first: kinds and sizes only.
-**Hints** say what to change in plain words: a table sent whole each rerun, a block that reruns though it
-does not read the widget that changed, a cache that always misses, a slow query run again with the same
-text, many small messages from a loop.
 
 ### Projects: start with the data
 
@@ -1730,19 +1608,9 @@ start with `from data import orders, ...`.
   marked stub (`FILL IN`) until data.ipynb has a cell that reads it.
 - Add as many notebooks and scripts to the folder as you like (analysis, mock-ups of pages).
 
-- **The agent** opens a canvas (`workbench_new_app`, or `streamlit_open` without the window), reads
-  it (`workbench_canvas`, `streamlit_app`), places a cell (`streamlit_block_place`, or
-  `workbench_cell_copy` then `workbench_cell_paste`), moves and resizes (`streamlit_block_change`),
-  removes (`streamlit_block_remove`), works the pages (`streamlit_page_add`, `streamlit_page_change`,
-  `streamlit_page_remove`), plays and edits (`workbench_canvas_play`, `workbench_canvas_edit`,
-  `streamlit_run`, `streamlit_address`), saves (`streamlit_save`), exports (`streamlit_export`,
-  `streamlit_save_as`), reads the live cells (`workbench_live_cells`, `workbench_live_run`), and
-  works projects (`project_new`, `project_files`, `project_export_data`, `workbench_project_open`).
-- **The agent's export waits for your Allow**, as a grid's export does: `streamlit_export` (and the
-  window's Export when the agent sends it) shows the approval prompt with the app, the folder and the
-  tables whose rows it copies; Deny (or no answer in 3 minutes) writes nothing. `project_new` and
-  `streamlit_save_as` ask too, but only when the project's data.ipynb would hold a pasted table's
-  rows. Your own Export click asks nothing.
+- **The agent** works projects (`project_new`, `project_files`, `project_export_data`, `workbench_project_open`)
+  and the app's canvas (`canvas_*`, `widgets_*`); its `canvas_export` waits for your Allow, as a grid's export
+  does.
 
 ### Export as one Python script (or one notebook)
 

@@ -77,7 +77,7 @@ def test_every_prebuilt_widget_renders_without_an_error(tmp_path: Path) -> None:
         canvas["pages"].append(page)
     files = build.build(canvas, built)
     assert not build.compiles(files)
-    pages = sorted(p for p in files if p.startswith("pages/"))
+    pages = sorted(p for p in files if p.startswith("app_pages/"))
     found = run_pages(tmp_path, files, pages)
     failed = {p["page"]: (p["exceptions"], p["failed"]) for p in found if p["exceptions"] or p["failed"]}
     assert not failed, failed
@@ -106,27 +106,27 @@ def test_a_failing_widget_shows_its_own_error_and_the_rest_of_the_page_runs(tmp_
         {
             "id": "c9",
             "kind": "container",
-            "col": 0,
-            "row": 9,
-            "w": 4,
-            "h": 1,
+            "x": 0,
+            "y": 900,
+            "w": 400,
+            "h": 80,
             "props": dict(model.CONTAINER_DEFAULT),
             "children": [
                 {
                     "id": "w9",
                     "kind": "widget",
                     "widget": "deleted_one",
-                    "col": 0,
-                    "row": 0,
-                    "w": 1,
-                    "h": 1,
+                    "x": 0,
+                    "y": 0,
+                    "w": 100,
+                    "h": 60,
                     "values": {},
                 }
             ],
         }
     )
     files = build.build(canvas, {"good": good, "bad": bad, "gone_table": missing})
-    (page,) = run_pages(tmp_path, files, [p for p in files if p.startswith("pages/")])
+    (page,) = run_pages(tmp_path, files, [p for p in files if p.startswith("app_pages/")])
     assert not page["exceptions"]
     assert any("ZeroDivisionError" in e and "(line 3)" in e for e in page["failed"])
     assert page["kinds"]["metric"] == 1

@@ -8,7 +8,7 @@
  *             Projects page (projectsPage.ts, open=projects, the home page's only); from another window it
  *             brings the home window forward showing Projects (nav.ts goHome). Alt+Home is the same.
  *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids, only the grids), Analyze, ERD, Notebooks,
- *             Scripts, Apps (the Streamlit canvas), Blades, Connections, Session (what the agent made this
+ *             Scripts, Canvas (canvasPage.ts: the Streamlit canvas), Widgets (its own window), Blades, Connections, Session (what the agent made this
  *             session, a count of what is new on its icon: sessionPage.ts), and Extensions
  *             (extensionsPage.ts) and Settings pinned at the bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours.
@@ -63,7 +63,7 @@ import { DATA } from "./dataPage"; // the Data page's layer, on every page with 
 import { panelAreas } from "./extensionArea"; // an extension's area drawn from its data (GET /app/areas)
 import { firstOpen, isClosed, loadGates, onGates, removeGateCover, showGateLine } from "./gates";
 
-export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "apps" | "widgets" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
+export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "canvas" | "widgets" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -86,8 +86,9 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "codeapp", name: CODE_APP, icon: "codeapp", plugin: codeAppOn },
   { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
-  // The apps' canvas is an extension's (Streamlit, preinstalled): the area shows while a mode offers it.
-  { area: "apps", name: "Apps", icon: "page", kind: "app", plugin: () => canvasOn("streamlit") },
+  // The Canvas (the owner, 2026-11-21: "instead of Apps on rail we could call it Canvas"), an extension's
+  // (Streamlit, preinstalled): a page of its own (canvas.html), shown while a mode offers it.
+  { area: "canvas", name: "Canvas", icon: "page", plugin: () => canvasOn("streamlit") },
   // Widgets (the owner, 2026-11-21): not in this window's pane, a window of its own with no rail
   // (static/widget.html: the list, one widget's editor, its Properties).
   { area: "widgets", name: "Widgets", icon: "sliders", plugin: () => canvasOn("streamlit") },
@@ -118,6 +119,7 @@ function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
   if (isLayer(open)) return open;
   if (kind === "catalog") return "blades";
+  if (kind === "canvas") return "canvas";
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
   const view = kind === "home" ? url.searchParams.get("view") : null;
   if (view === "analyze" || view === "visualizations" || view === "sandbox") return "analyze";
@@ -159,6 +161,7 @@ function pageUrl(area: Area): string {
   const k = kindOfArea(area);
   if (k) return `/workbench?kind=${k}&view=list`; // that kind's landing page
   if (area === "blades") return "/catalog";
+  if (area === "canvas") return "/streamlit/canvas";
   return arrivalUrl(area);
 }
 

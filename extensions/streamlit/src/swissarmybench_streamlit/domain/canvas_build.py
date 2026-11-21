@@ -2,10 +2,12 @@
 runs in the app is what an export runs on a hosted Streamlit app, unchanged).
 
     app.py              st.set_page_config (the page's width), st.navigation over the pages
-    pages/<page>.py     one Streamlit page per canvas page: the grid as st.columns bands, each container an
-                        st.container (border, a height when fixed: scrollable is a height; a key, so its CSS
-                        can give it padding, a background, a minimum height and, when resizable, CSS
-                        `resize: both` the viewer drags at its corner), each widget `sab.render(...)`
+    app_pages/<page>.py one Streamlit page per canvas page, reproducing the canvas's pixels: the page an
+                        st.container keyed sab-page (CSS: position relative, the page's width and height);
+                        each container and each widget an st.container keyed sab-<id>, its CSS placing it
+                        absolutely at its x, y, w, h inside its parent's box (a container: its border, a
+                        height that scrolls when scrollable, padding, a background; resizable is CSS
+                        `resize: both`, the viewer drags its corner); each widget `sab.render(...)` inside
     sab_widgets.py      the library's widgets the pages use, inlined: each one's code as text (its properties'
                         assignments made `pass`: the page gives their values), its variable properties
     sab_canvas.py       the runtime (RUNTIME below): render() runs one widget in its place, wrapped: a widget
@@ -28,6 +30,9 @@ from swissarmybench_streamlit.domain import canvas_model as model
 from swissarmybench_streamlit.domain import widget_properties as props_rules
 from swissarmybench_streamlit.domain.widget_properties import Property
 
+# The pages' folder: not "pages/", which Streamlit would also list as pages of its own beside st.navigation's.
+PAGES: str = "app_pages"
+BORDER: int = 1  # the width of Streamlit's container border, in pixels
 REQUIREMENTS: tuple[str, ...] = ("streamlit>=1.43", "pandas", "pyarrow")
 
 
@@ -58,137 +63,76 @@ def page_files(canvas: Mapping[str, Any]) -> dict[str, str]:
     return out
 
 
-def _px(sizing: Mapping[str, Any], rows: int) -> int:
-    return int(rows * sizing["row_height"] + max(0, rows - 1) * sizing["gap"])
-
-
-def _gap(sizing: Mapping[str, Any]) -> str:
-    gap = sizing["gap"]
-    return "small" if gap <= 8 else "medium" if gap <= 24 else "large"
-
-
-def _bands(children: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    """Children whose rows overlap (one with the next, as they go down) in one band."""
-    bands: list[list[dict[str, Any]]] = []
-    bottom = -1
-    for child in sorted(children, key=lambda c: (c["row"], c["col"])):
-        if bands and child["row"] < bottom:
-            bands[-1].append(child)
-            bottom = max(bottom, child["row"] + child["h"])
-        else:
-            bands.append([child])
-            bottom = child["row"] + child["h"]
-    return bands
-
-
-def _clusters(band: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
-    """A band's children whose columns overlap in one column of the page, left to right."""
-    clusters: list[list[dict[str, Any]]] = []
-    right = -1
-    for child in sorted(band, key=lambda c: (c["col"], c["row"])):
-        if clusters and child["col"] < right:
-            clusters[-1].append(child)
-            right = max(right, child["col"] + child["w"])
-        else:
-            clusters.append([child])
-            right = child["col"] + child["w"]
-    return clusters
-
-
 class _Writer:
+    """The page as absolutely placed boxes: each container and each widget an st.container with a key, its
+    CSS placing it at its pixels inside its parent (the page's own keyed container, position: relative)."""
+
     def __init__(
         self, canvas: Mapping[str, Any], widgets: Mapping[str, Built], context: props_rules.Context | None
     ) -> None:
         self.canvas = canvas
-        self.sizing = canvas["sizing"]
         self.widgets = widgets
         self.context = context
         self.lines: list[str] = []
         self.css: list[str] = []
-        self.count = 0
-
-    def name(self) -> str:
-        self.count += 1
-        return f"_b{self.count}"
 
     def emit(self, indent: int, text: str) -> None:
         self.lines.append("    " * indent + text)
 
-    def grid(self, children: list[dict[str, Any]], columns: int, indent: int) -> None:
-        last = 0
-        for band in _bands(children):
-            top = min(c["row"] for c in band)
-            if top > last:  # empty rows above the band: their height kept
-                self.emit(indent, f"sab.space({_px(self.sizing, top - last)})")
-            last = max(c["row"] + c["h"] for c in band)
-            clusters = _clusters(band)
-            spec: list[int] = []
-            where: list[int | None] = []
-            cursor = 0
-            for at, cluster in enumerate(clusters):
-                left = min(c["col"] for c in cluster)
-                right = max(c["col"] + c["w"] for c in cluster)
-                if left > cursor:
-                    spec.append(left - cursor)
-                    where.append(None)
-                spec.append(right - left)
-                where.append(at)
-                cursor = right
-            if cursor < columns:
-                spec.append(columns - cursor)
-                where.append(None)
-            if len(clusters) == 1 and len(spec) == 1:
-                self.stack(clusters[0], indent)
-                continue
-            columns_name = self.name()
-            self.emit(indent, f"{columns_name} = st.columns({spec!r}, gap={_gap(self.sizing)!r})")
-            for slot, cluster_at in enumerate(where):
-                if cluster_at is None:
-                    continue
-                self.emit(indent, f"with {columns_name}[{slot}]:")
-                self.stack(clusters[cluster_at], indent + 1)
+    def place(self, key: str, node: Mapping[str, Any], rules: list[str], inset: int) -> None:
+        """Its box at its pixels in its parent's: an absolute box is placed from inside the parent's border
+        (`inset`), so the border's width is taken off and the box lands where the canvas has it."""
+        box = (
+            f"position: absolute; left: {node['x'] - inset}px; top: {node['y'] - inset}px; "
+            f"width: {node['w']}px; "
+            "max-width: none; flex: none"
+        )
+        self.css.append(f".st-key-{key} {{ {box}; box-sizing: border-box; gap: 0; {'; '.join(rules)}; }}")
 
-    def stack(self, cluster: list[dict[str, Any]], indent: int) -> None:
-        for child in sorted(cluster, key=lambda c: (c["row"], c["col"])):
+    def children(self, children: list[dict[str, Any]], indent: int, inset: int = 0) -> None:
+        for child in sorted(children, key=lambda c: (c["y"], c["x"])):
             if child["kind"] == "container":
-                self.container(child, indent)
+                self.container(child, indent, inset)
             else:
-                self.widget(child, indent)
+                self.widget(child, indent, inset)
 
-    def container(self, node: dict[str, Any], indent: int) -> None:
+    def container(self, node: dict[str, Any], indent: int, inset: int = 0) -> None:
         props = node["props"]
         key = f"sab-{node['id']}"
-        height = _px(self.sizing, node["h"]) if props["height"] == "fixed" else None
+        height = node["h"]
         args = [f"border={props['border']!r}", f"key={key!r}"]
-        if props["scrollable"] and height:
+        if props["scrollable"]:
             args.insert(1, f"height={height}")
         self.emit(indent, f"with st.container({', '.join(args)}):  # {node['id']}")
-        rules = [f"padding: {props['padding']}px"]
+        rules = [f"padding: {props['padding']}px", "margin: 0"]
+        rules.append(f"min-height: {height}px" if props["height"] == "fit" else f"height: {height}px")
+        if props["height"] == "fixed" and not props["scrollable"]:
+            rules.append("overflow: hidden")
+        if props["scrollable"]:
+            rules += [f"height: {height}px", "overflow: auto"]
         if props["background"]:
-            rules.append(f"background: {props['background']}")
-            rules.append("border-radius: 0.5rem")
-        if height and not props["scrollable"]:
-            rules.append(f"min-height: {height}px")
+            rules += [f"background: {props['background']}", "border-radius: 0.5rem"]
         if props["resizable"]:
             rules += ["resize: both", "overflow: auto"]
-            if not props["scrollable"]:
-                rules.append(f"min-height: {_px(self.sizing, 1)}px")
-        self.css.append(f".st-key-{key} {{ {'; '.join(rules)}; }}")
+        self.place(key, node, rules, inset)
         inner = indent + 1
         if props["title"]:
             self.emit(inner, f"sab.heading({json.dumps(props['title'], ensure_ascii=False)})")
         if node["children"]:
-            self.grid(node["children"], props["columns"], inner)
+            self.children(node["children"], inner, BORDER if props["border"] else 0)
         elif not props["title"]:
             self.emit(inner, "pass")
 
-    def widget(self, node: dict[str, Any], indent: int) -> None:
+    def widget(self, node: dict[str, Any], indent: int, inset: int = 0) -> None:
+        key = f"sab-{node['id']}"
+        self.emit(indent, f"with st.container(key={key!r}):  # {node['id']}")
+        self.place(key, node, [f"height: {node['h']}px", "overflow: auto"], inset)
         built = self.widgets.get(node["widget"])
         if built is None:
-            self.emit(indent, f"sab.missing({node['widget']!r}, {node['id']!r})")
+            self.emit(indent + 1, f"sab.missing({node['widget']!r}, {node['id']!r})")
             return
         values = props_rules.values(list(built.properties), node["values"], self.context)
-        self.emit(indent, f"sab.render({node['widget']!r}, {_py(values)}, {node['id']!r})")
+        self.emit(indent + 1, f"sab.render({node['widget']!r}, {_py(values)}, {node['id']!r})")
 
 
 def _py(value: Any) -> str:
@@ -201,10 +145,20 @@ def page_code(
     widgets: Mapping[str, Built],
     context: props_rules.Context | None = None,
 ) -> str:
-    """One canvas page as one Streamlit page."""
+    """One canvas page as one Streamlit page: a box the page's width, every container and widget placed in
+    it at its exact pixels (the canvas's positions, in Play and in an export alike)."""
     page = model.page_of(canvas, page_id)
     writer = _Writer(canvas, widgets, context)
-    writer.grid(page["children"], canvas["sizing"]["columns"], 0)
+    writer.emit(0, "with st.container(key='sab-page'):")
+    writer.children(page["children"], 1)
+    if not page["children"]:
+        writer.emit(1, "sab.empty()")
+    bottom = max((c["y"] + c["h"] for c in page["children"]), default=40)
+    writer.css.insert(
+        0,
+        f".st-key-sab-page {{ position: relative; width: {model.page_width(canvas)}px; height: {bottom}px; "
+        "gap: 0; flex-shrink: 0; }",
+    )
     head = [
         f"# {page['name']}: made from the canvas {canvas['name']} (Swiss Army Bench).",
         "# Edit the canvas, not this file.",
@@ -212,11 +166,9 @@ def page_code(
         "",
         "import sab_canvas as sab",
         "",
+        f"sab.style({json.dumps(' '.join(writer.css))})",
     ]
-    if writer.css:
-        head.append(f"sab.style({json.dumps(' '.join(writer.css))})")
-    body = writer.lines or ["sab.empty()"]
-    return "\n".join([*head, *body]) + "\n"
+    return "\n".join([*head, *writer.lines]) + "\n"
 
 
 def widgets_module(widgets: Mapping[str, Built]) -> str:
@@ -260,7 +212,7 @@ def app_code(canvas: Mapping[str, Any], first: str | None = None) -> str:
     for page in canvas["pages"]:
         default = page["id"] == (first or canvas["pages"][0]["id"])
         lines.append(
-            f"    st.Page({('pages/' + files[page['id']] + '.py')!r}, "
+            f"    st.Page({(PAGES + '/' + files[page['id']] + '.py')!r}, "
             f"title={json.dumps(page['name'], ensure_ascii=False)}, "
             f"url_path={files[page['id']]!r}{', default=True' if default else ''}),"
         )
@@ -289,37 +241,38 @@ def build(
         "sab_widgets.py": widgets_module(mine),
     }
     for page_id, stem in page_files(canvas).items():
-        files[f"pages/{stem}.py"] = page_code(canvas, page_id, mine, context)
+        files[f"{PAGES}/{stem}.py"] = page_code(canvas, page_id, mine, context)
     return files
 
 
 def one_widget(name: str, built: Built, values: Mapping[str, Any], size: tuple[int, int]) -> dict[str, Any]:
-    """A widget run alone (the Widgets window's Run): a canvas of one page, one container, one instance."""
-    w = max(1, min(size[0], model.MAX_COLUMNS))
+    """A widget run alone (the Widgets window's Run, a preview): a canvas of one page, one container that
+    has no border, one instance at its size."""
     canvas = model.new_canvas(name)
-    canvas["sizing"]["width"] = "wide"
     canvas["pages"][0]["name"] = name
+    w, h = model.cells(canvas, *size)
+    w = min(w, model.page_width(canvas))
+    container = {**model.CONTAINER_DEFAULT, "border": False, "padding": 0}
+    instance = {
+        "id": "w1",
+        "kind": "widget",
+        "widget": name,
+        "x": 0,
+        "y": 0,
+        "w": w,
+        "h": h,
+        "values": dict(values),
+    }
     canvas["pages"][0]["children"] = [
         {
             "id": "c1",
             "kind": "container",
-            "col": 0,
-            "row": 0,
-            "w": canvas["sizing"]["columns"],
-            "h": max(1, size[1]),
-            "props": {**model.CONTAINER_DEFAULT, "border": False, "padding": 0, "columns": w},
-            "children": [
-                {
-                    "id": "w1",
-                    "kind": "widget",
-                    "widget": name,
-                    "col": 0,
-                    "row": 0,
-                    "w": w,
-                    "h": max(1, size[1]),
-                    "values": dict(values),
-                }
-            ],
+            "x": 0,
+            "y": 0,
+            "w": w,
+            "h": h,
+            "props": container,
+            "children": [instance],
         }
     ]
     return canvas
@@ -366,6 +319,7 @@ from __future__ import annotations
 
 import contextvars
 import html
+import importlib
 import linecache
 import os
 import traceback
@@ -378,7 +332,7 @@ import sab_widgets
 
 _HERE = Path(__file__).resolve().parent
 _INSTANCE: contextvars.ContextVar[str] = contextvars.ContextVar("sab_instance", default="w")
-_COMPILED: dict[str, Any] = {}
+_COMPILED: dict[tuple[str, str], Any] = {}
 
 
 class Missing(Exception):
@@ -475,13 +429,26 @@ def missing(name: str, instance: str) -> None:
     )
 
 
+def _widgets() -> Any:
+    """sab_widgets as its file is now: read again when the file changed since it was imported (a run that
+    rewrote it can rerun the page before Streamlit's own watcher has looked)."""
+    global sab_widgets
+    path = Path(sab_widgets.__file__)
+    stamp = path.stat().st_mtime_ns if path.is_file() else 0
+    if getattr(sab_widgets, "_sab_stamp", None) != stamp:
+        sab_widgets = importlib.reload(sab_widgets)
+        sab_widgets._sab_stamp = stamp
+    return sab_widgets
+
+
 def _code(name: str) -> Any:
-    if name not in _COMPILED:
-        text = sab_widgets.CODE[name]
+    text = _widgets().CODE[name]
+    key = (name, text)
+    if key not in _COMPILED:
         where = f"<widget {name}>"
         linecache.cache[where] = (len(text), None, text.splitlines(keepends=True), where)
-        _COMPILED[name] = compile(text, where, "exec")
-    return _COMPILED[name]
+        _COMPILED[key] = compile(text, where, "exec")
+    return _COMPILED[key]
 
 
 def render(name: str, values: dict[str, Any], instance: str) -> None:
@@ -489,7 +456,7 @@ def render(name: str, values: dict[str, Any], instance: str) -> None:
     token = _INSTANCE.set(instance)
     try:
         namespace: dict[str, Any] = {"__name__": f"sab_widget_{name}", **values}
-        for variable in sab_widgets.VARIABLES.get(name, []):
+        for variable in _widgets().VARIABLES.get(name, []):
             namespace[variable] = var(str(values.get(variable) or ""))
         with st.spinner(f"Loading {name}…"):
             exec(_code(name), namespace)  # noqa: S102 (the user's own widget, from their library)

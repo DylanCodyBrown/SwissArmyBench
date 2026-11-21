@@ -58,7 +58,8 @@ class Modes:
     AREA_NAMES: ClassVar[dict[str, str]] = {
         "projects": "Projects", "connections": "Connections", "apis": "APIs", "variables": "Variables",
         "data": "Data", "grids": "Grids", "erd": "ERD", "structures": "Structures", "blades": "Blades",
-        "notebooks": "Notebooks", "scripts": "Scripts", "apps": "Apps", "analyze": "Analyze",
+        "notebooks": "Notebooks", "scripts": "Scripts", "canvas": "Canvas", "widgets": "Widgets",
+        "analyze": "Analyze",
         "session": "Session", "extensions": "Extensions", "settings": "Settings",
     }  # fmt: skip
 

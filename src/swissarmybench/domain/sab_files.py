@@ -492,7 +492,7 @@ def packed(relative: str) -> bool:
     if name.startswith(".") or name.endswith(".saving"):
         return False
     lowered = name.lower()
-    if lowered.endswith(".stapp.json"):
+    if lowered.endswith((".canvas.json", ".stapp.json")):
         return True
     # A structure (JSON, YAML, XML, TOML) the Structures page saved in the project's structures/ folder:
     # text the project wrote, not a data file brought into it.

@@ -401,7 +401,11 @@ class Widgets:
         files, canvas = self._one_app(name, body)
         tables = await self.tables_for(self.named_tables(canvas, self._built_one(name, body)))
         answer: dict[str, Any] = await self.live.check(
-            f"check-{name}", files, tables, self.python(body), [p for p in files if p.startswith("pages/")]
+            f"check-{name}",
+            files,
+            tables,
+            self.python(body),
+            [p for p in files if p.startswith(build_rules.PAGES + "/")],
         )
         self.ws.audit.write(who, "check_widget", name)
         return answer | {"widget": name}
@@ -427,6 +431,18 @@ class Widgets:
         if failed is not None:
             return {"state": "failed", "said": failed, "key": key}
         return {"state": "coming", "key": key}
+
+    def preview_made(self, key: str, data: bytes) -> None:
+        if self._previews is not None:
+            self._previews.put(key, data)
+
+    def preview_failed(self, name: str, theme: str, said: str) -> None:
+        if self._previews is not None:
+            self._previews.fail(self.preview_key(name, theme), said)
+
+    def app_of(self, name: str, body: Any) -> tuple[dict[str, str], Mapping[str, Any]]:
+        """The widget alone as an app's files (a Run, a preview) and its one-widget canvas."""
+        return self._one_app(name, body)
 
     def preview_png(self, key: str) -> bytes | None:
         return None if self._previews is None else self._previews.get(key)

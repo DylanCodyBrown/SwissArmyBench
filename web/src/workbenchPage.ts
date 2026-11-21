@@ -472,7 +472,7 @@ const workbookInFront = (): ExcelView => {
 /** The canvases' "New" entries follow the open project's mode (modes.ts): each is offered only where the
  *  mode names it (the base's: the Streamlit canvas; an Accounting project's: the Excel canvas). */
 function registerCanvasKinds(): void {
-  registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", ...(offersCanvas("streamlit") ? { start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } } : {}) });
+  registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", ...(offersCanvas("streamlit") ? { start: { label: "New canvas", run: () => window.open("/streamlit/canvas", "_blank") } } : {}) });
   registerTabKind({ id: "workbook", label: "Workbook", icon: "excel", mark: "app", ...(offersCanvas("excel") ? { start: { label: "New Excel workbook", run: () => void openWorkbook(null) } } : {}) });
 }
 
@@ -1703,6 +1703,8 @@ layout.source.append(groups.element, empty, landing.element);
 
 /** The landing page for `k` in place of the groups (the address says ?kind=k&view=list). */
 function showLanding(k: Kind): void {
+  // Apps is the Canvas, a page of its own (2026-11-21): the old address goes there.
+  if (k === "app") return void location.replace("/streamlit/canvas");
   landing.show(k);
   groups.element.hidden = true;
   empty.hidden = true;

@@ -49,7 +49,8 @@ def test_the_extension_says_what_it_is_and_its_mode() -> None:
     mode = said["mode"]
     assert mode["type"] == "streamlit" and mode["canvases"] == ["streamlit"]
     assert mode["families"] == ["Streamlit", "Components", "Controllers", "Text and layout"]
-    assert mode["languages"] == ["python"] and mode["tools"] == ["streamlit_"]
+    assert mode["languages"] == ["python"] and mode["tools"] == ["canvas_", "widgets_"]
+    assert mode["widget_framework"] == "streamlit"
     # The beginners' words for New project.
     assert all(isinstance(mode[k], str) and mode[k] for k in ("title", "for_whom", "explain", "example"))
     assert rules.describe("streamlit", extension.describe) == Found(
@@ -129,9 +130,11 @@ def test_a_streamlit_project_is_its_scaffold(client: TestClient, tmp_path: Path)
     assert made.status_code == 200, made.text
     folder = Path(made.json()["folder"])
     assert json.loads((folder / ".sab" / "project.json").read_text()) == {"type": "streamlit"}
-    assert (folder / "app.ipynb").exists() and (folder / "data.ipynb").exists()
-    assert [p.name for p in folder.glob("*.stapp.json")] == ["sales.stapp.json"]  # one canvas, not two
-    assert "streamlit>=1.36" in (folder / "requirements.txt").read_text()
+    # data.ipynb and an empty canvas, nothing else (2026-11-21: app notebooks were replaced by widgets).
+    assert not (folder / "app.ipynb").exists() and (folder / "data.ipynb").exists()
+    assert [p.name for p in folder.glob("*.canvas.json")] == ["sales.canvas.json"]  # one canvas, not two
+    assert not list(folder.glob("*.stapp.json"))
+    assert "streamlit>=1.43" in (folder / "requirements.txt").read_text()
     mode = client.get("/app/mode", headers=AUTH).json()
     assert mode["project_type"] == "streamlit" and mode["mode"]["families"][0] == "Streamlit"
 
@@ -144,9 +147,11 @@ def test_on_the_base_project_still_has_its_app_and_the_canvas(client: TestClient
     assert [m["type"] for m in modes] == ["bi", "streamlit"] and modes[0]["canvases"] == ["streamlit"]
     made = client.post("/projects", json={"folder": str(tmp_path), "name": "Orchard"}, headers=AUTH).json()
     folder = Path(made["folder"])
-    assert [p.name for p in folder.glob("*.stapp.json")] == ["orchard.stapp.json"]
+    assert [p.name for p in folder.glob("*.canvas.json")] == ["orchard.canvas.json"]
     assert not (folder / ".sab" / "project.json").exists()
-    assert client.get("/streamlit/apps", headers=AUTH).json() == {"apps": []}
+    assert client.get(f"/streamlit/canvases?folder={folder}", headers=AUTH).json()["canvases"] == [
+        {"name": "orchard", "path": str(folder / "orchard.canvas.json")}
+    ]
     listed = {e["id"]: e for e in client.get("/extensions", headers=AUTH).json()["extensions"]}
     assert listed["streamlit"]["status"] == "installed" and listed["streamlit"]["preinstalled"] is True
 
@@ -159,15 +164,15 @@ def test_off_the_base_has_no_canvas_and_says_which_extension(base: TestClient, t
     assert [m["type"] for m in modes] == ["bi"] and modes[0]["canvases"] == []
     # Its door answers plainly, naming the extension, for the user and the agent alike.
     for headers in (AUTH, AGENT):
-        door = base.get("/streamlit/apps", headers=headers)
+        door = base.get("/streamlit/canvases", headers=headers)
         assert door.status_code == 404 and door.json()["extension"] == "streamlit"
         assert "Streamlit extension" in door.json()["error"]
-    assert base.post("/streamlit/apps", headers=AUTH, json={}).status_code == 404
+    assert base.post("/streamlit/canvases", headers=AUTH, json={}).status_code == 404
     # A new project is the base's: data and notebooks, no canvas, no Streamlit to install.
     made = base.post("/projects", json={"folder": str(tmp_path), "name": "Orchard"}, headers=AUTH)
     assert made.status_code == 200, made.text
     folder = Path(made.json()["folder"])
-    assert not list(folder.glob("*.stapp.json")) and (folder / "data.ipynb").exists()
+    assert not list(folder.glob("*.canvas.json")) and (folder / "data.ipynb").exists()
     assert "streamlit" not in (folder / "requirements.txt").read_text()
     # A Streamlit project is refused plainly.
     refused = base.post(
@@ -197,19 +202,19 @@ def test_off_the_agents_streamlit_tools_name_the_extension() -> None:
     """A fresh `sab` (the MCP server's registry): its tools are not listed, and a call says where to get them."""
     code = (
         "from swissarmybench.cli import commands as c\n"
-        "print(sorted(n for n in c.REGISTRY if n.startswith('streamlit_')))\n"
-        "try:\n    c.execute('streamlit_run', {'app': 'a1'})\nexcept c.CommandError as e:\n    print(e)\n"
-        "try:\n    c.execute('workbench_canvas_play', {})\nexcept c.CommandError as e:\n    print(e)\n"
+        "print(sorted(n for n in c.REGISTRY if n.startswith('canvas_')))\n"
+        "try:\n    c.execute('canvas_play', {'canvas': 'a1'})\nexcept c.CommandError as e:\n    print(e)\n"
+        "try:\n    c.execute('widgets_list', {})\nexcept c.CommandError as e:\n    print(e)\n"
     )
     env = os.environ | {extensions.VARIABLE: "-streamlit"}
     said = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True)
     lines = said.stdout.splitlines()
     assert lines[0] == "[]"
     assert (
-        "streamlit_run is the Streamlit extension's" in lines[1]
+        "canvas_play is the Streamlit extension's" in lines[1]
         and "extensions_install id=streamlit" in lines[1]
     )
-    assert "workbench_canvas_play is the Streamlit extension's" in lines[2]
+    assert "widgets_list is the Streamlit extension's" in lines[2]
     # With it on, the same names are tools.
     on = subprocess.run(
         [sys.executable, "-c", code.split("try:")[0]],
@@ -218,7 +223,7 @@ def test_off_the_agents_streamlit_tools_name_the_extension() -> None:
         text=True,
         check=True,
     )
-    assert "streamlit_run" in on.stdout
+    assert "canvas_play" in on.stdout
 
 
 def test_the_base_mode_takes_what_an_on_extension_adds() -> None:

@@ -15,10 +15,10 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from tests.e2e.test_canvas_pane_page import until
 from tests.e2e.test_table_cells_page import close_tables
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
-from tests.test_streamlit_apps import needs_streamlit
+from tests.e2e.test_widgets_shared import until
+from tests.streamlit_helpers import needs_streamlit
 
 SHOTS = os.environ.get("SWISSARMYBENCH_WIDGET_SHOTS")
 CODE = """import altair as alt

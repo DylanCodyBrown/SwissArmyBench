@@ -1,7 +1,7 @@
-"""A notebook's Streamlit process (docs/ideas.md, "Streamlit cells"): started in the notebook's own
-Python, never this app's dependency.
+"""A Streamlit process (a widget run alone, a canvas's Play, a launch, a preview): started in the project's
+own Python, never this app's dependency.
 
-One process a notebook: `streamlit run` on the app's temporary folder, bound to 127.0.0.1 on a free
+One process a run: `streamlit run` on the app's temporary folder, bound to 127.0.0.1 on a free
 port, headless, usage statistics off. The process is started through a few lines of Python (`_LAUNCH`)
 that watch this server: when the server goes, however it goes, the Streamlit process ends too.
 """
@@ -19,8 +19,6 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
-
-from swissarmybench_streamlit.domain.controllers import RUNNER, TEST_SECONDS
 
 _START_SECONDS: float = 60.0
 _INSTALL_SECONDS: float = 900.0
@@ -234,40 +232,9 @@ async def install(python: str, packages: list[str]) -> tuple[int | None, str]:
     return process.returncode, out.decode("utf-8", "replace")[-4000:]
 
 
-async def test(python: str, folder: str, plan: str) -> str:
-    """Test a page (services/controllers.py): `plan` written beside it as plan.json, then the runner
-    (domain/controllers.py RUNNER: Streamlit's AppTest) in the app's own Python, isolated, in that
-    folder. What it said, its answer last; a run past its budget is stopped."""
-    (Path(folder) / "plan.json").write_text(plan, encoding="utf-8")
-    environ = dict(os.environ) | {"STREAMLIT_BROWSER_GATHER_USAGE_STATS": "false"}
-    try:
-        process = await asyncio.create_subprocess_exec(
-            python,
-            "-I",
-            "-c",
-            RUNNER,
-            folder,
-            cwd=folder,
-            env=environ,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-    except OSError as error:
-        return f"{python} did not start: {error}"
-    try:
-        out, err = await asyncio.wait_for(process.communicate(), TEST_SECONDS + 60)
-    except TimeoutError:
-        process.kill()
-        await process.wait()
-        return "The test took too long and was stopped."
-    said = out.decode("utf-8", "replace")
-    return said if process.returncode == 0 else said + err.decode("utf-8", "replace")[-2000:]
-
-
 class Runner:
-    """The service's port (services/streamlit_ports.py Runner): check a Python, start, stop,
-    install, test a page. `report` hears each Streamlit process's start, crash and end (the beta log)."""
+    """Check a Python, start a Streamlit process, install what it lacks. `report` hears each Streamlit
+    process's start, crash and end (the beta log)."""
 
     def __init__(self, report: Report = _no_report) -> None:
         self._report = report
@@ -283,6 +250,3 @@ class Runner:
 
     async def install(self, python: str, packages: list[str]) -> tuple[int | None, str]:
         return await install(python, packages)
-
-    async def test(self, python: str, folder: str, plan: str) -> str:
-        return await test(python, folder, plan)

@@ -133,11 +133,7 @@ def test_references_calls_and_the_kernels_report(client: TestClient, tmp_path: P
         client.post("/workbench/save", json={"path": str(script), "text": text}, headers=AUTH).status_code
         == 200
     )
-    app = tmp_path / "sales.stapp.json"
-    page = {"id": "p1", "name": "Overview", "blocks": [{"id": "b1", "document": "orchard.ipynb", "cell": 3}]}
-    made = client.post("/workbench/save", json={"path": str(app), "pages": [page]}, headers=AUTH)
-    assert made.status_code == 200, made.text
-    for path in (book, script, app):
+    for path in (book, script):
         client.post("/workbench/open", json={"path": str(path)}, headers=AUTH)
 
     opened = client.post("/connections/Shop/open", json={"table": "orders"}, headers=AUTH)
@@ -152,7 +148,6 @@ def test_references_calls_and_the_kernels_report(client: TestClient, tmp_path: P
     assert ("notebook", "orchard.ipynb", "sab.sql", 3) in found
     assert not any(r[1] == "orchard.ipynb" and r[3] == 2 for r in found)  # a comment, a string: no use
     assert ("script", "totals.py", "sab.read", 1) in found
-    assert ("app", "sales", "sab.sql", 3) in found
     grid = next(r for r in usage["references"] if r["kind"] == "grid")
     assert grid["grid"] == opened.json()["grid"] and grid["title"] == "orders"
     assert usage["calls"]["by_kind"]["read"] >= 1 and usage["calls"]["by_kind"]["query"] == 1

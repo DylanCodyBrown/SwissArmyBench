@@ -17,13 +17,13 @@ In short: `Store analysis` is an Analysis project whose deliverable is a noteboo
 
 ```text
 Store analysis/
-├── app.ipynb                  an app notebook
-├── daily.py                   a script
-├── data.ipynb                 the data notebook: it makes the tables
-├── data.py                    made by the app from another file: never edit it by hand
-├── README.md                  what the project is for
-├── requirements.txt           what to install
-├── store_analysis.stapp.json  an app (its canvas)
+├── app.ipynb                   an app notebook
+├── daily.py                    a script
+├── data.ipynb                  the data notebook: it makes the tables
+├── data.py                     made by the app from another file: never edit it by hand
+├── README.md                   what the project is for
+├── requirements.txt            what to install
+├── store_analysis.canvas.json  an app (its canvas)
 ```
 
 ## 2. Data sources
@@ -139,7 +139,7 @@ flowchart LR
   n12["Supplier list"]
   n13(["app.ipynb"])
   n14(["daily.py"])
-  n15(["store_analysis.stapp.json"])
+  n15(["store_analysis.canvas.json"])
   n2 --> n6
   n3 --> n7
   n4 --> n8
@@ -149,8 +149,6 @@ flowchart LR
   n1 --> n12
   n11 --> n13
   n3 --> n14
-  n11 --> n15
-  n13 --> n15
 ```
 
 ## 6. Deliverables
@@ -167,8 +165,8 @@ In short: 1 notebook, 1 script, 1 app.
 
 ### Apps
 
-- `store_analysis.stapp.json`: reads `monthly`; links `app.ipynb`
-  - Page `Overview`: `app.ipynb @cell1 (Orders by month)`
+- `store_analysis.canvas.json`: reads nothing; links nothing
+  - Page `Overview`: no blocks yet
 
 ## 7. Running it
 
@@ -178,7 +176,7 @@ In short: what to install, how each script runs, and whether it runs unchanged o
 
 - `duckdb`
 - `pandas`
-- `streamlit>=1.36`
+- `streamlit>=1.43`
 
 ### Scripts
 

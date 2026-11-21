@@ -15,9 +15,9 @@ lose work or leave a broken page.
                    on disk (a pull, another app) is read again before anything is written
   play / check     the canvas's pages built (domain/canvas_build.py, the one builder) and run live, or
                    headless with AppTest
-  export           app.py, pages/*.py, sab_canvas.py, sab_widgets.py (the library's widgets inlined), the open
-                   tables it names as data/*.parquet, data.py when the project has one, requirements.txt; the
-                   agent's waits for the user's Allow
+  export           app.py, app_pages/*.py, sab_canvas.py, sab_widgets.py (the library's widgets inlined), the
+                   open tables it names as data/*.parquet, data.py when the project has one, requirements.txt;
+                   the agent's waits for the user's Allow
 """
 
 from __future__ import annotations
@@ -67,6 +67,8 @@ class Canvases:
         read_data_py: Callable[[str], str | None] = lambda folder: None,
         list_folder: Callable[[str], list[str]] = lambda folder: [],
         real_path: Callable[[str], str] = lambda path: path,
+        builds: Any = None,
+        now: Callable[[], float] = time.time,
     ) -> None:
         self.ws = ws
         self._files = files  # adapters/widget_files.py CanvasFiles
@@ -78,6 +80,8 @@ class Canvases:
         self._read_data_py = read_data_py
         self._list_folder = list_folder
         self._real = real_path
+        self._builds = builds  # adapters/build_files.py BuildFiles (Launch's builds/ in the project)
+        self._now = now
         self._open: dict[str, Open] = {}
         widgets.renamed = self.rename_widget
 
@@ -334,7 +338,7 @@ class Canvases:
         opened = self._get(canvas)
         files, names = self._app(opened)
         tables = await self._widgets.tables_for(names)
-        pages = [f"pages/{slug}.py" for slug in build_rules.page_files(opened.canvas).values()]
+        pages = [f"{build_rules.PAGES}/{slug}.py" for slug in build_rules.page_files(opened.canvas).values()]
         answer: dict[str, Any] = await self._live.check(
             f"check-{opened.id}", files, tables, self._widgets.python(body), pages
         )
@@ -362,6 +366,56 @@ class Canvases:
         where, written = self._app_files.export(chosen, files, tables)
         self.ws.audit.write(who, "export_canvas", f"{opened.path} -> {where}")
         return {"folder": where, "files": written}
+
+    async def launch(self, canvas: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Launch (the owner, 2026-11-19: "think Visual Studio"): the app built into the project's
+        builds/<app>/<n>/ (its files, the canvas, build.json: what changed in words) and run from that build
+        in a process of its own, for a window of its own."""
+        from datetime import UTC, datetime
+
+        from swissarmybench_streamlit.domain import builds as build_rules_
+
+        opened = self._get(canvas)
+        if self._builds is None:
+            raise Conflict("Builds are not kept here.")
+        project = opened.path.rsplit("/", 1)[0]
+        name = opened.path.rsplit("/", 1)[-1][: -len(model.SUFFIX)]
+        folder = self._builds.join(project, build_rules_.BUILDS, build_rules_.folder_name(name))
+        taken = self._builds.builds(folder)
+        number = build_rules_.next_number(taken)
+        files, names = self._app(opened)
+        canvas_text = model.write(opened.canvas)
+        before = (
+            self._builds.read_one(self._builds.join(folder, taken[-1]), model.SUFFIX[1:]) if taken else None
+        )
+        changed = (
+            ["The first build."]
+            if before is None
+            else (
+                ["The layout changed."]
+                if build_rules_.digest(before) != build_rules_.digest(canvas_text)
+                else ["Nothing changed."]
+            )
+        )
+        stamp = datetime.fromtimestamp(self._now(), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        kept = dict(files) | {model.SUFFIX[1:]: canvas_text}
+        kept[build_rules_.BUILD_FILE] = build_rules_.build_json(
+            number, stamp, name, canvas_text, changed, "started", None
+        )
+        build = self._builds.join(folder, str(number))
+        self._builds.write(build, kept)
+        tables = await self._widgets.tables_for(names)
+        run_files = dict(files) | {"app.py": build_rules_.titled(files["app.py"], name, number)}
+        answer: dict[str, Any] = await self._live.run(
+            f"launch-{opened.id}", run_files, tables, self._widgets.python(body)
+        )
+        self.ws.audit.write(who, "app_launch", f"{name}: build {number}")
+        return answer | {
+            "build": number,
+            "folder": build,
+            "changed": changed,
+            "title": f"{name} · build {number}",
+        }
 
     async def close(self, canvas: str) -> dict[str, Any]:
         opened = self._open.pop(canvas, None)

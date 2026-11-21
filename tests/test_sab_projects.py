@@ -21,7 +21,7 @@ import pytest
 from starlette.testclient import TestClient
 
 from swissarmybench.domain import notebooks
-from swissarmybench_streamlit.domain import streamlit_cells
+from swissarmybench_streamlit.domain import canvas_model
 from tests.conftest import AGENT, AUTH, TOKEN, make_client
 from tests.fake_keyring import memory_keyring
 
@@ -158,7 +158,9 @@ def test_a_project_folder_is_made_saved_closed_and_opened_with_everything_back(t
         # The project's own documents are files the Workbench saves; .sab/ holds the app's state.
         cell = notebooks.Cell("code", "from data import orders\nprint(len(orders))")
         (folder / "analysis.ipynb").write_text(notebooks.write_notebook([cell]), encoding="utf-8")
-        (folder / "sales.stapp.json").write_text(streamlit_cells.write_app([]), encoding="utf-8")
+        (folder / "sales.canvas.json").write_text(
+            canvas_model.write(canvas_model.new_canvas("sales")), encoding="utf-8"
+        )
         saved = ok(client.post("/project/save", json={"keep_rows": {"kept_paste": True}}, headers=AUTH))
         assert saved["saved"] == str(target) and saved["rows"] == ["kept_paste"]
         assert saved["project"]["dirty"] is False and saved["project"]["name"] == "sales"

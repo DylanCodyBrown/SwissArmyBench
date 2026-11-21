@@ -43,12 +43,18 @@ class ScopeError(ValueError):
     """A request about the project's scope that cannot be done (why, in words)."""
 
 
+# An app's canvas (2026-11-21: the Canvas, `<app>.canvas.json`; an old .stapp.json is still the project's).
+CANVAS_SUFFIX: str = ".canvas.json"
+
+
 def kind_of(path: str) -> str:
     """notebook, script or app by the file's ending, structure for a structures/ file (Structures); ""
     for any other file."""
     parts = path.replace("\\", "/").split("/")
     if len(parts) == 2 and parts[0] == "structures" and structures.format_of(parts[1]):
         return "structure"
+    if parts[-1].lower().endswith(CANVAS_SUFFIX):
+        return "app"  # a canvas (the Streamlit extension's): the project's app
     try:
         return notebooks.kind_of(path)
     except notebooks.NotebookError:
