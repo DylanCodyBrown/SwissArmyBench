@@ -102,9 +102,9 @@ class LiveRuns:
             found = await self._runner.check(python)
         except ValueError as error:
             return {"kind": "failed", "message": str(error)}
-        if found["missing"]:
+        if found["missing"]:  # set up for Streamlit: the Excel widgets' packages come along
             return {"kind": "missing"} | missing_packages(
-                "Streamlit widgets", found["missing"], python, own=False
+                "Streamlit widgets", [*found["missing"], *found.get("extras", [])], python, own=False
             )
         return None
 

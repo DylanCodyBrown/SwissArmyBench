@@ -12,6 +12,7 @@ PUT    /streamlit/widgets/{name}                 {"code"}: saved below its heade
 PATCH  /streamlit/widgets/{name}                 {"name"?, "description"?, ...}: its header only
 POST   /streamlit/widgets/{name}/property        {"property", "value", "code"?}: a default written back
 POST   /streamlit/widgets/{name}/copy            {"name"?}: a prebuilt one as your own
+POST   /streamlit/widgets/{name}/upgrade         {"apply"?, "code"?}: Upgrade to In/Out (a preview; applied)
 DELETE /streamlit/widgets/{name}                 the agent's waits for the user's Allow
 POST   /streamlit/widgets/{name}/run             {"values"?, "code"?, "window"?, "python"?}: Run in place
 POST   /streamlit/widgets/{name}/check           the same headless (AppTest): its errors
@@ -81,6 +82,9 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
             await widgets.set_property(name_of(request), await body_of(request), actor(request))
         )
 
+    async def upgrade(request: Request) -> Response:
+        return json_response(await widgets.upgrade(name_of(request), await body_of(request), actor(request)))
+
     async def copy(request: Request) -> Response:
         return json_response(await widgets.copy(name_of(request), await body_of(request), actor(request)))
 
@@ -114,6 +118,7 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
         Route("/streamlit/widgets/{name}", safely(one), methods=["GET", "PUT", "PATCH", "DELETE"]),
         Route("/streamlit/widgets/{name}/property", safely(set_property), methods=["POST"]),
         Route("/streamlit/widgets/{name}/copy", safely(copy), methods=["POST"]),
+        Route("/streamlit/widgets/{name}/upgrade", safely(upgrade), methods=["POST"]),
         Route("/streamlit/widgets/{name}/run", safely(run), methods=["POST"]),
         Route("/streamlit/widgets/{name}/check", safely(check), methods=["POST"]),
         Route("/streamlit/widgets/{name}/preview", safely(preview)),

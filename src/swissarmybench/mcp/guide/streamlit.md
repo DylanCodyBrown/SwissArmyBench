@@ -17,20 +17,33 @@ says so in one line.
   (a `# column of` comment naming its table property), variable (`os.environ["NAME"]` or `"${NAME}"`), path, list and dict. An
   annotation wins over the guess. The comment lines above one are its help.
 - Its code imports the runtime: `from sab_canvas import table, key, sample, var` (`table(name)` the table,
-  `key("x")` a widget key of this instance's own, `var(NAME)` a variable).
+  `key("x")` a widget key of this instance's own, `var(NAME)` a variable, `sample(kind=...)` made-up rows:
+  sales, orders, products, tickets, stock; `choices(options, frame, column)` a select's choices from a
+  table's column, distinct and sorted, the first 1,000 with a note; `marked(label, required)` and
+  `problem(words)` the inputs' one look).
+- **Its contract (2026-11-21): Ins, Outs and Events**, declared at the top level and read with ast:
+  `orders: In[Table] = None` (data coming in at run time; the value is its own when nothing is wired),
+  `region: In[str] = "All"`, `picked: Out[int] = None` (data going out: the code assigns it), `saved:
+  Event[dict] = None` (an action it fires: `saved(payload)`). Types: Table, str, int, float, bool, date,
+  datetime, list[...], dict. Plain values stay properties (the design-time settings). `widgets_get` and
+  `widgets_properties` give `contract` {ins, outs, events}; a declaration that does not read has its
+  `problem`. `widgets_upgrade` (apply=true saves; else the preview's diff) rewrites a widget's session state
+  keys as Ins and Outs.
 - `widgets_list` (q), `widgets_get`, `widgets_new` (name, description, code), `widgets_save` (code, the
   header kept), `widgets_header` (new_name: checked, and every canvas instance renamed; description),
   `widgets_properties` (of a widget, or of code not saved yet), `widgets_set_property` (a default, written
   into only its own characters, checked first), `widgets_run` (headless with AppTest: each page's
   `failed` errors and what it drew; live=true also gives a live address), `widgets_copy` (a prebuilt one
-  as your own: 109 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
+  as your own: 113 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
   state: ready with its address, coming, failed with why).
 - Starter packs (a prebuilt widget's `pack` in its header; `widgets_list` gives `packs`): Sales dashboard,
-  Operations, Customer service, Data entry, Admin, User inputs, Excel, Form builder. A pack widget that
-  reads data takes a table property (empty: its own made-up rows); one that hands data on puts
-  `{"event": "save", "widget", "payload"}` in session state under its `save_event` key, and others pass
-  values by session state keys (`state_key`, `filter_key`, `selected_key`, `in_key`/`out_key`,
-  `definition_key`, `submissions_key`). Excel widgets need openpyxl in the project's Python (said in place).
+  Operations, Customer service, Data entry, Admin, User inputs, Excel, Form builder. Every prebuilt widget
+  speaks the contract: a table In (`In[Table]`; not wired: its own made-up rows), each input's
+  `value: Out[...]` and `default_from: In[...]`, a select's `options_table` and `options_column`, the pack
+  hand-offs as Outs and Ins of one name that wire by themselves (`sales_filter`, `ticket_id`, `uploaded` ->
+  `mapped` -> `valid`, `form_definition`, `form_submissions`), its Save/Submit/Send as an Event (`saved`,
+  `sent`, `approved`, `rejected`). Excel widgets need openpyxl (xlrd for .xls): a new project's Python gets
+  both; an older one says so in place.
 
 ## The Canvas (`<app>.canvas.json`, a project file; two layouts, Phone and Desktop)
 - `canvas_open` (path, or name: a new one; neither: the project's canvases), `canvas_state` (model, version, `missing`
@@ -65,7 +78,19 @@ says so in one line.
   are not changed). The Performance Analyzer on a launch: `canvas_perf` by action: attach, pause, clear, detach,
   session (each rerun's trigger and each widget instance's time, calls, caches, the web socket's kinds
   and sizes: never content), hints, save (into the build), saved (build, file).
-- A table property takes an open table, a data.ipynb table (data.py's names) or a connection's table as
+- Wiring (`canvas_wire` id, port, wire; null unwires; one undoable change): an In's source is a table
+  (`{"table": "orders"}`), another instance's Out on the page (`{"out": "w3.filtered"}`, its type fitting:
+  a mismatch is refused with the reason), a page value (`{"page": "k"}`), a GET endpoint's answer
+  (`{"endpoint": "GET /orders"}`), a variable, a typed value, or for a list[Table] `{"tables": [...]}`. An
+  unwired In takes the page's one Out of its name and a fitting type by itself (`auto`). An Event's wire is
+  its actions in order: `{"do": "call", "endpoint": "POST /visits", "body": "values" or {field: "values.x"},
+  "params": {name: path}}` (the local sandbox API; an export reads SAB_API_URL, SAB_API_KEY, SAB_API_BASE,
+  listed in its README.md), `{"do": "set", "key", "value": path}`, `{"do": "rerun"}`. `canvas_state`'s
+  `wiring`: each instance's ports, `sources`, `readers` of each Out, `wires`, and `broken` (a deleted widget
+  or Out, a type changed: both ends; `canvas_play` lists them too). The page runs each widget after what it
+  reads. `canvas_set_values` with an In's name and a table's name wires it (an older canvas's table value is
+  wired so as it opens).
+- A table In or property takes an open table, a data.ipynb table (data.py's names) or a connection's table as
   DuckDB SQL names it, `[Conn].table` (`widgets_get`'s context lists each connection's as far as its
   catalog is loaded); a run reads it through the connection-tables contract, so through that connection's
   query limit; a connection not here is said with the fix.

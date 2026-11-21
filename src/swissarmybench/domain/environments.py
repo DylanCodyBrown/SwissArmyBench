@@ -71,6 +71,10 @@ PRESETS: dict[str, tuple[str, ...]] = {
 }
 # Always installed: the kernel the Workbench runs code in.
 ALWAYS: tuple[str, ...] = ("ipykernel",)
+# Installed into every project's environment as it is made (the owner, 2026-11-21: "so Excel widgets just
+# work"): .xlsx read and written by openpyxl, old .xls read by xlrd. An environment made before this gets the
+# missing-package prompt when a widget needs one. Never the app's own server's dependencies.
+EXCEL: tuple[str, ...] = ("openpyxl", "xlrd")
 
 
 class EnvironmentRequestError(ValueError):
@@ -86,7 +90,7 @@ def catalog() -> dict[str, Any]:
         ],
         "presets": {name: list(pips) for name, pips in PRESETS.items()},
         "versions": list(PYTHON_VERSIONS),
-        "always": list(ALWAYS),
+        "always": [*ALWAYS, *EXCEL],
     }
 
 
@@ -119,7 +123,7 @@ def check_request(body: Any) -> tuple[str, str | None, list[str]]:
                 f"{package!r} is not a package name pip knows (such as pandas or psycopg[binary])."
             )
         wanted.append(package.strip())
-    return folder.strip(), version, list(dict.fromkeys([*ALWAYS, *wanted]))
+    return folder.strip(), version, list(dict.fromkeys([*ALWAYS, *EXCEL, *wanted]))
 
 
 def is_full_path(path: str) -> bool:

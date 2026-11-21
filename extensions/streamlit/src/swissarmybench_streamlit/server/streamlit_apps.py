@@ -23,6 +23,9 @@ from typing import Any
 _START_SECONDS: float = 60.0
 _INSTALL_SECONDS: float = 900.0
 PACKAGES: tuple[str, ...] = ("streamlit", "pandas", "pyarrow")
+# Installed with them when a Python is set up for Streamlit (the owner, 2026-11-21): the Excel widgets' readers
+# and writer (openpyxl; xlrd for old .xls). Not needed to start: a widget that lacks one says so in its place.
+EXTRAS: tuple[str, ...] = ("openpyxl", "xlrd")
 
 # Run in the notebook's Python: end with the server that started it, then be `streamlit run`.
 _LAUNCH = r"""
@@ -53,10 +56,11 @@ class StreamlitProcessError(ValueError):
 
 
 def check(python: str) -> dict[str, Any]:
-    """Whether a Python can run the app: which of Streamlit, pandas and pyarrow it lacks."""
+    """Whether a Python can run the app: which of Streamlit, pandas and pyarrow it lacks (`missing`), and
+    which of the Excel widgets' packages (`extras`)."""
     probe = (
         "import importlib.util as u, json;"
-        f"print(json.dumps([p for p in {list(PACKAGES)!r} if u.find_spec(p) is None]))"
+        f"print(json.dumps([p for p in {list(PACKAGES + EXTRAS)!r} if u.find_spec(p) is None]))"
     )
     try:
         done = subprocess.run(  # noqa: S603 (the notebook's own Python, asked one fixed question)
@@ -68,7 +72,12 @@ def check(python: str) -> dict[str, Any]:
         raise StreamlitProcessError(f"{python} is not a Python that runs: {done.stderr.strip()[-300:]}")
     import json
 
-    return {"python": python, "missing": list(json.loads(done.stdout.strip().splitlines()[-1]))}
+    lacking = list(json.loads(done.stdout.strip().splitlines()[-1]))
+    return {
+        "python": python,
+        "missing": [p for p in lacking if p in PACKAGES],
+        "extras": [p for p in lacking if p in EXTRAS],
+    }
 
 
 def _free_port() -> int:

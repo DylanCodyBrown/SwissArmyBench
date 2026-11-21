@@ -206,6 +206,24 @@ def canvas_set_values(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "canvas_wire",
+    "Wire an instance's In (its source) or Event (its actions); canvas_state's wiring shows Outs, readers, broken",
+    req("canvas", "The canvas's id."),
+    req("id", "The instance's id."),
+    req("port", "The In's or Event's name."),
+    opt(
+        "wire",
+        'An In: {"table"}, {"out": "w3.name"}, {"page"}, {"endpoint": "GET /x"}, {"variable"}, {"value"}, '
+        '{"tables": [...]}. An Event: {"actions": [{"do": "call", "endpoint", "body"}, {"do": "set", "key"}, '
+        '{"do": "rerun"}]}. None: unwired.',
+        "json",
+    ),
+)
+def canvas_wire(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "wire", {"id": a["id"], "port": a["port"], "wire": a.get("wire")})
+
+
+@command(
     "canvas_replace_widget",
     "An instance's widget replaced (a missing one's Replace): its place kept",
     req("canvas", "The canvas's id."),
@@ -384,7 +402,9 @@ def widgets_list(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "widgets_get", "One widget: its header, code, properties and file", req("name", "The widget's name.")
+    "widgets_get",
+    "One widget: its header, code, properties, contract (ins, outs, events) and file",
+    req("name", "The widget's name."),
 )
 def widgets_get(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/streamlit/widgets/{_q(a['name'])}")
@@ -484,6 +504,16 @@ def widgets_copy(a: dict[str, Any]) -> Any:
         f"/streamlit/widgets/{_q(a['name'])}/copy",
         {"name": a["new_name"]} if a.get("new_name") else {},
     )
+
+
+@command(
+    "widgets_upgrade",
+    "Upgrade to In/Out: a widget's session state keys as In/Out declarations (a preview; apply=true saves)",
+    req("name", "The widget's name."),
+    opt("apply", "Save it (default: the preview only).", "bool"),
+)
+def widgets_upgrade(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/widgets/{_q(a['name'])}/upgrade", {"apply": bool(a.get("apply"))})
 
 
 @command(

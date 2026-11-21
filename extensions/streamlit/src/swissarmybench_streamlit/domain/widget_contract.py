@@ -105,6 +105,11 @@ def _head(node: ast.expr) -> str:
 
 def _type(node: ast.expr) -> tuple[str, str | None]:
     """A type annotation's name and its problem (None: it is one of TYPES)."""
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):  # In["list[str]"]
+        try:
+            return _type(ast.parse(node.value, mode="eval").body)
+        except SyntaxError:
+            return node.value, f"{node.value[:40]} is not a type here."
     if isinstance(node, ast.Constant) and node.value is None:
         return "None", "None is not a type: give one of " + ", ".join(SCALARS) + " or list[...]."
     if isinstance(node, ast.Subscript):

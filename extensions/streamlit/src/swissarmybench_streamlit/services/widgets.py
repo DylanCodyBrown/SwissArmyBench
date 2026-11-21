@@ -35,6 +35,7 @@ from swissarmybench_streamlit.domain import canvas_wiring as wiring
 from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain import widget_packs as packs
 from swissarmybench_streamlit.domain import widget_properties as props_rules
+from swissarmybench_streamlit.domain import widget_upgrade as upgrade_rules
 from swissarmybench_streamlit.domain import widgets as rules
 from swissarmybench_streamlit.domain.widgets import Widget, WidgetError
 
@@ -128,6 +129,8 @@ class Widgets:
     # The project's local sandbox API's endpoints ("GET /orders": the base's services/local_api.py), for an
     # endpoint property's picker and check (None: not known here).
     endpoints: Callable[[], list[str]] | None = None
+    # Each endpoint's body fields (an Event's body mapping), the same seam.
+    endpoint_fields: Callable[[], dict[str, list[str]]] | None = None
 
     def _endpoints(self) -> list[str] | None:
         try:
@@ -213,6 +216,8 @@ class Widgets:
             "text": text,
             "kernel_path": kernel_path,
             "kernel_setup": build_rules.kernel_setup(),
+            # Upgrade to In/Out is offered while its code hands values on by session state keys
+            "upgradable": bool((self._upgrade_plan(widget.code) or {}).get("changes")),
         }
 
     async def context_info(self) -> dict[str, Any]:
@@ -237,8 +242,15 @@ class Widgets:
             "connection_tables": listing,
             "variables": names,
             "endpoints": self._endpoints() or [],
+            "endpoint_fields": self._endpoint_fields(),
             "project": self._project_folder(),
         }
+
+    def _endpoint_fields(self) -> dict[str, list[str]]:
+        try:
+            return dict(self.endpoint_fields()) if self.endpoint_fields is not None else {}
+        except Exception:  # API.py's own trouble
+            return {}
 
     def _data_tables_safe(self) -> list[str]:
         try:
@@ -424,6 +436,31 @@ class Widgets:
         self.ws.audit.write(who, "set_widget_property", f"{name}.{prop}")
         await self._changed(name)
         return self.get(name)
+
+    def _upgrade_plan(self, code: str) -> dict[str, Any] | None:
+        try:
+            return upgrade_rules.plan(code)
+        except (props_rules.PropertyError, SyntaxError, ValueError):
+            return None
+
+    async def upgrade(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Upgrade to In/Out: its session state keys as the contract's declarations. A preview (the code, each
+        key's In or Out, what is kept and why, the diff) until `apply`; applied, the code is saved (a
+        prebuilt widget's is refused: Copy as your own)."""
+        body = body if isinstance(body, dict) else {}
+        widget, _text = self._one(name)
+        code: str = body.get("code") if isinstance(body.get("code"), str) else widget.code
+        found = self._upgrade_plan(code)
+        if found is None:
+            raise ValueError("The widget's code does not read: fix it first.")
+        if not body.get("apply"):
+            return found | {"widget": name, "applied": False}
+        if not found["changes"]:
+            return found | {"widget": name, "applied": False}
+        self._mine(name)
+        saved = await self.save(name, {"code": found["code"]}, who)
+        self.ws.audit.write(who, "upgrade_widget", name)
+        return found | {"widget": name, "applied": True, "saved": saved}
 
     async def copy(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         widget, text = self._one(name)

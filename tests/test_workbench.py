@@ -286,7 +286,7 @@ def test_a_new_environment_is_checked_and_a_documents_python_remembered(
             "packages": ["pandas", "psycopg[binary]", "pandas"],
         }
     )
-    assert version == "3.12" and packages == ["ipykernel", "pandas", "psycopg[binary]"]
+    assert version == "3.12" and packages == ["ipykernel", "openpyxl", "xlrd", "pandas", "psycopg[binary]"]
     assert environments.import_lines(["duckdb", "pyodbc", "pandas"]) == [
         "import pandas as pd",
         "import duckdb",
