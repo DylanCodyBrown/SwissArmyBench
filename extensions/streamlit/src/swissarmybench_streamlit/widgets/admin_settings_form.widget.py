@@ -30,25 +30,25 @@ validation_message = "Fill this in."
 saved: Event[dict] = None
 
 
-values = {}
+answers = {}
 with st.form(key("form")):
     if title:
         st.markdown(f"**{title}**")
     for at, (name, value) in enumerate((settings or {}).items()):
         label = name + (" :red[\\*]" if name in required else "")
         if isinstance(value, bool):
-            values[name] = st.toggle(label, value, key=key(f"s{at}"))
+            answers[name] = st.toggle(label, value, key=key(f"s{at}"))
         elif isinstance(value, int):
-            values[name] = st.number_input(label, value=value, step=1, key=key(f"s{at}"))
+            answers[name] = st.number_input(label, value=value, step=1, key=key(f"s{at}"))
         elif isinstance(value, float):
-            values[name] = st.number_input(label, value=value, format="%.4g", key=key(f"s{at}"))
+            answers[name] = st.number_input(label, value=value, format="%.4g", key=key(f"s{at}"))
         else:
-            values[name] = st.text_input(label, str(value), key=key(f"s{at}"))
+            answers[name] = st.text_input(label, str(value), key=key(f"s{at}"))
     saved = st.form_submit_button(button)
 if saved:
-    empty = [n for n in required if str(values.get(n, "")).strip() == ""]
+    empty = [n for n in required if str(answers.get(n, "")).strip() == ""]
     for name in empty:
         st.markdown(f":red[{name}: {validation_message}]")
     if not empty:
-        saved(values)
+        saved(answers)
         st.success("Settings handed to the page.")

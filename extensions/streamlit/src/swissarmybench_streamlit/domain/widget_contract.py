@@ -84,13 +84,22 @@ class Port:
         }
 
 
+PLURALS: dict[str, str] = {
+    "Table": "tables",
+    "str": "text",
+    "int": "whole numbers",
+    "float": "numbers",
+    "bool": "yes or no values",
+    "date": "dates",
+    "datetime": "dates and times",
+    "dict": "sets of names and values",
+}
+
+
 def words(kind: str) -> str:
     """A type in words: "a table", "a list of text"."""
     if kind.startswith("list[") and kind.endswith("]"):
-        inner = TYPE_WORDS.get(kind[5:-1], kind[5:-1])
-        return "a list of " + (
-            inner.removeprefix("a ").removeprefix("an ") + "s" if inner[:2] == "a " else inner
-        )
+        return "a list of " + PLURALS.get(kind[5:-1], kind[5:-1])
     return TYPE_WORDS.get(kind, kind)
 
 

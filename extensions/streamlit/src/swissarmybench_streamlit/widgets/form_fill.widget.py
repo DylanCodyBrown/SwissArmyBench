@@ -131,15 +131,15 @@ def _plain(value):
 found = form_definition
 form = found if isinstance(found, dict) and found.get("fields") is not None else definition
 fields = form.get("fields") or []
-values = {}
+answers = {}
 with st.form(key("form")):
     if form.get("title"):
         st.markdown(f"**{form['title']}**")
     for at, field in enumerate(fields):
-        values[field.get("name", f"field_{at}")] = _input(field, at)
+        answers[field.get("name", f"field_{at}")] = _input(field, at)
     sent = st.form_submit_button(button)
 if sent:
-    problems = {f.get("name"): _problem(f, values.get(f.get("name"))) for f in fields}
+    problems = {f.get("name"): _problem(f, answers.get(f.get("name"))) for f in fields}
     problems = {n: p for n, p in problems.items() if p}
     for field in fields:
         if field.get("name") in problems:
@@ -148,7 +148,7 @@ if sent:
         submission = {
             "form": form.get("name", ""),
             "submitted_at": datetime.datetime.now().isoformat(timespec="seconds"),
-            "values": {n: _plain(v) for n, v in values.items()},
+            "values": {n: _plain(v) for n, v in answers.items()},
         }
         form_submissions = [*(form_submissions or []), submission]
         saved(submission)

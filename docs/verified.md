@@ -4457,3 +4457,23 @@ Not checked:
   were); the Write starters run against the mocks; lakes, SharePoint documents, Power BI and Python connections
   have no mock yet (said in one sentence).
 - The canvas Export does not write SAB_API_URL as a variable to set (left to the canvas's own export).
+
+## Widget I/O contract and wiring (2026-11-21, branch widget-gaps)
+
+Checked:
+- tests/test_widget_contract.py: detection (markers, attribute and string forms, a duplicate, private and
+  nested names, bad types, defaults and Events), types (`fits`, `fits_value`), each wire refused with its
+  reason, the wiring (automatic wires, readers, the run order, a wire broken by a delete and by a type
+  change), an older canvas's table value wired, Upgrade to In/Out's rewrite, over HTTP a type mismatch
+  refused and a delete marking the reader broken (Undo clears it); with Streamlit 1.67 the built page passing
+  a value from a widget placed below to one above on the first run, an Event's `set` action, and the export's
+  files run with AppTest in a folder of their own.
+- tests/test_widgets_apptest.py: all 113 prebuilt widgets render without an error after the port;
+  tests/test_widget_packs.py drives the inputs, forms and the Excel pack (with openpyxl) through their Outs.
+- tests/e2e/test_widget_wiring_page.py (Chromium): a select's choices from a table's column; an Excel
+  upload's Out wired into a data table's In, played with a made-up workbook uploaded; form_fill's Save event
+  wired to API.py's POST endpoint, played, the row landing in the sandbox.
+
+Not checked:
+- A deployed app calling a deployed API (the README's variables are written; no host was used).
+- The Wiring view's drawing on a phone layout, and very large pages' wire drawing.

@@ -173,6 +173,13 @@ export function propertyField(prop: Prop, values: Record<string, unknown>, conte
     case "column": {
       const table = text(prop.of ? values[prop.of] : "");
       const columns = (table ? context.tables[table] : SAMPLE_COLUMNS) ?? [];
+      if (table && !columns.length) {
+        // Its table comes from another widget or a connection not listed yet: the column typed.
+        const input = h("input", { type: "text", class: "wg-input", value: text(value), disabled: readOnly, spellcheck: "false", "data-no-variables": "" });
+        input.addEventListener("change", () => send(input.value.trim()));
+        box = input;
+        break;
+      }
       const box2 = select([{ value: "", label: "(none)" }, ...columns.map((c) => ({ value: c, label: c }))], text(value), readOnly);
       box2.addEventListener("change", () => send(box2.value));
       box = box2;
