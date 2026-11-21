@@ -72,6 +72,10 @@ def test_go_to_definition_into_a_library_opens_it_read_only(
     (shop / "scripts" / "dump.py").write_text("import json\n\njson.dumps({'loaf': 1})\n", encoding="utf-8")
     page = page_of(browser, server, "scripts")
     tree_file(page, "scripts/dump.py").click()
+    dump_tab = page.locator(".wb-tab", has_text="dump.py")
+    expect(dump_tab).to_be_visible(timeout=20000)
+    page.wait_for_timeout(500)  # the project's own documents come back meanwhile: this one to the front
+    dump_tab.click()
     editor = page.locator(".wb-script-editor:visible .monaco-editor").first
     expect(editor).to_be_visible(timeout=20000)
     editor.locator(".view-lines").click()
@@ -112,6 +116,8 @@ def test_a_notebook_changed_elsewhere_reloads_in_place_unless_it_has_unsaved_edi
     tab = page.locator(".wb-tab", has_text="bakery.ipynb")
     expect(tab).to_be_visible(timeout=20000)
     cells = page.locator(".wb-cell:visible")
+    page.wait_for_timeout(500)  # the project's own documents come back meanwhile: this one to the front
+    tab.click()
     expect(cells.first).to_contain_text("loaves = 12", timeout=20000)
     # Changed elsewhere with nothing unsaved here: the same tab follows, no question.
     book.write_text(notebook("loaves = 13"), encoding="utf-8")
