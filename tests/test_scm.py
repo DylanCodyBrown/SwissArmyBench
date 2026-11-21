@@ -490,7 +490,7 @@ def test_a_shared_project_its_card_and_the_footers_mark(
         assert repo["name"] == "shared-projects/Close" and repo["count"] == 0
         # The rail's area is the extension's (the page draws it from this), with the footer's mark route.
         assert ok(client.get("/app/areas", headers=AUTH))["areas"] == [
-            {"area": "scm", "name": "Source Control", "icon": "source-control", "mark": "/git/mark"}
+            {"area": "scm", "name": "Git", "icon": "source-control", "mark": "/git/mark"}
         ]
 
 

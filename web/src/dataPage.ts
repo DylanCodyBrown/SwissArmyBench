@@ -25,7 +25,8 @@ import { openVariables } from "./variablesPage";
 import { errorHere } from "./errorNote";
 
 /** The page's name, in one place: the rail, the title. */
-export const DATA = "Data Catalog";
+// Catalog (the owner, 2026-11-21: "rename Data Catalog to just catalog"); its address stays open=data.
+export const DATA = "Catalog";
 /** The address's words a search rides in on. */
 const KEYS = ["q", "kinds", "connection", "column"];
 

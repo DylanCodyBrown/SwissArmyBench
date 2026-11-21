@@ -10176,9 +10176,6 @@ html.rail-names .nav-rail-toggle {
   padding: 0 12px 0 18px;
 }
 
-html.rail-names .nav-rail-mark {
-  padding-left: 17px;
-}
 
 html.rail-names .nav-rail-name {
   display: block;
@@ -18497,3 +18494,173 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 .gate-cover .gate-line { position: static; transform: none; }
 .gates-first { padding: 20px 24px; max-width: 560px; border-radius: 8px; }
 .gates-first .dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* ===== the Notebooks and Scripts pages' explorer (codeExplorer.ts; the owner, 2026-11-21) =====
+   No top bar on either page: the layout has the whole height; the explorer is always on the left. */
+.workbench-page[data-page] {
+  grid-template-rows: minmax(0, 1fr);
+}
+.wb-top[hidden] {
+  display: none;
+}
+.wb-codex {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: calc(260px * var(--ui-zoom, 1));
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+.wb-codex-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 6px 4px 12px;
+  min-height: 36px;
+}
+.wb-codex-title {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.wb-codex-search {
+  margin: 2px 8px 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.86rem;
+}
+.wb-codex-body {
+  flex: 1;
+  overflow: auto;
+  padding-bottom: 12px;
+}
+.wb-codex-none,
+.wb-codex-body > .hint {
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 0.88rem;
+}
+.wb-codex-group-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.wb-codex-group-head .icon-svg,
+.wb-codex-fold .icon-svg {
+  width: 12px;
+  height: 12px;
+}
+.wb-codex-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+.wb-codex-empty {
+  padding: 0 24px;
+  margin: 2px 0 6px;
+  font-size: 0.84rem;
+}
+.wb-codex-file-row {
+  display: flex;
+  align-items: center;
+  padding-left: 6px;
+}
+.wb-codex-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wb-codex-file,
+.wb-codex-symbol {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+.wb-codex-symbol {
+  width: 100%;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+.wb-codex-file:hover,
+.wb-codex-symbol:hover {
+  background: var(--row-hover);
+}
+.wb-codex-file.front {
+  background: var(--selected);
+}
+.wb-codex-file.open .wb-codex-name {
+  font-weight: 600;
+}
+.wb-codex-file .icon-svg,
+.wb-codex-symbol .icon-svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+.page-scripts .wb-codex-file .icon-svg {
+  color: var(--kind-script);
+}
+.page-notebooks .wb-codex-file .icon-svg {
+  color: var(--kind-notebook);
+}
+.wb-codex-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-codex-dirty {
+  color: var(--accent);
+}
+.wb-codex-mark {
+  margin-left: auto;
+  color: var(--muted);
+}
+.wb-codex-mark.edited {
+  color: var(--warn);
+}
+.wb-codex-action {
+  font-size: 0.78rem;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.wb-creator {
+  display: grid;
+  place-items: center;
+}

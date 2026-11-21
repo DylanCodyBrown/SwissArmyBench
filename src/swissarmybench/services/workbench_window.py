@@ -19,6 +19,7 @@ import re
 import secrets
 from typing import Any
 
+from swissarmybench.domain import workbench_pages
 from swissarmybench.services.workspace import Conflict, Workspace
 
 _COMMAND = re.compile(r"^[A-Za-z][A-Za-z.]{0,63}$")
@@ -42,8 +43,9 @@ class WorkbenchWindow:
         self.answer_seconds = answer_seconds
         self._pending: dict[str, Answer] = {}
 
-    async def ask(self, command: object, args: object, who: str) -> Any:
-        """Have the Workbench window run `command` with `args`; its result."""
+    async def ask(self, command: object, args: object, who: str, page: object = None) -> Any:
+        """Have the Workbench window run `command` with `args`; its result. `page` (notebooks or scripts):
+        that page's window; without it, the page of args.path's file, else the window last used."""
         if not isinstance(command, str) or not _COMMAND.match(command):
             raise ValueError(
                 'command is a Workbench command\'s name, such as "documents" or "cell.insertBelow".'
@@ -52,17 +54,21 @@ class WorkbenchWindow:
             args = {}
         if not isinstance(args, dict):
             raise ValueError("args is an object of the command's arguments.")
-        if not self.ws.live.workbench_open():
+        to = workbench_pages.page_for_command(page, args)
+        if not self.ws.live.workbench_open(to):
+            words = workbench_pages.WORDS[to] if to else "Notebooks or Scripts"
+            which = f"The {words} page" if to else "No Notebooks or Scripts page"
             raise Conflict(
-                "The Workbench window is not open: open it from the grid page's Workbench tab. "
-                "(Files and kernels work without it: workbench_open, workbench_run.)"
+                f"{which} is not open: the rail's {words} opens it."
+                " (Files and kernels work without it: workbench_open, workbench_run.)"
             )
         request_id = secrets.token_hex(6)
         waiting: Answer = asyncio.get_running_loop().create_future()
         self._pending[request_id] = waiting
         try:
             await self.ws.live.tell_workbench(
-                {"type": "workbench_command", "id": request_id, "command": command, "args": args}
+                {"type": "workbench_command", "id": request_id, "command": command, "args": args},
+                to,
             )
             answered = await asyncio.wait_for(waiting, self.answer_seconds)
         except TimeoutError:

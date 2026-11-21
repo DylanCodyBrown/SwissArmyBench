@@ -122,12 +122,12 @@ function openInWorkbench(path: string, document = false): void {
   }
   let there = false;
   try {
-    there = found.location.pathname === "/workbench";
+    there = ["/workbench", "/notebooks", "/scripts"].includes(found.location.pathname);
   } catch {
     there = false;
   }
   if (there) found.postMessage({ sab: document ? "open" : "codefile", path }, location.origin);
-  else found.location.href = `/workbench#${new URLSearchParams({ ...(token ? { token } : {}), [document ? "open" : "codefile"]: path }).toString()}`;
+  else found.location.href = `/${document ? "notebooks" : "scripts"}#${new URLSearchParams({ ...(token ? { token } : {}), [document ? "open" : "codefile"]: path }).toString()}`;
   found.focus();
 }
 

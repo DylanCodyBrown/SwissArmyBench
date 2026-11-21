@@ -16,7 +16,10 @@ from __future__ import annotations
 from typing import Any
 
 # The windows that move: the home page (/workspace), the blades page (/catalog), the Workbench.
-WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench")
+WINDOWS: tuple[str, ...] = ("home", "catalog", "workbench", "notebooks", "scripts")
+# The Notebooks and Scripts pages are two Workbench windows (the owner, 2026-11-21: "notebooks and scripts
+# should not reuse the same page"); "workbench" is either, the one the user was last in.
+CODE_WINDOWS: tuple[str, ...] = ("notebooks", "scripts")
 
 # The rail's areas (the owner, 2026-11-16: "this app needs a navigation pane somehow"; a slim icon
 # rail down the left of every page and window), in its order: each is a place from every window, as a
@@ -30,15 +33,15 @@ AREAS: tuple[str, ...] = (
     # In the order of the work (the owner, 2026-11-17): where data comes from, getting and shaping it, web
     # data, tools, building, presenting, the log; Settings at the bottom.
     "connections",
+    "apis",
+    "structures",  # beside APIs (the owner, 2026-11-21: "Apis and Structure should be side by side")
     "variables",
     "data",  # the one place to browse tables (the owner, 2026-11-17: "a standalone DATA rail icon")
     "grids",
     "erd",
-    "apis",
-    "structures",
     "blades",
+    "scripts",  # beside Blades (the owner, 2026-11-21: "scripts and blades should be beside each other")
     "notebooks",
-    "scripts",
     "apps",
     "analyze",
     "session",
@@ -52,6 +55,7 @@ SAME: dict[str, str] = {
     "visualizations": "analyze",  # 2026-11-19: Visualizations is the Analyze page
     "diagram": "erd",
     "start": "projects",
+    "catalog": "data",  # 2026-11-21: the Data Catalog is the Catalog
 }
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
 CODE: tuple[str, ...] = ("notebooks", "scripts", "apps")
@@ -73,6 +77,8 @@ OWN: dict[str, tuple[str, ...]] = {
     "home": ("new_query", "query", "query:<connection>", "grid:<id>"),
     "catalog": ("blade:<name>", "new_blade"),
     "workbench": (),
+    "notebooks": (),
+    "scripts": (),
 }
 NAMED: tuple[str, ...] = ("grid", "blade", "connection")
 MAX_NAME: int = 512

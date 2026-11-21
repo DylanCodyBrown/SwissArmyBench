@@ -48,7 +48,7 @@
 import { api, onNotice, token } from "./api";
 import { h, icon } from "./dom";
 import { type Kind, loadKindColours } from "./kindColours";
-import { goHome, hasLayer, HOME_URL, layerShown, markIcon, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
+import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
 import { loadPanels, onPanels } from "./panels";
 import { onUnseen } from "./sessionPage";
 // The APIs, Structures, Code App (a plug-in: shown while it is on), Source Control (a plug-in: shown while the
@@ -56,6 +56,7 @@ import { onUnseen } from "./sessionPage";
 // opened (lazyPages.ts).
 import { APIS, CODE_APP, codeAppOn, EXTENSIONS, SCM, scmOn, STRUCTURES } from "./lazyPages";
 import { canvasOn } from "./modes";
+import { PAGE_WINDOW as PAGE_WINDOWS, pageOfKind, thisPage } from "./workbenchPages";
 import "./variablesPage"; // the Variables page's layer, on every page with the rail
 import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
@@ -69,23 +70,28 @@ export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scr
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
 const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () => Promise<boolean>; keys?: string }[] = [
   // The mark, first (the owner, 2026-11-18): Home, the Projects page.
-  { area: "projects", name: "Projects", icon: "project", keys: "Alt+Home" }, // drawn as the mark (nav.ts markIcon)
+  // Home, an ordinary item with a house (the owner, 2026-11-21: "a + is confusing just make this a normal icon" /
+  // "just call it home instead of projects"): the Projects page (open=projects), Alt+Home, first.
+  { area: "projects", name: "Home", icon: "home", keys: "Alt+Home" },
   // In the order of the work (the owner, 2026-11-17: "rearrange the rail to make since. In order of
   // workflow"): where the data comes from, getting and shaping it, web data, tools, building, presenting,
   // then the log.
   { area: "connections", name: "Connections", icon: "plug" },
   // The library's APIs, their explorer (apisPage.ts): beside Connections (the owner, 2026-11-18).
   { area: "apis", name: APIS, icon: "apis" },
+  // Structures beside APIs (the owner, 2026-11-21: "Apis and Structure should be side by side").
+  { area: "structures", name: STRUCTURES, icon: "structures" }, // nested data as documents (structuresPage.ts)
   { area: "variables", name: "Variables", icon: "variables" }, // this computer's variables (variablesPage.ts)
   { area: "data", name: DATA, icon: "data" }, // the one place to browse and find tables (dataPage.ts)
   { area: "grids", name: "Grids", icon: "grids" },
   { area: "erd", name: "ERD", icon: "diagram" },
-  { area: "structures", name: STRUCTURES, icon: "structures" }, // nested data as documents (structuresPage.ts)
   { area: "blades", name: "Blades", icon: "blade" },
+  // Scripts beside Blades (the owner, 2026-11-21: "scripts and blades should be beside each other on the
+  // rail"); Notebooks and Scripts are two pages (workbenchPages.ts).
+  { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
+  { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   // An extension's area: its plug-in says whether it is on here (hidden until it says so).
   { area: "codeapp", name: CODE_APP, icon: "codeapp", plugin: codeAppOn },
-  { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
-  { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   // The apps' canvas is an extension's (Streamlit, preinstalled): the area shows while a mode offers it.
   { area: "apps", name: "Apps", icon: "page", kind: "app", plugin: () => canvasOn("streamlit") },
   // An extension's area the backend names (GET /app/areas), as VS Code's activity bar has it.
@@ -115,7 +121,7 @@ function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
   if (isLayer(open)) return open;
   if (kind === "catalog") return "blades";
-  if (kind === "workbench") return areaOfKind(url.searchParams.get("kind"));
+  if (kind === "workbench") return areaOfKind(url.searchParams.get("kind")) ?? (thisPage() === "scripts" ? "scripts" : "notebooks");
   const view = kind === "home" ? url.searchParams.get("view") : null;
   if (view === "analyze" || view === "visualizations" || view === "sandbox") return "analyze";
   if (view === "erd" || view === "diagram") return "erd"; // the old words, one release
@@ -138,7 +144,7 @@ const withToken = (path: string, more: Record<string, string> = {}): string => {
 
 /** A Workbench window of its own for `kind` (the owner's "external tab"), as a popped-out tab's. */
 function newKindWindow(k: Kind): void {
-  const opened = window.open(withToken(`/workbench?kind=${k}`, { fresh: "1", popped: "1" }), `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800");
+  const opened = window.open(withToken(`/${pageOfKind(k) ?? "notebooks"}?kind=${k}`, { fresh: "1", popped: "1" }), `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800");
   if (opened) opened.focus();
   else errorHere("The browser blocked the new window: allow pop-ups for this address.");
 }
@@ -147,7 +153,7 @@ function newKindWindow(k: Kind): void {
 /** The page that shows `area`, at the area's address. */
 function pageUrl(area: Area): string {
   const k = kindOfArea(area);
-  if (k) return `/workbench?kind=${k}&view=list`; // that kind's landing page
+  if (k) return `/${pageOfKind(k) ?? "notebooks"}?kind=${k}&view=list`; // that kind's page (workbenchPages.ts)
   if (area === "blades") return "/catalog";
   return arrivalUrl(area);
 }
@@ -168,8 +174,28 @@ export function goArea(area: Area, newWindow = false): void {
     return;
   }
   if (k && kind === "workbench") {
-    // That kind's landing page, here (the page over it, if one is, makes way).
-    visit(withParams({ ...LAYER_OFF, kind: k, view: "list" }));
+    const page = pageOfKind(k) ?? "notebooks";
+    if (page === thisPage()) {
+      // That kind's landing page, here (the page over it, if one is, makes way).
+      visit(withParams({ ...LAYER_OFF, kind: k, view: "list" }));
+      return;
+    }
+    // The other page (Notebooks or Scripts): its own window, brought forward (never its tabs here: the owner,
+    // 2026-11-21), and told to show the area; opened at it when there is none.
+    const other = window.open("", PAGE_WINDOWS[page]);
+    let fresh = true;
+    try {
+      fresh = !other || other.location.href === "about:blank";
+    } catch {
+      fresh = true;
+    }
+    if (other && !fresh) {
+      other.postMessage({ sab: "area", area }, location.origin);
+      other.focus();
+    } else if (other) {
+      other.location.href = withToken(pageUrl(area));
+      other.focus();
+    } else errorHere("The browser blocked the new window: allow pop-ups for this address.");
     return;
   }
   if (kind === "home" && (area === "grids" || area === "analyze" || area === "erd")) {
@@ -238,7 +264,7 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
       // Ctrl+click (Cmd+click): a new window, as a link's new tab.
       onclick: (e: MouseEvent) => goArea(area.area, e.ctrlKey || e.metaKey),
     },
-    area.area === "projects" ? markIcon() : icon(area.icon),
+    icon(area.icon),
     // The Session icon: what the agent made that the user has not seen yet (sessionPage.ts).
     area.area === "session" ? h("span", { class: "nav-rail-count", "aria-hidden": "true", hidden: true }) : null,
     // The name beside the icon while the rail shows its names (showNames).
@@ -248,7 +274,15 @@ function item(area: (typeof AREAS)[number]): HTMLButtonElement {
   );
   if (area.plugin) {
     element.hidden = true;
-    void area.plugin().then((on) => (element.hidden = !on));
+    void area.plugin().then((on) => {
+      element.hidden = !on;
+      // The Git extension's area: its name as the backend gives it.
+      if (on && area.area === "scm") {
+        element.setAttribute("aria-label", SCM);
+        for (const part of element.querySelectorAll(".nav-rail-name")) part.textContent = SCM;
+        element.querySelector(".nav-rail-tip")?.firstChild?.replaceWith(document.createTextNode(SCM));
+      }
+    });
   }
   {
     // A middle click: a new window too (its mousedown would start the browser's autoscroll).

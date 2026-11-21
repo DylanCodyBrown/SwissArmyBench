@@ -47,13 +47,15 @@
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
 import { inlineStatus } from "./inlineCompletion";
+import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
+import { mountCodeExplorer } from "./codeExplorer";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
 import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
-import { button, clear, h, icon, toast } from "./dom";
+import { button, clear, h, icon, openDialog, toast } from "./dom";
 import { closeWindow, inApp } from "./desktopApp";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
@@ -142,6 +144,10 @@ interface Doc {
   app?: ReturnType<typeof appPanels>;
   /** A code app's file (workbenchCodeFile.ts, the Power Apps extension's plug-in): TypeScript or TSX. */
   codefile?: CodeFileView;
+  /** Its file's text's hash as this window last read or wrote it (the file_changed notice is compared). */
+  hash?: string | null;
+  /** Its file changed elsewhere while it had unsaved edits (or is gone): Save waits for the choice. */
+  elsewhere?: { hash: string | null; bar: HTMLElement };
 }
 
 interface PythonChoice {
@@ -152,6 +158,15 @@ interface PythonChoice {
 }
 
 const top = document.getElementById("wb-top") as HTMLElement;
+// Notebooks and Scripts are two pages (the owner, 2026-11-21: "notebooks and scripts should not reuse the
+// same page they are seperate things"): this window is one of them (its path says which, workbenchPages.ts).
+const PAGE: CodePage = thisPage();
+document.body.dataset.page = PAGE;
+// No top bar (the owner, 2026-11-21, on the Scripts landing: "without all of this at the top"): Save and
+// Save as are a document's own (its "…" menu, Ctrl+S and Ctrl+Shift+S); New is the creator and the explorer.
+top.hidden = true;
+// The explorer's marks and outline (codeExplorer.ts, mounted further down): called from the first draw on.
+const codexHooks = { mark: (): void => undefined, typed: (_path: string, _text: string): void => undefined, refresh: (): void => undefined };
 // The panes around the groups: the console under them, Variables on the right (the status bar's
 // Console and Variables open them).
 const layout = mountLayout(
@@ -1158,6 +1173,9 @@ const POPPED: boolean = ((): boolean => {
   }
 })();
 const isMainWindow = (): boolean => !POPPED;
+// The page's main window is found by its name (sab-notebooks, sab-scripts): the rail and a file's link bring it
+// forward instead of opening another.
+if (!POPPED) window.name = PAGE_WINDOW[PAGE];
 const moves = (doc: Doc): boolean => !!(doc.notebook || doc.script || doc.canvas);
 
 /** A document as it moves: everything the window holds of it. */
@@ -1181,7 +1199,7 @@ async function moveOut(doc: Doc, to: string | null): Promise<{ title: string; wi
   const { id } = await api<{ id: string }>("/workbench/handoffs", "POST", { document: movingState(doc), kernel, to });
   if (to === null) {
     const hash = new URLSearchParams({ token, take: id, fresh: "1", popped: "1" }).toString();
-    const opened = window.open(`/workbench#${hash}`, `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800");
+    const opened = window.open(`/${PAGE}#${hash}`, `swissarmybench-workbench-${Date.now()}`, "popup,width=1200,height=800"); // a pop-out keeps its page
     if (!opened) {
       await api(`/workbench/handoffs/${id}`, "DELETE").catch(() => undefined);
       throw new Error("The browser blocked the new window. Allow pop-ups for this address.");
@@ -1218,7 +1236,7 @@ function moveToMain(doc: Doc): Promise<{ title: string; window: "new" | "main" }
 
 /** Take a document another window handed to this one: as it was there, its kernel still running. */
 async function takeDocument(id: string): Promise<void> {
-  const taken = await api<{ document: Remembered & { title: string }; kernel: string | null }>(`/workbench/handoffs/${id}/take`, "POST", { window: WINDOW_ID });
+  const taken = await api<{ document: Remembered & { title: string }; kernel: string | null }>(`/workbench/handoffs/${id}/take`, "POST", { window: WINDOW_ID, page: PAGE });
   if ((taken.document as { kind: string }).kind === "explorer") return explorerBack(taken.document as unknown as ExplorerState);
   const r = taken.document;
   const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified, r.settings) : openScript(r.path, r.text ?? "", r.modified);
@@ -1236,6 +1254,8 @@ async function takeDocument(id: string): Promise<void> {
 const restoreSteps = (grid: string, steps: unknown[]): void => void api(`/grids/${encodeURIComponent(grid)}/steps`, "POST", { steps }).catch((e: Error) => errorHere(e));
 
 function makeDoc(kind: Doc["kind"], title: string, path: string | null, modified: number | null): Doc {
+  const refused = wrongPage(kind, PAGE); // a notebook never opens on the Scripts page, nor a script here
+  if (refused) throw new Error(refused);
   const doc: Doc = { id: ++counter, kind, title, path, modified, dirty: false, kernel: null, python: null, element: h("div", { class: `wb-doc-body kind-${kind}` }) };
   if (kind === "notebook" || kind === "script") {
     const kernel = new Kernel(() => doc.path, () => doc.python);
@@ -1347,6 +1367,7 @@ async function showHelp(): Promise<void> {
 }
 
 const markChanged = (doc: Doc) => (): void => {
+  if (doc.script && doc.path) codexHooks.typed(doc.path, doc.script.text()); // its outline follows the text
   if (!doc.dirty) {
     doc.dirty = true;
     drawTabs();
@@ -1534,7 +1555,7 @@ function focused(doc: Doc | null): void {
   drawEmpty();
   drawControls();
   drawStatus();
-  setTitle("Workbench", doc?.title ?? ""); // "Workbench · sales.ipynb": the page, then the place
+  setTitle(PAGE_WORDS[PAGE], doc?.title ?? ""); // "Workbench · sales.ipynb": the page, then the place
   followKind(doc);
   remember();
   assignSoon(); // a table with no document yet goes to the one in front
@@ -1568,6 +1589,7 @@ function close(doc: Doc, moved = false): void {
 /** A document's title or unsaved dot changed. */
 function drawTabs(): void {
   groups.redraw();
+  codexHooks.mark();
   drawTop();
 }
 
@@ -1703,10 +1725,23 @@ layout.source.append(groups.element, empty, landing.element);
 
 /** The landing page for `k` in place of the groups (the address says ?kind=k&view=list). */
 function showLanding(k: Kind): void {
+  // The other page's kind: that page's window, brought forward (never its tabs here).
+  const page = pageOfKind(k);
+  if (page && page !== PAGE) {
+    bringPage(page, `/${page}?kind=${k}&view=list`);
+    return;
+  }
+  // The creator shows only while none of the kind is open (the owner, 2026-11-21): else its tab comes forward.
+  const mine = k !== "app" ? [...docs].reverse().find((d) => docKindOf(d) === k) : undefined;
+  if (mine) {
+    void go(withParams({ view: null, kind: k }), "replace");
+    show(mine);
+    return;
+  }
   landing.show(k);
   groups.element.hidden = true;
   empty.hidden = true;
-  setTitle("Workbench", KIND_WORDS[k].name);
+  setTitle(PAGE_WORDS[PAGE], KIND_WORDS[k].name);
   drawTop();
 }
 
@@ -1715,10 +1750,14 @@ function hideLanding(): void {
   landing.hide();
   drawEmpty();
   drawTop();
-  setTitle("Workbench", current?.title ?? "");
+  setTitle(PAGE_WORDS[PAGE], current?.title ?? "");
   // The groups are back: Monaco and the canvas measure again.
   window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 }
+
+/** Whether a kind of tab is made on this page: a script's on the Scripts page, a notebook's and a canvas's
+ *  on the Notebooks page; a plain one (a blade, a table) on both. */
+const kindHere = (kind: TabKind): boolean => kind.mark === "plain" || (kind.mark === "script" ? PAGE === "scripts" : PAGE === "notebooks");
 
 /** A kind's New: in a project a new notebook is an app notebook (the project has one data notebook). */
 function startLabel(kind: TabKind): string {
@@ -1729,7 +1768,7 @@ function startLabel(kind: TabKind): string {
 function newEntries(anchor: HTMLElement): MenuEntry[] {
   return [
     ...tabKinds()
-      .filter((k) => k.start)
+      .filter((k) => k.start && kindHere(k))
       .map((k) => ({ label: startLabel(k), icon: k.id === "notebook" ? kindIcon("notebook", null) : k.icon, run: gatedRun(areaOfKind(k.id), k.start!.run) })),
     null,
     ...projectEntries(),
@@ -1751,7 +1790,7 @@ function splitDoc(doc: Doc | null, side: Side): void {
 // ===== files =====
 
 async function open(path?: string): Promise<void> {
-  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [".ipynb", ".py", ...(canvasAnywhere("streamlit") ? [APP_ENDING] : []), ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])], start: sab.folder ?? current?.path ?? homeFolder }));
+  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: PAGE === "scripts" ? [".py"] : [".ipynb", ...(canvasAnywhere("streamlit") ? [APP_ENDING] : []), ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])], start: sab.folder ?? current?.path ?? homeFolder }));
   if (!chosen) return;
   // Documents are the project's (the owner, 2026-11-16): a file from outside it is copied in, and the copy opens.
   if (!path && sabOpen() && sab.folder && !inFolder(chosen, sab.folder)) {
@@ -1762,14 +1801,19 @@ async function open(path?: string): Promise<void> {
       return;
     }
   }
+  // A notebook opens on the Notebooks page, a .py on the Scripts page (the owner, 2026-11-21): the other
+  // page's window opens it (opened on it when there is none).
+  const there = pageOfPath(chosen);
+  if (there && there !== PAGE) return openOnPage(chosen);
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
   if (chosen.toLowerCase().endsWith(WORKBOOK_ENDING)) return void openWorkbook(chosen);
   try {
-    const found = await api<{ path: string; kind: "notebook" | "script" | "app"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; pages?: SavedPage[]; settings?: AppSettings; dictionary?: Descriptions }>("/workbench/open", "POST", { path: chosen });
+    const found = await api<{ path: string; kind: "notebook" | "script" | "app"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; pages?: SavedPage[]; settings?: AppSettings; dictionary?: Descriptions; hash?: string | null }>("/workbench/open", "POST", { path: chosen });
     if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell, found.dictionary);
     else if (found.kind === "app") openApp(found.path, found.pages ?? [], found.modified, found.settings);
     else openScript(found.path, found.text ?? "", found.modified);
+    if (current?.path === found.path) current.hash = found.hash ?? null;
     // Its own environment, as remembered (or the .venv beside it): the picker shows it, Run uses it.
     if (found.python && current) {
       current.python = found.python;
@@ -1780,6 +1824,92 @@ async function open(path?: string): Promise<void> {
   } catch (e) {
     errorHere(e);
   }
+}
+
+// ===== a file changed anywhere (the owner, 2026-11-21: "scripts autoupdate when they are touched anywhere in
+// the app"; services/code_files.py's file_changed notice) =====
+
+function clearElsewhere(doc: Doc): void {
+  doc.elsewhere?.bar.remove();
+  delete doc.elsewhere;
+}
+
+type Reread = { path: string; modified: number; text?: string; cells?: CellData[]; next_cell?: number; hash?: string | null };
+
+/** The document read again from its file: a script's text in place (its cursor and scroll kept), a notebook's
+ *  cells as they are now. */
+async function reloadDoc(doc: Doc): Promise<void> {
+  const found = await api<Reread>("/workbench/open", "POST", { path: doc.path });
+  if (doc.script) doc.script.replaceText(found.text ?? "");
+  else if (doc.notebook) {
+    const open = docs.indexOf(doc) >= 0;
+    if (open) {
+      close(doc, true);
+      void openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell);
+      if (current) current.hash = found.hash ?? null;
+      return;
+    }
+  }
+  doc.modified = found.modified;
+  doc.hash = found.hash ?? null;
+  doc.dirty = false;
+  clearElsewhere(doc);
+  drawTabs();
+  remember();
+}
+
+/** Its file and this window's text side by side (Monaco's diff editor). */
+async function compareDoc(doc: Doc): Promise<void> {
+  const found = await api<Reread>("/workbench/open", "POST", { path: doc.path });
+  const mine = doc.script?.text() ?? JSON.stringify(doc.notebook?.cells().map((c) => c.source) ?? [], null, 1);
+  const theirs = found.text ?? JSON.stringify((found.cells ?? []).map((c) => c.source), null, 1);
+  const { dialog, body } = openDialog(`${doc.title}: the file, and yours`, true);
+  const host = h("div", { class: "wb-compare", style: { height: "60vh" } });
+  body.append(host);
+  const lib = (await import(/* external */ "/static/build/lazy/codeEditor.js" as string)) as typeof import("./lazy/codeEditor");
+  const viewer = lib.createDiffViewer(host, effectiveTheme());
+  viewer.show(theirs, mine, doc.path ?? doc.title);
+  dialog.addEventListener("close", () => viewer.dispose());
+}
+
+/** The bar over a document whose file changed elsewhere while it was edited here (or went away). */
+function elsewhereBar(doc: Doc, hash: string | null): void {
+  clearElsewhere(doc);
+  const guard = (act: () => Promise<unknown>) => (): void => void act().catch((e: Error) => errorHere(e));
+  const bar = h(
+    "div",
+    { class: "wb-elsewhere", role: "status" },
+    icon("warning"),
+    h("span", {}, hash === null ? "This file is gone." : "Changed elsewhere."),
+    ...(hash === null
+      ? [button("Save as…", () => void save(doc, true), { class: "line" }), button("Close", () => close(doc), { class: "ghost" })]
+      : [
+          button("Reload", guard(() => reloadDoc(doc)), { class: "primary" }),
+          button(
+            "Keep mine",
+            guard(async () => {
+              const found = await api<Reread>("/workbench/open", "POST", { path: doc.path });
+              doc.modified = found.modified; // Save writes this window's text over it
+              doc.hash = found.hash ?? null;
+              clearElsewhere(doc);
+            }),
+            { class: "line" },
+          ),
+          button("Compare", guard(() => compareDoc(doc)), { class: "ghost" }),
+        ]),
+  );
+  doc.elsewhere = { hash, bar };
+  doc.element.prepend(bar);
+}
+
+/** A file_changed notice: each document of that file follows (in place when unchanged here). */
+function fileChanged(path: string, hash: string | null): void {
+  for (const doc of docs.filter((d) => d.path === path)) {
+    if (hash !== null && hash === doc.hash) continue; // this window's own save, or the same text
+    if (hash === null || doc.dirty || !doc.script) elsewhereBar(doc, hash);
+    else void reloadDoc(doc).catch((e: Error) => errorToast(e));
+  }
+  codexHooks.refresh();
 }
 
 /** Save a document (true: it is saved). */
@@ -1797,6 +1927,11 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     return true;
   }
   if (!doc || (doc.kind !== "notebook" && doc.kind !== "script" && doc.kind !== "app")) return false;
+  // Changed elsewhere while edited here: never written over until the user chooses (Reload, Keep mine).
+  if (doc.elsewhere && !as) {
+    errorHere(`${doc.title} changed elsewhere: Reload, Keep mine or Compare first.`);
+    return false;
+  }
   let path = doc.path;
   if (!path || as) {
     const suggested = doc.path ? baseName(doc.path) : doc.kind === "notebook" ? "analysis.ipynb" : doc.kind === "app" ? `app${APP_ENDING}` : "script.py";
@@ -1809,8 +1944,10 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
   // A Streamlit app's file holds its pages: blocks, links and places, no code.
   const body = doc.kind === "notebook" ? { cells: doc.notebook!.cells(), next_cell: doc.notebook!.nextCell(), ...dataBody(doc) } : doc.kind === "app" ? { pages: doc.canvas!.pages(), settings: doc.canvas!.settings() } : { text: doc.script!.text() };
   const send = async (force: boolean): Promise<void> => {
-    const saved = await api<{ path: string; modified: number }>("/workbench/save", "POST", { path, ...body, modified: as ? null : doc.modified, force });
+    const saved = await api<{ path: string; modified: number; hash?: string | null }>("/workbench/save", "POST", { path, ...body, modified: as ? null : doc.modified, force });
     const first = doc.path === null;
+    doc.hash = saved.hash ?? null;
+    clearElsewhere(doc);
     doc.path = saved.path;
     doc.modified = saved.modified;
     if (first && doc.python) void api("/workbench/environment", "POST", { path: saved.path, python: doc.python }).catch(() => undefined);
@@ -2051,7 +2188,12 @@ function moreEntries(doc: Doc, anchor: HTMLElement): MenuEntry[] {
     { label: "Open…", icon: "folder", keys: "Ctrl+O", run: () => void open() },
     { label: "Import…", icon: "import", title: "Notebooks, scripts and apps from another project", disabled: !sabOpen(), run: () => void importDocuments() },
     { label: "In this project…", icon: "more", run: () => recentMenu(anchor) },
-    ...(doc.notebook || doc.script ? [{ label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) }] : []),
+    ...(doc.notebook || doc.script
+      ? [
+          { label: "Save", icon: "save", keys: "Ctrl+S", run: () => void save(doc) },
+          { label: "Save as…", icon: "save", keys: "Ctrl+Shift+S", run: () => void save(doc, true) },
+        ]
+      : []),
     ...(doc.notebook || doc.script
       ? [
           { label: "Export as one Python script…", icon: "export", title: "One .py that runs with plain python: its connections, vault lookups and grid steps written out", run: () => void exportDocument(doc, "script").catch((e: Error) => errorHere(e)) },
@@ -2107,7 +2249,9 @@ function drawControls(): void {
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, more].filter((e): e is HTMLElement => e !== null));
+  // The document's own Save in its row (no top bar: the owner, 2026-11-21); Save as… is its "…".
+  const saveHere = button("Save", () => void save(doc).catch((e: Error) => errorHere(e)), { icon: "save", iconOnly: true, class: "ghost wb-save", title: "Save (Ctrl+S)" });
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, saveHere, more].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -2301,6 +2445,35 @@ const explorerPane = mountExplorerPane({
   popOut: () => void popExplorer().catch((e: Error) => errorHere(e)),
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(explorerPane.element);
+
+/** The page's New: a script here, a notebook on the Notebooks page (the creator's and the explorer's). */
+function newHere(): void {
+  const k: Kind = PAGE === "scripts" ? "script" : "notebook";
+  const own = k === "script" ? scriptLanguage() : null;
+  if (own) return void newModeFile(own);
+  const start = tabKinds().find((t) => t.mark === k && t.start)?.start;
+  if (!start) return;
+  if (landing.kind()) {
+    hideLanding();
+    void go(withParams({ view: null, kind: k }), "push");
+  }
+  start.run();
+}
+
+// The page's own explorer on the left, always there (codeExplorer.ts): the project's scripts by module, or its
+// notebooks; a click opens the file as a tab here.
+const codex = mountCodeExplorer({
+  page: PAGE,
+  open: (file) => void open(file.full),
+  openAt: (file, line) => void openAt(file.full, line),
+  newDocument: newHere,
+  menu: topMenu, // the page's "…" (no top bar: the owner, 2026-11-21)
+  openNow: () => ({ paths: docs.map((d) => d.path ?? "").filter(Boolean), dirty: docs.filter((d) => d.dirty && d.path).map((d) => d.path!), front: current?.path ?? null }),
+});
+(document.querySelector(".wb-layout") as HTMLElement).prepend(codex.element);
+codexHooks.mark = codex.mark;
+codexHooks.typed = codex.typed;
+codexHooks.refresh = () => void codex.refresh();
 /** App mode's Streamlit cells panel: one list, shown in the canvas in front's panel. */
 const streamlitCells = cellsPane((document, title, cell) => void goToCell(document, title, cell).catch((e: Error) => errorHere(e)));
 paneReady = true;
@@ -2524,7 +2697,14 @@ interface Remembered {
   settings?: AppSettings;
   dictionary?: Descriptions;
 }
-const SESSION_KEY = "workbench-documents";
+// Per page (the owner, 2026-11-21): the Notebooks page's and the Scripts page's documents each their own; a
+// session from before, both kinds in one, is split by kind once (workbenchPages.ts splitSession).
+const SESSION_KEY = `workbench-documents:${PAGE}`;
+try {
+  splitSession(sessionStorage, "workbench-documents");
+} catch {
+  /* storage refused: nothing to split */
+}
 let rememberTimer: number | null = null;
 
 /** Keep the open documents in this window's session storage (the browser's, never a file), so a
@@ -2593,6 +2773,7 @@ async function restore(): Promise<boolean> {
       }
       continue;
     }
+    if (wrongPage(r.kind, PAGE)) continue; // the other page's
     const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : r.kind === "app" ? openApp(r.path, r.pages ?? [], r.modified, r.settings) : openScript(r.path, r.text ?? "", r.modified);
     doc.python = r.python;
     if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
@@ -2670,6 +2851,15 @@ setCellOpener(openCell);
 /** Nothing open: the empty state has the area (Start a notebook; Start an app once app pages exist). */
 function drawEmpty(): void {
   const none = docs.length === 0;
+  // Nothing open: the page's creator (the landing's New and Try it with sample data), as the rail lands.
+  if (none && PAGE === "scripts") {
+    groups.element.hidden = true;
+    empty.hidden = true;
+    layout.empty(true);
+    layout.status.hidden = true;
+    if (!landing.kind()) landing.show("script");
+    return;
+  }
   groups.element.hidden = none;
   empty.hidden = !none;
   layout.empty(none);
@@ -3409,7 +3599,7 @@ connect((live) => {
   refreshTablesSoon(); // what is open in the grid now
   void loadApprovals(); // an agent's request (an export, say) asks here too
   if (document.hasFocus()) tellFocus();
-}, { catalog: "1", workbench: "1", window: WINDOW_ID });
+}, { catalog: "1", workbench: "1", window: WINDOW_ID, page: PAGE });
 // The Session page's link to the agent's change, and Follow the agent: the cell it changed, scrolled to.
 setAgentHooks({
   place: () => ({ path: current?.path ?? null, title: current?.title ?? null, cell: current?.notebook?.selectedNumber() ?? null }),
@@ -3429,15 +3619,24 @@ window.addEventListener("focus", tellFocus);
 onNotice((notice) => {
   handleAgentNotice(notice);
   // The project's documents changed (opened, closed, an import): "In this project" follows.
-  if (notice.type === "project_changed" || notice.type === "project_documents_changed") void refreshHome();
+  if (notice.type === "project_changed" || notice.type === "project_documents_changed") {
+    void refreshHome();
+    void codex.refresh(); // the explorer follows the project's files
+  }
   if (notice.type === "project_changed") void refreshMode();
   if (notice.type === "workbook_changed") for (const d of docs) d.workbook?.noticed(String((notice as unknown as { id: string }).id));
   // The agent's workbench_window: a command run here, as the palette would, and answered.
   // A document moved back to this (the main) window from one it was popped out into.
-  const handedTo = notice.type === "workbench_handoff" ? (notice as unknown as { to: string }).to : null;
+  const handed = notice as unknown as { to: string; page?: string | null };
+  // A document of the other page's kind is that page's window's (never taken here).
+  const handedTo = notice.type === "workbench_handoff" && (!handed.page || handed.page === PAGE) ? handed.to : null;
   if (handedTo !== null && (handedTo === WINDOW_ID || (handedTo === "main" && isMainWindow()))) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => {
       if (!(e instanceof ApiError && e.status === 409)) errorToast(e); // another main window took it
     });
+  if (notice.type === "file_changed" && typeof (notice as unknown as { path?: unknown }).path === "string") {
+    const said = notice as unknown as { path: string; hash: string | null };
+    fileChanged(said.path, said.hash ?? null);
+  }
   if (notice.type === "workbench_command") void answerAgent(notice as unknown as { id: string; command: string; args?: Record<string, unknown> });
   if (notice.type === "catalogs_changed") {
     void rail.loadCatalogs();

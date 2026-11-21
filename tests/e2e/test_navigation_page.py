@@ -59,7 +59,7 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     # The mark is the rail's first item (the owner, 2026-11-18), no longer in the tab bar.
     mark = page.locator(".nav-rail-item").first
     expect(mark).to_have_attribute("data-area", "projects")
-    expect(mark.locator(".app-mark")).to_be_visible()
+    expect(mark.locator('[data-icon="home"]')).to_be_visible()  # a plain icon (2026-11-21)
     expect(page.locator(".tabbar .app-mark")).to_have_count(0)
     expect(page).to_have_url(f"{base}/g/{grid_of(first)}")
     expect(page).to_have_title("nav_visits")

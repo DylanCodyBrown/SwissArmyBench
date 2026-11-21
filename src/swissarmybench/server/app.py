@@ -67,6 +67,7 @@ import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
+from urllib.parse import urlencode
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -78,6 +79,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from swissarmybench.bootstrap import bootstrap
 from swissarmybench.domain import session_log as session_log_rules
+from swissarmybench.domain import workbench_pages
 from swissarmybench.server import (
     routes_agent,
     routes_analysis,
@@ -120,6 +122,7 @@ from swissarmybench.server import (
     routes_relationships,
     routes_sab_projects,
     routes_script_export,
+    routes_script_ide,
     routes_script_runs,
     routes_session_log,
     routes_shared_catalog,
@@ -222,6 +225,7 @@ def create_app(
             # The blades page: the agent's app_navigate to the catalog window goes to it.
             catalog=websocket.query_params.get("catalog") == "1",
             window=websocket.query_params.get("window"),
+            code_page=websocket.query_params.get("page"),  # notebooks or scripts
             # The agent's event socket is not a window of the app (the server's life counts windows).
             page=websocket.query_params.get("agent") != "1",
         )
@@ -247,11 +251,18 @@ def create_app(
         return FileResponse(settings.web_root / "catalog.html", headers={"Cache-Control": "no-store"})
 
     async def workbench_page(request: Request) -> Response:
-        # Notebooks and scripts, always in a window of their own (the grid page's Workbench tab opens it).
-        # ?panel=explorer, the popped-out Data Explorer's old address: the Data page now (open=data); the
+        # The old address: notebooks and scripts are two pages now (the owner, 2026-11-21), /notebooks
+        # and /scripts (the same page's code, each its own window); an old ?kind= goes to its page.
+        # ?panel=explorer, the popped-out Data Explorer's old address: the Data page now (open=data). The
         # browser keeps the address's #token across the redirect.
         if request.query_params.get("panel") == "explorer":
             return RedirectResponse("/workspace?open=data", status_code=302)
+        page, kept = workbench_pages.old_address(dict(request.query_params))
+        query = f"?{urlencode(kept)}" if kept else ""
+        return RedirectResponse(f"{workbench_pages.url_of(page)}{query}", status_code=302)
+
+    async def code_page(request: Request) -> Response:
+        # The Notebooks page and the Scripts page: one page's code, each window says which it is by its path.
         return FileResponse(settings.web_root / "workbench.html", headers={"Cache-Control": "no-store"})
 
     async def drop_silent_sessions() -> None:
@@ -285,6 +296,7 @@ def create_app(
         context_md = asyncio.create_task(ctx.context_md.run_forever())  # Launch Claude's folder's context.md
         shared = asyncio.create_task(ctx.shared_catalog.run_forever())  # what a pull brought
         watch = asyncio.create_task(ctx.file_watch.run_forever())  # a table's file changed on disk
+        code_watch = asyncio.create_task(ctx.code_files.run_forever())  # a code file changed anywhere
         # The server's life follows the app's windows (services/lifecycle.py): only a server that can stop.
         life = asyncio.create_task(ctx.lifecycle.run_forever()) if on_shutdown is not None else None
         yield
@@ -294,6 +306,7 @@ def create_app(
         catalogs.cancel()
         vault_names.cancel()
         watch.cancel()
+        code_watch.cancel()
         context_md.cancel()
         autosave.cancel()
         pruner.cancel()
@@ -332,7 +345,8 @@ def create_app(
             *routes_folders.routes(ctx.folders),
             *routes_file_dialogs.routes(ctx.file_dialogs),
             *routes_intellisense.routes(ctx.intellisense),
-            *routes_workbench.routes(ctx.workbench, ctx.workbench_window),
+            *routes_script_ide.routes(ctx.script_ide),
+            *routes_workbench.routes(ctx.workbench, ctx.workbench_window, ctx.code_files),
             *routes_table_cells.routes(ctx.table_cells),
             *routes_lineage.routes(ctx.lineage),
             *routes_projects.routes(ctx.projects),
@@ -377,6 +391,8 @@ def create_app(
             Route("/workspace", workspace_page),
             Route("/catalog", catalog_page),
             Route("/workbench", workbench_page),
+            Route("/notebooks", code_page),
+            Route("/scripts", code_page),
             Mount("/static", CheckedStaticFiles(directory=settings.web_root, check_dir=False)),
         ],
         middleware=[

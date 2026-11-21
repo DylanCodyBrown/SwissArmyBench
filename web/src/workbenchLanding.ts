@@ -132,6 +132,23 @@ export function mountLanding(host: LandingHost): Landing {
 
   const draw = async (k: Kind): Promise<void> => {
     const mine = ++serial;
+    // Notebooks and Scripts (the owner, 2026-11-21: "scripts should open to on the page a new script creator
+    // just like it does but without all of this at the top"): the creator alone; the project's files are
+    // the explorer's on the left (codeExplorer.ts).
+    if (k !== "app") {
+      element.className = `wb-landing wb-creator km-${k}`;
+      element.setAttribute("aria-label", KIND_TITLES[k].title);
+      element.replaceChildren(
+        emptyState({
+          icon: kindIcon(k),
+          line: EMPTY_LINES[k],
+          action: { label: `New ${KIND_TITLES[k].one}`, icon: "plus", run: () => host.start(k) },
+          sample: true,
+          afterSample: () => host.start(k),
+        }),
+      );
+      return;
+    }
     const words = KIND_TITLES[k];
     const opened = host.openDocs(k);
     const list = h("ul", { class: "wb-landing-cards", "aria-label": words.title }, ...opened.map((d) => card(k, d, true)));
@@ -159,7 +176,7 @@ export function mountLanding(host: LandingHost): Landing {
       all.push([doc, false]);
       list.append(card(k, doc, false));
     }
-    const kinds = k === "notebook" ? KINDS.map(([role, title]) => [role, title, all.filter(([d]) => notebookRole(d.path) === role)] as const) : [];
+    const kinds = (k as Kind) === "notebook" ? KINDS.map(([role, title]) => [role, title, all.filter(([d]) => notebookRole(d.path) === role)] as const) : [];
     if (kinds.some(([role, , docs]) => role && docs.length)) {
       // In a project: the data notebook, then the app notebooks (and any notebook from outside it).
       list.replaceWith(

@@ -186,7 +186,7 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
         if SHOTS:
             page.screenshot(path=str(Path(SHOTS) / "tour-using-a-variable.png"))
         # Hands on: type it, then right-click it, with a made-up variable the tour adds for itself.
-        to_word(page, tour, "Data Catalog")
+        to_word(page, tour, "Catalog")
         assert PRACTICE in variables(server)
         # The grids: its orders table in front, its tab lit up.
         to_word(page, tour, "Grid")

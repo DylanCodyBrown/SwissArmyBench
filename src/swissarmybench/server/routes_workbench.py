@@ -42,21 +42,34 @@ from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
+from swissarmybench.domain import workbench_pages
 from swissarmybench.server.http import actor, error_as, json_response, read_json, safely
+from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
 
 
-def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
+def routes(
+    workbench: Workbench, window: WorkbenchWindow, code_files: CodeFiles | None = None
+) -> list[BaseRoute]:
     async def home(request: Request) -> Response:
         return json_response(workbench.home())
 
     async def open_document(request: Request) -> Response:
         body = await read_json(request)
-        return json_response(workbench.open(body.get("path") if isinstance(body, dict) else None))
+        found = workbench.open(body.get("path") if isinstance(body, dict) else None)
+        # The page it opens on (notebooks or scripts: the owner, 2026-11-21), and its text's hash (the
+        # file_changed notice is compared with it).
+        digest = await code_files.hash_now(found["path"]) if code_files else None
+        return json_response(
+            found | {"page": workbench_pages.page_of_kind(found.get("kind")), "hash": digest}
+        )
 
     async def save(request: Request) -> Response:
-        return json_response(workbench.save(await read_json(request)))
+        saved = workbench.save(await read_json(request))
+        # Every window holding the file reloads it (services/code_files.py: the file_changed notice).
+        digest = await code_files.touched(saved["path"], actor(request)) if code_files else None
+        return json_response(saved | {"hash": digest})
 
     async def pythons(request: Request) -> Response:
         return json_response(workbench.pythons())
@@ -108,7 +121,7 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
         if not isinstance(body, dict):
             raise ValueError('Send {"command": "...", "args": {...}}.')
         try:
-            result = await window.ask(body.get("command"), body.get("args"), actor(request))
+            result = await window.ask(body.get("command"), body.get("args"), actor(request), body.get("page"))
         except WindowRefused as error:
             return error_as(error, 409)
         except WindowUnanswered as error:

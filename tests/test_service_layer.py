@@ -52,13 +52,13 @@ class FakePages:
     def page_open(self) -> bool:
         return self.open_page
 
-    def workbench_open(self) -> bool:
+    def workbench_open(self, page: str | None = None) -> bool:
         return False
 
     def catalog_open(self) -> bool:
         return False
 
-    async def tell_workbench(self, message: dict[str, Any]) -> int:
+    async def tell_workbench(self, message: dict[str, Any], page: str | None = None) -> int:
         return 0
 
 

@@ -412,8 +412,21 @@ def menu(workbench: Page, button: str, item: str) -> None:
     workbench.get_by_role("menuitem", name=item, exact=True).click()
 
 
+def on_page(workbench: Page, page: str) -> None:
+    """This window to the Notebooks or Scripts page (two pages since 2026-11-21: each makes only its kind)."""
+    from urllib.parse import urlsplit
+
+    here = urlsplit(workbench.url)
+    if here.path != f"/{page}":
+        workbench.goto(f"{here.scheme}://{here.netloc}/{page}")
+        expect(workbench.locator(f".wb-codex.page-{page}")).to_be_visible(timeout=20000)
+
+
 def start(workbench: Page, what: str = "New notebook") -> None:
-    """New notebook or New script, from the top bar's menu."""
+    """New notebook or New script, from the page's menu ("…" at the explorer's head), on that kind's page."""
+    page = {"New script": "scripts", "New notebook": "notebooks", "New app notebook": "notebooks"}.get(what)
+    if page:
+        on_page(workbench, page)
     menu(workbench, "Workbench menu", what)
 
 
@@ -576,8 +589,15 @@ def test_a_script_runs_in_its_console(browser: Browser, orders_url: str) -> None
 
 def open_file(workbench: Page, path: Path) -> None:
     """Open a file as the window's address does (#open=...): its text exactly as written."""
-    workbench.goto(workbench.url.split("#")[0] + "#open=" + quote(str(path)))
-    workbench.reload()
+    from urllib.parse import urlsplit
+
+    # On its page: a .py on the Scripts page, a notebook on the Notebooks page (2026-11-21).
+    here = urlsplit(workbench.url)
+    page = "scripts" if path.suffix == ".py" else "notebooks"
+    moved = here.path != f"/{page}"
+    workbench.goto(f"{here.scheme}://{here.netloc}/{page}#open=" + quote(str(path)))
+    if not moved:
+        workbench.reload()  # the same page: the address's #open= read again
     expect(workbench.locator(".wb-tabs .tab-item", has_text=path.name)).to_be_visible(timeout=20000)
 
 
@@ -653,16 +673,44 @@ def test_a_deleted_cell_comes_back_and_open_documents_survive_a_reload(
     workbench.locator(".toast").get_by_role("button", name="Undo").click()
     expect(workbench.locator(".wb-cell")).to_have_count(2)
     expect(workbench.locator(".wb-cell").first).to_contain_text("first cell")
+    # Each page keeps its own session (2026-11-21): the notebook here, a script on the Scripts page.
+    workbench.wait_for_function(
+        "() => (sessionStorage.getItem('workbench-documents:notebooks') || '').includes('first cell')"
+    )
     new_script(workbench, "draft = 'not saved yet'")
     # Remembered a moment after the last change (the window's session storage): wait until it is.
     workbench.wait_for_function(
-        "() => (sessionStorage.getItem('workbench-documents') || '').includes('not saved yet')"
+        "() => (sessionStorage.getItem('workbench-documents:scripts') || '').includes('not saved yet')"
     )
     workbench.reload()
-    expect(workbench.locator(".wb-tabs .tab-item")).to_have_count(2, timeout=20000)
+    expect(workbench.locator(".wb-tabs .tab-item")).to_have_count(1, timeout=20000)
     expect(workbench.locator(".wb-script-editor .view-lines")).to_contain_text("not saved yet", timeout=20000)
-    workbench.locator(".wb-tabs .tab-item").first.click()
+    on_page(workbench, "notebooks")
+    expect(workbench.locator(".wb-tabs .tab-item")).to_have_count(1, timeout=20000)
     expect(workbench.locator(".wb-cell").first).to_contain_text("first cell")
+    # A session from before the two pages (both kinds under one key) is split by kind, once.
+    mixed = {
+        "docs": [
+            {"kind": "notebook", "path": None, "modified": None, "dirty": True, "python": None, "cells": []},
+            {
+                "kind": "script",
+                "path": None,
+                "modified": None,
+                "dirty": True,
+                "python": None,
+                "text": "old = 1",
+            },
+        ],
+        "current": 1,
+    }
+    workbench.evaluate(
+        "(saved) => { sessionStorage.removeItem('workbench-documents:scripts');"
+        " sessionStorage.setItem('workbench-documents', JSON.stringify(saved)); }",
+        mixed,
+    )
+    on_page(workbench, "scripts")
+    expect(workbench.locator(".wb-script-editor .view-lines")).to_contain_text("old = 1", timeout=20000)
+    assert workbench.evaluate("sessionStorage.getItem('workbench-documents')") is None
 
 
 def test_completion_comes_from_the_catalog_and_the_kernel(

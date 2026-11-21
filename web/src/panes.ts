@@ -31,8 +31,9 @@
  *          [PREVIEW BANNER] per pane -> state.setPreview(null)
  *          [EMPTY STATE]    -> read-only, when no grid is open
  */
+import { bringPage } from "./workbenchPages";
 import { changedOnDisk, drawDiskBar, onFileChanged } from "./fileChanged";
-import { api, onNotice, token, useGrid } from "./api";
+import { api, onNotice, useGrid } from "./api";
 import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { createGridView, setActiveView, type GridView } from "./gridView";
 import { openFileButton } from "./openFile";
@@ -922,6 +923,5 @@ function onTabKey(event: KeyboardEvent, id: string): void {
 
 /** Open the Workbench in its own window, or bring it forward (one window, by name). */
 export function openWorkbench(): void {
-  const opened = window.open(`/workbench#token=${encodeURIComponent(token)}`, "swissarmybench-workbench");
-  opened?.focus();
+  bringPage("notebooks"); // the Notebooks page's window (workbenchPages.ts)
 }

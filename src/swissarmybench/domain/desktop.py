@@ -26,11 +26,19 @@ OUTSIDE_SCHEMES: tuple[str, ...] = ("http", "https", "mailto")
 HOME_WINDOW = "sab-home"
 HOME_PAGE = "/workspace"
 # A page of the app the agent opens by a word (desktop_open).
-PAGES: dict[str, str] = {"home": "/workspace", "workbench": "/workbench", "blades": "/catalog"}
+PAGES: dict[str, str] = {
+    "home": "/workspace",
+    "workbench": "/notebooks",  # the old word: the Notebooks page
+    "notebooks": "/notebooks",
+    "scripts": "/scripts",
+    "blades": "/catalog",
+}
 # Window sizes when nothing is remembered and the page asked for none.
 DEFAULT_SIZES: dict[str, tuple[int, int]] = {
     "home": (1360, 860),
     "workbench": (1280, 840),
+    "notebooks": (1280, 840),
+    "scripts": (1280, 840),
     "catalog": (1200, 800),
 }
 DEFAULT_SIZE: tuple[int, int] = (1200, 800)
@@ -168,7 +176,7 @@ def address_of(page: str, port: int, token: str) -> str:
 
 
 def page_for(word: str) -> str:
-    """desktop_open's page: home, workbench or blades."""
+    """desktop_open's page: home, notebooks, scripts (workbench: notebooks) or blades."""
     if word not in PAGES:
         raise ShellError(f"Open one of: {', '.join(PAGES)}.")
     return PAGES[word]

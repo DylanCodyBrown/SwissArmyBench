@@ -25,6 +25,7 @@ import duckdb
 from swissarmybench import __version__
 from swissarmybench import extensions as extension_modules
 from swissarmybench.adapters import blade_run
+from swissarmybench.adapters import code_files as code_file_disk
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
@@ -51,6 +52,7 @@ from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
+from swissarmybench.adapters.script_ide import ScriptCode
 from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
     AuditLog,
@@ -119,6 +121,7 @@ from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
+from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connection_colours import ConnectionColours
 from swissarmybench.services.connection_swap import ConnectionSwap
@@ -160,6 +163,7 @@ from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.script_export import ScriptExports
+from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.session_log import Heard, SessionLog
 from swissarmybench.services.shared_catalog import Here, SharedCatalog
@@ -189,6 +193,7 @@ class Services:
     ws: Workspace
     datasets: DatasetService
     file_watch: FileWatch
+    code_files: CodeFiles
     grids: GridService
     profiles: Profiles
     analysis: Analysis
@@ -226,6 +231,7 @@ class Services:
     snapshots: Snapshots
     workbench_window: WorkbenchWindow
     intellisense: Intellisense
+    script_ide: ScriptIde
     table_cells: TableCells
     lineage: Lineage
     projects: Projects
@@ -853,6 +859,20 @@ def bootstrap(
         await shared_catalog.project_used(folder)
 
     sab_projects.opened.append(project_opened)
+    # Code files that update themselves everywhere (services/code_files.py): the open project's and the
+    # library's.
+    code_files = CodeFiles(
+        ws,
+        lambda: (
+            sab_projects.current.folder if sab_projects.current else None,
+            str(library_folder.root) if audit_log else None,
+        ),
+        code_file_disk.stamp,
+        code_file_disk.file_hash,
+        code_file_disk.code_files_in,
+        code_file_disk.resolve,
+        settings.file_watch_seconds,
+    )
     project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
     # The Variables page: this computer's variables (never a project's): the shareable file and the local
     # values; their values given to this server's environment, so what it runs and starts reads them.
@@ -1201,12 +1221,16 @@ def bootstrap(
                 out.append((ref.kind, ref.document))
         return out
 
+    # One Jedi world and one set of linters: the editors' intelligence's, and the Scripts IDE's (never a
+    # second).
+    jedi_world = JediWorld()
+    linters = Linters(run_text)
     intellisense = Intellisense(
         ws,
         kernel_intel.answer,
-        JediWorld(),
+        jedi_world,
         ProjectModules(),
-        Linters(run_text),
+        linters,
         kernel_of=workbench.kernel_or_none,
         project_folder=lambda: (sab_projects.state().get("project") or {}).get("folder"),
         blades=lambda: blades.listing()["blades"],
@@ -1216,6 +1240,14 @@ def bootstrap(
             (b.dialect for b in blade_store.all() if b.name.casefold() == name.casefold()), None
         ),
         read_file=lambda path: documents.read(path)[0],
+    )
+    script_ide = ScriptIde(
+        ws,
+        ScriptCode(run_text),
+        jedi_world,
+        linters,
+        tree=lambda: project_scope.tree("scripts"),
+        touched=code_files.touched,
     )
     context_md = ContextMd(
         ws,
@@ -1349,6 +1381,7 @@ def bootstrap(
         ws=ws,
         datasets=datasets,
         file_watch=file_watch,
+        code_files=code_files,
         grids=grid_service,
         profiles=Profiles(ws),
         analysis=analysis,
@@ -1396,6 +1429,7 @@ def bootstrap(
         snapshots=Snapshots(ws),
         workbench_window=workbench_window,
         intellisense=intellisense,
+        script_ide=script_ide,
         table_cells=table_cells,
         panels=Panels(ws),
         modes=modes,

@@ -28,17 +28,17 @@ from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
 # In the order of the work (the owner, 2026-11-17).
 AREAS = [
-    "projects",  # the mark, first (the owner, 2026-11-18): the Projects page
+    "projects",  # first: Home (the owner, 2026-11-21; its address open=projects)
     "connections",
-    "apis",  # beside Connections (the owner, 2026-11-18)
+    "apis",
+    "structures",  # beside APIs (the owner, 2026-11-21)
     "variables",
-    "data",  # after Variables: the one place to browse tables (the owner, 2026-11-17)
+    "data",  # the one place to browse tables: Catalog (2026-11-21)
     "grids",
     "erd",
-    "structures",
     "blades",
+    "scripts",  # beside Blades (the owner, 2026-11-21)
     "notebooks",
-    "scripts",
     "apps",
     "analyze",
     "session",
@@ -46,17 +46,17 @@ AREAS = [
     "settings",
 ]
 NAMES = [
-    "Projects",
+    "Home",
     "Connections",
     "APIs",
+    "Structures",
     "Variables",
-    "Data Catalog",
+    "Catalog",
     "Grids",
     "ERD",
-    "Structures",
     "Blades",
-    "Notebooks",
     "Scripts",
+    "Notebooks",
     "Apps",
     "Analyze",
     "Session",
@@ -144,7 +144,7 @@ def test_the_rail_goes_to_each_area_and_marks_the_current_one(
     for selector in (".tabbar", ".tabs-row", ".ag-header-cell:visible"):
         assert left_of(page, selector) >= right_edge(page) - 0.5, selector
     # The mark is the rail's first item, its red square kept; the icons 24px so more fit (2026-11-18).
-    expect(area(page, "projects").locator(".app-mark")).to_be_visible()
+    expect(area(page, "projects").locator('[data-icon="home"]')).to_be_visible()  # a plain icon
     expect(page.locator(".tabbar .app-mark")).to_have_count(0)
     icon = area(page, "connections").locator(".icon-svg").bounding_box()
     assert icon and round(icon["width"]) == 24 and round(icon["height"]) == 24
@@ -234,9 +234,11 @@ def keyboard_and_tips(browser: Browser, orchard: str) -> None:
     expect(current(page)).to_have_attribute("data-area", "erd")
     area(page, "erd").focus()
     page.keyboard.press("ArrowDown")
-    expect(area(page, "structures")).to_be_focused()
-    for _ in range(6):
-        page.keyboard.press("ArrowUp")  # the ERD, the grids, Data, Variables, APIs, Connections
+    expect(area(page, "blades")).to_be_focused()  # Blades after the ERD (2026-11-21)
+    for _ in range(7):
+        page.keyboard.press(
+            "ArrowUp"
+        )  # the ERD, the grids, Catalog, Variables, Structures, APIs, Connections
     expect(area(page, "connections")).to_be_focused()
     page.keyboard.press("ArrowUp")  # the mark, the first (2026-11-18)
     expect(area(page, "projects")).to_be_focused()
@@ -267,35 +269,42 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     page = home_page(browser, orchard)
     page.on("dialog", lambda d: d.accept())  # leaving a Workbench with unsaved edits asks first
     pages = len(page.context.pages)
-    # Notebooks from the home page: this tab goes to the Workbench (code still never sits in the grid page).
+    # Notebooks from the home page: this tab goes to the Notebooks page (never code in the grid page).
     area(page, "notebooks").click()
-    expect(page).to_have_url(re.compile(r"/workbench\?kind=notebook"), timeout=20000)
+    expect(page).to_have_url(re.compile(r"/notebooks\?kind=notebook"), timeout=20000)
     expect(rail(page)).to_be_visible()
     expect(current(page)).to_have_attribute("data-area", "notebooks")
     assert len(page.context.pages) == pages
-    assert left_of(page, ".wb-top") >= right_edge(page) - 0.5
-    # The notebooks' landing page (2026-11-16: no menu beside the icon): New is in the top bar.
+    # Its landing (2026-11-16: no menu beside the icon); New is the page's own (the explorer's "…").
     landing = page.locator(".wb-landing")
     expect(landing).to_be_visible(timeout=20000)
     expect(page.get_by_role("menu")).to_have_count(0)
-    page.locator(".wb-top").get_by_role("button", name="New notebook").click()
+    expect(page.locator(".wb-codex.page-notebooks")).to_be_visible()
+    page.get_by_role("button", name="Workbench menu", exact=True).click()
+    expect(page.get_by_role("menuitem", name="New script")).to_have_count(0)  # only its own kind
+    page.get_by_role("menuitem", name="New notebook", exact=True).click()
     expect(page.locator(".wb-tab").first).to_be_visible(timeout=20000)
-    # Scripts, inside the Workbench: its page, New script; Notebooks lands on its page again, pushed.
-    area(page, "scripts").click()
-    expect(page).to_have_url(re.compile(r"kind=script"))
-    page.locator(".wb-top").get_by_role("button", name="New script").click()
-    expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
-    area(page, "notebooks").click()
-    expect(current(page)).to_have_attribute("data-area", "notebooks")
-    page.go_back()
-    expect(current(page)).to_have_attribute("data-area", "scripts")
+    # Scripts from the Notebooks page: the Scripts page, a window of its own (the owner, 2026-11-21:
+    # "notebooks and scripts should not reuse the same page"): no notebook tab there.
+    with page.context.expect_page() as opened:
+        area(page, "scripts").click()
+    scripts = opened.value
+    expect(scripts).to_have_url(re.compile(r"/scripts\?kind=script"), timeout=20000)
+    expect(current(scripts)).to_have_attribute("data-area", "scripts")
+    expect(scripts.locator(".wb-codex.page-scripts")).to_be_visible(timeout=20000)
+    expect(scripts.locator(".wb-tab")).to_have_count(0)
+    scripts.get_by_role("button", name="Workbench menu", exact=True).click()
+    scripts.get_by_role("menuitem", name="New script", exact=True).click()
+    expect(scripts.locator(".wb-tab")).to_have_count(1, timeout=20000)
+    expect(page.locator(".wb-tab")).to_have_count(1)  # the notebook stayed on its own page
+    scripts.close()
     page.mouse.move(900, 500)
     shot(page, "rail-workbench")
     # Settings is a page in the Workbench itself.
     area(page, "settings").click()
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
     page.go_back()
-    expect(current(page)).to_have_attribute("data-area", "scripts")
+    expect(current(page)).to_have_attribute("data-area", "notebooks")
 
     # Analyze, from the Workbench: this tab goes home, at Analyze.
     area(page, "analyze").click()
@@ -322,7 +331,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     with page.context.expect_page() as clicked:
         area(page, "scripts").click(modifiers=["Control"])
     other = clicked.value
-    expect(other).to_have_url(re.compile(r"/workbench\?kind=script"), timeout=20000)
+    expect(other).to_have_url(re.compile(r"/scripts\?kind=script"), timeout=20000)
     other.close()
     area(page, "analyze").click(button="right")
     with page.context.expect_page() as popped:
@@ -355,7 +364,8 @@ def test_apps_shows_the_streamlit_cells_pane_beside_the_canvas(
     expect(workbench.locator(".wb-tab")).to_have_count(1, timeout=20000)
     area(workbench, "apps").click()
     expect(workbench.get_by_role("menu")).to_have_count(0)
-    workbench.locator(".wb-top").get_by_role("button", name="New Streamlit app").click()
+    workbench.get_by_role("button", name="Workbench menu", exact=True).click()  # no top bar (2026-11-21)
+    workbench.get_by_role("menuitem", name="New Streamlit app", exact=True).click()
     board = workbench.locator(".cv-board")
     expect(board).to_be_visible(timeout=20000)
     expect(current(workbench)).to_have_attribute("data-area", "apps")

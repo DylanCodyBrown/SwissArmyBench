@@ -3222,6 +3222,95 @@ def workbench_open(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "project_tree",
+    "The Notebooks or Scripts page's explorer: the open project's notebooks, or every .py by module with "
+    "its outline (classes, functions, methods, constants), made files marked",
+    opt("page", "scripts (default) or notebooks."),
+)
+def project_tree(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/project/tree?page={a.get('page') or 'scripts'}")
+
+
+@command(
+    "workbench_outline",
+    "A module's outline as typed: its classes, methods, functions and constants with their lines",
+    req("text", "The module's text."),
+)
+def workbench_outline(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/project/outline", {"text": a["text"]})
+
+
+def _at(a: dict[str, Any]) -> dict[str, Any]:
+    keys = ("text", "line", "column", "path")
+    return {k: a[k] for k in keys if a.get(k) is not None}
+
+
+@command(
+    "workbench_definition",
+    "Go to definition (F12) in a script: where the name at line/column is defined, across the project's "
+    "modules and the script's libraries",
+    req("text", "The script's text."),
+    req("line", "The line, from 1.", "int"),
+    req("column", "The column, from 1.", "int"),
+    opt("path", "The script's file."),
+)
+def workbench_definition(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/scripts/definition", _at(a))
+
+
+@command(
+    "workbench_references",
+    "Find all references (Shift+F12): every use of the name at line/column across the project's scripts",
+    req("text", "The script's text."),
+    req("line", "The line, from 1.", "int"),
+    req("column", "The column, from 1.", "int"),
+    opt("path", "The script's file."),
+)
+def workbench_references(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/scripts/references", _at(a))
+
+
+@command(
+    "workbench_rename",
+    "Rename a symbol across the project's scripts (F2): the plan (each change, the made files skipped), "
+    "or written with apply (said in the Session log)",
+    req("text", "The script's text."),
+    req("line", "The line, from 1.", "int"),
+    req("column", "The column, from 1.", "int"),
+    req("to", "The new name."),
+    opt("path", "The script's file."),
+    opt("apply", "Write the changes.", "bool"),
+)
+def workbench_rename(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/scripts/rename", _at(a) | {"to": a["to"], "apply": bool(a.get("apply"))})
+
+
+@command(
+    "workbench_search",
+    "Search across the project's scripts (regex, case, whole word); with to: replace's plan, or applied",
+    req("query", "The text (or a regular expression with regex)."),
+    opt("to", "Replace with this (the plan; apply writes it)."),
+    opt("regex", "A regular expression.", "bool"),
+    opt("case", "Match case.", "bool"),
+    opt("word", "Whole word.", "bool"),
+    opt("apply", "With to: write the replacements.", "bool"),
+)
+def workbench_search(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("query", "to", "regex", "case", "word", "apply") if a.get(k) is not None}
+    return api.call("POST", "/scripts/replace" if "to" in body else "/scripts/search", body)
+
+
+@command(
+    "workbench_format",
+    "Format a script's text with Ruff in its own Python (said when Ruff is not there)",
+    req("text", "The script's text."),
+    opt("python", "The script's Python."),
+)
+def workbench_format(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/scripts/format", {k: a[k] for k in ("text", "python") if a.get(k)})
+
+
+@command(
     "workbench_save",
     "Save a notebook's cells or a script's text (refused if changed on disk since modified, unless force)",
     req("path", "An .ipynb or .py file."),
@@ -3495,11 +3584,13 @@ def agent_inbox(a: dict[str, Any]) -> Any:
     '"group.splitRight", "group.moveTab" {"group": 1}, "data.goToTable" {"table": "orders"}',
     req("command", 'A command\'s id, such as "documents", "commands", "run.statement" or "cell.delete".'),
     opt("args", 'The command\'s arguments, as an object (see "commands").', "json"),
+    opt("page", "notebooks or scripts (default: args.path's, else the window the user was last in)."),
 )
 def workbench_window(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/workbench/window", {"command": a["command"], "args": a.get("args") or {}})[
-        "result"
-    ]
+    body = {"command": a["command"], "args": a.get("args") or {}}
+    if a.get("page"):
+        body["page"] = a["page"]
+    return api.call("POST", "/workbench/window", body)["result"]
 
 
 @command(
@@ -4667,7 +4758,7 @@ def app_audit(a: dict[str, Any]) -> Any:
         "new_query (the New query page), query, query:<connection> (its draft, Query from set), grid:<id>; "
         "catalog (the blades page): blade:<name>, new_blade",
     ),
-    opt("window", "home (default), catalog or workbench."),
+    opt("window", "home (default), catalog, notebooks, scripts or workbench (either: the one last used)."),
     opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),
 )
 def app_navigate(a: dict[str, Any]) -> Any:

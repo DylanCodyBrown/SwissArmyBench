@@ -23,7 +23,9 @@ export const STRUCTURES = "Structures";
 export const CODE_APP = "Code App";
 /** The Code App page's layer and the project type that turns it on. */
 export const CODE_APP_TYPE = "codeapp";
-export const SCM = "Source Control";
+/** The Git extension's area: its name is the backend's (GET /app/areas: "Git", the owner 2026-11-21); this
+ *  is only what shows before the answer. */
+export let SCM = "Git";
 /** The Source Control page's layer and the area the backend names when it is on. */
 export const SCM_KEY = "scm";
 export const EXTENSIONS = "Extensions";
@@ -81,7 +83,14 @@ export interface SyncStatus { signed_in: boolean; account: string | null; device
 let scmAsked: Promise<boolean> | null = null;
 /** The rail's Source Control area: on when the backend names it. Asked once a page. */
 export function scmOn(): Promise<boolean> {
-  scmAsked ??= api<{ areas: { area: string }[] }>("/app/areas").then((got) => got.areas.some((a) => a.area === SCM_KEY), () => false);
+  scmAsked ??= api<{ areas: { area: string; name?: string }[] }>("/app/areas").then(
+    (got) => {
+      const found = got.areas.find((a) => a.area === SCM_KEY);
+      if (found?.name) SCM = found.name; // the extension's own word for its area
+      return !!found;
+    },
+    () => false,
+  );
   return scmAsked;
 }
 
