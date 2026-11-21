@@ -52,6 +52,8 @@ class Widgets:
         previews: Any = None,
         renamed: Renamed | None = None,
         variables: Callable[[], set[str]] = set,
+        variable_names: Callable[[], list[str]] = list,
+        project_folder: Callable[[], str | None] = lambda: None,
     ) -> None:
         self.ws = ws
         self._files = files  # adapters/widget_files.py WidgetFiles
@@ -63,6 +65,8 @@ class Widgets:
         self._previews = previews  # adapters/widget_files.py PreviewFiles
         self.renamed = renamed  # every canvas's instances follow a rename (services/canvas.py)
         self._variables = variables
+        self._variable_names = variable_names  # the Variables page's names (a variable property's list)
+        self._project_folder = project_folder
 
     # ===== reading =====
 
@@ -134,11 +138,26 @@ class Widgets:
 
     def get(self, name: str) -> dict[str, Any]:
         widget, text = self._one(name)
+        file = self._files.where(name) if not widget.prebuilt else ""
+        folder = self._project_folder()
+        # The editor's kernel runs in the open project's folder (its scripts import, its data.py too), else
+        # beside the widget's file.
+        kernel_path = f"{folder}/{rules.file_name(name)}" if folder else file or None
         return self._entry(widget, text) | {
             "code": widget.code,
-            "file": self._files.where(name) if not widget.prebuilt else "",
+            "file": file,
             "text": text,
+            "kernel_path": kernel_path,
+            "kernel_setup": build_rules.kernel_setup(),
         }
+
+    def context_info(self) -> dict[str, Any]:
+        """What the Properties pane's pickers offer: the open tables with their columns, the variables."""
+        try:
+            names = sorted(set(self._variable_names()))
+        except Exception:  # the Variables page's own trouble: the box still takes a name
+            names = []
+        return {"tables": self._tables(), "variables": names, "project": self._project_folder()}
 
     def facts(self) -> dict[str, model.WidgetFacts]:
         made: dict[str, model.WidgetFacts] = {}

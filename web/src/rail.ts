@@ -63,7 +63,7 @@ import { DATA } from "./dataPage"; // the Data page's layer, on every page with 
 import { panelAreas } from "./extensionArea"; // an extension's area drawn from its data (GET /app/areas)
 import { firstOpen, isClosed, loadGates, onGates, removeGateCover, showGateLine } from "./gates";
 
-export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "apps" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
+export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "apps" | "widgets" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -88,6 +88,9 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   // The apps' canvas is an extension's (Streamlit, preinstalled): the area shows while a mode offers it.
   { area: "apps", name: "Apps", icon: "page", kind: "app", plugin: () => canvasOn("streamlit") },
+  // Widgets (the owner, 2026-11-21): not in this window's pane, a window of its own with no rail
+  // (static/widget.html: the list, one widget's editor, its Properties).
+  { area: "widgets", name: "Widgets", icon: "sliders", plugin: () => canvasOn("streamlit") },
   // An extension's area the backend names (GET /app/areas), as VS Code's activity bar has it.
   { area: "scm", name: SCM, icon: "source-control", plugin: scmOn },
   { area: "analyze", name: "Analyze", icon: "sandbox" },
@@ -144,6 +147,13 @@ function newKindWindow(k: Kind): void {
 }
 
 
+/** The Widgets window (one of its own, brought forward when it is open), optionally on one widget. */
+export function openWidgets(name?: string): void {
+  const opened = window.open(withToken(`/streamlit/widget${name ? `?name=${encodeURIComponent(name)}` : ""}`), "sab-widgets", "popup,width=1300,height=820");
+  if (opened) opened.focus();
+  else errorHere("The browser blocked the new window: allow pop-ups for this address.");
+}
+
 /** The page that shows `area`, at the area's address. */
 function pageUrl(area: Area): string {
   const k = kindOfArea(area);
@@ -159,6 +169,10 @@ function pageUrl(area: Area): string {
 export function goArea(area: Area, newWindow = false): void {
   if (isClosed(area)) {
     showGateLine(area); // a feature this project's type keeps closed: one line, Open every feature
+    return;
+  }
+  if (area === "widgets") {
+    openWidgets();
     return;
   }
   const k = kindOfArea(area);

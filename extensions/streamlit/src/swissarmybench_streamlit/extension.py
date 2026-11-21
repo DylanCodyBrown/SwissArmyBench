@@ -182,11 +182,19 @@ def routes(services: Any) -> list[Any]:
                 found.setdefault(variable_name(info.name), [c.name for c in info.columns])
         return found
 
-    def project_python() -> str | None:
-        project = (
-            (services.sab_projects.state().get("project") or {}) if hasattr(services, "sab_projects") else {}
-        )
+    def project_folder() -> str | None:
+        projects = getattr(services, "sab_projects", None)
+        project = (projects.state().get("project") or {}) if projects is not None else {}
         folder = project.get("folder")
+        return str(folder) if folder else None
+
+    def variable_names() -> list[str]:
+        listing = getattr(getattr(services, "variables", None), "listing", None)
+        found = (listing().get("variables") or []) if listing else []
+        return [str(v.get("name")) for v in found if isinstance(v, dict) and v.get("name")]
+
+    def project_python() -> str | None:
+        folder = project_folder()
         if not folder:
             return None
         try:
@@ -204,6 +212,8 @@ def routes(services: Any) -> list[Any]:
         project_python=project_python,
         previews=preview_files,
         variables=lambda: set(os.environ),
+        variable_names=variable_names,
+        project_folder=project_folder,
     )
     services.widgets = widgets
     services.live_runs = live_runs

@@ -40,6 +40,7 @@ AREAS: tuple[str, ...] = (
     "notebooks",
     "scripts",
     "apps",
+    "widgets",  # 2026-11-21: the Widgets window (its own, no rail)
     "analyze",
     "session",
     "extensions",

@@ -325,6 +325,23 @@ def one_widget(name: str, built: Built, values: Mapping[str, Any], size: tuple[i
     return canvas
 
 
+def kernel_setup() -> str:
+    """What the Widgets window's kernel runs first: sab_canvas (the runtime: table, sample, key, var) as a
+    module, so the editor completes `from sab_canvas import table` and its signatures, as the page runs it."""
+    return (
+        "import sys as _sys, types as _types\n"
+        "_sab_w = _types.ModuleType('sab_widgets'); _sab_w.CODE = {}; _sab_w.VARIABLES = {}\n"
+        "_sys.modules.setdefault('sab_widgets', _sab_w)\n"
+        "_sab_c = _types.ModuleType('sab_canvas')\n"
+        "try:\n"
+        f"    exec({RUNTIME!r}, _sab_c.__dict__)\n"
+        "    _sys.modules['sab_canvas'] = _sab_c\n"
+        "except Exception:\n"
+        "    pass\n"
+        "del _sys, _types, _sab_w, _sab_c\n"
+    )
+
+
 def compiles(files: Mapping[str, str]) -> list[str]:
     """Each file that is not whole Python, and why (a test's check, and the builder's own)."""
     found: list[str] = []
@@ -481,7 +498,10 @@ def render(name: str, values: dict[str, Any], instance: str) -> None:
     except Exception as error:  # a widget's own failure: shown in its place, the page goes on
         if type(error).__name__ in ("RerunException", "StopException", "RerunData"):
             raise
-        st.error(f"{name} ({instance}) failed: {type(error).__name__}: {error}")
+        where = f"<widget {name}>"
+        lines = [f.lineno for f in traceback.extract_tb(error.__traceback__) if f.filename == where]
+        at = f" (line {lines[-1]})" if lines else ""
+        st.error(f"{name} ({instance}) failed: {type(error).__name__}: {error}{at}")
         with st.expander("Details"):
             st.code(traceback.format_exc(), language="text")
     finally:

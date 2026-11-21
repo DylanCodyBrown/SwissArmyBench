@@ -128,7 +128,7 @@ def test_a_failing_widget_shows_its_own_error_and_the_rest_of_the_page_runs(tmp_
     files = build.build(canvas, {"good": good, "bad": bad, "gone_table": missing})
     (page,) = run_pages(tmp_path, files, [p for p in files if p.startswith("pages/")])
     assert not page["exceptions"]
-    assert any("ZeroDivisionError" in e for e in page["failed"])
+    assert any("ZeroDivisionError" in e and "(line 3)" in e for e in page["failed"])
     assert page["kinds"]["metric"] == 1
     warnings = " ".join(page["warnings"])
     assert "The table nowhere is not here" in warnings and "deleted_one is not in the library" in warnings

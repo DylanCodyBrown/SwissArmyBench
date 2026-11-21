@@ -18497,3 +18497,260 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 .gate-cover .gate-line { position: static; transform: none; }
 .gates-first { padding: 20px 24px; max-width: 560px; border-radius: 8px; }
 .gates-first .dialog-buttons { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
+/* ===== the Widgets window (widgetPage.ts): the list, one widget's editor or its run, its Properties ===== */
+.widget-page {
+  margin: 0;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+}
+.wg {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 300px;
+  height: 100vh;
+}
+.wg.no-list {
+  grid-template-columns: 0 minmax(0, 1fr) 300px;
+}
+.wg.no-props {
+  grid-template-columns: 250px minmax(0, 1fr) 0;
+}
+.wg.no-list.no-props {
+  grid-template-columns: 0 minmax(0, 1fr) 0;
+}
+.wg.no-list .wg-list,
+.wg.no-props .wg-props {
+  display: none;
+}
+.wg-list {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  min-height: 0;
+}
+.wg-list-top {
+  display: flex;
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.wg-search {
+  flex: 1;
+  min-width: 0;
+}
+.wg-items {
+  overflow: auto;
+  padding: 4px 6px 12px;
+}
+.wg-group {
+  margin: 12px 6px 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.wg-empty {
+  margin: 4px 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.wg-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wg-item:hover {
+  background: var(--row-hover);
+}
+.wg-item.selected {
+  background: var(--selected);
+  border-color: var(--border-strong);
+}
+.wg-item-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.wg-item-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.wg-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.wg-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.wg-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.wg-saved {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.wg-grow {
+  flex: 1;
+}
+.wg-ran-note:empty {
+  display: none;
+}
+.wg-ran-note {
+  padding: 8px 12px 0;
+}
+.wg-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.wg-editor,
+.wg-frame-host {
+  position: absolute;
+  inset: 0;
+}
+.wg-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+.wg-props {
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+  overflow: auto;
+  padding: 10px 12px 16px;
+}
+.wg-props-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+.wg-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.wg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wg-label,
+.wg-prop-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.wg-name,
+.wg-description,
+.wg-input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.wg-name-line {
+  font-size: 0.78rem;
+  min-height: 1em;
+}
+.wg-name-line[data-state="available"] {
+  color: var(--ok);
+}
+.wg-name-line[data-state="taken"],
+.wg-name-line[data-state="invalid"] {
+  color: var(--error);
+}
+.wg-prop {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
+}
+.wg-prop.marked .wg-prop-name {
+  color: var(--warn);
+}
+.wg-prop-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.wg-prop-mask {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.wg-prop-help {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.wg-reset {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+}
+.wg-field-line {
+  font-size: 0.78rem;
+  color: var(--error);
+}
+.wg-colour-pair {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wg-colour {
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: none;
+}
+.wg-json {
+  font-family: var(--mono, ui-monospace, monospace);
+  resize: vertical;
+}
+.wg-props-problem {
+  display: flex;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--warn);
+  padding: 6px 0;
+}
+.wg-props-none {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.wg-props-foot {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}

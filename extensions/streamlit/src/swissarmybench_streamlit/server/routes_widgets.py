@@ -60,6 +60,9 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
     async def check_value(request: Request) -> Response:
         return json_response(widgets.check_value(await body_of(request)))
 
+    async def context(request: Request) -> Response:
+        return json_response(widgets.context_info())
+
     async def stop(request: Request) -> Response:
         return json_response(await widgets.stop(await body_of(request)))
 
@@ -107,6 +110,7 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
         Route("/streamlit/widgets/properties", safely(properties), methods=["POST"]),
         Route("/streamlit/widgets/check-value", safely(check_value), methods=["POST"]),
         Route("/streamlit/widgets/stop", safely(stop), methods=["POST"]),
+        Route("/streamlit/widgets/context", safely(context)),
         Route("/streamlit/widgets/{name}", safely(one), methods=["GET", "PUT", "PATCH", "DELETE"]),
         Route("/streamlit/widgets/{name}/property", safely(set_property), methods=["POST"]),
         Route("/streamlit/widgets/{name}/copy", safely(copy), methods=["POST"]),
