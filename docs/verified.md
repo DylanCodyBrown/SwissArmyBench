@@ -4457,3 +4457,21 @@ Not checked:
   were); the Write starters run against the mocks; lakes, SharePoint documents, Power BI and Python connections
   have no mock yet (said in one sentence).
 - The canvas Export does not write SAB_API_URL as a variable to set (left to the canvas's own export).
+
+## The real-world use cases again (2026-11-21, branch real-world-fix)
+
+All eleven use cases (14 tests with 1a, 4a and 11a) pass against the test bed (PostgreSQL 16, MariaDB,
+Chromium, Streamlit 1.67). What had broken:
+- **2 and 5 (the app):** a password saved in the connection form is a keyring variable of the library
+  (`secret("SHOP_PASSWORD")`, variables.toml `from = "keyring"`). The app gives the variables to what it
+  starts while it runs, but a run with the app closed (client/standalone.py) looked only at the connection's
+  own keyring entry and the environment. It now reads this computer's variables too (a plain value, local
+  or shared, or the keyring's `variable/<NAME>`), after the run's own environment; a plain variable the code
+  reads through os.environ (a setting's `${NAME}`) is set in the process's environment when it is not set
+  already. secret()'s values never go into the environment. tests/test_standalone.py covers it.
+- **8 (the test):** the tie-out moved to the Analyze page (2026-11-19); the use case does it there (the rail,
+  Do two tables add up the same?, Run: the other open table picked already), 10 actions as before.
+- **9 (the test):** not today's date: the form's "Picked from the dates" (domain/analyze.py period_for)
+  takes a year of invoices as weeks, and the last week (2026-10-26 to 11-01) is whole, so nothing is left
+  out. The left-out rule itself works: by month (chosen under More options) the card says "Left out
+  2026-11-01: its rows stop on 2026-11-01, before the month is over." 11 actions.

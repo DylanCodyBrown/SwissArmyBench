@@ -77,6 +77,7 @@ CLIENT_MODULES = (
     "swissarmybench.adapters.blades",
     "swissarmybench.domain.connections",
     "swissarmybench.domain.variable_refs",
+    "swissarmybench.domain.library",  # a run with the app closed reads this computer's variables
     "swissarmybench.domain.blade_suggestions",  # ${NAME} (12.7): a %%sql cell binds it
 )
 # Standard library modules that do I/O, start something or read the clock: not for the domain.

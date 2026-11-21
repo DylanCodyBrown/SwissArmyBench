@@ -40,8 +40,8 @@ build the client wheel and a plain Python with `uv` (pandas, psycopg, nbconvert,
 | 5 | a daily CSV export, saved, then run as the scheduled task runs it | 12 |
 | 6 | the daily CSV folder (Files combine CSVs), both workbook sheets and MariaDB's customers; the joins found | 35 |
 | 7 | the Power BI workspace added (its app registration from the vault); a dataset's relationships and 5 tables read in | 26 |
-| 8 | Power BI's Invoices tied out against PostgreSQL's: the regions of the day the refresh missed are off | 10 |
-| 9 | a forecast of invoiced amounts sent to Visualizations, Page view, Print to PDF | 14 |
+| 8 | Power BI's Invoices tied out against PostgreSQL's on the Analyze page: the regions of the day the refresh missed are off | 10 |
+| 9 | a forecast of invoiced amounts by month on the Analyze page (November's one day left out, said), Page view, Print to PDF | 11 |
 | 10 | a story notebook: figures, a Markdown cell with live values, a table and a Mermaid diagram, an HTML cell | 20 |
 | 11 | a widget written in the Widgets window (its table PostgreSQL's invoices, open in the grid) and previewed, placed on a Streamlit project's canvas (Desktop and Phone), played, exported; the export run by AppTest in a plain Python | 33 |
 

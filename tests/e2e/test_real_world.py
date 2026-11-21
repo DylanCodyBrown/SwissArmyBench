@@ -1039,20 +1039,25 @@ def test_8_power_bi_ties_out_against_its_postgresql_source(
     tabs = page.locator(".tab-item")
     # PostgreSQL's invoices open beside Power BI's Invoices (once refused: the names differ only in case).
     expect(tabs.filter(has_text="Shop_invoices")).to_have_count(1, timeout=LONG)
-    act.drag(tabs.filter(has_text="Shop_invoices"), tabs.filter(has_text=re.compile(r"^Invoices")))
-    picker = page.locator("dialog .compare-dialog")
-    expect(picker.locator("tbody tr").first).to_contain_text("invoice_id", timeout=LONG)
-    act.click(page.locator("dialog").get_by_role("button", name="Compare", exact=True))
-    expect(page.locator(".ribbon")).to_contain_text("matched", timeout=LONG)
-    act.click(page.locator(".ribbon").get_by_role("button", name="Tie-out…"))
-    window = page.locator("dialog", has_text="Tie-out:")
+    # The tie-out is on the Analyze page (the owner, 2026-11-19: every analysis there, none on the grid's
+    # Compare row): the open table, the other open one picked already, its result on the board by itself.
+    act.click(page.locator(".nav-rail [data-area='analyze']"))
+    act.click(page.locator("#ai-panel .analyze-btn[data-analysis='tie_out']"))
+    form = page.locator("#ai-panel .analyze-side .analyze-form")
+    expect(form.get_by_role("button", name="Run", exact=True)).to_be_enabled(timeout=LONG)
+    act.click(form.get_by_role("button", name="Run", exact=True))
+    board = page.locator("#ai-panel .analyze-board")
+    note = board.locator(".card", has_text="Tie-out:").first
     last = max(i["invoice_date"] for i in company.invoices)
     off = sorted({i["region"] for i in company.invoices if i["invoice_date"] == last})
-    expect(window.locator(".analysis-verdict")).to_have_text(f"{len(off)} of 4 groups are off.", timeout=LONG)
-    rows = window.locator("tbody .tie-row")
+    verb = "is" if len(off) == 1 else "are"
+    expect(note).to_contain_text(f"{len(off)} of 4 groups {verb} off.", timeout=LONG)
+    table = board.locator(".card", has_text="Tie-out by").first
+    rows = table.locator("tbody tr")
+    expect(rows).to_have_count(4, timeout=LONG)
     for region in off:
-        expect(rows.filter(has_text=region).locator(".badge")).to_have_text("off")
-    expect(window.locator("tbody")).not_to_contain_text("-0")  # a group that ties shows 0, never -0
+        expect(rows.filter(has_text=region)).to_contain_text("off")
+    expect(table.locator("tbody")).not_to_contain_text("-0")  # a group that ties shows 0, never -0
     shot(page, "8-power-bi-tied-out-against-postgresql")
     act.done(ceiling=22)
 
@@ -1089,13 +1094,18 @@ def test_9_a_forecast_becomes_a_sandbox_report_printed_to_pdf(
     page.bring_to_front()
     act.click(page.locator(".tab-item[data-grid]", has_text="invoices"))
     # The Analyze page (2026-11-19): the forecast's form has the table and the columns picked already, and
-    # its result lands on the board by itself (three clicks: the rail, the analysis, Run).
+    # its result lands on the board by itself (the rail, the analysis, the period, Run).
     act.click(page.locator(".nav-rail [data-area='analyze']"))
     act.click(page.locator("#ai-panel .analyze-btn[data-analysis='forecast']"))
     form = page.locator("#ai-panel .analyze-side .analyze-form")
     date = form.locator(".analyze-chip-row[data-slot='date'] select.chip-select")
     expect(date).to_have_value("invoice_date", timeout=LONG)
     expect(form.locator(".analyze-chip-row[data-slot='metric'] select.chip-select")).to_have_value("amount")
+    # A year of invoices is picked as weeks from the dates (domain/analyze.py period_for: a few dozen
+    # points); the report is by month, chosen under More options.
+    act.click(form.locator("details.analyze-more > summary"))
+    act.select(form.locator(".analyze-option[data-option='period'] select"), value="month")
+    expect(form.locator(".analyze-option[data-option='period'] select")).to_have_value("month", timeout=LONG)
     act.click(form.get_by_role("button", name="Run", exact=True))
     cards = page.locator("#ai-panel .analyze-board .card")
     expect(cards).to_have_count(2, timeout=LONG)  # the note and its chart (once only the note came)

@@ -74,6 +74,45 @@ def test_without_the_app_a_saved_connection_runs_with_its_password_from_the_keyr
         assert standalone.spec("shop")["secrets"] == {"password": "made-up-password"}
 
 
+def test_without_the_app_a_password_saved_in_the_form_is_its_keyring_variable_and_is_found(
+    made_up_shop: Path, no_app: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A password saved through the connection form is a keyring variable of the library
+    (`secret("SHOP_PASSWORD")`, variables.toml's `from = "keyring"`): the app gives it to what it starts
+    while it runs, and a scheduled run on this computer with the app closed finds it the same way. A
+    plain variable the code reads through os.environ (a setting's ${NAME}) is found too; a value the
+    run's own environment sets wins."""
+    made = sqlite_connection(made_up_shop)
+    made["code"] = (
+        "import os\n"
+        + made["code"]
+        + (
+            'if secret("SHOP_PASSWORD") != "made-up-password":\n    raise ValueError("wrong password")\n'
+            'if os.environ["SHOP_REGION"] != "North":\n    raise ValueError("wrong region")\n'
+        )
+    )
+    for name in ("SHOP_PASSWORD", "SHOP_REGION"):  # set, then taken away: put back as they were after
+        monkeypatch.setenv(name, "")
+        monkeypatch.delenv(name)
+    with memory_keyring():
+        with make_client(no_app.parent) as client:
+            for variable in (
+                {"name": "SHOP_PASSWORD", "value": "made-up-password", "from": "keyring"},
+                {"name": "SHOP_REGION", "value": "North", "from": "value", "local": True},
+            ):
+                put = client.put("/variables", json=variable, headers=AUTH)
+                assert put.status_code == 200, put.text
+            saved = client.post("/connections", json=made, headers=AUTH)
+            assert saved.status_code == 200, saved.text
+        assert "SHOP_PASSWORD" not in os.environ  # the app's values went with it
+        frame = sql_cell.sql("Shop", "SELECT count(*) AS n FROM orders")
+        assert int(frame["n"][0]) == 7
+        assert standalone.spec("Shop")["secrets"] == {"SHOP_PASSWORD": "made-up-password"}
+        assert os.environ["SHOP_REGION"] == "North" and "SHOP_PASSWORD" not in os.environ
+        monkeypatch.setenv("SHOP_PASSWORD", "from the run")  # the run's own setting first
+        assert standalone.spec("Shop")["secrets"] == {"SHOP_PASSWORD": "from the run"}
+
+
 def test_without_the_app_an_exported_connection_beside_the_notebook_takes_its_password_from_the_environment(
     made_up_shop: Path, no_app: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -16,7 +16,13 @@ same calls find the connection here, so the notebook runs as it is, with no expo
 Passwords: a value saved on this computer (the keyring, when this Python has the keyring package and
 the computer a vault), else an environment variable named after the connection and the secret
 (Shop's secret("password") reads SHOP_PASSWORD), else one named as the code names it (PASSWORD,
-password). A password that comes from a key vault in the app is the variable the vault would set: an
+password), else this computer's variable of that name (the library's variables.toml: a password saved
+in the connection form is the keyring variable its code names, `secret("SHOP_PASSWORD")`; the app gives
+the variables to what it starts while it runs, and a run with the app closed reads them here). A plain
+variable the code reads through os.environ (a setting's `${NAME}`) is set in this process's environment
+the same way, when the environment does not set it already.
+
+A password that comes from a key vault in the app is the variable the vault would set: an
 Azure Function's Key Vault reference sets it, and the vault's own code runs only when it is not set.
 Standard library only, like the rest of the client.
 """
@@ -29,8 +35,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.adapters.blades import BladeStore
-from swissarmybench.domain import dataverse, lakes, python_connections
+from swissarmybench.adapters.blades import KEYRING_SERVICE, BladeStore
+from swissarmybench.domain import dataverse, lakes, library, python_connections
 from swissarmybench.domain.blades import Blade, VaultUnavailableError, is_blade, read_blade
 from swissarmybench.domain.connections import connection_kind, env_name_for
 from swissarmybench.renamed import env, home_state_folder
@@ -128,6 +134,42 @@ def _from_environment(blade: Blade, wanted: list[str]) -> dict[str, str]:
     return found
 
 
+def _variables(names: list[str]) -> dict[str, str]:
+    """This computer's variables among these names, as the app gives them to what it starts
+    (services/variables.py apply): a plain value, or a keyring variable's value saved here. Nothing
+    readable (no library, no keyring package, no vault): nothing found."""
+    if not names:
+        return {}
+    folder = _library()
+
+    def read(path: Path) -> str:
+        try:
+            return path.read_text(encoding="utf-8") if path.is_file() else ""
+        except (OSError, UnicodeError):
+            return ""
+
+    # The two files as domain/variables.py read_defined reads them (that module needs the server's packages).
+    shared = library.read_variables_toml(read(folder / library.VARIABLES_FILE)) or {}
+    local = (library.read_local_toml(read(folder / library.LOCAL_VARIABLES_FILE)) or {}).get("values") or {}
+    found: dict[str, str] = {}
+    for row in shared.get("variables") or []:
+        name, origin = row.get("name"), row.get("from")
+        if name not in names or name in found:
+            continue
+        if origin == "value":
+            value = local.get(name) if row.get("local") in ("yes", "true", "True") else row.get("value")
+        elif origin == "keyring":
+            try:
+                value = _Store._keyring().get_password(KEYRING_SERVICE, f"variable/{name}")
+            except Exception:  # noqa: S112 (no keyring here: nothing saved)
+                continue
+        else:
+            continue
+        if isinstance(value, str):
+            found[name] = value
+    return found
+
+
 def spec(name: str) -> dict[str, Any]:
     """What `sab.blade()` runs, in the shape the app's /blades/{name}/python gives it
     (services/blades.py for_python), read from this computer and the environment."""
@@ -135,6 +177,12 @@ def spec(name: str) -> dict[str, Any]:
     blade = find(name, blades)
     saved = blades.saved_secrets(blade)
     secrets = saved | _from_environment(blade, [s for s in blade.secrets if s not in saved])
+    secrets |= _variables([s for s in blade.secrets if s not in secrets])
+    # The variables its code reads through os.environ (a setting's ${NAME}), as a running app gives them.
+    # (secret()'s names are the secrets above, never put in the environment.)
+    reads = python_connections.env_names(blade.code)
+    unread = [n for n in reads if n not in os.environ and n not in blade.secrets]
+    os.environ.update(_variables(unread))
     vaults, typed = blades.providers(blade)
     if all(s in secrets for s in blade.secrets):
         vaults, typed = [], {}  # every value is here: no vault needs to run, nobody is asked
