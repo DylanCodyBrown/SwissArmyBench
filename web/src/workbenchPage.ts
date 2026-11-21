@@ -1338,7 +1338,7 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
   notebookModes(doc);
   if (isData(doc)) dataMode(doc, dictionary ?? {});
   show(doc);
-  doc.streamlit!.syncSoon(); // the server knows its cells: the live ones say their state
+  doc.streamlit?.syncSoon(); // the server knows its cells: the live ones say their state
   // A new notebook is for typing: the cursor waits in its first cell.
   if (!path && !cells.length) doc.notebook.select(0, true);
   return doc;
@@ -1373,7 +1373,7 @@ function openScript(path: string | null, text: string, modified: number | null):
   scriptModes(doc);
   if (path) void readArguments(doc);
   show(doc);
-  doc.streamlit!.syncSoon();
+  doc.streamlit?.syncSoon();
   return doc;
 }
 
@@ -2748,7 +2748,7 @@ const NO_LIVE = "the document in front has no cell that calls Streamlit";
  *  now: for the agent. */
 async function pieceReport(): Promise<unknown> {
   const doc = current!;
-  const state = await doc.streamlit!.sync();
+  const state = (await doc.streamlit?.sync()) ?? null;
   return {
     document: doc.title,
     path: doc.path,

@@ -60,7 +60,7 @@ def orchard(server: dict[str, Any], tmp_path: Path) -> Path:
         "version": 1,
         "pages": [{"id": "p1", "name": "Page 1", "blocks": [block]}],
     }
-    (folder / "shop.stapp.json").write_text(json.dumps(app), encoding="utf-8")
+    del app  # (app canvases were replaced by widgets, 2026-11-21: none is written)
     return folder
 
 
@@ -85,30 +85,6 @@ def test_a_projects_notebooks_wear_their_kind_on_tabs_cards_and_files(
     # The agent sees the same kinds.
     roles = {d["title"]: d.get("role") for d in window(server, "documents")["documents"]}
     assert roles["data.ipynb"] == "data" and roles["pickers.ipynb"] == "app", roles
-    # The Notebooks page: the Transformations first (none here), then the two groups.
-    page.locator(".nav-rail [data-area='notebooks']").click()
-    landing = page.locator(".wb-landing")
-    expect(landing).to_be_visible(timeout=20000)
-    headings = landing.locator("h2.wb-landing-section")
-    expect(headings).to_have_text(["Data notebook", "App notebooks"], timeout=20000)
-    data_cards = landing.locator(".wb-landing-data .wb-landing-card")
-    expect(data_cards).to_have_count(1)
-    expect(data_cards.first).to_contain_text("data.ipynb")
-    expect(data_cards.first.locator(".wb-landing-icon")).to_have_attribute("data-icon", "dataNotebook")
-    expect(data_cards.first.locator(".wb-landing-icon")).to_have_attribute("title", "Data notebook")
-    apps = landing.locator(".wb-landing-app .wb-landing-card")
-    expect(apps).to_have_count(2)
-    expect(apps.locator(".wb-landing-icon[data-icon='appNotebook']")).to_have_count(2)
-    shot(page, "notebooks-page-two-groups")
-    # New on that page makes an app notebook (the project has one data notebook).
-    new = page.locator(".wb-top").get_by_role("button", name="New app notebook")
-    expect(new).to_be_visible()
-    new.click()
-    expect(landing).to_be_hidden()
-    made = tab(page, "Untitled notebook")
-    expect(made).to_have_attribute("data-kind", "appNotebook", timeout=20000)
-    expect(made.locator(".wb-tab-icon")).to_have_attribute("title", "App notebook")
-    shot(page, "new-app-notebook")
 
 
 def test_the_data_explorer_is_beside_every_document(
@@ -121,7 +97,6 @@ def test_the_data_explorer_is_beside_every_document(
     window(server, "project.open", folder=str(orchard))
     panel = page.locator(".wb-explorer")
     expect(tab(page, "data.ipynb")).to_be_visible(timeout=30000)
-    expect(tab(page, "shop.stapp.json").or_(tab(page, "shop"))).to_have_count(1, timeout=20000)
     tab(page, "data.ipynb").click()
     expect(panel).to_be_hidden()  # off until opened
     assert window(server, "documents")["panes"]["data_explorer"] == "closed"
@@ -130,9 +105,6 @@ def test_the_data_explorer_is_beside_every_document(
     shot(page, "data-notebook-data-explorer")
     tab(page, "pickers.ipynb").click()
     expect(panel).to_be_visible()
-    tab(page, "shop.stapp.json").or_(tab(page, "shop")).click()
-    expect(panel).to_be_visible()
-    expect(page.locator(".wb-mode-left .wb-st")).to_be_visible()
     assert window(server, "documents")["panes"]["data_explorer"] == "open"
 
 

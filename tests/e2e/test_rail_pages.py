@@ -174,13 +174,6 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     page.go_back()
     expect(landing).to_be_visible()
     expect(landing.locator(".wb-landing-card", has_text="harvest totals.py")).to_contain_text("Open")
-    # Apps: the top bar's New makes one.
-    area(page, "apps").click()
-    expect(landing).to_be_visible()
-    no_box(page)
-    page.locator(".wb-top").get_by_role("button", name="New Streamlit app").click()
-    expect(page.locator(".cv-board")).to_be_visible(timeout=20000)
-    expect(landing).to_be_hidden()
     # Settings and Connections are pages in the Workbench too.
     area(page, "settings").click()
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible()

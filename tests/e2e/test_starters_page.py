@@ -72,8 +72,6 @@ def orders(server: dict[str, Any]) -> Iterator[None]:
     close_tables(server)
     push_client.push(ORDERS, name="orders", new_grid=True)
     yield
-    for app in call(server, "GET", "/streamlit/apps")["apps"]:
-        call(server, "DELETE", f"/streamlit/apps/{app['app']}")
     close_tables(server)
 
 

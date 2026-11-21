@@ -198,7 +198,7 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
         "version": 1,
         "pages": [{"id": "p1", "name": "Page 1", "blocks": [block]}],
     }
-    (tmp_path / "ledger.stapp.json").write_text(json.dumps(app), encoding="utf-8")
+    del app  # (app canvases were replaced by widgets, 2026-11-21)
 
     page = browser.new_context(viewport={"width": 1500, "height": 950}, device_scale_factor=2).new_page()
     page.on("dialog", lambda d: d.accept())
@@ -234,9 +234,3 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     page.wait_for_function("() => document.querySelector('[class*=sab-stripe-]') !== null", timeout=20000)
     shot(page, "5-script-stripe")
 
-    window("file.open", path=str(tmp_path / "ledger.stapp.json"))
-    block_el = page.locator(".cv-block[data-block='b1']")
-    expect(block_el).to_have_attribute("data-connections", "Ledger", timeout=20000)
-    page.wait_for_function("() => document.querySelector('.cv-block.conn-worn') !== null")
-    assert worn(block_el) == shown(page, server, "Ledger")
-    shot(page, "6-canvas-block")

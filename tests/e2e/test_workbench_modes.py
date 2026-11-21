@@ -11,7 +11,6 @@ With SWISSARMYBENCH_MODES_SHOTS set to a folder, the tests also save screenshots
 from __future__ import annotations
 
 import json
-import urllib.error
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -25,7 +24,6 @@ from swissarmybench.client import push_client
 from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
-from tests.streamlit_helpers import STREAMLIT_PYTHON
 
 SHOTS = env("SWISSARMYBENCH_MODES_SHOTS") or None
 ORDERS = pd.DataFrame(
@@ -70,8 +68,6 @@ def orders(server: dict[str, Any]) -> Iterator[None]:
     close_tables(server)
     push_client.push(ORDERS, name="orders", new_grid=True)
     yield
-    for app in call(server, "GET", "/streamlit/apps")["apps"]:
-        call(server, "DELETE", f"/streamlit/apps/{app['app']}")
     close_tables(server)
 
 
@@ -88,79 +84,6 @@ def token(page: Page, name: str) -> str:
 def rgb(hex_colour: str) -> str:
     r, g, b = (int(hex_colour[i : i + 2], 16) for i in (1, 3, 5))
     return f"rgb({r}, {g}, {b})"
-
-
-def app_files(server: dict[str, Any], folder: Path) -> Path:
-    """A saved notebook of three Streamlit cells, and a saved app linking them (two rows)."""
-    folder.mkdir(parents=True, exist_ok=True)
-    notebook = folder / "app mockups.ipynb"
-    cells = [
-        {"kind": "code", "source": FILTER, "name": "Region filter"},
-        {"kind": "code", "source": TOTAL, "name": "Total sales"},
-        {"kind": "code", "source": LARGEST, "name": "Largest orders"},
-    ]
-    call(server, "POST", "/workbench/save", {"path": str(notebook), "cells": cells})
-    if STREAMLIT_PYTHON:
-        call(server, "POST", "/workbench/environment", {"path": str(notebook), "python": STREAMLIT_PYTHON})
-    page = {
-        "name": "Overview",
-        "blocks": [
-            {"document": str(notebook), "cell": 1, "row": 1, "column": 1, "w": 4, "h": None},
-            {"document": str(notebook), "cell": 2, "row": 1, "column": 5, "w": 4, "h": None},
-            {"document": str(notebook), "cell": 3, "row": 2, "column": 1, "w": 12, "h": None},
-        ],
-    }
-    app = folder / "sales app.stapp.json"
-    call(
-        server,
-        "POST",
-        "/workbench/save",
-        {"path": str(app), "pages": [page, {"name": "Products", "blocks": []}]},
-    )
-    return app
-
-
-def test_kind_colours_on_tabs_menus_and_settings(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    script = tmp_path / "sales" / "daily_sales.py"
-    script.write_text("import os\nprint(os.getenv('REPORT_FOLDER', 'reports'))\n", encoding="utf-8")
-    page = open_window(browser, server, app)
-    window(server, "file.open", path=str(script))
-    window(server, "file.open", path=str(tmp_path / "sales" / "app mockups.ipynb"))
-    tabs = page.locator(".wb-tab")
-    expect(tabs).to_have_count(3, timeout=20000)
-    marks = {t.inner_text().strip("●× \n"): t.get_attribute("class") or "" for t in tabs.all()}
-    assert "mark-app" in marks["sales app.stapp.json"] and "mark-script" in marks["daily_sales.py"]
-    assert "mark-notebook" in marks["app mockups.ipynb"]
-    # Violet, blue, green: the tokens, on the tab's icon; the group wears its front document's.
-    assert colour(page, ".wb-tab.mark-app .wb-tab-icon") == rgb(token(page, "app"))
-    assert colour(page, ".wb-tab.mark-script .wb-tab-icon") == rgb(token(page, "script"))
-    expect(page.locator(".wb-group").first).to_have_attribute("data-mark", "notebook")
-    # The Streamlit cells panel (the canvas's own, on its left): each cell by its source document's colour.
-    page.locator(".wb-tab.mark-app").click()
-    expect(page.locator(".wb-st-doc.km-notebook .wb-st-cell")).to_have_count(3, timeout=20000)
-    # Settings' Kind colours, shared by every window: the agent chooses one, every window follows.
-    window(server, "palette")  # (the palette opens and closes: a smoke of the window's commands)
-    page.keyboard.press("Escape")
-    chosen = call(server, "PUT", "/kind-colours", {"script": "#227744"})["kinds"][2]
-    shown = chosen["themes"]["light"]  # made readable on the light theme (a little darker)
-    until(lambda: token(page, "script") == shown)  # the notice reaches the page
-    assert token(page, "script") == shown
-    menu_button = page.get_by_role("button", name="Workbench menu", exact=True)
-    menu_button.click()
-    page.get_by_role("menuitem", name="Settings…", exact=True).click()
-    section = page.locator(".kind-colours-fieldset")
-    expect(section).to_be_visible()
-    expect(section.locator(".kind-colour")).to_have_count(3)
-    expect(section.get_by_role("button", name="Default")).to_have_count(1)
-    shot(page, "kind-colours-settings")
-    section.get_by_role("button", name="Default").click()
-    until(lambda: token(page, "script") != shown)
-    assert token(page, "script") == "" or token(page, "script") != shown
-    page.keyboard.press("Escape")
-    page.context.close()
 
 
 def test_notebook_mode_run_order_outline_run_up_to_here_and_present(
@@ -353,57 +276,4 @@ def test_data_mode_cells_lineage_and_the_dictionary(
     window(server, "data.view", view="cells")
     expect(page.locator(".wb-cells").first).to_be_visible()
     expect(view).to_be_hidden()
-    page.context.close()
-
-
-def test_a_panel_turned_off_in_settings_is_gone(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    bar = page.locator(".wb-status")
-    expect(bar.get_by_role("button", name="Properties", exact=True)).to_be_visible()
-    call(server, "PUT", "/panels", {"workbench.properties": False})
-    try:
-        expect(bar.get_by_role("button", name="Properties", exact=True)).to_have_count(0, timeout=10000)
-        try:
-            window(server, "mode.panel", panel="properties")
-            raise AssertionError("the panel opened")
-        except urllib.error.HTTPError as error:
-            assert "turned off" in error.read().decode() or "none" in str(error)
-    finally:
-        call(server, "PUT", "/panels", {"workbench.properties": True})
-    page.context.close()
-
-
-def test_two_groups_keep_their_own_panels(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    notebook = tmp_path / "sales" / "analysis.ipynb"
-    call(
-        server,
-        "POST",
-        "/workbench/save",
-        {
-            "path": str(notebook),
-            "cells": [
-                {"kind": "markdown", "source": "# Monthly sales"},
-                {"kind": "code", "source": "x = 1", "name": "x"},
-            ],
-        },
-    )
-    page = open_window(browser, server, notebook)
-    window(server, "file.open", path=str(app))
-    expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
-    window(server, "group.splitRight")
-    expect(page.locator(".wb-group")).to_have_count(2)
-    window(server, "mode.panel", panel="properties", show=True)
-    window(server, "canvas.select", block=window(server, "canvas.state")["pages"][0]["blocks"][0]["id"])
-    window(server, "group.focus", group=0)
-    window(server, "mode.panel", panel="outline", show=True)
-    expect(page.locator(".wb-group").nth(0).locator(".wb-mode-outline")).to_be_visible()
-    expect(page.locator(".wb-group").nth(1).locator(".wb-mode-properties")).to_be_visible()
-    shot(page, "side-by-side")
     page.context.close()

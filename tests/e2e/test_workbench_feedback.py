@@ -98,7 +98,7 @@ def test_new_and_open_sit_in_the_top_bar_on_every_landing_and_beside_a_document(
     at = labels.index("Save as…")
     assert labels[at + 1 : at + 3] == ["New script", "Open…"], labels
     shot(page, "scripts-landing-top-bar")
-    for kind, made in (("notebook", "New notebook"), ("app", "New Streamlit app")):
+    for kind, made in (("notebook", "New notebook"),):
         page.goto(
             f"http://127.0.0.1:{server['port']}/workbench?kind={kind}&view=list#token={server['token']}"
         )
