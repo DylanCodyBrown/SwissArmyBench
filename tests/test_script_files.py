@@ -104,3 +104,37 @@ def test_new_package_rename_duplicate_and_delete(tmp_path: Path, monkeypatch: py
         gone = ok(client.post("/scripts/files/delete", json={"path": copy["path"]}, headers=AUTH))
         assert gone["to"] == "the Trash" and not Path(copy["path"]).exists()
         assert (tmp_path / "share" / "Trash" / "files" / "report_copy.py").is_file()
+
+
+# ===== go to definition into a library: its source, read-only =====
+
+
+def test_a_librarys_source_opens_read_only_and_nothing_else_does(tmp_path: Path) -> None:
+    from swissarmybench.domain.script_ide import library_file
+
+    roots = ("/usr/lib/python3.12",)
+    assert library_file("/usr/lib/python3.12/json/__init__.py", roots)
+    assert library_file("/home/a/.venv/lib/python3.12/site-packages/pandas/core/frame.py", ())
+    assert not library_file("/home/a/secrets.py", roots)  # another file of the computer's
+    assert not library_file("/usr/lib/python3.12/../../etc/passwd.py", roots)
+    assert not library_file("/usr/lib/python3.12/json/data.json", roots)
+    with make_client(tmp_path) as client:
+        folder = project(client, tmp_path)
+        text = "import json\n\njson.dumps(1)\n"
+        found = ok(
+            client.post(
+                "/scripts/definition",
+                json={"text": text, "line": 3, "column": 7, "source": True},
+                headers=AGENT,
+            )
+        )
+        place = found["definitions"][0]
+        assert (
+            place["in_project"] is False and place["path"].endswith(".py") and "def dumps" in place["source"]
+        )
+        shown = ok(client.post("/scripts/library-file", json={"path": place["path"]}, headers=AUTH))
+        assert shown["read_only"] is True and "def dumps" in shown["text"]
+        refused = client.post(
+            "/scripts/library-file", json={"path": str(folder / "functions.py")}, headers=AUTH
+        )
+        assert refused.status_code == 403

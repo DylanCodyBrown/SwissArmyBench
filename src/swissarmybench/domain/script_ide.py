@@ -248,3 +248,24 @@ def free_copy_name(relative: str, taken: set[str]) -> str:
         if full not in taken:
             return full
         n += 1
+
+
+# ===== a library's source, read-only (2026-11-21): where go to definition leads outside the project =====
+
+LIBRARY_SUFFIXES: tuple[str, ...] = (".py", ".pyi")
+_LIBRARY_PARTS: frozenset[str] = frozenset({"site-packages", "dist-packages", "typeshed"})
+
+
+def library_file(path: Any, roots: tuple[str, ...]) -> bool:
+    """Whether `path` is a library's source the Scripts page may show read-only: a .py or .pyi inside one of
+    Python's own folders (`roots`: the standard library's, site-packages) or a site-packages folder of any
+    Python (a script's own environment). Never another file of the computer's."""
+    if not isinstance(path, str) or not path.endswith(LIBRARY_SUFFIXES):
+        return False
+    given = path.replace("\\", "/")
+    parts = given.split("/")
+    if ".." in parts:
+        return False
+    if _LIBRARY_PARTS & set(parts[:-1]):
+        return True
+    return any(given.startswith(r.replace("\\", "/").rstrip("/") + "/") for r in roots if r)

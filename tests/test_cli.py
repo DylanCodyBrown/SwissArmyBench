@@ -168,6 +168,7 @@ NOT_COMMANDS = {
     "/g/{}": "page shell",
     "/": "page shell: the bare address goes on to /workspace",
     "/workspace": "page shell",
+    "/scripts/library-file": "the read-only viewer: workbench_definition(source=true) gives the text",
     "/scripts/files/delete": "Delete (to the trash) is the user's own: the agent cannot delete",
     "/catalog": "the old blades page: a redirect to the Scripts page's Blades",
     "/workbench": "the old address: redirects to the Notebooks or Scripts page",

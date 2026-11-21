@@ -62,3 +62,32 @@ def test_rename_duplicate_delete_and_new_package_in_the_tree(
     page.get_by_role("dialog", name="New package").get_by_role("button", name="Create").click()
     expect(tree_file(page, "scripts/pipeline/__init__.py")).to_be_visible(timeout=20000)
     page.context.close()
+
+
+def test_go_to_definition_into_a_library_opens_it_read_only(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+    shop: Path,  # noqa: F811
+) -> None:
+    (shop / "scripts" / "dump.py").write_text("import json\n\njson.dumps({'loaf': 1})\n", encoding="utf-8")
+    page = page_of(browser, server, "scripts")
+    tree_file(page, "scripts/dump.py").click()
+    editor = page.locator(".wb-script-editor:visible .monaco-editor").first
+    expect(editor).to_be_visible(timeout=20000)
+    editor.locator(".view-lines").click()
+    page.keyboard.press("Control+End")
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("Home")
+    for _ in range(7):
+        page.keyboard.press("ArrowRight")  # inside dumps
+    page.keyboard.press("F12")
+    tab = page.locator(".wb-tab[data-kind='library']")
+    expect(tab).to_be_visible(timeout=20000)
+    body = page.locator(".wb-doc-body.kind-library:visible")
+    expect(body.locator(".ide-readonly")).to_have_text("read-only")
+    expect(body.locator(".monaco-editor")).to_contain_text("def dumps", timeout=20000)
+    # Typing changes nothing: Monaco's read-only message instead.
+    body.locator(".view-lines").click()
+    page.keyboard.type("x")
+    expect(body.locator(".monaco-editor")).not_to_contain_text("xdef")
+    page.context.close()

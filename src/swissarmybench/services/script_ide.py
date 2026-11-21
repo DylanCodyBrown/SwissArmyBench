@@ -79,6 +79,7 @@ class ScriptIde:
         library: Callable[[], tuple[str | None, list[str]]] = lambda: (None, []),
         tables: Callable[[], Awaitable[dict[str, Any]]] | None = None,
         trash: Callable[[str], str] | None = None,
+        library_roots: Callable[[], tuple[str, ...]] = lambda: (),
     ) -> None:
         self.ws = ws
         self._code = code
@@ -88,6 +89,7 @@ class ScriptIde:
         self._touched = touched
         self._library = library  # the library's folder and its code files
         self._tables = tables  # the open tables as their read-only cells (services/table_cells.py listing)
+        self._library_roots = library_roots  # Python's own folders: a library's source shown read-only
         self._trash = trash  # the system's trash (server/file_manager.py): Delete, the user's only
 
     # ===== the project's scripts =====
@@ -163,12 +165,28 @@ class ScriptIde:
 
     async def definition(self, body: Any) -> dict[str, Any]:
         """Where the name at the cursor is defined (F12): [{path, line, column, module, in_project,
-        builtin}]."""
+        builtin}]; with `source`, a library's file text too (read-only: library_file)."""
         text, line, column, path = self._where(body)
         _, folder = self._files()
         project = self._world.project(folder)
         found = await self._jedi(lambda: self._code.definition(text, line, column, path, project, folder))
+        if body.get("source") and found and not found[0].get("in_project") and found[0].get("path"):
+            found[0]["source"] = (await self.library_file({"path": found[0]["path"]}))["text"]
         return {"definitions": found}
+
+    async def library_file(self, body: Any) -> dict[str, Any]:
+        """{path}: a library's source, read-only (go to definition into an installed library: the owner's IDE
+        shows it in a tab marked read-only). Only a .py or .pyi of Python's own folders or a site-packages."""
+        path = body.get("path") if isinstance(body, dict) else None
+        if not rules.library_file(path, self._library_roots()):
+            raise Refused(
+                "Only a library's own source opens here (a .py of the standard library or site-packages)."
+            )
+        try:
+            text = await asyncio.to_thread(self._code.read, str(path))
+        except (OSError, ValueError) as error:
+            raise Refused(f"{path} could not be read: {error}") from None
+        return {"path": path, "text": text, "read_only": True}
 
     async def references(self, body: Any) -> dict[str, Any]:
         """Every use of the name at the cursor across the project (Shift+F12), with each line's text."""

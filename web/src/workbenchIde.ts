@@ -27,6 +27,8 @@ export interface IdeDoc {
 export interface IdeHost {
   /** Open a file at a line (another project module), on this page. */
   openAt: (path: string, line: number) => void;
+  /** An installed library's file, read-only in a tab of its own, at a line. */
+  openLibrary?: (path: string, line: number, module: string | null) => void;
 }
 
 interface Place {
@@ -53,7 +55,8 @@ async function definition(doc: IdeDoc, host: IdeHost, line: number, column: numb
   const found = said.definitions[0];
   if (!found) return toast("No definition found here.");
   if (found.in_project || !found.path || same(found.path, doc.path())) return go(doc, host, found);
-  // A library's: said, not opened for editing (the owner's IDE edits the project's code).
+  // A library's: its file read-only in a tab of its own (marked read-only), never for editing.
+  if (host.openLibrary && /\.pyi?$/.test(found.path)) return host.openLibrary(found.path, found.line, found.module);
   toast(`${found.name}: ${found.builtin ? "built in" : `in ${found.module ?? "a library"}`}, line ${found.line}.`);
 }
 

@@ -19603,3 +19603,31 @@ body.wb-full .wb-split.vertical,
 body.wb-full .wb-col-right {
   display: none !important;
 }
+
+/* A library's source, read-only (go to definition outside the project, 2026-11-21). */
+.wb-gbody:has(> .wb-doc-body.kind-library) {
+  overflow: hidden;
+}
+.wb-doc-body.kind-library {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.wb-library-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9em;
+}
+.wb-library-bar .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-library-code {
+  flex: 1;
+  min-height: 0;
+}

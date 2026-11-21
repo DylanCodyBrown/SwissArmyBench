@@ -6902,3 +6902,12 @@ Decisions:
 - Duplicate: `<stem>_copy.py`, then `_copy_2`, opened. Delete: the system's trash (server/file_manager.py), the
   user's own (403 for the agent; NOT_COMMANDS), a dialog first. A made file is refused with what it is made from.
 - The agent: workbench_file(action move | package | duplicate).
+
+## A library's source, read-only (built 2026-11-21, branch scripts-rest)
+
+- F12 on a name an installed library defines opens that file in a tab of its own (kind `library`): a "read-only"
+  chip and the module's name over Monaco read-only, at the line; one tab a file (F12 again moves its line). Not
+  kept in the session's restore.
+- POST /scripts/library-file reads only a .py or .pyi of Python's own folders (the app's stdlib, purelib,
+  platlib) or any site-packages, dist-packages or typeshed folder (a script's own environment): never another
+  file of the computer's (domain/script_ide.py library_file). The agent: workbench_definition(source=true).

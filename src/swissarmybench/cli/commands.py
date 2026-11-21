@@ -3351,15 +3351,15 @@ def _at(a: dict[str, Any]) -> dict[str, Any]:
 
 @command(
     "workbench_definition",
-    "Go to definition (F12) in a script: where the name at line/column is defined, across the project's "
-    "modules and the script's libraries",
+    "Go to definition (F12): where the name at line/column is defined (project or libraries)",
     req("text", "The script's text."),
     req("line", "The line, from 1.", "int"),
     req("column", "The column, from 1.", "int"),
     opt("path", "The script's file."),
+    opt("source", "A library's file text too.", "bool"),
 )
 def workbench_definition(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/scripts/definition", _at(a))
+    return api.call("POST", "/scripts/definition", _at(a) | ({"source": True} if a.get("source") else {}))
 
 
 @command(

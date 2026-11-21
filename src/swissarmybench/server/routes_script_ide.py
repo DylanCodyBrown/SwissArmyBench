@@ -9,6 +9,7 @@ POST /scripts/rename       {text, line, column, path, to, apply?}: the plan, or 
 POST /scripts/search       {query, regex?, case?, word?}: across the project's scripts
 POST /scripts/replace      {query, to, ..., apply?}: the plan, or applied
 POST /scripts/format       {text, python?}: Ruff's format in the script's Python
+POST /scripts/library-file    {path}: a library's source, read-only (go to definition outside the project)
 POST /scripts/files/package   {name, parent?}: a new package (its __init__.py)
 POST /scripts/files/move      {path, to, apply?}: rename a module or package, its imports following (the plan)
 POST /scripts/files/duplicate {path}: a copy beside it
@@ -50,6 +51,9 @@ def routes(ide: ScriptIde) -> list[BaseRoute]:
     async def format_(request: Request) -> Response:
         return json_response(await ide.format(await read_json(request)))
 
+    async def library_file(request: Request) -> Response:
+        return json_response(await ide.library_file(await read_json(request)))
+
     async def new_package(request: Request) -> Response:
         return json_response(await ide.new_package(await read_json(request), actor(request)))
 
@@ -71,6 +75,7 @@ def routes(ide: ScriptIde) -> list[BaseRoute]:
         Route("/scripts/search", safely(search), methods=["POST"]),
         Route("/scripts/replace", safely(replace), methods=["POST"]),
         Route("/scripts/format", safely(format_), methods=["POST"]),
+        Route("/scripts/library-file", safely(library_file), methods=["POST"]),
         Route("/scripts/files/package", safely(new_package), methods=["POST"]),
         Route("/scripts/files/move", safely(move), methods=["POST"]),
         Route("/scripts/files/duplicate", safely(duplicate), methods=["POST"]),

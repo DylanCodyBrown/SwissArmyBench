@@ -13,6 +13,7 @@ import asyncio
 import os
 import platform
 import sys
+import sysconfig
 import tempfile
 import time
 from collections.abc import Callable
@@ -1336,6 +1337,13 @@ def bootstrap(
         ),
         tables=table_cells.listing,
         trash=file_manager.trash,  # Delete: the system's trash, the user's own
+        library_roots=lambda: tuple(  # Python's own folders: a library's source, read-only
+            dict.fromkeys(
+                p
+                for k in ("stdlib", "platstdlib", "purelib", "platlib")
+                if (p := sysconfig.get_paths().get(k))
+            )
+        ),
     )
     blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     context_md = ContextMd(

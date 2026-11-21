@@ -121,11 +121,13 @@ watchTheme();
 
 interface Doc {
   id: number;
-  kind: "notebook" | "script" | "app" | "blade" | "table" | "workbook" | "codefile";
+  kind: "notebook" | "script" | "app" | "blade" | "table" | "workbook" | "codefile" | "library";
   title: string;
   path: string | null;
   modified: number | null;
   dirty: boolean;
+  /** A library's read-only tab: its editor to a line. */
+  libraryAt?: (line: number) => void;
   kernel: Kernel | null;
   python: string | null;
   element: HTMLElement;
@@ -1456,7 +1458,7 @@ function openScript(path: string | null, text: string, modified: number | null):
     // The Scripts IDE's moves (workbenchIde.ts): F12, Shift+F12, F2, Shift+Alt+F.
     ide: ideMoves(
       { path: () => doc.path, text: () => doc.script!.text(), python: () => doc.python, replaceText: (t) => doc.script!.replaceText(t), reveal: (line) => doc.script!.reveal(line) },
-      { openAt: (p, line) => void openAt(p, line) },
+      { openAt: (p, line) => void openAt(p, line), openLibrary: (p, line, module) => void openLibraryDoc(p, line, module).catch((e: Error) => errorHere(e)) },
     ),
   });
   attachStreamlit(doc);
@@ -1663,6 +1665,31 @@ onMode(() => {
 void whenMode();
 
 registerTabKind({ id: "codefile", label: "Code file", icon: "codeapp", mark: "script" });
+registerTabKind({ id: "library", label: "Library source", icon: "key", mark: "plain" });
+
+// ===== a library's source, read-only (go to definition outside the project: the owner's IDE shows it) =====
+
+/** An installed library's file in a tab of its own, read-only (marked so), at `line`; one tab a file. */
+async function openLibraryDoc(path: string, line: number, module: string | null): Promise<void> {
+  const already = docs.find((d) => d.kind === "library" && d.path === path);
+  if (already) {
+    show(already);
+    already.libraryAt?.(line);
+    return;
+  }
+  const said = await api<{ text: string }>("/scripts/library-file", "POST", { path });
+  const doc = makeDoc("library", baseName(path), path, null);
+  const host = h("div", { class: "wb-library-code", "data-own-zoom": "" });
+  doc.element.append(
+    h("div", { class: "wb-library-bar", role: "note" }, icon("key"), h("span", { class: "chip ide-readonly" }, "read-only"), h("span", { class: "hint", title: path }, module ?? path)),
+    host,
+  );
+  show(doc);
+  const m = await editors();
+  const editor = m.createCodeEditor(host, { language: path.endsWith(".pyi") || path.endsWith(".py") ? "python" : "plaintext", value: said.text, theme: effectiveTheme(), readOnly: true, readOnlyMessage: "A library's own source: read-only here." });
+  doc.libraryAt = (at) => editor.reveal(at, 1);
+  editor.reveal(line, 1);
+}
 
 // ===== a code app's files (the Power Apps extension's plug-in: workbenchCodeFile.ts) =====
 
