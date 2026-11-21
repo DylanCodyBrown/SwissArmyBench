@@ -197,7 +197,7 @@ def file_page(path: str, info: dict[str, Any]) -> str:
         stem = rules.blade_stem(target.name)
         try:
             get_json(info, f"/blades/{quote(stem, safe='')}")
-            return f"/catalog?blade={quote(stem, safe='')}"
+            return f"/scripts?pane=blades&blade={quote(stem, safe='')}"  # its tab on the Scripts page
         except OSError:
             pass  # not one of the library's: its file in the Workbench
     # A notebook on the Notebooks page, a .py on the Scripts page (the owner, 2026-11-21).

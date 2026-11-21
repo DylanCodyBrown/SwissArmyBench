@@ -168,7 +168,9 @@ NOT_COMMANDS = {
     "/g/{}": "page shell",
     "/": "page shell: the bare address goes on to /workspace",
     "/workspace": "page shell",
-    "/catalog": "page shell",
+    "/scripts/library-file": "the read-only viewer: workbench_definition(source=true) gives the text",
+    "/scripts/files/delete": "Delete (to the trash) is the user's own: the agent cannot delete",
+    "/catalog": "the old blades page: a redirect to the Scripts page's Blades",
     "/workbench": "the old address: redirects to the Notebooks or Scripts page",
     "/notebooks": "page shell: the Notebooks page (the agent works its files and kernels directly)",
     "/scripts": "page shell: the Scripts page (the agent works its files and kernels directly)",
@@ -1046,8 +1048,8 @@ def test_sab_saves_a_snapshot_to_a_file_and_prints_where(
 
 def test_the_agent_makes_a_blade_as_the_user_does_and_reads_it_back(live: Live) -> None:
     """The golden rule: blades_new makes a file from a template at once (no Allow), blades_get gives the code
-    back; blades_update changes the header only, never the code (the owner, 2026-11-17), and a table name is
-    checked as the page checks it."""
+    back; blades_header_set changes the header only, never the code (2026-11-21: any header field), and a
+    table name is checked as the page checks it."""
     choices = run("blades_new")["choices"]
     assert {"id": "table", "label": "A table (a DataFrame)", "group": "Blades", "kind": "other"} in choices
     made = run("blades_new", template="table", name="Monthly sales", table="monthly_sales")
@@ -1058,17 +1060,17 @@ def test_the_agent_makes_a_blade_as_the_user_does_and_reads_it_back(live: Live) 
         "monthly_sales is Monthly sales's table"
     )
     assert run("blades_table_name_check", name="monthly_sales", blade="Monthly sales")["available"]
-    changed = run(
-        "blades_update",
-        name="Monthly sales",
-        description="Sales by month",
-        tags=["sales"],
-        table="sales_by_month",
-    )
-    assert changed["table"] == "sales_by_month" and changed["tags"] == ["sales"]
+    fields = {"description": "Sales by month", "tags": ["sales"], "table": "sales_by_month"}
+    changed = run("blades_header_set", name="Monthly sales", fields=fields)
+    shown = {f["key"]: f["value"] for f in changed["fields"]}
+    assert shown["table"] == "sales_by_month" and shown["tags"] == ["sales"]
+    assert {f["key"] for f in run("blades_header_set", name="Monthly sales")["fields"]} >= {
+        "variable",
+        "table",
+    }
     assert run("blades_get", name="Monthly sales")["code"] == code
     with pytest.raises(Exception, match="not a valid name"):
-        run("blades_update", name="Monthly sales", table="select")
+        run("blades_header_set", name="Monthly sales", fields={"table": "select"})
     [listed] = run("blades_list")["blades"]
     assert listed["name"] == "Monthly sales" and listed["description"] == "Sales by month"
 

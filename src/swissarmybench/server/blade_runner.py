@@ -870,6 +870,12 @@ def _ide_run(job: dict[str, Any], secrets: dict[str, str], hidden: dict[str, str
             if not needed:  # a table blade's function: what it returns is what it makes
                 made_by = getattr(value, "__name__", "it")
                 value = value()
+        elif callable(value) and job["kind"] == "analysis" and job.get("mode") == "run":
+            # The IDE's Run tries an analysis on made-up rows (the Analyze page gives it a table's own).
+            import pandas as pd
+
+            made_by = getattr(value, "__name__", "it")
+            value = value(pd.DataFrame(_SAMPLE_ROWS))
     except BaseException as error:
         if isinstance(error, KeyboardInterrupt):
             raise
@@ -882,6 +888,14 @@ def _ide_run(job: dict[str, Any], secrets: dict[str, str], hidden: dict[str, str
         return failed(error)
     finally:
         close_quietly(value)
+
+
+# Made-up rows an analysis blade is tried on by the IDE's Run.
+_SAMPLE_ROWS: dict[str, list[Any]] = {
+    "region": ["North", "South", "East", "West", "North", "South"],
+    "month": ["2026-01", "2026-01", "2026-02", "2026-02", "2026-03", "2026-03"],
+    "amount": [120.5, 89.0, 342.25, 57.75, 210.0, 98.5],
+}
 
 
 def _ide_result(value: Any, made_by: str | None) -> dict[str, Any]:

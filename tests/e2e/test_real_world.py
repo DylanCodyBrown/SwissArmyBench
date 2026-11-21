@@ -219,7 +219,9 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
     """Connections, Add connection, a database's form filled in, Test, Save, back to the grids."""
     dialog = page.locator(".area-page[data-page='connections']")
     act.click(page.locator(".nav-rail [data-area='connections']"))
-    act.click(page.get_by_role("button", name="Add connection").first)
+    act.click(
+        dialog.get_by_role("button", name="Add connection").first
+    )  # the page's own (a page under it has one)
     act.click(page.locator(".connection-type", has_text=kind))
     act.fill(dialog.get_by_label("Name", exact=True), name)
     act.fill(dialog.get_by_label("Server", exact=True), where["host"])
@@ -235,47 +237,89 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
 
 
 def open_blades(act: Actions, page: Page) -> Page:
-    """The blades page: a window of its own."""
-    with page.context.expect_page() as opened:
-        act.click(page.locator(".nav-rail [data-area='blades']"))
-    blades = opened.value
-    expect(blades.locator(".blade-list")).to_be_visible(timeout=LONG)
+    """The rail's Blades: the Scripts page's Blades pane (the blades page went, 2026-11-21), in the Scripts
+    page's own window, or this tab when the rail moves it."""
+    pages = len(page.context.pages)
+    act.click(page.locator(".nav-rail [data-area='blades']"))
+    for _ in range(50):
+        if len(page.context.pages) > pages:
+            break
+        if "/scripts" in page.url:
+            break
+        page.wait_for_timeout(100)
+    blades = page.context.pages[-1] if len(page.context.pages) > pages else page
+    expect(blades.locator(".wb-codex-lower.lower-blades .blade-list")).to_be_visible(timeout=LONG)
     return blades
 
 
 def open_catalog(act: Actions, page: Page) -> Page:
-    """A connection's tables are on the Connections page (the blades page's catalog panel went, the owner
-    2026-11-17): the same window; choose_catalog opens a connection's detail and its tree."""
+    """A connection's tables are on the Catalog page (the rail's Catalog: the one place to browse tables), in
+    the same window; choose_catalog unfolds a connection there."""
     return page
 
 
 _chosen: dict[str, str] = {}
 
 
+def _unfold(act: Actions, node: Locator) -> None:
+    """A tree node of the Catalog page opened (its caret), when it is not."""
+    if node.get_attribute("aria-expanded") != "true":
+        act.click(node.locator(":scope > .db-line .db-caret"))
+    expect(node).to_have_attribute("aria-expanded", "true", timeout=LONG)
+
+
 def choose_catalog(act: Actions, page: Page, name: str) -> None:
-    """The Connections page at a connection's detail: its tables as a tree."""
-    act.click(page.locator(".nav-rail [data-area='connections']"))
-    act.click(page.locator(f".area-page[data-page='connections'] .connection-card[data-connection='{name}']"))
-    expect(page.locator(".connection-tables .conn-tree-table").first).to_be_attached(timeout=LONG)
+    """The Catalog page, a connection unfolded to its tables (loaded first when it is not)."""
+    act.click(page.locator(".nav-rail [data-area='data']"))
+    node = page.locator(f".db-tree li.kind-connection[aria-label='{name}']")
+    expect(node).to_be_visible(timeout=LONG)
+    load = node.locator(":scope > .db-line").get_by_role("button", name="Load")
+    if load.count():
+        act.click(load)
+    _unfold(act, node)
+    expect(node.locator("li.kind-table, li.kind-group").first).to_be_attached(timeout=LONG)
     _chosen[str(id(page))] = name
 
 
 def tree_of(act: Actions, page: Page) -> Locator:
-    """The tree of the connection chosen last, shown again when an Open took the page to the grids."""
-    tree = page.locator(".area-page[data-page='connections'] .connection-tables")
-    if not tree.count() or not tree.first.is_visible():
-        choose_catalog(act, page, _chosen[str(id(page))])
-    return tree.first
+    """The connection chosen last (the first one listed when none was), shown again when an Open took the
+    page to the grids."""
+    name = _chosen.get(str(id(page)))
+    if name is None:
+        act.click(page.locator(".nav-rail [data-area='data']"))
+        first = page.locator(".db-tree li.kind-connection").first
+        expect(first).to_be_visible(timeout=LONG)
+        name = str(first.get_attribute("aria-label"))
+        choose_catalog(act, page, name)
+    node = page.locator(f".db-tree li.kind-connection[aria-label='{name}']")
+    if not node.count() or not node.first.is_visible():
+        choose_catalog(act, page, name)
+    return node.first
+
+
+def _open_row(act: Actions, page: Page, within: Locator, table: str) -> None:
+    row = within.locator(f"li.kind-table[aria-label='{table}']").first
+    expect(row).to_be_attached(timeout=LONG)
+    act.click(row.locator(":scope > .db-line").get_by_role("button", name="Open as grid"))
 
 
 def open_as_grid(act: Actions, catalog: Page, table: str, schema: str | None = None) -> None:
-    """A table of the connection's tree: its Open."""
+    """A table of the connection's tree: its Open as grid."""
     tree = tree_of(act, catalog)
-    within = tree.locator(f".conn-tree-group[data-group='{schema}']") if schema is not None else tree
-    act.click(
-        within.locator(f".conn-tree-table[data-table='{table}']").first.get_by_role("button", name="Open")
-    )
+    within = tree
+    if schema is not None:
+        within = tree.locator(f"li.kind-group[aria-label='{schema}']").first
+        _unfold(act, within)
+    _open_row(act, catalog, within, table)
     expect(catalog.locator(".toast", has_text="is open as a grid").last).to_be_visible(timeout=LONG)
+    back_to_grids(act, catalog)
+
+
+def back_to_grids(act: Actions, page: Page) -> None:
+    """The Catalog page is over the grids: the rail's Grids, when it is still in front (not counted: the old
+    tree was in a window of its own, and going back to the app's window was not counted either)."""
+    if page.locator(".area-page[data-page='data']").is_visible():
+        page.locator(".nav-rail [data-area='grids']").click()
 
 
 def open_workbench(act: Actions, page: Page) -> Page:
@@ -288,8 +332,9 @@ def open_workbench(act: Actions, page: Page) -> Page:
 
 
 def save_as(act: Actions, workbench: Page, name: str) -> None:
-    """Save as…, the file's name, Save here (the chooser opens in the app's own folder)."""
-    act.click(workbench.get_by_role("button", name="Save as…").first)
+    """Save as… (Ctrl+Shift+S: the page has no top bar since 2026-11-21), the file's name, Save here (the
+    chooser opens in the app's own folder)."""
+    act.press(workbench, "Control+Shift+S")
     chooser = workbench.locator(".file-chooser")
     act.fill(chooser.get_by_label("File name"), name)
     act.click(chooser.get_by_role("button", name="Save here"))
@@ -481,7 +526,7 @@ def test_3_the_notebook_runs_as_an_azure_function_would_with_its_password_from_t
     page = app_page(browser, bench)
     catalog = open_blades(act, page)
     act.click(catalog.locator(".blade-item", has_text="Shop").locator(".blade-name, .blade-text").first)
-    act.click(catalog.get_by_role("button", name="More"))  # the blade IDE's menu (2026-11-21)
+    act.click(catalog.locator(".code-ide:visible").get_by_role("button", name="More"))  # its tab's IDE menu
     with catalog.expect_download() as downloaded:
         act.click(catalog.get_by_role("menuitem", name="Export"))
     function = tmp_path / "function"
@@ -560,9 +605,15 @@ def ensure_shop(bench: dict[str, Any]) -> None:
 
 
 def blade_list(act: Actions, workbench: Page, family: str) -> Locator:
-    """The Workbench's blade list (+ Blade), opened when it is not, with a family of starters open."""
+    """The Notebooks page's blade list (the Data Explorer pane's + Blade: the pane opened with Ctrl+Shift+E
+    when it is folded), opened when it is not, with a family of starters open. On the Scripts page the
+    blades are the Blades pane under the files."""
     if not workbench.locator(".wb-flyout:not([hidden])").count():
-        act.click(workbench.get_by_role("button", name="Add a blade"))
+        add = workbench.get_by_role("button", name="Add a blade")
+        if not add.is_visible():
+            act.press(workbench, "Control+Shift+E")
+            expect(add).to_be_visible(timeout=20000)
+        act.click(add)
     listed = workbench.locator(".wb-flyout .blade-list")
     toggle = listed.locator(".starter-family", has_text=family)
     if toggle.get_attribute("aria-expanded") != "true":
@@ -828,7 +879,7 @@ def test_6_a_csv_folder_workbook_sheets_and_a_database_table_are_combined_and_th
     act.press(workbench, "Control+End")
     paste_code(act, workbench, f'\ndaily = combine_csvs(r"{STATE["files"]["daily_orders"]}")\ndaily')
     act.click(workbench.get_by_role("button", name="Run all"))
-    act.click(workbench.locator(".wb-to-grid").last)
+    act.click(workbench.locator(".wb-to-grid:visible").last)
     expect(tabs.filter(has_text="daily")).to_have_count(1, timeout=LONG)
     # The joins: Find relationships in the ERD; the likely ones are added at once and drawn.
     page.bring_to_front()
@@ -867,7 +918,7 @@ def add_finance(act: Actions, page: Page) -> None:
 
     dialog = page.locator(".area-page[data-page='connections']")
     act.click(page.locator(".nav-rail [data-area='connections']"))
-    act.click(page.get_by_role("button", name="Add connection").first)
+    act.click(dialog.get_by_role("button", name="Add connection").first)
     act.click(page.locator(".connection-type", has_text="Power BI workspace"))
     act.fill(dialog.get_by_role("textbox", name="Name"), "Finance")
     act.fill(dialog.get_by_role("textbox", name="Workspace id"), made_up.WORKSPACE)
@@ -901,16 +952,22 @@ def team_vault(bench: dict[str, Any]) -> None:
 
 
 def dataset_item(catalog: Page, label: str, level: int = 1) -> Locator:
-    """A Power BI dataset in the connection's tree."""
-    return catalog.locator(f".connection-tables .conn-tree-group[data-group='{label}']")
+    """A Power BI dataset in the connection's tree on the Catalog page (its name kept: the page may be gone by
+    the time a table of it is opened)."""
+    found = catalog.locator(f".db-tree li.kind-group[aria-label='{label}']").first
+    _datasets[id(found)] = label
+    return found
+
+
+_datasets: dict[int, str] = {}
 
 
 def open_from_dataset(act: Actions, catalog: Page, dataset: Locator, table: str) -> None:
     """A dataset's table, its Open in the tree."""
-    group = dataset.get_attribute("data-group") or ""
-    tree = tree_of(act, catalog)
-    row = tree.locator(f".conn-tree-group[data-group='{group}'] .conn-tree-table[data-table='{table}']")
-    act.click(row.first.get_by_role("button", name="Open"))
+    label = _datasets[id(dataset)]
+    group = tree_of(act, catalog).locator(f"li.kind-group[aria-label='{label}']").first
+    _unfold(act, group)
+    _open_row(act, catalog, group, table)
     grid = table.replace(" ", "_")
     expect(catalog.locator(".toast", has_text=f"{grid} is open as a grid.")).to_have_count(1, timeout=LONG)
 

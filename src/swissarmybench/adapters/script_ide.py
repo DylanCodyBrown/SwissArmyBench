@@ -77,7 +77,27 @@ class ScriptCode:
 
     @staticmethod
     def exists(path: str) -> bool:
-        return Path(path).is_file()
+        return Path(path).exists()
+
+    @staticmethod
+    def move(source: str, target: str) -> None:
+        """A file or folder moved (renamed) within the project: refused when the target is there."""
+        to = Path(target)
+        if to.exists():
+            raise FileExistsError(f"{to.name} is there already.")
+        to.parent.mkdir(parents=True, exist_ok=True)
+        Path(source).rename(to)
+
+    @staticmethod
+    def make_package(folder: str) -> str:
+        """A package: its folder and an empty __init__.py; the __init__.py's path."""
+        root = Path(folder)
+        if root.exists():
+            raise FileExistsError(f"{root.name} is there already.")
+        root.mkdir(parents=True)
+        init = root / "__init__.py"
+        write_atomic(init, "", newline="")
+        return str(init)
 
     def format(self, text: str, ruff: str, folder: str | None) -> str | None:
         """Ruff's format of the text (its project's settings), or None when it failed (a syntax error)."""

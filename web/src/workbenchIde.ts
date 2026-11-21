@@ -27,6 +27,8 @@ export interface IdeDoc {
 export interface IdeHost {
   /** Open a file at a line (another project module), on this page. */
   openAt: (path: string, line: number) => void;
+  /** An installed library's file, read-only in a tab of its own, at a line. */
+  openLibrary?: (path: string, line: number, module: string | null) => void;
 }
 
 interface Place {
@@ -53,7 +55,8 @@ async function definition(doc: IdeDoc, host: IdeHost, line: number, column: numb
   const found = said.definitions[0];
   if (!found) return toast("No definition found here.");
   if (found.in_project || !found.path || same(found.path, doc.path())) return go(doc, host, found);
-  // A library's: said, not opened for editing (the owner's IDE edits the project's code).
+  // A library's: its file read-only in a tab of its own (marked read-only), never for editing.
+  if (host.openLibrary && /\.pyi?$/.test(found.path)) return host.openLibrary(found.path, found.line, found.module);
   toast(`${found.name}: ${found.builtin ? "built in" : `in ${found.module ?? "a library"}`}, line ${found.line}.`);
 }
 
@@ -199,4 +202,80 @@ export function searchScripts(host: IdeHost, front: () => IdeDoc | null): void {
     results,
   );
   query.focus();
+}
+
+// ===== the explorer's tree actions (2026-11-21): New package, Rename, Duplicate, Delete =====
+
+/** Rename a module or a package (`path`): the new name, then its imports' preview across the project (as F2's
+ *  rename shows it), then Apply. `done` gets the new path. */
+export function renameFile(path: string, done: (to: string) => void): void {
+  const isPackage = !path.endsWith(".py");
+  const current = baseName(path).replace(/\.py$/, "");
+  const { body, foot, close } = openDialog(`Rename ${baseName(path)}`, true);
+  const input = h("input", { type: "text", value: current, "aria-label": "New name", spellcheck: "false", "data-no-variables": "" }) as HTMLInputElement;
+  const result = h("div", { class: "ide-results-host" });
+  let planned = "";
+  const plan = async (): Promise<boolean> => {
+    const to = input.value.trim();
+    if (!to || to === current) return false;
+    const said = await api<{ preview: Preview[]; skipped: { path: string; why: string }[]; new_module: string; module: string }>("/scripts/files/move", "POST", { path, to });
+    planned = to;
+    clear(
+      result,
+      h("p", { class: "hint" }, `${said.module} becomes ${said.new_module}`, said.preview.length ? `: its imports in ${said.preview.length} file${said.preview.length === 1 ? "" : "s"} follow.` : "."),
+      previewList(said.preview, said.skipped),
+    );
+    return true;
+  };
+  const apply = async (): Promise<void> => {
+    if (planned !== input.value.trim() && !(await plan())) return;
+    const said = await api<{ to: string }>("/scripts/files/move", "POST", { path, to: planned, apply: true });
+    close();
+    toast(`Renamed to ${baseName(said.to)}.`);
+    done(said.to);
+  };
+  let timer = 0;
+  input.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void plan().catch((e: Error) => clear(result, h("p", { class: "error-text" }, e.message))), 300);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") void apply().catch((err: Error) => errorHere(err));
+  });
+  body.append(h("label", { class: "field" }, h("span", {}, isPackage ? "Package name" : "Module name"), input), result);
+  foot.append(button("Rename", () => void apply().catch((e: Error) => errorHere(e)), { class: "primary" }), button("Cancel", () => close(), { class: "ghost" }));
+  input.select();
+}
+
+/** A copy beside it (`load_copy.py`): its path. */
+export async function duplicateFile(path: string): Promise<string> {
+  const said = await api<{ path: string }>("/scripts/files/duplicate", "POST", { path });
+  toast(`Made ${baseName(said.path)}.`);
+  return said.path;
+}
+
+/** Delete: to the system's trash, on the user's word (the agent cannot). */
+export function deleteFile(path: string, done: () => void): void {
+  const { body, foot, close } = openDialog(`Delete ${baseName(path)}?`);
+  body.append(h("p", {}, `${baseName(path)} goes to the trash.`));
+  foot.append(
+    button("Move to the trash", () => void api<{ to: string }>("/scripts/files/delete", "POST", { path }).then((said) => (close(), toast(`${baseName(path)} is in ${said.to}.`), done())).catch((e: Error) => errorHere(e)), { class: "danger" }),
+    button("Cancel", () => close(), { class: "ghost" }),
+  );
+}
+
+/** New package: its name; made in `parent` (a folder of the project's; none: scripts/). */
+export function newPackage(parent: string | null, done: (init: string) => void): void {
+  const { body, foot, close } = openDialog("New package");
+  const input = h("input", { type: "text", "aria-label": "Package name", spellcheck: "false", placeholder: "pipeline", "data-no-variables": "" }) as HTMLInputElement;
+  const make = (): void =>
+    void api<{ path: string }>("/scripts/files/package", "POST", { name: input.value.trim(), parent })
+      .then((said) => (close(), done(said.path)))
+      .catch((e: Error) => errorHere(e));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") make();
+  });
+  body.append(h("label", { class: "field" }, h("span", {}, "Package name"), input));
+  foot.append(button("Create", make, { class: "primary" }), button("Cancel", () => close(), { class: "ghost" }));
+  input.focus();
 }

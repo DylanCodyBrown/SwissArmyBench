@@ -13,11 +13,19 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
 - `blades_inspect`: what code makes, asks for (secrets), imports and needs; its settings (server,
   database, path). `blades_fill` gives the code with values at those settings (a connection's form
   uses it); nothing is saved or run.
-- `blades_new` (no template: the choices; `table`, `code`, `secret`, `snippet`, an analysis): a new
-  `.blade.py` in the library's blades/ folder. Connections are made with `connections_create`.
+- `blades_new(name, kind)`: kind `table`, `code`, `analysis`, `connection` (DuckDB in memory), `snippet` or
+  `secret`: a blank, working `.blade.py` in the library's blades/ folder (comments on what to write, made-up
+  rows: `blades_run` works at once; `line` is where its body starts). `template=` instead: the older choices.
+  Connections from a form are `connections_create`.
+- `blades_header_set(name)`: every header field its kind has, with its value (`queries.total`,
+  `catalog.command`, `dialect`, `variable`, `env_names`...); `fields={...}` sets any of them. Kind, secrets,
+  template and web call follow from the code or file.
+- A save is refused (422, `line`) when the code does not compile or lacks its kind's part: a table blade's
+  function returns its table and takes no required argument; an analysis takes the rows; a Python connection
+  has How its tables are listed and Read a table; a vault's reader is a function.
 - `blades_update(code=, stamp=)`: its code, written into its file after the header (its variable follows a
   renamed function); `stamp` (from `blades_get`) refuses the save with 409 when the file changed on disk
-  since. Name, description, tags and table name are the header's. A starter's or a pack's is refused:
+  since. The header is blades_header_set's. A starter's or a pack's is refused:
   `blades_copy(name, new_name, code=)` (Save as, Copy as your own). An edit made in the user's own editor
   shows at once; an open IDE with unsaved changes asks Reload or Keep mine.
 - `blades_run(name, code=)`: the IDE's Run (a child process, as Test): `output` (stdout and stderr),
@@ -26,7 +34,7 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
   grid; `cancel=<run id>` stops a run. `blades_problems(name, code=)`: the lint alone.
 - A table blade (a function or code that makes a DataFrame) has a table name of its own (`table` in its
   header; none: the name its code makes). `blades_table_name_check(name, blade)` says `available` or why
-  not (already a table, a connection, another blade's table, not a valid name); `blades_update(table=)`
+  not (already a table, a connection, another blade's table, not a valid name); `blades_header_set(fields={"table": ...})`
   refuses a taken one. `sab.blade(...)` in a kernel makes its result (a function's, each call) the
   variable of that name: DuckDB SQL, the Variables panel and the Open list name it so; the Data Explorer
   inserts it under that name.

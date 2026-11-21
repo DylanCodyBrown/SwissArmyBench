@@ -91,6 +91,8 @@ export interface BladeDetail extends BladeSummary {
   file?: string;
   /** Kept by the app (the library's): Remove deletes its file. A blade folder's file is the user's. */
   removable?: boolean;
+  /** Every header field its kind has (domain/blade_header.py): the Properties pane draws them. */
+  header?: HeaderField[];
 }
 
 interface Package {
@@ -338,6 +340,80 @@ export async function showFile(name: string): Promise<void> {
   }
 }
 
+/** New blade's kinds (domain/blade_header.py SCAFFOLD_KINDS) in its words. */
+export const NEW_KINDS: { id: string; label: string; hint: string }[] = [
+  { id: "table", label: "Table", hint: "a function that returns a DataFrame" },
+  { id: "code", label: "Code", hint: "any Python; what it makes last is handed back" },
+  { id: "analysis", label: "Analysis", hint: "a function of a table's rows, for Analyze" },
+  { id: "connection", label: "Connection", hint: "a database that lists and reads its tables" },
+  { id: "snippet", label: "Snippet", hint: "text for a cell, with <<placeholders>>" },
+  { id: "secret", label: "Secret", hint: "variables typed each session, never kept" },
+];
+
+/** New blade (the owner, 2026-11-21: "we should scaffold a blank blade for the user"): a name and a kind
+ *  only; the server writes that kind's blank, working blade. Answers the made blade's name and the line its
+ *  body starts on, or null (cancelled). */
+export function newBladeDialog(): Promise<{ name: string; line: number } | null> {
+  return new Promise((resolve) => {
+    const { body, foot, close, dialog } = openDialog("New blade");
+    const input = h("input", { type: "text", maxlength: "64", "aria-label": "Name", spellcheck: "false", placeholder: "Orders" }) as HTMLInputElement;
+    const said = h("div", { class: "table-name-check", role: "status", "aria-live": "polite" });
+    let kind = "table";
+    const kinds = h(
+      "div",
+      { class: "new-blade-kinds", role: "radiogroup", "aria-label": "Kind" },
+      ...NEW_KINDS.map((k) => {
+        const radio = h("input", { type: "radio", name: "new-blade-kind", value: k.id, checked: k.id === kind }) as HTMLInputElement;
+        radio.addEventListener("change", () => (kind = k.id));
+        return h("label", { class: "new-blade-kind" }, radio, h("span", {}, h("strong", {}, k.label), h("span", { class: "hint" }, ` ${k.hint}`)));
+      }),
+    );
+    let free = false;
+    let timer = 0;
+    let mine = 0;
+    const check = async (): Promise<void> => {
+      const asking = ++mine;
+      if (!input.value.trim()) {
+        free = false;
+        said.textContent = "";
+        return;
+      }
+      const answer = await api<{ available: boolean; said: string }>(`/blades/name-check?name=${encodeURIComponent(input.value)}`).catch(() => ({ available: false, said: "" }));
+      if (asking !== mine) return;
+      free = answer.available;
+      said.textContent = answer.said;
+      said.className = `table-name-check ${answer.available ? "ok" : "error"}`;
+    };
+    input.addEventListener("input", () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void check(), 200);
+    });
+    body.append(h("label", { class: "field" }, h("span", {}, "Name"), input), said, kinds);
+    let answered = false;
+    dialog.addEventListener("close", () => {
+      if (!answered) resolve(null);
+    });
+    const go = async (): Promise<void> => {
+      window.clearTimeout(timer); // the check a keystroke set off would win over this one's
+      await check();
+      if (!free) return input.focus();
+      try {
+        const made = await api<{ name: string; line?: number }>("/blades/new", "POST", { name: input.value.trim(), kind });
+        answered = true;
+        close();
+        resolve({ name: made.name, line: made.line ?? 1 });
+      } catch (error) {
+        errorHere(error);
+      }
+    };
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") void go();
+    });
+    foot.append(button("Cancel", close, { class: "ghost" }), button("Create", busyClick("Creating…", go), { class: "primary" }));
+    input.focus();
+  });
+}
+
 /** "New blade": the templates by group. A pick makes a new .blade.py in the library's blades/ folder;
  *  `onMade` gets its name (the page opens its IDE). */
 export async function showTemplatePicker(host: HTMLElement, onMade: (name: string) => void): Promise<void> {
@@ -506,44 +582,145 @@ export interface BladeProperties {
   reset(): void;
 }
 
-export function bladeProperties(detail: BladeDetail, options: { readOnly: boolean; name: () => string; changed: () => void; reopen: () => void }): BladeProperties {
+/** One header field as the server lists it (domain/blade_header.py fields). */
+export interface HeaderField {
+  key: string;
+  label: string;
+  type: "text" | "textarea" | "tags" | "choice" | "number" | "bool" | "names" | "mapping" | "code" | "readonly";
+  value: unknown;
+  choices?: string[];
+  hint?: string;
+  read_only?: boolean;
+}
+
+/** The words a field's aria-label is (the older Properties' own: tests and the agent's snapshot read them). */
+const FIELD_LABELS: Record<string, string> = { name: "Blade name", table: "Its table is called" };
+
+/** A field's value as its box's text. */
+function fieldText(field: HeaderField): string {
+  const v = field.value;
+  if (Array.isArray(v)) return v.join(", ");
+  return v === null || v === undefined ? "" : String(v);
+}
+
+/** A number field's own check (the server checks again): the words, or "". */
+function numberCheck(key: string, text: string): string {
+  if (!text.trim()) return "";
+  if (!/^\d+$/.test(text.trim())) return "A whole number.";
+  const n = Number(text);
+  if (key === "queries.total" && (n < 1 || n > 64)) return "1 to 64 at once.";
+  if (key === "queries.wait" && (n < 1 || n > 3600)) return "1 second to an hour.";
+  if (key === "row_limit" && n > 50_000_000) return "At most 50,000,000 (0: every row).";
+  return "";
+}
+
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+export function bladeProperties(detail: BladeDetail, options: { readOnly: boolean; name: () => string; changed: () => void; reopen: () => void; code?: () => string }): BladeProperties {
   const readOnly = options.readOnly;
-  const nameInput = h("input", { type: "text", value: detail.name, maxlength: "64", "aria-label": "Blade name", spellcheck: "false", readonly: readOnly });
-  const descriptionInput = h("textarea", { rows: "3", maxlength: "2000", "aria-label": "Description", readonly: readOnly }) as HTMLTextAreaElement;
-  descriptionInput.value = detail.description ?? "";
-  const tagsInput = h("input", { type: "text", value: (detail.tags ?? []).join(", "), "aria-label": "Tags", spellcheck: "false", readonly: readOnly });
-  const tableInput = h("input", { type: "text", value: detail.table ?? "", maxlength: "64", "aria-label": "Its table is called", spellcheck: "false", placeholder: detail.variable ?? "", readonly: readOnly });
-  const tableSaid = h("div", { class: "table-name-check", role: "status", "aria-live": "polite" });
+  const fields: HeaderField[] = detail.header?.length
+    ? detail.header
+    : [
+        { key: "name", label: "Name", type: "text", value: detail.name },
+        { key: "description", label: "Description", type: "textarea", value: detail.description ?? "" },
+        { key: "tags", label: "Tags", type: "tags", value: detail.tags ?? [] },
+        ...(detail.names_table ? [{ key: "table", label: "Its table is called", type: "text", value: detail.table ?? "" } as HeaderField] : []),
+      ];
+  const boxes = new Map<string, { get: () => string; set: (v: string) => void; focus: () => void; said: HTMLElement }>();
+  const problems = new Map<string, string>();
   const typedSecrets = new Map<string, string>();
-  let tableOk = true;
-  let checkTimer = 0;
-  let asked = 0;
-  async function checkTable(): Promise<void> {
-    const wanted = tableInput.value.trim();
-    const mine = ++asked;
-    if (!wanted || wanted === (detail.table ?? "")) {
-      tableOk = true;
-      tableSaid.textContent = "";
-      tableSaid.className = "table-name-check";
-      return;
-    }
+  const asked = new Map<string, number>();
+  const timers = new Map<string, number>();
+
+  /** The live check of one field: its words under it, "" when it is fine. */
+  async function checkField(key: string): Promise<void> {
+    const box = boxes.get(key);
+    if (!box) return;
+    const text = box.get().trim();
+    const field = fields.find((f) => f.key === key)!;
+    const mine = (asked.get(key) ?? 0) + 1;
+    asked.set(key, mine);
+    let words = "";
+    let good = "";
     try {
-      const answer = await api<{ available: boolean; said: string }>(`/blades/table-name?name=${encodeURIComponent(wanted)}&blade=${encodeURIComponent(options.name())}`);
-      if (mine !== asked) return; // a newer check is on its way
-      tableOk = answer.available;
-      tableSaid.textContent = answer.said;
-      tableSaid.className = `table-name-check ${answer.available ? "ok" : "error"}`;
+      if (text === fieldText(field).trim()) words = "";
+      else if (key === "name") {
+        const answer = text.toLowerCase() === options.name().toLowerCase() ? { available: true, said: "" } : await api<{ available: boolean; said: string }>(`/blades/name-check?name=${encodeURIComponent(text)}`);
+        if (!answer.available) words = answer.said;
+        else good = answer.said;
+      } else if (key === "table" && text) {
+        const answer = await api<{ available: boolean; said: string }>(`/blades/table-name?name=${encodeURIComponent(text)}&blade=${encodeURIComponent(options.name())}`);
+        if (!answer.available) words = answer.said;
+        else good = answer.said;
+      } else if (key === "variable") {
+        if (!text) words = "Name what the code hands back.";
+        else if (options.code) {
+          const found = await api<{ assigned?: string[] }>("/blades/inspect", "POST", { code: options.code() }).catch(() => ({ assigned: undefined }));
+          if (found.assigned && !found.assigned.includes(text)) words = `The code never makes ${text}. It makes: ${found.assigned.join(", ") || "nothing"}.`;
+        }
+      } else if (field.type === "number") words = numberCheck(key, text);
+      else if (field.type === "names") {
+        const bad = text.split(/[\n,]/).map((n) => n.trim()).filter((n) => n && !ENV_NAME.test(n));
+        if (bad.length) words = `${bad[0]} is not a variable name: letters, digits and _, not starting with a digit.`;
+      } else if (field.type === "mapping") {
+        const bad = text.split("\n").filter((l) => l.trim() && !/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*\S/.test(l));
+        if (bad.length) words = `Each line reads VARIABLE = secret-name, not ${(bad[0] ?? "").trim()}.`;
+      } else if (field.type === "tags") {
+        const bad = splitTags(text).find((t) => !/^[\w][\w .+#-]{0,39}$/u.test(t));
+        if (bad) words = `Tag ${bad}: 1 to 40 letters, digits, spaces or . + # - _.`;
+      }
     } catch (error) {
-      if (mine === asked) tableSaid.textContent = (error as Error).message;
+      words = (error as Error).message;
     }
+    if (asked.get(key) !== mine) return; // a newer check is on its way
+    if (words) problems.set(key, words);
+    else problems.delete(key);
+    box.said.textContent = words || good;
+    box.said.className = `${key === "table" ? "table-name-check" : "ide-prop-check"} ${words ? "error" : good ? "ok" : ""}`;
   }
-  tableInput.addEventListener("input", () => {
-    window.clearTimeout(checkTimer);
-    checkTimer = window.setTimeout(() => void checkTable(), 250);
-  });
-  const now = (): string => JSON.stringify([nameInput.value.trim(), descriptionInput.value.trim(), splitTags(tagsInput.value), tableInput.value.trim(), typedSecrets.size]);
+
+  function fieldBox(field: HeaderField): HTMLElement {
+    const aria = FIELD_LABELS[field.key] ?? field.label;
+    const said = h("div", { class: field.key === "table" ? "table-name-check" : "ide-prop-check", role: "status", "aria-live": "polite" });
+    const locked = readOnly || field.read_only || field.type === "readonly";
+    let el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+    if (field.type === "readonly") {
+      const shown = fieldText(field);
+      return h("div", { class: "ide-prop-read", "data-key": field.key }, h("span", { class: "ide-prop-label" }, field.label), shown ? h("code", {}, shown) : h("span", { class: "hint" }, "none"));
+    }
+    if (field.type === "choice") {
+      el = h("select", { "aria-label": aria, disabled: locked }, ...(field.choices ?? []).map((c) => h("option", { value: c }, c))) as HTMLSelectElement;
+      el.value = fieldText(field);
+    } else if (field.type === "bool") {
+      el = h("input", { type: "checkbox", "aria-label": aria, disabled: locked }) as HTMLInputElement;
+      (el as HTMLInputElement).checked = field.value === true;
+    } else if (["textarea", "names", "mapping", "code"].includes(field.type)) {
+      el = h("textarea", { rows: field.type === "code" ? "4" : "3", "aria-label": aria, readonly: locked, spellcheck: "false", class: field.type === "code" ? "mono" : undefined }) as HTMLTextAreaElement;
+      el.value = field.type === "names" ? fieldText(field).replace(/, /g, "\n") : fieldText(field);
+    } else {
+      el = h("input", { type: "text", inputmode: field.type === "number" ? "numeric" : "text", "aria-label": aria, readonly: locked, spellcheck: "false", maxlength: field.key === "name" || field.key === "table" ? "64" : undefined, placeholder: field.key === "table" ? (detail.variable ?? "") : undefined }) as HTMLInputElement;
+      el.value = fieldText(field);
+    }
+    const get = (): string => (el instanceof HTMLInputElement && el.type === "checkbox" ? String(el.checked) : el.value);
+    const set = (v: string): void => {
+      if (el instanceof HTMLInputElement && el.type === "checkbox") el.checked = v === "true";
+      else el.value = v;
+    };
+    boxes.set(field.key, { get, set, focus: () => el.focus(), said });
+    const changed = (): void => {
+      options.changed();
+      window.clearTimeout(timers.get(field.key));
+      timers.set(field.key, window.setTimeout(() => void checkField(field.key), 250));
+    };
+    el.addEventListener("input", changed);
+    el.addEventListener("change", changed);
+    const label = h("label", { class: field.type === "bool" ? "ide-prop-bool" : undefined }, h("span", {}, field.label, field.hint ? h("span", { class: "hint" }, ` (${field.hint})`) : null), el);
+    return h("div", { class: field.key === "table" ? "table-name-field" : "ide-prop-field", "data-key": field.key }, label, said);
+  }
+
+  const original = (field: HeaderField): string => (field.type === "bool" ? String(field.value === true) : field.type === "names" ? fieldText(field).replace(/, /g, "\n") : fieldText(field));
+  const now = (): string => JSON.stringify([...boxes.entries()].map(([k, b]) => [k, b.get()]).concat([["secrets", String(typedSecrets.size)]]));
   let saved = now();
-  for (const input of [nameInput, descriptionInput, tagsInput, tableInput]) input.addEventListener("input", options.changed);
 
   const inspection = detail.inspect ?? null;
   const secretsHost = h("div", { class: "ide-secrets" });
@@ -574,58 +751,59 @@ export function bladeProperties(detail: BladeDetail, options: { readOnly: boolea
         inspection?.missing ? reminder(inspection.missing, { then: options.reopen }) : null,
       )
     : null;
-  const vaultRows = detail.kind === "vault" && detail.vault_mapping.length
-    ? h("table", { class: "columns-table" }, h("tbody", {}, ...detail.vault_mapping.map((m) => h("tr", {}, h("td", {}, h("code", {}, m.env)), h("td", { class: "hint" }, "←"), h("td", {}, m.secret)))))
-    : null;
-  const listing = detail.connection && detail.connection !== "vault" && detail.catalog
-    ? h("details", { class: "blade-listing" }, h("summary", {}, "How its tables are listed"), codeViewer(detail.catalog.command, detail.catalog.language, "How its tables are listed"))
-    : null;
-  listing?.addEventListener("toggle", () => window.dispatchEvent(new Event("resize")));
-  const madeLine = detail.kind === "snippet" || detail.kind === "secret" || !detail.variable ? null : h("p", { class: "hint ide-made" }, `${detail.kind === "vault" ? "The function that reads a secret" : "It makes"} `, h("code", {}, detail.variable));
   const starter = detail.source === "starter";
+  const shown = fields.filter((f) => f.key !== "kind" && f.key !== "secrets");
   const element = h(
     "div",
     { class: "editor ide-props-form" },
     h("div", { class: "blade-kind-line" }, h("span", { class: `blade-kind ${detail.kind}` }, kindLabel(detail.kind)), starter ? h("span", { class: "warning-text" }, `${detail.family ?? ""} starter: read-only`.trim()) : detail.pack ? h("span", { class: "warning-text" }, `From the pack ${detail.pack}: read-only`) : null),
-    h("label", {}, h("span", {}, "Name"), nameInput),
-    h("label", {}, h("span", {}, "Description"), descriptionInput),
-    h("label", {}, h("span", {}, "Tags"), tagsInput),
-    detail.names_table ? h("div", { class: "table-name-field" }, h("label", {}, h("span", {}, "Its table is called"), tableInput), tableSaid) : null,
-    madeLine,
+    ...shown.map(fieldBox),
     secretsHost,
     packagesHost,
-    vaultRows,
-    listing,
     detail.file ? h("p", { class: "hint blade-file-path" }, h("code", {}, detail.file)) : null,
   );
+  saved = now();
   return {
     element,
     header: () => {
-      const out: Record<string, unknown> = { name: nameInput.value.trim(), description: descriptionInput.value.trim(), tags: splitTags(tagsInput.value) };
-      if (detail.names_table) out.table = tableInput.value.trim();
+      const out: Record<string, unknown> = {};
+      for (const field of fields) {
+        const box = boxes.get(field.key);
+        if (!box || field.read_only) continue;
+        const text = box.get();
+        // name, description and tags always go (the older Save's shape); the rest only when changed.
+        if (!["name", "description", "tags", "table"].includes(field.key) && text === original(field)) continue;
+        out[field.key] = field.type === "tags" ? splitTags(text) : field.type === "bool" ? text === "true" : field.type === "names" ? text.split(/[\n,]/).map((n) => n.trim()).filter(Boolean) : field.type === "number" ? (text.trim() === "" ? null : Number(text)) : field.key === "description" || field.key === "name" || field.key === "table" ? text.trim() : text;
+      }
       const secrets = Object.fromEntries([...typedSecrets].filter(([, value]) => value));
       if (Object.keys(secrets).length) out.secrets = secrets;
       return out;
     },
     dirty: () => now() !== saved,
     check: async () => {
-      if (detail.names_table) await checkTable();
-      if (!tableOk) tableInput.focus();
-      return tableOk;
+      for (const key of boxes.keys()) await checkField(key);
+      const first = [...problems.keys()][0];
+      if (first) boxes.get(first)?.focus();
+      return problems.size === 0;
     },
-    refusal: () => tableSaid.textContent ?? "",
+    refusal: () => [...problems.values()][0] ?? "",
     markSaved: (table) => {
       detail.table = table;
+      for (const field of fields) {
+        const box = boxes.get(field.key);
+        if (!box) continue;
+        const text = box.get();
+        field.value = field.type === "tags" ? splitTags(text) : field.type === "bool" ? text === "true" : field.type === "names" ? text.split(/[\n,]/).map((n) => n.trim()).filter(Boolean) : text;
+      }
       typedSecrets.clear();
       for (const input of secretsHost.querySelectorAll("input")) input.value = "";
       saved = now();
     },
     reset: () => {
-      nameInput.value = options.name();
-      descriptionInput.value = detail.description ?? "";
-      tagsInput.value = (detail.tags ?? []).join(", ");
-      tableInput.value = detail.table ?? "";
+      for (const field of fields) boxes.get(field.key)?.set(original(field));
       typedSecrets.clear();
+      problems.clear();
+      for (const box of boxes.values()) box.said.textContent = "";
       for (const input of secretsHost.querySelectorAll("input")) input.value = "";
       saved = now();
     },
@@ -811,6 +989,8 @@ export async function editBlade(
   onSaved: (name: string) => void,
   onClosed: () => void,
   back?: { label: string; run: () => void },
+  /** A brand-new scaffold: Properties open, the cursor at `line` (its working body). */
+  fresh?: { line: number },
 ): Promise<void> {
   if (name === null) {
     await showTemplatePicker(host, (made) => {
@@ -824,8 +1004,7 @@ export async function editBlade(
   try {
     detail = await api<BladeDetail>(path(name));
   } catch (error) {
-    clear(host);
-    errorHere(error);
+    clear(host, h("div", { class: "code-ide-missing" }, errorNote(error))); // in place (9.5): its tab says it
     return;
   }
   void whenMode(); // the open project's mode: Copilot's ghost text where an extension declares it
@@ -834,7 +1013,7 @@ export async function editBlade(
   let savedName = detail.name;
   const reopen = (): void => void editBlade(host, savedName, null, "other", onSaved, onClosed, back);
   const alive = (): boolean => ide.element.isConnected;
-  const props = bladeProperties(detail, { readOnly, name: () => savedName, changed: () => ide.setExtraDirty(props.dirty()), reopen });
+  const props = bladeProperties(detail, { readOnly, name: () => savedName, changed: () => ide.setExtraDirty(props.dirty()), reopen, code: () => ide.value() });
   const language = bladeLanguage(detail);
   const code = secretKind ? detail.env_names.join("\n") : detail.code;
   const closeNote = (): HTMLButtonElement => button("Close", () => ide.note(null), { class: "ghost ide-btn", icon: "close", iconOnly: true });
@@ -858,7 +1037,17 @@ export async function editBlade(
       onSaved(saved.name);
       return true;
     } catch (error) {
-      const said = error instanceof ApiError ? (error.said as { changed_on_disk?: boolean; stamp?: string } | null) : null;
+      const said = error instanceof ApiError ? (error.said as { changed_on_disk?: boolean; stamp?: string; line?: number } | null) : null;
+      if (error instanceof ApiError && error.status === 422 && typeof said?.line === "number") {
+        // The code lacks its kind's part (or does not compile): refused, the line marked, the note in Result.
+        const line = said.line;
+        const words = (said as { error?: string }).error ?? "It cannot be saved as it is.";
+        ide.setRunProblems([{ line, col: null, endLine: line, endCol: null, message: words, hover: words, severity: "error", fixes: [] }]);
+        ide.showResult(errorNote(error));
+        ide.showTab("result");
+        void ide.ready.then((e) => e.reveal(line, 1));
+        return false;
+      }
       if (readOnly) {
         ide.note(h("div", { class: "ide-note-row", role: "alert" }, errorNote(error), button("Copy as your own", () => void copyStarter(ide.value() === code ? undefined : ide.value()), { class: "primary ide-btn", icon: "copy" }), closeNote()));
       } else if (said?.changed_on_disk) edits.changed(String(said.stamp ?? ""));
@@ -928,6 +1117,7 @@ export async function editBlade(
       : undefined,
     runWords: `Running ${detail.name}…`,
     properties: props.element,
+    propertiesOpen: fresh ? true : undefined,
     remember: "blade",
     menu: () => [
       ...(readOnly ? [{ label: "Copy as your own", icon: "copy", run: () => void copyStarter() }] : [{ label: "Show its file", icon: "folder", run: () => void showFile(savedName) }]),
@@ -951,7 +1141,8 @@ export async function editBlade(
   // The editor takes the keyboard once it has loaded, unless the user is typing somewhere else by then.
   void ide.ready.then((e) => {
     const at = window.document.activeElement;
-    if (!at || at === window.document.body || at.closest(".ide-editor")) e.focus();
+    if (fresh) e.reveal(fresh.line, 5);
+    if (!at || at === window.document.body || at.closest(".ide-editor, dialog")) e.focus();
   });
   // Opened with packages missing: the prompt in the user's face.
   if (detail.inspect?.missing) void promptInstall(detail.inspect.missing, { then: reopen });
@@ -980,6 +1171,7 @@ export function saveBladeAs(name: string, code: string | undefined, made: (name:
   });
   body.append(h("label", { class: "field" }, h("span", {}, "Name"), input), said);
   const go = async (): Promise<void> => {
+    window.clearTimeout(timer);
     await check();
     if (!free) return input.focus();
     try {

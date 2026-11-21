@@ -1247,8 +1247,7 @@ def blades_list(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_get",
-    "One blade whole: its code and the file's stamp, settings, table name, how a connection's tables are "
-    "listed, packages",
+    "One blade whole: code, the file's stamp, header fields, settings, packages",
     req("name", "The blade's name."),
 )
 def blades_get(a: dict[str, Any]) -> Any:
@@ -1269,42 +1268,46 @@ def blades_templates(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_new",
-    "New blade: a .blade.py file in the library's blades/ folder from a template (no template: the choices); "
-    "its code is then changed with blades_update",
-    opt("template", "table, code, secret, snippet, or an analysis starter's id (none: the list)."),
-    opt("name", "Its name (default: the template's)."),
-    opt("table", "Its table's name, for a table blade (blades_table_name_check first)."),
+    "New blade by name and kind: a blank working .blade.py (made-up rows), or from a template",
+    opt("name", "Its name."),
+    opt("kind", "table, code, analysis, connection, snippet, secret."),
+    opt("template", "Or a template's id."),
+    opt("table", "Its table's name."),
 )
 def blades_new(a: dict[str, Any]) -> Any:
-    if not a.get("template"):
+    if not a.get("template") and not a.get("kind"):
         return api.call("GET", "/blades/new")
-    body = {k: a[k] for k in ("template", "name", "table") if a.get(k) is not None}
+    body = {k: a[k] for k in ("template", "kind", "name", "table") if a.get(k) is not None}
     return api.call("POST", "/blades/new", body)
 
 
 @command(
+    "blades_header_set",
+    "Set a blade's header fields (none given: its kind's fields and values)",
+    req("name", "The blade."),
+    opt("fields", '{"dialect": "duckdb", "queries.total": 4}', "json"),
+)
+def blades_header_set(a: dict[str, Any]) -> Any:
+    if not a.get("fields"):
+        return api.call("GET", f"/blades/{_q(a['name'])}/header")
+    return api.call("PUT", f"/blades/{_q(a['name'])}/header", a["fields"])
+
+
+@command(
     "blades_update",
-    "Change a blade's code (written into its file; a starter's refused: blades_copy) or its name, "
-    "description, tags, table name",
-    req("name", "Its name now."),
-    opt("code", "Its new code (the Python after the file's header)."),
-    opt("stamp", "The stamp blades_get gave: refused (409) if the file changed on disk since."),
-    opt("new_name", "A new name (renames it)."),
-    opt("description", "What it loads, and for which app."),
-    opt("tags", "Words to find it by.", "list"),
-    opt("table", 'The name its result gets as a table ("": the name its code makes).'),
+    "Save a blade's code into its file (a starter's refused: blades_copy); its header: blades_header_set",
+    req("name", "Its name."),
+    req("code", "Its code (after the file's header)."),
+    opt("stamp", "From blades_get: refused (409) if the file changed since."),
 )
 def blades_update(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("code", "stamp", "description", "tags", "table") if a.get(k) is not None}
-    if a.get("new_name"):
-        body["name"] = a["new_name"]
+    body = {k: a[k] for k in ("code", "stamp") if a.get(k) is not None}
     return api.call("PUT", f"/blades/{_q(a['name'])}", body)
 
 
 @command(
     "blades_table_name_check",
-    "Is a table name free for a blade's result? available, or why not (a table, a connection, another "
-    "blade's table, not a valid name)",
+    "Is a table name free for a blade's result? available, or why not",
     req("name", "The table name."),
     opt("blade", "The blade it is for (it may keep its own)."),
 )
@@ -1376,10 +1379,9 @@ def blades_refresh(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_run",
-    "Run a blade as the IDE's Run does (its code, or `code` unsaved): its output, result (a table's first "
-    "rows and count, or a value), error and lint problems",
+    "Run a blade as the IDE's Run does (`code`: unsaved): output, result, error, problems",
     req("name", "The blade."),
-    opt("code", "Code to run instead of its saved code (nothing saved)."),
+    opt("code", "Code to run instead (nothing saved)."),
     opt("env", '{"VAR": "value"}: values a secret blade asks for, for this run only.', "json"),
     opt("open", "Then open its table result as a grid.", "bool"),
     opt("cancel", "A run id going now: stop it."),
@@ -1460,8 +1462,7 @@ def blades_import(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_starters",
-    "The built-in starter pack by family (Power BI, Excel, Files, DAX, HTML, Markdown, Streamlit, Components): "
-    "read-only blades and snippets",
+    "The built-in starter pack by family: read-only blades and snippets",
 )
 def blades_starters(a: dict[str, Any]) -> Any:
     return api.call("GET", "/blades/starters")
@@ -3339,15 +3340,15 @@ def _at(a: dict[str, Any]) -> dict[str, Any]:
 
 @command(
     "workbench_definition",
-    "Go to definition (F12) in a script: where the name at line/column is defined, across the project's "
-    "modules and the script's libraries",
+    "Go to definition (F12): where the name at line/column is defined (project or libraries)",
     req("text", "The script's text."),
     req("line", "The line, from 1.", "int"),
     req("column", "The column, from 1.", "int"),
     opt("path", "The script's file."),
+    opt("source", "A library's text too.", "bool"),
 )
 def workbench_definition(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/scripts/definition", _at(a))
+    return api.call("POST", "/scripts/definition", _at(a) | ({"source": True} if a.get("source") else {}))
 
 
 @command(
@@ -3375,6 +3376,57 @@ def workbench_references(a: dict[str, Any]) -> Any:
 )
 def workbench_rename(a: dict[str, Any]) -> Any:
     return api.call("POST", "/scripts/rename", _at(a) | {"to": a["to"], "apply": bool(a.get("apply"))})
+
+
+@command(
+    "workbench_debug",
+    "Debug a script in its kernel; action: start, state, breakpoints, over, into, out, continue, "
+    "variables, evaluate, stop",
+    req("action", "What to do."),
+    req("document", "The script's file."),
+    opt("code", "start: its text."),
+    opt("breakpoints", "[{line, condition?, log?}]", "json"),
+    opt("expression", "evaluate this."),
+)
+def workbench_debug(a: dict[str, Any]) -> Any:
+    act = a["action"]
+    body = {"document": a["document"]} | {
+        k: a[k] for k in ("code", "breakpoints", "expression") if a.get(k) is not None
+    }
+    if act == "state":
+        return api.call("GET", "/workbench/debug", params={"document": a["document"]})
+    if act in ("over", "into", "out", "continue"):
+        return api.call("POST", "/workbench/debug/step", body | {"action": act})
+    routes = {
+        "start": "/workbench/debug/start",
+        "breakpoints": "/workbench/debug/breakpoints",
+        "variables": "/workbench/debug/variables",
+        "evaluate": "/workbench/debug/evaluate",
+        "stop": "/workbench/debug/stop",
+    }
+    if act not in routes:
+        return {
+            "error": "action: start, state, breakpoints, over, into, out, continue, variables, evaluate, stop."
+        }
+    return api.call("POST", routes[act], body)
+
+
+@command(
+    "workbench_file",
+    "Project modules: move (rename, imports follow; a plan until apply), package, duplicate",
+    req("action", "move, package or duplicate."),
+    opt("path", "The module (package: its parent)."),
+    opt("to", "The new name."),
+    opt("apply", "move: do it.", "bool"),
+)
+def workbench_file(a: dict[str, Any]) -> Any:
+    act = a["action"]
+    if act == "package":
+        return api.call("POST", "/scripts/files/package", {"name": a.get("to"), "parent": a.get("path")})
+    body = {"path": a.get("path"), "to": a.get("to"), "apply": bool(a.get("apply"))}
+    if act == "move":
+        return api.call("POST", "/scripts/files/move", body)
+    return api.call("POST", "/scripts/files/duplicate", body)
 
 
 @command(

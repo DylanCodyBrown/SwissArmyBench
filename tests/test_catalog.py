@@ -230,6 +230,8 @@ def test_select_is_quoted_for_each_dialect() -> None:
         select_sql("mysql", "", "sales", "orders", cols)
         == "SELECT `order id`, `kilos`\nFROM `sales`.`orders`\nLIMIT 100"
     )
+    # MySQL and MariaDB list every table under the catalog "def": never a database in the name.
+    assert select_sql("mysql", "def", "sales", "orders", []) == "SELECT *\nFROM `sales`.`orders`\nLIMIT 100"
     assert select_sql("oracle", "", "BAKERY", "OVENS", ["OVEN_ID"]) == (
         'SELECT "OVEN_ID"\nFROM "BAKERY"."OVENS"\nFETCH FIRST 100 ROWS ONLY'
     )

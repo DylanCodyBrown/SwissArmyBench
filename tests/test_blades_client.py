@@ -65,7 +65,7 @@ def test_load_a_catalog_from_an_information_schema_frame(live: int) -> None:
         }
     )
     url = sab.load(frame, name="Bakery warehouse", dialect="sqlserver")
-    assert url.startswith(f"http://127.0.0.1:{live}/catalog#token=") and url.endswith(
+    assert url.startswith(f"http://127.0.0.1:{live}/workspace?open=data#token=") and url.endswith(
         "catalog=Bakery%20warehouse"
     )
     assert [c["name"] for c in user(live, "GET", "/catalogs")["catalogs"]] == ["Bakery warehouse"]

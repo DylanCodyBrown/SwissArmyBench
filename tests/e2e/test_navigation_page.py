@@ -231,28 +231,34 @@ def test_back_closes_a_plain_dialog_and_never_leaves_the_page_under_it(
     page.context.close()
 
 
-def test_the_blades_pages_views_are_in_the_address(browser: Browser, server: dict[str, Any]) -> None:
-    """The blades page (its catalog panel went, 2026-11-17): the welcome, New blade and a blade's screen are
-    in the address; Back is named; a blade that is not there is said, with the way back."""
-    url = f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}"
+def test_the_old_blades_pages_addresses_land_on_the_scripts_pages_blades(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    """The blades page went (2026-11-21): /catalog is the Scripts page's Blades pane, ?blade=<name> that
+    blade's tab there (the word leaves the address once shown), ?blade= New blade; a blade that is not there
+    is said in its tab."""
+    base = f"http://127.0.0.1:{server['port']}"
+    call(server, "POST", "/blades", {"name": "Made-up loaves", "kind": "other", "code": "loaves = 12\n"})
     page = browser.new_context(viewport={"width": 1400, "height": 860}).new_page()
-    page.goto(url)
-    detail = page.locator("#detail")
-    expect(detail.locator("h2")).to_have_text("Blades", timeout=20000)
-    # The mark is the rail's first item here too (2026-11-18), not the page's top row.
-    expect(page.locator(".nav-rail-item").first).to_have_attribute("data-area", "projects")
-    expect(page.locator(".cat-top .app-mark")).to_have_count(0)
-    expect(page).to_have_title("Blades")
-    detail.get_by_role("button", name="New blade").click()
-    expect(page).to_have_url(re.compile(r"\?blade=$"))
-    expect(page).to_have_title("Blades · New blade")
-    detail.get_by_role("button", name="Back to Blades").click()
-    expect(detail.locator("h2")).to_have_text("Blades")
-    page.goto(url.split("#")[0] + "?blade=Gone")
-    expect(detail.get_by_role("alert")).to_contain_text("There is no blade called Gone", timeout=20000)
-    detail.get_by_role("button", name="Back to Blades").click()
-    expect(detail.locator("h2")).to_have_text("Blades")
-    page.context.close()
+    try:
+        page.goto(f"{base}/catalog#token={server['token']}")
+        expect(page).to_have_url(re.compile(r"/scripts\?pane=blades"), timeout=20000)
+        expect(page.locator(".wb-codex-lower.lower-blades .blade-list")).to_be_visible(timeout=20000)
+        expect(page.locator(".nav-rail-item").first).to_have_attribute("data-area", "projects")
+        page.goto(f"{base}/catalog?blade=Made-up%20loaves")
+        tab = page.locator(".wb-tab[data-kind='blade']", has_text="Made-up loaves")
+        expect(tab).to_be_visible(timeout=20000)
+        expect(page).not_to_have_url(re.compile("blade=Made-up"))
+        page.goto(f"{base}/catalog?blade=")
+        expect(page.get_by_role("dialog", name="New blade")).to_be_visible(timeout=20000)
+        page.keyboard.press("Escape")
+        page.goto(f"{base}/scripts?pane=blades&blade=Gone")
+        expect(page.locator(".code-ide-missing, .wb-doc .error-note").first).to_contain_text(
+            "Gone", timeout=20000
+        )
+    finally:
+        call(server, "DELETE", "/blades/Made-up%20loaves")
+        page.context.close()
 
 
 def test_the_workbenchs_mark_brings_the_home_window_forward(

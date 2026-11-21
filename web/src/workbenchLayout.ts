@@ -32,7 +32,7 @@ interface Sizes {
   right: boolean; // the right column shown
   console: boolean; // the console shown
 }
-const DEFAULTS: Sizes = { left: 72, leftTop: 66, layout: "standard", right: false, console: false };
+const DEFAULTS: Sizes = { left: 72, leftTop: 70, layout: "standard", right: false, console: false }; // the console about 30% when it opens (8.14)
 const KEY = "workbench-panes";
 
 function load(): Sizes {

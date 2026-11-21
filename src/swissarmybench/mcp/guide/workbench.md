@@ -116,9 +116,14 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   (notebooks or scripts); without it, the page of `args.path`, the kind a command makes, else the window last used.
   `app_navigate` takes `window` notebooks or scripts.
 - The Scripts page is a Python IDE over the project's code and the library's: `project_tree` (its groups, each
-  module's outline), `workbench_outline`, `workbench_definition`, `workbench_references`, `workbench_rename` (a
+  module's outline), `workbench_outline`, `workbench_definition` (`source=true`: a library's file text, read-only),
+  `workbench_references`, `workbench_rename` (a
   plan; `apply` writes it, never a made file), `workbench_search` (with `to`: replace), `workbench_format`,
-  `workbench_fine_tune` (a table's transformations as a new script). The window's `view.fullScreen`,
+  `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (move: rename a module or
+  package, its imports in the project following, a plan until `apply`; package: a new one; duplicate). Delete
+  (to the trash) is the user's own. `workbench_debug(action, document)`: the script in its running kernel
+  under the debugger: start (code, breakpoints [{line, condition?, log?}]), state (paused line, frames,
+  output), breakpoints, over, into, out, continue, variables, evaluate (expression in the frame), stop. The window's `view.fullScreen`,
   `view.files`, `view.codeSize`, `search.scripts`.
 - Every code file changed anywhere is said with the `file_changed` notice; data.py edited by hand is kept
   (`project_export_data` with `replace` to write it again).

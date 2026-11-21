@@ -121,6 +121,11 @@ const ICONS: Record<string, string> = {
   popout: '<path d="M14 4h6v6M20 4l-9 9M18 14v6H4V6h6"/>',
   play: '<path d="M7 5l12 7-12 7V5z"/>',
   stop: '<rect x="6" y="6" width="12" height="12" rx="1"/>',
+  // The debugger's (workbenchDebug.ts): a bug, step over, into, out.
+  bug: '<path d="M9 7a3 3 0 016 0M8 9h8v6a4 4 0 01-8 0V9zM12 9v10M4 12h4M16 12h4M5 7l3 2M19 7l-3 2M5 18l3-2M19 18l-3-2"/>',
+  "step-over": '<path d="M4 13a8 8 0 0115-3M19 4v6h-6"/><circle cx="12" cy="19" r="1.5"/>',
+  "step-into": '<path d="M12 3v11M7 10l5 5 5-5"/><circle cx="12" cy="20" r="1.5"/>',
+  "step-out": '<path d="M12 15V4M7 8l5-5 5 5"/><circle cx="12" cy="20" r="1.5"/>',
   agent: '<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/>',
   bucket: '<path d="M3 7h5v13H3zM10 4h5v16h-5zM17 10h4v10h-4zM3 20h18"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8L3 12z"/><circle cx="7.5" cy="7.5" r="1.5"/>',

@@ -74,7 +74,7 @@ def test_a_page_is_named_without_its_token_and_given_the_running_servers() -> No
     from swissarmybench.server.lifecycle import page_address
 
     assert rules.address_of("/workspace", 8800, "tok") == page_address({"port": 8800, "token": "tok"})
-    assert rules.page_for("blades") == "/catalog"
+    assert rules.page_for("blades") == "/scripts?pane=blades"
     with pytest.raises(rules.ShellError):
         rules.page_for("settings")
 

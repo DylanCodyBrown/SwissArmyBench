@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import code_tree
 from swissarmybench.domain import script_ide as rules
-from swissarmybench.services.workspace import Refused, Workspace
+from swissarmybench.services.workspace import Conflict, Refused, Workspace
 
 
 class Code(Protocol):
@@ -43,6 +43,10 @@ class Code(Protocol):
     def write(self, path: str, text: str) -> bool: ...
 
     def exists(self, path: str) -> bool: ...
+
+    def move(self, source: str, target: str) -> None: ...
+
+    def make_package(self, folder: str) -> str: ...
 
     def format(self, text: str, ruff: str, folder: str | None) -> str | None: ...
 
@@ -74,6 +78,8 @@ class ScriptIde:
         touched: Callable[[str, str], Awaitable[Any]],
         library: Callable[[], tuple[str | None, list[str]]] = lambda: (None, []),
         tables: Callable[[], Awaitable[dict[str, Any]]] | None = None,
+        trash: Callable[[str], str] | None = None,
+        library_roots: Callable[[], tuple[str, ...]] = lambda: (),
     ) -> None:
         self.ws = ws
         self._code = code
@@ -83,6 +89,8 @@ class ScriptIde:
         self._touched = touched
         self._library = library  # the library's folder and its code files
         self._tables = tables  # the open tables as their read-only cells (services/table_cells.py listing)
+        self._library_roots = library_roots  # Python's own folders: a library's source shown read-only
+        self._trash = trash  # the system's trash (server/file_manager.py): Delete, the user's only
 
     # ===== the project's scripts =====
 
@@ -157,12 +165,28 @@ class ScriptIde:
 
     async def definition(self, body: Any) -> dict[str, Any]:
         """Where the name at the cursor is defined (F12): [{path, line, column, module, in_project,
-        builtin}]."""
+        builtin}]; with `source`, a library's file text too (read-only: library_file)."""
         text, line, column, path = self._where(body)
         _, folder = self._files()
         project = self._world.project(folder)
         found = await self._jedi(lambda: self._code.definition(text, line, column, path, project, folder))
+        if body.get("source") and found and not found[0].get("in_project") and found[0].get("path"):
+            found[0]["source"] = (await self.library_file({"path": found[0]["path"]}))["text"]
         return {"definitions": found}
+
+    async def library_file(self, body: Any) -> dict[str, Any]:
+        """{path}: a library's source, read-only (go to definition into an installed library: the owner's IDE
+        shows it in a tab marked read-only). Only a .py or .pyi of Python's own folders or a site-packages."""
+        path = body.get("path") if isinstance(body, dict) else None
+        if not rules.library_file(path, self._library_roots()):
+            raise Refused(
+                "Only a library's own source opens here (a .py of the standard library or site-packages)."
+            )
+        try:
+            text = await asyncio.to_thread(self._code.read, str(path))
+        except (OSError, ValueError) as error:
+            raise Refused(f"{path} could not be read: {error}") from None
+        return {"path": path, "text": text, "read_only": True}
 
     async def references(self, body: Any) -> dict[str, Any]:
         """Every use of the name at the cursor across the project (Shift+F12), with each line's text."""
@@ -262,6 +286,138 @@ class ScriptIde:
             "applied": True,
             "written": written,
         }
+
+    # ===== the explorer's tree actions (2026-11-21): New package, Rename, Duplicate, Delete =====
+
+    def _inside(self, path: Any, folder: str | None, what: str = "path") -> tuple[str, str]:
+        """A path of the project's (whole, or inside it): (its whole path, its path inside the project)."""
+        if not folder:
+            raise Refused("Open a project first: its scripts are its own.")
+        if not isinstance(path, str) or not path.strip():
+            raise ValueError(f"Send the {what}.")
+        root = folder.replace("\\", "/").rstrip("/")
+        given = path.replace("\\", "/")
+        relative = given[len(root) + 1 :] if given.startswith(root + "/") else given.lstrip("/")
+        parts = [p for p in relative.split("/") if p]
+        if not parts or any(p in ("..", ".") for p in parts) or ":" in parts[0]:
+            raise Refused(f"{path} is not inside the project.")
+        relative = "/".join(parts)
+        return f"{root}/{relative}", relative
+
+    def _editable(self, relative: str, files: Mapping[str, Mapping[str, Any]], full: str) -> None:
+        made = code_tree.made_from(relative)
+        if made:
+            raise Refused(f"{relative} is made from {made}: rename or delete its source instead.")
+        listed = files.get(full)
+        if listed is not None and listed.get("read_only"):
+            raise Refused(f"{relative} is {rules.MADE_WHY}.")
+
+    async def new_package(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{name, parent?}: a package in the project's scripts/ (or under `parent`, a folder of the
+        project's): its folder and an empty __init__.py; the __init__.py's path (the page opens it)."""
+        name = body.get("name") if isinstance(body, dict) else None
+        if not rules.valid_file_name(name) or str(name).endswith(".py"):
+            raise ValueError(
+                f"{name!r} is not a package name: letters, digits and _, not starting with a digit."
+            )
+        _, folder = self._files()
+        parent = body.get("parent") if isinstance(body.get("parent"), str) and body["parent"] else "scripts"
+        full_parent, _ = self._inside(parent, folder, "parent")
+        target = f"{full_parent}/{name}"
+        if self._code.exists(target):
+            raise Conflict(f"{name} is there already.")
+        init = await asyncio.to_thread(self._code.make_package, target)
+        await self._touched(init, who)
+        self.ws.audit.write(who, "script_new_package", init)
+        return {"path": init, "package": code_tree.module_name(self._inside(init, folder)[1])}
+
+    async def move(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Rename (or move) a module or a package: {path, to, apply?}. `to` is the new name in the same folder
+        (`loader.py`, a package's `clean`) or a path inside the project. Its imports in the project's modules
+        follow, previewed as F2's rename is (a made file skipped with why); with apply: moved and written."""
+        if not isinstance(body, dict):
+            raise ValueError('Send {"path", "to", "apply"?}.')
+        files, folder = self._files()
+        full, relative = self._inside(body.get("path"), folder)
+        self._editable(relative, files, full)
+        if not self._code.exists(full):
+            raise Refused(f"{relative} is not there.")
+        to = body.get("to")
+        if not isinstance(to, str) or not to.strip():
+            raise ValueError("Send its new name: to.")
+        is_file = relative.endswith(".py")
+        if "/" not in to.strip("/"):
+            last = to.strip()
+            if is_file and not last.endswith(".py"):
+                last += ".py"
+            if not rules.valid_file_name(last) or (not is_file and last.endswith(".py")):
+                raise ValueError(f"{to!r} is not a module's name: letters, digits and _, then .py.")
+            target_relative = "/".join([*relative.split("/")[:-1], last])
+        else:
+            target_relative = self._inside(to, folder)[1]
+        target_full = f"{str(folder).replace(chr(92), '/').rstrip('/')}/{target_relative}"
+        if target_full == full:
+            raise ValueError("That is its name already.")
+        if self._code.exists(target_full):
+            raise Conflict(f"{target_relative} is there already.")
+        old_module, new_module = code_tree.module_name(relative), code_tree.module_name(target_relative)
+        texts = self._texts(files)
+        plan = rules.move_plan(texts, target_full, old_module, new_module, self._read_only(files))
+        plan |= {"from": full, "to": target_full, "module": old_module, "new_module": new_module}
+        if not body.get("apply"):
+            return {k: v for k, v in plan.items() if k != "changes"} | {"applied": False}
+        await asyncio.to_thread(self._code.move, full, target_full)
+        written = []
+        prefix = full if not is_file else None
+        for changed_path, new_text in plan["changes"].items():
+            path = changed_path
+            if changed_path == full:
+                path = target_full
+            elif prefix and changed_path.startswith(prefix + "/"):
+                path = target_full + changed_path[len(prefix) :]
+            if self._code.write(path, new_text):
+                written.append(path)
+                await self._touched(path, who)
+        await self._touched(target_full, who)
+        await self.ws.live.broadcast({"type": "code_file_moved", "from": full, "to": target_full, "by": who})
+        self.ws.audit.write(who, "script_move", relative, to=target_relative, files=len(written))
+        return {k: v for k, v in plan.items() if k != "changes"} | {"applied": True, "written": written}
+
+    async def duplicate(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{path}: a copy beside it (`load_copy.py`), its path (the page opens it)."""
+        files, folder = self._files()
+        full, relative = self._inside(body.get("path") if isinstance(body, dict) else None, folder)
+        if not relative.endswith(".py"):
+            raise ValueError("Duplicate takes a module (.py).")
+        text = self._code.read(full)
+        taken = {self._inside(p, folder)[1] for p in files} | {relative}
+        copy_relative = rules.free_copy_name(relative, taken)
+        while self._code.exists(f"{full[: -len(relative)]}{copy_relative}"):
+            taken.add(copy_relative)
+            copy_relative = rules.free_copy_name(relative, taken)
+        copy_full = f"{full[: -len(relative)]}{copy_relative}"
+        self._code.write(copy_full, text)
+        await self._touched(copy_full, who)
+        self.ws.audit.write(who, "script_duplicate", relative, to=copy_relative)
+        return {"path": copy_full}
+
+    async def delete(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{path}: a module or package to the system's trash, never deleted outright; the user's own (a
+        project's Delete is too: the owner, 2026-11-17, "the agent cannot delete")."""
+        if who == "agent":
+            raise Refused("Delete is the user's own: the agent cannot delete (a module goes to the trash).")
+        if self._trash is None:
+            raise Refused("No trash here.")
+        files, folder = self._files()
+        full, relative = self._inside(body.get("path") if isinstance(body, dict) else None, folder)
+        self._editable(relative, files, full)
+        if not self._code.exists(full):
+            raise Refused(f"{relative} is not there.")
+        went = await asyncio.to_thread(self._trash, full)
+        await self._touched(full, who)
+        await self.ws.live.broadcast({"type": "code_file_moved", "from": full, "to": None, "by": who})
+        self.ws.audit.write(who, "script_delete", relative)
+        return {"deleted": full, "to": went}
 
     # ===== format =====
 

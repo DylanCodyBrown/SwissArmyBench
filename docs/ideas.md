@@ -7011,6 +7011,116 @@ the old /catalog page's redirect to the Blades pane (its import, export and fold
 clean reload in place (a notebook changed elsewhere asks even when unchanged here); the desktop app's window full
 screen (the page's full screen only).
 
+## The blade tab: every header field, New blade's scaffold (built 2026-11-21, branch scripts-rest)
+
+The owner (2026-11-21): "the blade format requires extra stuff so we should add those properties to the ide
+experience along with the option to save the blade. we should scaffold a blank blade for the user".
+
+Decisions:
+- **One table of fields** (domain/blade_header.py FIELDS): every key the `# /// swissarmybench-blade` header writes,
+  with its words and type; `applies(key, shape)` says which a kind has (a table blade: variable, table; a database:
+  dialect, rows to open, queries.total/agent/wait, catalog.language/command; a Python connection: read.command too;
+  a snippet: language, cell_name; a vault: vault_all, vault_mapping; a secret: env_names). Kind, secrets, template,
+  web_call and variables are shown read-only (they follow from the code or the file). The details answer carries
+  `header`; Properties draws it generically (bladeProperties), each box checked as typed (name and table by the
+  server's checks, variable against what the code makes, numbers, names, mappings and tags by their rules).
+- Save sends the code and only the changed fields (name, description, tags and table always, as before); the
+  server writes the header through set_header (parse_blade checks it all). A field the kind has not is refused.
+- **Before a save**: compiling, and the kind's required part (required_part): a table blade's function takes no
+  required argument and returns something; an analysis takes 1 or 2 arguments; a Python connection has its listing
+  and Read a table; a vault's reader is a function. Refused 422 with `line`: the line marked in the editor, the one
+  error note in Result. A starter's or a pack's Save stays refused first (Copy as your own).
+- **New blade** asks a name (checked live) and a kind: table, code, analysis, connection (DuckDB in memory with
+  made-up orders and its listing query), snippet, secret. The scaffold has comments on what to write and made-up
+  rows; Run works at once (an analysis is tried on six made-up rows by the IDE's Run). It opens as a tab, the
+  cursor in its body, Properties open (the only time they open by themselves).
+- The agent: blades_new(name, kind), blades_header_set(name, fields) (none: the fields and values).
+- The editor never showed the header (it is Properties'), so "fold the header away" holds as built.
+
+## The old blades page goes (built 2026-11-21, branch scripts-rest)
+
+- /catalog redirects (302) to /scripts?pane=blades, every query word kept: ?blade=<name> opens that blade's tab
+  (one tab a blade; the word leaves the address once shown), ?blade= New blade, ?open=settings the layer.
+  catalogPage.ts and static/catalog.html are gone; the build has no catalog page.
+- The Blades pane's head: New blade (+) and one "…" (Import blades…, Import from a project…, Export every blade,
+  Blade folders…, Packs…) instead of a row of icons (8.14).
+- The agent: app_navigate's window "catalog" is read as "scripts" for one release; blade:<name> and new_blade are
+  the Scripts page's. desktop_open's "blades" opens /scripts?pane=blades; a .blade.py opened with the app opens
+  its tab there. sab.load's address is the Catalog page (/workspace?open=data).
+- Elsewhere (the Session page's links, Analyze's "your analyses"): openBladeOnScripts tells the open Scripts
+  window (POST /navigate) or opens one on the address.
+- In a blade's tab on the Scripts page, Ctrl+S, F5 and the code's zoom keys are the blade IDE's, not the page's.
+
+## The Scripts explorer's tree actions (built 2026-11-21, branch scripts-rest)
+
+- Right-click a module of the user's (or F2 / Delete on its row): Rename…, Duplicate, Delete; an `__init__.py`
+  adds Rename package…, New package here…, Delete package. New package at the explorer's head. Made, read-only,
+  library and generated files have none.
+- Rename (POST /scripts/files/move): the new name in the same folder (or a path inside the project); the plan
+  first: the module's imports across the project rewritten (domain/script_ide.py import_rewrite: `import a.b`,
+  `from a.b import x`, `from a import b` kept under its old name there, `b as` its alias; a module moving to
+  another package out of a `from a import b, c` gets an import line of its own), previewed and the made files
+  skipped as F2's rename is. Usages like `a.b.f()` after `import a.b` are not rewritten (said here). Apply moves
+  the file (or the package folder) and writes; `code_file_moved` {from, to} retargets every window's open tabs.
+- Duplicate: `<stem>_copy.py`, then `_copy_2`, opened. Delete: the system's trash (server/file_manager.py), the
+  user's own (403 for the agent; NOT_COMMANDS), a dialog first. A made file is refused with what it is made from.
+- The agent: workbench_file(action move | package | duplicate).
+
+## A library's source, read-only (built 2026-11-21, branch scripts-rest)
+
+- F12 on a name an installed library defines opens that file in a tab of its own (kind `library`): a "read-only"
+  chip and the module's name over Monaco read-only, at the line; one tab a file (F12 again moves its line). Not
+  kept in the session's restore.
+- POST /scripts/library-file reads only a .py or .pyi of Python's own folders (the app's stdlib, purelib,
+  platlib) or any site-packages, dist-packages or typeshed folder (a script's own environment): never another
+  file of the computer's (domain/script_ide.py library_file). The agent: workbench_definition(source=true).
+
+## Notebooks reload in place (built 2026-11-21, branch scripts-rest)
+
+- A notebook changed elsewhere with nothing unsaved here takes the file's cells in the same tab, as a script does:
+  its view made again from the file (notebookOf) in place of the old, the kernel and its names kept, the selected
+  cell kept where it can be. Only a notebook with unsaved edits shows Changed elsewhere (Reload / Keep mine /
+  Compare); a gone file says so.
+
+## The desktop app's window full screen (built 2026-11-21, branch scripts-rest)
+
+- F11 and the tab row's full-screen button on the Notebooks and Scripts pages make the window itself full screen
+  too in the desktop app: the page calls window.sabApp.fullScreen(on) (desktopApp.ts windowFullScreen), the shell
+  hears it on its console channel and calls PySide6's showFullScreen, or back: showMaximized when it was
+  maximized, else showNormal. Escape, F11 again or the button leave both. In a browser nothing more happens.
+- The shell's own F11 (QShortcut) asks the page first (window.sabFullScreen): a page with a full screen of its
+  own takes it (and asks for the window's); any other page toggles the window alone, as before.
+- Checked under Qt off screen (tests/desktop_drive.py: F11 twice on the Notebooks page).
+
+## Layout as 8.14 says (built 2026-11-21, branch scripts-rest)
+
+- The blade tab's Properties is closed each time a blade opens (no longer remembered open); it opens by itself
+  only on a brand-new scaffold.
+- codeIde.ts's panel (Output | Result | Problems) stays folded to its tabs until something runs or a lint error
+  appears (it opens on Problems then; a fold by the user's own click holds until the next run); the first time
+  it opens with no height of its own it takes about 30% of the area, and a dragged height is remembered.
+- The Workbench's console opens on a run as before, now at about 30% (leftTop 70%), its size remembered.
+- The minimap was already off by default (lazy/codeEditor.ts); the browser test checks it.
+
+## The Scripts page's debugger (built 2026-11-21, branch scripts-rest)
+
+- The kernel's own debugger: ipykernel ships debugpy (no new dependency); the Jupyter debug protocol over the
+  control channel (server/kernels.py debug: debug_request; debug_event from iopub into its own queue).
+  initialize and attach once per kernel, dumpCell (the script's text to the kernel's file for it), setBreakpoints
+  there, configurationDone, then the text runs as a cell in the document's kernel. Its names stay in the kernel
+  after (as Run's do); `__file__` and `sys.argv` are a cell's, not %run's (said).
+- services/debugger.py: a session per kernel (domain/debugger.py Session: state idle, running, paused, ended;
+  frames; output, memory only), a watcher task reading the events (stopped: stackTrace; continued; output: a log
+  point's words), `debug_state` notices (no output in the notice; read with GET /workbench/debug). Steps set
+  running before they are sent (the run may end before the answer). Stop: no breakpoints, continue, interrupt.
+- The page (workbenchDebug.ts): glyph margin breakpoints (a dot; a ringed dot conditional; a diamond log point)
+  that follow edits (Monaco decorations), right-click menu, F9; the bug button and Ctrl+Shift+D; while paused F5,
+  F10, F11 (into: full screen stays F11 otherwise), Shift+F11, Shift+F5; the paused line highlighted; the panel
+  under the code only while debugging (8.14): Call stack (a library frame opens read-only), Variables (Locals
+  and Globals, unfolding), Watch, Output, Debug console.
+- The agent: workbench_debug(action, document) (the tool list stays under 99,500: blades_update now takes the
+  code alone, the header is blades_header_set's; a few blades_ descriptions shortened).
+
 ## Share a running app (the owner, 2026-11-21: "I just wanted a place for a user to host a POC so others can connect to it like an app"; built, branch share-app)
 
 The owner's answers: **organization only** (people open the link after signing in with their Microsoft work account,

@@ -225,14 +225,18 @@ def test_the_header_changes_and_the_codes_bytes_do_not(client: TestClient) -> No
 
 def test_only_its_code_and_header_are_changed_never_its_kind(client: TestClient) -> None:
     """The blade IDE (the owner, 2026-11-21) saves code (tests/test_blade_ide.py); its kind and variable
-    follow from the code, never set by hand."""
+    follow from the code; a variable it never makes is refused (2026-11-21: every header field in
+    Properties)."""
     file = Path(made_table_blade(client)["file"])
     before = file.read_bytes()
     whole = ok(client.get("/blades/Monthly%20sales", headers=AUTH))
     for who in (AUTH, AGENT):
-        for change in ({"kind": "analysis"}, {"variable": "other"}):
+        for change, words in (
+            ({"kind": "analysis"}, "follows from its code"),
+            ({"variable": "other"}, "never makes"),
+        ):
             refused = client.put("/blades/Monthly%20sales", json=change, headers=who)
-            assert refused.status_code == 400 and "follows from its code" in refused.text, change
+            assert refused.status_code == 400 and words in refused.text, change
     # The whole blade as blades_get gave it, unchanged but for its words: taken (its code as it was).
     ok(client.put("/blades/Monthly%20sales", json=whole | {"description": "Still made-up"}, headers=AUTH))
     assert file.read_bytes().endswith(before[before.index(b"# ///\n", 10) :])

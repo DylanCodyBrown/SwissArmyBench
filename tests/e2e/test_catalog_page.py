@@ -29,12 +29,18 @@ SHOTS = os.environ.get("SWISSARMYBENCH_TEST_SHOTS", "")
 
 @pytest.fixture
 def warehouse(server: dict[str, Any]) -> Iterator[str]:
-    """The blades page (the name is the old fixture's: a catalog called Warehouse it no longer loads)."""
-    yield f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}"
+    """The Scripts page's Blades (the old blades page went, 2026-11-21; the name is the old fixture's)."""
+    yield f"http://127.0.0.1:{server['port']}/scripts?pane=blades#token={server['token']}"
     for blade in call(server, "GET", "/blades")["blades"]:
         call(server, "DELETE", f"/blades/{quote(blade['name'])}")
     for catalog in call(server, "GET", "/catalogs")["catalogs"]:
         call(server, "DELETE", f"/catalogs/{quote(catalog['name'])}")
+
+
+def blades_menu(page: Page, item: str) -> None:
+    """The Blades pane's "…": import (review first), export, blade folders, packs (2026-11-21)."""
+    page.get_by_role("button", name="Blades menu").click()
+    page.get_by_role("menuitem", name=item).click()
 
 
 def open_page(browser: Browser, url: str) -> Page:
@@ -158,7 +164,7 @@ def test_an_imported_blade_file_is_reviewed_first_and_a_taken_name_keeps_both(
     page = open_page(browser, warehouse)
     for round_ in (1, 2):
         with page.expect_file_chooser() as chooser:
-            page.get_by_role("button", name="Import blades").click()
+            blades_menu(page, "Import blades…")
         chooser.value.set_files(str(blade_file))
         dialog = page.locator("dialog")
         expect(dialog.locator(".import-card h3")).to_contain_text("Bakery DB")
@@ -200,7 +206,7 @@ def test_a_blade_folder_lists_its_blade_files_and_the_save_screen_exports(
     (folder / "helper.py").write_text("x = 1\n", encoding="utf-8")  # an ordinary file: not a blade
     page = open_page(browser, warehouse)
     try:
-        page.get_by_role("button", name="Blade folders").click()
+        blades_menu(page, "Blade folders…")
         dialog = page.locator("dialog")
         dialog.get_by_label("Folder to add").fill(str(folder))
         dialog.get_by_role("button", name="Add").click()
@@ -210,8 +216,8 @@ def test_a_blade_folder_lists_its_blade_files_and_the_save_screen_exports(
         expect(orders.locator(".blade-file")).to_have_text("file")
         expect(page.locator(".blade-list .blade-name")).to_have_count(1)
         orders.locator(".blade-name").click()
-        expect(page.locator("#detail")).to_contain_text("orders.blade.py")
-        page.locator("#detail").get_by_role("button", name="More").click()
+        expect(page.locator(".code-ide:visible")).to_contain_text("orders.blade.py")
+        page.locator(".code-ide:visible").get_by_role("button", name="More").click()
         expect(page.get_by_role("menuitem", name="Remove")).to_have_count(0)  # its file is the user's
         page.keyboard.press("Escape")
         page.get_by_role("button", name="Properties").click()
@@ -222,7 +228,7 @@ def test_a_blade_folder_lists_its_blade_files_and_the_save_screen_exports(
         assert 'description = "The orders app\'s database"' in (
             folder / "apps" / "orders.blade.py"
         ).read_text(encoding="utf-8")
-        page.locator("#detail").get_by_role("button", name="More").click()
+        page.locator(".code-ide:visible").get_by_role("button", name="More").click()
         with page.expect_download() as download:
             page.get_by_role("menuitem", name="Export").click()
         assert download.value.suggested_filename == "orders_app_db.blade.py"
@@ -262,7 +268,7 @@ def test_import_suggests_values_for_a_blades_settings_and_writes_them_in(
     )
     page = open_page(browser, warehouse)
     with page.expect_file_chooser() as chooser:
-        page.get_by_role("button", name="Import blades").click()
+        blades_menu(page, "Import blades…")
     chooser.value.set_files(str(blade_file))
     fill = page.locator("dialog fieldset.fill-in")
     expect(fill.locator(".needs-value-badge")).to_have_count(3)  # host, dbname, user
@@ -318,12 +324,12 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
         till.locator(".blade-name").click()
         expect(page.locator(".code-ide .ide-readonly")).to_have_text("read-only")
         page.get_by_role("button", name="Properties").click()
-        expect(page.locator("#detail")).to_contain_text("From the pack sales@team-blades")
-        page.locator("#detail").get_by_role("button", name="More").click()
+        expect(page.locator(".code-ide:visible")).to_contain_text("From the pack sales@team-blades")
+        page.locator(".code-ide:visible").get_by_role("button", name="More").click()
         page.get_by_role("menuitem", name="Copy as your own").click()
         expect(blade_item(page, "Till export copy")).to_have_count(1)
         # The Packs window: the installed pack, the commands, and a new marketplace repository.
-        page.get_by_role("button", name="Packs").click()
+        blades_menu(page, "Packs…")
         packs = page.locator("dialog")
         expect(packs.locator(".set-item", has_text="sales")).to_contain_text("version 1a2b3c4d5e6f")
         expect(packs).to_contain_text("/plugin install <pack>@<marketplace>")
@@ -354,15 +360,17 @@ def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
 # ===== the blade screen (the owner, 2026-11-17) =====
 
 
-def test_the_blades_page_has_no_catalog_panel(browser: Browser, warehouse: str) -> None:
-    """ "we dont even need catalog if its just tables": no Catalog section, picker, tree or search."""
-    page = open_page(browser, warehouse)
-    expect(page.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
-    expect(page.locator("#catalog")).to_have_count(0)
-    expect(page.get_by_role("heading", name="Catalog", exact=True)).to_have_count(0)
-    expect(page.locator("select[aria-label='Catalog']")).to_have_count(0)
-    expect(page.get_by_role("searchbox", name="Search the catalog")).to_have_count(0)
-    expect(page.locator("[role='tree']")).to_have_count(0)
+def test_the_blades_pane_has_no_catalog_panel(browser: Browser, warehouse: str) -> None:
+    """ "we dont even need catalog if its just tables": no Catalog section, picker, tree or search; and the
+    old blades page's address is the Scripts page's Blades (2026-11-21)."""
+    page = open_page(browser, warehouse.replace("/scripts?pane=blades#", "/catalog#"))
+    expect(page).to_have_url(re.compile(r"/scripts\?pane=blades"))
+    pane = page.locator(".wb-codex-lower.lower-blades")
+    expect(pane.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
+    expect(pane.locator("#catalog")).to_have_count(0)
+    expect(pane.get_by_role("heading", name="Catalog", exact=True)).to_have_count(0)
+    expect(pane.locator("select[aria-label='Catalog']")).to_have_count(0)
+    expect(pane.get_by_role("searchbox", name="Search the catalog")).to_have_count(0)
     page.close()
 
 
@@ -406,16 +414,19 @@ def test_the_blade_screen_is_an_ide_typed_linted_run_saved_and_cancelled(
     page.wait_for_selector(".blade-list")
     try:
         page.get_by_role("button", name="New blade").first.click()
-        page.get_by_role("button", name="A table (a DataFrame)").click()
+        dialog = page.get_by_role("dialog", name="New blade")
+        dialog.get_by_label("Name").fill("New table")
+        dialog.get_by_role("button", name="Create").click()
         ide = page.locator(".code-ide")
         expect(ide.locator(".ide-name")).to_have_text("New table")
         made = call(server, "GET", "/blades/New%20table")
         file = Path(made["file"])
         assert file.is_file() and file.parent.name == "blades"
-        # Never crowded (8.14): Properties closed, the panel folded to its tabs, no page heading.
+        # Never crowded (8.14): the panel folded to its tabs; Properties open only on a brand-new scaffold.
+        expect(page.locator(".ide-props")).to_be_visible()
+        page.get_by_role("button", name="Properties").click()
         expect(page.locator(".ide-props")).to_be_hidden()
         expect(page.locator(".ide-panel")).to_have_class(re.compile("folded"))
-        expect(page.locator(".cat-top")).to_be_hidden()
         # A lint squiggle as it is typed, its problem listed; fixed, it goes.
         type_in(page, TYPED.replace("make_table = pd.DataFrame", "make_table = missing_name or pd.DataFrame"))
         expect(editor(page).locator(".squiggly-error").first).to_be_attached(timeout=15000)
@@ -491,15 +502,16 @@ def test_a_starter_is_copied_and_a_connection_shows_how_its_tables_are_listed(
         },
     )
     page = open_page(browser, warehouse)
-    page.goto(warehouse.replace("/catalog#", "/catalog?blade=Bakery#"))
+    page.goto(warehouse.replace("?pane=blades#", "?pane=blades&blade=Bakery#"))
     page.get_by_role("button", name="Properties").click()
-    listing = page.locator("details.blade-listing")
-    expect(listing.locator("summary")).to_have_text("How its tables are listed")
-    expect(listing).not_to_have_attribute("open", "")
-    listing.locator("summary").click()
-    expect(listing.locator(".monaco-editor, pre")).to_contain_text("sqlite_master", timeout=20000)
+    # Every header field a connection has (2026-11-21): its listing query is one, editable.
+    listing = page.get_by_label("How its tables are listed")
+    expect(listing).to_have_value(re.compile("sqlite_master"), timeout=20000)
+    expect(page.get_by_label("SQL dialect")).to_have_value("sqlite")
     expect(page.get_by_label("Its table is called")).to_have_count(0)
-    page.goto(warehouse.replace("/catalog#", "/catalog?blade=SharePoint%20document%20as%20a%20table#"))
+    page.goto(
+        warehouse.replace("?pane=blades#", "?pane=blades&blade=SharePoint%20document%20as%20a%20table#")
+    )
     expect(page.locator(".code-ide .ide-readonly")).to_have_text("read-only")
     editor(page)
     # A starter's Save is refused, with Copy as your own beside the words.

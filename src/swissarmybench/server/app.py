@@ -101,6 +101,7 @@ from swissarmybench.server import (
     routes_connection_tables,
     routes_connections,
     routes_datasets,
+    routes_debugger,
     routes_desktop,
     routes_explorer,
     routes_extensions,
@@ -253,8 +254,10 @@ def create_app(
         return FileResponse(settings.web_root / "index.html", headers={"Cache-Control": "no-store"})
 
     async def catalog_page(request: Request) -> Response:
-        # Blades and the catalog explorer, in a tab of its own (plan decision 18).
-        return FileResponse(settings.web_root / "catalog.html", headers={"Cache-Control": "no-store"})
+        # The old blades page (the owner, 2026-11-21: blades move into the Scripts page): its Blades pane, and
+        # ?blade=<name> that blade's tab there (an empty name: New blade). The #token goes with the redirect.
+        query = urlencode({"pane": "blades"} | dict(request.query_params))  # ?blade= and a layer's open= kept
+        return RedirectResponse(f"{workbench_pages.url_of('scripts')}?{query}", status_code=302)
 
     async def workbench_page(request: Request) -> Response:
         # The old address: notebooks and scripts are two pages now (the owner, 2026-11-21), /notebooks
@@ -361,6 +364,7 @@ def create_app(
             *routes_file_dialogs.routes(ctx.file_dialogs),
             *routes_intellisense.routes(ctx.intellisense),
             *routes_script_ide.routes(ctx.script_ide),
+            *routes_debugger.routes(ctx.debugger),
             *routes_workbench.routes(ctx.workbench, ctx.workbench_window, ctx.code_files),
             *routes_table_cells.routes(ctx.table_cells),
             *routes_lineage.routes(ctx.lineage),

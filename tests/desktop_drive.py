@@ -237,9 +237,9 @@ def main(folder: Path, shots: Path | None) -> int:
         status = ask(found[1], found[2], {"status": True})
         results["status_windows"] = sorted(w["kind"] for w in status["windows"])
         results["status_has_no_token"] = "token" not in json.dumps(status)
-        ask(found[1], found[2], {"open": "/catalog"})
+        ask(found[1], found[2], {"open": "/scripts"})  # the blades page went (2026-11-21): the Scripts page
         catalog = wait(
-            lambda: next((w for w in shell.windows.values() if w.kind == "catalog"), None), 30, "cat"
+            lambda: next((w for w in shell.windows.values() if w.kind == "scripts"), None), 30, "scripts"
         )
         results["channel_opened"] = catalog.kind
         results["bad_key"] = ask(found[1], "x" * 43, {"status": True})
@@ -286,7 +286,7 @@ def main(folder: Path, shots: Path | None) -> int:
         results["open_in_browser_has_token"] = "#token=" in outside[-1]
         found = record.shell()
         assert found is not None
-        ask(found[1], found[2], {"open": "/catalog"})
+        ask(found[1], found[2], {"open": "/scripts"})
         wait(lambda: True, 1.0)
         results["catalog_reused"] = len(shell.windows) == before and catalog.raised > 0
         results["profile_folder"] = sorted(
@@ -349,6 +349,13 @@ def main(folder: Path, shots: Path | None) -> int:
         wb_target.setFocus()
         wait(lambda: loaded(again), 60, "the Workbench again")
         js(again, "window.__kept = 7; true")
+        # F11: the page's full screen and the window's own (showFullScreen), then back (2026-11-21).
+        QTest.keyClick(wb_target, Qt.Key.Key_F11)
+        wait(lambda: again.isFullScreen(), 15, "F11 made the window full screen")
+        results["f11_window_full"] = js(again, "document.body.classList.contains('wb-full')")
+        QTest.keyClick(wb_target, Qt.Key.Key_F11)
+        wait(lambda: not again.isFullScreen(), 15, "F11 again put the window back")
+        results["f11_window_back"] = not js(again, "document.body.classList.contains('wb-full')")
         QTest.keyClick(wb_target, Qt.Key.Key_F5)
         wait(lambda: True, 1.5)
         results["workbench_f5_kept_page"] = js(again, "window.__kept === 7")

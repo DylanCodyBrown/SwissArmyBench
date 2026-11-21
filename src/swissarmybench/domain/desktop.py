@@ -31,7 +31,7 @@ PAGES: dict[str, str] = {
     "workbench": "/notebooks",  # the old word: the Notebooks page
     "notebooks": "/notebooks",
     "scripts": "/scripts",
-    "blades": "/catalog",
+    "blades": "/scripts?pane=blades",  # the old blades page went (2026-11-21): the Scripts page's Blades
 }
 # Window sizes when nothing is remembered and the page asked for none.
 DEFAULT_SIZES: dict[str, tuple[int, int]] = {

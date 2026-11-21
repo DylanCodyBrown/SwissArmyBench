@@ -192,9 +192,9 @@ const ICON: Record<string, string> = {
   tie_out: "columns", key_finder: "key",
 };
 
-/** Your own analyses are blades: made and edited on the blades page (its own window). */
+/** Your own analyses are blades: made and edited on the Scripts page's Blades (its own window). */
 function openBladesPage(): void {
-  window.open(`/catalog#token=${encodeURIComponent(token)}`, "swissarmybench-catalog")?.focus();
+  window.open(`/scripts?pane=blades#token=${encodeURIComponent(token)}`, "sab-scripts")?.focus();
 }
 
 // ===== the toolbar =====

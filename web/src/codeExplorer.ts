@@ -15,7 +15,7 @@
  *   [NEW]     New script (New notebook), and on the Scripts page New package.
  */
 import { api } from "./api";
-import { button, clear, h, icon } from "./dom";
+import { button, clear, h, icon, type MenuItem, showMenu } from "./dom";
 import { errorHere } from "./errorNote";
 import { kindIcon } from "./kindColours";
 import { goHome } from "./nav";
@@ -61,6 +61,9 @@ export interface CodeExplorerHost {
   newPackage?: () => void;
   /** A file's own action (Fine-tune as a script, Copy as your own). */
   action?: (file: TreeFile, id: string) => void;
+  /** The tree's actions on a project module (right-click, F2, Delete): rename, duplicate, delete, a
+   *  package's own (rename-package, delete-package, new-package); `path` the file's or its package folder's. */
+  fileAction?: (file: TreeFile, action: string, path: string) => void;
   /** The documents open in this window: their full paths, the unsaved ones, the one in front. */
   openNow: () => { paths: string[]; dirty: string[]; front: string | null };
   /** The page's own menu ("…": New, Open…, split, Commands…, Settings…), at the head's end. */
@@ -280,6 +283,28 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
       ),
       ...(file.actions ?? []).map((a) => button(a.label, () => host.action?.(file, a.id), { class: "ghost wb-codex-action", title: a.label })),
     );
+    const own = !!host.fileAction && !file.item && !file.library && !file.read_only && !file.made_from;
+    if (own) {
+      const fileButton = row.querySelector<HTMLElement>(".wb-codex-file")!;
+      const folder = file.full.replace(/[\\/][^\\/]*$/, "");
+      const isInit = file.name === "__init__.py";
+      const items = (): MenuItem[] => [
+        ["edit", "Rename…", () => host.fileAction!(file, "rename", file.full)],
+        ["copy", "Duplicate", () => host.fileAction!(file, "duplicate", file.full)],
+        ["trash", "Delete", () => host.fileAction!(file, "delete", file.full)],
+        ...(isInit
+          ? (["-", ["edit", "Rename package…", () => host.fileAction!(file, "rename-package", folder)], ["folder", "New package here…", () => host.fileAction!(file, "new-package", folder)], ["trash", "Delete package", () => host.fileAction!(file, "delete-package", folder)]] as MenuItem[])
+          : []),
+      ];
+      fileButton.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showMenu(e.clientX, e.clientY, `${file.name} actions`, items());
+      });
+      fileButton.addEventListener("keydown", (e) => {
+        if (e.key === "F2") (e.preventDefault(), host.fileAction!(file, "rename", file.full));
+        else if (e.key === "Delete") (e.preventDefault(), host.fileAction!(file, "delete", file.full));
+      });
+    }
     return h("div", { class: "wb-codex-item" }, row, ...(shows ? outline.flatMap((s) => symbolRow(file, s, 0)) : []));
   };
 

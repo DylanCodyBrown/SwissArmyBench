@@ -121,7 +121,7 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     assert said["devtools_window"]
     # The channel: what is open (no token in it); a page opened; another key refused.
     assert said["status_windows"] == ["home", "notebooks"] and said["status_has_no_token"]
-    assert said["channel_opened"] == "catalog" and "error" in said["bad_key"]
+    assert said["channel_opened"] == "scripts" and "error" in said["bad_key"]
     # The Workbench's place remembered and used again (within the screen).
     assert said["remembered"] == {"x": 40, "y": 50, "w": 900, "h": 640, "maximized": False}
     x, y, w, h = said["reopened_at"]
@@ -132,7 +132,7 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
         min(900, sw),
     )
     # Open in browser: the page in the system's browser (stood in), with the token as the launch has it.
-    assert said["open_in_browser"].endswith("/catalog") and said["open_in_browser_has_token"]
+    assert said["open_in_browser"].endswith("/scripts") and said["open_in_browser_has_token"]
     assert said["catalog_reused"]
     # Files: handed over the channel and dropped on a window, each read by its real path.
     assert said["file_answer"] == {"ok": True} and said["file_origin"] == "file"
@@ -142,6 +142,8 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     # the Workbench's F5 is its own; Ctrl+W with no document closes the window.
     assert said["ctrl_tab_moved"] and said["ctrl_w_closed_tab"] and said["ctrl_w_kept_window"]
     assert said["ctrl_shift_t_reopened"] and said["workbench_f5_kept_page"] is True
+    # F11: the window itself full screen with the page's, and back (2026-11-21).
+    assert said["f11_window_full"] is True and said["f11_window_back"] is True
     assert said["ctrl_w_closed_empty_window"]
     # The profile in the state folder: cookies and local storage kept there.
     assert {"Cookies", "Local Storage"} <= set(said["profile_folder"])

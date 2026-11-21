@@ -13,13 +13,14 @@ import asyncio
 import os
 import platform
 import sys
+import sysconfig
 import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import duckdb
 
@@ -136,6 +137,7 @@ from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.context_md import ContextMd
 from swissarmybench.services.data_export import DataExport
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
+from swissarmybench.services.debugger import Debugger, DebugKernel
 from swissarmybench.services.desktop import Desktop
 from swissarmybench.services.explorer import BrowseSources, Explorer, OpenTable
 from swissarmybench.services.export import Exports
@@ -239,6 +241,7 @@ class Services:
     workbench_window: WorkbenchWindow
     intellisense: Intellisense
     script_ide: ScriptIde
+    debugger: Debugger
     table_cells: TableCells
     lineage: Lineage
     projects: Projects
@@ -1349,6 +1352,14 @@ def bootstrap(
             else (None, [])
         ),
         tables=table_cells.listing,
+        trash=file_manager.trash,  # Delete: the system's trash, the user's own
+        library_roots=lambda: tuple(  # Python's own folders: a library's source, read-only
+            dict.fromkeys(
+                p
+                for k in ("stdlib", "platstdlib", "purelib", "platlib")
+                if (p := sysconfig.get_paths().get(k))
+            )
+        ),
     )
     blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     context_md = ContextMd(
@@ -1534,6 +1545,14 @@ def bootstrap(
         workbench_window=workbench_window,
         intellisense=intellisense,
         script_ide=script_ide,
+        debugger=Debugger(
+            ws,
+            lambda kernel: cast(
+                "DebugKernel | None", workbench.kernel_or_none(kernel)
+            ),  # server/kernels.py's
+            workbench.kernel_for,
+            workbench.document_of,
+        ),
         table_cells=table_cells,
         panels=Panels(ws),
         modes=modes,

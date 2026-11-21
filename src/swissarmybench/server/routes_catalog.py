@@ -32,7 +32,7 @@ def routes(catalogs: CatalogService) -> list[BaseRoute]:
 
     def catalog_url(name: str) -> str:
         where = ws.addresses
-        return f"http://127.0.0.1:{where.port}/catalog#token={where.token}&catalog={quote(name)}"
+        return f"http://127.0.0.1:{where.port}/workspace?open=data#token={where.token}&catalog={quote(name)}"
 
     async def list_catalogs(request: Request) -> Response:
         return json_response(catalogs.listing())

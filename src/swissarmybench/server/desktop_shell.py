@@ -83,7 +83,10 @@ SHELL_SCRIPT = """
   const say = (m) => console.info("__MARK__" + JSON.stringify(m));
   // The page knows it is in the desktop app: the browser's keys are the app's (Ctrl+W, Ctrl+T, Ctrl+N,
   // Ctrl+Tab, Ctrl+Shift+T), and print waits for the PDF. close(): this window (asking its page first).
-  const app = Object.freeze({ app: true, close: () => say({ close: true }) });
+  // fullScreen(on): the window itself full screen or back (the pages' F11, 2026-11-21).
+  const app = Object.freeze({
+    app: true, close: () => say({ close: true }), fullScreen: (on) => say({ full: !!on }),
+  });
   Object.defineProperty(window, "sabApp", { value: app, enumerable: false });
   // The keys a page leaves alone: F5 and Ctrl+R reload, Ctrl+W closes the window. A page that takes one
   // (the Workbench's F5 runs, a grid page's Ctrl+W closes its tab) prevents its default first.
@@ -253,10 +256,25 @@ class Page(QWebEnginePage):  # type: ignore[misc,unused-ignore]  # Any to mypy w
             if isinstance(said.get("name"), str):
                 self.window.name = said["name"][:200]
                 self.shell.changed()
+            if isinstance(said.get("full"), bool):
+                self.window.full_screen(said["full"])
 
 
 class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy without PySide6
     """A page of the app in a window of its own."""
+
+    def full_screen(self, on: bool) -> None:
+        """The window full screen (a page's F11 or its full-screen button, 2026-11-21), or back as it was
+        (maximized again when it was)."""
+        if on == self.isFullScreen():
+            return
+        if on:
+            self.was_maximized = self.isMaximized()
+            self.showFullScreen()
+        elif getattr(self, "was_maximized", False):
+            self.showMaximized()
+        else:
+            self.showNormal()
 
     def __init__(self, shell: Shell, ident: int) -> None:
         super().__init__()
@@ -417,10 +435,20 @@ class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy
     # ----- full screen, developer tools, permissions -----
 
     def toggle_full_screen(self) -> None:
-        if self.isFullScreen():
-            self.showNormal()
-        else:
-            self.showFullScreen()
+        """F11: a page with a full screen of its own (the Notebooks and Scripts pages: the IDE alone) takes
+        it, and asks for the window's through sabApp.fullScreen; any other page, the window alone."""
+
+        def answered(took: Any) -> None:
+            if took is True:
+                return
+            if self.isFullScreen():
+                self.showNormal()
+            else:
+                self.showFullScreen()
+
+        self.page.runJavaScript(
+            "typeof window.sabFullScreen === 'function' ? (window.sabFullScreen(), true) : false", 0, answered
+        )
 
     def _full_screen(self, request: Any) -> None:
         if rules.is_ours(request.origin().toString(), self.shell.port):

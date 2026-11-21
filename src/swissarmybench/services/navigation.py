@@ -13,7 +13,6 @@ from swissarmybench.services.workspace import Conflict, Workspace
 # Said when no window of that kind is open, with how to open one.
 NOT_OPEN: dict[str, str] = {
     "home": "No home window is open: the app's launcher, or `swissarmybench open`, opens it.",
-    "catalog": "No blades page is open: the home page's Blades and catalog opens it.",
     "workbench": "No Notebooks or Scripts page is open: the rail's Notebooks or Scripts opens it.",
     "notebooks": "No Notebooks page is open: the rail's Notebooks opens it.",
     "scripts": "No Scripts page is open: the rail's Scripts opens it.",
@@ -72,7 +71,7 @@ class Navigation:
             if not live.workbench_open(page) or not await live.tell_workbench(message, page):
                 raise Conflict(NOT_OPEN[window])
         else:
-            if not (live.page_open() if window == "home" else live.catalog_open()):
+            if not live.page_open():
                 raise Conflict(NOT_OPEN[window])
             await live.broadcast(message)
         self.ws.audit.write(who, "navigate", rules.said(notice))
