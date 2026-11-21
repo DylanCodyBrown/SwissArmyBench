@@ -162,11 +162,22 @@ const top = document.getElementById("wb-top") as HTMLElement;
 // same page they are seperate things"): this window is one of them (its path says which, workbenchPages.ts).
 const PAGE: CodePage = thisPage();
 document.body.dataset.page = PAGE;
+// An address that names the other page's file (an old /workbench#open=load.py): this tab goes to that page,
+// the address's words with it, before anything is drawn.
+{
+  const asked = openedWith.get("open");
+  const there = pageOfPath(asked);
+  if (asked && there && there !== PAGE && !openedWith.get("take")) {
+    const words = new URLSearchParams(openedWith);
+    if (token && !words.get("token")) words.set("token", token);
+    location.replace(`/${there}${location.search}#${words.toString()}`);
+  }
+}
 // No top bar (the owner, 2026-11-21, on the Scripts landing: "without all of this at the top"): Save and
 // Save as are a document's own (its "…" menu, Ctrl+S and Ctrl+Shift+S); New is the creator and the explorer.
 top.hidden = true;
 // The explorer's marks and outline (codeExplorer.ts, mounted further down): called from the first draw on.
-const codexHooks = { mark: (): void => undefined, typed: (_path: string, _text: string): void => undefined, refresh: (): void => undefined };
+const codexHooks = { label: (_label: string): void => undefined, mark: (): void => undefined, typed: (_path: string, _text: string): void => undefined, refresh: (): void => undefined };
 // The panes around the groups: the console under them, Variables on the right (the status bar's
 // Console and Variables open them).
 const layout = mountLayout(
@@ -2111,6 +2122,7 @@ function drawTop(): void {
   if (newLabel && making) newLabel.textContent = making;
   topNew.title = making;
   topNew.setAttribute("aria-label", making || "New");
+  if (making) codexHooks.label(making); // the explorer's New says the same
   topNew.dataset.kind = topKind();
   clear(topName, h("span", { class: "wb-name-text" }, doc?.title ?? "Workbench"), doc?.dirty ? h("span", { class: "wb-name-dot", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes" }) : null);
   topName.title = doc?.path ?? doc?.title ?? "";
@@ -2235,8 +2247,10 @@ function drawControls(): void {
   const more = button("Document menu", () => undefined, { icon: "more", iconOnly: true, class: "ghost wb-more", title: "More" });
   menuButton(more, "Document menu", () => moreEntries(doc, more), { align: "right" });
   // A Streamlit app's canvas: Play, Edit, Export, Save as (its pages are tabs inside the canvas).
-  if (doc.canvas) return void host.replaceChildren(doc.canvas.tools, more);
-  if (doc.workbook) return void host.replaceChildren(doc.workbook.tools, more);
+  // Its own Save in its row (no top bar: the owner, 2026-11-21); Save as… is its "…" or Ctrl+Shift+S.
+  const saveHere = button("Save", () => void saveFront().catch((e: Error) => errorHere(e)), { icon: "save", iconOnly: true, class: "ghost wb-save", title: "Save (Ctrl+S)" });
+  if (doc.canvas) return void host.replaceChildren(doc.canvas.tools, saveHere, more);
+  if (doc.workbook) return void host.replaceChildren(doc.workbook.tools, saveHere, more);
   if (!doc.notebook && !doc.script) return void host.replaceChildren(more);
   const addCell = h("button", { type: "button", class: "btn line wb-add-cell", "aria-label": "Add cell", title: "Add cell" }, icon("plus"), h("span", { class: "btn-label" }, "Cell"), icon("down")) as HTMLButtonElement;
   menuButton(addCell, "Cell kinds", () => cellEntries(doc));
@@ -2249,8 +2263,6 @@ function drawControls(): void {
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.
-  // The document's own Save in its row (no top bar: the owner, 2026-11-21); Save as… is its "…".
-  const saveHere = button("Save", () => void save(doc).catch((e: Error) => errorHere(e)), { icon: "save", iconOnly: true, class: "ghost wb-save", title: "Save (Ctrl+S)" });
   host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, saveHere, more].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
@@ -2472,6 +2484,7 @@ const codex = mountCodeExplorer({
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(codex.element);
 codexHooks.mark = codex.mark;
+codexHooks.label = codex.setNewLabel;
 codexHooks.typed = codex.typed;
 codexHooks.refresh = () => void codex.refresh();
 /** App mode's Streamlit cells panel: one list, shown in the canvas in front's panel. */
@@ -2858,6 +2871,11 @@ function drawEmpty(): void {
     layout.empty(true);
     layout.status.hidden = true;
     if (!landing.kind()) landing.show("script");
+    return;
+  }
+  if (landing.kind()) {
+    // The landing is on show: it has the area (never the empty state over it).
+    empty.hidden = true;
     return;
   }
   groups.element.hidden = none;

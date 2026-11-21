@@ -52,7 +52,7 @@ def workbench(
     page.on("dialog", lambda d: d.accept())
     opened = f"&open={quote(str(path))}" if path else ""
     page.goto(f"http://127.0.0.1:{server['port']}/workbench{query}#token={server['token']}{opened}")
-    expect(page.locator(".wb-top")).to_be_visible(timeout=20000)
+    expect(page.locator(".wb-codex")).to_be_visible(timeout=20000)  # the page's explorer (2026-11-21)
     return page
 
 
@@ -80,45 +80,38 @@ def orchard(server: dict[str, Any], tmp_path: Path) -> Iterator[dict[str, Any]]:
     close_tables(server)
 
 
-def test_new_and_open_sit_in_the_top_bar_on_every_landing_and_beside_a_document(
+def test_each_page_has_no_top_bar_an_explorer_and_its_own_new(
     browser: Browser, server: dict[str, Any]
 ) -> None:
+    """The owner (2026-11-21), on the Scripts landing: "scripts should open to on the page a new script
+    creator
+    just like it does but without all of this at the top. What it should have is a project file explorer"."""
     page = workbench(browser, server, "?kind=script&view=list")
     landing = page.locator(".wb-landing")
     expect(landing).to_be_visible(timeout=20000)
-    top = page.locator(".wb-top")
-    # The landing is its cards only: no panel of its own.
-    expect(landing.locator(".wb-landing-panel")).to_have_count(0)
-    # Its New script is the empty state's, only while there is none (feel-c, 2026-11-19); the bar's stays.
-    expect(landing.locator(".btn:not(.empty-state .btn)", has_text="New script")).to_have_count(0)
-    # New and Open… beside Save and Save as….
-    labels = top.locator(".btn").evaluate_all(
-        "els => els.filter(e => !e.hidden).map(e => e.textContent.trim())"
-    )
-    at = labels.index("Save as…")
-    assert labels[at + 1 : at + 3] == ["New script", "Open…"], labels
-    shot(page, "scripts-landing-top-bar")
-    for kind, made in (("notebook", "New notebook"), ("app", "New Streamlit app")):
-        page.goto(
-            f"http://127.0.0.1:{server['port']}/workbench?kind={kind}&view=list#token={server['token']}"
-        )
-        expect(landing).to_be_visible(timeout=20000)
-        expect(top.get_by_role("button", name=made)).to_be_visible()
-        expect(top.get_by_role("button", name="Open…")).to_be_visible()
-    # New from the bar makes that kind; Back comes back to the landing.
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=script&view=list#token={server['token']}")
+    expect(page.locator(".wb-top")).to_be_hidden()  # no project name, Save, New or Open strip
+    explorer = page.locator(".wb-codex.page-scripts")
+    expect(explorer).to_be_visible()
+    expect(explorer).to_contain_text("No project is open.")
+    # The creator: one sentence, New script, Try it with sample data.
+    expect(landing.get_by_role("button", name="New script")).to_be_visible()
+    expect(landing.get_by_role("button", name="Try it with sample data")).to_be_visible()
+    shot(page, "scripts-landing")
+    # Notebooks: its own creator and explorer, its menu's New only its kind.
+    page.goto(f"http://127.0.0.1:{server['port']}/notebooks?kind=notebook&view=list#token={server['token']}")
+    expect(page.locator(".wb-codex.page-notebooks")).to_be_visible(timeout=20000)
+    expect(landing.get_by_role("button", name="New notebook")).to_be_visible()
+    page.get_by_role("button", name="Workbench menu", exact=True).click()
+    expect(page.get_by_role("menuitem", name="New script")).to_have_count(0)
+    page.keyboard.press("Escape")
+    # The creator's New makes the kind; the creator goes while one is open.
+    page.goto(f"http://127.0.0.1:{server['port']}/scripts?kind=script&view=list#token={server['token']}")
     expect(landing).to_be_visible(timeout=20000)
-    top.get_by_role("button", name="New script").click()
+    landing.get_by_role("button", name="New script").click()
     expect(landing).to_be_hidden()
     expect(page.locator(".wb-tab", has_text="Untitled script")).to_be_visible(timeout=20000)
-    # With a document open, the bar keeps its kind's New and Open….
-    expect(top.get_by_role("button", name="New script")).to_be_visible()
-    expect(top.get_by_role("button", name="Open…")).to_be_visible()
-    top.get_by_role("button", name="New script").click()
+    explorer.get_by_role("button", name="New script").click()
     expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
-    page.go_back()
-    page.go_back()
-    expect(landing).to_be_visible(timeout=20000)
 
 
 def test_data_ipynbs_table_cell_opens_unfolded_runs_and_shows_its_table_first(
@@ -240,11 +233,12 @@ def test_the_data_notebook_and_the_app_notebooks_have_icons_of_their_own(
         expect(page.locator(".wb-file-open", has_text=title).locator("svg")).to_have_attribute(
             "data-icon", name
         )
-    page.locator(".nav-rail [data-area='notebooks']").click()
-    landing = page.locator(".wb-landing")
-    expect(landing).to_be_visible(timeout=20000)
-    views = landing.locator(".wb-landing-card", has_text="views.ipynb").first.locator(".wb-landing-icon svg")
-    expect(views).to_have_attribute("data-icon", "appNotebook")
+    # The page's explorer (2026-11-21) lists the project's notebooks, each with its kind's icon.
+    explorer = page.locator(".wb-codex.page-notebooks")
+    views = explorer.locator(".wb-codex-file[data-path='views.ipynb'] svg").first
+    expect(views).to_have_attribute("data-icon", "appNotebook", timeout=20000)
+    data = explorer.locator(".wb-codex-file[data-path='data.ipynb'] svg").first
+    expect(data).to_have_attribute("data-icon", "dataNotebook")
     shot(page, "notebook-icons")
 
 
@@ -257,14 +251,9 @@ def test_the_landing_pages_have_no_transformations_and_no_data_panel(
     page = workbench(browser, server, path=orchard["data"])
     expect(page.locator(".wb-tab", has_text="data.ipynb")).to_be_visible(timeout=20000)
     landing = page.locator(".wb-landing")
-    for kind, title in (("script", "Scripts"), ("notebook", "Notebooks")):
-        page.goto(
-            f"http://127.0.0.1:{server['port']}/workbench?kind={kind}&view=list#token={server['token']}"
-        )
-        expect(landing).to_be_visible(timeout=20000)
-        expect(landing.locator("h1")).to_have_text(
-            title
-        )  # (an h2 "Notebooks" lists recent ones from outside)
+    for page_name in ("scripts", "notebooks"):
+        page.goto(f"http://127.0.0.1:{server['port']}/{page_name}#token={server['token']}")
+        expect(page.locator(f".wb-codex.page-{page_name}")).to_be_visible(timeout=20000)
         expect(landing.locator(".wb-landing-table")).to_have_count(0)
         expect(landing.get_by_role("heading", name="Transformations")).to_have_count(0)
         expect(page.locator(".wb-explorer")).to_be_hidden()  # the Data Explorer is off until opened

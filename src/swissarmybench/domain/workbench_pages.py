@@ -51,20 +51,25 @@ def url_of(page: str) -> str:
 
 
 def old_address(query: Mapping[str, str]) -> tuple[str, dict[str, str]]:
-    """An old /workbench address: the page it goes to, and the query it keeps (kind= said by the page
-    itself now, but for an app's, whose landing is on the Notebooks page)."""
+    """An old /workbench address: the page it goes to (by its kind=, else its file's), the query kept."""
     kept = dict(query)
-    kind = kept.pop("kind", None)
-    page = page_of_kind(kind) or page_of_path(kept.get("file")) or page_of_path(kept.get("open"))
-    if kind == "app":
-        kept = {"kind": "app", **kept}
+    page = page_of_kind(kept.get("kind")) or page_of_path(kept.get("file")) or page_of_path(kept.get("open"))
     return page or "notebooks", kept
 
 
-def page_for_command(page: Any, args: Mapping[str, Any]) -> str | None:
-    """The page a workbench command goes to: the one named, else its file's (args.path), else any."""
+# The commands that make one kind: that kind's page.
+_COMMAND_PAGES: dict[str, str] = {
+    "file.newScript": "scripts",
+    "file.newNotebook": "notebooks",
+    "file.newApp": "notebooks",
+}
+
+
+def page_for_command(page: Any, args: Mapping[str, Any], command: str = "") -> str | None:
+    """The page a workbench command goes to: the one named, else its file's (args.path) or the kind it makes,
+    else any (the window the user was last in)."""
     if page is not None:
         if page not in PAGES:
             raise ValueError("page is notebooks or scripts.")
         return str(page)
-    return page_of_path(args.get("path"))
+    return page_of_path(args.get("path")) or _COMMAND_PAGES.get(command)

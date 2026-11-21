@@ -9,7 +9,7 @@
  *             scripts, Project code, the library's code, what the app generates), Notebooks with the data
  *             notebook first. Never the other page's kind.
  *   [OUTLINE] a module unfolds to its classes (their methods), functions and constants; a click goes to the
- *             line. The open document's outline follows its text as it is typed (POST /project/outline).
+ *             line. The open document's outline follows its text as it is typed (POST /project/module-outline).
  *   [MARKS]   open (its name strong), unsaved (●), read-only (a key), edited by hand (a pencil).
  *   [FIND]    the search box matches files and symbols, in any case.
  *   [NEW]     New script (New notebook), and on the Scripts page New package.
@@ -17,6 +17,7 @@
 import { api } from "./api";
 import { button, clear, h, icon } from "./dom";
 import { errorHere } from "./errorNote";
+import { kindIcon } from "./kindColours";
 import { goHome } from "./nav";
 import type { CodePage } from "./workbenchPages";
 
@@ -71,6 +72,8 @@ export interface CodeExplorer {
   /** The front document's text changed: its outline follows (a moment later). */
   typed: (full: string, text: string) => void;
   files: () => TreeFile[];
+  /** New's words as the mode has them ("New TypeScript file" in a code app). */
+  setNewLabel: (label: string) => void;
 }
 
 const SYMBOL_ICONS: Record<string, string> = { class: "blade", function: "formula", method: "formula", constant: "number" };
@@ -131,7 +134,7 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
           title: file.made_from ? `${file.path}: made from ${file.made_from}` : file.path,
           onclick: () => host.open(file),
         },
-        icon(file.item ? "table" : host.page === "scripts" ? "code" : file.name.toLowerCase() === "data.ipynb" ? "dataNotebook" : "notebook"),
+        icon(file.item ? "table" : host.page === "scripts" ? "code" : kindIcon("notebook", file.full)),
         h("span", { class: "wb-codex-name" }, host.page === "scripts" && file.module && !file.item ? file.module : file.name),
         now.dirty.includes(file.full) ? h("span", { class: "wb-codex-dirty", title: "Not saved", "aria-label": "Not saved" }, "●") : null,
         file.edited ? h("span", { class: "wb-codex-mark edited", title: "Edited by hand", "aria-label": "Edited by hand" }, icon("edit")) : file.read_only ? h("span", { class: "wb-codex-mark locked", title: file.made_from ? `Made from ${file.made_from}: read-only` : "Read-only", "aria-label": "Read-only" }, icon("key")) : null,
@@ -184,11 +187,15 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
     refresh,
     mark: draw,
     files: () => groups.flatMap((g) => g.files),
+    setNewLabel: (label) => {
+      newDoc.title = label;
+      newDoc.setAttribute("aria-label", label);
+    },
     typed: (full, text) => {
       if (host.page !== "scripts") return;
       if (typedTimer !== null) window.clearTimeout(typedTimer);
       typedTimer = window.setTimeout(() => {
-        void api<{ symbols: Symbol[]; error: unknown }>("/project/outline", "POST", { text })
+        void api<{ symbols: Symbol[]; error: unknown }>("/project/module-outline", "POST", { text })
           .then((said) => {
             if (said.error) return; // a syntax error: the last outline stays
             live.set(full, said.symbols);

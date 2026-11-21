@@ -45,7 +45,7 @@ def workbench(browser: Browser, server: dict[str, Any]) -> Page:
     page = browser.new_context(viewport={"width": 1500, "height": 950}, device_scale_factor=2).new_page()
     page.on("dialog", lambda d: d.accept())
     page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
-    expect(page.locator(".wb-top")).to_be_visible(timeout=20000)
+    expect(page.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (2026-11-21)
     return page
 
 
@@ -117,7 +117,10 @@ def test_the_pane_beside_the_data_notebook_and_a_script(
     expect(lines).to_contain_text("sab.sql(")
     expect(lines).to_contain_text(f"[{shop}].customers")
 
-    # Beside a script too: the pane stays, and Insert goes to the script's cursor.
+    # Beside a script too (the Scripts page's, 2026-11-21): the pane stays, Insert goes to the script's
+    # cursor.
+    page.goto(f"http://127.0.0.1:{server['port']}/scripts")
+    expect(page.locator(".wb-codex.page-scripts")).to_be_visible(timeout=20000)
     window(server, "file.newScript")
     expect(page.locator(".wb-explorer")).to_be_visible()
     search(page, "order_id")

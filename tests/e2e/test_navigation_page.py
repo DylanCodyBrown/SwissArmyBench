@@ -114,7 +114,7 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
         page.evaluate("document.elementFromPoint(700, 430).closest('.area-page')?.dataset.page") == "projects"
     )
     expect(page).to_have_url(re.compile(r"/workspace\?view=erd&open=projects$"))
-    expect(page).to_have_title("Projects")
+    expect(page).to_have_title("Home")
     expect(mark).to_have_attribute("aria-current", "page")
     page.go_back()
     expect(projects).to_have_count(0)
@@ -264,7 +264,7 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
         page.evaluate("window.open('/workbench', 'swissarmybench-workbench')")
     workbench = opened.value
     expect(workbench.locator(".wb-status, .wb-welcome").first).to_be_visible(timeout=20000)
-    expect(workbench).to_have_title(re.compile(r"^Workbench"))
+    expect(workbench).to_have_title(re.compile(r"^Notebooks"))  # the Notebooks page (2026-11-21)
     # The mark: the rail's first item (2026-11-18), named Projects, Alt+Home its key; not in the top row.
     mark = workbench.locator(".nav-rail-item").first
     expect(mark).to_have_attribute("data-area", "projects")
@@ -289,7 +289,7 @@ def test_the_workbenchs_mark_brings_the_home_window_forward(
     assert "result" in answer
     page.wait_for_timeout(300)
     assert len(page.context.pages) == pages
-    assert "/workbench" in workbench.url  # never the Workbench window sent away instead
+    assert "/notebooks" in workbench.url  # never the Workbench window sent away instead
     # With the home window closed, the mark opens it again (once the Workbench sees it closed: a window
     # still closing is found by its name and brought forward, and no new one opens).
     page.close()

@@ -54,7 +54,7 @@ class WorkbenchWindow:
             args = {}
         if not isinstance(args, dict):
             raise ValueError("args is an object of the command's arguments.")
-        to = workbench_pages.page_for_command(page, args)
+        to = workbench_pages.page_for_command(page, args, command)
         if not self.ws.live.workbench_open(to):
             words = workbench_pages.WORDS[to] if to else "Notebooks or Scripts"
             which = f"The {words} page" if to else "No Notebooks or Scripts page"

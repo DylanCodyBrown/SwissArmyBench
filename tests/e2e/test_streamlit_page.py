@@ -57,7 +57,8 @@ def open_window(browser: Browser, server: dict[str, Any], path: Path | None = No
     )
     page = context.new_page()
     opened = f"&open={quote(str(path))}" if path else ""
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}{opened}")
+    where = "scripts" if path and path.suffix == ".py" else "notebooks"  # its page (2026-11-21)
+    page.goto(f"http://127.0.0.1:{server['port']}/{where}#token={server['token']}{opened}")
     expect(page.locator(".wb-tab" if path else ".wb-welcome").first).to_be_visible(timeout=20000)
     return page
 
@@ -473,13 +474,29 @@ def test_a_scripts_cells_that_call_streamlit_are_live_and_an_old_marker_is_a_pla
     expect(workbench.locator(".wb-script .view-lines")).not_to_contain_text("st.metric")
     # Copy cell (the palette's command) puts the script's cell on a canvas, as a link.
     assert window(server, "cell.copy", number=3) == {"cell": 3, "document": str(script)}
+    # A canvas is the Notebooks page's (2026-11-21): a window of that page, beside the script's.
+    apps = workbench.context.new_page()
+    apps.goto(f"http://127.0.0.1:{server['port']}/notebooks#token={server['token']}")
+    expect(apps.locator(".wb-welcome")).to_be_visible(timeout=20000)
     window(server, "file.newApp")
-    window(server, "cell.paste")
-    expect(workbench.locator(".cv-block .cv-block-where")).to_have_text("sales.py @cell3")
-    played = window(server, "canvas.play")
+    call(
+        server,
+        "POST",
+        "/workbench/window",
+        {"command": "cell.paste", "args": {}, "page": "notebooks"},
+        agent=True,
+    )
+    expect(apps.locator(".cv-block .cv-block-where")).to_have_text("sales.py @cell3")
+    played = call(
+        server,
+        "POST",
+        "/workbench/window",
+        {"command": "canvas.play", "args": {}, "page": "notebooks"},
+        agent=True,
+    )["result"]
     assert played["mode"] == "live" and played["running"] is True
-    expect(workbench.frame_locator(".cv-frame").get_by_text("reads region")).to_be_visible(timeout=LONG)
-    workbench.close()
+    expect(apps.frame_locator(".cv-frame").get_by_text("reads region")).to_be_visible(timeout=LONG)
+    workbench.context.close()  # both pages
 
 
 def test_named_cells_show_in_the_streamlit_cells_pane_and_drag_onto_a_canvas(

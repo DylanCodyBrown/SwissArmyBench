@@ -47,8 +47,11 @@ def test_wrong_page_is_one_line() -> None:
 
 
 def test_old_addresses() -> None:
-    assert pages.old_address({"kind": "script", "view": "list"}) == ("scripts", {"view": "list"})
-    assert pages.old_address({"kind": "notebook"}) == ("notebooks", {})
+    assert pages.old_address({"kind": "script", "view": "list"}) == (
+        "scripts",
+        {"kind": "script", "view": "list"},
+    )
+    assert pages.old_address({"kind": "notebook"}) == ("notebooks", {"kind": "notebook"})
     assert pages.old_address({"kind": "app", "view": "list"}) == (
         "notebooks",
         {"kind": "app", "view": "list"},
@@ -62,6 +65,7 @@ def test_page_for_command() -> None:
     assert pages.page_for_command(None, {"path": "/p/x.py"}) == "scripts"
     assert pages.page_for_command(None, {"path": "/p/x.ipynb"}) == "notebooks"
     assert pages.page_for_command(None, {}) is None
+    assert pages.page_for_command(None, {}, "file.newScript") == "scripts"
     with pytest.raises(ValueError, match="notebooks or scripts"):
         pages.page_for_command("apps", {})
 
@@ -79,7 +83,8 @@ def test_the_two_pages_and_the_old_address(tmp_path: Path) -> None:
         for path in ("/notebooks", "/scripts"):
             assert "workbench.js" in client.get(path).text
         moved = client.get("/workbench?kind=script&view=list", follow_redirects=False)
-        assert moved.status_code == 302 and moved.headers["location"] == "/scripts?view=list"
+        assert moved.status_code == 302
+        assert moved.headers["location"] == "/scripts?kind=script&view=list"
         assert client.get("/workbench", follow_redirects=False).headers["location"] == "/notebooks"
         to_file = client.get("/workbench?file=/p/a.py", follow_redirects=False).headers["location"]
         assert to_file.startswith("/scripts?file=")

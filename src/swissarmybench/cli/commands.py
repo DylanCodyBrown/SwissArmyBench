@@ -3228,7 +3228,7 @@ def workbench_open(a: dict[str, Any]) -> Any:
     opt("page", "scripts (default) or notebooks."),
 )
 def project_tree(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/project/tree?page={a.get('page') or 'scripts'}")
+    return api.call("GET", "/project/tree?" + urlencode({"page": a.get("page") or "scripts"}))
 
 
 @command(
@@ -3237,7 +3237,7 @@ def project_tree(a: dict[str, Any]) -> Any:
     req("text", "The module's text."),
 )
 def workbench_outline(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/project/outline", {"text": a["text"]})
+    return api.call("POST", "/project/module-outline", {"text": a["text"]})
 
 
 def _at(a: dict[str, Any]) -> dict[str, Any]:

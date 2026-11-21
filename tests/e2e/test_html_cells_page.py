@@ -209,7 +209,7 @@ def test_the_design_runs_walled_off_and_loads_nothing_over_the_network(
     expect(design(second).locator("#still")).to_have_text("still here", timeout=20000)
     workbench.wait_for_timeout(1500)
     assert asked == [], f"the design reached the network: {asked}"
-    assert "/workbench" in workbench.url  # the page around it did not go anywhere
+    assert "/notebooks" in workbench.url  # the page around it did not go anywhere
 
 
 def test_the_frames_page_carries_the_policy_the_rules_name() -> None:

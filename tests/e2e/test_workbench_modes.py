@@ -54,8 +54,10 @@ def open_window(
     )
     page = context.new_page()
     opened = f"&open={quote(str(path))}" if path else ""
-    page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}{opened}")
-    expect(page.locator(".wb-tab" if path else ".wb-welcome").first).to_be_visible(timeout=20000)
+    # A .py on the Scripts page, anything else on the Notebooks page (2026-11-21).
+    where = "scripts" if path and path.suffix == ".py" else "notebooks"
+    page.goto(f"http://127.0.0.1:{server['port']}/{where}#token={server['token']}{opened}")
+    expect(page.locator(".wb-tab" if path else ".wb-codex").first).to_be_visible(timeout=20000)
     return page
 
 
@@ -128,16 +130,19 @@ def test_kind_colours_on_tabs_menus_and_settings(
     script = tmp_path / "sales" / "daily_sales.py"
     script.write_text("import os\nprint(os.getenv('REPORT_FOLDER', 'reports'))\n", encoding="utf-8")
     page = open_window(browser, server, app)
-    window(server, "file.open", path=str(script))
     window(server, "file.open", path=str(tmp_path / "sales" / "app mockups.ipynb"))
     tabs = page.locator(".wb-tab")
-    expect(tabs).to_have_count(3, timeout=20000)
+    expect(tabs).to_have_count(2, timeout=20000)
     marks = {t.inner_text().strip("●× \n"): t.get_attribute("class") or "" for t in tabs.all()}
-    assert "mark-app" in marks["sales app.stapp.json"] and "mark-script" in marks["daily_sales.py"]
+    assert "mark-app" in marks["sales app.stapp.json"]
     assert "mark-notebook" in marks["app mockups.ipynb"]
-    # Violet, blue, green: the tokens, on the tab's icon; the group wears its front document's.
+    # Violet, blue, green: the tokens, on the tab's icon; the group wears its front document's. A script is
+    # the Scripts page's (2026-11-21): green there.
     assert colour(page, ".wb-tab.mark-app .wb-tab-icon") == rgb(token(page, "app"))
-    assert colour(page, ".wb-tab.mark-script .wb-tab-icon") == rgb(token(page, "script"))
+    scripts = open_window(browser, server, script)
+    expect(scripts.locator(".wb-tab.mark-script")).to_be_visible()
+    assert colour(scripts, ".wb-tab.mark-script .wb-tab-icon") == rgb(token(scripts, "script"))
+    scripts.context.close()
     expect(page.locator(".wb-group").first).to_have_attribute("data-mark", "notebook")
     # The Streamlit cells panel (the canvas's own, on its left): each cell by its source document's colour.
     page.locator(".wb-tab.mark-app").click()

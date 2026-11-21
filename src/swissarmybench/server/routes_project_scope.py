@@ -3,7 +3,7 @@ Workbench's Notebooks, Scripts and Apps pages, the import dialog and the agent (
 
 GET  /project/documents       ?kind=notebook|script|app: the open project's documents
 GET  /project/tree            ?page=notebooks|scripts: the explorer's groups (a .py by module, its outline)
-POST /project/outline         {"text"}: a module's outline as typed
+POST /project/module-outline  {"text"}: a module's outline as typed
 POST /project/import/sources  {"from": a project's folder, a file, or "computer"}: what it offers
 POST /project/import          {"from", "documents"?, "connections"?, "blades"?}: copies into the project
 """
@@ -37,7 +37,7 @@ def routes(scope: ProjectScope) -> list[BaseRoute]:
     return [
         Route("/project/documents", safely(documents), methods=["GET"]),
         Route("/project/tree", safely(tree), methods=["GET"]),
-        Route("/project/outline", safely(outline), methods=["POST"]),
+        Route("/project/module-outline", safely(outline), methods=["POST"]),
         Route("/project/import/sources", safely(sources), methods=["POST"]),
         Route("/project/import", safely(import_), methods=["POST"]),
     ]

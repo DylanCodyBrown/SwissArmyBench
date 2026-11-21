@@ -295,7 +295,9 @@ def test_the_workbench_in_the_code_app_mode(browser: Browser, server: dict[str, 
     shot(page, "codeapp-pages-rule")
     # The code app mode: New makes a TypeScript file.
     page.goto(f"http://127.0.0.1:{server['port']}/workbench?kind=script&view=list#token={server['token']}")
-    new = page.locator("#wb-top button").filter(has_text="New TypeScript file")
+    new = page.locator(".wb-codex").get_by_role(
+        "button", name="New TypeScript file"
+    )  # no top bar (2026-11-21)
     expect(new).to_be_visible(timeout=20000)
     shot(page, "codeapp-workbench-new-typescript")
 
