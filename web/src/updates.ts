@@ -177,21 +177,6 @@ function askFirst(version: string, risk: AtRisk): void {
   );
 }
 
-/** Check for updates now, and update when there is one (the owner, 2026-11-16: "check for updates should be a
- *  button that launches the update"). Update to X still asks first when work would be lost. */
-export async function checkNow(): Promise<void> {
-  try {
-    take(await api<UpdateState>("/updates/check", "POST", { asked: true }));
-  } catch (e) {
-    errorHere(e);
-    return;
-  }
-  const s = state;
-  if (s?.available && s.version) await startUpdate();
-  else if ((s as { error?: string } | null)?.error) errorHere(String((s as { error?: string }).error));
-  else toast(`${s?.current ?? "This"} is the newest version.`);
-}
-
 /** Settings' Updates (the owner, 2026-11-19: "Check for updates should be changed to Click here to update and
  *  should only show when an update is available, and 6 hours is a hidden setting not needed in settings"): one
  *  button, only while a newer version exists; the check every six hours runs by itself (the server's switch stays,
@@ -214,14 +199,6 @@ export function updatesSection(): HTMLElement {
   void loadUpdates().then(draw);
   draw();
   return section;
-}
-
-export async function setCheck(on: boolean): Promise<void> {
-  try {
-    take(await api<UpdateState>("/updates", "PUT", { check: on }));
-  } catch (e) {
-    errorHere(e);
-  }
 }
 
 /** The palette's commands (the Workbench's registry, the grid page's list). */

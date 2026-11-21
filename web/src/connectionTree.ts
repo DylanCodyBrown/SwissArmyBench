@@ -14,7 +14,7 @@
  *          POST /connections/{name}/open-dataset {dataset}   POST /connections/{name}/relationships
  *          POST /workbench/window {command: "cell.insertBelow"}
  */
-import { bringPage, PAGE_WINDOW } from "./workbenchPages";
+import { bringPage } from "./workbenchPages";
 import { api } from "./api";
 import { button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
@@ -45,7 +45,6 @@ export interface Tree {
   groups: TreeGroup[];
 }
 
-export const WORKBENCH_WINDOW = PAGE_WINDOW.notebooks;
 const SHOWN = 400; // tables drawn at once in a group (the search finds the rest)
 
 /** A query's text for a new %%sql cell on a table. */
