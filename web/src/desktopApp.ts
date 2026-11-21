@@ -11,6 +11,8 @@
 interface SabApp {
   app: true;
   close: () => void;
+  /** The window itself full screen, or back (an older shell has none). */
+  fullScreen?: (on: boolean) => void;
 }
 
 function shell(): SabApp | null {
@@ -26,6 +28,11 @@ export function inApp(): boolean {
 /** The window this page is in, closed as its close button would (the page is asked first). */
 export function closeWindow(): void {
   shell()?.close();
+}
+
+/** The desktop app's window full screen or back with the page's own full screen (F11); nothing in a browser. */
+export function windowFullScreen(on: boolean): void {
+  shell()?.fullScreen?.(on);
 }
 
 /** A key event as the app's keys name it: "Ctrl+W", "Ctrl+Shift+Tab", "Ctrl+Shift+T". */

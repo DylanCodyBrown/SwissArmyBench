@@ -6918,3 +6918,13 @@ Decisions:
   its view made again from the file (notebookOf) in place of the old, the kernel and its names kept, the selected
   cell kept where it can be. Only a notebook with unsaved edits shows Changed elsewhere (Reload / Keep mine /
   Compare); a gone file says so.
+
+## The desktop app's window full screen (built 2026-11-21, branch scripts-rest)
+
+- F11 and the tab row's full-screen button on the Notebooks and Scripts pages make the window itself full screen
+  too in the desktop app: the page calls window.sabApp.fullScreen(on) (desktopApp.ts windowFullScreen), the shell
+  hears it on its console channel and calls PySide6's showFullScreen, or back: showMaximized when it was
+  maximized, else showNormal. Escape, F11 again or the button leave both. In a browser nothing more happens.
+- The shell's own F11 (QShortcut) asks the page first (window.sabFullScreen): a page with a full screen of its
+  own takes it (and asks for the window's); any other page toggles the window alone, as before.
+- Checked under Qt off screen (tests/desktop_drive.py: F11 twice on the Notebooks page).

@@ -57,7 +57,7 @@ import { type BladeKind, type BladeSummary, editBlade, newBladeDialog } from "./
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
 import { button, clear, h, icon, openDialog, toast } from "./dom";
-import { closeWindow, inApp } from "./desktopApp";
+import { closeWindow, inApp, windowFullScreen } from "./desktopApp";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
 import { effectiveTheme } from "./theme";
@@ -2657,6 +2657,7 @@ let full = false;
 function fullScreen(on?: boolean): boolean {
   full = on ?? !full;
   document.body.classList.toggle("wb-full", full);
+  windowFullScreen(full); // in the desktop app, the window too (PySide6's showFullScreen / back)
   try {
     sessionStorage.setItem(FULL_KEY, full ? "1" : "0");
   } catch {
@@ -2671,6 +2672,8 @@ try {
 } catch {
   /* nothing kept */
 }
+// The desktop app's F11 (its own key, server/desktop_shell.py) asks the page first: the IDE alone, and the window.
+Object.defineProperty(window, "sabFullScreen", { value: () => fullScreen(), configurable: true });
 document.addEventListener("keydown", (e) => {
   // Escape leaves full screen when nothing else took it (a member list, a dialog, a menu).
   if (e.key !== "Escape" || !full || e.defaultPrevented || document.querySelector("dialog[open], .wb-menu, .suggest-widget.visible")) return;
