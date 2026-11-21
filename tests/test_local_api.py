@@ -163,7 +163,7 @@ def test_the_runtime_binds_the_path_the_query_and_the_body() -> None:
     status, _, body = api_runtime.handle("GET", "/sum/2", {"b": "5", "flag": "true"}, None)
     assert status == 200 and json.loads(body) == {"sum": 7} and calls == [True]
     status, _, body = api_runtime.handle("GET", "/sum/x", {}, None)
-    assert status == 422 and "a is not a int" in json.loads(body)["error"]
+    assert status == 422 and "a is not a whole number" in json.loads(body)["error"]
     assert api_runtime.handle("POST", "/sum/2", {}, None)[0] == 405
     assert api_runtime.handle("GET", "/nope", {}, None)[0] == 404
     api_runtime.ENDPOINTS.clear()

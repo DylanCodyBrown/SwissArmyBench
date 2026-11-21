@@ -205,7 +205,7 @@ function drawPage(): void {
     const got = await call<{ apis: Card[]; older: { name: string }[] }>("/apis");
     if (!got || !element.open) return;
     if (!got.apis.length && !got.older.length) {
-      body.replaceChildren(sandboxPanel(), localApisSection(), h("div", { class: "apis-empty" }, h("p", { class: "empty-note" }, "No APIs yet.")));
+      body.replaceChildren(sandboxPanel(), localApisSection(), h("div", { class: "apis-empty" }, h("p", { class: "empty-note" }, "No imported APIs yet.")));
       return;
     }
     body.replaceChildren(

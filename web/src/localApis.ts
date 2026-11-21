@@ -8,8 +8,10 @@
  *   [PROBLEMS]  API.py's problems with their lines (Go to line), a start that failed with its line
  *   [ENDPOINTS] each one: method, path, summary, its data ("Mock of Warehouse (sqlserver)"); Try it: the path's and
  *               the query's boxes, the body prefilled with a made-up example from its model, Send: status, time,
- *               rows and the answer as a tree
- *   [LOG]       the request log while it runs (method, path, status, ms, rows; never a value), kept current
+ *               rows and the answer as a tree; a refusal as the one error note (its sentence, API.py's line, Go to
+ *               line, the answer behind Details). The made-up request is the server's (the endpoint's `try`)
+ *   [LOG]       the request log while it runs (method, path, status, ms, rows; a refusal's words and line; never a
+ *               value), kept current; Output: what API.py printed, folded
  *   The sandbox's panel (dataSandbox.ts) sits above it: Reset beside the API.
  *
  * ROUTING: GET /local-api · POST /local-api/new, /run, /stop, /call · PUT /local-api/settings · GET /local-api/log
@@ -34,6 +36,8 @@ interface Endpoint {
   writes: boolean;
   /** Try it's body kept as its example (.sab/api_examples.json beside API.py), or null. */
   example?: Value | null;
+  /** A made-up request from the endpoint's own definition (the server's; the kept example's body first). */
+  try?: { path: Record<string, Value>; query: Record<string, Value>; body: Value };
 }
 interface State {
   project: string | null;
@@ -45,29 +49,26 @@ interface State {
   problems?: { line: number; message: string }[];
   running: { port: number; url: string; since: string; endpoints: number } | null;
   failed?: { error: string; line: number | null } | null;
+  /** The framework targets (the backend's registry: the base's three and each extension's). */
+  targets?: { id: string; label: string }[];
 }
 
-export const TARGET_WORDS: Record<string, string> = { fastapi: "FastAPI", azure_functions: "Azure Functions (Linux, Python)", aws_lambda: "AWS Lambda (Linux, Python)" };
+/** The targets' picker: the backend's list (an extension's target shows like the base's). */
+function targetSelect(got: State, label: string): HTMLSelectElement {
+  const chosen = got.settings?.target;
+  return h("select", { "aria-label": label }, ...(got.targets ?? []).map((x) => h("option", { value: x.id, selected: x.id === chosen }, x.label))) as HTMLSelectElement;
+}
 
 const badge = (method: string): HTMLElement => h("span", { class: `api-method m-${method.toLowerCase()}` }, method);
 
-/** A made-up value for a field's annotation (the Try it body's example). */
-function example(kind: string, name: string, models: State["models"], depth = 0): Value {
-  const bare = kind.replace(/\s*\|\s*None$/, "").replace(/^Optional\[(.*)\]$/, "$1").trim();
-  const list = /^(?:list|List)\[(.*)\]$/.exec(bare);
-  if (list) return [example(list[1]!, name, models, depth + 1)];
-  if (models?.[bare] && depth < 3) return Object.fromEntries(Object.entries(models[bare]!.fields).map(([k, t]) => [k, example(t, k, models, depth + 1)]));
-  if (bare === "int") return /id$/i.test(name) ? 101 : 3;
-  if (bare === "float" || bare === "Decimal") return 12.5;
-  if (bare === "bool") return true;
-  if (bare === "date") return "2026-01-15";
-  if (bare === "datetime") return "2026-01-15T09:30:00";
-  if (bare.startsWith("dict")) return {};
-  return name === "region" ? "West" : `made-up ${name}`;
-}
+/** An endpoint's open Try it, kept over a redraw (API.py saved, the API started again, another window's change):
+ *  the same box with what was typed and its last answer, while the endpoint takes the same parameters. */
+interface TryRef { e: Endpoint; got: State }
+type TryKept = Map<string, { box: HTMLElement; ref: TryRef; shape: string }>;
 
 export function localApisSection(): HTMLElement {
   const section = h("section", { class: "local-apis", "aria-label": "Local sandbox APIs" });
+  const tries: TryKept = new Map();
   let logTimer = 0;
   const draw = async (): Promise<void> => {
     let got: State;
@@ -96,10 +97,10 @@ export function localApisSection(): HTMLElement {
       return;
     }
     const s = got.settings!;
-    const target = h("select", { "aria-label": "Its target" }, ...Object.entries(TARGET_WORDS).map(([id, words]) => h("option", { value: id, selected: id === s.target }, words))) as HTMLSelectElement;
-    target.addEventListener("change", () => void saveSettings({ target: target.value }));
+    const target = targetSelect(got, "Its target");
+    target.addEventListener("change", () => void saveSettings({ target: target.value }, target));
     const base = h("input", { "aria-label": "Its base path", value: s.base_path, placeholder: "/api", class: "mono local-api-base", spellcheck: false }) as HTMLInputElement;
-    base.addEventListener("change", () => void saveSettings({ base_path: base.value }));
+    base.addEventListener("change", () => void saveSettings({ base_path: base.value }, base));
     const runWords = got.running ? `Running on ${got.running.url} since ${got.running.since}` : "Not running";
     head.append(
       h("span", { class: "local-api-name" }, s.name),
@@ -116,7 +117,12 @@ export function localApisSection(): HTMLElement {
     );
     const problems = [...(got.problems ?? []), ...(got.failed ? [{ line: got.failed.line ?? 1, message: got.failed.error }] : [])];
     const problemNotes = problems.map((p) => errorNote(p.message, { where: `API.py line ${p.line}`, fixes: [{ label: "Go to line", run: () => void openOnPage(got.file!, { line: p.line }) }] }));
-    const endpoints = (got.endpoints ?? []).map((e) => endpointRow(e, got));
+    const endpoints = (got.endpoints ?? []).map((e) => endpointRow(e, got, tries));
+    const still = new Set((got.endpoints ?? []).map((e) => `${e.method} ${e.path}`));
+    for (const key of [...tries.keys()]) if (!still.has(key)) tries.delete(key);
+    // The box being typed in keeps the keyboard and the cursor's place through the redraw.
+    const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement ? document.activeElement : null;
+    const held = typing && section.contains(typing) && typing.closest(".local-api-try") ? { box: typing, start: typing.selectionStart, end: typing.selectionEnd } : null;
     const log = h("div", { class: "local-api-log" });
     const shapes = h("div", { class: "local-api-shapes" });
     void drawShapes(shapes);
@@ -127,18 +133,26 @@ export function localApisSection(): HTMLElement {
       endpoints.length ? h("div", { class: "local-api-endpoints", role: "list" }, ...endpoints) : h("p", { class: "empty-note" }, "API.py has no endpoints yet: write one with @endpoint, or New endpoint from a table."),
       log,
     );
+    if (held?.box.isConnected) {
+      held.box.focus({ preventScroll: true });
+      if (held.start !== null && held.end !== null) held.box.setSelectionRange(held.start, held.end);
+    }
     window.clearInterval(logTimer);
     if (got.running) {
       const readLog = async (): Promise<void> => {
         if (!log.isConnected) return window.clearInterval(logTimer);
         try {
-          const l = await api<{ log: { at: string; method: string; path: string; status: number; ms: number; rows: number | null }[] }>("/local-api/log");
+          const l = await api<{ log: { at: string; method: string; path: string; status: number; ms: number; rows: number | null; error?: string; line?: number }[]; output?: string[] }>("/local-api/log");
+          const said = (l.output ?? []).slice(-200);
+          const wasOpen = log.querySelector<HTMLDetailsElement>(".local-api-output")?.open ?? false;
           log.replaceChildren(
             h("h3", {}, "Requests"),
             l.log.length
               ? h("table", { class: "sandbox-tables" }, h("thead", {}, h("tr", {}, ...["At", "Method", "Path", "Status", "ms", "Rows"].map((w) => h("th", {}, w)))),
-                  h("tbody", {}, ...l.log.slice(-50).reverse().map((r) => h("tr", {}, h("td", {}, r.at), h("td", {}, badge(r.method)), h("td", { class: "mono" }, r.path), h("td", { class: r.status >= 400 ? "bad" : "" }, String(r.status)), h("td", { class: "num" }, String(r.ms)), h("td", { class: "num" }, r.rows === null ? "" : String(r.rows))))))
+                  h("tbody", {}, ...l.log.slice(-50).reverse().map((r) => h("tr", {}, h("td", {}, r.at), h("td", {}, badge(r.method)), h("td", { class: "mono" }, r.path), h("td", { class: r.status >= 400 ? "bad" : "" }, String(r.status), r.error ? h("span", { class: "local-api-log-error" }, ` ${r.error}`) : "", r.line ? button("Go to line", () => void openOnPage(got.file!, { line: r.line! }), { icon: "code", iconOnly: true, class: "ghost", title: `API.py line ${r.line}` }) : ""), h("td", { class: "num" }, String(r.ms)), h("td", { class: "num" }, r.rows === null ? "" : String(r.rows))))))
               : h("p", { class: "muted" }, "No requests yet."),
+            // What API.py printed (its last lines): folded until asked for, there only when it printed.
+            said.length ? h("details", { class: "local-api-output", open: wasOpen }, h("summary", {}, `Output · ${said.length} ${said.length === 1 ? "line" : "lines"}`), h("pre", { class: "mono" }, said.join("\n"))) : "",
           );
         } catch {
           window.clearInterval(logTimer);
@@ -150,19 +164,18 @@ export function localApisSection(): HTMLElement {
   };
   const act = async (b: HTMLElement, path: string): Promise<void> => {
     try {
-      const done = await api<State>(path, "POST", {});
-      if (done.failed) toast("API.py did not start: its problem is shown.");
+      await api<State>(path, "POST", {});
       await draw();
     } catch (e) {
       errorHere(e, {}, b);
     }
   };
-  const saveSettings = async (change: Record<string, string>): Promise<void> => {
+  const saveSettings = async (change: Record<string, string>, control: HTMLElement): Promise<void> => {
     try {
       await api("/local-api/settings", "PUT", change);
       await draw();
     } catch (e) {
-      errorHere(e);
+      errorHere(e, {}, control);
     }
   };
   section.append(loadingBlock("Reading API.py…"));
@@ -176,8 +189,13 @@ export function localApisSection(): HTMLElement {
   return section;
 }
 
-function endpointRow(e: Endpoint, got: State): HTMLElement {
-  const tryBox = h("div", { class: "local-api-try", hidden: true });
+function endpointRow(e: Endpoint, got: State, tries: TryKept): HTMLElement {
+  const key = `${e.method} ${e.path}`;
+  const shape = JSON.stringify([e.params, got.settings?.base_path ?? ""]);
+  const old = tries.get(key);
+  const ref: TryRef = old?.shape === shape ? Object.assign(old.ref, { e, got }) : { e, got };
+  const tryBox = old?.shape === shape ? old.box : h("div", { class: "local-api-try", hidden: true });
+  tries.set(key, { box: tryBox, ref, shape });
   const row = h("article", { class: "local-api-endpoint", role: "listitem", "data-endpoint": e.name },
     h("div", { class: "local-api-endpoint-head" },
       badge(e.method),
@@ -186,7 +204,7 @@ function endpointRow(e: Endpoint, got: State): HTMLElement {
       ...e.data.map((d) => h("span", { class: "local-api-data" }, d)),
       button("Try it", () => {
         tryBox.hidden = !tryBox.hidden;
-        if (!tryBox.hidden && !tryBox.childElementCount) drawTry(tryBox, e, got);
+        if (!tryBox.hidden && !tryBox.childElementCount) drawTry(tryBox, ref);
       }, { icon: "play" }),
       button("Go to line", () => void openOnPage(got.file!, { line: e.line }), { icon: "code", iconOnly: true, title: `${e.name}: API.py line ${e.line}` }),
     ),
@@ -195,15 +213,17 @@ function endpointRow(e: Endpoint, got: State): HTMLElement {
   return row;
 }
 
-function drawTry(box: HTMLElement, e: Endpoint, got: State): void {
+function drawTry(box: HTMLElement, ref: TryRef): void {
+  const { e, got } = ref; // its parameters and paths (the same while this box lives); the rest is read from ref
   const inputs = new Map<string, HTMLInputElement>();
   const fields = e.params.filter((p) => p.where !== "body").map((p) => {
-    const input = h("input", { "aria-label": p.name, value: p.default === null || p.default === undefined ? String(example(p.type, p.name, got.models)) : String(p.default), spellcheck: false }) as HTMLInputElement;
+    const start = (p.where === "path" ? e.try?.path : e.try?.query)?.[p.name] ?? p.default ?? "";
+    const input = h("input", { "aria-label": p.name, value: String(start), spellcheck: false }) as HTMLInputElement;
     inputs.set(p.name, input);
     return h("label", { class: "field-inline" }, h("span", { class: "muted" }, `${p.name} (${p.where})`), input);
   });
   const bodyParam = e.params.find((p) => p.where === "body");
-  const first = e.example ?? (bodyParam ? example(bodyParam.type, bodyParam.name, got.models) : null);
+  const first = e.example ?? e.try?.body ?? null;
   const body = bodyParam ? (h("textarea", { "aria-label": "Body", rows: 6, class: "mono", spellcheck: false, "data-no-variables": "" }, JSON.stringify(first, null, 2)) as HTMLTextAreaElement) : null;
   // Keep as its example: the edited body becomes the endpoint's example payload (Try it starts from it; the
   // OpenAPI document shows it), kept beside API.py in .sab/api_examples.json.
@@ -218,7 +238,7 @@ function drawTry(box: HTMLElement, e: Endpoint, got: State): void {
         }
         try {
           await api("/local-api/example", "POST", { endpoint: `${e.method} ${e.path}`, body: sent });
-          e.example = sent as Value;
+          ref.e.example = sent as Value;
           toast(`Kept as ${e.method} ${e.path}'s example (.sab/api_examples.json).`);
         } catch (err) {
           errorHere(err, {}, b);
@@ -247,11 +267,20 @@ function drawTry(box: HTMLElement, e: Endpoint, got: State): void {
         }
       }
       try {
-        const got2 = await api<{ status: number; ms: number; rows: number | null; body: Value }>("/local-api/call", "POST", { method: e.method, path: (got.settings?.base_path ?? "") + path, query, body: sent });
-        answer.replaceChildren(
-          h("div", { class: `local-api-said${got2.status >= 400 ? " bad" : ""}`, role: "status" }, `${got2.status} · ${got2.ms} ms${got2.rows === null ? "" : ` · ${got2.rows} rows`}`),
-          mountTree(got2.body, { depth: 2 }).element,
-        );
+        const got2 = await api<{ status: number; ms: number; rows: number | null; body: Value; error?: string; line?: number; where?: string }>("/local-api/call", "POST", { method: e.method, path: (got.settings?.base_path ?? "") + path, query, body: sent });
+        const said = h("div", { class: `local-api-said${got2.status >= 400 ? " bad" : ""}`, role: "status" }, `${got2.status} · ${got2.ms} ms${got2.rows === null ? "" : ` · ${got2.rows} ${got2.rows === 1 ? "row" : "rows"}`}`);
+        if (got2.status >= 400) {
+          // A refusal is the one error note (9.5), in place: its sentence, where in API.py, Go to line, the
+          // answer's own JSON behind Details.
+          const line = got2.line ?? ref.e.line;
+          answer.replaceChildren(said, errorNote(got2.error ?? `${e.method} ${path} answered ${got2.status}.`, {
+            where: got2.where ?? `${ref.e.name}: API.py line ${line}`,
+            fixes: [{ label: "Go to line", icon: "code", run: () => void openOnPage(ref.got.file!, { line }) }],
+            details: JSON.stringify(got2.body, null, 2),
+          }));
+        } else {
+          answer.replaceChildren(said, got2.body === null || got2.body === undefined ? "" : mountTree(got2.body, { depth: 2 }).element);
+        }
       } catch (err) {
         errorHere(err, {}, b);
       }
@@ -268,6 +297,8 @@ interface Exported {
   kept: { file: string; theirs: string; yours: string }[];
   variables: string[];
   notes: { reason?: string; instead?: string }[];
+  /** What to know before deploying, each one sentence (connection("Sandbox") exported without its rows). */
+  warnings?: string[];
   sandbox: boolean;
 }
 
@@ -275,7 +306,7 @@ interface Exported {
  *  own code; the variables to set; a file edited by hand kept (Replace, Compare). */
 function openExport(got: State): void {
   const { body, foot, close } = openDialog("Export the local sandbox API", true);
-  const target = h("select", { "aria-label": "Target" }, ...Object.entries(TARGET_WORDS).map(([id, words]) => h("option", { value: id, selected: id === got.settings?.target }, words))) as HTMLSelectElement;
+  const target = targetSelect(got, "Target");
   const usesSandbox = (got.endpoints ?? []).some((e) => e.data.some((d) => d.startsWith("The sandbox")));
   const rows = h("input", { type: "checkbox", "aria-label": "Include the sandbox's rows" }) as HTMLInputElement;
   const result = h("div", { class: "local-api-exported" });
@@ -292,6 +323,7 @@ function openExport(got: State): void {
         done.target.run ? h("p", { class: "muted" }, "Run it there with ", h("code", {}, done.target.run), "; README.md has the deploy steps.") : "",
         h("h3", {}, "Variables to set where it runs"),
         done.variables.length ? h("ul", {}, ...done.variables.map((v) => h("li", {}, h("code", {}, v)))) : h("p", { class: "muted" }, "None."),
+        ...(done.warnings ?? []).map((w) => errorNote(w, { level: "warning", agent: false })),
         ...done.notes.map((n) => errorNote(`Only works on your machine: ${n.reason ?? ""}. ${n.instead ?? ""}`, { level: "warning", agent: false })),
         ...done.kept.map((k) => h("div", { class: "local-api-kept" },
           h("span", {}, h("code", {}, k.file), " was edited by hand: kept."),
@@ -379,7 +411,7 @@ async function checkReal(b: HTMLElement, got: State): Promise<void> {
 /** Payload shapes: each canvas widget that uses an endpoint, what it expects beside what the endpoint answers,
  *  each mismatch said before Play. Nothing shows while no widget uses one. */
 async function drawShapes(host: HTMLElement): Promise<void> {
-  let got: { uses: { canvas: string; page: string; widget: string; endpoint: string; expects: string; answers: { fields?: Record<string, string>; body?: Record<string, string> }; problems: string[] }[] };
+  let got: { uses: { canvas: string; page: string; widget: string; event?: string; endpoint: string; expects: string; answers: { fields?: Record<string, string>; body?: Record<string, string> }; problems: string[] }[] };
   try {
     got = await api("/local-api/shapes");
   } catch {
@@ -392,11 +424,11 @@ async function drawShapes(host: HTMLElement): Promise<void> {
     h("table", { class: "sandbox-tables" },
       h("thead", {}, h("tr", {}, ...["Widget", "Endpoint", "Expects", "Answers", ""].map((w) => h("th", {}, w)))),
       h("tbody", {}, ...got.uses.map((u) => h("tr", {},
-        h("td", {}, `${u.widget} `, h("span", { class: "muted" }, `${u.canvas.replace(/\.canvas\.json$/, "")} › ${u.page}`)),
+        h("td", {}, `${u.widget}${u.event ? ` · ${u.event}` : ""} `, h("span", { class: "muted" }, `${u.canvas.replace(/\.canvas\.json$/, "")} › ${u.page}`)),
         h("td", { class: "mono" }, u.endpoint),
         h("td", {}, u.expects),
         h("td", { class: "mono" }, fields(u.answers.body ?? u.answers.fields)),
-        h("td", { class: u.problems.length ? "bad" : "" }, u.problems.length ? u.problems.join(" ") : "Fits"),
+        h("td", { class: u.problems.length ? "bad" : "" }, u.problems.join(" ")),
       ))),
     ),
   );

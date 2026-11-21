@@ -1634,6 +1634,7 @@ def bootstrap(
         for raw in getattr(extension, "API_TARGETS", ()) or ():
             api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
     local_api.target_ids = api_export.registry.ids
+    local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]
     local_api.catalog = catalogs
 
     def publish_api(values: dict[str, str]) -> None:

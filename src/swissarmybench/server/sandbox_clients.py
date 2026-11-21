@@ -35,6 +35,7 @@ import http.client
 import inspect
 import json
 import os
+import re
 import threading
 import time
 import urllib.parse
@@ -67,6 +68,17 @@ def _where_in_api() -> str:
         if name.lower() == "api.py" or name.startswith("api_"):
             return f"{name} line {frame.lineno}: "
     return ""
+
+
+def _sql_line(said: str) -> str:
+    """A refusal that starts with its SQL's own line ("Line 3: ..."), said after API.py's line without a
+    second "Line": the first line of the SQL goes unsaid, a later one is "(line 3 of its SQL)"."""
+    found = re.match(r"Line (\d+): (.*)$", said, re.S)
+    if not found:
+        return said
+    rest = found.group(2)
+    rest = rest[:1].upper() + rest[1:]
+    return rest if found.group(1) == "1" else f"{rest.rstrip()} (line {found.group(1)} of its SQL)"
 
 
 class Link:
@@ -117,7 +129,7 @@ class Link:
                     said = json.loads(raw or b"{}").get("error") or answer.reason
                 except ValueError:
                     said = answer.reason
-                raise self.error(f"{_where_in_api()}{said}")
+                raise self.error(f"{_where_in_api()}{_sql_line(str(said))}")
             return dict(json.loads(raw or b"{}"))
         raise self.error(f"{_where_in_api()}The sandbox could not be reached.")  # pragma: no cover
 

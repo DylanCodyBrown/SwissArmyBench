@@ -127,11 +127,21 @@ def connections_module(registry: str, uses_sandbox: bool, names: Sequence[str]) 
     if names:
         hook += ["    return connection(name)"]
     else:
-        hook += [
-            f'    raise RuntimeError(f"This export has no connection named {{name}}: it uses {list(names)!r}.")'
-        ]
+        hook += ['    raise RuntimeError(f"This export has no connection named {name}.")']
     hook += ["", "", "sab_api.use_clients(_client)", ""]
     return head + ("\n\n" + body if body else "") + (_SANDBOX_COPY if uses_sandbox else "") + "\n".join(hook)
+
+
+NO_ROWS = (
+    'connection("Sandbox") has no rows in this export: its endpoints answer an error there until it is '
+    "exported with the sandbox's rows, or they use a real connection."
+)
+
+
+def warnings(bundle: Bundle) -> list[str]:
+    """What the person exporting should know before deploying, each one sentence (the dialog's amber notes,
+    the agent's answer; README.md's checklist says the same)."""
+    return [NO_ROWS] if bundle.uses_sandbox and not bundle.sandbox else []
 
 
 def requirements_txt(base: Sequence[str], bundle: Bundle) -> str:
@@ -161,8 +171,8 @@ def _checklist(bundle: Bundle, where: str) -> str:
         lines.append(
             f"- Only works on your machine: {note.get('reason', '')}. {note.get('instead', '')}".rstrip()
         )
-    variables = bundle.variables or ("(none)",)
-    lines += ["", "## Variables to set", "", *(f"- `{v}`" for v in variables), ""]
+    listed = [f"- `{v}`" for v in bundle.variables] or ["None."]
+    lines += ["", "## Variables to set", "", *listed, ""]
     return "\n".join(lines)
 
 

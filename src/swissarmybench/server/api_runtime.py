@@ -43,6 +43,17 @@ __all__ = ["ENDPOINTS", "ApiError", "Endpoint", "connection", "endpoint", "handl
 
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 BASE_PATH = ""  # the API's base path (its header's base_path), set by the target that runs it
+# Told an endpoint's own failure (a 500) before it is answered: the local host notes its API.py line for
+# Try it and the request log. None in an export: the answer is the same either way.
+on_failure: Callable[[BaseException], None] | None = None
+_KINDS = {
+    "int": "a whole number",
+    "float": "a number",
+    "bool": "true or false",
+    "date": "a date (2026-01-15)",
+    "datetime": "a date and time (2026-01-15T09:30:00)",
+    "Decimal": "a number",
+}
 
 
 class ApiError(Exception):
@@ -176,7 +187,8 @@ def _convert(value: Any, kind: Any, name: str) -> Any:
     except ApiError:
         raise
     except (TypeError, ValueError, ArithmeticError):
-        raise ApiError(422, f"{name} is not a {getattr(kind, '__name__', kind)}: {value!r}.") from None
+        wanted = getattr(kind, "__name__", str(kind))
+        raise ApiError(422, f"{name} is not {_KINDS.get(wanted, 'a ' + wanted)}: {value!r}.") from None
     return value
 
 
@@ -309,6 +321,8 @@ def handle(
     except ApiError as error:
         return error.status, headers, json.dumps({"error": error.message}).encode()
     except Exception as error:  # the endpoint's own failure, in its words
+        if on_failure is not None:
+            on_failure(error)
         return 500, headers, json.dumps({"error": f"{type(error).__name__}: {error}"}).encode()
     if result is None and e.method == "DELETE":
         return 204, {}, b""

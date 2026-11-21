@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import pandas as pd
 import pytest
@@ -121,6 +123,81 @@ def test_sandbox_new_endpoint_run_try_a_post_and_reset(
     expect(panel.locator(".sandbox-log")).to_have_text("No changes since the baseline", timeout=20000)
     until(lambda: call(server, "GET", f"/grids/{rows['grid']}/count")["row_count"], 5)
     shot(page, "sandbox-after-reset")
+
+
+def test_a_refusal_in_place_a_try_it_kept_over_a_restart_and_api_py_on_the_scripts_page(
+    browser: Browser,
+    server: dict[str, Any],
+    shop: Path,
+) -> None:
+    """The critic's fixes (2026-11-21): Try it's refusal is the one error note with API.py's line; an open Try
+    it keeps what was typed when API.py is saved and the API starts again; an export with no rows warns in the
+    dialog; API.py on the Scripts page takes no Tables group (its header stays its first line) and its main
+    Run is Run API."""
+    call(server, "POST", "/sandbox/tables", {"from": "grid", "table": "orders"})
+    call(server, "POST", "/local-api/scaffold", {"table": "orders", "key": "order_id"})
+    assert call(server, "POST", "/local-api/run", {})["running"]
+    page = open_workspace(browser, server)
+    page.locator(".nav-rail [data-area='apis']").click()
+    apis = page.locator(".local-apis")
+    create = apis.locator(".local-api-endpoint[data-endpoint='create_orders']")
+    create.get_by_role("button", name="Try it").click()
+    # The made-up body is the server's (the endpoint's `try`), from its model.
+    state = call(server, "GET", "/local-api")
+    made_up = next(e for e in state["endpoints"] if e["name"] == "create_orders")["try"]["body"]
+    assert json.loads(create.get_by_label("Body").input_value()) == made_up
+    # A refusal: the error note, where in API.py, Go to line; the answer's JSON behind Details.
+    create.get_by_label("Body").fill('{"order_id": "seven"}')
+    create.get_by_role("button", name="Send").click()
+    note = create.locator(".error-note")
+    expect(note).to_contain_text("Could not convert string 'seven'", timeout=20000)
+    expect(note).to_contain_text(re.compile(r"API\.py line \d+"))
+    expect(note.get_by_role("button", name="Go to line")).to_be_visible()
+    expect(create.locator(".local-api-said.bad")).to_contain_text("500")
+    expect(apis.locator(".local-api-log tbody tr").first).to_contain_text("Could not convert", timeout=20000)
+    shot(page, "try-it-refusal-in-place")
+    # API.py saved from elsewhere: the API starts again, and the open Try it keeps what was typed.
+    create.get_by_label("Body").fill('{"order_id": 77, "region": "North"}')
+    was = call(server, "GET", "/local-api")["running"]["port"]
+    api_py = shop / "API.py"
+    api_py.write_text(api_py.read_text(encoding="utf-8") + "\n# a note\n", encoding="utf-8")
+    until(lambda: (call(server, "GET", "/local-api")["running"] or {}).get("port", was) != was, True, 30)
+    page.wait_for_timeout(1500)  # the page's redraw after the notice
+    expect(create.get_by_label("Body")).to_have_value('{"order_id": 77, "region": "North"}')
+    expect(create.locator(".local-api-try")).to_be_visible()
+    create.get_by_role("button", name="Send", exact=True).click()
+    expect(create.locator(".local-api-said")).to_contain_text("201", timeout=20000)
+    expect(create.locator(".error-note")).to_have_count(0)
+    # Export with no rows: the warning is in the dialog, not only in README.md.
+    apis.get_by_role("button", name="Export…").click()
+    dialog = page.locator("dialog[open]")
+    assert dialog.get_by_label("Target").locator("option").all_inner_texts() == [
+        t["label"] for t in call(server, "GET", "/local-api/targets")["targets"]
+    ]
+    dialog.get_by_role("button", name="Export", exact=True).click()
+    expect(dialog.locator(".error-note.warning")).to_contain_text("has no rows in this export", timeout=20000)
+    shot(page, "export-warns-of-no-rows", "dialog[open]")
+    # API.py on the Scripts page, a table open: no Tables group, not changed, Run API.
+    before = api_py.read_text(encoding="utf-8")
+    scripts = page.context.new_page()
+    scripts.goto(
+        f"http://127.0.0.1:{server['port']}/scripts?path={quote(str(api_py))}#token={server['token']}"
+    )
+    run = scripts.get_by_role("button", name="Run API")
+    expect(run).to_be_visible(timeout=30000)
+    scripts.wait_for_timeout(2500)  # the tables' arrangement would have come by now
+    expect(scripts.locator(".view-lines").first).to_contain_text("swissarmybench-api")
+    expect(scripts.locator(".view-lines").first).not_to_contain_text("region Tables")
+    expect(scripts.locator(".line-numbers").first).to_have_text("1")
+    expect(scripts.get_by_role("button", name="Run as scheduled")).to_have_count(0)
+    call(server, "POST", "/local-api/stop", {})
+    run.click()
+    expect(scripts.locator(".toast", has_text="Running on http://127.0.0.1:")).to_be_visible(timeout=30000)
+    assert call(server, "GET", "/local-api")["running"]
+    assert api_py.read_text(encoding="utf-8") == before
+    if SHOTS:
+        scripts.wait_for_timeout(500)
+        scripts.screenshot(path=str(Path(SHOTS) / "api-py-run-api-on-the-scripts-page.png"))
 
 
 @needs_streamlit

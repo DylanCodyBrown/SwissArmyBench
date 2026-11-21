@@ -4586,3 +4586,36 @@ and the JSON both ways), no longer queued behind one lock.
 Not checked: the large scale (10M lines; one month's reconciliation): the container's disk filled (other runs
 share it) while it ran and the server answered 500 with "No space left on device"; run it again with
 SWISSARMYBENCH_STRESS_SCALES=large where the disk has a few GB.
+
+## The API builder against our good designs: the critic's walk-through and fixes (2026-11-21, branch api-critic)
+
+A made-up clinic (visits: 5 rows, a date and a yes/no column) and depot (stock), built from nothing on a server
+with its own state folder, once through the agent's commands and once through the pages in Chromium.
+
+| Step | The agent (`sab ...`) | The pages |
+| --- | --- | --- |
+| A new project | 1 command, 0.14 s | New project's dialog |
+| A table into the sandbox | 2 commands (load, `sandbox add`), 0.35 s | Make a sandbox variant: 2 clicks and a name, 0.3 s |
+| New endpoint from a table (5 endpoints) | 1 command, 0.33 s | 3 clicks, 1.2 s (API.py opens on the Scripts page) |
+| Run | 1 command, 0.30 s | 1 click, about 2 s to "Running on" |
+| Try it: a POST with its made-up body | 1 command, 0.1 s (a write waits for Allow) | 2 clicks; 201 in 38 ms |
+| Export for a target | 1 command, 0.2 s (10 files) | 3 clicks, about 2 s |
+| A form's Save wired to POST /visits | 3 commands (canvas_open, canvas_insert_widget, canvas_wire) | select the widget, Add an action, Call: 3 clicks; the body's six fields each typed by hand |
+
+Found on the way, fixed and tested (docs/ideas.md "The API builder against our good designs"): the first Run
+after New endpoint from a table failed on the visits table's date column; the Scripts page wrote a Tables group
+into API.py; Run file on API.py offered to install `sab_api`; a refusal was a raw JSON tree; an open Try it
+lost its text on each restart; a printing endpoint could stop for ever; the page made up its own example body
+and target list.
+
+Checked: tests/test_local_api_critic.py (9 tests: the one definition, an Event's call against the endpoint, the date
+import written among the imports, a date table scaffolded, run and written through its made-up body, a
+refusal's sentence and line through `call` and the log, the API's own 404 and 405, 3,000 printed lines read and
+the endpoint still answering, the words, the export's warning); tests/e2e/test_local_apis_page.py (Chromium:
+the refusal's error note with API.py's line and Go to line, the Try it kept over a restart, the export
+dialog's warning and the backend's targets, API.py on the Scripts page with a table open: line 1 is its header,
+no Tables group, Run API starts it, the file's bytes unchanged).
+
+Not checked: Run API in the desktop app's window (Chromium only); an extension's own API target in the picker
+beyond the registry's list (tests/test_api_export.py lists one); the Output fold with a very long single line
+(cut at 2,000 characters by rule, not driven in a browser).

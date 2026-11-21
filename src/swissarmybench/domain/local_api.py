@@ -371,6 +371,82 @@ def parse(text: str) -> Api:
     return Api(settings, endpoints, models, problems)
 
 
+# ===== an endpoint's contract: its body's fields and a made-up request, one definition for every reader =====
+
+
+def _bare(kind: str) -> str:
+    """An annotation without its quotes and its optional wrapping (Optional[X], X | None)."""
+    text = kind.strip().strip("'\"")
+    text = re.sub(r"\s*\|\s*None$", "", text)
+    found = re.match(r"^Optional\[(.*)\]$", text)
+    return (found.group(1) if found else text).strip()
+
+
+def body_of(endpoint: Endpoint) -> Param | None:
+    return next((p for p in endpoint.params if p.where == "body"), None)
+
+
+def body_model(endpoint: Endpoint, models: Mapping[str, Model]) -> Model | None:
+    """The model an endpoint's body is (a TypedDict or dataclass of API.py's; a list of one: that one)."""
+    body = body_of(endpoint)
+    if body is None:
+        return None
+    kind = _bare(body.type)
+    listed = re.match(r"^(?:list|List|Sequence)\[(.*)\]$", kind)
+    return models.get(_bare(listed.group(1)) if listed else kind)
+
+
+def body_fields(endpoint: Endpoint, models: Mapping[str, Model]) -> dict[str, dict[str, Any]] | None:
+    """The body's fields in order, each with its type and whether it must be sent; None when the body is not
+    one of API.py's models (a plain dict or list, or no body). The Try it form, an Event's body mapping on
+    the Canvas, Payload shapes and the OpenAPI document's schema are all this."""
+    model = body_model(endpoint, models)
+    if model is None:
+        return None
+    return {name: {"type": kind, "required": required} for name, (kind, required) in model.fields.items()}
+
+
+def made_up_value(kind: str, name: str, models: Mapping[str, Model], depth: int = 0) -> Any:
+    """A made-up value for an annotation (never a row's): the same for the same name and type."""
+    bare = _bare(kind)
+    listed = re.match(r"^(?:list|List|Sequence)\[(.*)\]$", bare)
+    if listed:
+        return [made_up_value(listed.group(1), name, models, depth + 1)]
+    if bare in models and depth < 3:
+        return {k: made_up_value(v[0], k, models, depth + 1) for k, v in models[bare].fields.items()}
+    simple = bare.split(".")[-1]
+    if simple == "int":
+        return 101 if name.lower().endswith(("id", "key")) else 3
+    if simple in ("float", "Decimal"):
+        return 12.5
+    if simple == "bool":
+        return True
+    if simple == "date":
+        return "2026-01-15"
+    if simple == "datetime":
+        return "2026-01-15T09:30:00"
+    if bare.startswith(("dict", "Dict", "Mapping")) or bare in models:
+        return {}
+    if bare in ("list", "List"):
+        return []
+    return f"made-up {name}"
+
+
+def made_up(endpoint: Endpoint, models: Mapping[str, Model]) -> dict[str, Any]:
+    """A made-up request for an endpoint: {"path": {name: value}, "query": {name: value}, "body": value or
+    None}. A query parameter with a default starts from it. Try it starts from this (or the kept example),
+    and the agent reads the same in `api(state)`."""
+    out: dict[str, Any] = {"path": {}, "query": {}, "body": None}
+    for p in endpoint.params:
+        if p.where == "body":
+            out["body"] = made_up_value(p.type, p.name, models)
+        elif p.where == "query" and p.default is not None:
+            out["query"][p.name] = p.default
+        else:
+            out[p.where][p.name] = made_up_value(p.type, p.name, models)
+    return out
+
+
 # ===== the OpenAPI document =====
 
 
@@ -577,6 +653,9 @@ def shapes(api: Api, uses: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     by = {f"{e.method} {e.path}": e for e in api.endpoints}
     out = []
     for use in uses:
+        if use.get("action") is not None:
+            out.append(_event_shape(api, by, use))
+            continue
         values = dict(use.get("values") or {})
         wanted = str(values.get("endpoint") or "")
         widget = str(use.get("widget") or "")
@@ -609,14 +688,14 @@ def shapes(api: Api, uses: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
                     f"{found.name}'s answer has no field {field} (it has {', '.join(model.fields)})."
                 )
             if needs["answer"] == "body":
-                body = next((p for p in found.params if p.where == "body"), None)
-                body_model = _model_of(body.type, api.models) if body else None
+                body = body_of(found)
+                body_model_ = body_model(found, api.models)
                 asked = [str(f) for f in values.get("fields") or []]
                 if body is None:
                     problems.append(f"{found.name} takes no body for {widget} to send.")
-                elif body_model is not None:
-                    answers["body"] = {k: v[0] for k, v in body_model.fields.items()}
-                    extra = [f for f in asked if f not in body_model.fields]
+                elif body_model_ is not None:
+                    answers["body"] = {k: v[0] for k, v in body_model_.fields.items()}
+                    extra = [f for f in asked if f not in body_model_.fields]
                     if extra:
                         problems.append(f"{found.name}'s body has no field {extra[0]}.")
             missing = [
@@ -630,6 +709,51 @@ def shapes(api: Api, uses: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
              "endpoint": wanted, "expects": needs["words"], "answers": answers, "problems": problems}
         )  # fmt: skip
     return out
+
+
+def _event_shape(api: Api, by: Mapping[str, Endpoint], use: Mapping[str, Any]) -> dict[str, Any]:
+    """A widget's Event wired to call an endpoint (the Canvas's Events): the call beside the endpoint's own
+    definition: the endpoint is API.py's, each mapped field is one of its body's, each required field and
+    each {name} of its path is given."""
+    action = dict(use.get("action") or {})
+    wanted = str(action.get("endpoint") or "")
+    widget = str(use.get("widget") or "")
+    event = str(use.get("event") or "")
+    found = by.get(wanted)
+    problems: list[str] = []
+    answers: dict[str, Any] = {}
+    sent = action.get("body") or ""
+    if found is None:
+        problems.append(f"API.py has no endpoint {wanted}.")
+    else:
+        fields = body_fields(found, api.models)
+        if fields is not None:
+            answers["body"] = {k: v["type"] for k, v in fields.items()}
+        if body_of(found) is None and sent:
+            problems.append(f"{found.name} takes no body: {event} sends one.")
+        elif isinstance(sent, dict) and fields is not None:
+            extra = [f for f in sent if f not in fields]
+            if extra:
+                problems.append(f"{found.name}'s body has no field {extra[0]}.")
+            unsent = [f for f, v in fields.items() if v["required"] and f not in sent]
+            if unsent:
+                problems.append(f"{found.name}'s body needs {unsent[0]}: {event} does not send it.")
+        given = action.get("params") or {}
+        missing = [n for n in re.findall(r"\{(\w+)\}", wanted) if n not in given]
+        if missing:
+            problems.append(f"{event} gives no {missing[0]} for the path.")
+    return {
+        "canvas": use.get("canvas"),
+        "page": use.get("page"),
+        "instance": use.get("instance"),
+        "widget": widget,
+        "event": event,
+        "endpoint": wanted,
+        "expects": f"on {event}: "
+        + ("the whole payload as the body" if isinstance(sent, str) else "a field each"),
+        "answers": answers,
+        "problems": problems,
+    }
 
 
 # ===== an endpoint's kept example (the owner approved "Keep a Try it body", 2026-11-21) =====
@@ -666,7 +790,7 @@ def check_example(api: Api, key: str, body: Any) -> Any:
     found = next((e for e in api.endpoints if endpoint_key(e.method, e.path) == key), None)
     if found is None:
         raise ApiFileError(f"API.py has no endpoint {key}.")
-    if not any(p.where == "body" for p in found.params):
+    if body_of(found) is None:
         raise ApiFileError(f"{key} takes no body: there is nothing to keep.")
     if len(json.dumps(body, default=str)) > MAX_EXAMPLE:
         raise ApiFileError(f"An example is {MAX_EXAMPLE:,} characters at most.")

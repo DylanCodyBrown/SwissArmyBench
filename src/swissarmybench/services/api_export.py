@@ -143,5 +143,6 @@ class ApiExport:
             "kept": [{"file": n, "theirs": files[n], "yours": compare[n]} for n in kept],
             "variables": list(bundle.variables),
             "notes": list(bundle.notes),
+            "warnings": targets.warnings(bundle),
             "sandbox": bundle.sandbox,
         }
