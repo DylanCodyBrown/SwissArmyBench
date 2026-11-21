@@ -52,10 +52,6 @@ MICROSOFT_KINDS = frozenset({"sqlserver", "dataverse", "sharepoint", "datalake",
 SOURCES = ("published", "local", "file")
 
 
-class ImportError_(ValueError):
-    """The import cannot go ahead as asked; the message says why."""
-
-
 @dataclass(frozen=True)
 class SourceConnection:
     """One back-end connection the import names: reused (an existing one) or made."""

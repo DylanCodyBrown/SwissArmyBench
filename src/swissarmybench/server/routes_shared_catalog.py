@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response
+from swissarmybench.server.http import actor, json_response, safely
 from swissarmybench.services.shared_catalog import SharedCatalog
 
 
@@ -21,17 +21,14 @@ def routes(shared: SharedCatalog) -> list[BaseRoute]:
         return json_response(shared.listing(request.query_params.get("search")))
 
     async def table(request: Request) -> Response:
-        try:
-            q = request.query_params
-            return json_response(shared.table(q.get("connection"), q.get("table")))
-        except Exception as error:
-            return error_response(error)
+        q = request.query_params
+        return json_response(shared.table(q.get("connection"), q.get("table")))
 
     async def refresh(request: Request) -> Response:
         return json_response(await shared.refresh(actor(request)))
 
     return [
         Route("/shared-catalog", listing),
-        Route("/shared-catalog/table", table),
+        Route("/shared-catalog/table", safely(table)),
         Route("/shared-catalog/refresh", refresh, methods=["POST"]),
     ]

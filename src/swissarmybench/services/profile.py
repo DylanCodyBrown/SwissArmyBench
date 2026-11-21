@@ -260,6 +260,24 @@ class Profiles:
                 self._cache.popitem(last=False)
         return value
 
+    def _over_view(
+        self,
+        key: str,
+        cur: SqlSession,
+        grid: Grid,
+        info: DatasetInfo,
+        upto: int | None,
+        work: Callable[[str], Any],
+    ) -> Any:
+        """`work(the view's rows as SQL)`, kept by `key`. The view cache is read, not every step again
+        (adapters/views.reading)."""
+
+        def run() -> Any:
+            with self.ws.views.reading(cur, info, grid.steps, grid.settings, upto) as rows:
+                return work(rows)
+
+        return self._cached(key, run)
+
     async def profile(
         self, grid: Grid, info: DatasetInfo, column_name: str | None, upto: int | None, who: str
     ) -> Any:
@@ -273,15 +291,11 @@ class Profiles:
             match = next((c for c in columns if c.name == column_name), None)
             if column_name is not None and match is None:
                 raise LookupError(f"No column {column_name!r} in this view.")
-
-            def run() -> Any:
-                # The view cache, not every step again (adapters/views.reading).
-                with ws.views.reading(cur, info, grid.steps, grid.settings, upto) as rows:
-                    if match is None:
-                        return profile_table(cur, rows, columns)
-                    return profile_column(cur, rows, match)
-
-            return self._cached(key, run)
+            if match is None:
+                return self._over_view(
+                    key, cur, grid, info, upto, lambda rows: profile_table(cur, rows, columns)
+                )
+            return self._over_view(key, cur, grid, info, upto, lambda rows: profile_column(cur, rows, match))
 
         result = await ws.grid_query(grid, None, AGENT if who == "agent" else BACKGROUND, compute)
         ws.audit.write(who, "profile", info.name, column=column_name)
@@ -293,13 +307,8 @@ class Profiles:
         key = view_key(info, grid.steps, grid.settings, None) + ":header"
 
         def compute(cur: SqlSession) -> Any:
-            compiled = ws.compiled(cur, grid, info)
-
-            def run() -> Any:
-                with ws.views.reading(cur, info, grid.steps, grid.settings) as rows:
-                    return header_stats(cur, rows, compiled.columns)
-
-            return self._cached(key, run)
+            columns = ws.compiled(cur, grid, info).columns
+            return self._over_view(key, cur, grid, info, None, lambda rows: header_stats(cur, rows, columns))
 
         return await ws.grid_query(grid, gen, BACKGROUND, compute, client)
 
@@ -329,10 +338,8 @@ class Profiles:
                 shown = ", ".join(c.name for c in columns)
                 raise ValueError(f"No column {column_name!r} in this view. Its columns: {shown}.")
 
-            def run() -> Any:
-                with ws.views.reading(cur, info, grid.steps, grid.settings, upto) as rows:
-                    return column_values(cur, rows, match, search, wanted)
-
-            return self._cached(key, run)
+            return self._over_view(
+                key, cur, grid, info, upto, lambda rows: column_values(cur, rows, match, search, wanted)
+            )
 
         return await ws.grid_query(grid, None, AGENT if who == "agent" else INTERACTIVE, compute)

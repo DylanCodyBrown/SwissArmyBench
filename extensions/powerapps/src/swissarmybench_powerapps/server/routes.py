@@ -56,16 +56,22 @@ POST   /powerapps/notebook/prepare/<key>   the kernel's own route (its key, no t
 
 from __future__ import annotations
 
-import json
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import Response, StreamingResponse
+from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server import streamlit_proxy
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import (
+    actor,
+    answered,
+    error_response,
+    json_lines,
+    json_response,
+    read_json,
+)
 from swissarmybench_powerapps.domain import ts_notebook as ts_rules
 from swissarmybench_powerapps.services.notebook import TsNotebooks
 from swissarmybench_powerapps.services.powerapps import PowerApps
@@ -84,16 +90,15 @@ async def _body(request: Request) -> Any:
     return await read_json(request) if await request.body() else {}
 
 
+async def _after(first: dict[str, Any] | None, rest: AsyncIterator[dict[str, Any]]) -> AsyncIterator[Any]:
+    """A run's outputs with the first one, already read, put back in front."""
+    if first is not None:
+        yield first
+    async for output in rest:
+        yield output
+
+
 def routes(service: PowerApps, notebook: TsNotebooks | None = None) -> list[BaseRoute]:
-    def door(work: Callable[[Request], Awaitable[Any]]) -> Callable[[Request], Awaitable[Response]]:
-        async def answer(request: Request) -> Response:
-            try:
-                return json_response(await work(request))
-            except Exception as error:
-                return error_response(error)
-
-        return answer
-
     async def state(r: Request) -> Any:
         return await service.state()
 
@@ -195,51 +200,49 @@ def routes(service: PowerApps, notebook: TsNotebooks | None = None) -> list[Base
     async def runs(r: Request) -> Any:
         return service.runs(r.path_params.get("run"))
 
-    extra = notebook_routes(notebook, door) if notebook is not None else []
+    extra = notebook_routes(notebook) if notebook is not None else []
     return [
         *extra,
-        Route("/powerapps", door(state)),
-        Route("/powerapps/tools", door(tools)),
-        Route("/powerapps/tools/install", door(install), methods=["POST"]),
-        Route("/powerapps/account", door(account)),
-        Route("/powerapps/account/sign-in", door(sign_in), methods=["POST"]),
-        Route("/powerapps/account/switch", door(switch), methods=["POST"]),
-        Route("/powerapps/environments", door(environments)),
-        Route("/powerapps/profiles", door(profiles)),
-        Route("/powerapps/profiles", door(create_profile), methods=["POST"]),
-        Route("/powerapps/profiles", door(select_profile), methods=["PUT"]),
-        Route("/powerapps/project", door(project)),
-        Route("/powerapps/project/new", door(new), methods=["POST"]),
-        Route("/powerapps/project/open", door(open_app), methods=["POST"]),
-        Route("/powerapps/project/close", door(close), methods=["POST"]),
-        Route("/powerapps/project/files", door(files)),
-        Route("/powerapps/pages", door(pages_list)),
-        Route("/powerapps/pages", door(new_page), methods=["POST"]),
-        Route("/powerapps/project/scaffold", door(scaffold), methods=["POST"]),
-        Route("/powerapps/project/lint", door(lint), methods=["POST"]),
-        Route("/powerapps/project/file", door(file)),
-        Route("/powerapps/project/file", door(save), methods=["PUT"]),
-        Route("/powerapps/sources", door(add_source), methods=["POST"]),
-        Route("/powerapps/sources/remove", door(remove_source), methods=["POST"]),
-        Route("/powerapps/connectors", door(connector_list)),
-        Route("/powerapps/connectors/{name}", door(connector)),
-        Route("/powerapps/connections", door(connection_list)),
-        Route("/powerapps/live", door(live)),
-        Route("/powerapps/live", door(start), methods=["POST"]),
-        Route("/powerapps/live", door(stop), methods=["DELETE"]),
-        Route("/powerapps/push", door(push), methods=["POST"]),
-        Route("/powerapps/versions", door(versions)),
-        Route("/powerapps/custom-connector", door(custom), methods=["POST"]),
-        Route("/powerapps/runs", door(runs)),
-        Route("/powerapps/runs/{run}", door(runs)),
+        Route("/powerapps", answered(state)),
+        Route("/powerapps/tools", answered(tools)),
+        Route("/powerapps/tools/install", answered(install), methods=["POST"]),
+        Route("/powerapps/account", answered(account)),
+        Route("/powerapps/account/sign-in", answered(sign_in), methods=["POST"]),
+        Route("/powerapps/account/switch", answered(switch), methods=["POST"]),
+        Route("/powerapps/environments", answered(environments)),
+        Route("/powerapps/profiles", answered(profiles)),
+        Route("/powerapps/profiles", answered(create_profile), methods=["POST"]),
+        Route("/powerapps/profiles", answered(select_profile), methods=["PUT"]),
+        Route("/powerapps/project", answered(project)),
+        Route("/powerapps/project/new", answered(new), methods=["POST"]),
+        Route("/powerapps/project/open", answered(open_app), methods=["POST"]),
+        Route("/powerapps/project/close", answered(close), methods=["POST"]),
+        Route("/powerapps/project/files", answered(files)),
+        Route("/powerapps/pages", answered(pages_list)),
+        Route("/powerapps/pages", answered(new_page), methods=["POST"]),
+        Route("/powerapps/project/scaffold", answered(scaffold), methods=["POST"]),
+        Route("/powerapps/project/lint", answered(lint), methods=["POST"]),
+        Route("/powerapps/project/file", answered(file)),
+        Route("/powerapps/project/file", answered(save), methods=["PUT"]),
+        Route("/powerapps/sources", answered(add_source), methods=["POST"]),
+        Route("/powerapps/sources/remove", answered(remove_source), methods=["POST"]),
+        Route("/powerapps/connectors", answered(connector_list)),
+        Route("/powerapps/connectors/{name}", answered(connector)),
+        Route("/powerapps/connections", answered(connection_list)),
+        Route("/powerapps/live", answered(live)),
+        Route("/powerapps/live", answered(start), methods=["POST"]),
+        Route("/powerapps/live", answered(stop), methods=["DELETE"]),
+        Route("/powerapps/push", answered(push), methods=["POST"]),
+        Route("/powerapps/versions", answered(versions)),
+        Route("/powerapps/custom-connector", answered(custom), methods=["POST"]),
+        Route("/powerapps/runs", answered(runs)),
+        Route("/powerapps/runs/{run}", answered(runs)),
         # The app's dev server, passed through under its run's key (the same pattern as Streamlit's).
         *streamlit_proxy.routes(service.live_port_of, prefix=LIVE_PREFIX, what="The code app's dev server"),
     ]
 
 
-def notebook_routes(
-    notebook: TsNotebooks, door: Callable[[Callable[[Request], Awaitable[Any]]], Any]
-) -> list[BaseRoute]:
+def notebook_routes(notebook: TsNotebooks) -> list[BaseRoute]:
     async def state(r: Request) -> Any:
         return notebook.state()
 
@@ -264,18 +267,7 @@ def notebook_routes(
         except Exception as error:
             return error_response(error)
 
-        async def lines() -> AsyncIterator[bytes]:
-            try:
-                if first is not None:
-                    yield (json.dumps(first) + "\n").encode()
-                async for output in outputs:
-                    yield (json.dumps(output) + "\n").encode()
-            except Exception as error:  # the kernel went away mid-run
-                yield (json.dumps({"done": {"ok": False, "error": str(error)}}) + "\n").encode()
-
-        return StreamingResponse(
-            lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
-        )
+        return json_lines(_after(first, outputs))
 
     async def complete(r: Request) -> Any:
         return await notebook.complete(await _body(r))
@@ -308,18 +300,18 @@ def notebook_routes(
         return await notebook.prepare(r.path_params["key"], await _body(r))
 
     return [
-        Route("/powerapps/notebook", door(state)),
+        Route("/powerapps/notebook", answered(state)),
         Route("/powerapps/notebook/types", types),
-        Route("/powerapps/notebook/open", door(open_data), methods=["POST"]),
+        Route("/powerapps/notebook/open", answered(open_data), methods=["POST"]),
         Route("/powerapps/notebook/run", run, methods=["POST"]),
-        Route("/powerapps/notebook/complete", door(complete), methods=["POST"]),
-        Route("/powerapps/notebook/interrupt", door(interrupt), methods=["POST"]),
-        Route("/powerapps/notebook/restart", door(restart), methods=["POST"]),
-        Route("/powerapps/notebook/stop", door(stop), methods=["POST"]),
-        Route("/powerapps/notebook/grid", door(grid), methods=["POST"]),
-        Route("/powerapps/notebook/data-ts", door(data_ts), methods=["POST"]),
-        Route("/powerapps/notebook/use-in-app", door(use_in_app), methods=["POST"]),
-        Route("/powerapps/notebook/preview", door(preview), methods=["POST"]),
-        Route("/powerapps/dataverse/grid", door(dataverse), methods=["POST"]),
-        Route(PREPARE_PREFIX + "{key}", door(prepare), methods=["POST"]),
+        Route("/powerapps/notebook/complete", answered(complete), methods=["POST"]),
+        Route("/powerapps/notebook/interrupt", answered(interrupt), methods=["POST"]),
+        Route("/powerapps/notebook/restart", answered(restart), methods=["POST"]),
+        Route("/powerapps/notebook/stop", answered(stop), methods=["POST"]),
+        Route("/powerapps/notebook/grid", answered(grid), methods=["POST"]),
+        Route("/powerapps/notebook/data-ts", answered(data_ts), methods=["POST"]),
+        Route("/powerapps/notebook/use-in-app", answered(use_in_app), methods=["POST"]),
+        Route("/powerapps/notebook/preview", answered(preview), methods=["POST"]),
+        Route("/powerapps/dataverse/grid", answered(dataverse), methods=["POST"]),
+        Route(PREPARE_PREFIX + "{key}", answered(prepare), methods=["POST"]),
     ]

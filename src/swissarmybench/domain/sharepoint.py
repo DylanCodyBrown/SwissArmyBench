@@ -28,7 +28,6 @@ from __future__ import annotations
 from swissarmybench.domain import entra
 from swissarmybench.domain import lake_code as code
 
-GRAPH_VARIABLE: str = "SWISSARMYBENCH_GRAPH_URL"
 BATCH: int = 20  # requests in one Graph $batch (Graph's own most)
 MAX_WORKBOOK_BYTES: int = 25 * 1024 * 1024  # a workbook read for its sheets' names
 MAX_WORKBOOKS: int = 100  # workbooks a catalog looks into

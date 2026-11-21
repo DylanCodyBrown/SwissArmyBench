@@ -672,7 +672,6 @@ def bootstrap(
         folder_of=lambda path: str(Path(path).expanduser().parent),
         secret_names=blades.environment_names,
         vault_environment=vault_environment,
-        kernel_stopped=lambda kernel: hooks.kernel_stopped(kernel),
         hooks=hooks,
     )
 
@@ -684,7 +683,6 @@ def bootstrap(
 
     async def kernel_ended(kernel: str) -> None:
         slots.kernel_stopped(kernel)  # its slots go back at once
-        await hooks.kernel_stopped(kernel)
 
     slots.kernel_caller = kernel_caller
     slots.interrupt_kernel = workbench.interrupt
@@ -721,7 +719,6 @@ def bootstrap(
         origin_of=datasets.origins.get,
         environ=os.environ,
         now=time.time,
-        canvas_references=lambda *found: (hooks.canvas_references or (lambda *_: []))(*found),
     )
     # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
     api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)

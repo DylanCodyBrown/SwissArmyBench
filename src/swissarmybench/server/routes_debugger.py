@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import json_response, read_json, safely, with_body
 from swissarmybench.services.debugger import Debugger
 
 
@@ -23,30 +23,15 @@ def routes(debugger: Debugger) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
         return json_response(debugger.state(dict(request.query_params)))
 
-    async def breakpoints(request: Request) -> Response:
-        return json_response(await debugger.breakpoints(await read_json(request), actor(request)))
-
-    async def start(request: Request) -> Response:
-        return json_response(await debugger.start(await read_json(request), actor(request)))
-
-    async def step(request: Request) -> Response:
-        return json_response(await debugger.step(await read_json(request), actor(request)))
-
     async def variables(request: Request) -> Response:
         return json_response(await debugger.variables(await read_json(request)))
 
-    async def evaluate(request: Request) -> Response:
-        return json_response(await debugger.evaluate(await read_json(request), actor(request)))
-
-    async def stop(request: Request) -> Response:
-        return json_response(await debugger.stop(await read_json(request), actor(request)))
-
     return [
         Route("/workbench/debug", safely(state), methods=["GET"]),
-        Route("/workbench/debug/breakpoints", safely(breakpoints), methods=["POST"]),
-        Route("/workbench/debug/start", safely(start), methods=["POST"]),
-        Route("/workbench/debug/step", safely(step), methods=["POST"]),
+        Route("/workbench/debug/breakpoints", with_body(debugger.breakpoints), methods=["POST"]),
+        Route("/workbench/debug/start", with_body(debugger.start), methods=["POST"]),
+        Route("/workbench/debug/step", with_body(debugger.step), methods=["POST"]),
         Route("/workbench/debug/variables", safely(variables), methods=["POST"]),
-        Route("/workbench/debug/evaluate", safely(evaluate), methods=["POST"]),
-        Route("/workbench/debug/stop", safely(stop), methods=["POST"]),
+        Route("/workbench/debug/evaluate", with_body(debugger.evaluate), methods=["POST"]),
+        Route("/workbench/debug/stop", with_body(debugger.stop), methods=["POST"]),
     ]

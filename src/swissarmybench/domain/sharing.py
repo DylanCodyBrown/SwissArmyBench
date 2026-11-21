@@ -45,7 +45,6 @@ FOLDER: str = "devtunnel"  # in the state folder
 MAX_BYTES: int = 200 * 1024 * 1024
 # macOS: Microsoft Corporation's Apple Developer Team ID (its Developer ID Application certificate).
 MICROSOFT_TEAM_ID: str = "UBF8T346G9"
-WINDOWS_SIGNER: str = "Microsoft Corporation"
 LABEL: str = "swissarmybench"  # every tunnel this app makes carries it (a stale one is found by it)
 
 # Each system's file in Microsoft's store (the official install script's and aka.ms/TunnelsCliDownload's).

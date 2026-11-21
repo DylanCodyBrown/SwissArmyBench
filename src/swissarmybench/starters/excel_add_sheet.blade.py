@@ -17,6 +17,9 @@
 Returns the workbook's path, for the next step.
 Changes are saved into the workbook itself. Nothing is written over without overwrite=True: an
 existing sheet is never replaced, nor a file.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `add_sheet`,
+the one you call, is last.
 """
 
 from pathlib import Path

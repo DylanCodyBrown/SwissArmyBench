@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, TypeVar
@@ -19,7 +19,7 @@ from uuid import UUID
 import duckdb
 import sqlglot
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, StreamingResponse
 
 from swissarmybench.domain import refusals
 from swissarmybench.domain.blades import BladeError
@@ -139,6 +139,33 @@ def safely(handler: Handler) -> Handler:
             return error_response(error)
 
     return guarded
+
+
+def answered(work: Callable[[Request], Awaitable[Any]]) -> Handler:
+    """A route that answers what `work(request)` returns as JSON (an error in the one shape)."""
+
+    async def handle(request: Request) -> Response:
+        try:
+            return json_response(await work(request))
+        except Exception as error:
+            return error_response(error)
+
+    return handle
+
+
+async def _json_lines(events: AsyncIterator[Any]) -> AsyncIterator[bytes]:
+    try:
+        async for event in events:
+            yield (json.dumps(event) + "\n").encode()
+    except Exception as error:  # the run went away part-way (a kernel that stopped)
+        yield (json.dumps({"done": {"ok": False, "error": str(error)}}) + "\n").encode()
+
+
+def json_lines(events: AsyncIterator[Any]) -> Response:
+    """A run's events streamed as they come, one JSON line each; a failure part-way is its last line."""
+    return StreamingResponse(
+        _json_lines(events), media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
+    )
 
 
 def with_body(run: Callable[[Any, str], Awaitable[Any]]) -> Handler:

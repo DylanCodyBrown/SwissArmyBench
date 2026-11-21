@@ -15,32 +15,26 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.regression import Regression, run_predict
 
 
 def routes(grids: GridService, regression: Regression) -> list[BaseRoute]:
     async def fit(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            if not isinstance(body, dict):
-                raise ValueError('Send {"target": name, "predictors": [...]}.')
-            return json_response(await regression.fit(grid, info, body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            raise ValueError('Send {"target": name, "predictors": [...]}.')
+        return json_response(await regression.fit(grid, info, body, actor(request)))
 
     async def predict(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            if not isinstance(body, dict):
-                raise ValueError('Send {"model": ..., "values": {...}}.')
-            return json_response(run_predict(body))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            raise ValueError('Send {"model": ..., "values": {...}}.')
+        return json_response(run_predict(body))
 
     return [
-        Route("/grids/{grid_id}/regression", fit, methods=["POST"]),
-        Route("/regression/predict", predict, methods=["POST"]),
+        Route("/grids/{grid_id}/regression", safely(fit), methods=["POST"]),
+        Route("/regression/predict", safely(predict), methods=["POST"]),
     ]

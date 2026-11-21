@@ -11,28 +11,16 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import json_response, with_body
 from swissarmybench.services.navigation import Navigation
 
 
 def routes(navigation: Navigation) -> list[BaseRoute]:
-    async def go(request: Request) -> Response:
-        try:
-            return json_response(await navigation.go(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     async def rail(request: Request) -> Response:
         return json_response(navigation.rail())
 
-    async def set_rail(request: Request) -> Response:
-        try:
-            return json_response(await navigation.set_rail(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     return [
-        Route("/navigate", go, methods=["POST"]),
+        Route("/navigate", with_body(navigation.go), methods=["POST"]),
         Route("/rail", rail),
-        Route("/rail", set_rail, methods=["PUT"]),
+        Route("/rail", with_body(navigation.set_rail), methods=["PUT"]),
     ]

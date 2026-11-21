@@ -33,70 +33,67 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.proofs import proof as show_the_math
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.grids import GridService
 
 
+def _one(
+    grids: GridService, analysis: Analysis, name: str, example: str
+) -> Callable[[Request], Awaitable[Response]]:
+    """The route of one analysis on a grid's view: its request checked, then run."""
+
+    async def handle(request: Request) -> Response:
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            raise ValueError(f"Send {example}.")
+        return json_response(await analysis.run(name, grid, info, body, actor(request)))
+
+    return safely(handle)
+
+
 def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
     async def fit_test(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            if not isinstance(body, dict):
-                raise ValueError('Send {"columns": [...], "expected": "even"}.')
-            return json_response(await analysis.fit(grid, info, body, actor(request)))
-        except Exception as error:
-            return error_response(error)
-
-    def one(name: str, example: str) -> Callable[[Request], Awaitable[Response]]:
-        async def handle(request: Request) -> Response:
-            try:
-                grid, info = grids.find(request.path_params["grid_id"])
-                body = await read_json(request)
-                if not isinstance(body, dict):
-                    raise ValueError(f"Send {example}.")
-                return json_response(await analysis.run(name, grid, info, body, actor(request)))
-            except Exception as error:
-                return error_response(error)
-
-        return handle
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            raise ValueError('Send {"columns": [...], "expected": "even"}.')
+        return json_response(await analysis.fit(grid, info, body, actor(request)))
 
     async def proof(request: Request) -> Response:
         """Show the math: {"analysis", "result": what the window showed, "dataset"} as a proof."""
-        try:
-            body = await read_json(request)
-            if not isinstance(body, dict):
-                raise ValueError('Send {"analysis": "odds", "result": {...the result shown...}}.')
-            dataset = str(body.get("dataset") or "")
-            return json_response(show_the_math(str(body.get("analysis")), body.get("result"), dataset))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            raise ValueError('Send {"analysis": "odds", "result": {...the result shown...}}.')
+        dataset = str(body.get("dataset") or "")
+        return json_response(show_the_math(str(body.get("analysis")), body.get("result"), dataset))
 
     async def code(request: Request) -> Response:
         """The analysis as Python for a notebook (the result's Copy code)."""
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            if not isinstance(body, dict) or not isinstance(body.get("body"), dict):
-                raise ValueError('Send {"analysis": "odds", "body": {...the analysis request...}}.')
-            return json_response(await analysis.code(str(body.get("analysis")), grid, info, body["body"]))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        if not isinstance(body, dict) or not isinstance(body.get("body"), dict):
+            raise ValueError('Send {"analysis": "odds", "body": {...the analysis request...}}.')
+        return json_response(await analysis.code(str(body.get("analysis")), grid, info, body["body"]))
 
     return [
-        Route("/grids/{grid_id}/fit-test", fit_test, methods=["POST"]),
+        Route("/grids/{grid_id}/fit-test", safely(fit_test), methods=["POST"]),
         Route(
             "/grids/{grid_id}/outliers",
-            one("outliers", '{"column": name, "look": "amount"}'),
+            _one(grids, analysis, "outliers", '{"column": name, "look": "amount"}'),
             methods=["POST"],
         ),
         Route(
             "/grids/{grid_id}/odds",
-            one("odds", '{"column": name}, with "outcome" for odds ratios'),
+            _one(grids, analysis, "odds", '{"column": name}, with "outcome" for odds ratios'),
             methods=["POST"],
         ),
-        Route("/grids/{grid_id}/predictors", one("predictors", '{"target": name}'), methods=["POST"]),
-        Route("/grids/{grid_id}/analysis-code", code, methods=["POST"]),
-        Route("/analysis-proof", proof, methods=["POST"]),
+        Route(
+            "/grids/{grid_id}/predictors",
+            _one(grids, analysis, "predictors", '{"target": name}'),
+            methods=["POST"],
+        ),
+        Route("/grids/{grid_id}/analysis-code", safely(code), methods=["POST"]),
+        Route("/analysis-proof", safely(proof), methods=["POST"]),
     ]

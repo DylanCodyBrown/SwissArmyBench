@@ -134,19 +134,6 @@ def test_a_table_the_app_cannot_read_again_is_a_stub_and_no_rows_are_written(tmp
     assert zipped[1:] == cells[1:]
 
 
-def test_a_script_for_a_zip_has_no_pasted_rows() -> None:
-    script = (
-        "# region Tables\n# %% [1] [transformations] customers\n"
-        f"{PASTED}\n# endregion\n# %%\n\n# %% [2] Total\nprint(len(customers))\n"
-    )
-    zipped = rules.script_without_rows(script)
-    assert "Acme" not in zipped and "VALUES" not in zipped
-    assert "# %% [1] [transformations] customers\n# ===== FILL IN: customers =====" in zipped
-    # The rest of the script is as it was.
-    assert zipped.endswith("# endregion\n# %%\n\n# %% [2] Total\nprint(len(customers))\n")
-    assert rules.script_without_rows("x = 1\n") == "x = 1\n"
-
-
 def test_requirements_keep_the_users_lines() -> None:
     needed = rules.data_requirements(
         "orders = sab.sql('W', 'x')\norders = duckdb.sql('y').df()\npd.read_excel('a')"

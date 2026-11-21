@@ -16,6 +16,9 @@
 
 The named ones (FORMATS below): money, whole, thousands, percent, date, datetime and text; anything
 else is used as Excel's own format code. Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions;
+`number_format`, the one you call, is last.
 """
 
 from pathlib import Path

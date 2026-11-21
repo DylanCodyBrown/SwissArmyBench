@@ -14,6 +14,9 @@
 
 The template is never changed. A file already at the new path is written over only with
 overwrite=True. Returns the new workbook's path, for the next step.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions;
+`copy_template`, the one you call, is last.
 """
 
 import shutil

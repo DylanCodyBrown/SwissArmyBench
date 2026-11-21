@@ -959,7 +959,7 @@ class _Shared:
     clients: tuple[str, ...] = ()  # each API client, inline (its code, then what makes its import work)
 
 
-def _shared(made: Plan) -> _Shared:
+def shared_parts(made: Plan) -> _Shared:
     pieces = made.pieces
     has_vault = any(p.kind == "vault" for p in pieces)
     texts: list[str] = []
@@ -1094,7 +1094,7 @@ def export(
 
 def render_script(made: Plan, file: str) -> Exported:
     """The steps as one .py: `python <file>` runs it; main() is what an Azure Function calls."""
-    shared = _shared(made)
+    shared = shared_parts(made)
     module = file.removesuffix(".py")
     run_body: list[str] = []
     places: list[tuple[str, int, int]] = []  # label, first line, last line (in run()'s body)
@@ -1238,7 +1238,7 @@ def _settings_parameters(settings: Sequence[Secret]) -> tuple[str, str]:
 def render_notebook(made: Plan, file: str) -> Exported:
     """The steps as one .ipynb (nbformat 4, no outputs, no app's own metadata): the package check,
     the settings (tagged `parameters`), the helpers, the vaults and connections, then the cells."""
-    shared = _shared(made)
+    shared = shared_parts(made)
     requirements = shared.requirements
     cells: list[dict[str, object]] = []
     places: list[tuple[int, int, str]] = []

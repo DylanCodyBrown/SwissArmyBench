@@ -12,6 +12,9 @@ pypdf package), a text file as it is. A document that is not a table, read as wo
 
     document_text = sab.blade("SharePoint document text")
     document_text("Documents/Policies/Travel.docx")
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `document_text`, the one
+you call, is last.
 """
 
 from typing import Any

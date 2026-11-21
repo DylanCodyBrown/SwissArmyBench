@@ -13,6 +13,9 @@ when none is named. It runs only when you run it (your click), and says where th
     download_file = sab.blade("SharePoint download file")
     download_file("Documents/Policies/Travel.docx")
     download_file("Documents/Finance/Budget 2026.xlsx", folder=r"C:/Reports")
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `download_file`, the one
+you call, is last.
 """
 
 from typing import Any

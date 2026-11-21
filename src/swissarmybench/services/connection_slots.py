@@ -25,7 +25,7 @@ import secrets
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextvars import ContextVar
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, TypeVar
 
 from swissarmybench.domain import connection_slots as rules
@@ -65,10 +65,6 @@ def calling_as(caller: Caller) -> Iterator[None]:
         yield
     finally:
         CURRENT.reset(token)
-
-
-def agent_caller() -> Caller:
-    return Caller(rules.AGENT, "The agent")
 
 
 class ConnectionSlots:
@@ -434,7 +430,3 @@ class ConnectionSlots:
     async def _send(self, message: dict[str, Any]) -> None:
         with contextlib.suppress(Exception):
             await self._live.broadcast(message)
-
-
-def with_role(caller: Caller, **changes: Any) -> Caller:
-    return replace(caller, **changes)

@@ -15,6 +15,9 @@
 
 The workbook and the sheet are made when they are not there. Cells that already hold values are
 written over only with overwrite=True. Returns the workbook's path.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `write_table`,
+the one you call, is last.
 """
 
 from pathlib import Path

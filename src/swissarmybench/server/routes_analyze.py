@@ -47,20 +47,23 @@ from swissarmybench.services.analyze import Analyze, DoesNotFit
 Handler = Callable[[Request], Awaitable[Response]]
 
 
+def _answered(analyze: Analyze, work: Callable[[Request], Awaitable[object]]) -> Handler:
+    """`work`'s result as JSON; a table that does not fit and a failed analysis blade in their own shapes."""
+
+    async def handle(request: Request) -> Response:
+        try:
+            return json_response(await work(request))
+        except DoesNotFit as error:
+            return refusal(str(error), 409, where=error.where, fixes=[try_again()], plan=error.plan)
+        except RefreshError as error:  # your own analysis failed in its child process: why, the install
+            return json_response(analyze.blade_failure(str(error), error.missing_module), status_code=422)
+        except Exception as error:
+            return error_response(error)
+
+    return handle
+
+
 def routes(analyze: Analyze) -> list[BaseRoute]:
-    def answered(work: Callable[[Request], Awaitable[object]]) -> Handler:
-        async def handle(request: Request) -> Response:
-            try:
-                return json_response(await work(request))
-            except DoesNotFit as error:
-                return refusal(str(error), 409, where=error.where, fixes=[try_again()], plan=error.plan)
-            except RefreshError as error:  # your own analysis failed in its child process: why, the install
-                return json_response(analyze.blade_failure(str(error), error.missing_module), status_code=422)
-            except Exception as error:
-                return error_response(error)
-
-        return handle
-
     async def toolbar(request: Request) -> object:
         return analyze.catalog() | analyze.tables(request.query_params.get("front"))
 
@@ -111,20 +114,20 @@ def routes(analyze: Analyze) -> list[BaseRoute]:
         return await analyze.code(request.path_params["run"])
 
     return [
-        Route("/analyze", answered(toolbar)),
-        Route("/analyze/contracts", answered(contracts)),
-        Route("/analyze/contracts/{analysis}", answered(contracts)),
-        Route("/analyze/plan", answered(plan), methods=["POST"]),
-        Route("/analyze/check", answered(check), methods=["POST"]),
-        Route("/analyze/column", answered(column), methods=["POST"]),
-        Route("/analyze/fix", answered(fix), methods=["POST"]),
-        Route("/analyze/sample", answered(sample), methods=["POST"]),
-        Route("/analyze/run", answered(run), methods=["POST"]),
-        Route("/analyze/cancel", answered(cancel), methods=["POST"]),
-        Route("/analyze/land", answered(land), methods=["POST"]),
-        Route("/analyze/runs", answered(runs)),
-        Route("/analyze/runs/{run}", answered(inputs)),
-        Route("/analyze/runs/{run}/math", answered(math)),
-        Route("/analyze/runs/{run}/grid", answered(as_grid), methods=["POST"]),
-        Route("/analyze/runs/{run}/code", answered(code)),
+        Route("/analyze", _answered(analyze, toolbar)),
+        Route("/analyze/contracts", _answered(analyze, contracts)),
+        Route("/analyze/contracts/{analysis}", _answered(analyze, contracts)),
+        Route("/analyze/plan", _answered(analyze, plan), methods=["POST"]),
+        Route("/analyze/check", _answered(analyze, check), methods=["POST"]),
+        Route("/analyze/column", _answered(analyze, column), methods=["POST"]),
+        Route("/analyze/fix", _answered(analyze, fix), methods=["POST"]),
+        Route("/analyze/sample", _answered(analyze, sample), methods=["POST"]),
+        Route("/analyze/run", _answered(analyze, run), methods=["POST"]),
+        Route("/analyze/cancel", _answered(analyze, cancel), methods=["POST"]),
+        Route("/analyze/land", _answered(analyze, land), methods=["POST"]),
+        Route("/analyze/runs", _answered(analyze, runs)),
+        Route("/analyze/runs/{run}", _answered(analyze, inputs)),
+        Route("/analyze/runs/{run}/math", _answered(analyze, math)),
+        Route("/analyze/runs/{run}/grid", _answered(analyze, as_grid), methods=["POST"]),
+        Route("/analyze/runs/{run}/code", _answered(analyze, code)),
     ]

@@ -14,6 +14,9 @@
     as_table("C:/reports/sales.xlsx", "Orders", None, "Orders")        # the sheet's whole used range
 
 The range's first row is the header. Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `as_table`,
+the one you call, is last.
 """
 
 from pathlib import Path

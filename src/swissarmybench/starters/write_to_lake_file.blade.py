@@ -20,6 +20,9 @@ the write's report.
 
 Azure and OneLake: the ADLS Gen2 API's create, append and flush (the file appears whole, at the flush);
 a folder here: a new file put in the old one's place.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `write_lake_file`, the one
+you call, is last.
 """
 
 from typing import Any

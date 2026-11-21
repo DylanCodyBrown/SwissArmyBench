@@ -17,6 +17,9 @@
 Each file keeps the header and the rows of one value, in their order; an empty value goes to
 orders_(blank).csv. The new files go into `folder` (default: a folder beside the file, named for the
 column). A file already there is written over only with overwrite=True. Standard library only.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `split_csv`, the one you
+call, is last.
 """
 
 import csv

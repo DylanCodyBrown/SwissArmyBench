@@ -202,8 +202,3 @@ def check_build(raw: Any) -> dict[str, Any]:
             raise TemplateError("out_folder is a folder's path.")
         out["out_folder"] = raw["out_folder"]
     return out
-
-
-def name_columns(pattern: str) -> list[str]:
-    """The columns a file name pattern names ({cedant} {period}.xlsx), without number and date."""
-    return [n for n in _PATTERN.findall(pattern) if n not in ("number", "date")]

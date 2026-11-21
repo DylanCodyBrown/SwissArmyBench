@@ -17,22 +17,21 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import (
+    actor,
+    error_response,
+    json_response,
+    read_json,
+    safely,
+    with_actor,
+    with_body,
+)
 from swissarmybench.services.claude import Claude
 
 
 def routes(claude: Claude) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
-        try:
-            return json_response(await claude.state(refresh=request.query_params.get("refresh") == "1"))
-        except Exception as error:
-            return error_response(error)
-
-    async def context(request: Request) -> Response:
-        try:
-            return json_response(await claude.summary(actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await claude.state(refresh=request.query_params.get("refresh") == "1"))
 
     async def prompt(request: Request) -> Response:
         if claude.context_md is None:
@@ -42,23 +41,14 @@ def routes(claude: Claude) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
-    async def choose(request: Request) -> Response:
-        try:
-            return json_response(await claude.choose(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     async def launch(request: Request) -> Response:
-        try:
-            body = await read_json(request) if await request.body() else {}
-            return json_response(await claude.launch(body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request) if await request.body() else {}
+        return json_response(await claude.launch(body, actor(request)))
 
     return [
-        Route("/claude", state),
-        Route("/claude", choose, methods=["PUT"]),
-        Route("/claude/context", context),
+        Route("/claude", safely(state)),
+        Route("/claude", with_body(claude.choose), methods=["PUT"]),
+        Route("/claude/context", with_actor(claude.summary)),
         Route("/claude/context/prompt", prompt),
-        Route("/claude/launch", launch, methods=["POST"]),
+        Route("/claude/launch", safely(launch), methods=["POST"]),
     ]

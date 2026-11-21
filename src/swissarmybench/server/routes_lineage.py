@@ -8,19 +8,11 @@ POST   /workbench/lineage    {"document", "cell", "cells"?|"text"?, "kernel"?, "
 
 from __future__ import annotations
 
-from starlette.requests import Request
-from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import with_body
 from swissarmybench.services.lineage import Lineage
 
 
 def routes(lineage: Lineage) -> list[BaseRoute]:
-    async def trace(request: Request) -> Response:
-        try:
-            return json_response(await lineage.trace(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
-    return [Route("/workbench/lineage", trace, methods=["POST"])]
+    return [Route("/workbench/lineage", with_body(lineage.trace), methods=["POST"])]

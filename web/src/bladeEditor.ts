@@ -23,7 +23,7 @@ import { copyAsOwn } from "./starters";
 import { installError, type Missing, promptInstall, reminder } from "./missingPackages";
 import { variableBox } from "./variableBox";
 import { errorHere, errorNote } from "./errorNote";
-import { type CodeIde, codeIde, type IdeOutput, loadEditors } from "./codeIde";
+import { type CodeIde, codeIde, type IdeOutput } from "./codeIde";
 import { inlineSource } from "./inlineCompletion";
 import { whenMode } from "./modes";
 import { sendToAgent } from "./workbenchAgent";
@@ -451,32 +451,6 @@ export async function showTemplatePicker(host: HTMLElement, onMade: (name: strin
 // ===== the blade screen: an IDE (the owner, 2026-11-21: "This is an IDE not a save form") =====
 
 const LANGUAGES: Record<string, EditorLanguage> = { dax: "dax", html: "html", markdown: "markdown", python: "python", streamlit: "python", sql: "sql", typescript: "typescript", tsx: "tsx" };
-
-/** Code shown read-only (a connection's listing query): its language's colours, line numbers, as tall as the
- *  code (a few lines at least, about 70% of the window at most, then it scrolls). A plain box until Monaco
- *  has loaded. */
-export function codeViewer(code: string, language: string, label: string): HTMLElement {
-  const host = h("div", { class: "blade-code", "aria-label": label, "data-lines": String(code.split("\n").length) }, h("pre", { class: "code-box blade-code-plain" }, code));
-  void loadEditors().then(
-    (m) => {
-      const whenShown = (left: number): void => {
-        if (host.isConnected) mount(m);
-        else if (left > 0) requestAnimationFrame(() => whenShown(left - 1));
-      };
-      whenShown(120);
-    },
-    () => undefined, // the plain box stays
-  );
-  let mounted = false;
-  function mount(m: typeof import("./lazy/codeEditor")): void {
-    if (mounted || !host.isConnected) return;
-    mounted = true;
-    const box = h("div", { class: "blade-code-monaco" });
-    host.replaceChildren(box);
-    m.createCodeEditor(box, { language: LANGUAGES[language] ?? "python", value: code, theme: effectiveTheme(), readOnly: true, readOnlyMessage: "Read-only here.", fit: { min: 4, maxShare: 0.7 } });
-  }
-  return host;
-}
 
 /** What secret() is to the lint and the completion (the run gives it): domain/blade_tables.py SECRET_STUB. */
 const SECRET_STUB = "def secret(name: str) -> str: ...\n";

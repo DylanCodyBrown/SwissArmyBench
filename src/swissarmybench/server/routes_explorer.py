@@ -17,31 +17,22 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import error_response, json_response
+from swissarmybench.server.http import json_response, safely
 from swissarmybench.services.explorer import Explorer
 
 
 def routes(explorer: Explorer) -> list[BaseRoute]:
     async def search(request: Request) -> Response:
-        try:
-            return json_response(await explorer.search(dict(request.query_params)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await explorer.search(dict(request.query_params)))
 
     async def browse(request: Request) -> Response:
-        try:
-            return json_response(await explorer.browse(dict(request.query_params)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await explorer.browse(dict(request.query_params)))
 
     async def table(request: Request) -> Response:
-        try:
-            return json_response(await explorer.table(dict(request.query_params)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await explorer.table(dict(request.query_params)))
 
     return [
-        Route("/explorer/search", search),
-        Route("/explorer/browse", browse),
-        Route("/explorer/table", table),
+        Route("/explorer/search", safely(search)),
+        Route("/explorer/browse", safely(browse)),
+        Route("/explorer/table", safely(table)),
     ]

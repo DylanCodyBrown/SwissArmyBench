@@ -14,6 +14,7 @@ import { h, icon } from "./dom";
 import type { CodeEditor, Problem } from "./lazy/codeEditor";
 import { effectiveTheme } from "./theme";
 import { errorNote } from "./errorNote";
+import { loadEditors } from "./lazyLoad";
 
 export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
 export type Part = string | number;
@@ -264,13 +265,6 @@ export function mountTree(value: Value, options: TreeOptions = {}): Tree {
 
 // ===== the text view: Monaco, loaded when first needed =====
 
-let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
-export function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
-  if (!document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) {
-    document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
-  }
-  return (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
-}
 
 export interface TextView {
   element: HTMLElement;

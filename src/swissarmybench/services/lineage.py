@@ -233,26 +233,12 @@ class Lineage:
 
     # ===== the graph =====
 
-    def _target(self, body: Mapping[str, Any]) -> tuple[Key, dict[str, Document], list[Key], Any, Any]:
-        """What the lineage starts from: (the cell, its documents, the page's blocks, the canvas, the
-        block's page id)."""
-        docs: dict[str, Document] = {}
-        if isinstance(body.get("app"), str):
-            app = self._hooks.canvas(body["app"])
-            page = next((p for p in app.pages if p.id == body.get("page")), None)
-            if page is None:
-                raise NotFound("That page is not on the canvas.")
-            block = next((b for b in page.blocks if b.id == body.get("block")), None)
-            if block is None:
-                raise NotFound("That block is not on the page.")
-            for linked in dict.fromkeys(b.document for b in page.blocks):
-                try:
-                    docs[linked] = self._document(linked)
-                except NotFound:
-                    continue
-            if block.document not in docs:
-                raise NotFound(f"{rules.file_name(block.document)} is not open and is not on this computer.")
-            return block.key, docs, [b.key for b in page.blocks], app, page.id
+    def _target(self, body: Mapping[str, Any]) -> tuple[Key, dict[str, Document]]:
+        """What the lineage starts from: the cell and its document."""
+        if isinstance(body.get("app"), str):  # an old app canvas's block (app notebooks went, 2026-11-21)
+            raise NotFound(
+                "Canvases are the Streamlit extension's: it is not installed here (Extensions: Install)."
+            )
         path: Any = body.get("document")
         cell: Any = body.get("cell")
         if not isinstance(path, str) or not path or isinstance(cell, bool) or not isinstance(cell, int):
@@ -260,18 +246,16 @@ class Lineage:
                 'Send {"document": a notebook or script, "cell": its own number}, '
                 'or {"app", "page", "block"}.'
             )
-        docs[path] = self._document(path, body)
-        return (path, cell), docs, [], None, None
+        return (path, cell), {path: self._document(path, body)}
 
     async def trace(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """The lineage of a cell or a canvas block, with each node's value (unless "values": false).
+        """The lineage of a cell, with each node's value (unless "values": false).
 
-        {"document", "cell", "cells"?|"text"?, "kernel"?, "errors"?: {number: "KeyError: 'x'"}} or
-        {"app", "page", "block"}."""
+        {"document", "cell", "cells"?|"text"?, "kernel"?, "errors"?: {number: "KeyError: 'x'"}}."""
         if not isinstance(body, dict):
             raise rules.LineageError('Send {"document", "cell"} or {"app", "page", "block"}.')
-        target, docs, page, app, page_id = self._target(body)
-        data = self._data_path(app.document if app is not None else target[0])
+        target, docs = self._target(body)
+        data = self._data_path(target[0])
         if data is not None and data not in docs:
             try:
                 docs[data] = self._document(data)
@@ -280,7 +264,7 @@ class Lineage:
         if data is not None:
             docs[data] = Document(data, docs[data].cells, True)
         tables = self._open_tables()
-        graph = rules.trace(target, docs, self._table_facts(tables), page, data)
+        graph = rules.trace(target, docs, self._table_facts(tables), [], data)
         self.ws.audit.write(who, "lineage", f"{rules.file_name(target[0])} @cell{target[1]}")
         if body.get("values") is False:
             return graph.to_json()
@@ -294,27 +278,11 @@ class Lineage:
         if isinstance(body.get("kernel"), str) and body["kernel"]:
             kernels[target[0]] = body["kernel"]
         errors = self._errors(body.get("errors"), target[0])
-        trace = self._page_trace(app, page_id) if app is not None else None
-        blocks = (
-            {b.key: b.id for p in app.pages if p.id == page_id for b in p.blocks} if app is not None else {}
-        )
-        values, busy = await self._values(graph, kernels, tables, trace, blocks, errors)
+        values, busy = await self._values(graph, kernels, tables, errors)
         short = {node_id: short_value(value) for node_id, value in values.items()}
         said = graph.to_json(short)
         mark = hashlib.sha256(json.dumps(values, sort_keys=True, default=str).encode()).hexdigest()[:16]
-        return said | {"values": values, "busy": busy, "mark": mark, "playing": trace is not None}
-
-    def _page_trace(self, app: Any, page_id: str) -> dict[str, Any] | None:
-        """What a playing page noted of each block at its last run: {"run", "blocks": {id: {"values",
-        "error"}}} (client/lineage_values.py). None: the page is not playing, or noted nothing yet."""
-        if app.folder is None or not app.running() or page_id not in app.laid:
-            return None
-        text = self._hooks.read_trace(app.folder, page_id)
-        try:
-            found = json.loads(text) if text else None
-        except ValueError:
-            return None
-        return found if isinstance(found, dict) and isinstance(found.get("blocks"), dict) else None
+        return said | {"values": values, "busy": busy, "mark": mark, "playing": False}
 
     @staticmethod
     def _errors(sent: Any, path: str) -> dict[Key, str]:
@@ -333,28 +301,16 @@ class Lineage:
         graph: Graph,
         kernels: Mapping[str, str],
         tables: Mapping[str, tuple[DatasetInfo, Grid]],
-        trace: Mapping[str, Any] | None,
-        blocks: Mapping[Key, str],
         errors: Mapping[Key, str],
     ) -> tuple[dict[str, dict[str, Any]], bool]:
         values: dict[str, dict[str, Any]] = {}
         wanted: dict[str, set[str]] = {}  # kernel -> names
         asks: list[tuple[str, str, list[str]]] = []  # (node, kernel, names)
-        traced = (trace or {}).get("blocks", {})
         for node in graph.nodes:
             if node.document is None or node.cell is None:
                 continue
             key = (node.document, node.cell)
             names = list(node.makes) or ([node.table] if node.table else [])
-            noted = traced.get(blocks.get(key, "")) if node.on_page else None
-            if isinstance(noted, dict):
-                held: dict[str, Any] = noted["values"] if isinstance(noted.get("values"), dict) else {}
-                values[node.id] = {
-                    "items": [{"name": n} | held[n] for n in names if isinstance(held.get(n), dict)],
-                    "error": noted.get("error"),
-                    "from": "page",
-                }
-                continue
             if key in errors:
                 values[node.id] = {"items": [], "error": errors[key], "from": "kernel"}
                 continue

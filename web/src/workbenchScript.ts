@@ -42,7 +42,7 @@ import { api } from "./api";
 import { h } from "./dom";
 import type { CodeEditor, IdeMoves, LineNote, ScriptOutline } from "./lazy/codeEditor";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
-import { type ConsoleView, loadEditors, type RunOrigin } from "./workbenchConsole";
+import { type ConsoleView, type RunOrigin } from "./workbenchConsole";
 import { pythonCompleter } from "./workbenchCompletion";
 import { pythonIntel, showProblems } from "./workbenchIntel";
 import { type ErrorDetail, type Fix, type Frame, problemsFor, yourFrame } from "./workbenchErrors";
@@ -53,6 +53,7 @@ import type { ErrorHooks } from "./workbenchOutputs";
 import { cleanName, copyCell, markerName, markerWordsOf, withMarkerName } from "./cellClipboard";
 import { groupLineText, plural, type RunRecord, type TableInfo, type TableLine, tableLineRest, tableState } from "./workbenchTables";
 import { errorHere } from "./errorNote";
+import { loadEditors } from "./lazyLoad";
 
 export interface ScriptView {
   element: HTMLElement;

@@ -7,19 +7,11 @@ POST /workbench/export-script  {"path", "cells"? | "text"?, "kind"?, "to"?, "stu
 
 from __future__ import annotations
 
-from starlette.requests import Request
-from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import with_body
 from swissarmybench.services.script_export import ScriptExports
 
 
 def routes(exports: ScriptExports) -> list[BaseRoute]:
-    async def export(request: Request) -> Response:
-        try:
-            return json_response(await exports.export(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
-    return [Route("/workbench/export-script", export, methods=["POST"])]
+    return [Route("/workbench/export-script", with_body(exports.export), methods=["POST"])]

@@ -15,6 +15,9 @@
 
 A value is a number, text, a date, True or False, or None (empties the cell); text that starts with
 = is a formula ("=SUM(B2:B9)"). Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `set_values`,
+the one you call, is last.
 """
 
 from pathlib import Path

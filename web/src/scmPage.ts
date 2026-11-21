@@ -38,6 +38,7 @@ import { dismissDialog, registerLayer, setOverTitle } from "./nav";
 import { graph, INCOMING_ID, REF_COLOR, REMOTE_REF_COLOR, type HistoryItem, type Ref, type ViewModel, viewModels } from "./scmGraph";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorToast } from "./errorNote";
+import { loadEditors, loadEditorStyles } from "./lazyLoad";
 
 
 // ===== the backend's answers =====
@@ -83,17 +84,6 @@ export function codicon(name: string, extra = ""): HTMLElement {
   return h("span", { class: `codicon codicon-${name}${extra ? ` ${extra}` : ""}`, "aria-hidden": "true", "data-codicon": name }, String.fromCodePoint(code));
 }
 
-function loadEditorStyles(): void {
-  if (!document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) {
-    document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
-  }
-}
-
-let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
-function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
-  loadEditorStyles();
-  return (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
-}
 
 // ===== VS Code's action items and menus =====
 

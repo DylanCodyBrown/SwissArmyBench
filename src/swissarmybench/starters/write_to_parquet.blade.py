@@ -17,6 +17,8 @@ words, in this conversation. Returns the write's report.
 
 Written to a new file beside the target, then put in its place: a failure leaves the old file as it was.
 The rows are written by DuckDB's COPY.
+
+Laid out top to bottom: the imports, then `write_parquet`, the one function, which you call.
 """
 
 from pathlib import Path

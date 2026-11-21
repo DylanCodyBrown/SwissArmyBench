@@ -29,13 +29,8 @@ This file is text. Pure: no I/O.
 
 from __future__ import annotations
 
-LOGIN_VARIABLE: str = "SWISSARMYBENCH_LOGIN_URL"
 GRAPH_SCOPE: str = "https://graph.microsoft.com/.default"
 STORAGE_SCOPE: str = "https://storage.azure.com/.default"
-# The Graph permissions the SharePoint connections use (named in AADSTS65001's words).
-GRAPH_PERMISSIONS: str = (
-    "Sites.Read.All (Sites.ReadWrite.All to write), Files.Read.All (Files.ReadWrite.All to upload)"
-)
 
 # The marks each way's code alone holds (the form's Sign in tells them apart by these).
 YOU_MARK: str = "DefaultAzureCredential"

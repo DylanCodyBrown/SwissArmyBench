@@ -16,6 +16,9 @@ name, folder, extension, size, when it was last changed and by whom, and its web
 It reads through your SharePoint documents connection (DOCUMENTS below names it, or pass
 connection="..."), borrowing its sign-in. This is a blade's result, not a table of the connection: the
 connection's own file index is [Team Docs].Documents in DuckDB SQL.
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `list_files`, the one you
+call, is last.
 """
 
 from typing import Any

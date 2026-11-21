@@ -50,12 +50,19 @@ from swissarmybench.server.http import (
     query_int,
     read_json,
     refusal,
+    safely,
 )
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.export import Exports
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.sql import SqlBox
+
+
+async def _pieces(data: bytes) -> AsyncIterator[bytes]:
+    """A download's bytes, a megabyte at a time."""
+    for i in range(0, len(data), 1 << 20):
+        yield data[i : i + (1 << 20)]
 
 
 def routes(
@@ -69,19 +76,13 @@ def routes(
         return json_response(grids.listing(actor(request)))
 
     async def create_grid(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            name = body.get("dataset") if isinstance(body, dict) else None
-            return json_response(await grids.create(name, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        name = body.get("dataset") if isinstance(body, dict) else None
+        return json_response(await grids.create(name, actor(request)))
 
     async def get_grid(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(await grids.describe(grid, info))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        return json_response(await grids.describe(grid, info))
 
     async def close_grid(request: Request) -> Response:
         closed = await grids.close(request.path_params["grid_id"])
@@ -92,28 +93,22 @@ def routes(
     # ===== reading rows =====
 
     async def rows(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            start = query_int(request, "start", 0) or 0
-            end = query_int(request, "end", start + 100) or 0
-            gen = query_int(request, "gen")
-            upto = query_int(request, "upto")
-            return json_response(
-                await grids.rows(grid, info, start, end, gen, upto, client_of(request)),
-                max_bytes=settings.max_response_bytes,
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        start = query_int(request, "start", 0) or 0
+        end = query_int(request, "end", start + 100) or 0
+        gen = query_int(request, "gen")
+        upto = query_int(request, "upto")
+        return json_response(
+            await grids.rows(grid, info, start, end, gen, upto, client_of(request)),
+            max_bytes=settings.max_response_bytes,
+        )
 
     async def count(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            upto = query_int(request, "upto")
-            return json_response(
-                await grids.count(grid, info, query_int(request, "gen"), upto, client_of(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        upto = query_int(request, "upto")
+        return json_response(
+            await grids.count(grid, info, query_int(request, "gen"), upto, client_of(request))
+        )
 
     async def cell(request: Request) -> Response:
         try:
@@ -126,59 +121,44 @@ def routes(
             return error_response(error)
 
     async def step_counts(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(
-                await grids.step_counts(grid, info, query_int(request, "gen"), client_of(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        return json_response(
+            await grids.step_counts(grid, info, query_int(request, "gen"), client_of(request))
+        )
 
     # ===== profiling (plan section 8) =====
 
     async def profile(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            column_name = request.query_params.get("column")
-            upto = query_int(request, "upto")
-            return json_response(await profiles.profile(grid, info, column_name, upto, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        column_name = request.query_params.get("column")
+        upto = query_int(request, "upto")
+        return json_response(await profiles.profile(grid, info, column_name, upto, actor(request)))
 
     async def values(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            q = request.query_params
-            return json_response(
-                await profiles.values(
-                    grid,
-                    info,
-                    q.get("column"),
-                    q.get("search", ""),
-                    query_int(request, "limit"),
-                    query_int(request, "upto"),
-                    actor(request),
-                )
+        grid, info = grids.find(request.path_params["grid_id"])
+        q = request.query_params
+        return json_response(
+            await profiles.values(
+                grid,
+                info,
+                q.get("column"),
+                q.get("search", ""),
+                query_int(request, "limit"),
+                query_int(request, "upto"),
+                actor(request),
             )
-        except Exception as error:
-            return error_response(error)
+        )
 
     async def stats(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(
-                await profiles.header_stats(grid, info, query_int(request, "gen"), client_of(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        return json_response(
+            await profiles.header_stats(grid, info, query_int(request, "gen"), client_of(request))
+        )
 
     async def categorize_stats(request: Request) -> Response:
         """Unmatched and multiply-matched rows for a categorize step, measured on its input."""
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(await grids.categorize_stats(grid, info, query_int(request, "step")))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        return json_response(await grids.categorize_stats(grid, info, query_int(request, "step")))
 
     # ===== changing the view =====
 
@@ -204,12 +184,9 @@ def routes(
             return error_response(error)
 
     async def header_sort(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            return json_response(await grids.header_sort(grid, info, body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        return json_response(await grids.header_sort(grid, info, body, actor(request)))
 
     async def unnest(request: Request) -> Response:
         """Unnest this column: a LIST or STRUCT column opened up by a SQL step."""
@@ -225,110 +202,83 @@ def routes(
     # ===== SQL box (plan sections 6 and 10) =====
 
     async def run_sql(request: Request) -> Response:
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
         try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            try:
-                answer = await sql.run(grid, info, body, actor(request))
-            except duckdb.Error as error:
-                return refusal(f"DuckDB: {error}", 400)
-            if "pinned" in answer:
-                return json_response(answer)
-            return json_response(answer, max_bytes=settings.max_sql_response_bytes)
-        except Exception as error:
-            return error_response(error)
+            answer = await sql.run(grid, info, body, actor(request))
+        except duckdb.Error as error:
+            return refusal(f"DuckDB: {error}", 400)
+        if "pinned" in answer:
+            return json_response(answer)
+        return json_response(answer, max_bytes=settings.max_sql_response_bytes)
 
     async def selection_stats(request: Request) -> Response:
         """Excel's status bar for any selection, loaded rows or not: Count, Sum, Average."""
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            raw = body.get("selection") if isinstance(body, dict) else None
-            return json_response(
-                await grids.selection_stats(grid, info, raw, query_int(request, "gen"), client_of(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        raw = body.get("selection") if isinstance(body, dict) else None
+        return json_response(
+            await grids.selection_stats(grid, info, raw, query_int(request, "gen"), client_of(request))
+        )
 
     async def cancel(request: Request) -> Response:
-        try:
-            grid, _ = grids.find(request.path_params["grid_id"])
-            return json_response(grids.cancel(grid))
-        except Exception as error:
-            return error_response(error)
+        grid, _ = grids.find(request.path_params["grid_id"])
+        return json_response(grids.cancel(grid))
 
     async def set_highlights(request: Request) -> Response:
         """Mark rows matching conditions (same shape as filter params, plus a label)."""
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            return json_response(await grids.set_highlights(grid, info, body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        return json_response(await grids.set_highlights(grid, info, body, actor(request)))
 
     async def set_selection(request: Request) -> Response:
-        try:
-            grid, _ = grids.find(request.path_params["grid_id"])
-            return json_response(grids.set_selection(grid, await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        grid, _ = grids.find(request.path_params["grid_id"])
+        return json_response(grids.set_selection(grid, await read_json(request)))
 
     # ===== export (plan section 10a) =====
 
     async def export(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            made = await exports.export(grid, info, dict(request.query_params), actor(request))
-            if made.saved is not None:
-                return json_response({"saved": made.saved, "message": made.message})
-            data = made.data
-
-            async def stream() -> AsyncIterator[bytes]:
-                for i in range(0, len(data), 1 << 20):
-                    yield data[i : i + (1 << 20)]
-
-            return StreamingResponse(
-                stream(),
-                media_type=made.media_type,
-                headers={
-                    "Content-Disposition": f'attachment; filename="{made.file_name}"',
-                    "X-Export-Message": made.message,
-                },
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        made = await exports.export(grid, info, dict(request.query_params), actor(request))
+        if made.saved is not None:
+            return json_response({"saved": made.saved, "message": made.message})
+        return StreamingResponse(
+            _pieces(made.data),
+            media_type=made.media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{made.file_name}"',
+                "X-Export-Message": made.message,
+            },
+        )
 
     # ===== code generation (plan section 9) =====
 
     async def code(request: Request) -> Response:
-        try:
-            grid, info = grids.find(request.path_params["grid_id"])
-            return json_response(await codes.code(grid, info, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        grid, info = grids.find(request.path_params["grid_id"])
+        return json_response(await codes.code(grid, info, actor(request)))
 
     return [
         Route("/grids", list_grids),
-        Route("/grids", create_grid, methods=["POST"]),
-        Route("/grids/{grid_id}", get_grid),
+        Route("/grids", safely(create_grid), methods=["POST"]),
+        Route("/grids/{grid_id}", safely(get_grid)),
         Route("/grids/{grid_id}", close_grid, methods=["DELETE"]),
-        Route("/grids/{grid_id}/rows", rows),
-        Route("/grids/{grid_id}/count", count),
+        Route("/grids/{grid_id}/rows", safely(rows)),
+        Route("/grids/{grid_id}/count", safely(count)),
         Route("/grids/{grid_id}/cell", cell),
-        Route("/grids/{grid_id}/step-counts", step_counts),
-        Route("/grids/{grid_id}/profile", profile),
-        Route("/grids/{grid_id}/header-stats", stats),
-        Route("/grids/{grid_id}/values", values),
-        Route("/grids/{grid_id}/categorize-stats", categorize_stats),
+        Route("/grids/{grid_id}/step-counts", safely(step_counts)),
+        Route("/grids/{grid_id}/profile", safely(profile)),
+        Route("/grids/{grid_id}/header-stats", safely(stats)),
+        Route("/grids/{grid_id}/values", safely(values)),
+        Route("/grids/{grid_id}/categorize-stats", safely(categorize_stats)),
         Route("/grids/{grid_id}/steps", put_steps, methods=["POST"]),
         Route("/grids/{grid_id}/step-ops", step_op, methods=["POST"]),
-        Route("/grids/{grid_id}/header-sort", header_sort, methods=["POST"]),
+        Route("/grids/{grid_id}/header-sort", safely(header_sort), methods=["POST"]),
         Route("/grids/{grid_id}/unnest", unnest, methods=["POST"]),
-        Route("/grids/{grid_id}/sql", run_sql, methods=["POST"]),
-        Route("/grids/{grid_id}/cancel", cancel, methods=["POST"]),
-        Route("/grids/{grid_id}/selection-stats", selection_stats, methods=["POST"]),
-        Route("/grids/{grid_id}/export", export),
-        Route("/grids/{grid_id}/code", code),
-        Route("/grids/{grid_id}/highlights", set_highlights, methods=["POST"]),
-        Route("/grids/{grid_id}/selection", set_selection, methods=["POST"]),
+        Route("/grids/{grid_id}/sql", safely(run_sql), methods=["POST"]),
+        Route("/grids/{grid_id}/cancel", safely(cancel), methods=["POST"]),
+        Route("/grids/{grid_id}/selection-stats", safely(selection_stats), methods=["POST"]),
+        Route("/grids/{grid_id}/export", safely(export)),
+        Route("/grids/{grid_id}/code", safely(code)),
+        Route("/grids/{grid_id}/highlights", safely(set_highlights), methods=["POST"]),
+        Route("/grids/{grid_id}/selection", safely(set_selection), methods=["POST"]),
     ]

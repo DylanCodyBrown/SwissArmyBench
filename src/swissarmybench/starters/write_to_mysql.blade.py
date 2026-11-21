@@ -18,6 +18,10 @@ dry_run=False only after the user said to write, in their own words, in this con
 through the connection's own sign-in (sab.connection): no password here. Returns the write's report.
 
 One transaction: a failure rolls every row back and says which batch failed.
+
+Laid out top to bottom: one function per mode (append, create, replace, upsert, delete), each checking
+the rows, saying what it would do, then writing; `write_mysql`, the one you call, is last and picks the
+mode's function.
 """
 
 from collections.abc import Sequence
@@ -29,6 +33,7 @@ from swissarmybench.client.write_sql import SqlWrite
 from swissarmybench.client.writes import WriteError
 
 
+# append: the rows added to the table as it is.
 def _append(w: SqlWrite, keys: list[str], dry_run: bool) -> None:
     w.check_columns()  # every column of the rows is one of the table's
     insert = f"INSERT INTO {w.table} ({w.columns}) VALUES ({w.marks()})"
@@ -54,6 +59,7 @@ def _create(w: SqlWrite, keys: list[str], dry_run: bool) -> None:
         w.done(inserted=inserted)
 
 
+# replace: the table emptied and the rows written, in one transaction.
 def _replace(w: SqlWrite, keys: list[str], dry_run: bool) -> None:
     w.check_columns()  # every column of the rows is one of the table's
     clear = f"DELETE FROM {w.table}"  # not TRUNCATE: MySQL's TRUNCATE commits by itself
@@ -86,6 +92,7 @@ def _upsert(w: SqlWrite, keys: list[str], dry_run: bool) -> None:
         w.done(inserted=inserted, updated=w.need_rows().count - inserted)
 
 
+# delete: the table's rows that the keys find are deleted.
 def _delete(w: SqlWrite, keys: list[str], dry_run: bool) -> None:
     w.check_columns(keys)  # the key columns are the table's
     w.check_keys(keys, unique=False)  # a value in each

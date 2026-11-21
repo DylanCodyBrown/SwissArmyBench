@@ -775,13 +775,6 @@ def _body(source: str) -> list[str]:
 _GRAMMAR = re.compile(r"^(?:\[(?:\d+|table|transformations|html|streamlit)\]|height=\d|\\)")
 
 
-def marker_words(name: str | None) -> str:
-    """A cell's name as its marker line holds it."""
-    if not name:
-        return ""
-    return f"\\{name}" if _GRAMMAR.match(name) else name
-
-
 def marker_name(words: str) -> str | None:
     """A cell's name from its marker line's own words (None: it has none)."""
     said = words.strip()

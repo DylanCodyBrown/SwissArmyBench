@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -429,7 +429,3 @@ class Sharing:
     def shared(self, kind: str, app: str) -> bool:
         share = self._shares.get((kind, app))
         return share is not None and share.state == "sharing"
-
-
-# What an extension's target calls when its app stops (the composition root hands it over).
-AppStopped = Callable[[str, str], Awaitable[None]]

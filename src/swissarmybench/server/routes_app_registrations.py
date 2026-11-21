@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, with_body
+from swissarmybench.server.http import actor, json_response, safely, with_body
 from swissarmybench.services.app_registrations import AppRegistrations
 
 
@@ -23,16 +23,10 @@ def routes(registrations: AppRegistrations) -> list[BaseRoute]:
         return json_response(registrations.listing())
 
     async def one(request: Request) -> Response:
-        try:
-            return json_response(registrations.report(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(registrations.report(request.path_params["name"]))
 
     async def check(request: Request) -> Response:
-        try:
-            return json_response(await registrations.check(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await registrations.check(request.path_params["name"], actor(request)))
 
     async def access(request: Request) -> Response:
         return json_response(registrations.access(request.path_params["name"]))
@@ -41,7 +35,7 @@ def routes(registrations: AppRegistrations) -> list[BaseRoute]:
         Route("/app-registrations", listing),
         Route("/app-registrations", with_body(registrations.add), methods=["POST"]),
         Route("/app-registrations/remove", with_body(registrations.remove), methods=["POST"]),
-        Route("/app-registrations/{name}", one),
-        Route("/app-registrations/{name}/check", check, methods=["POST"]),
+        Route("/app-registrations/{name}", safely(one)),
+        Route("/app-registrations/{name}/check", safely(check), methods=["POST"]),
         Route("/connections/{name}/access", access),
     ]

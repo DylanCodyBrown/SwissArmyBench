@@ -209,13 +209,6 @@ def test_config_places_follow_the_app_name_and_the_official_place() -> None:
         "/Users/pat/Library/Application Support/Acme Assistant/claude_desktop_config.json",
         "/Users/pat/Library/Application Support/Claude/claude_desktop_config.json",
     ]
-    assert rules.official_config(
-        "windows", r"C:\Users\pat", {"APPDATA": r"C:\Users\pat\AppData\Roaming"}
-    ) == (r"C:\Users\pat\AppData\Roaming\Claude\claude_desktop_config.json")
-    assert (
-        rules.official_config("linux", "/home/pat", {})
-        == "/home/pat/.config/Claude/claude_desktop_config.json"
-    )
 
 
 # ===== Claude Code's folder: context, no values =====

@@ -11,10 +11,7 @@
 import { api } from "./api";
 import { h } from "./dom";
 import type { CodeEditor, EditorLanguage, Problem } from "./lazy/codeEditor";
-
-type Editors = typeof import("./lazy/codeEditor");
-let editors: Promise<Editors> | null = null;
-const loadEditors = (): Promise<Editors> => (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<Editors>);
+import { loadEditors } from "./lazyLoad";
 
 export interface CodeFileView {
   element: HTMLElement;

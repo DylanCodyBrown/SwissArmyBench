@@ -21,6 +21,9 @@ own way to sign in): no secret here. Returns the write's report.
 Microsoft Graph's $batch, 20 changes a request; a throttled one (429) waits as Graph asks, then goes again.
 A lookup or a person is written by its id: a column <name>_id. A failure says how many were refused (the
 changes before it stay made: SharePoint has no transaction).
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `write_sharepoint_list`,
+the one you call, is last.
 """
 
 from typing import Any

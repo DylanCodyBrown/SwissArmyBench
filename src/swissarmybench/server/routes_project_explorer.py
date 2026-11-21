@@ -21,13 +21,11 @@ POST /projects/delete       {"path", "confirm": its name}: its folder to the sys
 
 from __future__ import annotations
 
-from typing import Any
-
 from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import json_response, read_json, safely, with_body
 from swissarmybench.services.project_explorer import ProjectExplorer
 
 
@@ -41,26 +39,21 @@ def routes(explorer: ProjectExplorer) -> list[BaseRoute]:
     async def types(request: Request) -> Response:
         return json_response(explorer.types())
 
-    def posted(use: Any, with_actor: bool = True) -> Any:
-        async def handler(request: Request) -> Response:
-            body = await read_json(request)
-            done = await (use(body, actor(request)) if with_actor else use(body))
-            return json_response(done)
-
-        return safely(handler)
+    async def explained(request: Request) -> Response:
+        return json_response(await explorer.explained(await read_json(request)))
 
     return [
         Route("/projects/explorer", safely(listing), methods=["GET"]),
         Route("/projects/types", safely(types), methods=["GET"]),
-        Route("/projects/sort", posted(explorer.sort), methods=["POST"]),
-        Route("/projects/explained", posted(explorer.explained, False), methods=["POST"]),
-        Route("/projects/folder", posted(explorer.set_folder), methods=["POST"]),
+        Route("/projects/sort", with_body(explorer.sort), methods=["POST"]),
+        Route("/projects/explained", safely(explained), methods=["POST"]),
+        Route("/projects/folder", with_body(explorer.set_folder), methods=["POST"]),
         Route("/projects/folder", safely(folders), methods=["GET"]),
-        Route("/projects/share", posted(explorer.share), methods=["POST"]),
-        Route("/projects/copy-local", posted(explorer.copy_local), methods=["POST"]),
-        Route("/projects/rename", posted(explorer.rename), methods=["POST"]),
-        Route("/projects/remove", posted(explorer.remove), methods=["POST"]),
-        Route("/projects/locate", posted(explorer.locate), methods=["POST"]),
-        Route("/projects/show", posted(explorer.show), methods=["POST"]),
-        Route("/projects/delete", posted(explorer.delete), methods=["POST"]),
+        Route("/projects/share", with_body(explorer.share), methods=["POST"]),
+        Route("/projects/copy-local", with_body(explorer.copy_local), methods=["POST"]),
+        Route("/projects/rename", with_body(explorer.rename), methods=["POST"]),
+        Route("/projects/remove", with_body(explorer.remove), methods=["POST"]),
+        Route("/projects/locate", with_body(explorer.locate), methods=["POST"]),
+        Route("/projects/show", with_body(explorer.show), methods=["POST"]),
+        Route("/projects/delete", with_body(explorer.delete), methods=["POST"]),
     ]

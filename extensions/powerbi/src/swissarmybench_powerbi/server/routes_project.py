@@ -19,26 +19,14 @@ GET  /powerbi/panel                        the same, drawn by the base's generic
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, answered, read_json
 from swissarmybench_powerbi.services.live_link import LiveLink
 from swissarmybench_powerbi.services.project import PowerBIProject
-
-
-def door(work: Callable[[Request], Awaitable[Any]]) -> Callable[[Request], Awaitable[Response]]:
-    async def answer(request: Request) -> Response:
-        try:
-            return json_response(await work(request))
-        except Exception as error:
-            return error_response(error)
-
-    return answer
 
 
 def routes(project: PowerBIProject) -> list[BaseRoute]:
@@ -81,18 +69,18 @@ def routes(project: PowerBIProject) -> list[BaseRoute]:
         return await project.page()
 
     return [
-        Route("/powerbi/import", door(imported), methods=["POST"]),
-        Route("/powerbi/file-connection", door(add), methods=["POST"]),
-        Route("/powerbi/file-connection/{name}", door(card)),
-        Route("/powerbi/file-connection/{name}/relationships", door(joins), methods=["POST"]),
-        Route("/powerbi/setup", door(setup)),
-        Route("/powerbi/setup", door(fix), methods=["POST"]),
-        Route("/powerbi/source", door(source)),
-        Route("/powerbi/source", door(switch), methods=["PUT"]),
-        Route("/powerbi/registration", door(registration), methods=["GET", "PUT"]),
-        Route("/powerbi/page", door(page)),
-        Route("/powerbi/opened", door(opened), methods=["POST"]),
-        Route("/powerbi/panel", door(panel), methods=["GET", "POST"]),
+        Route("/powerbi/import", answered(imported), methods=["POST"]),
+        Route("/powerbi/file-connection", answered(add), methods=["POST"]),
+        Route("/powerbi/file-connection/{name}", answered(card)),
+        Route("/powerbi/file-connection/{name}/relationships", answered(joins), methods=["POST"]),
+        Route("/powerbi/setup", answered(setup)),
+        Route("/powerbi/setup", answered(fix), methods=["POST"]),
+        Route("/powerbi/source", answered(source)),
+        Route("/powerbi/source", answered(switch), methods=["PUT"]),
+        Route("/powerbi/registration", answered(registration), methods=["GET", "PUT"]),
+        Route("/powerbi/page", answered(page)),
+        Route("/powerbi/opened", answered(opened), methods=["POST"]),
+        Route("/powerbi/panel", answered(panel), methods=["GET", "POST"]),
     ]
 
 
@@ -110,8 +98,8 @@ def live_routes(live: LiveLink) -> list[BaseRoute]:
         return await live.apply(await read_json(r), actor(r))
 
     return [
-        Route("/powerbi/live", door(status)),
-        Route("/powerbi/live/model", door(model)),
-        Route("/powerbi/live/plan", door(plan), methods=["POST"]),
-        Route("/powerbi/live/apply", door(apply), methods=["POST"]),
+        Route("/powerbi/live", answered(status)),
+        Route("/powerbi/live/model", answered(model)),
+        Route("/powerbi/live/plan", answered(plan), methods=["POST"]),
+        Route("/powerbi/live/apply", answered(apply), methods=["POST"]),
     ]

@@ -94,11 +94,6 @@ class ConnectionColours:
                 )
         return listed
 
-    def for_new(self) -> str:
-        """The colour a new connection is given: the palette's next free one."""
-        worn = rules.assign(self._pairs(), self._kinds())
-        return rules.next_free(worn.values(), self._kinds())
-
     def saved(self, name: str, previous: str | None, sent: str | None) -> None:
         """A connection was saved from its form (ConnectionService): a colour sent with it is kept; a new
         one is given the palette's next free colour; a renamed one keeps its colour under its new name."""

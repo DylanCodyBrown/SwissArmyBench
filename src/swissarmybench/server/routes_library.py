@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, with_body
 from swissarmybench.services.library import Library
 from swissarmybench.services.library_setup import LibrarySetup
 
@@ -25,12 +25,6 @@ def routes(library: Library, setup: LibrarySetup) -> list[BaseRoute]:
     async def info(request: Request) -> Response:
         return json_response(library.info())
 
-    async def set_folder(request: Request) -> Response:
-        try:
-            return json_response(await library.set_folder(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     async def notices(request: Request) -> Response:
         return json_response(library.take_notices())
 
@@ -38,16 +32,10 @@ def routes(library: Library, setup: LibrarySetup) -> list[BaseRoute]:
         check = request.query_params.get("check") in ("1", "true")
         return json_response(await setup.checklist(check, actor(request)))
 
-    async def move_to_vault(request: Request) -> Response:
-        try:
-            return json_response(await setup.move_to_vault(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
-
     return [
         Route("/library/setup", checklist),
-        Route("/library/setup/move-to-vault", move_to_vault, methods=["POST"]),
+        Route("/library/setup/move-to-vault", with_body(setup.move_to_vault), methods=["POST"]),
         Route("/library", info),
-        Route("/library", set_folder, methods=["PUT"]),
+        Route("/library", with_body(library.set_folder), methods=["PUT"]),
         Route("/library/notices", notices, methods=["POST"]),
     ]

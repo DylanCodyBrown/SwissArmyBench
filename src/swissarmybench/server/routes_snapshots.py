@@ -18,11 +18,11 @@ from swissarmybench.server.http import (
     BodyTooLargeError,
     actor,
     error_as,
-    error_response,
     json_response,
     read_body,
     read_json,
     refusal,
+    safely,
 )
 from swissarmybench.services.snapshots import (
     PNG_SIGNATURE,
@@ -39,21 +39,18 @@ def routes(snapshots: Snapshots) -> list[BaseRoute]:
     settings = snapshots.ws.settings
 
     async def request_snapshot(request: Request) -> Response:
+        body: Any = await read_json(request) if await request.body() else {}
+        if not isinstance(body, dict):
+            raise ValueError('Send {"area": ..., "scale": 1 or 2} (both optional).')
+        area = body.get("area", "app")
         try:
-            body: Any = await read_json(request) if await request.body() else {}
-            if not isinstance(body, dict):
-                raise ValueError('Send {"area": ..., "scale": 1 or 2} (both optional).')
-            area = body.get("area", "app")
-            try:
-                data, meta = await snapshots.take(area, body.get("scale", 1), actor(request))
-            except SnapshotUnanswered as error:
-                return error_as(error, 504)
-            except SnapshotFailed as error:
-                return refusal(f"The page could not draw the snapshot: {error}", 502)
-            headers = {f"X-Snapshot-{k.title()}": v for k, v in meta.items()}
-            return Response(data, media_type="image/png", headers=headers | {"X-Snapshot-Area": area})
-        except Exception as error:
-            return error_response(error)
+            data, meta = await snapshots.take(area, body.get("scale", 1), actor(request))
+        except SnapshotUnanswered as error:
+            return error_as(error, 504)
+        except SnapshotFailed as error:
+            return refusal(f"The page could not draw the snapshot: {error}", 502)
+        headers = {f"X-Snapshot-{k.title()}": v for k, v in meta.items()}
+        return Response(data, media_type="image/png", headers=headers | {"X-Snapshot-Area": area})
 
     async def upload(request: Request) -> Response:
         """The page's answer: the PNG it drew. Only the page may send it."""
@@ -96,7 +93,7 @@ def routes(snapshots: Snapshots) -> list[BaseRoute]:
         return json_response({"failed": True})
 
     return [
-        Route("/snapshots", request_snapshot, methods=["POST"]),
+        Route("/snapshots", safely(request_snapshot), methods=["POST"]),
         Route("/snapshots/{snapshot_id}", upload, methods=["POST"]),
         Route("/snapshots/{snapshot_id}/error", fail, methods=["POST"]),
     ]

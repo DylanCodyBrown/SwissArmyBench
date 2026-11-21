@@ -21,6 +21,10 @@ secret here. Returns the write's report.
 Each batch is one $batch change set: all of its rows or none (a failure names the batch; the
 batches before it stay written). A throttled request (429) waits as Dataverse asks, then goes again.
 A choice column takes its labels (Won, not 1); a lookup is a column named <column>@odata.bind.
+
+Laid out top to bottom: one function per mode (create, update, upsert, delete), each checking the rows,
+saying what it would do, then writing; `write_dataverse`, the one you call, is last and picks the mode's
+function.
 """
 
 from typing import Any
@@ -29,6 +33,7 @@ from swissarmybench.client.write_dataverse import DataverseWrite
 from swissarmybench.client.writes import WriteError
 
 
+# create: each row made as a new record.
 def _create(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
     w.check_columns()  # each column is one of the table's
     w.would(
@@ -40,6 +45,7 @@ def _create(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
         w.done(inserted=len(answers))
 
 
+# update: each row changes the one its key finds.
 def _update(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
     w.check_columns()  # each column is one of the table's
     w.check_key(key)  # a value in each row, one row each
@@ -58,6 +64,7 @@ def _update(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
         w.done(updated=len(answers))
 
 
+# upsert: a row whose keys find one is updated; any other is inserted.
 def _upsert(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
     w.check_columns()  # each column is one of the table's
     w.check_key(key)  # a value in each row, one row each
@@ -73,6 +80,7 @@ def _upsert(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
         w.done(inserted=answers.count(201), updated=answers.count(200))
 
 
+# delete: the table's rows that the keys find are deleted.
 def _delete(w: DataverseWrite, table: str, key: str, dry_run: bool) -> None:
     w.check_columns([key])  # the key is one of the table's columns
     found = w.existing(key)  # only the keys that are records are deleted

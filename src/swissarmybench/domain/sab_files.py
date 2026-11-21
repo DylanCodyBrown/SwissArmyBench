@@ -56,7 +56,6 @@ VISUALIZATIONS_PATH: str = f"{APP_FOLDER}/visualizations.json"
 DASHBOARDS_FOLDER: str = f"{APP_FOLDER}/visualizations"  # the saved dashboards
 OLD_DASHBOARDS_FOLDER: str = f"{APP_FOLDER}/dashboards"  # before projects were folders: moved on open
 DATA_FOLDER: str = f"{APP_FOLDER}/data"
-ROWS_FOLDER: str = DATA_FOLDER
 STRUCTURES_FOLDER: str = "structures"
 MAX_NAME: int = 100
 MAX_ENTRY_NAME: int = 400

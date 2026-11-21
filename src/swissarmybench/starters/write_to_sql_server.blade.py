@@ -21,6 +21,10 @@ One transaction: a failure rolls every row back and says which batch failed. Azu
 (40613, 40197, 40501, 49918, 10928, 10929, 4221), a deadlock (1205) and a dropped connection run the
 WHOLE transaction again, on a fresh connection, after 1, 2, 4 seconds: never half of one.
 The target's own types (sys.columns) size every value: varchar stays varchar, a decimal its scale.
+
+Laid out top to bottom: one function per mode (append, create, replace, upsert, delete), each checking
+the rows, saying what it would do, then writing; `write_sql_server`, the one you call, is last and picks
+the mode's function.
 """
 
 from collections.abc import Sequence
@@ -33,6 +37,7 @@ from swissarmybench.client.write_sql import SqlServerWrite
 from swissarmybench.client.writes import WriteError
 
 
+# append: the rows added to the table as it is.
 def _append(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
     w.check_columns()  # the table's columns: computed ones refused, identity said, triggers said
     insert = f"INSERT INTO {w.table} ({w.columns}) VALUES ({w.marks()})"  # executemany as arrays, a batch a round trip
@@ -41,6 +46,7 @@ def _append(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
         w.done(**w.in_transaction(lambda: {"inserted": w.insert()}))
 
 
+# create: a new table made from the rows' types, then the rows written to it.
 def _create(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
     w.check_new()  # the table is not there yet
     create = f"CREATE TABLE {w.table} (\n{w.column_types()}\n)"
@@ -96,6 +102,7 @@ def _upsert(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
         w.done(**w.in_transaction(write))
 
 
+# delete: the table's rows that the keys find are deleted.
 def _delete(w: SqlServerWrite, keys: list[str], dry_run: bool) -> None:
     keys = w.check_keys(keys, unique=False)  # no keys: the primary key; a value in each
     w.check_columns(keys)  # the key columns are the table's

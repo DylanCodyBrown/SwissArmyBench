@@ -34,7 +34,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
 from swissarmybench_accounting import design as rules
 from swissarmybench_accounting import runtime
 from swissarmybench_accounting.service import Accounting
@@ -64,9 +64,6 @@ def routes(accounting: Accounting, mode: dict[str, Any], functions: Any) -> list
                 "formats": runtime.FORMATS,
             }
         )
-
-    async def open_design(request: Request) -> Response:
-        return json_response(await accounting.open(await read_json(request), actor(request)))
 
     async def get(request: Request) -> Response:
         return json_response(accounting.state(p(request, "id")))
@@ -143,9 +140,6 @@ def routes(accounting: Accounting, mode: dict[str, Any], functions: Any) -> list
     async def templates(request: Request) -> Response:
         return json_response(accounting.templates(await read_json(request)))
 
-    async def import_template(request: Request) -> Response:
-        return json_response(await accounting.import_template(await read_json(request), actor(request)))
-
     async def show_template(request: Request) -> Response:
         return json_response(await accounting.template(await read_json(request)))
 
@@ -154,19 +148,13 @@ def routes(accounting: Accounting, mode: dict[str, Any], functions: Any) -> list
         await live.broadcast({"type": "template_changed", "name": done["name"], "by": actor(request)})
         return json_response(done)
 
-    async def build(request: Request) -> Response:
-        return json_response(await accounting.build(await read_json(request), actor(request)))
-
-    async def register(request: Request) -> Response:
-        return json_response(await accounting.register(await read_json(request), actor(request)))
-
     async def listed_functions(request: Request) -> Response:
         return json_response(functions())
 
     base = "/accounting/designs/{id}"
     return [
         Route("/accounting", safely(about)),
-        Route("/accounting/designs", safely(open_design), methods=["POST"]),
+        Route("/accounting/designs", with_body(accounting.open), methods=["POST"]),
         Route(base, safely(get), methods=["GET"]),
         Route(base, safely(put), methods=["PUT"]),
         Route(base, safely(close), methods=["DELETE"]),
@@ -182,10 +170,10 @@ def routes(accounting: Accounting, mode: dict[str, Any], functions: Any) -> list
         Route(f"{base}/download", safely(download)),
         Route(f"{base}/export", safely(export), methods=["POST"]),
         Route("/accounting/templates", safely(templates), methods=["POST"]),
-        Route("/accounting/templates/import", safely(import_template), methods=["POST"]),
+        Route("/accounting/templates/import", with_body(accounting.import_template), methods=["POST"]),
         Route("/accounting/templates/show", safely(show_template), methods=["POST"]),
         Route("/accounting/templates/bind", safely(bind), methods=["POST"]),
-        Route("/accounting/build", safely(build), methods=["POST"]),
-        Route("/accounting/register", safely(register), methods=["POST"]),
+        Route("/accounting/build", with_body(accounting.build), methods=["POST"]),
+        Route("/accounting/register", with_body(accounting.register), methods=["POST"]),
         Route("/accounting/functions", safely(listed_functions)),
     ]

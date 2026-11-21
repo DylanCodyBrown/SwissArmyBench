@@ -116,7 +116,6 @@ class Workbench:
         folder_of: Callable[[str], str],
         secret_names: Callable[[], list[str]] = list,
         vault_environment: Callable[[], Awaitable[tuple[dict[str, str], list[str]]]] | None = None,
-        kernel_stopped: Callable[[str], Awaitable[None]] | None = None,
         hooks: Hooks | None = None,
     ) -> None:
         self.ws = ws
@@ -133,8 +132,8 @@ class Workbench:
         # The variables the vaults set at the last kernel start (names only): a vault that loads every
         # secret names them only when it runs, and the Variables pane lists them.
         self._vault_names: set[str] = set()
-        # Told when a kernel stops: the document's Streamlit process stops with it.
-        self._kernel_stopped = kernel_stopped
+        # Told when a kernel stops (set_kernel_stopped: its connection slots go back).
+        self._kernel_stopped: Callable[[str], Awaitable[None]] | None = None
         # Each kernel's runs still going, in order, by who started them ("user" or "agent").
         self._runs: dict[str, list[str]] = {}
         # An extension's part (services/hooks.py): which cells are shown live, an app's own file.

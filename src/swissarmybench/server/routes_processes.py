@@ -18,7 +18,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import error_response, json_response, read_json
+from swissarmybench.server.http import error_response, json_response, read_json, safely
 from swissarmybench.services.processes import Sessions
 
 _QUIET_PREFIX = "/processes/"
@@ -39,11 +39,8 @@ class QuietHeartbeats(logging.Filter):
 
 def routes(sessions: Sessions) -> list[BaseRoute]:
     async def sync(request: Request) -> Response:
-        try:
-            body: Any = await read_json(request)
-            return json_response(await sessions.sync(request.path_params["process"], body))
-        except Exception as error:
-            return error_response(error)
+        body: Any = await read_json(request)
+        return json_response(await sessions.sync(request.path_params["process"], body))
 
     async def requests(request: Request) -> Response:
         try:
@@ -72,7 +69,7 @@ def routes(sessions: Sessions) -> list[BaseRoute]:
 
     return [
         Route("/processes", listing),
-        Route("/processes/{process}/sync", sync, methods=["POST"]),
+        Route("/processes/{process}/sync", safely(sync), methods=["POST"]),
         Route("/processes/{process}/requests", requests),
         Route("/processes/{process}/open", open_table, methods=["POST"]),
     ]

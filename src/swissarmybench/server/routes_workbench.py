@@ -35,15 +35,12 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
 
 from __future__ import annotations
 
-import json
-from collections.abc import AsyncIterator
-
 from starlette.requests import Request
-from starlette.responses import Response, StreamingResponse
+from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain import workbench_pages
-from swissarmybench.server.http import actor, error_as, json_response, read_json, safely
+from swissarmybench.server.http import actor, error_as, json_lines, json_response, read_json, safely
 from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
@@ -78,18 +75,7 @@ def routes(
         return json_response(workbench.environments())
 
     async def create_environment(request: Request) -> Response:
-        events = workbench.create_environment(await read_json(request))
-
-        async def lines() -> AsyncIterator[bytes]:
-            try:
-                async for event in events:
-                    yield (json.dumps(event) + "\n").encode()
-            except Exception as error:
-                yield (json.dumps({"done": {"ok": False, "error": str(error)}}) + "\n").encode()
-
-        return StreamingResponse(
-            lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
-        )
+        return json_lines(workbench.create_environment(await read_json(request)))
 
     async def choose_environment(request: Request) -> Response:
         return json_response(workbench.choose_environment(await read_json(request)))
@@ -100,17 +86,7 @@ def routes(
 
     async def execute(request: Request) -> Response:
         outputs = workbench.execute(request.path_params["kernel"], await read_json(request), actor(request))
-
-        async def lines() -> AsyncIterator[bytes]:
-            try:
-                async for output in outputs:
-                    yield (json.dumps(output) + "\n").encode()
-            except Exception as error:  # the kernel went away mid-run
-                yield (json.dumps({"done": {"ok": False, "error": str(error)}}) + "\n").encode()
-
-        return StreamingResponse(
-            lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
-        )
+        return json_lines(outputs)
 
     async def answer_input(request: Request) -> Response:
         return json_response(workbench.answer_input(request.path_params["kernel"], await read_json(request)))

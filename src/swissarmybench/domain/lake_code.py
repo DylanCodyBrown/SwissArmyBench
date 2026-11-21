@@ -29,7 +29,6 @@ This file is text. Pure: no I/O.
 
 from __future__ import annotations
 
-STORAGE_VARIABLE: str = "SWISSARMYBENCH_STORAGE_URL"
 MAX_DEPTH: int = 6  # folders below the place looked into for tables
 MAX_TABLES: int = 500  # tables one connection lists
 MAX_ENTRIES: int = 200_000  # files and folders one listing reads

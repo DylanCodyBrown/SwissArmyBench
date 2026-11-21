@@ -28,6 +28,9 @@ labels (Won, not 1), a lookup as its id with its name beside it; the first page 
 the query's own top). Errors from Dataverse arrive as DataverseActionError, in plain words.
 
 Dataverse's request: GET .../api/data/v9.2/<entity set>?fetchXml=...
+
+Laid out top to bottom: its helpers, each under a line saying what it is for; `fetch_xml`, the one you
+call, is last.
 """
 
 from typing import Any

@@ -15,6 +15,9 @@
     freeze("C:/reports/sales.xlsx", "Orders", None)       # unfreeze
 
 Returns the workbook's path. Changes are saved into the workbook.
+
+Laid out top to bottom: opening and saving a workbook, then this starter's own functions; `freeze`, the
+one you call, is last.
 """
 
 from pathlib import Path

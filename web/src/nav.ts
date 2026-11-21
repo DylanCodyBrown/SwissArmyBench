@@ -489,15 +489,6 @@ export function namedWindow(name: string, blocked = "The browser blocked the new
   }
 }
 
-/** The mark: the window's icon (the red square with the white +), drawn small; the rail's first item. */
-export function markIcon(): HTMLElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 100 100");
-  svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = '<path d="M42 23h16v19h19v16H58v19H42V58H23V42h19z"/>';
-  return h("span", { class: "app-mark", "aria-hidden": "true" }, svg);
-}
-
 /** "← Connections": back to `url` (see backTo), named for where it goes. */
 export function backButton(to: string, url: string, then?: () => void): HTMLButtonElement {
   return h(

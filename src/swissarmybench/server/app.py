@@ -290,7 +290,6 @@ def create_app(
             # A Workbench window closed (or reloaded) a minute ago: its kernels stop.
             windows = ctx.live.workbench_windows()
             await ctx.workbench.stop_orphans(windows)
-            await ctx.hooks.stop_orphans(windows)  # and what they left running (an extension's)
 
     @asynccontextmanager
     async def lifespan(_: Starlette) -> AsyncIterator[None]:

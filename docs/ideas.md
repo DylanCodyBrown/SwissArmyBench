@@ -7681,3 +7681,63 @@ with its reason before Play), the connection forms' live checks, the one loading
 It follows design principle 13a's last rule: the Databricks extension may look and work completely differently, but
 reads and writes only through the shared tools (the connections' read/write contract, the sandbox, the local sandbox
 API and its targets, convert.py, the widget contract); none of those changes shape for it.
+## Simplicity pass, 2026-11-21 (the owner: "find over complications and just uncomplicates them"; built, branch simplify)
+
+The rule is design principle 13, "Build the simplest thing for the task at hand", with the owner's three
+additions of the same day: generated code reads like a roadmap; more than three def levels draws heavy
+criticism and two mild; one universal tool over several special ones. A simplification never changes what
+the user sees, what a route answers, what an agent command does or a file's format; a feature is never
+removed here (the questions for the owner are in the branch's report).
+
+How it was measured, not guessed: a dead-code scan (vulture, with and without the tests as callers) and a
+word count per name across src, extensions, web and tests; identical function bodies by their syntax tree;
+front-end exports nothing imports; nesting by the syntax tree (Python's ast; the page's TypeScript through
+esbuild and acorn).
+
+What was simplified (11 commits, one each, so any one can be reverted):
+
+| What | Lines |
+|---|---|
+| `sab_queries.py`, the old app canvas's query module nothing wrote any more (domain/page_queries.py, script_runtime's two texts, the service's query_module) | -290 |
+| Five extension hooks nothing fills since app notebooks went (canvas, read_trace, kernel_stopped, stop_orphans, canvas_references) and the lineage service's canvas-block path behind them | -81 |
+| 30 names with no caller (13 constants, 11 functions and methods, 4 types, 2 kept alive only by their own test) | -176 |
+| 200 route handlers' own `try/except Exception: return error_response(error)`: `http.safely` where they are registered | -601 |
+| 72 handlers that only forwarded their body: `http.with_body` and `with_actor` | -187 |
+| Functions three levels deep and the deepest blocks flattened (http.answered, http.json_lines, module-level factories, three helpers) | +22 |
+| One loader for Monaco and one for the diagrams (web/src/lazyLoad.ts), instead of eleven copies | -31 |
+| The connection form's field order as module functions, not closures four deep | +5 |
+| The library's text folder (read, write only when changed) written once (atomic_files.TextFolder) | -17 |
+| Six front-end exports nothing imports | -78 |
+| Generated code as a roadmap: a "Laid out top to bottom" sentence in the 51 starters with functions, a line over each of the 28 uncommented Write mode functions, the exported script's and notebook's layout in their heads | +192 |
+
+In all 175 files, 2,756 lines out and 1,514 in: 1,242 fewer, 1,434 fewer without the roadmap text the owner
+asked for.
+
+Nesting, before and after:
+
+| | Before | After |
+|---|---|---|
+| Python functions at def level 2 (mild) | 938 | 865 |
+| Python functions at def level 3 | 23 | 9 |
+| Python functions deeper than 3 (heavy) | 0 | 0 |
+| Python's deepest block nesting | 9 (claude_finder's registry walk) | 7 (an excluded file) |
+| Python functions with blocks 6 or deeper | 6 | 3 |
+| Page functions named at level 4 (heavy) | 12 | 9 |
+| Page functions named at level 3 | 189 | 189 |
+
+Decisions:
+- **Strict over broad.** A handler lost its try/except only when the try was its whole body, so no error
+  path changes; handlers with code before the try or another except keep theirs (about 50).
+- **Unfilled is not always dead.** Three more hooks (documents, held, unsaved) also lost their filler when
+  app notebooks went, but base features read them (a swapped connection's cells in an open document, the
+  Connections page's references in open documents): that is a regression to decide on, not code to delete.
+  Left as they are and reported.
+- **The ports stay.** Most service Protocols have one implementation; REFACTOR.md asks for them (the layers),
+  so they are not "a class with one user" here.
+- **The starters stay self-contained.** 2,100 lines of them are identical helpers (Power BI's sign-in in 13,
+  Excel's open and save in 12, the Write modes in 8): a starter is copied as the user's own file, so the
+  copies are the design. Whether one universal write function should replace the 70 Write starters is a
+  question for the owner.
+- Left for the second pass (their builders merge first): everything under extensions/streamlit, the local
+  sandbox API and sandbox files, codeIde.ts, canvas*.ts, widget*.ts, workbenchPage.ts.
+

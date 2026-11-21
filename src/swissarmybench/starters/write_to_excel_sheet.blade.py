@@ -19,6 +19,8 @@ words, in this conversation. Returns the write's report.
 Written to a new file beside the workbook, then put in its place: a failure leaves it as it was.
 Close the workbook in Excel first. Formatting: the Excel starters (Excel number formats, Excel range as
 table, Excel autofit columns) work on the file it writes.
+
+Laid out top to bottom: the imports, then `write_excel_sheet`, the one function, which you call.
 """
 
 from pathlib import Path
