@@ -121,6 +121,8 @@ def payload(
         # connection, whose answer is the file it reaches.
         "sql": (extra or {}).get("sql"),
         "count_sql": (extra or {}).get("count_sql"),
+        # mode "rows" on a DuckDB connection: the table and the adapter's plan ({"table", "plan", "count"}).
+        "read": (extra or {}).get("read"),
         # mode "queries": groups of statements, tried in order (a Power BI dataset's relationships).
         "attempts": (extra or {}).get("attempts"),
         # modes "rows" and "queries" on a Power BI workspace: the dataset the statements are sent to.
@@ -420,6 +422,8 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         if not job.get("sql"):
             return {"path": str(value)}
         source = _within(value, job)
+        if job.get("read") and type(source).__module__.split(".")[0] in ("duckdb", "_duckdb"):
+            return _adapter_rows(source, job["read"])
         typed = getattr(source, "read_arrow", None)  # a connection that reads typed Arrow itself (SQL Server)
         table = typed(job["sql"]) if callable(typed) else None
         columns, rows = ([], []) if table is not None else _sql_rows(source, job["sql"])
@@ -439,6 +443,20 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError):
             arrays.append(pa.array([None if v is None else str(v) for v in values], pa.string()))
     return {"arrow": _arrow_text(pa.Table.from_arrays(arrays, names=columns)), "total": total}
+
+
+def _adapter_rows(connection: Any, read: dict[str, Any]) -> dict[str, Any]:
+    """A DuckDB connection's table through the adapter (Plans/adapter.plan.md): its plan folded into the read,
+    the batches made the grid's table and nothing else kept; its row count when asked."""
+    from swissarmybench.adapters import sab_adapter as sab
+
+    source = sab.DuckDB.over(connection)
+    table = sab.make_grid(sab.GridSource(source, str(read["table"]), sab.plan_from(read.get("plan"))))
+    total = None
+    if read.get("count"):
+        counted, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))
+        total = int(counted.read_all().column(0)[0].as_py())
+    return {"arrow": _arrow_text(table), "total": total}
 
 
 def _arrow_text(table: Any) -> str:

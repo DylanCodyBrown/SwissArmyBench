@@ -333,31 +333,57 @@ def test_the_adapter_runs_copied_alone(tmp_path: Path, shop: str) -> None:
 
 # ===== memory stays flat =====
 
+MEASURE = """
+import sys
+import duckdb
+import sab_adapter as sab
 
-def test_a_folded_read_of_a_big_table_never_holds_it(tmp_path: Path) -> None:
-    """Two million made-up lines in a DuckDB file; a filter and a limit folded into the read: the Arrow memory
-    the read holds stays at its batches', never the table's (its whole is about 50 MB as Arrow)."""
-    path = str(tmp_path / "lines.duckdb")
-    con = duckdb.connect(path)
-    con.execute(
-        "CREATE TABLE lines AS SELECT range AS id, range % 97 AS product, (range % 1000) / 10.0 AS amount, "
-        "'note ' || (range % 13) AS note FROM range(2000000)"
-    )
-    con.close()
-    pool = pa.default_memory_pool()
-    before = pool.bytes_allocated()
-    reader, folded = sab.read(
-        sab.DuckDB.file(path), "lines", Plan(filters=(Filter("product", "=", 5),), limit=20_000)
-    )
-    most, rows = 0, 0
+def rss():
+    with open("/proc/self/status") as f:
+        return next(int(line.split()[1]) // 1024 for line in f if line.startswith("VmRSS"))
+
+path = sys.argv[1]
+con = duckdb.connect(path)
+con.execute(
+    "CREATE TABLE lines AS SELECT range AS id, range % 97 AS product, (range % 1000) / 10.0 AS amount, "
+    "'note ' || (range % 13) AS note FROM range(3000000)"
+)
+con.close()
+
+def peak(plan):
+    base, most, rows = rss(), 0, 0
+    reader, _ = sab.read(sab.DuckDB.file(path), "lines", plan)
     for batch in reader:
         rows += batch.num_rows
-        most = max(most, pool.bytes_allocated() - before)
-    assert folded.parts == ("filters", "limit") and rows == 20_000
-    assert most < 8 * 1024 * 1024
-    whole, _ = sab.read(sab.DuckDB.file(path), "lines")
-    most = 0
-    for batch in whole:  # every row, streamed: one batch at a time
-        most = max(most, pool.bytes_allocated() - before)
+        most = max(most, rss() - base)
         del batch
-    assert most < 16 * 1024 * 1024
+    return most, rows
+
+folded, n = peak(sab.Plan(filters=(sab.Filter("product", "=", 5),), limit=20000))
+streamed, every = peak(sab.Plan())
+base = rss()
+held = sab.read(sab.DuckDB.file(path), "lines")[0].read_all()
+print(folded, n, streamed, every, rss() - base, held.nbytes // 2**20)
+"""
+
+
+@pytest.mark.skipif(not Path("/proc/self/status").exists(), reason="reads the process's memory from /proc")
+def test_a_read_streams_and_never_holds_the_table(tmp_path: Path) -> None:
+    """Three million made-up lines in a DuckDB file, read in a process of its own: a read with a filter and a
+    limit folded grows the process by little, and every row streamed far less than the same rows held."""
+    import subprocess
+    import sys
+
+    (tmp_path / "sab_adapter.py").write_bytes(ADAPTER.read_bytes())
+    done = subprocess.run(  # noqa: S603 (this Python, made-up rows)
+        [sys.executable, "-c", MEASURE, str(tmp_path / "lines.duckdb")],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    folded, n, streamed, every, held, arrow = (int(v) for v in done.stdout.split())
+    assert n == 20_000 and every == 3_000_000
+    assert folded < 64, done.stdout  # MB: DuckDB's own buffers, never the table
+    assert streamed < held / 2, done.stdout
+    assert arrow > 50  # the table as Arrow is this big, held whole

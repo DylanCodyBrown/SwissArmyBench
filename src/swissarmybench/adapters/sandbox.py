@@ -26,7 +26,9 @@ from typing import Any
 
 import duckdb
 import pyarrow as pa
+import pyarrow.ipc
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import sandbox as rules
 
@@ -323,13 +325,35 @@ class SandboxFiles:
             self._names = None
             self._all(sql, params)
 
-    def arrow(self, name: str) -> pa.Table:
+    # ===== through the adapter (Plans/adapter.plan.md): the sandbox is one more DuckDB source =====
+
+    @contextlib.contextmanager
+    def _cursor(self, writing: bool) -> Iterator[duckdb.DuckDBPyConnection]:
+        """A cursor of its own while the gate is shared: a read keeps it while its batches are read."""
         with self._gate.shared():
             cursor = self._open().cursor()
             try:
-                return cursor.sql(f"SELECT * FROM {rules.quote(name)}").to_arrow_table()  # noqa: S608
+                yield cursor
             finally:
                 cursor.close()
+
+    def source(self) -> sab_adapter.DuckDB:
+        return sab_adapter.DuckDB(self._cursor, f"The {rules.NAME.lower()}")
+
+    def arrow(self, name: str) -> pa.Table:
+        """A sandbox table as a grid's Arrow table: read whole through the adapter."""
+        return sab_adapter.make_grid(sab_adapter.GridSource(self.source(), name))
+
+    def read(self, name: str, plan: Any) -> tuple[pa.RecordBatchReader, tuple[str, ...]]:
+        """A table read with a plan (its JSON): the batches as DuckDB makes them, and what was folded."""
+        reader, folded = sab_adapter.read(self.source(), name, sab_adapter.plan_from(plan))
+        return reader, folded.parts
+
+    def write_arrow(self, name: str, data: bytes, key: Sequence[str], mode: str) -> dict[str, int]:
+        """An Arrow IPC stream's rows into a table (insert, update, merge or delete by key): the counts."""
+        reader = pa.ipc.open_stream(pa.BufferReader(data))
+        done = sab_adapter.write(self.source(), name, reader, key, mode)
+        return {"inserted": done.inserted, "updated": done.updated, "deleted": done.deleted}
 
     # ===== an API's reads and writes =====
 
