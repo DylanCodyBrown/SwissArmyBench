@@ -1,8 +1,8 @@
 /**
  * catalogPage.ts: the blades page, in its own tab (plan decisions 14-18). [COMPOSITION]
  *
- * The blades list (catalogRail.ts) on the left; the main area shows a blade's screen (its code read-only:
- * a blade's code is edited in its file), New blade's templates, or a welcome. Dragging gives plain text: a
+ * The blades list (catalogRail.ts) on the left; the main area shows a blade's IDE (bladeEditor.ts on
+ * codeIde.ts: the owner, 2026-11-21, "This is an IDE not a save form"), New blade's templates, or a welcome. Dragging gives plain text: a
  * blade its `sab.blade(...)` line. The catalog panel went (the owner, 2026-11-17: "we dont even need
  * catalog if its just tables"): a connection's tables are on the Connections page and in the Data Explorer.
  *
@@ -67,21 +67,22 @@ function openEditor(name: string | null, how: Move = "auto"): void {
   editorOf = name ?? "";
   void go(address({ blade: editorOf }), how);
   setTitle(PAGE, name ?? "New blade");
-  const lead = h("div", { class: "row-actions" });
-  const host = h("div", {});
+  // The IDE has its own Back in its bar; New blade's templates have the page's.
+  const lead = name === null ? h("div", { class: "row-actions" }, backButton(PAGE, WELCOME, () => rail.editorClosed())) : null;
+  const host = h("div", { class: "blade-host" });
   clear(detail, lead, host);
   const closed = (): void => {
     rail.editorClosed();
     backTo(WELCOME);
   };
-  lead.append(backButton(PAGE, WELCOME, () => rail.editorClosed()));
   const saved = (savedName: string): void => {
+    lead?.remove();
     rail.bladeSaved(savedName);
     editorOf = savedName;
     setTitle(PAGE, savedName);
     void go(address({ blade: savedName }), "replace"); // a new or renamed blade has its name now
   };
-  void editBlade(host, name, null, "other" as BladeKind, saved, closed);
+  void editBlade(host, name, null, "other" as BladeKind, saved, closed, { label: PAGE, run: closed });
 }
 
 const rail = mountRail({
