@@ -1133,27 +1133,206 @@ def test_10_a_story_notebook_with_html_cells_live_markdown_and_a_mermaid_diagram
     assert any("```mermaid" in "".join(c["source"]) for c in saved["cells"] if c["cell_type"] == "markdown")
 
 
-# ===== 11. a project: data.ipynb from a database, data.py, three starters on a page, Play, a zip =====
+# ===== 11. a widget made in its window, placed on a canvas in both layouts, played, exported =====
 
-PIECES = ("Streamlit selectbox filter", "Streamlit metric row", "Streamlit bar chart")
+WIDGET = """import streamlit as st
+from sab_canvas import table
+
+# table: the invoices to count
+table_name = "invoices"
+# The words above the number
+label = "Invoices"
+# The accent colour
+colour = "#1f77b4"
+
+rows = table(table_name)
+st.markdown(f"<div style='color:{colour};font-weight:600'>{label}</div>", unsafe_allow_html=True)
+st.metric(label, f"{len(rows):,}")
+"""
 APP_TEST = """import json
 import sys
 
 from streamlit.testing.v1 import AppTest
 
 page = AppTest.from_file(sys.argv[1], default_timeout=300).run()
-picked = sys.argv[2] if len(sys.argv) > 2 else ""
-if picked:
-    page.selectbox[0].select(picked).run()
 print(json.dumps({
     "exceptions": [str(e.value) for e in page.exception],
+    "errors": [str(e.value) for e in page.error],
     "metrics": [m.value for m in page.metric],
-    "selectboxes": [s.label for s in page.selectbox],
 }))
 """
 
 
-# ===== agent parity: use cases 1 and 11 through the agent's MCP commands only =====
+def streamlit_python() -> str:
+    from tests.streamlit_helpers import STREAMLIT_PYTHON
+
+    if STREAMLIT_PYTHON is None:
+        pytest.skip("no Python with Streamlit here (set SWISSARMYBENCH_STREAMLIT_PYTHON to one)")
+    return STREAMLIT_PYTHON
+
+
+def run_exported(folder: Path, plain_python: Path, tmp_path: Path) -> dict[str, Any]:
+    """The exported app run by Streamlit's AppTest in a plain Python with no app (as a hosted Streamlit app
+    runs it): its own app.py, its pages, sab_canvas.py and sab_widgets.py, the invoices as Parquet."""
+    (folder / "apptest.py").write_text(APP_TEST, encoding="utf-8")
+    ran = subprocess.run(
+        [str(plain_python), "apptest.py", "app.py"],
+        cwd=folder,
+        env=plain_environment(tmp_path / "home", PYTHONPATH=str(folder)),
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert ran.returncode == 0, ran.stderr[-3000:]
+    shown: dict[str, Any] = json.loads(ran.stdout.strip().splitlines()[-1])
+    return shown
+
+
+def test_11_a_widget_made_in_its_window_on_a_canvas_in_both_layouts_played_and_exported(
+    browser: Browser, bench: dict[str, Any], company: Company, plain_python: Path, tmp_path: Path
+) -> None:
+    act = Actions("11. a widget on a canvas, both layouts, played, exported")
+    streamlit_python()
+    ensure_shop(bench)
+    close_tables(bench)
+    for gone in ("invoice_total",):
+        try:
+            call(bench, "DELETE", f"/streamlit/widgets/{gone}")
+        except Exception:  # noqa: S110 (none yet)
+            pass
+    page = app_page(browser, bench)
+    catalog = open_catalog(act, page)
+    choose_catalog(act, catalog, "Shop")
+    open_as_grid(act, catalog, "invoices")
+    page.bring_to_front()
+    # A Streamlit project: its canvas comes with it.
+    act.click(page.locator('.nav-rail [data-area="projects"]'))
+    act.click(
+        page.locator('.area-page[data-page="projects"]').get_by_role("button", name="New project").first
+    )
+    dialog = page.locator("dialog.new-project")
+    act.fill(dialog.get_by_label("Name"), "quillmere app")
+    act.click(dialog.locator(".new-project-type[data-type='streamlit']"))
+    act.click(dialog.get_by_role("button", name="Create"))
+    expect(page.locator(".project-group .project-name")).to_have_text(
+        re.compile("quillmere app"), timeout=LONG
+    )
+    project = Path(call(bench, "GET", "/project")["project"]["folder"])
+    # The Widgets window (the rail's Widgets: a window of its own): New widget, its code, its name.
+    with page.context.expect_page(timeout=LONG) as opened:
+        act.click(page.locator('.nav-rail [data-area="widgets"]'))
+    widgets = opened.value
+    expect(widgets.locator(".wg-new")).to_be_visible(timeout=LONG)
+    act.click(widgets.locator(".wg-new"))
+    editor = widgets.locator(".ide-editor .monaco-editor")
+    expect(editor).to_be_visible(timeout=LONG)
+    act.click(editor.locator(".view-lines"))
+    act.press(widgets, "Control+a")
+    paste_code(act, widgets, WIDGET)
+    props = widgets.locator(".wg-props")
+    expect(props.locator(".wg-prop[data-property='table_name']")).to_have_attribute(
+        "data-mask", "table", timeout=20000
+    )
+    expect(props.locator(".wg-prop[data-property='colour']")).to_have_attribute("data-mask", "colour")
+    act.fill(props.locator(".wg-name"), "invoice_total")
+    act.press(widgets, "Enter")
+    wait_until(
+        lambda: "invoice_total" in {w["name"] for w in call(bench, "GET", "/streamlit/widgets")["widgets"]}
+    )
+    wait_until(lambda: "len(rows)" in call(bench, "GET", "/streamlit/widgets/invoice_total")["code"])
+    # Preview (F5): the widget in the editor's place, the invoices counted.
+    act.click(editor.locator(".view-lines"))
+    act.press(widgets, "F5")
+    frame = widgets.frame_locator(".wg-frame")
+    expect(frame.locator('[data-testid="stMetricValue"]')).to_have_text(
+        f"{len(company.invoices):,}", timeout=LONG
+    )
+    shot(widgets, "11-the-widget-previewed")
+    # The Canvas (the rail's Canvas): the project's canvas, a container drawn, the widget inserted.
+    page.bring_to_front()
+    act.click(page.locator('.nav-rail [data-area="canvas"]'))
+    act.click(page.locator(".cvs-landing-item").first)
+    board = page.locator(".cvs-board")
+    expect(board).to_be_visible(timeout=LONG)
+    page.wait_for_function("document.querySelector('.cvs-board').offsetWidth >= 390", timeout=LONG)
+    box = board.bounding_box()
+    assert box
+    page.mouse.move(box["x"] + 24, box["y"] + 24)
+    page.mouse.down()
+    page.mouse.move(box["x"] + 300, box["y"] + 150, steps=4)
+    page.mouse.move(box["x"] + 520, box["y"] + 240, steps=6)
+    page.mouse.up()
+    act._note("drag")
+    container = page.locator(".cvs-container").first
+    expect(container).to_be_visible(timeout=20000)
+    act.click(container, button="right", position={"x": 40, "y": 40})
+    act.click(page.locator(".cvs-menu-item", has_text="Insert widget"))
+    act.fill(page.locator(".cvs-widget-menu .cvs-menu-search"), "invoice")
+    act.click(page.locator(".cvs-widget-menu .cvs-menu-item[data-widget='invoice_total']"))
+    expect(page.locator(".cvs-widget[data-widget='invoice_total']")).to_have_count(1, timeout=20000)
+    # Both layouts: the Phone layout has it too, stacked at the full width (nothing more to do).
+    act.click(page.locator(".cvs-bottom [data-layout='phone']"))
+    expect(page.locator(".cvs-widget[data-widget='invoice_total']")).to_be_visible()
+    canvas_file = next(project.glob("*.canvas.json"))
+    saved = json.loads(canvas_file.read_text(encoding="utf-8"))
+    placed = saved["pages"][0]["children"][0]["children"][0]
+    assert placed["widget"] == "invoice_total" and set(placed["at"]) == {"desktop", "phone"}
+    shot(page, "11-the-canvas-phone")
+    act.click(page.locator(".cvs-bottom [data-layout='desktop']"))
+    # Play (F5): the page live in place, the invoices counted.
+    act.click(board)
+    act.press(page, "F5")
+    live = page.frame_locator(".cvs-live-frame")
+    expect(live.locator('[data-testid="stMetricValue"]')).to_have_text(
+        f"{len(company.invoices):,}", timeout=LONG
+    )
+    shot(page, "11-the-canvas-played")
+    act.click(page.locator(".cvs-top .cvs-play"))  # Stop
+    # Export (Ctrl+Shift+E): an app that runs alone, into a folder.
+    out = tmp_path / "exported"
+    out.mkdir()
+    act.press(page, "Control+Shift+E")
+    chooser = page.locator("dialog.file-chooser")
+    where = chooser.get_by_role("textbox", name="Folder")
+    act.fill(where, str(out))
+    act.press(page, "Enter")
+    act.click(chooser.get_by_role("button", name="Choose this folder"))
+    wait_until(lambda: (out / "app.py").exists() and (out / "data" / "invoices.parquet").exists())
+    act.done(ceiling=34)
+    shown = run_exported(out, plain_python, tmp_path)
+    assert shown["exceptions"] == [] and shown["errors"] == [], shown
+    assert shown["metrics"] == [f"{len(company.invoices):,}"], shown
+    widgets.close()
+
+
+def test_11a_the_agent_makes_the_same_canvas_through_its_commands_only(
+    bench: dict[str, Any], company: Company, tmp_path: Path
+) -> None:
+    """The same, by the agent's commands only: a widget, a canvas of the project, a container, the widget
+    in it, the page checked headless (each widget's own errors), and its builds' history after a launch."""
+    streamlit_python()
+    ensure_shop(bench)
+    close_tables(bench)
+    agent("connections_open_table", name="Shop", schema="sales", table="invoices", all=True)
+    try:
+        agent("widgets_new", name="invoice_total_agent", description="Invoices counted", code=WIDGET)
+    except Exception:  # noqa: S110 (made by an earlier run)
+        pass
+    project = tmp_path / "agent-project"
+    project.mkdir()
+    canvas = agent("canvas_open", path=str(project / "invoices.canvas.json"))["canvas"]
+    made = agent("canvas_add_container", canvas=canvas, x=0, y=0, w=600, h=240)["made"]
+    agent("canvas_insert_widget", canvas=canvas, widget="invoice_total_agent", parent=made)
+    checked = agent("canvas_play", canvas=canvas, check=True)
+    assert checked["ok"], checked
+    launched = agent("app_launch", canvas=canvas)
+    assert launched["build"] == 1
+    assert agent("builds_list", canvas=canvas)["builds"][0]["changed"] == ["The first build."]
+    agent("app_stop", canvas=canvas)
+    del company
+
+
+# ===== agent parity: use case 1 through the agent's MCP commands only =====
 
 
 def test_1a_the_agent_cleans_the_orders_and_saves_the_notebook_through_its_commands_only(

@@ -46,11 +46,22 @@ says so in one line.
   grid; both layouts), `canvas_page` (add, rename, move, remove), `canvas_undo`, `canvas_redo`.
 - `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
   `canvas_stop` (run play, the default, or launch),
-  `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window); `sharing_status`,
+  `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window; analyzer=true attaches the
+  Performance Analyzer from the first load), `app_stop`; `sharing_status`,
   `sharing_start app=<canvas id>` (waits for Allow; installs devtunnel if needed): the launched
   app's own port to the user's organization (work accounts of its tenant; never anonymous, never this server;
   the user signs in themselves), `sharing_stop` (Allow; a new launch or its stop ends it too), `canvas_export` (a
   folder that runs on a hosted Streamlit app: app.py, a page file each, sab_canvas.py, sab_widgets.py, the tables
   it names as Parquet, data.py; it copies rows, so it waits for the user's Allow).
+- Builds (`builds/<app>/<n>/`: the code as launched, canvas.json, build.json saying what changed in words):
+  `builds_list`, `builds_files`, `builds_compare` (a, b; no b: against the canvas now), `build_relaunch`,
+  `build_restore` (the build's canvas back as one change; `canvas_undo` takes it back; the library's widgets
+  are not changed). The Performance Analyzer on a launch: `perf_attach` (on=false pauses, clear, detach),
+  `perf_session` (each rerun's trigger and each widget instance's time, calls, caches, the web socket's kinds
+  and sizes: never content), `perf_hints`, `perf_save` (into the build), `perf_saved`.
+- A table property takes an open table, a data.ipynb table (data.py's names) or a connection's table as
+  DuckDB SQL names it, `[Conn].table` (`widgets_get`'s context lists each connection's as far as its
+  catalog is loaded); a run reads it through the connection-tables contract, so through that connection's
+  query limit; a connection not here is said with the fix.
 - The page reproduces the canvas's places: each container and widget is an st.container placed
   absolutely by its key's CSS (x and w as fractions of its parent, y and h in pixels; within 1 px). A widget that fails shows its own error in its place; the page runs on.

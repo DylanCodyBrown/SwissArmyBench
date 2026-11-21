@@ -6814,8 +6814,8 @@ Decisions:
   the page's primary button (34 px, the accent fill, bold 14 px, a soft shadow) with its ▾ (Launch, Ctrl+F5),
   Stop in its place while the app plays or is launched; Export a raised secondary button; never folded, the tabs
   scroll instead. The same group (Play Shift+F5, Launch Ctrl+F5, Export… Ctrl+Shift+E; Stop while running) ends
-  every right-click menu of the canvas. Launch with the Performance Analyzer is not offered: the analyzer was not
-  carried over to the widget canvas. The bottom bar holds the sizing with Desktop | Phone and the preview width,
+  every right-click menu of the canvas. (Launch with the Performance Analyzer and Builds… came back on the widget
+  canvas, branch canvas-rest2: below.) The bottom bar holds the sizing with Desktop | Phone and the preview width,
   Snap and its step, Undo and Redo, the Widgets and Properties toggles and the zoom; Properties (nearest the canvas) and Widgets (far right) are two panes, each resizable and hidden
   completely by its toggle (remembered per canvas; a hidden Properties pane stays hidden on a selection, its button
   shows a dot); a card's hover shows its preview at 480 px.
@@ -6827,9 +6827,61 @@ contract and Test this page, thin cells and Move to data.ipynb, the designer (th
 Toolbox of raw Streamlit elements, containers of blocks, arrange, the outline), App mode's page settings and State,
 the Performance Analyzer, and every command of theirs (an old call says why). The data notebook stays (data.ipynb,
 its SQL and table cells, data.py; Notebooks and Scripts for data work). The Streamlit starters stay as snippets.
-Their front-end modules are still in web/src, unreachable (workbenchCanvas.ts, canvasPane.ts, canvasLaunch.ts,
-canvasToolbox.ts, workbenchStreamlit.ts, workbenchCellsPane.ts, workbenchApp.ts, workbenchStarters.ts,
-perfPage.ts): taking them out of workbenchPage.ts is its own change.
+Their front-end modules went too (branch canvas-rest2, below).
+
+## The Canvas's rest: app notebooks dropped for good, the analyzer and Builds back, connections' tables (built 2026-11-21, branch canvas-rest2)
+
+The owner's calls carried out: "Drop support" for app notebooks and the old canvases; Launch with the
+Performance Analyzer in Play's ▾ and the right-click run group; Builds' Compare and Restore; a table property
+that takes a connection's table; use case 11 written again for the new Canvas.
+
+Decisions:
+- **App notebooks, everywhere:** "New app notebook", the appNotebook kind, word and icon, the landing's App
+  notebooks and notebook_kind's app role went (a notebook in a project is THE data notebook or a plain one; the
+  agent's documents carry a role only for data.ipynb). Live Streamlit cells went from notebooks and scripts: a
+  cell that calls Streamlit runs in the kernel like any other (the script outline has no "streamlit" kind any
+  more, Run file keeps its lines, arrange counts what it makes), hooks.live_cells went. App mode's panels and
+  their Settings switches (Streamlit cells, Properties, State, Starters) went. Opening an old .stapp.json says
+  "App notebooks and their canvases were replaced by widgets: make a new canvas and insert widgets." in one
+  line (the page before asking the server; the server's own open says the same); `file.newApp` opens the
+  Canvas page. A cell's name and copy moved to cellClipboard.ts. Deleted: workbenchCanvas.ts, canvasPane.ts,
+  canvasLaunch.ts, canvasToolbox.ts, workbenchStreamlit.ts, workbenchCellsPane.ts, workbenchApp.ts,
+  workbenchStarters.ts (canvasSnap.ts and canvasKit.ts stay: the Canvas and the Excel canvas use them).
+- **Lineage's values:** they came from the old extension's held documents (hooks.held), gone with live cells,
+  so the agent's lineage had no values (the lineage e2e test's KeyError 'n4'). The lineage code was fixed, not
+  the test: it asks the Workbench for the kernel started for the document (Workbench.kernel_for) when no
+  extension holds it.
+- **Launch with the Performance Analyzer** (Ctrl+Shift+F5): the launch's window and the analyzer's both open on
+  the key or click (one opened after the wait would be blocked), the analyzer recording from the first load.
+  F5 is Play, Ctrl+F5 Launch, Ctrl+Shift+E Export, each shown in the menus. sab_perf.py goes beside a launch's
+  pages only (never into the build); the ONE builder's runtime (sab_canvas) imports it when it is there and
+  times each widget instance around render(), and each page calls sab.begin and sab.finish: an export has no
+  sab_perf, so nothing is timed and its code is the same. Blocks are widget instances, titled "<widget>
+  (<id>)"; the hints know each instance's tables. The "needless rerun" hint needs which widget makes a value,
+  which the canvas does not know: it does not fire here (left).
+- **Builds** (format 2): build.json's "changed" compares the canvases in words (pages added or gone, an
+  instance added, taken off, given other values or another widget, the layout) and each widget whose code
+  changed (sab_widgets.py read with ast); an app notebook's old build says "The first build on the Canvas".
+  Compare two builds, or one with the canvas as it is now (what a launch now would build), in Monaco's diff
+  editor; Relaunch an old one; **Restore** puts its canvas.json back as ONE change through the canvas's rules
+  (Undo takes it back) and leaves the library's widgets as they are (a widget changed since is said); an old app
+  build has no canvas.json and says so. Routes /streamlit/canvases/{canvas}/launch, …/builds…, …/perf…; the
+  agent's app_launch(analyzer), app_stop, builds_list, builds_files, builds_compare, build_relaunch,
+  build_restore, perf_attach, perf_session, perf_hints, perf_save, perf_saved.
+- **A table property takes `[Conn].table`**, in the same picker as the open tables and now data.ipynb's
+  (data.py's top-level names, read with ast): grouped Sample, Open tables, data.ipynb, a group per connection
+  (its loaded catalog's tables as SQL names them; not loaded yet: "Type a table of <Conn>…": nothing is loaded
+  for asking). A run reads it with ConnectionTables.read_named (the same read a query's [Conn].table gets: the
+  one gate, so the connection's query limit and its line) into data/<stem>.parquet, the stem made safe with a
+  digest by one rule the runtime shares (a test checks they agree). A value naming no connection here is said
+  with the fix; an export carries the rows read when it was made (as it does for open tables).
+- **Use case 11** (tests/e2e/test_real_world.py): the invoices opened from PostgreSQL, a Streamlit project, a
+  widget written in the Widgets window and previewed, placed on the canvas (a container drawn, right-click
+  Insert widget), seen in the Phone layout, played, exported, and the export run by AppTest in a plain Python:
+  33 actions (ceiling 34); 11a the agent's commands only (a widget, a canvas, a headless check, a launch, its
+  build).
+- **Merged share-app:** Share… stays in Play's ▾ and the run group while launched, beside the analyzer and
+  Builds….
 
 ## The blade IDE (built 2026-11-21, branch blade-ide)
 
