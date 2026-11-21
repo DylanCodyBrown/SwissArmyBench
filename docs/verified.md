@@ -4683,3 +4683,31 @@ Not checked: the registry walk itself (Windows only: flattened by hand, the same
 run here); the whole browser suite (only the files above); Edge (Chromium stands in); the generated script
 run as an Azure Function (its text changed in its docstring only).
 
+## The approved API and sandbox items, and three canvas gaps (2026-11-21, branch api-approved)
+
+forms_recon's browser test (tests/e2e/test_forms_recon_app.py), which failed on the base (its canvas named session
+keys the widget contract removed), passes rewired to the contract: the Sales ledger reaches the designer through
+form_designer's new `start_from` In, the designer's `saved` Event calls PUT /forms/{form_id}, the month's
+workbook loads, October reconciles (28 matched, 2 differences, 1 only in the entries). The Streamlit Python here
+lacked openpyxl (the Excel upload showed its install note): run with an overlay Python adding the main venv's
+openpyxl beside the shared Streamlit venv, never changing that venv.
+
+Checked by tests (made-up data): a saved connection called Sandbox refused (the form, a blade, a rename); a
+25,003-row read through the DuckDB and DB-API mocks whole, a gone page said; views, SELECT INTO tables and
+sequences through the PostgreSQL and T-SQL mocks, listed by tables() and columns(), refused over a user's
+table, undone by Reset; one Allow covering the agent's writes, Stop asking again; explorer_browse and
+explorer_search sorted by rows; LIST, STRUCT and MAP cells edited as JSON (a wrong key and text that is not JSON
+refused); the body check (13 refusals naming their fields: wrong types, missing, unknown, nested, list items,
+dataclasses; 3.0 and "3" taken for an int as FastAPI takes them) in tests/test_api_body_check.py; keys (Add, set later, Reset, an older checkpoint, rows that
+repeat one, New endpoint from a table) in tests/test_sandbox_keys.py; API.py's squiggles and completion
+(columns in a three-quoted SQL string, sab_api's names, Jedi's hover on sab_api's connection) in
+tests/test_api_editor.py; a hidden titled container (no space, its widget still rendered); the viewer's email, id
+and roles from a made-up X-MS-CLIENT-PRINCIPAL only with WEBSITE_SITE_NAME, empty in Play (AppTest); a launched
+run's columns read by the Canvas. In Chromium: the APIs page's slim bar (four buttons, Properties folded, New
+endpoint and Export in "…", Export saying its target), the 422 naming row.order_id in Try it, API.py's
+Endpoints panel on the Scripts page answering a Try it.
+
+Not checked: a real App Service sign-in's headers reaching st.context (made-up claims only); a real Azure SQL
+or PostgreSQL refusing a duplicate key (DuckDB's words rewritten); paging memory on a 10M-row read through a
+mock (it holds the rest as Arrow, by design the same as the real client's fetchall); the JSON box in the
+desktop app's window.

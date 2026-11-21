@@ -196,7 +196,7 @@ class TestLink(mocks.Link):
         super().__init__("", error)
         self.client = client
 
-    def ask(self, op: str, **body: Any) -> dict[str, Any]:
+    def _post(self, op: str, body: dict[str, Any]) -> dict[str, Any]:
         answer = self.client.post("/sandbox/data", json={"op": op} | body, headers=AUTH)
         if answer.status_code != 200:
             raise self.error(answer.json()["error"])
@@ -247,8 +247,79 @@ def test_the_same_code_reads_sqlite_and_its_mock_alike(boxed: TestClient, tmp_pa
     cursor = mock.cursor()
     cursor.execute("UPDATE orders SET amount = ? WHERE order_id = ?", (1.0, 1))
     assert cursor.rowcount == 1
-    with pytest.raises(mocks.MockError, match="cannot run a CREATE statement"):
+    with pytest.raises(mocks.MockError, match="makes a table from a query"):
         mock.execute("CREATE TABLE x (a INT)")
+
+
+def test_a_read_past_one_answer_comes_back_whole_as_the_real_client_gives_it(
+    boxed: TestClient, tmp_path: Path
+) -> None:
+    """MAX_ROWS_ANSWERED is one answer's size, not a cut (the test app's gap 10): every real client hands back
+    every row, so the mock follows the rest page by page; a page asked for once it is gone is said."""
+    from swissarmybench.domain import sandbox as rules
+
+    many = rules.MAX_ROWS_ANSWERED * 2 + 3
+    _put(boxed, tmp_path, "lines", pa.table({"line_id": list(range(many)), "tags": [["a", "b"]] * many}))
+    duck = mocks.MockDuckDB(TestLink(boxed))
+    rows = duck.execute("SELECT line_id, tags FROM lines ORDER BY line_id").fetchall()
+    assert len(rows) == many and rows[-1] == (many - 1, ["a", "b"]) and rows[0][0] == 0
+    assert len(duck.execute("SELECT * FROM lines").df()) == many
+    db = mocks.MockDbApi("Sandbox", "postgres", TestLink(boxed))
+    assert [
+        r[0] for r in db.execute("SELECT line_id FROM lines WHERE line_id >= %s", (5,)).fetchall()
+    ] == list(range(5, many))
+    first = boxed.post(
+        "/sandbox/data",
+        json={"op": "sql", "connection": "Sandbox", "sql": "SELECT * FROM lines"},
+        headers=AUTH,
+    ).json()
+    assert len(first["rows"]) == rules.MAX_ROWS_ANSWERED and first["left"] == many - rules.MAX_ROWS_ANSWERED
+    second = boxed.post("/sandbox/data", json={"op": "more", "more": first["more"]}, headers=AUTH).json()
+    assert len(second["rows"]) == rules.MAX_ROWS_ANSWERED and second["more"]
+    again = boxed.post("/sandbox/data", json={"op": "more", "more": first["more"]}, headers=AUTH)
+    assert again.status_code == 404 and "read it again" in again.json()["error"]
+
+
+def test_an_api_makes_views_tables_and_sequences_and_reset_undoes_them(
+    boxed: TestClient, tmp_path: Path
+) -> None:
+    """The test app's gaps 8 and 9: CREATE VIEW, CREATE TABLE AS (T-SQL's SELECT INTO) and sequences through
+    the mock, each listed by tables() and columns(); never over a table the user added; Reset undoes them."""
+    _put(boxed, tmp_path, "orders", pa.table({"order_id": [1, 2, 3], "region": ["West", "East", "West"]}))
+    pg = mocks.MockDbApi("Sandbox", "postgres", TestLink(boxed))
+    ms = mocks.MockSqlServer("Sandbox", TestLink(boxed, mocks.SqlServerError))
+    with pytest.raises(mocks.MockError, match="a view cannot hold a value given apart"):
+        pg.execute("CREATE VIEW west AS SELECT order_id FROM orders WHERE region = %s", ("West",))
+    pg.execute("CREATE VIEW west AS SELECT order_id FROM orders WHERE region = 'West'")
+    assert pg.execute("SELECT count(*) FROM west").fetchone() == (2,)
+    ms.cursor().execute("SELECT order_id, region INTO dbo.east FROM orders WHERE region = ?", "East")
+    ms.cursor().execute("CREATE SEQUENCE order_no START WITH 100")
+    ms.cursor().execute("INSERT INTO east (order_id, region) VALUES (NEXT VALUE FOR order_no, 'North')")
+    assert [r[0] for r in pg.execute("SELECT order_id FROM east ORDER BY 1").fetchall()] == [2, 100]
+    assert pg.tables() == ms.tables() == ["east", "orders", "west"]
+    assert pg.columns("WEST") == [{"name": "order_id", "type": "BIGINT", "key": False}]
+    with pytest.raises(mocks.MockError, match="no table 'nope'"):
+        pg.columns("nope")
+    listed = {t["name"]: t for t in boxed.get("/sandbox", headers=AUTH).json()["tables"]}
+    assert listed["west"]["source_words"] == "Made by the API (a view)"
+    with pytest.raises(
+        mocks.MockError, match="orders is a sandbox table you added: an API cannot replace it"
+    ):
+        pg.execute("CREATE OR REPLACE VIEW orders AS SELECT 1 AS one")
+    with pytest.raises(mocks.MockError, match="cannot drop it"):
+        pg.execute("DROP TABLE orders")
+    with pytest.raises(mocks.MockError, match="a table from a query"):
+        pg.execute("CREATE TABLE notes (a INT)")
+    pg.execute("DROP VIEW west")
+    assert pg.tables() == ["east", "orders"]
+    pg.execute("CREATE VIEW west AS SELECT order_id FROM orders WHERE region = 'West'")
+    assert boxed.post("/sandbox/reset", json={}, headers=AUTH).status_code == 200
+    assert pg.tables() == ["orders"]
+    assert set(boxed.get("/sandbox", headers=AUTH).json()["tables"][0]) and [
+        t["name"] for t in boxed.get("/sandbox", headers=AUTH).json()["tables"]
+    ] == ["orders"]
+    with pytest.raises(mocks.MockError):
+        pg.execute("SELECT nextval('order_no')")
 
 
 @pytest.fixture

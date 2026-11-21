@@ -59,10 +59,23 @@ JSON pages (Dataverse, SharePoint, web calls, request bodies) become Arrow throu
 catalog's types (what convert.py was to be: it folds into the adapter). A source plugs in by its three functions;
 a new extension adds sources, never another reader.
 
+## Shared core, and each project type's own architecture
+
+The owner: "Each project type gets its own architecture but the adapter file, the connections, the APIs that all
+stays the same structure for the most part." So every project, whatever its type, has the same core files with the
+same structure; a project type (Streamlit, Power BI, Accounting, Power Apps, Databricks next) adds only its own
+files on top, and never reshapes the core:
+
+| Always the same structure (every type) | Each type's own |
+|---|---|
+| `sab_adapter.py`, `connections.py`, `API.py`, `data.py` (the grids) | its app or deliverable: Streamlit's `app.py` and `widgets.py`; Power BI's `.pbip`; Accounting's `workbook.py`; a code app's `src/`; Databricks' to be designed |
+
 ## The exported project: the fewest files that build the app
 
 A file is exported only when the app uses it, and only the parts it uses (only the connections, grids, widgets and
 endpoints the app touches; no unused helper):
+
+For a Streamlit project:
 
 | File | What it is | Made or yours |
 |---|---|---|

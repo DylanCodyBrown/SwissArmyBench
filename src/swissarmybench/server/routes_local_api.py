@@ -1,13 +1,15 @@
 """The project's local sandbox API (services/local_api.py): API.py read, run, called.
 
-GET   /local-api             API.py's settings, endpoints (each one's data words), models, problems, OpenAPI,
-                             whether it runs                                                      api(state)
+GET   /local-api             API.py's settings, endpoints (each one's data words), models, problems, whether
+                             it runs; ?full=true: its OpenAPI document too                        api(state)
 POST  /local-api/new         API.py made when the project has none; its settings                  api(new)
 PUT   /local-api/settings    {name, description, target, base_path}: its header
 api(settings)
 POST  /local-api/run         hosted on 127.0.0.1 (started again when API.py changes)              api(run)
 POST  /local-api/stop                                                                             api(stop)
 POST  /local-api/call        {method, path, query, body}: one request (the agent's writes on Allow) api(call)
+POST  /local-api/agent-writes  {allow}: the agent's writes for the rest of this session (one Allow; the
+                             sandbox only); allow false stops them                         api(agent_writes)
 GET   /local-api/log         its requests: method, path, status, ms, rows                         api(log)
 GET   /local-api/address     where it runs and its key (this computer's own callers)              api(address)
 GET   /local-api/openapi.json  its OpenAPI document
@@ -42,18 +44,23 @@ async def _answered(value: Any) -> Any:
 def routes(api: LocalApi, export: ApiExport) -> list[BaseRoute]:
     async def openapi(request: Request) -> Response:
         try:
-            state = await api.state()
+            state = await api.state(full=True)
             return json_response(state.get("openapi") or {})
         except Exception as error:
             return error_response(error)
 
+    async def state(request: Request) -> Response:
+        full = request.query_params.get("full", "").lower() in ("1", "true", "yes")
+        return await with_actor(lambda who: api.state(None, who, full))(request)
+
     return [
-        Route("/local-api", with_actor(lambda who: api.state(None, who))),
+        Route("/local-api", state),
         Route("/local-api/new", with_body(api.new), methods=["POST"]),
         Route("/local-api/settings", with_body(api.set_settings), methods=["PUT"]),
         Route("/local-api/run", with_body(api.run), methods=["POST"]),
         Route("/local-api/stop", with_body(api.stop), methods=["POST"]),
         Route("/local-api/call", with_body(api.call), methods=["POST"]),
+        Route("/local-api/agent-writes", with_body(api.set_agent_writes), methods=["POST"]),
         Route("/local-api/log", with_actor(lambda who: api.log(None, who))),
         Route("/local-api/address", with_actor(lambda who: api.address(None, who))),
         Route("/local-api/openapi.json", openapi),

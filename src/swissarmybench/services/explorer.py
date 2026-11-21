@@ -21,12 +21,13 @@ Names only: no provider answers a value, a row or a secret.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import explorer as rules
+from swissarmybench.domain import sandbox as boxes
 from swissarmybench.domain import web_calls
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connection_swap import Place
@@ -100,7 +101,7 @@ class Explorer:
         return {
             "query": {"kinds": [k for k in rules.KINDS if k in query.kinds], "connection": query.connection},
             "connections": connections,
-            "sections": rules.browse_sections(results, query),
+            "sections": rules.browse_sections(results, query, _sandbox_sort(given)),
         }
 
     async def table(self, params: Any) -> dict[str, Any]:
@@ -160,7 +161,16 @@ class Explorer:
             offers += answer.offers
         if query.connection is not None:
             offers = [o for o in offers if rules.same_name(str(o["connection"]), query.connection)]
-        return rules.grouped(rules.ranked(results, query), query, offers)
+        ranked = rules.ranked(results, query)
+        sort = _sandbox_sort(given)
+        return rules.grouped(rules.sandbox_order(ranked, sort) if sort else ranked, query, offers)
+
+
+def _sandbox_sort(given: Mapping[str, Any]) -> tuple[str, bool] | None:
+    """The Sandbox section's sort asked for ({"sort", "order"}: the sandbox list's own), or None."""
+    if not given.get("sort") and not given.get("order"):
+        return None
+    return boxes.check_sort(given.get("sort"), given.get("order"))
 
 
 # ===== the built-in providers =====

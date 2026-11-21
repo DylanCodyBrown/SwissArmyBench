@@ -48,15 +48,24 @@ _ENV = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 MAX_ACTIONS = 8
 OUT_KEY = "sab:"  # an Out's session state key: sab:<instance>.<port>
 VIEWER = "app.viewer"  # the app's own Out: who is viewing (the runtime's viewer())
+# The viewer's other claims (the owner approved, 2026-11-21): only what the host's sign-in gives (Azure App
+# Service's, Streamlit's st.user); empty when it does not, never this computer's on a shared run.
+VIEWER_OUTS = {
+    VIEWER: "str",
+    "app.viewer_email": "str",
+    "app.viewer_id": "str",
+    "app.viewer_roles": "list[str]",
+}
 APP_OUTS: dict[str, dict[str, Any]] = {
-    VIEWER: {
-        "type": "str",
+    ref: {
+        "type": kind,
         "instance": "app",
         "widget": "app",
-        "port": "viewer",
+        "port": ref.split(".", 1)[1],
         "direction": "out",
         "page": "",
     }
+    for ref, kind in VIEWER_OUTS.items()
 }
 
 

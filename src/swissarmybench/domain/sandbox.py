@@ -38,7 +38,9 @@ META_FILE = "sandbox.json"
 GRID_PREFIX = "sandbox_"  # an open grid of a sandbox table: sandbox_orders
 FORMAT = 1
 PLAIN = "duckdb"  # a table from a file or made empty: mocked as a plain DuckDB client
-MAX_ROWS_ANSWERED = 10_000  # a query's rows sent back at most (the API's own paging says the rest)
+MAX_ROWS_ANSWERED = 10_000  # a query's rows sent back at once (a mock's read: the rest in pages of as many)
+MAX_KEPT_READS = 16  # a mock's reads whose rest is kept for its next page at once (the oldest dropped)
+REST_GONE = "The rest of that read is gone (the sandbox keeps the last 16 unfinished reads): read it again."
 MAX_WRITE_ROWS = 5_000  # rows one insert takes
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
@@ -365,6 +367,8 @@ def source_words(source: Mapping[str, Any]) -> str:
         return "Made empty, by its columns"
     if kind == "structure":
         return f"From the structure {source.get('structure', '')}"
+    if kind == "made":
+        return f"Made by the API ({'a view' if source.get('what') == 'view' else 'a table from a query'})"
     return "Added"
 
 
@@ -380,6 +384,12 @@ COLOUR = "#3a3aa0"  # indigo
 def is_sandbox(name: Any) -> bool:
     """`name` is the Sandbox's (any case): never a real connection, never exported as one."""
     return str(name or "").strip().casefold() == NAME.casefold()
+
+
+NAME_TAKEN = (
+    "Sandbox is the project's sandbox's name in DuckDB SQL ([Sandbox].orders): give the connection "
+    "another name."
+)
 
 
 # ===== sorting (the owner, 2026-11-21: "We need all sandbox tables to be sortable") =====
@@ -501,7 +511,35 @@ _TYPE_WORDS = (
 _YES = {"yes": True, "y": True, "true": True, "1": True, "no": False, "n": False, "false": False, "0": False}
 
 
+# A LIST, STRUCT or MAP column (the owner approved, 2026-11-21: edited as a small JSON box, type-checked): its
+# type as DuckDB names it, of these characters only (a struct's field names quoted by DuckDB itself).
+_NESTED_CHARS = re.compile(r'^[A-Za-z0-9_ ,()\[\]"]+$')
+
+
+def is_nested(duck_type: str) -> bool:
+    """A list (INTEGER[], VARCHAR[3]), a struct (STRUCT(...)) or a map (MAP(...)): a JSON value in its
+    cell."""
+    upper = duck_type.upper().strip()
+    return upper.endswith("]") or upper.startswith(("STRUCT(", "MAP("))
+
+
+def _nested_words(duck_type: str) -> str:
+    upper = duck_type.upper().strip()
+    if upper.endswith("]"):
+        return "a list, written in JSON as [1, 2]"
+    if upper.startswith("MAP("):
+        return 'a map, written in JSON as {"key": 1}'
+    return 'a record, written in JSON as {"field": 1}'
+
+
+def cast_mark(cast: str) -> str:
+    """The bound value's mark as it is written into its column: a nested one from its JSON text."""
+    return f"CAST(?::JSON AS {cast})" if is_nested(cast) else f"CAST(? AS {cast})"
+
+
 def type_words(duck_type: str) -> str:
+    if is_nested(duck_type):
+        return _nested_words(duck_type)
     upper = duck_type.upper()
     for names, words in _TYPE_WORDS:
         if upper.split("(")[0].strip() in names or upper.startswith(names):
@@ -511,6 +549,10 @@ def type_words(duck_type: str) -> str:
 
 def editable_type(column: str, duck_type: str) -> str:
     """A column's type as an edit's CAST names it (DuckDB's own words for a plain type), or SandboxError."""
+    if is_nested(duck_type):
+        if not _NESTED_CHARS.match(duck_type.strip()):
+            raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
+        return duck_type.strip()
     upper = duck_type.upper().strip()
     if not _EDITABLE_TYPE.match(upper):
         raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
@@ -521,6 +563,18 @@ def cell_value(value: Any, duck_type: str) -> Any:
     """What a cell edit sent, as it is bound: an empty box is blank for anything but text; yes and no for a
     yes/no column; every other value as sent (DuckDB's CAST checks it)."""
     upper = duck_type.upper()
+    if is_nested(duck_type):  # its JSON text (DuckDB casts it to the column's own type)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if not isinstance(value, str):
+            return json.dumps(value)
+        try:
+            json.loads(value)
+        except ValueError:
+            raise SandboxError(
+                f"{value[:40]!r} is not JSON: this column takes {_nested_words(duck_type)}."
+            ) from None
+        return value
     if isinstance(value, str):
         if value == "" and not upper.startswith(_TEXT_TYPES):
             return None
@@ -554,8 +608,21 @@ def edit_update(
     if column not in columns:
         raise SandboxError(f"{table} has no column named {column}.")
     where, params = _row_where(table, columns, row)
-    sql = f"UPDATE {quote(table)} SET {quote(column)} = CAST(? AS {cast}) WHERE {where}"  # noqa: S608
+    sql = f"UPDATE {quote(table)} SET {quote(column)} = {cast_mark(cast)} WHERE {where}"  # noqa: S608
     return Statement(sql, [value, *params])
+
+
+def edit_update_where(
+    table: str, columns: Sequence[str], values: Mapping[str, tuple[Any, str]], where: Any
+) -> Statement:
+    """The rows `where` picks, each column given set (its value and its CAST type, a nested one from JSON)."""
+    if not values:
+        raise SandboxError("update takes the values to set: a dict of column to value.")
+    known = _known(table, columns, values)
+    sets = ", ".join(f"{quote(known[c])} = {cast_mark(cast)}" for c, (_, cast) in values.items())
+    clause, more = _where(table, columns, where)
+    sql = f"UPDATE {quote(table)} SET {sets} WHERE {clause}"  # noqa: S608 (checked names and types)
+    return Statement(sql, [v for v, _ in values.values()] + more)
 
 
 def edit_delete(table: str, columns: Sequence[str], row: Sequence[Any]) -> Statement:
@@ -568,9 +635,86 @@ def edit_insert(table: str, values: Mapping[str, tuple[Any, str]]) -> Statement:
     if not values:
         return Statement(f"INSERT INTO {quote(table)} DEFAULT VALUES", [])
     names = ", ".join(quote(c) for c in values)
-    marks = ", ".join(f"CAST(? AS {cast})" for _, cast in values.values())
+    marks = ", ".join(cast_mark(cast) for _, cast in values.values())
     sql = f"INSERT INTO {quote(table)} ({names}) VALUES ({marks})"  # noqa: S608 (checked names and types)
     return Statement(sql, [v for v, _ in values.values()])
+
+
+# ===== what an API makes through its mock (the test app's gap 8): views, query tables, sequences =====
+
+
+def not_made(name: str, verb: str) -> str:
+    """The refusal of a definition over a table the user added: only what an API made is replaced or
+    dropped."""
+    doing = "replace" if verb == "create" else "drop"
+    return (
+        f"{name} is a sandbox table you added: an API cannot {doing} it (make a view or table under another "
+        "name; remove a table on the Sandbox page)."
+    )
+
+
+def made_record(what: str, client: Mapping[str, Any], at: str) -> dict[str, Any]:
+    """sandbox.json's record of a view or a query's table an API made: its connection's table from then on."""
+    connection = str(client.get("connection") or NAME)
+    return {
+        "source": {"kind": "made", "what": what, "connection": connection},
+        "client": dict(client),
+        "added_at": at,
+    }
+
+
+def unmade(meta: Meta, there: Iterable[str]) -> list[str]:
+    """After Reset or Restore: the records of what an API made that the file no longer holds, taken out."""
+    held = {t.casefold() for t in there}
+    gone = [
+        t
+        for t, record in meta.tables.items()
+        if (record.get("source") or {}).get("kind") == "made" and t.casefold() not in held
+    ]
+    for t in gone:
+        meta.tables.pop(t, None)
+        meta.log.pop(t, None)
+    return gone
+
+
+# ===== the sandbox keeps its keys (the owner approved, 2026-11-21): a duplicate refused as a database
+# would =====
+
+
+def check_key(key: Any, columns: Iterable[str]) -> list[str]:
+    """A primary key asked for: its columns' own names (any case), or SandboxError."""
+    wanted = [key] if isinstance(key, str) else list(key) if isinstance(key, (list, tuple)) else []
+    if not wanted or not all(isinstance(k, str) and k.strip() for k in wanted):
+        raise SandboxError("A key is one column's name, or a list of them.")
+    by_case = {c.casefold(): c for c in columns}
+    out = []
+    for k in wanted:
+        found = by_case.get(k.strip().casefold())
+        if found is None:
+            raise SandboxError(f"There is no column named {k} to be the key.")
+        out.append(found)
+    return list(dict.fromkeys(out))
+
+
+_DUPLICATE = re.compile(r'Duplicate key "(.+?)" violates (?:primary key|unique) constraint', re.S)
+_BLANK = re.compile(r'NOT NULL constraint failed: "?([^".]+)\.?([^"]*)"?', re.S)
+
+
+def db_words(error: BaseException | str) -> str:
+    """DuckDB's refusal of a write in one sentence, a key's as a database says it (its key and value)."""
+    text = str(error).split("\n")[0]
+    found = _DUPLICATE.search(text)
+    if found:
+        return f"Duplicate key: a row with {found.group(1)} is there already (its primary key)."
+    if "Data contains duplicates on indexed column" in text:
+        return "Duplicate key: two rows have the same key, so it cannot be the table's primary key."
+    blank = _BLANK.search(text)
+    if blank and "PRIMARY" in text.upper():
+        return "A key column cannot be blank: every row needs its primary key."
+    if blank:
+        column = blank.group(2) or blank.group(1)
+        return f"{column} cannot be blank."
+    return text
 
 
 def touched(meta: Meta, tables: Iterable[str], at: str) -> None:

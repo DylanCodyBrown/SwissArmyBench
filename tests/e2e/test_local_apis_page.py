@@ -87,8 +87,17 @@ def test_sandbox_new_endpoint_run_try_a_post_and_reset(
     expect(panel.locator("tr[data-table='orders']")).to_contain_text("Plain DuckDB client")
     apis = page.locator(".local-apis")
     expect(apis.get_by_role("button", name="Run")).to_be_visible()
-    # New endpoint from a table: the CRUD set in API.py.
-    apis.get_by_role("button", name="New endpoint from a table…").click()
+    # One slim bar (the blade IDE's): Properties closed until asked for, its target there; the rest in "…".
+    bar = apis.locator(".local-api-bar")
+    expect(bar.get_by_role("button")).to_have_count(4)  # Run, Open API.py, Properties, More
+    expect(apis.locator(".local-api-props")).to_be_hidden()
+    bar.get_by_role("button", name="Properties").click()
+    expect(apis.locator(".local-api-props").get_by_label("Its target")).to_be_visible()
+    shot(page, "api-slim-bar-properties", ".local-apis")
+    bar.get_by_role("button", name="Properties").click()
+    # New endpoint from a table (the bar's "…"): the CRUD set in API.py.
+    bar.get_by_role("button", name="More").click()
+    page.get_by_role("menuitem", name="New endpoint from a table…").click()
     made = page.get_by_role("dialog", name="New endpoint from a table")
     expect(made.get_by_label("Its key", exact=True)).to_be_visible()
     made.get_by_label("Its key", exact=True).select_option("order_id")
@@ -150,11 +159,12 @@ def test_a_refusal_in_place_a_try_it_kept_over_a_restart_and_api_py_on_the_scrip
     create.get_by_label("Body").fill('{"order_id": "seven"}')
     create.get_by_role("button", name="Send").click()
     note = create.locator(".error-note")
-    expect(note).to_contain_text("Could not convert string 'seven'", timeout=20000)
+    # The body is checked against its model before the endpoint runs: 422 naming the field.
+    expect(note).to_contain_text("row.order_id is a whole number, not 'seven'.", timeout=20000)
     expect(note).to_contain_text(re.compile(r"API\.py line \d+"))
     expect(note.get_by_role("button", name="Go to line")).to_be_visible()
-    expect(create.locator(".local-api-said.bad")).to_contain_text("500")
-    expect(apis.locator(".local-api-log tbody tr").first).to_contain_text("Could not convert", timeout=20000)
+    expect(create.locator(".local-api-said.bad")).to_contain_text("422")
+    expect(apis.locator(".local-api-log tbody tr").first).to_contain_text("whole number", timeout=20000)
     shot(page, "try-it-refusal-in-place")
     # API.py saved from elsewhere: the API starts again, and the open Try it keeps what was typed.
     create.get_by_label("Body").fill('{"order_id": 77, "region": "North"}')
@@ -169,11 +179,16 @@ def test_a_refusal_in_place_a_try_it_kept_over_a_restart_and_api_py_on_the_scrip
     expect(create.locator(".local-api-said")).to_contain_text("201", timeout=20000)
     expect(create.locator(".error-note")).to_have_count(0)
     # Export with no rows: the warning is in the dialog, not only in README.md.
-    apis.get_by_role("button", name="Export…").click()
+    apis.locator(".local-api-bar").get_by_role("button", name="More").click()
+    page.get_by_role("menuitem", name="Export…").click()
     dialog = page.locator("dialog[open]")
-    assert dialog.get_by_label("Target").locator("option").all_inner_texts() == [
-        t["label"] for t in call(server, "GET", "/local-api/targets")["targets"]
-    ]
+    # Its target is asked once (New, or Properties): said here, never asked again.
+    chosen = call(server, "GET", "/local-api")["settings"]["target"]
+    label = next(
+        t["label"] for t in call(server, "GET", "/local-api/targets")["targets"] if t["id"] == chosen
+    )
+    expect(dialog.locator(".local-api-target")).to_contain_text(label)
+    expect(dialog.locator("select")).to_have_count(0)
     dialog.get_by_role("button", name="Export", exact=True).click()
     expect(dialog.locator(".error-note.warning")).to_contain_text("has no rows in this export", timeout=20000)
     shot(page, "export-warns-of-no-rows", "dialog[open]")
@@ -190,6 +205,18 @@ def test_a_refusal_in_place_a_try_it_kept_over_a_restart_and_api_py_on_the_scrip
     expect(scripts.locator(".view-lines").first).not_to_contain_text("region Tables")
     expect(scripts.locator(".line-numbers").first).to_have_text("1")
     expect(scripts.get_by_role("button", name="Run as scheduled")).to_have_count(0)
+    # Try it beside the code: API.py's Endpoints panel, closed until its toggle opens it.
+    expect(scripts.locator(".wb-mode-endpoints")).to_have_count(0)
+    scripts.locator(".wb-mode-toggle-endpoints").click()
+    pane = scripts.locator(".wb-mode-endpoints")
+    expect(pane.locator(".local-api-endpoint")).to_have_count(5, timeout=20000)
+    listing = pane.locator(".local-api-endpoint[data-endpoint='list_orders']")
+    listing.get_by_role("button", name="Try it").click()
+    listing.get_by_role("button", name="Send", exact=True).click()
+    expect(listing.locator(".local-api-said")).to_contain_text("200", timeout=20000)
+    if SHOTS:
+        scripts.wait_for_timeout(500)
+        scripts.screenshot(path=str(Path(SHOTS) / "api-py-endpoints-beside-the-code.png"))
     call(server, "POST", "/local-api/stop", {})
     run.click()
     expect(scripts.locator(".toast", has_text="Running on http://127.0.0.1:")).to_be_visible(timeout=30000)

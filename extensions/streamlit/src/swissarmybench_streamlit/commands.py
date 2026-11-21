@@ -171,7 +171,11 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
     opt("parent", "A container's id; empty for the page."),
     opt("layout", "desktop (default) or phone: whose places these are."),
     opt("show", "both, desktop or phone: the layouts it shows in."),
-    opt("hidden", "A widget: true is Hidden in the app (it runs, its Outs flow, it takes no space).", "bool"),
+    opt(
+        "hidden",
+        "A widget or a container: true is Hidden in the app (its widgets run, their Outs flow, it takes no space).",
+        "bool",
+    ),
 )
 def canvas_move(a: dict[str, Any]) -> Any:
     placed = any(a.get(k) is not None for k in ("x", "y", "w", "h", "parent"))

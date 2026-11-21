@@ -64,8 +64,9 @@ says so in one line.
   any width (desktop at 768 px and wider, phone below: a media query, no rerun). Every placing command takes
   `layout` (default desktop); an item made in one layout is placed in the other by itself (phone: stacked at
   full width in reading order). `canvas_move` with show (both, desktop or phone) hides an item in one layout;
-  `canvas_move hidden=true` makes a widget **Hidden in the app**: it runs and its Outs flow, the played,
-  launched and exported page give it no space (nor a container with no title holding only such widgets).
+  `canvas_move hidden=true` makes a widget or a container (a titled one too) **Hidden in the app**: its
+  widgets run and their Outs flow, the played, launched and exported page give it no space (nor a container
+  with no title holding only such widgets).
 - `canvas_add_container` (page, parent, x, y, w, h, props: title, border, padding, height fit or fixed,
   scrollable, resizable, background, columns), `canvas_insert_widget` (widget, parent: no container makes
   one around it; x, y; values), `canvas_move` (x, y, w, h; parent: into another container, empty for the
@@ -94,14 +95,17 @@ says so in one line.
   <widget>.<port>", its `wires` entry `cross` with its `page`), who is viewing (`{"out": "app.viewer"}`, a
   str: a sign-in the host vouches for, Azure App Service's headers on App Service or Streamlit's st.user,
   else this computer's user name in Play and Launch, else "unknown"; Dev Tunnels passes no viewer's name, so
-  a shared app says "unknown"; an In[str] called viewer takes it by itself), a page value (`{"page": "k"}`), a GET endpoint's answer
+  a shared app says "unknown"; an In[str] called viewer takes it by itself), the viewer's
+  `app.viewer_email`, `app.viewer_id` (the account's object id) and `app.viewer_roles` (list[str]): only what
+  App Service's sign-in (X-MS-CLIENT-PRINCIPAL, on App Service) or st.user gives, empty otherwise, never this
+  computer's (an In of the same name takes each by itself; sab_canvas.viewer() returns them all), a page value (`{"page": "k"}`), a GET endpoint's answer
   (`{"endpoint": "GET /orders"}`), a variable, a typed value, or for a list[Table] `{"tables": [...]}`. An
   unwired In takes the page's one Out of its name and a fitting type by itself (`auto`). An Event's wire is
   `{"actions": [...]}`, its actions in order: `{"do": "call", "endpoint": "POST /visits", "body": "values" or {field: "values.x"},
   "params": {name: path}}` (the local sandbox API; an export reads SAB_API_URL, SAB_API_KEY, SAB_API_BASE,
   listed in its README.md), `{"do": "set", "key", "value": path}`, `{"do": "rerun"}`. `canvas_state`'s
   `wiring`: each instance's ports, `sources`, `readers` of each Out, `wires`, `columns` (each Out[Table]'s
-  columns: declared Table[Row], else as Play last ran it), and `broken` (a deleted widget
+  columns: declared Table[Row], else as Play or Launch last ran it), and `broken` (a deleted widget
   or Out, a type changed: both ends; `canvas_play` lists them too). The page runs each widget after what it
   reads. `canvas_set_values` with an In's name and a table's name wires it (an older canvas's table value is
   wired so as it opens).

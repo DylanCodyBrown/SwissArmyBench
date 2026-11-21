@@ -44,7 +44,6 @@
                 "query": {
                   "full": true
                 },
-                "result_key": "forms_list",
                 "show_answer": false
               },
               "widget": "api_bridge"
@@ -68,7 +67,6 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "definition_key": "form_definition",
                 "forms": [
                   {
                     "fields": [
@@ -129,10 +127,14 @@
                     "title": "Store cash count"
                   }
                 ],
-                "forms_key": "forms_list",
                 "label": "Form"
               },
-              "widget": "form_picker"
+              "widget": "form_picker",
+              "wires": {
+                "forms_in": {
+                  "out": "w1.listed"
+                }
+              }
             }
           ],
           "id": "c1",
@@ -184,11 +186,32 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "button": "Save form",
-                "definition_key": "form_definition",
-                "save_event": "form_saved"
+                "button": "Save form"
               },
-              "widget": "form_designer"
+              "widget": "form_designer",
+              "wires": {
+                "saved": {
+                  "actions": [
+                    {
+                      "body": {
+                        "fields": "fields",
+                        "title": "title"
+                      },
+                      "do": "call",
+                      "endpoint": "PUT /forms/{form_id}",
+                      "params": {
+                        "form_id": "name"
+                      }
+                    },
+                    {
+                      "do": "rerun"
+                    }
+                  ]
+                },
+                "start_from": {
+                  "out": "w2.form_definition"
+                }
+              }
             }
           ],
           "id": "c2",
@@ -221,36 +244,6 @@
             }
           },
           "children": [
-            {
-              "at": {
-                "desktop": {
-                  "h": 60,
-                  "w": 0.960976,
-                  "x": 0.019512,
-                  "y": 40
-                },
-                "phone": {
-                  "h": 60,
-                  "w": 0.958974,
-                  "x": 0.020513,
-                  "y": 40
-                }
-              },
-              "id": "w4",
-              "kind": "widget",
-              "show": "both",
-              "values": {
-                "body_key": "form_saved.payload",
-                "endpoint": "PUT /forms/{form_id}",
-                "path_values": {
-                  "form_id": "@form_saved.payload.name"
-                },
-                "result_key": "saved_form",
-                "show_answer": false,
-                "trigger_key": "form_saved"
-              },
-              "widget": "api_bridge"
-            },
             {
               "at": {
                 "desktop": {
@@ -336,7 +329,6 @@
                 "query": {
                   "full": true
                 },
-                "result_key": "forms_list",
                 "show_answer": false
               },
               "widget": "api_bridge"
@@ -360,11 +352,14 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "definition_key": "form_definition",
-                "forms_key": "forms_list",
                 "label": "Form"
               },
-              "widget": "form_picker"
+              "widget": "form_picker",
+              "wires": {
+                "forms_in": {
+                  "out": "w6.listed"
+                }
+              }
             }
           ],
           "id": "c4",
@@ -434,8 +429,7 @@
                   "2025-11",
                   "2025-12"
                 ],
-                "placeholder": "Choose a month",
-                "state_key": "period"
+                "placeholder": "Choose a month"
               },
               "widget": "input_select"
             }
@@ -490,8 +484,7 @@
               "show": "both",
               "values": {
                 "default": "Ada Ashdown",
-                "label": "Your name",
-                "state_key": "loaded_by"
+                "label": "Your name"
               },
               "widget": "input_text"
             },
@@ -514,11 +507,14 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "button": "Add it",
-                "definition_key": "form_definition",
-                "save_event": "form_submitted"
+                "button": "Add it"
               },
-              "widget": "form_fill"
+              "widget": "form_fill",
+              "wires": {
+                "form_definition": {
+                  "out": "w7.form_definition"
+                }
+              }
             },
             {
               "at": {
@@ -543,18 +539,31 @@
                   "loaded_by": "@loaded_by",
                   "period": "@period",
                   "rows": [
-                    "@form_submitted.payload.values"
+                    "@trigger.values"
                   ],
                   "source": "typed"
                 },
                 "endpoint": "POST /forms/{form_id}/batches",
                 "path_values": {
-                  "form_id": "@form_definition.name"
+                  "form_id": "@form.name"
                 },
-                "show_answer": false,
-                "trigger_key": "form_submitted"
+                "show_answer": false
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "form": {
+                  "out": "w7.form_definition"
+                },
+                "loaded_by": {
+                  "out": "w9.value"
+                },
+                "period": {
+                  "out": "w8.value"
+                },
+                "trigger": {
+                  "out": "w10.saved"
+                }
+              }
             }
           ],
           "id": "c6",
@@ -606,8 +615,7 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "label": "Upload the month's workbook",
-                "out_key": "uploaded"
+                "label": "Upload the month's workbook"
               },
               "widget": "excel_upload"
             },
@@ -636,14 +644,17 @@
                   "store_id",
                   "amount"
                 ],
-                "in_key": "uploaded",
-                "out_key": "mapped",
                 "required_fields": [
                   "line_id",
                   "amount"
                 ]
               },
-              "widget": "excel_map_columns"
+              "widget": "excel_map_columns",
+              "wires": {
+                "uploaded": {
+                  "out": "w12.uploaded"
+                }
+              }
             },
             {
               "at": {
@@ -664,8 +675,6 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "in_key": "mapped",
-                "out_key": "valid",
                 "rules": [
                   {
                     "column": "line_id",
@@ -683,7 +692,12 @@
                   }
                 ]
               },
-              "widget": "excel_validate_rows"
+              "widget": "excel_validate_rows",
+              "wires": {
+                "mapped": {
+                  "out": "w13.mapped"
+                }
+              }
             },
             {
               "at": {
@@ -707,14 +721,14 @@
                 "body_extra": {
                   "loaded_by": "@loaded_by",
                   "period": "@period",
-                  "rows": "@valid",
+                  "rows": "@records",
                   "source": "excel"
                 },
                 "button": "Load the valid rows",
                 "endpoint": "POST /forms/{form_id}/batches",
                 "part_rows": 5000,
                 "path_values": {
-                  "form_id": "@form_definition.name"
+                  "form_id": "@form.name"
                 },
                 "rest_endpoint": "POST /batches/{batch_id}/rows",
                 "show_as": "metrics",
@@ -723,7 +737,21 @@
                   "rows"
                 ]
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "form": {
+                  "out": "w7.form_definition"
+                },
+                "loaded_by": {
+                  "out": "w9.value"
+                },
+                "period": {
+                  "out": "w8.value"
+                },
+                "records": {
+                  "out": "w14.valid"
+                }
+              }
             }
           ],
           "id": "c7",
@@ -790,7 +818,7 @@
                 "button": "Load the month from Trino's copy",
                 "endpoint": "POST /forms/{form_id}/batches/from-table",
                 "path_values": {
-                  "form_id": "@form_definition.name"
+                  "form_id": "@form.name"
                 },
                 "show_as": "metrics",
                 "show_fields": [
@@ -798,7 +826,18 @@
                   "rows"
                 ]
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "form": {
+                  "out": "w7.form_definition"
+                },
+                "loaded_by": {
+                  "out": "w9.value"
+                },
+                "period": {
+                  "out": "w8.value"
+                }
+              }
             }
           ],
           "id": "c8",
@@ -853,7 +892,7 @@
                 "auto": true,
                 "endpoint": "GET /forms/{form_id}/batches",
                 "path_values": {
-                  "form_id": "@form_definition.name"
+                  "form_id": "@form.name"
                 },
                 "query": {
                   "period": "@period"
@@ -868,7 +907,15 @@
                   "rows"
                 ]
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "form": {
+                  "out": "w7.form_definition"
+                },
+                "period": {
+                  "out": "w8.value"
+                }
+              }
             }
           ],
           "id": "c9",
@@ -931,7 +978,6 @@
                 "query": {
                   "full": true
                 },
-                "result_key": "forms_list",
                 "show_answer": false
               },
               "widget": "api_bridge"
@@ -955,11 +1001,14 @@
               "kind": "widget",
               "show": "both",
               "values": {
-                "definition_key": "form_definition",
-                "forms_key": "forms_list",
                 "label": "Form"
               },
-              "widget": "form_picker"
+              "widget": "form_picker",
+              "wires": {
+                "forms_in": {
+                  "out": "w18.listed"
+                }
+              }
             }
           ],
           "id": "c10",
@@ -1029,8 +1078,7 @@
                   "2025-11",
                   "2025-12"
                 ],
-                "placeholder": "Choose a month",
-                "state_key": "period"
+                "placeholder": "Choose a month"
               },
               "widget": "input_select"
             }
@@ -1089,8 +1137,7 @@
                 "options": [
                   "trino_sales_lines",
                   "d365_accounts"
-                ],
-                "state_key": "recon_source"
+                ]
               },
               "widget": "input_select"
             },
@@ -1114,8 +1161,7 @@
               "show": "both",
               "values": {
                 "default": "line_id",
-                "label": "Key field (the form's)",
-                "state_key": "recon_key_field"
+                "label": "Key field (the form's)"
               },
               "widget": "input_text"
             },
@@ -1139,8 +1185,7 @@
               "show": "both",
               "values": {
                 "default": "order_line_id",
-                "label": "Key column (the source's)",
-                "state_key": "recon_key_column"
+                "label": "Key column (the source's)"
               },
               "widget": "input_text"
             },
@@ -1164,8 +1209,7 @@
               "show": "both",
               "values": {
                 "default": "amount",
-                "label": "Compare field",
-                "state_key": "recon_compare_field"
+                "label": "Compare field"
               },
               "widget": "input_text"
             },
@@ -1189,8 +1233,7 @@
               "show": "both",
               "values": {
                 "default": "amount",
-                "label": "Compare column",
-                "state_key": "recon_compare_column"
+                "label": "Compare column"
               },
               "widget": "input_text"
             },
@@ -1218,7 +1261,6 @@
                 "maximum": 1000,
                 "minimum": 0,
                 "number_format": "%.2f",
-                "state_key": "recon_tolerance",
                 "step": 0.01
               },
               "widget": "input_number"
@@ -1245,36 +1287,59 @@
                 "body_extra": {
                   "compares": [
                     {
-                      "column": "@recon_compare_column",
-                      "field": "@recon_compare_field",
-                      "tolerance": "@recon_tolerance"
+                      "column": "@compare_column",
+                      "field": "@compare_field",
+                      "tolerance": "@tolerance"
                     }
                   ],
-                  "form_id": "@form_definition.name",
+                  "form_id": "@form.name",
                   "keys": [
                     {
-                      "column": "@recon_key_column",
-                      "field": "@recon_key_field"
+                      "column": "@key_column",
+                      "field": "@key_field"
                     }
                   ],
                   "source_period": "period",
-                  "source_table": "@recon_source",
-                  "title": "@form_definition.title",
+                  "source_table": "@source_table",
+                  "title": "@form.title",
                   "totals": [
                     {
-                      "column": "@recon_compare_column",
-                      "field": "@recon_compare_field"
+                      "column": "@compare_column",
+                      "field": "@compare_field"
                     }
                   ]
                 },
                 "button": "Save the reconciliation",
                 "endpoint": "PUT /recons/{recon_id}",
                 "path_values": {
-                  "recon_id": "@form_definition.name"
+                  "recon_id": "@form.name"
                 },
                 "show_answer": false
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "compare_column": {
+                  "out": "w25.value"
+                },
+                "compare_field": {
+                  "out": "w24.value"
+                },
+                "form": {
+                  "out": "w19.form_definition"
+                },
+                "key_column": {
+                  "out": "w23.value"
+                },
+                "key_field": {
+                  "out": "w22.value"
+                },
+                "source_table": {
+                  "out": "w21.value"
+                },
+                "tolerance": {
+                  "out": "w26.value"
+                }
+              }
             }
           ],
           "id": "c12",
@@ -1332,9 +1397,8 @@
                 "button": "Run the reconciliation",
                 "endpoint": "POST /recons/{recon_id}/runs",
                 "path_values": {
-                  "recon_id": "@form_definition.name"
+                  "recon_id": "@form.name"
                 },
-                "result_key": "run",
                 "show_as": "metrics",
                 "show_fields": [
                   "matched",
@@ -1344,7 +1408,15 @@
                   "duplicates"
                 ]
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "form": {
+                  "out": "w19.form_definition"
+                },
+                "period": {
+                  "out": "w20.value"
+                }
+              }
             },
             {
               "at": {
@@ -1373,8 +1445,7 @@
                   "only_source",
                   "duplicate",
                   "matched"
-                ],
-                "state_key": "result_status"
+                ]
               },
               "widget": "input_select"
             },
@@ -1404,7 +1475,7 @@
                 },
                 "query": {
                   "limit": 100,
-                  "status": "@result_status"
+                  "status": "@status"
                 },
                 "show_as": "table",
                 "show_fields": [
@@ -1415,7 +1486,15 @@
                   "source_values"
                 ]
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "run": {
+                  "out": "w28.answer"
+                },
+                "status": {
+                  "out": "w29.value"
+                }
+              }
             },
             {
               "at": {
@@ -1446,7 +1525,15 @@
                 },
                 "show_answer": false
               },
-              "widget": "api_bridge"
+              "widget": "api_bridge",
+              "wires": {
+                "loaded_by": {
+                  "out": "w32.value"
+                },
+                "run": {
+                  "out": "w28.answer"
+                }
+              }
             }
           ],
           "id": "c13",
@@ -1499,8 +1586,7 @@
               "show": "both",
               "values": {
                 "default": "Ada Ashdown",
-                "label": "Your name",
-                "state_key": "loaded_by"
+                "label": "Your name"
               },
               "widget": "input_text"
             }

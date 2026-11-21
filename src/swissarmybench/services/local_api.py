@@ -80,6 +80,8 @@ class Mocks(Protocol):
 
     async def listing(self) -> dict[str, Any]: ...
 
+    async def set_key(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
 
 def data_words(name: str, client: dict[str, Any] | None) -> str:
     """An endpoint's data in words: "Mock of Warehouse (sqlserver)", or why there is none yet."""
@@ -118,6 +120,10 @@ class LocalApi:
         self._key = ""
         self._data_key = ""
         self._failed: dict[str, Any] | None = None  # the last start's failure: {error, line}
+        # The project whose sandbox the agent may write through the API for the rest of this session (the
+        # owner approved, 2026-11-21: one Allow, the sandbox only, never live; Reset undoes it); None: each
+        # agent write asks.
+        self._agent_writes: str | None = None
         self._watch: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
         # The framework targets' ids (the export's registry fills it in: services/api_export.py).
@@ -181,7 +187,10 @@ class LocalApi:
     def running(self) -> bool:
         return self._runner is not None and self._runner.alive()
 
-    async def state(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+    async def state(self, body: Any = None, who: str = "user", full: bool = False) -> dict[str, Any]:
+        """API.py as every door reads it: its settings, endpoints (each one's data words, fields and made-up
+        request), models, problems, targets, whether it runs. `full`: its OpenAPI document too (the agent's
+        state is brief without it; the critic's proposal 11, approved 2026-11-21)."""
         folder = self._project()
         if folder is None:
             return {"project": None, "exists": False, "running": None}
@@ -225,12 +234,16 @@ class LocalApi:
             "endpoints": endpoints,
             "models": api.to_json()["models"],
             "problems": api.problems,
-            "openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path),
             "examples_file": rules.EXAMPLES_FILE,
             "targets": self.targets(),
             "running": self._running_json(),
             "failed": self._failed,
-        }
+            "agent_writes": self.agent_writes(),
+        } | (
+            {"openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path)}
+            if full
+            else {}
+        )
 
     def _running_json(self) -> dict[str, Any] | None:
         if not self.running() or self._runner is None:
@@ -435,13 +448,21 @@ class LocalApi:
         written = text.rstrip("\n") + "\n" + ("\n" + needs if needs else "") + block
         self._files.write(self.path(), written)
         await self._told(who, "local_api_scaffold", table=table["name"])
+        note = ""
+        if not any(c.get("key") for c in table["columns"]):  # the endpoint's key: the sandbox keeps it too
+            key = scaffold_rules.chosen_key(table["columns"], given.get("key") or None)
+            try:
+                await self._mocks.set_key({"table": table["name"], "key": [key]}, who)
+            except (ValueError, LookupError, Conflict) as error:
+                note = f"{table['name']} has no primary key in the sandbox: {error}"
         state = await self.state()
         made = [
             e
             for e in state.get("endpoints") or []
             if e["name"].endswith("_" + scaffold_rules.stem(table["name"]))
         ]
-        return state | {"added": [e["name"] for e in made], "line": text.count("\n") + 2}
+        done = state | {"added": [e["name"] for e in made], "line": text.count("\n") + 2}
+        return done | ({"note": note} if note else {})
 
     # ===== run, stop =====
 
@@ -531,9 +552,8 @@ class LocalApi:
         payload = given.get("body")
         if not self.running() or self._runner is None:
             raise Conflict("The local sandbox API is not running: Run it first.")
-        if who == "agent" and method != "GET":
-            detail = f"{method} {path} on the local sandbox API (it writes the project's sandbox only)"
-            if not await self._approvals.ask(rules.FILE, "call the local sandbox API", detail):
+        if who == "agent" and method != "GET" and not self.agent_writes():
+            if not await self._ask_agent_writes(f"{method} {path}"):
                 raise Refused("The user declined (or did not answer): nothing was sent.")
         sent = None if payload is None else json.dumps(payload).encode()
         started = time.perf_counter()
@@ -558,6 +578,40 @@ class LocalApi:
                 # The mock's refusal names the line itself: said once, in `where`.
                 done["error"] = done["error"].replace(f"{rules.FILE} line {line}: ", "", 1)
         return done
+
+    def agent_writes(self) -> bool:
+        """Whether the agent may write through the API to the open project's sandbox without asking."""
+        folder = self._project()
+        return folder is not None and self._agent_writes == folder
+
+    async def _ask_agent_writes(self, first: str) -> bool:
+        detail = rules.agent_writes_words(first)
+        if not await self._approvals.ask(rules.FILE, "write the sandbox through the local API", detail):
+            return False
+        self._agent_writes = self._project()
+        self.ws.audit.write("agent", "local_api_agent_writes", rules.FILE, allowed=True)
+        await self.ws.live.broadcast({"type": "local_api_changed"})
+        return True
+
+    async def set_agent_writes(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"allow": bool}: the agent's writes through the API for the rest of this session. Stopping is
+        anyone's; the agent's own allow:true asks the user (an Allow covers the session); the user's is
+        given."""
+        given = body if isinstance(body, dict) else {}
+        if self._project() is None:
+            raise Conflict("Open a project first: its sandbox is what the API writes.")
+        if given.get("allow") is True:
+            if who == "agent" and not self.agent_writes():
+                if not await self._ask_agent_writes("its writes"):
+                    raise Refused("The user declined (or did not answer): each write still asks.")
+            elif who != "agent":
+                self._agent_writes = self._project()
+                self.ws.audit.write(who, "local_api_agent_writes", rules.FILE, allowed=True)
+        else:
+            self._agent_writes = None
+            self.ws.audit.write(who, "local_api_agent_writes", rules.FILE, allowed=False)
+        await self.ws.live.broadcast({"type": "local_api_changed"})
+        return {"agent_writes": self.agent_writes()}
 
     async def log(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         if not self.running() or self._runner is None:

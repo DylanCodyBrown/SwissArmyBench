@@ -7513,7 +7513,12 @@ object id, roles from X-MS-CLIENT-PRINCIPAL); an Out's columns from a run that L
 found, not built: examples/forms_recon's canvas predates the widget contract (its form_picker, form_designer and
 api_bridge instances still name session keys the contract replaced), so its browser test fails on the base too:
 rewire it to the contract (form_definition Out into an In, the designer's `saved` Event calling PUT /forms/{id}
-in place of the second api_bridge).
+in place of the second api_bridge). BUILT (2026-11-21, branch api-approved): form_designer took `start_from:
+In[dict]` (what its definition_key did: the picker's form to start from), the designer's `saved` Event calls PUT
+/forms/{form_id} (the second api_bridge went), the project's api_bridge declares named Ins (trigger, form, period,
+loaded_by, records, run, status and the reconciliation's fields) that its `@name` templates read and Outs `answer`
+(an object) and `listed` (a list); every instance wired through the agent's canvas_set_values, canvas_wire and
+canvas_delete; canvas_set_values with null now takes away a value the widget no longer has.
 
 ## The forms and reconciliation test app and the local API's stress test (the owner, 2026-11-21; branch test-app)
 
@@ -7747,3 +7752,69 @@ The owner's model replaces the per-feature data paths: API -> sab_adapter.py -> 
 -> Grids; Grids -> Notebooks; Grids, Blades, Variables, Structures -> Widgets -> Canvas. The adapter streams reads and
 writes and holds nothing; grids (named Arrow tables) are the only data kept; an export is the fewest files that build
 the app. The per-source mock clients are dropped (the owner: "use my model"). Plan: Plans/adapter.plan.md.
+## The approved API and sandbox items, and three canvas gaps (the owner, 2026-11-21; branch api-approved)
+
+BUILT, each with its decision:
+- **forms_recon rewired to the widget contract.** form_designer took `start_from: In[dict]` (what its
+  definition_key did: the picker's form to start from); its `saved` Event calls `PUT /forms/{form_id}` with
+  `{title, fields}` mapped and `form_id` from the payload's `name` (the second api_bridge went); the project's
+  api_bridge declares named Ins (trigger, form, period, loaded_by, records, run, status and the reconciliation's
+  six fields) that its `@name` templates read, and Outs `answer` (an object) and `listed` (a list). Done through
+  the agent's own canvas commands. `canvas_set_values` with null now takes away a value the widget no longer has
+  (the upgrade's leftovers could not be removed before).
+- **No connection called Sandbox** (any case, the form, a blade or a rename): refused in one sentence.
+- **A read past 10,000 rows**: every mock's real counterpart hands back every row, so the mock pages underneath
+  (the rest kept as Arrow, read while the gate is held so no cursor stays open on a file Reset replaces; 16 kept
+  reads at most, a page asked for once gone says so). Decision: paging, never a cut, never an error.
+- **tables() and columns()** on the SQL mocks (plain DuckDB, DB-API, SQL Server); Dataverse's and SharePoint's
+  had theirs.
+- **CREATE through the mock**: a view, a table from a query (T-SQL's SELECT INTO too), a sequence
+  (`NEXT VALUE FOR` made `nextval`), and their DROP; never over a table the user added; recorded in sandbox.json
+  as that connection's table ("Made by the API"), so the next statement may use it; Reset and Restore drop the
+  records the file no longer holds. A view with a bound value is refused (DuckDB, like PostgreSQL, cannot keep
+  one). Plain `CREATE TABLE t (cols)` stays refused: Add table… makes an empty one.
+- **One Allow for the agent's writes**: the first write asks, the Allow covers the session for the open
+  project's sandbox; `api writes {allow:false}` and the bar's Stop take it back.
+- **The Catalog's Sandbox sort for the agent**: `explorer_browse` and `explorer_search` take `sort` and `order`,
+  the sandbox list's own rule.
+- **LIST, STRUCT and MAP cells**: a small JSON box in the sandbox grid (Enter writes, Shift+Enter a new line),
+  JSON checked in the page, the shape checked by DuckDB's `CAST(?::JSON AS <its type>)` and refused in words.
+- **The body checked against its model** in sab_api (TypedDict and dataclass, nested, `list[Model]`,
+  `NotRequired`, `total=False`): 422 with `error` naming the field and `field` its path. Numbers as FastAPI's
+  own (pydantic's lax mode) takes them, since an export to FastAPI answers the same and a form's boxes send
+  text or 3.0: a whole number takes 3, 3.0 and "3" (never True or 3.5), a number takes "12.5"; each converted
+  before the endpoint gets it. Text must be text; dates must read as ISO text (kept as sent). First found
+  strict, the widget wiring test (Streamlit's number box sends 3.0) showed why.
+- **The sandbox keeps its keys**: a column list's key, one asked for at Add, a connection's from the shared
+  catalog, or New endpoint from a table's; kept in sandbox.json and put back after Reset and an older
+  checkpoint's Restore; DuckDB's refusals said as a database says them ("Duplicate key: a row with sku: A-1 is
+  there already (its primary key)."). Rows that repeat a key at Add: in without it, and why.
+- **API.py in its editor**: its own rules, a connection with no sandbox table and SQL the mock would refuse as
+  squiggles (source "API.py"); the sandbox's columns inside its SQL strings (three-quoted ones too), sab_api's
+  names after `from sab_api import`, and Jedi reading `sab_api` as the runtime (the import lines rewritten,
+  never the cursor's, so positions hold).
+- **One slim bar** on the APIs page (name, where it runs, the agent's session mark, Run, Open API.py,
+  Properties folded, "…"); the Target asked at New and in Properties, said (never asked) at Export.
+- **Try it beside the code**: API.py's Endpoints panel on the Scripts page (closed until its status-bar toggle;
+  its own switch in Settings' Panels); API.py has no Run settings or Run history panel (its Run is Run API).
+- **api(state) brief**: the OpenAPI document only with `{"full": true}` (or `openapi`).
+- **A container Hidden in the app** (titled too): faded with the eye-off mark, no space when played, launched or
+  exported, its widgets running.
+- **The viewer's email, id and roles**: `app.viewer_email`, `app.viewer_id`, `app.viewer_roles` from App
+  Service's X-MS-CLIENT-PRINCIPAL (only with WEBSITE_SITE_NAME) or st.user's email; empty otherwise, never this
+  computer's; `sab_canvas.viewer()` returns them all (it returned the name before: a change for a widget that
+  called it).
+- **Columns from Launch**: the Canvas reads a launched run's columns as Play's (launched runs already recorded
+  them; only the Canvas did not look).
+
+Gaps found on the way (proposals, not built):
+1. The Endpoints panel's Go to line is an icon on its own row in a narrow panel: a smaller row for narrow panes.
+2. A read past 10,000 rows now arrives whole: an endpoint that lists a 10M-row table without a LIMIT would pull
+   it all into the API's process, as the real client would. A warning in Will this work for real? when a GET's
+   SQL has no LIMIT and its table is large. S.
+3. The body check refuses a number where text is wanted (pydantic does too); a widget that sends an id as a
+   number to a str field gets a 422. Payload shapes could say it before Play. S.
+4. Squiggles for API.py come from the server's parse on each lint (each pause in typing) and a dialect check of
+   each SQL string: fast at today's sizes; for a very large API.py, keep the parse by the text's hash. S.
+5. `sab_canvas.viewer()` changed from a name to a dict; no prebuilt widget called it, but a user's own may have.
+   A one-release `viewer_name()` would ease it. S.

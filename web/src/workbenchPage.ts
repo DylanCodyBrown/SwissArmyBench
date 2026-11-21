@@ -750,6 +750,12 @@ let vaultNames: string[] = [];
 
 function scriptModes(doc: Doc): void {
   doc.modes = modeFrame(doc.element, () => doc === current && drawStatus());
+  if (isApiFile(doc)) {
+    // API.py: its endpoints beside the code, Try it there (closed until asked for: design principle 8.14). Its
+    // Run is Run API, so it has no run settings or history of a script's.
+    doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", panel: "workbench.endpoints", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
+    return;
+  }
   const chosen = { at: 0 };
   historyAt.set(doc, chosen);
   doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", panel: "workbench.runSettings", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });

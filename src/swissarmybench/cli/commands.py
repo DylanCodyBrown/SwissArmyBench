@@ -1592,6 +1592,9 @@ def catalog_search(a: dict[str, Any]) -> Any:
     )
 
 
+SANDBOX_SORT = "The Sandbox section's order, as the Catalog's Sort: name, rows, source, created, changed."
+
+
 @command(
     "explorer_search",
     "The Data Explorer: find data by name in connections (their loaded catalogs' tables and columns, with "
@@ -1602,6 +1605,8 @@ def catalog_search(a: dict[str, Any]) -> Any:
     opt("connection", "Only what belongs to this connection."),
     opt("column", "A column's exact name: every table that has it, in every connection (for joins)."),
     opt("limit", "Results per group (default 25).", "int"),
+    opt("sort", SANDBOX_SORT),
+    opt("order", "asc or desc (with sort)."),
 )
 def explorer_search(a: dict[str, Any]) -> Any:
     kinds = a.get("kinds")
@@ -1611,6 +1616,8 @@ def explorer_search(a: dict[str, Any]) -> Any:
         "connection": a.get("connection"),
         "column": a.get("column"),
         "limit": a.get("limit"),
+        "sort": a.get("sort"),
+        "order": a.get("order"),
     }
     return api.call(
         "GET", "/explorer/search", params={k: v for k, v in params.items() if v not in (None, "")}
@@ -1626,12 +1633,16 @@ def explorer_search(a: dict[str, Any]) -> Any:
     "a table. Names only; a table's columns: explorer_table",
     opt("kinds", "Only these parts: connections, tables, columns, structures, apis, blades.", "list"),
     opt("connection", "Only this connection (and what belongs to it)."),
+    opt("sort", SANDBOX_SORT),
+    opt("order", "asc or desc (with sort)."),
 )
 def explorer_browse(a: dict[str, Any]) -> Any:
     kinds = a.get("kinds")
     params = {
         "kinds": ",".join(str(k) for k in kinds) if isinstance(kinds, list) else kinds,
         "connection": a.get("connection"),
+        "sort": a.get("sort"),
+        "order": a.get("order"),
     }
     return api.call(
         "GET", "/explorer/browse", params={k: v for k, v in params.items() if v not in (None, "")}
@@ -4239,6 +4250,7 @@ _API = {
     "run": ("POST", "/local-api/run"),
     "stop": ("POST", "/local-api/stop"),
     "call": ("POST", "/local-api/call"),
+    "writes": ("POST", "/local-api/agent-writes"),
     "log": ("GET", "/local-api/log"),
     "address": ("GET", "/local-api/address"),
     "openapi": ("GET", "/local-api/openapi.json"),
@@ -4253,16 +4265,18 @@ _API = {
 
 @command(
     "api",
-    "The project's local sandbox API, API.py (guide: sandbox); a write call waits for Allow",
+    "The project's local sandbox API, API.py (guide: sandbox); the first write call waits for Allow (it covers "
+    "the session)",
     req(
         "action",
-        "state, new, settings, run, stop, call, log, address, openapi, targets, export, scaffold, check, shapes, "
-        "example.",
+        "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, scaffold, "
+        "check, shapes, example.",
     ),
     opt(
         "args",
-        'call: {"method", "path", "query"?, "body"?}; settings: {"name", "target", "base_path"}; example: '
-        '{"endpoint": "POST /orders", "body"}.',
+        'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
+        'writes: {"allow": bool} (the agent writing this session); settings: {"name", '
+        '"target", "base_path"}; example: {"endpoint": "POST /orders", "body"}.',
         "json",
     ),
 )
@@ -4271,7 +4285,10 @@ def api_command(a: dict[str, Any]) -> Any:
     if action not in _API:
         raise CommandError(f"action is one of: {', '.join(_API)}.")
     method, path = _API[action]
-    return api.call(method, path, None if method == "GET" else dict(a.get("args") or {}), timeout=900)
+    given = dict(a.get("args") or {})
+    if action == "state" and given.get("full"):
+        path += "?full=true"  # its OpenAPI document too (brief without it)
+    return api.call(method, path, None if method == "GET" else given, timeout=900)
 
 
 _SANDBOX = {
@@ -4285,6 +4302,7 @@ _SANDBOX = {
     "restore": ("POST", "/sandbox/checkpoints/restore"),
     "variant": ("POST", "/sandbox/tables/variant"),
     "mock": ("POST", "/sandbox/tables/mock"),
+    "key": ("POST", "/sandbox/tables/key"),
     "edit": ("POST", "/sandbox/edit"),
 }
 
@@ -4296,8 +4314,8 @@ _SANDBOX = {
     opt(
         "args",
         'list: {"sort": name|rows|source|created|changed, "order"}; add: {"from", ...}; variant: {"from": '
-        'grid|structure, "table"|"structure", "name"?}; mock: {"table", "connection"}; edit: {"table", "op", '
-        '...}; others: {"table"} or {"name"}.',
+        'grid|structure, "table"|"structure", "name"?}; mock: {"table", "connection"}; key: {"table", "key": '
+        'column or [columns]}; edit: {"table", "op", ...}; others: {"table"} or {"name"}.',
         "json",
     ),
 )

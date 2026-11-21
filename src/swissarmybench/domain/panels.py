@@ -21,6 +21,7 @@ PANELS: tuple[tuple[str, str, str], ...] = (
     ("workbench.outline", "Workbench", "Outline"),
     ("workbench.runSettings", "Workbench", "Run settings"),
     ("workbench.runHistory", "Workbench", "Run history"),
+    ("workbench.endpoints", "Workbench", "Endpoints (API.py)"),  # the owner approved, 2026-11-21
     ("grid.ribbon", "Grid page", "Ribbon"),
     ("grid.steps", "Grid page", "Steps strip"),
     ("grid.status", "Grid page", "Status bar"),

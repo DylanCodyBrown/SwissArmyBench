@@ -754,12 +754,12 @@ def set_values(canvas: dict[str, Any], body: Mapping[str, Any], facts: Facts | N
             node["values"][key] = value
             take_ins(node, known)
             continue
+        if value is None:  # taken away: also a value the widget no longer has (one its upgrade left behind)
+            node["values"].pop(key, None)
+            continue
         if known is not None and key not in known.properties:
             raise CanvasError(f"{node['widget']} has no property {key}.")
-        if value is None:
-            node["values"].pop(key, None)
-        else:
-            node["values"][key] = value
+        node["values"][key] = value
     return canvas
 
 

@@ -19,6 +19,7 @@ import contextlib
 import copy
 import shutil
 import threading
+import warnings
 from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,8 @@ import pyarrow as pa
 
 from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import sandbox as rules
+
+MAX_BATCH = 50_000  # rows a kept rest is read in at a time
 
 
 def _connect(path: Path) -> duckdb.DuckDBPyConnection:
@@ -217,8 +220,9 @@ class SandboxFiles:
                 names = [
                     str(r[0])
                     for r in self._all(
-                        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main' "
-                        "ORDER BY table_name"
+                        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main' UNION ALL "
+                        "SELECT view_name FROM duckdb_views() WHERE schema_name = 'main' AND NOT internal "
+                        "ORDER BY 1"
                     )
                 ]
                 self._names = names
@@ -254,7 +258,70 @@ class SandboxFiles:
     def drop(self, name: str) -> None:
         with self._gate.exclusive():
             self._names = None
-            self._all(f"DROP TABLE IF EXISTS {rules.quote(name)}")
+            what = "VIEW" if self._kind_of(name) == "view" else "TABLE"
+            self._all(f"DROP {what} IF EXISTS {rules.quote(name)}")
+
+    def _kind_of(self, name: str) -> str | None:
+        found = self._all(
+            "SELECT 'table' FROM duckdb_tables() WHERE schema_name = 'main' AND table_name = ? UNION ALL "
+            "SELECT 'view' FROM duckdb_views() WHERE schema_name = 'main' AND view_name = ? UNION ALL "
+            "SELECT 'sequence' FROM duckdb_sequences() WHERE schema_name = 'main' AND sequence_name = ?",
+            [name, name, name],
+        )
+        return str(found[0][0]) if found else None
+
+    def keys(self, name: str) -> list[str]:
+        """The table's primary key's columns ([]: none)."""
+        if not self.exists():
+            return []
+        with self._gate.shared():
+            return [c["name"] for c in self._columns(name) if c["key"]]
+
+    def set_key(self, name: str, key: Sequence[str]) -> None:
+        """The table's primary key made `key`, in the sandbox and in its baseline (Reset keeps it): DuckDB's
+        refusal when a row repeats or blanks it. A table with a key already is left as it is."""
+        add = (
+            f"ALTER TABLE {rules.quote(name)} ADD PRIMARY KEY ("
+            + ", ".join(rules.quote(k) for k in key)
+            + ")"
+        )
+        with self._gate.exclusive():
+            if not self._key_of(self._open(), name):
+                self._all(add)
+            if self.baseline.exists():
+                other = _connect(self.baseline)
+                try:
+                    there = other.execute(
+                        "SELECT count(*) FROM duckdb_tables() WHERE schema_name = 'main' AND table_name = ?",
+                        [name],
+                    ).fetchall()[0][0]
+                    if there and not self._key_of(other, name):
+                        other.execute(add)
+                finally:
+                    other.close()
+
+    @staticmethod
+    def _key_of(con: duckdb.DuckDBPyConnection, name: str) -> bool:
+        found = con.execute(
+            "SELECT count(*) FROM duckdb_constraints() WHERE table_name = ? "
+            "AND constraint_type = 'PRIMARY KEY'",
+            [name],
+        ).fetchall()
+        return bool(found and found[0][0])
+
+    def kind_of(self, name: str) -> str | None:
+        """What `name` is in the sandbox's file: "table", "view", "sequence" or None (not there)."""
+        if not self.exists():
+            return None
+        with self._gate.shared():
+            return self._kind_of(name)
+
+    def define(self, sql: str, params: Sequence[Any] = ()) -> None:
+        """A view, a table made from a query or a sequence, made or dropped by a mock's statement (one DuckDB
+        statement the mock checked): under the exclusive gate, the names read again after it."""
+        with self._gate.exclusive():
+            self._names = None
+            self._all(sql, params)
 
     def arrow(self, name: str) -> pa.Table:
         with self._gate.shared():
@@ -283,6 +350,32 @@ class SandboxFiles:
             finally:
                 cursor.close()
         return columns, types, [list(r) for r in rows[:limit]], len(rows) > limit
+
+    def query_paged(
+        self, statement: rules.Statement, page: int
+    ) -> tuple[list[str], list[str], list[list[Any]], pa.Table | None]:
+        """A read for a mock client, whose real client hands back every row: its first `page` rows, and the
+        rest (None: there is none) taken as Arrow while the gate is held, so no cursor stays open on the file
+        (Reset and Restore replace it) and the rest is a snapshot of this read."""
+        with self._gate.shared():
+            cursor = self._open().cursor()
+            try:
+                result = cursor.execute(statement.sql, statement.params)
+                described = result.description or []
+                columns = [str(d[0]) for d in described]
+                types = [str(d[1]) for d in described]
+                rows = result.fetchmany(page)
+                rest: pa.Table | None = None
+                if len(rows) == page:
+                    with warnings.catch_warnings():  # the copy it warns of is the point: the rest kept
+                        warnings.simplefilter("ignore")
+                        reader: Any = result.to_arrow_reader(MAX_BATCH)
+                        rest = reader.read_all()
+                    if rest is not None and rest.num_rows == 0:
+                        rest = None
+            finally:
+                cursor.close()
+        return columns, types, [list(r) for r in rows], rest
 
     def change(self, statement: rules.Statement) -> tuple[list[str], list[str], list[list[Any]]]:
         """One write in its own transaction: what it answers (its RETURNING rows, else its count)."""

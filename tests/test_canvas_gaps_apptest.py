@@ -55,7 +55,10 @@ from sab_canvas import In
 
 region: In[str] = "All"
 viewer: In[str] = "nobody"
+viewer_email: In[str] = "never-wired"
+viewer_roles: In[list[str]] = None
 st.markdown(f"region={region} viewer={viewer}")
+st.markdown(f"email=[{viewer_email}] roles={viewer_roles}")
 """
 
 FILE_MAKER = """import streamlit as st
@@ -142,6 +145,8 @@ def test_hidden_cross_page_viewer_and_a_file_run_for_real(tmp_path: Path) -> Non
     assert not any("Made-up sample" in c for c in load["caption"])
     assert not reports["exceptions"], reports
     assert "region=West viewer=ada.ashdown" in reports["markdown"]  # another page's Out, the viewer
+    # Play's viewer is this computer's name only: its email and roles are empty, never this computer's
+    assert "email=[] roles=[]" in reports["markdown"], reports["markdown"]
     # Nothing says who views (an export on a host with no sign-in, a shared run): "unknown", never invented
     unknown = _run(tmp_path / "exported", files, steps, {})
     assert "region=West viewer=unknown" in unknown[1]["markdown"]

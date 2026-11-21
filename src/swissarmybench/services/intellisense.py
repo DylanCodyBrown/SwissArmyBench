@@ -30,6 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Protocol
 
 from swissarmybench.domain import intellisense as rules
+from swissarmybench.domain import local_api as api_rules
 from swissarmybench.domain.packages import missing_packages
 from swissarmybench.services.workspace import NotFound, Workspace
 
@@ -110,6 +111,8 @@ class Intellisense:
         # The project's sandbox (services/sandbox.py): its mocked connections and its tables, for API.py.
         self.sandbox_clients: Callable[[], list[tuple[str, str]]] = lambda: []
         self.sandbox_tables: Callable[[], list[tuple[str, list[str]]]] = lambda: []
+        # API.py's squiggles: each mock name's dialect and tables (services/sandbox.py mock_dialects)
+        self.sandbox_mocks: Callable[[], dict[str, tuple[str, list[str]]]] = lambda: {}
         self._variables = variables
         self._structures = structures
         self._dialect_of = dialect_of
@@ -197,6 +200,11 @@ class Intellisense:
         notebook's earlier cells and the kernel's `sab` first, so their names are known)."""
         text, offset, notebook, before, _ = self._text(body)
         code = rules.to_python(text) if notebook else text
+        # Jedi reads sab_api as the runtime: its import lines rewritten, never the cursor's (the line and
+        # column are read from the text as typed, so they hold)
+        read = code
+        if not notebook and "sab_api" in code:
+            read = rules.sab_api_for_jedi(code, code[:offset].count("\n"))
         head = (
             "" if with_kernel else (_PREAMBLE if notebook or "sab" not in rules.imported_names(text) else "")
         )
@@ -208,7 +216,7 @@ class Intellisense:
         path = body.get("path") if isinstance(body.get("path"), str) else None
         return {
             "ask": ask,
-            "code": head + code,
+            "code": head + read,
             "line": line,
             "column": column,
             "path": path,
@@ -255,6 +263,16 @@ class Intellisense:
         if quoted is not None:
             items = self._quoted(quoted)
             return {"items": rules.rank(items, recent), "start": quoted.start, "end": offset, "from": "app"}
+        importing = rules.SAB_API_IMPORT.search(text[max(0, offset - 300) : offset])
+        if importing:  # API.py's `from sab_api import |`: the runtime's own names, with their words
+            typed = importing.group(1)
+            items = [i for i in rules.sab_api_names() if i["label"].startswith(typed)]
+            return {
+                "items": rules.rank(items, recent),
+                "start": offset - len(typed),
+                "end": offset,
+                "from": "app",
+            }
         word = re.search(r"[A-Za-z_]\w*$", text[:offset])
         start = offset - len(word.group(0)) if word else offset
         dotted = re.search(r"([A-Za-z_]\w*)\.\w*$", text[:offset])
@@ -343,6 +361,16 @@ class Intellisense:
         elif quoted.kind == "sandbox_table":
             for table, columns in self.sandbox_tables():
                 offer(table, "table", f"sandbox · {len(columns)} columns", ", ".join(columns[:30]))
+        elif quoted.kind == "sandbox_column":
+            named = {t.casefold() for t in quoted.tables}
+            listed = self.sandbox_tables()
+            mine = [(t, cs) for t, cs in listed if t.casefold() in named] or listed
+            seen: set[str] = set()
+            for table, columns in mine:
+                for column in columns:
+                    if column.casefold() not in seen:
+                        seen.add(column.casefold())
+                        offer(column, "column", f"{table} · sandbox")
         elif quoted.kind == "dataset":
             for b in self._blades():
                 if b.get("dialect") == "dax":
@@ -467,6 +495,7 @@ class Intellisense:
             "lint",
             body.get("document"),
             body.get("version"),
+            body.get("path"),
             hash(text),
             hash(frozenset(known)),
             hash(frozenset(used_later)),
@@ -477,6 +506,7 @@ class Intellisense:
         python = self._python(body)
         folder = self._project_folder()
         variables = {str(v["name"]): str(v.get("words") or v.get("from") or "") for v in self._variables()}
+        api_file = not notebook and api_rules.is_api_file(body.get("path"))
 
         def job() -> dict[str, Any]:
             importable = {
@@ -500,6 +530,8 @@ class Intellisense:
                 external = self._from_pyflakes(flakes) if flakes is not None else None
                 used = "pyflakes" if external is not None else None
             merged = self._merge(own, external or [], known, used_later)
+            if api_file:
+                merged = sorted(merged + self._api_problems(text), key=lambda p: (p["line"], p["col"]))
             return {
                 "problems": merged,
                 "ruff": self._ruff_state(python, command),
@@ -507,6 +539,26 @@ class Intellisense:
             }
 
         return self._keep(key, await self._work(body, job, {"problems": []}))
+
+    def _api_problems(self, text: str) -> list[dict[str, Any]]:
+        """API.py's own rules as squiggles: the APIs page's problems, a connection with no sandbox table, SQL
+        the mock would refuse (each across its line)."""
+        try:
+            mocks = self.sandbox_mocks()
+        except Exception:  # no project, or its sandbox unreadable: API.py's own rules alone
+            mocks = None
+        lines = text.splitlines()
+        out = []
+        for p in api_rules.editor_problems(text, mocks or None):
+            line = max(1, min(int(p["line"]), max(1, len(lines))))
+            body = lines[line - 1] if lines else ""
+            start = len(body) - len(body.lstrip())
+            out.append(
+                rules.Problem(
+                    line, start, line, max(start + 1, len(body)), p["message"], "warning", "API", "API.py"
+                ).to_json()
+            )
+        return out
 
     def _ruff_state(self, python: str | None, command: str | None) -> dict[str, Any]:
         if command:

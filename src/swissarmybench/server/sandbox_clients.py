@@ -23,6 +23,8 @@ variable and no secret.
                     create(), update(), delete(), ids(), catalog()
   MockDuckDB        a table from a file or made empty (connection("Sandbox")): DuckDB's execute and fetch*
 
+The SQL mocks also answer tables() and columns(table): the sandbox's own listing (no system views).
+
 A refusal says the API.py line it came from. Standard library (pyarrow and pandas where a real one answers
 them).
 """
@@ -106,6 +108,17 @@ class Link:
         self._local.connection = None
 
     def ask(self, op: str, **body: Any) -> dict[str, Any]:
+        """One call; a read past one answer (MAX_ROWS_ANSWERED) followed page by page to its last row, as the
+        real client hands back every row."""
+        found = self._post(op, body)
+        while op != "more" and found.get("more"):
+            page = self._post("more", {"more": found.pop("more")})
+            found.setdefault("rows", []).extend(page.get("rows") or [])
+            if page.get("more"):
+                found["more"] = page["more"]
+        return found
+
+    def _post(self, op: str, body: dict[str, Any]) -> dict[str, Any]:
         data = json.dumps({"op": op} | body, default=_json_default).encode()
         headers = {"Content-Type": "application/json"}
         for attempt in (1, 2):  # a kept connection the server closed meanwhile: once more on a new one
@@ -190,6 +203,30 @@ def _arrow(columns: list[str], rows: list[tuple[Any, ...]]) -> Any:
     return pa.Table.from_pylist([dict(zip(columns, r, strict=False)) for r in rows])
 
 
+# ===== what every SQL mock answers of its own tables (the test app's gap 9) =====
+
+
+class _Listing:
+    """tables() and columns(table): the sandbox's tables this mock reads (its connection's; "Sandbox": every
+    one, the views an API made among them) and a table's columns, so an endpoint can check a name or offer
+    the columns without the system views the mock refuses."""
+
+    _name: str
+    _link: Link
+
+    def tables(self) -> list[str]:
+        return [str(t) for t in self._link.ask("client", connection=self._name)["tables"]]
+
+    def columns(self, table: str) -> list[dict[str, Any]]:
+        """Each column: {"name", "type" (DuckDB's), "key" (part of its primary key)}."""
+        wanted = str(table).strip().casefold()
+        found = next((t for t in self.tables() if t.casefold() == wanted), None)
+        if found is None:
+            raise self._link.error(f"{_where_in_api()}The sandbox has no table {table!r} from {self._name}.")
+        answer = self._link.ask("columns", table=found)
+        return [{"name": c["name"], "type": c["type"], "key": bool(c.get("key"))} for c in answer["columns"]]
+
+
 # ===== a DB-API database =====
 
 
@@ -271,7 +308,7 @@ class MockCursor:
         self.close()
 
 
-class MockDbApi:
+class MockDbApi(_Listing):
     """A database connection's DB-API shape. Each statement commits as it runs: rollback() undoes nothing in
     the sandbox (Reset or a checkpoint does)."""
 
@@ -316,7 +353,7 @@ class MockSqlServerCursor(MockCursor):
         return MockCursor.executemany(self, sql, [list(r) for r in rows])
 
 
-class MockSqlServer:
+class MockSqlServer(_Listing):
     """The SQL Server starter's SqlServer over the sandbox: T-SQL with mssql-python's ? marks."""
 
     dbms = "sqlserver"
@@ -686,7 +723,7 @@ class _PerThread(threading.local):
         self.rows = []
 
 
-class MockDuckDB(MockCursor):
+class MockDuckDB(MockCursor, _Listing):
     """DuckDB's connection shape over the sandbox (execute returns the connection; fetch* read its answer).
 
     connection("Sandbox") is one object for the whole process, and an API answers several requests at once

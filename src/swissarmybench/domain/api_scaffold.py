@@ -119,6 +119,12 @@ def _mark(dialect: str, n: int) -> str:
     return "?"
 
 
+def chosen_key(columns: Sequence[Mapping[str, Any]], key: str | None = None) -> str:
+    """The CRUD set's key: the one asked for, else the table's own key's first column, else its first column."""
+    names = [str(c["name"]) for c in columns]
+    return key or next((str(c["name"]) for c in columns if c.get("key")), None) or (names[0] if names else "")
+
+
 def crud(
     table: str,
     columns: Sequence[Mapping[str, Any]],
@@ -132,7 +138,7 @@ def crud(
     names = [str(c["name"]) for c in columns]
     if not names:
         raise ScaffoldError(f"{table} has no columns.")
-    chosen = key or next((str(c["name"]) for c in columns if c.get("key")), None) or names[0]
+    chosen = chosen_key(columns, key)
     if chosen not in names:
         raise ScaffoldError(f"{table} has no column {chosen} to be its key.")
     stem = _ident(table)

@@ -215,10 +215,12 @@ class Canvases:
         }
 
     def _seen(self, opened: Open) -> dict[str, list[str]]:
-        """The columns Play last saw for each Out[Table] (kept after it stops)."""
+        """The columns Play or Launch last saw for each Out[Table] (names only; kept after the run stops). A
+        launched app records them as Play does (the owner approved, 2026-11-21); a shared run never does."""
         seen = getattr(self._live, "seen_columns", None)
-        found = seen(f"canvas-{opened.id}") if seen is not None else {}
-        opened.seen |= found
+        if seen is not None:
+            for key in (f"canvas-{opened.id}", f"launch-{opened.id}"):  # services/launch.py PREFIX
+                opened.seen |= seen(key)
         return opened.seen
 
     def wiring(

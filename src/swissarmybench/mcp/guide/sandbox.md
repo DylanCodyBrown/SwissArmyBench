@@ -9,11 +9,16 @@ reads and writes. A real connection is never reached from one ("No never run aga
 - `add`: `{"from": "grid", "table": "orders"}` (an open table's view, after its steps), `{"from": "connection",
   "connection": "Warehouse", "table": "orders", "schema": "dbo"}` (read once, its row limit applying),
   `{"from": "file", "path": ...}`, `{"from": "columns", "name": "notes", "columns": [{"name": "id", "type":
-  "integer", "key": true}]}`; `"name"` names it, `"replace": true` replaces one.
+  "integer", "key": true}]}`; `"name"` names it, `"replace": true` replaces one, `"key": "id"` (or a list) its
+  primary key (a connection's table takes its key from the shared catalog by itself).
+- `key` `{"table": "stock", "key": "sku"}`: a table's primary key, as the real database has it: a write that
+  repeats or blanks it is refused in one sentence ("Duplicate key: a row with sku: A-1 is there already").
+  Reset and Restore keep it. New endpoint from a table sets its key when the table has none.
 - `remove` `{"table"}`, `open` `{"table"}` (in Grids as `sandbox_<table>`, following every write).
 - `reset`: every table back to the baseline (waits for the user's Allow). `baseline`: the sandbox now is the
   baseline. `checkpoint` `{"name", "action": "save"|"delete"}`, `restore` `{"name"}`.
-- DuckDB SQL names a sandbox table `[Sandbox].orders` (`steps_run_sql`); the Catalog has a Sandbox section.
+- DuckDB SQL names a sandbox table `[Sandbox].orders` (`steps_run_sql`); the Catalog has a Sandbox section,
+  and `explorer_browse` / `explorer_search` take its Sort: `sort` (name, rows, source, created, changed), `order`.
 - `reset` with `{"table": "orders"}` puts that one table back alone.
 - `list` `{"sort": "name"|"rows"|"source"|"created"|"changed", "order": "asc"|"desc"}`: every list of sandbox
   tables sorts the same way. Each table says `type: "sandbox"`, `title` (its designation), `variant` and
@@ -27,7 +32,9 @@ reads and writes. A real connection is never reached from one ("No never run aga
 - `edit`: its grid's edits, sandbox writes counted in the change log (Reset undoes them), each value checked
   against its column's type first: `{"table", "op": "update", "row": 0, "column": "amount", "value": "9.5"}` (the
   row's place in its open grid's view, its steps applied), `{"op": "update", "where": {...}, "values": {...}}`,
-  `{"op": "insert", "values": {...}}`, `{"op": "delete", "rows": [0, 3]}` or `{"where": {...}}`.
+  `{"op": "insert", "values": {...}}`, `{"op": "delete", "rows": [0, 3]}` or `{"where": {...}}`. A LIST, STRUCT
+  or MAP column takes JSON (`["a", "b"]`, `{"x": 1}`, as text or as the value), checked against its type.
+- A saved connection may not be called `Sandbox` (any case): it is the project's sandbox's name.
 
 ## The Sandbox is a connection
 The open project's **Sandbox** is a connection kind of its own (`sandbox`): its card on the Connections page
@@ -59,24 +66,42 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   SqlServer, Dataverse's Dataverse, SharePoint lists, any DB-API database, `connection("Sandbox")` a plain
   DuckDB client). Its SQL is the source's own dialect and marks; what the mock cannot emulate (MERGE, EXEC,
   temporary tables, system views, a Web API call) is refused with its line. It never reaches the real one.
+- Through a mock an API may make `CREATE [OR REPLACE] VIEW v AS SELECT ...`, `CREATE TABLE t AS SELECT ...`
+  (T-SQL's `SELECT ... INTO t`), `CREATE SEQUENCE s` (`nextval('s')`, T-SQL's `NEXT VALUE FOR s`) and drop them;
+  never over a table the user added. A view or table made is that connection's table from then on (its source
+  "Made by the API"); Reset and Restore undo all of it. A view cannot hold a bound value (write it in its SQL).
+- The SQL mocks answer `tables()` (their tables, the views made among them) and `columns(table)` (`name`,
+  `type`, `key`): no system views needed.
 - `executemany(sql, rows)` is one call to the sandbox (a plain INSERT ... VALUES goes in as one columnar insert):
-  load rows with it, not a loop of execute(). A read answers at most 10,000 rows: page with LIMIT and OFFSET.
-- `state`: settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems with their
-  lines, the OpenAPI document, whether it runs, the `targets`; each endpoint's `fields` (its body model's, with
+  load rows with it, not a loop of execute(). A read past 10,000 rows comes back whole, as the real client
+  gives it (the mock follows the rest page by page): ask for less with LIMIT and OFFSET when that is all needed.
+- The body is checked against its model (a TypedDict's or a dataclass's fields, nested ones, `list[Model]`)
+  before the endpoint runs: a wrong type, a missing required field or an unknown one is a 422, its `error` naming
+  the field and `field` its path (`order.lines[0].quantity`). Numbers as FastAPI takes them: 3.0 or "3" for an
+  int, "12.5" for a float (converted); never True for a number.
+- `state` (brief): settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems
+  with their lines, whether it runs, the `targets`, whether the agent may write this session; `{"full": true}` adds the OpenAPI document
+  (or `openapi`). Each endpoint's `fields` (its body model's, with
   `type` and `required`) and `try` (a made-up request: `path`, `query`, `body`; the kept example first): the one
   definition Try it, the Canvas's Event mapping and Payload shapes read. `settings` `{name, description, target, base_path}`.
 - `run` (127.0.0.1, a key of its own; started again when API.py changes), `stop`, `log` (method, path, status,
   ms, rows; a refusal's `error` and its API.py `line`; `output`: the last lines API.py printed), `openapi`, `address` (its URL and key, for this computer's callers).
-- `call` `{"method": "POST", "path": "/orders", "body": {...}}`: a write waits for the user's Allow. A refusal
+- `call` `{"method": "POST", "path": "/orders", "body": {...}}`: the first write waits for the user's Allow, and
+  that Allow covers the rest of the session (the project's sandbox only; `state` says whether).
+  `writes` with `{"allow": false}` stops it (each write asks again); `{"allow": true}` asks for it. A refusal
   (400 and up) also has `error` (its sentence) and, when the endpoint itself failed, `line` and `where`
   ("API.py line 45"). A path no endpoint answers is the API's own 404 (`{"error"}`).
 - `example` `{"endpoint": "POST /orders", "body": {...}}`: Try it's body kept as the endpoint's example (Try it
   starts from it; the OpenAPI document shows it), in its examples file in `.sab/` beside API.py (API.py is never
   written); `"body": null` forgets it.
 - From a kernel: `sab.api().get("/orders/West")`, `.post(path, json=...)`, `.put`, `.patch`, `.delete`.
+- In its editor (the Scripts page) API.py's own problems are squiggles (the same rules, a `connection("X")` with no
+  sandbox table, SQL the mock would refuse: `workbench_problems`); `sab_api`'s names and the sandbox's tables
+  and columns complete. Its Endpoints panel (the status bar's toggle) has each endpoint's Try it beside the code.
 
 ## Export for a framework target
 - `targets`: FastAPI, Azure Functions (Linux, Python v2), AWS Lambda (Linux, Python); extensions add theirs.
+- The target is API.py's own (asked at New, changed in Properties: `settings`); Export never asks again.
 - `export` `{"target"?, "folder"?, "rows"?, "replace"?: [files]}`: `exports/api/<target>/` in the project (a made
   folder): API.py as it is, sab_api.py, connections.py (each connection's own portable code: its variables read
   where it runs, nothing here runs it), the target's files (main.py; function_app.py, host.json,

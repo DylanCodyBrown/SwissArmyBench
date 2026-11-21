@@ -38,6 +38,7 @@ class Field(TypedDict, total=False):
     type: str
     required: bool
     choices: list[str]
+    default: str
     format: str
 
 

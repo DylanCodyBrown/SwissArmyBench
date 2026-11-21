@@ -623,17 +623,23 @@ src/swissarmybench/
                          baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values);
                          the Sandbox as a connection kind (CONNECTION_TYPE, its card's words, its indigo COLOUR), the
                          sorts (name, rows, source, created, changed), variants (a designation "orders · sandbox", the
-                         origin kept and said), a grid edit's SQL (a row by every value it shows, CAST to its type)
+                         origin kept and said), a grid edit's SQL (a row by every value it shows, CAST to its type;
+                         a LIST, STRUCT or MAP cell as JSON: CAST(?::JSON AS its type)); keys (check_key, db_words: a
+                         duplicate or blank key in one sentence); what an API made (made_record, unmade after Reset);
+                         NAME_TAKEN (no connection called Sandbox); MAX_ROWS_ANSWERED one answer's size (the rest paged)
     sandbox_dialects.py  a mock client's language over the sandbox: the source's SQL and its driver's marks made
                          DuckDB SQL by sqlglot (each mark numbered in its own order; SELECT, INSERT, UPDATE, DELETE
                          on the sandbox's tables only), OData $filter and $orderby, FetchXML, a list's filters;
-                         what cannot be emulated refused with its line
+                         a view, a query's table (SELECT INTO too) or a sequence made or dropped (DEFINES; NEXT VALUE
+                         FOR as nextval); what cannot be emulated refused with its line
     local_api.py         API.py (2026-11-21): its `# /// swissarmybench-api` header (name, description, target,
                          base_path), its endpoints read with ast (method, path, parameters: path, query, body; the
                          answer; the connections and SQL it uses; problems with lines), models, OpenAPI 3.0, the
                          scaffold, the hosting process's environment made from nothing (runner_env); an endpoint's
                          one definition for every reader (body_fields, made_up: Try it, the Canvas's Event mapping,
-                         Payload shapes, the agent), shapes (the API widgets and each Event wired to call one)
+                         Payload shapes, the agent), shapes (the API widgets and each Event wired to call one);
+                         editor_problems (API.py's squiggles: its rules, a connection with no sandbox table, SQL the
+                         mock would refuse, never run); agent_writes_words
     api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
                          Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
                          sab_api.py, connections.py: the real connections' own code; README with the deploy steps,
@@ -711,10 +717,13 @@ src/swissarmybench/
                          the `sandbox` tables kind), the Catalog's Sandbox section; listing sorted, variant (a grid's
                          view or a structure's records, named apart, never written back), mock (Mocked as a
                          connection), edit (its grid's cells, rows added and deleted: typed, counted, Reset undoes),
-                         card (the Connections page's Sandbox)
+                         card (the Connections page's Sandbox); a mock's read past one answer kept and paged (op
+                         more); views, query tables and sequences an API makes (_define); keys (set_key, a
+                         connection's from the shared catalog, put back after Reset and Restore); mock_dialects
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
-                         (started again when API.py changes), call (the agent's writes on Allow), log, address,
-                         scaffold (New endpoint from a table, appended to API.py)
+                         (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
+                         the session; api writes), log, address, scaffold (New endpoint from a table, appended to
+                         API.py; its key kept by the sandbox); state brief (full: the OpenAPI document)
     api_export.py        Export for a target: the bundle, the made folder (only changed bytes, stale files gone,
                          a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
@@ -854,7 +863,9 @@ src/swissarmybench/
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
     sandbox.py           a project's sandbox file: DuckDB with external access off, one lock, the baseline and the
                          checkpoints as whole-file copies (Reset is one copy; one table from the baseline read
-                         alone), sandbox.json; API.py's file (LocalApiFiles); an export's folder (ExportFolder)
+                         alone), sandbox.json; a read's rest as Arrow (query_paged), keys (set_key: the file and
+                         its baseline), definitions (define, kind_of); API.py's file (LocalApiFiles); an export's
+                         folder (ExportFolder)
     tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
                          Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
                          (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)
@@ -949,9 +960,11 @@ src/swissarmybench/
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
     api_runtime.py       sab_api, what API.py imports (standard library; copied into each export): endpoint,
-                         connection (use_clients), records, ApiError, handle (one request: every target calls it)
+                         connection (use_clients), records, ApiError, handle (one request: every target calls it);
+                         the body checked against its model first (checked: 422 naming the field)
     sandbox_clients.py   the mock clients (MockDbApi, MockSqlServer, MockDataverse, MockSharePoint, MockDuckDB): the
-                         real clients' public shape (tests/test_sandbox_clients.py), the sandbox's data route only
+                         real clients' public shape (tests/test_sandbox_clients.py), the sandbox's data route only;
+                         the SQL mocks' tables() and columns(); a read followed page by page to its last row (Link)
     api_host.py          a local sandbox API hosted (`python -I`): the app's client functions taken over first,
                          Starlette on 127.0.0.1, its key, the request log (a refusal's words and API.py line; the
                          line as a header of this host only), any other path the API's own 404; api_runs.py starts
@@ -1221,7 +1234,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          connectionColours.ts each connection's colour worn by whatever names it
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
                          swatch and palette; panes.ts groups the home page's tabs by connection;
-                         localApis.ts the APIs page's Local sandbox APIs (API.py: target, base path, Run, Stop,
+                         localApis.ts the APIs page's Local sandbox APIs (one slim bar: name, where it runs, the
+                         agent's session writes with Stop, Run / Stop, Open API.py, Properties folded: target, base
+                         path, description; "…": New endpoint, Will this work for real?, Export (its target said,
+                         never asked); endpointsPane: API.py's Endpoints panel on the Scripts page;
                          each endpoint's data words and Try it (the server's made-up request; a refusal as the one
                          error note with API.py's line; kept open over a redraw), problems with Go to line, the
                          request log and Output); on the Scripts page API.py's main Run is Run API and it takes no
@@ -1231,7 +1247,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          sorted by their headings, their mock clients and Mocked as, the variant's mark and origin,
                          Open in Grids, Reset, Set as baseline, checkpoints, the log); sandboxGrid.ts a sandbox
                          table's grid (the bar: designation, origin, Add row, Delete rows, Reset; a cell edited in
-                         place through gridView.ts's registerCellEditor; the tab's designation);
+                         place through gridView.ts's registerCellEditor, a LIST/STRUCT/MAP cell a JSON box; the tab's
+                         designation);
                          swapConnection.ts the Table row's Connection: <name> (a table read from another
                          connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
                          ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
@@ -1352,18 +1369,19 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          (add_container, insert_widget, move, set_container, set_values, replace_widget, delete,
                          sizing: columns re-flow, pages), prune, rename
     domain/canvas_layouts.py  the two layouts (Phone, Desktop; format 2): each item's place per layout as fractions of
-                         its parent's width (x, w) and pixels (y, h), show (both, desktop, phone), a widget's hidden
-                         (Hidden in the app: the hide command); a layout viewed in
+                         its parent's width (x, w) and pixels (y, h), show (both, desktop, phone), a widget's or a
+                         container's hidden (Hidden in the app: the hide command); a layout viewed in
                          pixels for the engine and written back; an item new to one placed in the other (phone:
                          stacked full width); format 1 read as desktop; problems in both
     domain/canvas_build.py  the ONE page builder (Play, Launch, a widget run alone, a preview, Export): app.py,
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
                          of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
                          place, its failure there, its Ins, Outs and Events wired; table, sample(kind), var, key, choices,
-                         marked, problem, api_call, File and as_file, viewer: App Service's sign-in headers on App
-                         Service, st.user, SAB_LOCAL_VIEWER in Play, else "unknown"; each Out[Table]'s columns noted in
-                         Play, .sab_columns.json); a widget Hidden in the app (and a container of only such) taking no
-                         space; a container's title in the flow, its widgets in a box below it; the kernel's setup
+                         marked, problem, api_call, File and as_file, viewer (name, email, id, roles): App Service's
+                         sign-in headers on App Service (X-MS-CLIENT-PRINCIPAL's claims), st.user, SAB_LOCAL_VIEWER in
+                         Play (the name only), else "unknown"; the app's Outs app.viewer, _email, _id, _roles; each
+                         Out[Table]'s columns noted in Play and Launch, .sab_columns.json); a widget or a container
+                         Hidden in the app (and a container of only such) taking no space; a container's title in the flow, its widgets in a box below it; the kernel's setup
     domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, canvas.json, build.json):
                          what changed between two canvases in words (canvas_changes), a build's widgets read back
                          with ast (widget_code), compare file by file

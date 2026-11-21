@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import asyncio
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain import sandbox_dialects as dialects
-from swissarmybench.domain.connection_swap import Place
+from swissarmybench.domain.connection_swap import Place, place_of
 from swissarmybench.domain.sandbox import SandboxError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -62,11 +63,23 @@ class Files(Protocol):
 
     def drop(self, name: str) -> None: ...
 
+    def kind_of(self, name: str) -> str | None: ...
+
+    def keys(self, name: str) -> list[str]: ...
+
+    def set_key(self, name: str, key: Any) -> None: ...
+
+    def define(self, sql: str, params: Any = ()) -> None: ...
+
     def arrow(self, name: str) -> Any: ...
 
     def query(
         self, statement: rules.Statement, limit: int
     ) -> tuple[list[str], list[str], list[list[Any]], bool]: ...
+
+    def query_paged(
+        self, statement: rules.Statement, page: int
+    ) -> tuple[list[str], list[str], list[list[Any]], Any]: ...
 
     def change(self, statement: rules.Statement) -> tuple[list[str], list[str], list[list[Any]]]: ...
 
@@ -109,6 +122,8 @@ class Sources(Protocol):
 
     def connections(self) -> list[str]: ...  # the saved connections with tables (Mocked as's choices)
 
+    def key_of(self, connection: str, place: Place) -> list[str]: ...  # its primary key in the shared catalog
+
 
 async def _no_structure(structure: str, path: str) -> tuple[Any, str, str]:
     raise LookupError("Structures are not here.")
@@ -133,9 +148,13 @@ class SourcesFrom:
     structure_fn: Callable[[str, str], Awaitable[tuple[Any, str, str]]] = _no_structure
     view_rows_fn: Callable[[str, list[int]], Awaitable[tuple[list[str], list[list[Any] | None]]]] = _no_rows
     connections_fn: Callable[[], list[str]] = field(default=lambda: [])
+    key_fn: Callable[[str, Place], list[str]] = field(default=lambda connection, place: [])
 
     async def grid_view(self, name: str) -> Any:
         return await self.grid_view_fn(name)
+
+    def key_of(self, connection: str, place: Place) -> list[str]:
+        return self.key_fn(connection, place)
 
     async def connection_table(self, connection: str, place: Place) -> Any:
         return await self.connection_fn(connection, place)
@@ -169,6 +188,10 @@ def _plain(value: Any) -> Any:
         return value
     if hasattr(value, "isoformat"):
         return value.isoformat()
+    if isinstance(value, (list, tuple)):  # a LIST: a list, as a real driver gives it
+        return [_plain(v) for v in value]
+    if isinstance(value, dict):  # a STRUCT or a MAP: an object
+        return {str(k): _plain(v) for k, v in value.items()}
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -199,6 +222,9 @@ class Sandbox:
         self._lock = asyncio.Lock()
         self.version = 0  # every change: [Sandbox]'s reads in DuckDB SQL are read again
         self.changed: list[Callable[[list[str]], Awaitable[None]]] = []  # tables a write touched
+        self._key_note = ""  # why a table came in without its key (add's answer)
+        # a mock's read past MAX_ROWS_ANSWERED: the rest of it, handed out a page at a time (op "more")
+        self._rests: dict[str, _Rest] = {}
 
     # ===== which sandbox =====
 
@@ -322,6 +348,25 @@ class Sandbox:
             return []
         return [(str(t["name"]), [str(c["name"]) for c in t["columns"]]) for t in files.tables()]
 
+    def mock_dialects(self) -> dict[str, tuple[str, list[str]]]:
+        """Each name connection("…") takes in API.py, with its mock's dialect and the sandbox tables it reads
+        (API.py's squiggles: the SQL the mock would refuse). From sandbox.json and the file's names."""
+        if self._project() is None:
+            return {}
+        files = self._files()
+        if not files.exists():
+            return {}
+        meta = files.read_meta()
+        names = files.table_names()
+        out: dict[str, tuple[str, list[str]]] = {rules.NAME: ("duckdb", names)}
+        for table, info in meta.tables.items():
+            client = info.get("client") or {}
+            connection = str(client.get("connection") or "")
+            if connection and not rules.is_sandbox(connection):
+                dialect, mine = out.get(connection, (str(client.get("dialect") or "duckdb"), []))
+                out[connection] = (dialect, [*mine, table])
+        return out
+
     def mock_names(self) -> list[tuple[str, str]]:
         """The names connection("…") takes in API.py: Sandbox, and each connection a sandbox table came
         from, with the client it is mocked as (read from sandbox.json: no query)."""
@@ -427,13 +472,84 @@ class Sandbox:
             }
             if kind in rules.VARIANT_SOURCES:
                 meta.tables[name]["variant"] = rules.variant_record(source, title, at)
+            key = await self._first_key(files, name, given, columns if kind == "columns" else None, source)
+            if key:
+                meta.tables[name]["key"] = key
             meta.log.pop(name, None)
             # A table added is part of the baseline: Reset gives it back as it came in.
             await self._run(files.set_baseline)
             meta.baseline_at = _stamp(self._now())
             files.write_meta(meta)
         await self._told([name], who, "sandbox_add", rows=rows, source=kind)
-        return {"added": name, "rows": rows, "sql": f"[{rules.NAME}].{name}"}
+        added: dict[str, Any] = {"added": name, "rows": rows, "sql": f"[{rules.NAME}].{name}"}
+        if meta.tables[name].get("key"):
+            added["key"] = meta.tables[name]["key"]
+        if self._key_note:
+            added["note"], self._key_note = self._key_note, ""
+        return added
+
+    async def _first_key(
+        self, files: Files, name: str, given: dict[str, Any], columns: Any, source: dict[str, Any]
+    ) -> list[str]:
+        """A table's primary key as it comes in: the one asked for, a column list's, else its connection's in
+        the shared catalog. Rows that repeat or blank it: no key, and why in `note`."""
+        named = [c["name"] for c in await self._run(files.columns, name)]
+        if given.get("key"):
+            key = rules.check_key(given["key"], named)
+        elif columns is not None:
+            key = [c.name for c in columns if c.key]
+        elif source.get("kind") == "connection":
+            place = place_of(source.get("place")) or Place("", "", name)
+            try:
+                key = rules.check_key(self._sources.key_of(str(source["connection"]), place), named)
+            except SandboxError:
+                key = []
+        else:
+            key = []
+        if key and not await self._run(files.keys, name):
+            try:
+                await self._run(files.set_key, name, key)
+            except Exception as error:  # rows that repeat or blank it
+                self._key_note = f"{name} came in without its key ({', '.join(key)}): {rules.db_words(error)}"
+                return []
+        return key
+
+    async def set_key(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"table", "key"}: the table's primary key (a column or a list of them), kept by Reset; a write that
+        repeats or blanks it is refused from then on, as the real database would."""
+        given = body if isinstance(body, dict) else {}
+        async with self._lock:
+            files = self._files()
+            table, columns = await self._table(files, given.get("table"))
+            key = rules.check_key(given.get("key"), columns)
+            have = await self._run(files.keys, table)
+            if have and [k.casefold() for k in have] != [k.casefold() for k in key]:
+                raise Conflict(f"{table}'s key is {', '.join(have)} already.")
+            try:
+                await self._run(files.set_key, table, key)
+            except Exception as error:
+                raise SandboxError(rules.db_words(error)) from error
+            meta = files.read_meta()
+            if table in meta.tables:
+                meta.tables[table]["key"] = key
+                files.write_meta(meta)
+        await self._told([table], who, "sandbox_key", key=", ".join(key))
+        return {"table": table, "key": key}
+
+    async def _keys_back(self, files: Files, meta: rules.Meta) -> None:
+        """After Reset or Restore: each kept key put back where the file put back has none (an older
+        checkpoint's copy)."""
+        for table, record in meta.tables.items():
+            key = record.get("key")
+            if (
+                key
+                and await self._run(files.kind_of, table) == "table"
+                and not await self._run(files.keys, table)
+            ):
+                try:
+                    await self._run(files.set_key, table, list(key))
+                except Exception:  # noqa: S112 (rows the checkpoint holds repeat it: it stays without)
+                    continue
 
     async def variant(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Make a sandbox variant: {"from": "grid" (default) | "structure", "table" | "structure", "path"?,
@@ -524,6 +640,8 @@ class Sandbox:
         async with self._lock:
             if not await self._run(files.reset):
                 raise Conflict("The sandbox has no baseline yet: add a table first.")
+            rules.unmade(meta, await self._run(files.table_names))
+            await self._keys_back(files, meta)
             undone = rules.log_json(meta.log)
             rules.touched(meta, [t for t in meta.log if meta.log[t].any], _stamp(self._now()))
             meta.log = {}
@@ -600,6 +718,8 @@ class Sandbox:
             found = meta.checkpoint(name)
             if found is None or not await self._run(files.restore_checkpoint, found.name):
                 raise NotFound(f"No checkpoint is named {name}.")
+            rules.unmade(meta, await self._run(files.table_names))
+            await self._keys_back(files, meta)
             meta.log = rules.copied_log(found.log)
             files.write_meta(meta)
         await self._told(sorted(meta.tables), who, "sandbox_restore")
@@ -651,12 +771,14 @@ class Sandbox:
         given = body if isinstance(body, dict) else {}
         op = str(given.get("op") or "")
         files = self._files()
+        if op == "more":
+            return self._more(given.get("more"))
         if op == "query":
             sql = rules.check_read(given.get("sql"), self._parse)
             params = given.get("params") or []
             if not isinstance(params, (list, dict)):
                 raise SandboxError("params is a list (for ?) or a dict (for $name).")
-            return await self._read(files, rules.Statement(sql, params))  # type: ignore[arg-type]
+            return await self._read(files, rules.Statement(sql, params), paged=True)  # type: ignore[arg-type]
         if op == "table":
             table, columns = await self._table(files, given.get("table"))
             return await self._read(
@@ -688,7 +810,7 @@ class Sandbox:
             try:
                 counts = await self._run(files.write, [p[2] for p in planned])
             except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             meta = files.read_meta()
             for (kind, table, _), n in zip(planned, counts, strict=True):
                 rules.noted(meta.log, table, kind, n)
@@ -721,8 +843,7 @@ class Sandbox:
         statements: list[rules.Statement] = []
         if op == "update" and given.get("where") is not None:
             values = await self._typed(files, types, given.get("values"))
-            plain = {c: v for c, (v, _) in values.items()}
-            statements = [rules.update_statement(table, columns, plain, given.get("where"))]
+            statements = [rules.edit_update_where(table, columns, values, given.get("where"))]
         elif op == "update":
             column = self._column(types, given.get("column"))
             [(value, cast)] = (await self._typed(files, types, {column: given.get("value")})).values()
@@ -744,7 +865,7 @@ class Sandbox:
             try:
                 [changed] = await self._run(files.write, [statements])
             except Exception as error:  # DuckDB's own words (a key taken, a blank key): nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             if op == "insert":
                 changed = max(changed, 1)
             meta = files.read_meta()
@@ -775,7 +896,14 @@ class Sandbox:
             column = self._column(types, wanted)
             cast = rules.editable_type(column, types[column])
             value = rules.cell_value(sent, types[column])
-            if value is not None:
+            if value is not None and rules.is_nested(cast):  # a wrong shape: DuckDB's cast refuses it
+                check = rules.Statement(f"SELECT {rules.cast_mark(cast)} IS NULL AS bad", [value])
+                try:
+                    await self._run(files.query, check, 1)
+                except Exception as error:
+                    said = str(error).split("\n")[0].split(": ", 1)[-1]
+                    raise SandboxError(f"{rules.not_a(column, sent, types[column])} ({said})") from None
+            elif value is not None:
                 check = rules.Statement(f"SELECT TRY_CAST(? AS {cast}) IS NULL AS bad", [value])
                 try:
                     _, _, found, _ = await self._run(files.query, check, 1)
@@ -863,13 +991,15 @@ class Sandbox:
         dialect = str(given.get("dialect") or client.get("dialect") or "duckdb")
         made = dialects.to_duckdb(given.get("sql"), dialect, given.get("params"), client["tables"])
         statement = rules.Statement(made.sql, made.params)
+        if dialects.is_definition(made.kind):
+            return await self._define(files, made, client)
         if made.kind == "select":
-            return await self._read(files, statement, records=False) | {"kind": "select"}
+            return await self._read(files, statement, records=False, paged=True) | {"kind": "select"}
         async with self._lock:
             try:
                 columns, types, rows = await self._run(files.change, statement)
             except Exception as error:  # DuckDB's own words: nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             count = len(rows) if columns and columns[0].lower() != "count" else int(rows[0][0]) if rows else 0
             meta = files.read_meta()
             rules.noted(meta.log, made.table or "", made.kind, count)
@@ -888,6 +1018,36 @@ class Sandbox:
             "rows": [[_plain(v) for v in r] for r in rows] if returned else [],
         }
 
+    async def _define(
+        self, files: Files, made: dialects.Translated, client: dict[str, Any]
+    ) -> dict[str, Any]:
+        """A view, a query's table or a sequence made or dropped through a mock (the test app's gap 8): never
+        over a table the user added (only what an API made is replaced or dropped); a view or table made is
+        that connection's table from then on (sandbox.json: source "made"); Reset and Restore undo it."""
+        verb, what = made.kind.split(" ", 1)
+        name = str(made.table)
+        async with self._lock:
+            meta = files.read_meta()
+            mine = next((t for t in meta.tables if t.casefold() == name.casefold()), None)
+            by_api = mine is not None and (meta.tables[mine].get("source") or {}).get("kind") == "made"
+            there = await self._run(files.kind_of, name)
+            if there in ("table", "view") and not by_api:
+                raise SandboxError(rules.not_made(name, verb))
+            try:
+                await self._run(files.define, made.sql, made.params)
+            except Exception as error:  # DuckDB's own words (it is there already, or not there)
+                raise SandboxError(rules.db_words(error)) from error
+            if mine is not None and (verb == "drop" or mine != name):
+                meta.tables.pop(mine, None)
+                meta.log.pop(mine, None)
+            if verb == "create" and what in ("view", "table"):
+                kept = {k: v for k, v in client.items() if k != "tables"}
+                meta.tables[name] = rules.made_record(what, kept, _stamp(self._now()))
+            files.write_meta(meta)
+        await self._told([name] if what != "sequence" else [], "", "")
+        self.ws.audit.write("api", "sandbox_define", name, what=made.kind)
+        return {"kind": made.kind, "table": name, "rowcount": 0, "columns": [], "types": [], "rows": []}
+
     async def _sql_many(self, files: Files, given: dict[str, Any]) -> dict[str, Any]:
         """A mock cursor's executemany: the statement made DuckDB SQL once; a plain INSERT ... VALUES of its
         marks goes in as one columnar insert, anything else one statement a set; all in one transaction."""
@@ -897,8 +1057,8 @@ class Sandbox:
         if not isinstance(sets, list) or not sets:
             raise SandboxError("executemany takes a list of parameter sets.")
         made, values = dialects.to_duckdb_many(given.get("sql"), dialect, sets, client["tables"])
-        if made.kind == "select":
-            raise SandboxError("executemany runs INSERT, UPDATE or DELETE, not a SELECT.")
+        if made.kind == "select" or dialects.is_definition(made.kind):
+            raise SandboxError("executemany runs INSERT, UPDATE or DELETE.")
         plain = dialects.plain_insert(made.sql)
         async with self._lock:
             try:
@@ -913,7 +1073,7 @@ class Sandbox:
                 else:
                     count = await self._run(files.change_many, made.sql, values)
             except Exception as error:  # DuckDB's own words: nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             meta = files.read_meta()
             rules.noted(meta.log, made.table or "", made.kind, count)
             files.write_meta(meta)
@@ -930,7 +1090,8 @@ class Sandbox:
             for t in tables:
                 columns_of[t] = [c["name"] for c in await self._run(files.columns, t)]
             fetch = dialects.fetchxml(given.get("fetch_xml"), tables, lambda t: columns_of[t])
-            return await self._read(files, rules.Statement(fetch.sql, fetch.params)) | {"table": fetch.table}
+            read = await self._read(files, rules.Statement(fetch.sql, fetch.params), paged=True)
+            return read | {"table": fetch.table}
         wanted = str(given.get("table") or "")
         known = {t.casefold(): t for t in tables}
         table = known.get(wanted.casefold())
@@ -963,7 +1124,10 @@ class Sandbox:
         limit = given.get("limit")
         if limit is not None:
             sql += f" LIMIT {max(0, int(limit))}"
-        return await self._read(files, rules.Statement(sql, params)) | {"total": total, "table": table}
+        return await self._read(files, rules.Statement(sql, params), paged=True) | {
+            "total": total,
+            "table": table,
+        }
 
     async def _table(self, files: Files, wanted: Any) -> tuple[str, list[str]]:
         name = rules.check_table_name(wanted)
@@ -988,21 +1152,69 @@ class Sandbox:
             return kind, table, [rules.delete_statement(table, columns, one.get("where"), every)]
         raise SandboxError("A write is insert, update or delete.")
 
-    async def _read(self, files: Files, statement: rules.Statement, records: bool = True) -> dict[str, Any]:
+    async def _read(
+        self, files: Files, statement: rules.Statement, records: bool = True, paged: bool = False
+    ) -> dict[str, Any]:
+        """A read's answer: its first MAX_ROWS_ANSWERED rows. `paged` (a mock client's: its real client hands
+        back every row): the rest kept, and the answer's `more` names it for the next page (op "more");
+        else `cut` says rows were left out."""
+        rest = None
         try:
-            columns, types, rows, cut = await self._run(files.query, statement, rules.MAX_ROWS_ANSWERED)
+            if paged:
+                columns, types, rows, rest = await self._run(
+                    files.query_paged, statement, rules.MAX_ROWS_ANSWERED
+                )
+                cut = False
+            else:
+                columns, types, rows, cut = await self._run(files.query, statement, rules.MAX_ROWS_ANSWERED)
         except SandboxError:
             raise
         except Exception as error:  # DuckDB's own words (a missing column, a type)
-            raise SandboxError(str(error).split("\n")[0]) from error
-        return {
+            raise SandboxError(rules.db_words(error)) from error
+        answer = {
             "columns": columns,
             "types": types,
-            "rows": [{c: _plain(v) for c, v in zip(columns, r, strict=True)} for r in rows]
-            if records
-            else [[_plain(v) for v in r] for r in rows],
+            "rows": _shaped_rows(columns, rows, records),
             "cut": cut,
         }
+        if rest is not None:
+            answer |= self._keep(_Rest(rest, columns, records))
+        return answer
+
+    def _keep(self, rest: _Rest) -> dict[str, Any]:
+        """The rest of a read kept for its pages (the oldest dropped past MAX_KEPT_READS)."""
+        token = uuid.uuid4().hex
+        self._rests[token] = rest
+        while len(self._rests) > rules.MAX_KEPT_READS:
+            del self._rests[next(iter(self._rests))]
+        return {"more": token, "left": rest.table.num_rows - rest.at}
+
+    def _more(self, token: Any) -> dict[str, Any]:
+        """The next page of a read's rest: its rows, and `more` while any are left."""
+        rest = self._rests.pop(str(token or ""), None)
+        if rest is None:
+            raise NotFound(rules.REST_GONE)
+        part = rest.table.slice(rest.at, rules.MAX_ROWS_ANSWERED)
+        rest.at += part.num_rows
+        rows = [list(r) for r in zip(*(c.to_pylist() for c in part.columns), strict=True)]
+        answer: dict[str, Any] = {"rows": _shaped_rows(rest.columns, rows, rest.records)}
+        if rest.at < rest.table.num_rows:
+            answer |= self._keep(rest)
+        return answer
+
+
+@dataclass
+class _Rest:
+    table: Any  # pyarrow.Table: the rows not sent yet, a snapshot of the read
+    columns: list[str]
+    records: bool
+    at: int = 0
+
+
+def _shaped_rows(columns: list[str], rows: list[list[Any]], records: bool) -> list[Any]:
+    if records:
+        return [{c: _plain(v) for c, v in zip(columns, r, strict=True)} for r in rows]
+    return [[_plain(v) for v in r] for r in rows]
 
 
 class SandboxAlias:

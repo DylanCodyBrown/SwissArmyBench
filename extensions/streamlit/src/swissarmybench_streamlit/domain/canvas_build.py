@@ -221,10 +221,13 @@ class _Writer:
 
 
 def takes_no_space(node: Mapping[str, Any]) -> bool:
-    """A widget Hidden in the app, or a container with no title holding only such widgets (a box that only
-    moves data): it runs, its Outs flow, the page gives it no space."""
+    """A widget or a container Hidden in the app (a titled one too: the owner approved, 2026-11-21), or a
+    container with no title holding only such: its widgets run, their Outs flow, the page gives it no
+    space."""
+    if node.get("hidden"):
+        return True
     if node["kind"] == "widget":
-        return bool(node.get("hidden"))
+        return False
     children = node.get("children") or []
     return bool(children) and not node["props"].get("title") and all(takes_no_space(c) for c in children)
 
@@ -832,37 +835,93 @@ def as_file(found: Any) -> Any:
 UNKNOWN = "unknown"
 
 
-def viewer_info() -> dict[str, str]:
-    """Who is viewing, and how it is known, never invented: a sign-in the host vouches for (Azure App
-    Service's authentication headers, only on App Service; Streamlit's own st.user when the app signs people
-    in), else this computer's user name in Swiss Army Bench's Play and Launch (SAB_LOCAL_VIEWER), else
-    "unknown" (a shared app through Dev Tunnels passes no viewer's name to the app)."""
+_EMAIL_CLAIMS = (
+    "email",
+    "emails",
+    "preferred_username",
+    "upn",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn",
+)
+_ID_CLAIMS = ("oid", "http://schemas.microsoft.com/identity/claims/objectidentifier", "sub")
+_ROLE_CLAIMS = ("roles", "role", "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")
+
+
+def principal_claims(encoded: str) -> dict[str, Any]:
+    """App Service's X-MS-CLIENT-PRINCIPAL (base64 JSON: auth_typ, claims [{typ, val}], name_typ, role_typ)
+    read for the viewer: {name, email, id, roles}; {} when it cannot be read."""
+    import base64
+    import json
+
+    try:
+        data = json.loads(base64.b64decode(encoded + "=" * (-len(encoded) % 4)))
+        claims = [(str(c.get("typ") or ""), str(c.get("val") or "")) for c in data.get("claims") or []]
+    except Exception:
+        return {}
+    role_typ = str(data.get("role_typ") or "")
+    name_typ = str(data.get("name_typ") or "")
+
+    def first(kinds: tuple[str, ...]) -> str:
+        return next((v for t, v in claims for k in kinds if t == k and v), "")
+
+    return {
+        "name": first((name_typ, "name")) if name_typ else first(("name",)),
+        "email": first(_EMAIL_CLAIMS),
+        "id": first(_ID_CLAIMS),
+        "roles": [v for t, v in claims if v and (t in _ROLE_CLAIMS or (role_typ and t == role_typ))],
+    }
+
+
+def viewer_info() -> dict[str, Any]:
+    """Who is viewing, and how it is known, never invented: {name, email, id, roles, via}. A sign-in the host
+    vouches for (Azure App Service's authentication headers, read only on App Service: its name, and from its
+    X-MS-CLIENT-PRINCIPAL the email, account (object) id and roles; Streamlit's own st.user when the app signs
+    people in: its name and email), else this computer's user name in Swiss Army Bench's Play and Launch
+    (SAB_LOCAL_VIEWER: the name only), else "unknown" (a shared app through Dev Tunnels passes no viewer to
+    the app). Whatever the sign-in does not give is empty."""
+    blank: dict[str, Any] = {"email": "", "id": "", "roles": []}
     try:
         headers = st.context.headers
     except Exception:
         headers = {}
+
+    def header(name: str) -> str:
+        if not headers:
+            return ""
+        found = headers.get(name)
+        if found is None:
+            found = next((v for k, v in dict(headers).items() if str(k).lower() == name.lower()), None)
+        return str(found or "")
+
     if os.environ.get("WEBSITE_SITE_NAME"):  # App Service sets these headers; outside it anyone could
-        for name in ("X-MS-CLIENT-PRINCIPAL-NAME", "X-Ms-Client-Principal-Name"):
-            found = headers.get(name) if headers else None
-            if found:
-                return {"name": str(found), "via": "app service"}
+        name = header("X-MS-CLIENT-PRINCIPAL-NAME")
+        claims = principal_claims(header("X-MS-CLIENT-PRINCIPAL")) if header("X-MS-CLIENT-PRINCIPAL") else {}
+        if name or claims:
+            return {
+                "name": name or claims.get("name") or claims.get("email") or UNKNOWN,
+                "email": claims.get("email", ""),
+                "id": header("X-MS-CLIENT-PRINCIPAL-ID") or claims.get("id", ""),
+                "roles": list(claims.get("roles") or []),
+                "via": "app service",
+            }
     try:
         user = st.user
         if getattr(user, "is_logged_in", False):
-            found = user.get("email") or user.get("name") or user.get("preferred_username")
+            email = str(user.get("email") or "")
+            found = email or user.get("name") or user.get("preferred_username")
             if found:
-                return {"name": str(found), "via": "streamlit"}
+                return blank | {"name": str(found), "email": email, "via": "streamlit"}
     except Exception:
         pass
     local = os.environ.get("SAB_LOCAL_VIEWER", "")
     if local:
-        return {"name": local, "via": "this computer"}
-    return {"name": UNKNOWN, "via": UNKNOWN}
+        return blank | {"name": local, "via": "this computer"}
+    return blank | {"name": UNKNOWN, "via": UNKNOWN}
 
 
-def viewer() -> str:
-    """Who is viewing, by name ("unknown" when it is not known)."""
-    return viewer_info()["name"]
+def viewer() -> dict[str, Any]:
+    """Who is viewing: {name ("unknown" when it is not known), email, id, roles, via}, as viewer_info."""
+    return viewer_info()
 
 
 def _out_key(ref: str) -> str:
@@ -993,7 +1052,11 @@ def begin(page: str) -> None:
     """A page's run begins: the app's own Out app.viewer set (who is viewing), the Performance Analyzer's
     clock started when it is beside the app."""
     try:
-        st.session_state[_out_key("app.viewer")] = viewer()
+        who = viewer_info()
+        st.session_state[_out_key("app.viewer")] = who["name"]
+        st.session_state[_out_key("app.viewer_email")] = who["email"]
+        st.session_state[_out_key("app.viewer_id")] = who["id"]
+        st.session_state[_out_key("app.viewer_roles")] = list(who["roles"])
     except Exception:
         pass
     if _perf is not None:
@@ -1057,7 +1120,8 @@ _SEEN: dict[str, list[str]] = {}
 
 def _seen(ref: str, value: Any) -> None:
     """An Out[Table]'s columns as it last ran, written beside the app for the Canvas's column pickers: only in
-    Swiss Army Bench's Play (SAB_RECORD_COLUMNS), only when they change; never rows."""
+    Swiss Army Bench's Play and Launch (SAB_RECORD_COLUMNS; never a shared run), only when they change;
+    never rows."""
     if os.environ.get("SAB_RECORD_COLUMNS") != "1" or value is None or not hasattr(value, "columns"):
         return
     columns = [str(c) for c in list(value.columns)[:500]]

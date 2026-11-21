@@ -287,8 +287,8 @@ def _normal(data: dict[str, Any]) -> dict[str, Any]:
             raise CanvasError(f"Containers go {engine.MAX_DEPTH} deep at most.")
         if item.get("show", "both") not in SHOWS:
             raise CanvasError(f"{item.get('id')}'s show is both, desktop or phone.")
-        if "hidden" in item and (item["kind"] != "widget" or item["hidden"] is not True):
-            raise CanvasError(f"{item.get('id')}'s hidden is true, on a widget only.")
+        if "hidden" in item and item["hidden"] is not True:
+            raise CanvasError(f"{item.get('id')}'s hidden is true, or left out.")
         item.setdefault("show", "both")
         at = item.get("at")
         if not isinstance(at, dict) or not at:
@@ -402,8 +402,6 @@ def apply(
     if kind == "hide":  # Hidden in the app: it still runs and its Outs flow; it takes no space on the page
         after = copy.deepcopy(canvas)
         _, _, node = find(after, str(body.get("id")))
-        if node["kind"] != "widget":
-            raise CanvasError(f"{node['id']} is a container: only a widget is hidden in the app.")
         if not isinstance(body.get("hidden"), bool):
             raise CanvasError("Hidden in the app is true or false.")
         if body["hidden"]:
