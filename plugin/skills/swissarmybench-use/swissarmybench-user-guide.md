@@ -1465,6 +1465,14 @@ grid cell), Undo and Redo, the **Widgets** and **Properties** panes' toggles, an
 - **Play** shows the pages live in place; a widget that fails shows its own error there while the rest runs.
   **Launch** makes a build in the project's `builds/` and opens it in its own window. **Export** writes a
   folder that runs on a hosted Streamlit app (the page reproduces the canvas's pixels).
+- **Share…** (Play's ▾ and the right-click menus' last group, while the launched app runs) lets people in
+  your organization open the launched app in their own browser after signing in with their Microsoft work
+  account. It runs on this computer while it is shared: its queries run here, with your connections. There
+  are no public links. The first time it asks to install Microsoft's **devtunnel** (Install now: downloaded
+  from Microsoft, checked, kept in Swiss Army Bench's own folder); then **Sign in with your work account**
+  (or **Use a code instead**), and **Share**: the link with **Copy** and **Open**, and a **Shared** mark
+  beside Play. It ends on **Stop sharing**, when you stop or launch the app again, or when Swiss Army Bench
+  closes. If your organization does not allow Microsoft Dev Tunnels, it says what to ask IT for.
 - **The agent:** `widgets_*` and `canvas_*` (the guide's Streamlit topic); its export waits for your Allow.
 
 ### Learning Streamlit with the starter pieces

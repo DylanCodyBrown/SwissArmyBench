@@ -12,6 +12,10 @@ password.
   writes nothing. `agent_approvals` lists what is waiting; `agent_events` reports approval_resolved.
   Only the user answers. Say what you asked for and why.
 
+## Sharing an app (the third way anything leaves the computer)
+- `sharing_start` (Allow) tunnels a launched app's own port through Microsoft Dev Tunnels to people of the user's
+  organization who sign in with their work account; never anonymous, never this server. It ends with the app.
+
 ## Passwords
 - No answer ever holds a password's value: blades and connections say only whether one is saved.
 - Write `secret("NAME")` in code. `blades_secrets` saves a value the user gives you to the system

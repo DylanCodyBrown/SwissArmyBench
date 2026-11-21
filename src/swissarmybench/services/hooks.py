@@ -16,6 +16,9 @@ default: nothing held, nothing to stop, no canvas. The base never names the exte
   project_app       a new base project's own app files and requirements ({} with none)
   app_pages         an app's pages and the cells their blocks link (the project's outline)
   team              GitHub sync for Settings' Team box (services/team.py TeamSync; None: its Install offered)
+  share_targets     the app kinds that can be shared with the organization (services/sharing.py ShareTarget:
+                    an app's own 127.0.0.1 port opened and closed), by kind ({}: nothing to share)
+  sharing           the base's Sharing, for a target whose app stops (its link ends with it: app_stopped)
   dataset_aliases   a project's one dataset connection name that resolves through a setting of its own (a
                     Power BI project's Read Power BI from): DuckDB SQL and a kernel's %%dax cell follow it
 """
@@ -88,3 +91,6 @@ class Hooks:
     team: Any = None
     # The open project's dataset connection names that resolve through its own setting ({} with none).
     dataset_aliases: Callable[[], dict[str, DatasetAlias]] = field(default=lambda: {})
+    # Share a running app (services/sharing.py): the kinds that can be; the base's Sharing for their stops.
+    share_targets: dict[str, Any] = field(default_factory=dict)
+    sharing: Any = None

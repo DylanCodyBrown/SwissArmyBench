@@ -6957,3 +6957,56 @@ fields beyond the blade IDE's Properties and New blade's blank scaffold by kind 
 the old /catalog page's redirect to the Blades pane (its import, export and folders dialogs still there); Notebooks'
 clean reload in place (a notebook changed elsewhere asks even when unchanged here); the desktop app's window full
 screen (the page's full screen only).
+
+## Share a running app (the owner, 2026-11-21: "I just wanted a place for a user to host a POC so others can connect to it like an app"; built, branch share-app)
+
+The owner's answers: **organization only** (people open the link after signing in with their Microsoft work account,
+Microsoft Dev Tunnels; no public links at all); **until you stop it** (Stop sharing, the app's stop, Swiss Army Bench
+closing: a link always ends with its app); **the tunnel program** downloaded the first time someone shares, never with
+the app's install ("Sharing needs devtunnel: Install now"), into the state folder, checked.
+
+Decisions:
+- **What goes through the tunnel:** only the app's own 127.0.0.1 port. For a launched Streamlit app that is a *shared
+  run*: a second Streamlit process of the launch's own run folder (the same build and tables), at the address's root,
+  in the launch's Python (server/streamlit_apps.py SHARED_FLAGS: `--server.baseUrlPath=` (root),
+  `--server.enableCORS=true` and `--server.enableXsrfProtection=true` forced over an app's own config.toml,
+  `--server.fileWatcherType=none`, `--server.runOnSave=false`; `--server.address=127.0.0.1` as every run). Why it
+  works behind the tunnel unchanged: devtunnel rewrites Host to `localhost` and Origin to `http(s)://localhost` by
+  default, so Streamlit's web socket origin check (same origin, or localhost) passes and the XSRF cookie is the
+  tunnel's own origin's. The proxy (/streamlit/launch/<key>/) is never tunnelled, nor this server: domain/sharing.py
+  check_port refuses the server's port, and every command line is built from a checked port.
+- **Organization only, never anonymous:** `devtunnel create --labels swissarmybench --json` (no `-a`), `devtunnel
+  access create <id> --tenant`, then `devtunnel access list --json` read back: an anonymous entry, or no tenant entry,
+  deletes the tunnel and shares nothing. `_line` refuses `-a`, `--allow-anonymous`, `--anonymous` on any line. A
+  sign-in with no tenant (a personal Microsoft account: Entra's consumers tenant; GitHub) is refused ("Sign in with
+  your work account"). A policy that blocks it (Dev Tunnels' group policies "Disable Dev Tunnels", "Allow only selected
+  Microsoft Entra tenant IDs", or Conditional Access) is said with what to ask IT; never a fallback.
+- **The tunnel:** `devtunnel port create <id> --port-number <app port> --protocol http`, `devtunnel host <id>`, the
+  address read from host's line for that port (`https://<id>-<port>.<region>.devtunnels.ms/`, never the -inspect one),
+  ready on "Ready to accept connections". Stop: host stopped, `devtunnel delete <id> --force`. A tunnel left by a crash
+  (its label, none running) is deleted before the next one is made. No description is sent (nothing of the app's goes
+  to the service but its traffic).
+- **The download and its check (which):** `https://tunnelsassetsprod.blob.core.windows.net/cli/<file>` (the host and
+  files Microsoft's own install script, aka.ms/DevTunnelCliInstall, and aka.ms/TunnelsCliDownload use; HTTPS, a
+  redirect elsewhere refused, 200 MB at most). Microsoft Learn publishes **no SHA-256** for devtunnel, so the checks
+  are: the **Content-MD5** Microsoft's download store publishes with the file (every system), and the **signature**
+  where Microsoft signs it: Windows' Authenticode (Get-AuthenticodeSignature: Valid, O=Microsoft Corporation), macOS'
+  code signature (codesign --verify --strict, TeamIdentifier=UBF8T346G9, Microsoft Corporation's). Linux: no signature
+  is published, the checksum only. Kept only when every check passed.
+- **Sign-in** is the user's own (403 for the agent): `devtunnel user login --entra`, in the browser, or
+  `--use-device-code-auth` (the dialog shows the code, Copy, Open the page). devtunnel keeps its own token in the
+  system's key chain; the app never sees it.
+- **The agent:** `sharing_status`; `sharing_start` (installs devtunnel if needed) and `sharing_stop` on the user's
+  Allow (it publishes outward). The Session log: "Shared <app> with the organization", "Stopped sharing <app> (why)":
+  never the link, a tunnel id or a token.
+- **The page (generic):** web/src/shareApp.ts: `openShareDialog({kind, id, title})` and `shareMark(app)` (also
+  `globalThis.sabShare`). On the new Canvas (merged from widgets-canvas): **Share…** in Play's ▾ (beside Stop the
+  launched app) and in every right-click menu's run group while the app is launched; the Shared mark beside Play.
+  The backend target reads LiveRuns' `launch-<canvas>` run (its folder and Python: `launched`) and hears
+  `LiveRuns.ended` (the run stopped, or written again by a new Launch): the share ends with it.
+- **Power Apps' dev server does not fit:** Run live loads the code app into Power Apps' own player from the local
+  dev server (`_localAppUrl`), so a colleague's browser could not use a tunnelled dev server as the app; Push to the
+  environment is how a code app is shared. The seam stays open (hooks.share_targets[kind]).
+
+Not done: the tenant's display name ("Your organization: <name>") — devtunnel's `user show` does not say it; Graph
+would need another sign-in, so "Your organization" stands alone until a source is found.

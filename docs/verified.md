@@ -4318,3 +4318,37 @@ asking. The e2e tests that assumed one mixed Workbench were moved to the two pag
 
 Not checked: the desktop app's own full screen (none built); Ruff's format itself (Ruff is not beside the test
 Python here: said, skipped); the debugger (not built).
+
+## Share a running app (2026-11-21, branch share-app)
+
+Checked here:
+- Microsoft Learn read for the commands (cited): Dev tunnels command-line reference
+  (https://learn.microsoft.com/azure/developer/dev-tunnels/cli-commands: `user login -d`, `create`, `access create
+  --tenant`, `port create -p --protocol`, `host`, `delete`, "allowing anonymous access means anyone on the internet");
+  Security (https://learn.microsoft.com/azure/developer/dev-tunnels/security: private by default, `--tenant` extends to
+  the current Entra tenant, header rewriting after TLS termination); Get started
+  (https://learn.microsoft.com/azure/developer/dev-tunnels/get-started: the download links, host's output lines);
+  Policies (https://learn.microsoft.com/azure/developer/dev-tunnels/policies: Disable anonymous tunnel access, Disable
+  Dev Tunnels, Allow only selected Microsoft Entra tenant IDs).
+- devtunnel 1.0.2115 (linux-x64, downloaded once for reading only, never by a test): its help for `create`,
+  `access create` (`--tenant`), `port create`, `host`, `user login` (`--entra`, `--use-device-code-auth`), `user show
+  --json` ("Not logged in"), `delete --force`; `--json` on all but host. The store's Content-MD5 matched the bytes
+  (linux-x64); Windows' devtunnel.exe carries an Authenticode certificate table naming Microsoft Corporation, and
+  osx-arm64-devtunnel names Developer ID Application: Microsoft Corporation (UBF8T346G9).
+- Streamlit 1.67's web socket origin check (server_util is_url_from_allowed_origins, starlette_websocket
+  _is_origin_allowed): same origin, or a localhost origin, passes; so devtunnel's default Host and Origin rewrite to
+  localhost passes it with CORS and XSRF on.
+- tests/test_sharing.py (the command lines, recorded made-up outputs, never anonymous, never the server's port, the
+  checksum refusal, the whole share through the stand-in, a policy, an anonymous tunnel and a personal account
+  refused, the share ending with its app and with the server, the agent's Allow and the user's own sign-in, HTTP);
+  tests/test_sharing_streamlit.py (the shared run's flags, its own port, a launch's end ending its share);
+  tests/e2e/test_share_app_page.py (Chromium: Share, Install now, a device code, Share, the link, Copy, the mark,
+  Stop; and on the new Canvas with Streamlit 1.67: Launch, Play's ▾ Share…, the link's port a real shared run that
+  answers /_stcore/health at its root (never the server's port), the Shared mark beside Play, the launch's Stop
+  ending the share).
+
+Not checked (needs the owner's computer): a real tenant and a real devtunnel: the signed-in `user show --json`'s
+fields (read loosely: status, username, provider, tenantId), `access list --json`'s entry shape for `--tenant` (read
+loosely: type Organizations or Tenant, provider microsoft), a colleague opening the link after their work sign-in, a
+real Streamlit shared run behind the tunnel (web socket, an upload with XSRF on), the Windows and macOS signature
+checks on those systems, and a tenant whose policy blocks Dev Tunnels (the words are matched on "policy" and AADSTS530xx).

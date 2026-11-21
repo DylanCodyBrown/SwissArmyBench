@@ -67,6 +67,7 @@ from swissarmybench.adapters.state_files import (
 from swissarmybench.adapters.structure_files import Codecs as StructureCodecs
 from swissarmybench.adapters.structure_files import StructureFiles, rows_to_table
 from swissarmybench.adapters.team import TeamFiles
+from swissarmybench.adapters.tunnels import TunnelFiles
 from swissarmybench.adapters.updates import HttpFeed, UpdateSwitchFile, take_failure_note
 from swissarmybench.adapters.variables import (
     ProcessEnvironment,
@@ -109,6 +110,7 @@ from swissarmybench.server.legacy_tray import remove_old_tray
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.text_process import run_text
+from swissarmybench.server.tunnels import DevTunnelProgram
 from swissarmybench.server.updater import Helper as UpdateHelper
 from swissarmybench.services import explorer as explorer_providers
 from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
@@ -170,6 +172,7 @@ from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
 from swissarmybench.services.session_log import Heard, SessionLog
 from swissarmybench.services.shared_catalog import Here, SharedCatalog
+from swissarmybench.services.sharing import Sharing
 from swissarmybench.services.snapshots import Snapshots
 from swissarmybench.services.sql import SqlBox
 from swissarmybench.services.structures import Structures
@@ -255,6 +258,7 @@ class Services:
     library: Library
     library_setup: LibrarySetup
     team: Team
+    sharing: Sharing
     shared_catalog: SharedCatalog
     app_registrations: AppRegistrations
     script_runs: ScriptRuns
@@ -1244,6 +1248,16 @@ def bootstrap(
             "installable": extensions.state()["installable"],
         },
     )
+    # Share a running app with your organization (Microsoft Dev Tunnels; the third way data leaves this
+    # computer, on the user's click): devtunnel in the state folder's devtunnel/, got on the first share.
+    sharing = Sharing(
+        ws,
+        DevTunnelProgram(TunnelFiles(state_dir / "devtunnel")),
+        lambda: hooks.share_targets,
+        approvals,
+        port,
+    )
+    hooks.sharing = sharing
     updates = Updates(
         current=__version__,
         feeds=settings.update_feeds,
@@ -1510,6 +1524,7 @@ def bootstrap(
         library=library,
         library_setup=library_setup,
         team=team,
+        sharing=sharing,
         shared_catalog=shared_catalog,
         app_registrations=app_registrations,
         keys=key_finder,

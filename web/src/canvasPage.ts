@@ -41,6 +41,7 @@ import { button, clear, h, icon, toast } from "./dom";
 import { clearError, errorHere, showError } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import { busy, loadingBlock } from "./loading";
+import { openShareDialog, shareMark, type ShareableApp } from "./shareApp";
 import { mountNav, startNav } from "./nav";
 import { mountNavRail, openWidgets } from "./rail";
 import { effectiveTheme } from "./theme";
@@ -133,7 +134,9 @@ const playMore = button("More ways to run", (e) => {
 }, { icon: "down", iconOnly: true, class: "cvs-play-more" });
 const exportButton = button("Export", () => void exportApp(), { icon: "export", class: "cvs-export", title: "Export… (Ctrl+Shift+E)" });
 // Always shown, a block of their own (the owner: "make them look permanent and pronounced"): the tabs scroll.
-const runBar = h("span", { class: "cvs-run", role: "group", "aria-label": "Run the app" }, h("span", { class: "cvs-split" }, playButton, playMore), exportButton);
+// The Shared mark (shareApp.ts) beside Play while the launched app is shared with the organization.
+const shareHolder = h("span", { class: "cvs-share" });
+const runBar = h("span", { class: "cvs-run", role: "group", "aria-label": "Run the app" }, shareHolder, h("span", { class: "cvs-split" }, playButton, playMore), exportButton);
 const top = h("header", { class: "cvs-top" }, tabs, h("span", { class: "cvs-grow" }), runBar);
 const notice = h("div", { class: "cvs-notice", role: "status", hidden: true });
 const board = h("div", { class: "cvs-board", "aria-label": "Canvas", tabindex: "0" });
@@ -281,6 +284,7 @@ function take(next: State): void {
   if (!next.model.pages.some((p) => p.id === page)) page = next.model.pages[0]?.id ?? "";
   selected = selected.filter((id) => find(id));
   if (next.notes.length) say(next.notes.join(" "));
+  if (first) drawRun(); // the Shared mark for this canvas's app
   if (first) {
     try {
       zoom = Number(sessionStorage.getItem(zoomKey())) || 1;
@@ -905,7 +909,7 @@ function menu(x: number, y: number, entries: MenuEntry[]): void {
 }
 
 /** Play's ▾ (and the run group's middle): Launch, Launch with the Performance Analyzer, the analyzer's window
- *  while launched, Builds…; Stop instead of Launch while the app is launched. */
+ *  and Share… while launched, Builds…; Stop instead of Launch while the app is launched. */
 function launchEntries(group: boolean): MenuEntry[] {
   const canvas = state?.canvas;
   return [
@@ -913,6 +917,8 @@ function launchEntries(group: boolean): MenuEntry[] {
     launched
       ? { label: "Performance Analyzer", disabled: !canvas, run: () => canvas && openAnalyzer(canvas) }
       : { label: "Launch with the Performance Analyzer", key: "Ctrl+Shift+F5", run: () => void launch(true) },
+    // Share… (the share-app branch): the launched app's address for others, while it is launched.
+    ...(launched ? [shareEntry()] : []),
     { label: "Builds…", disabled: !canvas, run: () => canvas && void openBuilds(canvas, buildsHost) },
   ];
 }
@@ -927,6 +933,16 @@ function runGroup(after: boolean): MenuEntry[] {
     ...launchEntries(false),
     { label: "Export…", key: "Ctrl+Shift+E", run: () => void exportApp() },
   ];
+}
+
+/** The launched app as Share… knows it (the Streamlit extension's share target: the canvas's id). */
+function shareable(): ShareableApp | null {
+  return state ? { kind: "streamlit", id: state.canvas, title: state.name } : null;
+}
+
+/** Share… with the organization (shareApp.ts): offered while the app is launched. */
+function shareEntry(): MenuEntry {
+  return { label: "Share…", run: () => { const app = shareable(); if (app) openShareDialog(app); } };
 }
 
 function nodeMenu(node: Node, e: MouseEvent): void {
@@ -1270,6 +1286,11 @@ function drawRun(): void {
   playButton.setAttribute("aria-label", on ? "Stop" : "Play");
   playButton.title = on ? (!live.hidden ? "Stop playing (Esc)" : "Stop the launched app") : "Play (F5)";
   playButton.classList.toggle("running", on);
+  const app = shareable();
+  if (app && shareHolder.dataset.app !== app.id) {
+    shareHolder.dataset.app = app.id;
+    shareHolder.replaceChildren(shareMark(app));
+  }
 }
 
 /** One run at a time (Play, Launch, Export), its words over the canvas meanwhile. */

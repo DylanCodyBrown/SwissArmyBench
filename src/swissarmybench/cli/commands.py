@@ -4170,6 +4170,40 @@ def team_leave(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "sharing_status",
+    "Shared apps (Dev Tunnels, organization only): devtunnel installed, signed in, each share's state and link",
+    opt("app", "An app's id: its share only."),
+    opt("kind", "streamlit (default)."),
+)
+def sharing_status(a: dict[str, Any]) -> Any:
+    query = (
+        f"?kind={quote(str(a.get('kind') or 'streamlit'))}&app={quote(str(a['app']))}" if a.get("app") else ""
+    )
+    return api.call("GET", "/sharing" + query)
+
+
+@command(
+    "sharing_start",
+    "Share a launched app with the organization (sign-in is the user's); waits for Allow",
+    req("app", "The app's id (a canvas's)."),
+    opt("kind", "streamlit (default)."),
+)
+def sharing_start(a: dict[str, Any]) -> Any:
+    body = {"kind": a.get("kind") or "streamlit", "app": a["app"]}
+    return api.call("POST", "/sharing/start", body, timeout=900)
+
+
+@command(
+    "sharing_stop",
+    "Stop sharing an app (its link ends); waits for Allow",
+    req("app", "The app's id."),
+    opt("kind", "streamlit (default)."),
+)
+def sharing_stop(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/sharing/stop", {"kind": a.get("kind") or "streamlit", "app": a["app"]})
+
+
+@command(
     "app_registration_list",
     "The library's app registrations: their three variable names, the connections using each, the last check",
     opt("name", "One registration: it and its last access report."),
@@ -5095,6 +5129,7 @@ AREAS: tuple[tuple[str, str], ...] = (
         "The library: the folder of connections, APIs, vaults, blades and variables (a Git repository)",
     ),
     ("team", "Settings' Team box: join, start or leave a team (one GitHub repository, its projects/)"),
+    ("sharing", "Share a running app with your organization (Microsoft Dev Tunnels)"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),

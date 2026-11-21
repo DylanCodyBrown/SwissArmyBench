@@ -155,6 +155,13 @@ class Canvases:
         self._open[opened.id] = opened
         return self.state(opened.id)
 
+    def title_of(self, canvas: str) -> str:
+        """An open canvas's name, as the user knows it (its file's, without .canvas.json)."""
+        opened = self._open.get(canvas)
+        if opened is None:
+            return canvas
+        return opened.path.replace("\\", "/").rsplit("/", 1)[-1][: -len(model.SUFFIX)] or canvas
+
     def _get(self, canvas: str) -> Open:
         found = self._open.get(canvas)
         if found is None:

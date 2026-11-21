@@ -226,6 +226,8 @@ NOT_COMMANDS = {
     "/team/pull": "the Team box's Pull: github_pull (the team library's folder) is the same",
     "/team/push": "the Team box's Push: github_push (the team library's folder) is the same",
     "/team/pending": "the Team box's step kept over Install's restart (page plumbing): team_status reads it",
+    "/sharing/install": "devtunnel's download: sharing_start does it for the agent, on the user's Allow",
+    "/sharing/sign-in": "signing in to share (Microsoft Entra) is the user's own (403 for the agent)",
     "/team/show": "Show its folder opens the user's own file manager: the user's click only (403 for the "
     "agent)",
     "/streamlit/apps/{}/pages/{}/blocks/{}/move-to-data": "the move the window makes in its open documents:"

@@ -10,7 +10,7 @@ import contextlib
 import json
 import os
 import secrets
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -80,6 +80,9 @@ class LiveRuns:
         self._files = files  # adapters/streamlit_files.py AppFiles
         self._runner = runner  # server/streamlit_apps.py Runner
         self._runs: dict[str, Live] = {}
+        # Told a run's key when the run ends or its app is written again (a launch again): a share of a
+        # launched app ends with it (services/sharing_target.py).
+        self.ended: list[Callable[[str], Awaitable[None]]] = []
 
     def port_of(self, key: str) -> int | None:
         run_id, _, secret = key.rpartition("-")
@@ -129,6 +132,8 @@ class LiveRuns:
                     return {"ok": False, "problem": {"kind": "failed", "message": str(error)}}
                 live.python = python
             else:
+                for told in self.ended:  # the app written again: a share of the run before ends
+                    await told(key)
                 self._files.touch(live.folder, "app.py")
         return {"ok": True, "url": f"{live.base}/{page}" if page else f"{live.base}/", "base": live.base}
 
@@ -191,6 +196,9 @@ class LiveRuns:
         live = self._runs.pop(key, None)
         if live is None:
             return False
+        for told in self.ended:  # a share ends first: its process runs from this run's folder
+            with contextlib.suppress(Exception):
+                await told(key)
         if live.process is not None:
             await live.process.stop()
         if live.folder:
@@ -205,6 +213,11 @@ class LiveRuns:
     def running(self, key: str) -> bool:
         live = self._runs.get(key)
         return bool(live and live.running())
+
+    def launched(self, key: str) -> tuple[str, str] | None:
+        """A running run's folder and Python (None: not running): a shared run starts from them."""
+        live = self._runs.get(key)
+        return (live.folder, live.python) if live and live.running() and live.folder else None
 
     def folder_of(self, key: str) -> str | None:
         live = self._runs.get(key)

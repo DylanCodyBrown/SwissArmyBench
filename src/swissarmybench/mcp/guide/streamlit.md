@@ -46,7 +46,10 @@ says so in one line.
   grid; both layouts), `canvas_page` (add, rename, move, remove), `canvas_undo`, `canvas_redo`.
 - `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
   `canvas_stop` (run play, the default, or launch),
-  `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window), `canvas_export` (a
+  `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window); `sharing_status`,
+  `sharing_start app=<canvas id>` (waits for Allow; installs devtunnel if needed): the launched
+  app's own port to the user's organization (work accounts of its tenant; never anonymous, never this server;
+  the user signs in themselves), `sharing_stop` (Allow; a new launch or its stop ends it too), `canvas_export` (a
   folder that runs on a hosted Streamlit app: app.py, a page file each, sab_canvas.py, sab_widgets.py, the tables
   it names as Parquet, data.py; it copies rows, so it waits for the user's Allow).
 - The page reproduces the canvas's places: each container and widget is an st.container placed

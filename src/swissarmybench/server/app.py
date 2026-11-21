@@ -43,6 +43,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
+  routes_sharing.py        Share a running app with your organization (Microsoft Dev Tunnels)
   routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
@@ -129,6 +130,7 @@ from swissarmybench.server import (
     routes_script_runs,
     routes_session_log,
     routes_shared_catalog,
+    routes_sharing,
     routes_snapshots,
     routes_structures,
     routes_table_cells,
@@ -315,6 +317,7 @@ def create_app(
         autosave.cancel()
         pruner.cancel()
         checker.cancel()
+        await ctx.sharing.stop_all()  # no share outlives the server (before the apps it tunnels to stop)
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.sab_projects.stop()
         for extension in ctx.switched_on:  # nor an extension's processes (a code app's dev server)
@@ -378,6 +381,7 @@ def create_app(
             *routes_kind_colours.routes(ctx.kind_colours),
             *routes_library.routes(ctx.library, ctx.library_setup),
             *routes_team.routes(ctx.team),
+            *routes_sharing.routes(ctx.sharing),
             *routes_app_registrations.routes(ctx.app_registrations),
             *routes_shared_catalog.routes(ctx.shared_catalog),
             *routes_connection_colours.routes(ctx.connection_colours),

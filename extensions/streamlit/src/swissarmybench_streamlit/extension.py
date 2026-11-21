@@ -231,6 +231,10 @@ def routes(services: Any) -> list[Any]:
     hooks.project_app = project_app
     hooks.app_pages = canvas_pages
     web_root = getattr(settings, "web_root", Settings().web_root)
+    # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
+    from swissarmybench_streamlit.services import sharing_target
+
+    services.share_target = sharing_target.wire(services, live_runs, runner, canvases.title_of)
     return [
         *routes_widgets.routes(widgets, previewer, web_root),
         *routes_canvases.routes(canvases, web_root),
@@ -267,6 +271,9 @@ async def stop(services: Any) -> None:
     live_runs = getattr(services, "live_runs", None)
     if live_runs is not None:
         await live_runs.stop_all()
+    shared = getattr(services, "share_target", None)
+    if shared is not None:
+        await shared.close_all()
 
 
 def canvas_pages(path: str, text: str) -> list[tuple[str, list[tuple[str, int]]]]:

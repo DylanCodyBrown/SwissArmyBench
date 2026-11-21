@@ -151,9 +151,26 @@ def _answers(port: int, base: str) -> bool:
         connection.close()
 
 
-async def start(python: str, folder: str, base: str, report: Report = _no_report) -> Process:
+# A shared run (Share…: the base's services/sharing.py; Microsoft Dev Tunnels to this process's own port,
+# never the server's): at the address's root (the tunnel's link is the app); the CORS and XSRF checks forced
+# on over whatever the app's .streamlit/config.toml says (the tunnel rewrites Host and Origin to localhost, so
+# the browser's web socket is same-origin to Streamlit and passes them); its files not watched (a build's
+# copy: nothing rewrites them while it is shared).
+SHARED_FLAGS: tuple[str, ...] = (
+    "--server.baseUrlPath=",
+    "--server.enableCORS=true",
+    "--server.enableXsrfProtection=true",
+    "--server.fileWatcherType=none",
+    "--server.runOnSave=false",
+)
+
+
+async def start(
+    python: str, folder: str, base: str, report: Report = _no_report, shared: bool = False
+) -> Process:
     """`streamlit run app.py` in `folder`, in `python`, under the path `base` (the proxy's), on a free
-    port of 127.0.0.1. Ready to answer when this returns."""
+    port of 127.0.0.1. Ready to answer when this returns. `shared`: a shared run (SHARED_FLAGS), at the
+    root."""
     port = _free_port()
     command = [
         python,
@@ -173,6 +190,13 @@ async def start(python: str, folder: str, base: str, report: Report = _no_report
         "--client.toolbarMode=minimal",
         "--global.developmentMode=false",
     ]
+    if shared:  # the later flag wins: these take the place of the proxy's path and the file watching
+        command = [
+            c
+            for c in command
+            if not c.startswith(("--server.baseUrlPath=", "--server.fileWatcherType=", "--server.runOnSave="))
+        ]
+        command += list(SHARED_FLAGS)
     environ = dict(os.environ)
     try:
         process = await asyncio.create_subprocess_exec(
@@ -194,7 +218,9 @@ async def start(python: str, folder: str, base: str, report: Report = _no_report
             said = "\n".join(running.lines[-8:])
             report("failed", process.returncode, time.monotonic() - running._started, "stopped as it started")
             raise StreamlitProcessError(f"Streamlit stopped as it started:\n{said}"[:2000])
-        if await asyncio.to_thread(_answers, port, "/" + base.strip("/")):
+        if await asyncio.to_thread(
+            _answers, port, "" if shared or not base.strip("/") else "/" + base.strip("/")
+        ):
             report("start", None, time.monotonic() - running._started, "")
             running.watch()
             return running
@@ -247,6 +273,10 @@ class Runner:
 
     async def start(self, python: str, folder: str, base: str) -> Process:
         return await start(python, folder, base, self._report)
+
+    async def start_shared(self, python: str, folder: str) -> Process:
+        """A second process of a launched app's run folder, at the root, for Share… (SHARED_FLAGS)."""
+        return await start(python, folder, "", self._report, shared=True)
 
     async def install(self, python: str, packages: list[str]) -> tuple[int | None, str]:
         return await install(python, packages)
