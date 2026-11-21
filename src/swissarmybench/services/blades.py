@@ -17,6 +17,8 @@ from __future__ import annotations
 import base64
 import binascii
 import re
+import time
+import uuid
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import replace
 from typing import Any, Protocol
@@ -24,6 +26,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import (
     blade_tables,
     dataverse,
+    errors,
     lakes,
     portability,
     python_connections,
@@ -54,7 +57,7 @@ from swissarmybench.domain.packs import CROSS_LISTED
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.vault_names import KeptVaultNames
-from swissarmybench.services.workspace import Refused, Workspace
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 _PIP_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._\-]{0,99}(\[[A-Za-z0-9,._\-]{1,100}\])?")
 
@@ -73,6 +76,10 @@ class Blades(Protocol):
     def save(self, data: Any, previous_name: str | None = None) -> Blade: ...
 
     def set_header(self, name: str, changes: Mapping[str, Any]) -> Blade: ...
+
+    def set_code(self, name: str, code: str) -> Blade: ...
+
+    def stamp_of(self, name: str) -> str: ...
 
     def file_of(self, name: str) -> Any: ...
 
@@ -97,6 +104,22 @@ class Blades(Protocol):
     def providers(
         self, blade: Blade, everything: list[Blade] | None = None
     ) -> tuple[list[Blade], dict[str, str]]: ...
+
+
+class ChangedOnDisk(Conflict):
+    """The blade's file changed since the editor read it (an edit in the user's own editor): never saved over
+    without the user's Keep mine (`force`). `stamp`: the file's stamp now."""
+
+    def __init__(self, message: str, stamp: str) -> None:
+        super().__init__(message)
+        self.stamp = stamp
+
+
+# The blade IDE's Output kept per run: at most this much text (the rest said as cut).
+_OUTPUT_CHARS = 1_000_000
+
+# What a run's output, result and problems are kept as, per blade (the agent reads the last one).
+StreamBlade = Callable[..., Awaitable[dict[str, Any]]]
 
 
 class NeedsValues(Exception):
@@ -131,8 +154,17 @@ class BladeService:
         environ: Mapping[str, str],
         reveal: Callable[[str], None] | None = None,
         kept_names: KeptVaultNames | None = None,
+        stream_blade: StreamBlade | None = None,
     ) -> None:
         self.ws = ws
+        # The blade IDE's Run: a blade in a child process, its output streamed (server/blade_runner.py).
+        self._stream_blade = stream_blade
+        # Its Problems (services/intellisense.py lint, set by bootstrap) and its Open as grid.
+        self.lint: Callable[[Any, str], Awaitable[dict[str, Any]]] | None = None
+        self.open_table: Callable[[str, Any, str], Awaitable[dict[str, Any]]] | None = None
+        # Runs going now (their stop, for Cancel) and each blade's last run (its table for Open as grid).
+        self._runs: dict[str, Callable[[], None]] = {}
+        self._last_runs: dict[str, dict[str, Any]] = {}
         # A vault's secret names, kept on this computer as they are read (services/vault_names.py).
         self.kept_names = kept_names
         # Show its file: the system's file manager at a blade's file (server/file_manager.py); the user's.
@@ -332,6 +364,10 @@ class BladeService:
         details = blade.to_json() | self.summary(blade)
         # The file it is edited in (Show its file): a blade's code is never changed by the app.
         details["file"] = str(self._blades.file_of(blade.name) or "")
+        # The blade IDE: the file's stamp (Save checks it was not changed outside), and whether Save is
+        # refused (a starter's, a pack's: Copy as your own).
+        details["stamp"] = self._blades.stamp_of(blade.name)
+        details["read_only"] = bool(blade.pack)
         # Its Remove: a file the app keeps (the library's); a blade folder's file is the user's to delete.
         details["removable"] = blade.source == "saved" or (
             blade.source == "folder" and self._blades.in_library(blade)
@@ -383,29 +419,58 @@ class BladeService:
             if not answer["available"]:
                 raise BladeError(str(answer["said"]))
 
-    # ===== a blade's code is edited in its file (the owner, 2026-11-17) =====
+    # ===== the blade IDE (the owner, 2026-11-21: "This is an IDE not a save form") =====
 
-    # What the app changes in a blade: its file's header only, never its code.
+    # What the app changes in a blade: its code (written into its file after the header) and the header's
+    # name, description, tags and table name. Its kind and variable follow from the code.
     HEADER_FIELDS: tuple[str, ...] = ("name", "description", "tags", "table")
 
+    def code(self, name: str) -> dict[str, Any]:
+        """The open editor's look at its file: the code, its stamp (an edit made outside is noticed)."""
+        blade = self._blades.get(name)
+        return {
+            "name": blade.name,
+            "code": blade.code,
+            "stamp": self._blades.stamp_of(blade.name),
+            "file": str(self._blades.file_of(blade.name) or ""),
+            "read_only": bool(blade.pack),
+        }
+
     async def update(self, name: str, body: Any, who: str = "user") -> dict[str, Any]:
-        """Change a blade's name, description, tags or table name (its file's header; the code's bytes as
-        they were). Anything else sent must be as it is: a blade's code is edited in its file."""
+        """Change a blade's code (the IDE's Save: `code`, with the `stamp` it read; `force` keeps the editor's
+        over an edit made outside) and its header's name, description, tags or table name. Anything else sent
+        must be as it is."""
         if not isinstance(body, dict):
-            raise BladeError('Send {"name", "description", "tags", "table"}.')
+            raise BladeError('Send {"code", "stamp", "name", "description", "tags", "table"}.')
         blade = self._blades.get(name)
         now = blade.to_json()
         for key, value in body.items():
-            if key in self.HEADER_FIELDS or key == "secrets" or key not in now:
+            if key in self.HEADER_FIELDS or key in ("secrets", "code", "stamp", "force") or key not in now:
                 continue
             if key in ("path", "pack", "source", "created_at", "updated_at"):
                 continue
             if value != now[key]:
-                where = self._blades.file_of(blade.name)
                 raise BladeError(
-                    f"{blade.name}'s {key} is edited in its file ({where}), never in the app: the app "
-                    "changes only its name, description, tags and table name."
+                    f"{blade.name}'s {key} follows from its code: the app changes its code, name, "
+                    "description, tags and table name."
                 )
+        code = body.get("code")
+        code_changed = False
+        if code is not None:
+            if not isinstance(code, str):
+                raise BladeError('Send the code as text: {"code": "..."}.')
+            if code.replace("\r\n", "\n") != blade.code:
+                stamp = self._blades.stamp_of(blade.name)
+                base = body.get("stamp")
+                if isinstance(base, str) and base and base != stamp and body.get("force") is not True:
+                    where = self._blades.file_of(blade.name)
+                    raise ChangedOnDisk(
+                        f"{where.name if where else blade.name} changed on disk since it was opened: Reload "
+                        "it, or Keep mine to save over it.",
+                        stamp,
+                    )
+                blade = self._blades.set_code(blade.name, code)
+                code_changed = True
         changes = {k: body[k] for k in self.HEADER_FIELDS if k in body}
         if "table" in changes and str(changes["table"] or "").strip():
             if not blade_tables.names_table(blade.kind, blade.template, blade.web_call):
@@ -416,9 +481,154 @@ class BladeService:
         saved = self._blades.set_header(blade.name, changes) if changes else blade
         if isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(saved.name, body["secrets"])
-        self.ws.audit.write(who, "save_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
+        word = _kind_word(saved.kind, saved.template)
+        changed = "changed" if code_changed else None
+        self.ws.audit.write(who, "save_blade", saved.name, kind=word, code=changed)
         await self.ws.live.broadcast({"type": "blades_changed"})
-        return self.summary(saved)
+        if code_changed:
+            for hook in self.blade_saved:
+                await hook(saved)
+        return self.summary(saved) | {"stamp": self._blades.stamp_of(saved.name)}
+
+    def name_check(self, name: str) -> dict[str, Any]:
+        """Save as's live check: whether `name` is free for a new blade ("available", or why not)."""
+        wanted = name.strip()
+        try:
+            rules.parse_blade({"name": wanted, "kind": "secret", "env_names": ["A"]})
+        except BladeError as error:
+            return {"name": wanted, "available": False, "said": str(error)}
+        try:
+            taken = self._blades.get(wanted)
+        except KeyError:
+            return {"name": wanted, "available": True, "said": blade_tables.AVAILABLE}
+        return {"name": wanted, "available": False, "said": f"{taken.name} is a blade already"}
+
+    async def run(
+        self, name: str, body: Any, who: str = "user", on_output: Callable[[str, str], None] | None = None
+    ) -> dict[str, Any]:
+        """The IDE's Run: the blade, its code the editor's (`code`, saved or not), in a child process as
+        Test runs it (its own Python, its secrets and vaults, the values typed for a secret blade). Its
+        prints stream to `on_output`; the answer is the output, the result (a table's columns, first rows
+        and count, or a value's text), the error panel's detail on a failure, and the lint's problems."""
+        if self._stream_blade is None:
+            raise BladeError("Running a blade is not set up here.")
+        body = body if isinstance(body, dict) else {}
+        blade = self._blades.get(name)
+        if blade.kind == "snippet":
+            raise BladeError(f"{blade.name} is a snippet: text for a cell, with nothing to run.")
+        if blade.kind == "secret":
+            raise BladeError("A secret blade has no code to run; its values are typed when used.")
+        code = body.get("code") if isinstance(body.get("code"), str) else blade.code
+        tried = replace(blade, code=code, variable=blade_tables.follow_variable(code, blade.variable))
+        typed = self._typed_values(blade, body)
+        run_id = str(body.get("run") or uuid.uuid4().hex[:12])[:40]
+        output: list[dict[str, str]] = []
+        size = 0
+
+        def heard(stream: str, text: str) -> None:
+            nonlocal size
+            if size >= _OUTPUT_CHARS:
+                return
+            text = text[: _OUTPUT_CHARS - size]
+            size += len(text)
+            if output and output[-1]["stream"] == stream:
+                output[-1]["text"] += text
+            else:
+                output.append({"stream": stream, "text": text})
+            if on_output is not None:
+                on_output(stream, text)
+
+        file = self._blades.file_of(blade.name)
+        stem = rules.file_name(blade.name).removesuffix(rules.SUFFIX) + ".py"
+        began = time.monotonic()
+        try:
+            answer = await self._stream_blade(
+                tried, typed, stem, heard, lambda stop: self._runs.__setitem__(run_id, stop)
+            )
+        finally:
+            self._runs.pop(run_id, None)
+        result = answer.get("result") if isinstance(answer.get("result"), dict) else None
+        table = result.pop("table", None) if result else None
+        out: dict[str, Any] = {
+            "run": run_id,
+            "name": blade.name,
+            "ok": bool(answer.get("ok")),
+            "seconds": round(time.monotonic() - began, 2),
+            "output": output,
+            "result": result,
+        }
+        if size >= _OUTPUT_CHARS:
+            out["output_cut"] = True
+        if not out["ok"]:
+            if answer.get("cancelled"):
+                out["cancelled"] = True
+            failed = self.run_failure(
+                str(answer.get("failed") or "It did not run."), answer.get("missing_module"), blade.name
+            )
+            out["error"] = failed.get("error")
+            out["refusal"] = failed
+            detail = answer.get("detail")
+            if isinstance(detail, dict) and detail.get("chain"):
+                out["error_detail"] = errors.explain_detail(
+                    detail, self._python, [info.name for info in self.ws.store.all()]
+                )
+        out["problems"] = (await self.problems(blade.name, code))["problems"]
+        self._last_runs[blade.name.casefold()] = {"answer": out, "table": table, "file": str(file or "")}
+        self.ws.audit.write(who, "run_blade", blade.name, outcome="ran" if out["ok"] else "failed")
+        return out
+
+    def runnable_now(self, name: str) -> None:
+        """Refused before a streamed Run starts: no such blade, a snippet, a secret blade."""
+        blade = self._blades.get(name)
+        if blade.kind in ("snippet", "secret"):
+            raise BladeError(f"{blade.name} is a {blade.kind}: it has nothing to run.")
+
+    def cancel(self, run_id: str) -> dict[str, Any]:
+        """Cancel a run going now (its child process stopped)."""
+        stop = self._runs.get(run_id)
+        if stop is None:
+            return {"cancelled": False}
+        stop()
+        return {"cancelled": True}
+
+    def last_run(self, name: str) -> dict[str, Any]:
+        """A blade's last run this session (its output, result and problems), or NotFound."""
+        kept = self._last_runs.get(self._blades.get(name).name.casefold())
+        if kept is None:
+            raise NotFound(f"{name} has not been run this session: run it (blades_run).")
+        answer: dict[str, Any] = kept["answer"]
+        return answer
+
+    async def open_result(self, name: str, who: str = "user") -> dict[str, Any]:
+        """Open as grid: the last run's table in a tab of its own, named as the blade's table is."""
+        blade = self._blades.get(name)
+        kept = self._last_runs.get(blade.name.casefold())
+        if kept is None or kept.get("table") is None:
+            raise NotFound(f"{blade.name}'s last run made no table: run it first.")
+        if self.open_table is None:
+            raise BladeError("Opening a table is not set up here.")
+        wanted = blade.table or variable_name(blade.variable or blade.name) or "blade"
+        opened = await self.open_table(wanted, kept["table"], who)
+        self.ws.audit.write(who, "open_blade_result", blade.name)
+        return opened
+
+    async def problems(self, name: str, code: str | None = None) -> dict[str, Any]:
+        """The lint's problems in a blade's code (the editor's, else its own): the Workbench's lint, with
+        secret() known (the run gives it)."""
+        blade = self._blades.get(name)
+        text = code if isinstance(code, str) else blade.code
+        if self.lint is None or blade.kind in ("snippet", "secret") or not text.strip():
+            return {"problems": []}
+        body = {
+            "text": text,
+            "language": "python",
+            "notebook": False,
+            "before": [blade_tables.SECRET_STUB],
+            "path": str(self._blades.file_of(blade.name) or ""),
+            "document": f"blade:{blade.name}",
+        }
+        found = await self.lint(body, "agent")
+        return {"problems": list(found.get("problems") or [])}
 
     def new_blades(self) -> dict[str, Any]:
         """What New blade offers (domain/blade_tables.py)."""
@@ -898,7 +1108,7 @@ class BladeService:
             "families": [{"family": name, "blades": found} for name, found in families.items()],
         }
 
-    async def copy(self, name: str, new_name: Any, who: str) -> dict[str, Any]:
+    async def copy(self, name: str, new_name: Any, who: str, code: Any = None) -> dict[str, Any]:
         """A starter's (or any pack's) blade copied as the user's own, to change freely: named
         `new_name`, else "<name> copy" (then "<name> copy 2"...). The pack's own stays as it is, and a new
         version of the app never touches the copy."""
@@ -911,6 +1121,10 @@ class BladeService:
         for key in ("path", "pack", "source", "created_at", "updated_at"):
             data.pop(key, None)
         data["name"] = wanted
+        if isinstance(code, str) and blade.kind != "secret":  # Save as: the editor's code under a new name
+            data["code"] = code
+            if blade.kind != "snippet":
+                data["variable"] = blade_tables.follow_variable(code, blade.variable)
         saved = self._blades.save(data)
         self.ws.audit.write(who, "copy_blade", saved.name, of=blade.name)
         await self.ws.live.broadcast({"type": "blades_changed"})

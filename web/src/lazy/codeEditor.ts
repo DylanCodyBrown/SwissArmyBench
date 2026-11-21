@@ -592,6 +592,8 @@ export interface CodeEditor {
   setHidden: (ranges: [number, number][]) => void;
   focus: () => void;
   setTheme: (theme: string) => void;
+  /** The text's size in px (an IDE's own zoom: codeIde.ts). */
+  setFontSize: (px: number) => void;
   /** Lint now (the language or the kernel changed), and what the lint shows. */
   lint: () => void;
   lintProblems: () => IntelProblem[];
@@ -1310,6 +1312,10 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     },
     focus: () => editor.focus(),
     setTheme: (theme) => monaco.editor.setTheme(THEMES[theme] ?? "vs"),
+    setFontSize: (px) => {
+      editor.updateOptions({ fontSize: px });
+      if (options.grow) fit();
+    },
     onChange: (listener) => void editor.onDidChangeModelContent((e) => listener({ undo: e.isUndoing || e.isRedoing })),
     layout: () => (options.grow ? fit() : editor.layout()),
     lint: () => void lintNow(),

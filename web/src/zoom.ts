@@ -29,6 +29,8 @@ export function zoomControl(): HTMLElement {
 }
 
 let installed = false;
+/** Inside an element marked data-own-zoom (an IDE's code: codeIde.ts), the element zooms itself. */
+const ownZoom = (target: EventTarget | null): boolean => target instanceof Element && !!target.closest("[data-own-zoom]");
 /** Ctrl + wheel and the Ctrl keys zoom the app, not the browser. Once per page. */
 export function installZoomInput(): void {
   if (installed) return;
@@ -36,7 +38,7 @@ export function installZoomInput(): void {
   document.addEventListener(
     "keydown",
     (e) => {
-      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || ownZoom(e.target)) return;
       if (e.key === "=" || e.key === "+") stepZoom(1);
       else if (e.key === "-" || e.key === "_") stepZoom(-1);
       else if (e.key === "0") setGridZoom(1);
@@ -51,7 +53,7 @@ export function installZoomInput(): void {
   document.addEventListener(
     "wheel",
     (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
+      if (!(e.ctrlKey || e.metaKey) || ownZoom(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
       pending += e.deltaY;

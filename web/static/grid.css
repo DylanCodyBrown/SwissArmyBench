@@ -2545,24 +2545,24 @@ button.link {
   opacity: 1;
 }
 
-/* The grid page's tabs (feel-a): a tab's basis is its least width, so the row fills before it wraps: at
-   1024px nine tables still sit on one row, each as wide as the row allows (up to 200px, the name ellipsed);
-   wrapping is for many. The table in front shows its whole name. A tab's close button is the active or
-   hovered tab's (the room is its name's otherwise), as a browser's narrow tabs; the keyboard still reaches
-   it (focus-within). The Workbench's tabs (.wb-tab) keep their own. */
+/* The grid page's tabs: each as wide as its whole name (the owner, 2026-11-21), up to 360px (then cut, the
+   full name on hover); tabs that do not fit wrap onto another row. A tab's close button keeps its room on every
+   tab and shows on the active or hovered one (the keyboard reaches it: focus-within). The Workbench's tabs
+   (.wb-tab) keep their own. */
 .tabs-row .tab-item {
-  flex: 1 1 76px;
-  max-width: 200px;
-  min-width: 76px;
+  flex: 0 0 auto; /* each tab as wide as its name (the owner, 2026-11-21: "tabs ... never auto width to the text") */
+  max-width: 360px; /* only a very long name is cut, with its full name on hover */
+  min-width: 0;
   padding-left: 10px;
 }
 
-.tabs-row .tab-item.active {
-  flex: 0 0 auto;
+.tabs-row .tab-item .tab-label {
+  flex: 0 1 auto;
 }
 
+/* The close button keeps its room on every tab, so a tab's width never jumps on hover. */
 .tabs-row .tab-item:not(.active):not(.in-split):not(:hover):not(:focus-within) .tab-close {
-  display: none;
+  visibility: hidden;
 }
 
 .tab-end {
@@ -19354,4 +19354,714 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   background: var(--selected);
   color: var(--fg);
   border-color: var(--border-strong);
+
+/* ===== codeIde.ts: a page that is an IDE (the owner, 2026-11-21: "This is an IDE not a save form") ===== */
+
+.code-ide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg);
+}
+
+.ide-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 2px 6px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ide-bar-gap {
+  flex: 1;
+}
+
+.btn.ide-btn {
+  min-height: 24px;
+  padding: 1px 8px;
+  font-size: 0.86em;
+  gap: 4px;
+}
+
+.btn.ide-btn.icon {
+  padding: 1px 4px;
+}
+
+.btn.ide-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn.ide-btn.running {
+  color: var(--error);
+}
+
+.ide-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: 6px;
+  font-weight: 600;
+}
+
+.ide-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The dirty dot: unsaved changes. */
+.ide-dirty {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fg);
+}
+
+.ide-readonly {
+  font-weight: normal;
+  font-size: 0.8em;
+}
+
+.ide-note {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--warn-soft);
+}
+
+.ide-note-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.ide-note-row > .error-note {
+  flex: 1;
+  margin: 0;
+}
+
+.ide-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.ide-center {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ide-editor {
+  position: relative;
+  flex: 1;
+  min-height: 80px;
+}
+
+.ide-editor > .ide-plain {
+  height: 100%;
+  margin: 0;
+  overflow: auto;
+}
+
+.ide-split {
+  flex: none;
+  height: 5px;
+  background: var(--border);
+  cursor: row-resize;
+}
+
+.ide-split:hover,
+.ide-split:focus-visible {
+  background: var(--accent);
+}
+
+.ide-panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: 240px;
+  min-height: 60px;
+  background: var(--surface);
+}
+
+.ide-panel.folded {
+  height: auto !important;
+  min-height: 0;
+}
+
+.ide-panel.folded .ide-panel-body {
+  display: none;
+}
+
+.ide-tabs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ide-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.88em;
+  cursor: pointer;
+}
+
+.ide-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
+.ide-tab-spin {
+  width: 10px;
+  height: 10px;
+}
+
+.ide-count {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--border);
+  font-size: 0.85em;
+  text-align: center;
+}
+
+.ide-panel-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.ide-panel-body > * {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.ide-output {
+  margin: 0;
+  padding: 6px 10px;
+  font: 0.85em/1.45 var(--mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ide-out.stderr {
+  color: var(--error);
+}
+
+.ide-out.note {
+  color: var(--muted);
+}
+
+.ide-result {
+  padding: 6px 10px;
+}
+
+.ide-result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ide-grid-wrap {
+  overflow: auto;
+}
+
+.ide-grid {
+  border-collapse: collapse;
+  font-size: 0.86em;
+}
+
+.ide-grid th,
+.ide-grid td {
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.ide-grid th {
+  position: sticky;
+  top: 0;
+  background: var(--raised);
+}
+
+.ide-grid td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ide-problems {
+  padding: 4px 6px;
+}
+
+.ide-problem-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ide-problem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  text-align: left;
+}
+
+.ide-problem svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.ide-problem.error svg {
+  color: var(--error);
+}
+
+.ide-problem.warning svg {
+  color: var(--warn);
+}
+
+.ide-problem-text {
+  color: var(--fg);
+}
+
+.ide-props {
+  flex: none;
+  width: 290px;
+  padding: 8px 12px;
+  border-left: 1px solid var(--border);
+  overflow: auto;
+}
+
+.ide-props[hidden] {
+  display: none;
+}
+
+.ide-props-title {
+  margin: 0 0 8px;
+  font-size: 0.95em;
+}
+
+.ide-props-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.ide-props-form input,
+.ide-props-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* The hosts it fills: the blades page's main area, the Workbench's blade tab. */
+.cat-main:has(> .blade-host > .code-ide) {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.blade-host:has(> .code-ide) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb-doc-body.kind-blade:has(> .code-ide) {
+  display: flex;
+  height: 100%;
+  padding: 0;
+}
+
+@media (max-width: 760px) {
+  .ide-props {
+    width: 200px;
+  }
+  .ide-bar .btn.ide-btn .btn-label {
+    display: none;
+  }
+}
+
+/* Design principle 8.14: no page heading over the place where code is written. */
+body:has(.cat-main > .blade-host > .code-ide) .cat-top {
+  display: none;
+}
+
+/* ===== a connection's slots (connectionSlots.ts) and the Queries window (queriesWindow.ts) ===== */
+
+.connection-card {
+  grid-template-areas:
+    "icon text"
+    "status calls"
+    "slots slots";
+}
+
+.connection-slots {
+  display: inline-flex;
+  grid-area: slots;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.connection-slots[hidden] {
+  display: none;
+}
+
+.connection-slots .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.connection-slots.busy {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.connection-slots.full {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.connection-slots:hover,
+.connection-slots:focus-visible {
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.connection-queries {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.connection-limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.connection-limit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-limit {
+  width: 76px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.connection-limits.compact .connection-limit {
+  width: 64px;
+}
+
+body.queries-window {
+  overflow: auto;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.queries-main {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 24px;
+}
+
+.queries-main > * {
+  flex-shrink: 0;
+}
+
+.queries-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+
+.queries-top h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+}
+
+.queries-connection {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--fg);
+  font: inherit;
+}
+
+.queries-counts {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.queries-limits {
+  margin-left: auto;
+}
+
+.queries-note {
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.queries-note[hidden] {
+  display: none;
+}
+
+.queries-header-table,
+.queries-table,
+.queries-finished-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.queries-header-table th,
+.queries-finished-table th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.queries-header-table th:nth-child(1),
+.queries-table td:nth-child(1) {
+  width: 14%;
+}
+
+.queries-header-table th:nth-child(2),
+.queries-table td:nth-child(2) {
+  width: 16%;
+}
+
+.queries-header-table th:nth-child(3),
+.queries-table td:nth-child(3) {
+  width: 20%;
+}
+
+.queries-header-table th:nth-child(4),
+.queries-table td:nth-child(4) {
+  width: 14%;
+}
+
+.queries-header-table th:nth-child(8),
+.queries-table td:nth-child(8) {
+  width: 132px;
+}
+
+.queries-list {
+  position: relative;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.queries-list:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+}
+
+.queries-list[hidden] {
+  display: none;
+}
+
+.queries-list.virtual .queries-rows {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+.queries-row td,
+.queries-finished-table td {
+  overflow: hidden;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queries-row {
+  cursor: pointer;
+}
+
+.queries-row:hover {
+  background: var(--row-hover);
+}
+
+.queries-row.selected {
+  background: var(--selected);
+}
+
+.queries-row.opened td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.queries-row.st-waiting .queries-state {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.queries-row.st-running .queries-state {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.queries-who.who-agent {
+  color: var(--agent);
+}
+
+.queries-targets,
+.queries-reason {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.queries-actions {
+  text-align: right;
+}
+
+.queries-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.queries-empty[hidden],
+.queries-sql[hidden],
+.queries-finished[hidden] {
+  display: none;
+}
+
+.queries-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.queries-sql-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.queries-sql-head h2,
+.queries-finished-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 0 0;
+  font-size: 15px;
+}
+
+.queries-sql-box .code-box {
+  margin: 0;
+  max-height: 45vh;
+  overflow: auto;
+}
+
+.queries-finished {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.queries-finished-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queries-done.out-ok .queries-outcome {
+  color: var(--ok);
+}
+
+.queries-done.out-cancelled .queries-outcome,
+.queries-done.out-timed-out .queries-outcome,
+.queries-done.out-ended .queries-outcome {
+  color: var(--warn);
+}
+
+.queries-done.out-failed .queries-outcome {
+  color: var(--error);
+}
+
+.busy-line-cancel {
+  margin-left: 8px;
+}
+
+.queries-header-table th:nth-child(5),
+.queries-table td:nth-child(5) {
+  width: 112px;
 }

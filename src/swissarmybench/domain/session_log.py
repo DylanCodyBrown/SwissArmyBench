@@ -323,6 +323,16 @@ RULES: dict[str, Rule] = {
         _area("erd"),
     ),
     # Connections and blades.
+    "connection_slot_waited": lambda d, x: (
+        f"Waited {_name(x.get('seconds'))} s for a slot on {d}",
+        "connections",
+        {"place": "connection", "name": d},
+    ),
+    "connection_limits": lambda d, x: (
+        f"Set {d} to {_name(x.get('total'))} queries at once, {_name(x.get('agent'))} of them the agent's",
+        "connections",
+        {"place": "connection", "name": d},
+    ),
     "save_blade": lambda d, x: _blade(d, x, "Saved"),
     "remove_blade": lambda d, x: (
         f"Removed the {'connection' if x.get('kind') == 'connection' else 'blade'} {d}",

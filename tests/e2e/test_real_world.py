@@ -481,8 +481,9 @@ def test_3_the_notebook_runs_as_an_azure_function_would_with_its_password_from_t
     page = app_page(browser, bench)
     catalog = open_blades(act, page)
     act.click(catalog.locator(".blade-item", has_text="Shop").locator(".blade-name, .blade-text").first)
+    act.click(catalog.get_by_role("button", name="More"))  # the blade IDE's menu (2026-11-21)
     with catalog.expect_download() as downloaded:
-        act.click(catalog.get_by_role("button", name="Export", exact=True))
+        act.click(catalog.get_by_role("menuitem", name="Export"))
     function = tmp_path / "function"
     function.mkdir()
     downloaded.value.save_as(function / downloaded.value.suggested_filename)

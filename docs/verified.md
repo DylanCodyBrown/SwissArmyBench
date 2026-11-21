@@ -4242,3 +4242,43 @@ Not checked: Edge; the desktop app (Qt) window for the Canvas; the Copilot ghost
 `[Conn].table` value for a table property (the open tables and data.py only); the Canvas at a narrow width (the
 sizing's "…" menu) and at 400 % zoom in a browser; a launched build's window in a browser (its HTTP route is
 tested); previews in the dark theme in a browser.
+
+## The blade IDE (2026-11-21, branch blade-ide)
+
+Checked: tests/test_blade_ide.py (HTTP): the code written after the header and read back as the same bytes, CRLF
+kept; the variable following a renamed function; a save that changes nothing writes no byte; code that does not
+parse refused, the file untouched; an edit made outside refused with 409 (`changed_on_disk`, the new stamp) and
+saved over only with `force`; a starter's code refused for the user and the agent, Save as copying the editor's
+code; the name check; Run's output (stdout, stderr), a table result (columns, first rows, count) opened as a grid,
+a value's text, a ZeroDivisionError's frame as "your file" at the code's own line 2, a syntax error's line, the
+lint with secret() known; a streamed run's NDJSON lines then its answer; a saved secret printed by the blade
+scrubbed to ****. In Chromium (tests/e2e/test_catalog_page.py): New blade, Properties closed and the panel
+folded (8.14), a lint squiggle as it is typed and its Problems entry, fixed, Run, Output and Result (3 rows, 2
+columns), the table name checked live, Ctrl+S writing the file (code and header), Cancel asking then reverting,
+an outside edit taken at once; a starter's Save refused with Copy as your own; a pack's copy through "…".
+Quick suite 4840 passed, 49 skipped; e2e suite (-n 2, Chromium) 387 passed, 24 skipped. Screenshot:
+the IDE after a Run with a table result. Not checked: Copilot's ghost text in the blade editor (no extension on
+in the tests), Run's Stop mid-run in a browser (the cancel route is tested only by its wiring), the Reload /
+Keep mine note in a browser (its route is tested), the Workbench's blade tab, Edge, Windows.
+## Each connection's slots and the Queries window (2026-11-21, branch connection-throttle)
+
+Checked: the rule's unit tests (defaults, validation, total and agent's share, FIFO and priority, places, leases,
+words, SQL kept out of the agent's view, the formatter: a long one-line query becomes clauses on lines, a bad one
+and DAX left as written, `${REGION}` kept). The service with a slow stand-in: 12 queries on 8 slots with the
+agent's 4 -> never more than 8 at once nor 4 of the agent's, FIFO in each share, Cancel frees a waiting place and
+stops a running one, the wait limit gives up with Try again, an error frees its slot, a kernel that stops renewing
+loses its slot, the agent's long wait is a Session entry. HTTP with a slow made-up SQLite connection: limits checked
+and kept in its file (the same limits, the same bytes; the defaults write nothing), a second query waiting with its
+place, the agent cancelling its own (408 "Cancelled"), a page's cancel-mine, the finished list and Clear, the SQL
+403 for the agent, a kernel's acquire/renew/release. e2e in Chromium: the card's live count, the Queries window
+(Running with ticking time, Waiting with its place, the highlighted SQL box in clauses, Cancel, Finished), the "+"
+draft's query waiting with its place and Cancel.
+Not gated (connection calls that do not pass the gate): the access probes (adapters/app_registrations.py
+MicrosoftProbe: they sign in and list directly, not through run_blade), a Python connection's code a kernel
+runs itself after `sab.connection(...)` / `sab.blade(...)` returned its object (only the connect is gated, the
+user's later calls on that object are not), the Power BI extension's live link and a project's dataset alias
+(`alias.read`, `alias.dax`: they read through the extension's own client), a vault's names read (not a
+connection), Streamlit apps and exported automations (outside the app, by design), and the Dataverse and lake
+writes of the Write starters run in a kernel (they are not sab.sql). Not checked: Edge; the agent's cancel of
+the user's query through a real Allow click in a browser (the route is tested); a kernel's waiting cell line in a
+real Workbench kernel (the client's no-gate paths are tested, the lease routes are tested over HTTP).

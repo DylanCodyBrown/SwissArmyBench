@@ -83,15 +83,22 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
   Extensions page lists the extensions (Streamlit preinstalled; Accounting, Power Apps, Power BI and GitHub Copilot available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
-- **A blade's code is edited in its file, never in the app (the owner, 2026-11-17: "the code box is read
-  only though blades can only be edited in the folder not from the app").** The blade screen shows the code
-  read-only (Monaco, as tall as the code) with **Show its file** (the user's click; 403 for the agent); New
-  blade makes a `.blade.py` in the library's `blades/` from a template; the app writes only a file's header
-  (name, description, tags, `table`), the code's bytes untouched (PUT /blades/{name}, `blades_update`). A
-  table blade has a table name of its own ("Shouldnt the table it makes be namable by me with a realtime
-  check for available names"), checked live (GET /blades/table-name). The catalog checkbox and the blades
-  page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its just
-  tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
+- **A blade's screen is an IDE (the owner, 2026-11-21: "this entire panel should be an ide, with small save,
+  saves, cancel buttons at the top and a play button to execute with a realtime linter and output at the bottom
+  to see the results. This is an IDE not a save form"; it reverses 2026-11-17's read-only code).** One slim bar
+  (Back, the name, the dirty dot, Save Ctrl+S, Save as…, Cancel, ▶ Run F5, Properties, "…": Show its file,
+  Export, Remove, Copy as your own), Monaco with the Workbench's intelligence, Properties (name, description,
+  tags, `table` checked live: GET /blades/table-name) closed until asked for, Output | Result | Problems folded
+  until something runs (design principle 8.14; web/src/codeIde.ts). **The code's bytes are the file's:** Save
+  writes the code after the file's header (PUT /blades/{name} {code, stamp}; only when the bytes change; the
+  header's variable follows a renamed function); an edit made outside is noticed (the stamp, looked at every
+  2 s: taken at once with nothing unsaved, else Reload / Keep mine; a Save over it is 409), never silently
+  overwritten. A starter's or a pack's Save is refused: Copy as your own. Run is Test's child process with the
+  output streamed (POST /blades/{name}/run), the result a table (Open as grid) or a value, a failure the error
+  panel with the line marked. The agent: `blades_update(code, stamp)`, `blades_run`, `blades_problems`,
+  `blades_copy(code)`; Show its file stays the user's click (403 for the agent). The catalog checkbox and the
+  blades page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its
+  just tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
@@ -308,7 +315,8 @@ src/swissarmybench/
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
     blade_templates.py   Template: a starter connection's or blade's code and listing query (re-exported by blades.py)
-    blade_tables.py      a table blade's own table name (names_table; the live check's answers: available, a table,
+    blade_tables.py      the blade IDE's file rules (with_code: the code after the header, the file's line ends;
+                         follow_variable; stamp; SECRET_STUB for the lint); a table blade's own table name (names_table; the live check's answers: available, a table,
                          a connection, another blade's table, not a valid name), a connection's listing query from
                          its starter (listing_for), New blade's choices, a file's header rewritten (with_header:
                          the code's bytes untouched)
@@ -552,6 +560,11 @@ src/swissarmybench/
                          why), a table named in DuckDB SQL by its connection ([Finance Captive].Sales: brackets,
                          references in sqlglot's tree, resolved in any case, a shared Power BI name asking for its
                          dataset), the work sent to the source (columns, plain filters, a safe LIMIT), the limit's words
+    connection_slots.py  how many queries run at once on a connection (the owner, 2026-11-21): limits (8 at once,
+                         4 the agent's, a 2-minute wait; the file's [queries] table), a Board of lines (FIFO within
+                         a priority: the user's before background loads; the agent's share), places, leases, words
+    query_text.py        a query's SQL formatted for reading (sqlglot's pretty printer in its dialect; DAX and what
+                         does not parse as written; `${NAME}` as written): the Queries window's, the user's only
     file_dialogs.py      the system's own file dialog (the owner, 2026-11-17): a request checked, the tool per system
                          (Windows: Tk's IFileDialog, else PowerShell's Forms dialogs and IFileOpenDialog for a folder;
                          macOS: osascript, else Tk; Linux: kdialog on KDE, zenity, kdialog, else Tk; none without
@@ -616,6 +629,10 @@ src/swissarmybench/
     connection_tables.py the contract's list and read for every kind, DuckDB SQL naming a connection's table (each
                          read: every row the query needs, counted first, refused past the limit; kept for the
                          session by what was sent, Refresh), the Connections page's tree, Open all of a dataset
+    connection_slots.py  the one gate every connection run passes (bootstrap's run_blade): wait in line, Cancel
+                         (the child killed), the wait limit (Try again); who from the request (CURRENT: the agent,
+                         a page's X-Sab-Client, a kernel's X-Kernel); kernels' leased slots; the Queries window's
+                         list, finished (memory, last 50), SQL (the user's); the limits saved; `connection_slots`
     explorer.py          the Data Explorer's search: a provider per source (connections and their loaded catalogs,
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
                          Structures' documents and paths and APIs' table-returning web calls registered from
@@ -788,7 +805,8 @@ src/swissarmybench/
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
-                         connection_swap, variables, connection_colours, connection_tables, explorer, library,
+                         connection_swap, variables, connection_colours, connection_tables, connection_slots,
+                         explorer, library,
                          shared_catalog, team, found_connections). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
@@ -819,7 +837,8 @@ src/swissarmybench/
                          most, the start folder the nearest that is there; GET /dialogs says whether one opens
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
                          starting it detached; SWISSARMYBENCH_CLAUDE_STANDIN's stand-in for tests
-    blade_runner.py      Refresh/Test in a child process; installing packages
+    blade_runner.py      Refresh/Test in a child process; the blade IDE's Run (run_streaming: prints streamed,
+                         the result a table or a value, a failure as the error panel's detail); installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
     streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
@@ -842,6 +861,8 @@ src/swissarmybench/
                          Standard library only; the statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
+  client/connection_slot.py a Workbench kernel's query in one of its connection's slots (acquire, wait with its
+                         place shown, renew, release); no gate outside a kernel or with no app
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,
                          a connect) for the Connections page (nothing outside a Workbench kernel)
   client/structures_client.py sab.structure (a saved structure's value), sab.structure_table (its records as a
@@ -917,6 +938,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          with Cancel, the list: search, Select all, Already added, no connection yet, the amber mark;
                          Import); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls; no APIs);
+                         connectionSlots.ts a card's live "Running 3 of 8 · 1 waiting", the detail's limits and
+                         Queries in progress…; queriesWindow.ts the Queries window (?panel=queries&connection=:
+                         running and waiting queries, the SQL highlighted, Cancel, Finished); slotWait.ts a
+                         page's query waiting in a connection's line, for loading.ts's words and Cancel;
                          connectionAccess.ts a card's Access section (what its app registrations reach, when and
                          where checked, Check again);
                          connectionTree.ts a connection's tables as a tree in its detail (search, Open, Preview,
@@ -947,8 +972,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          catalogRail.ts (the blades list; the catalog tree only where a page gives it a
                          place: the Workbench's "+ Table") is the blades page's (catalogPage.ts,
                          static/catalog.html: no catalog panel since 2026-11-17); bladeEditor.ts is the
-                         blade screen (the code read-only, Show its file, Its table is called, a
-                         connection's How its tables are listed) and New blade;
+                         blade screen, an IDE on codeIde.ts, and New blade; its pieces mount on their own in
+                         another page's tab (bladeProperties: the header and the live table-name check;
+                         runBladeCode into codeIde.ts's runPanel; watchOutsideEdits: Reload / Keep mine;
+                         bladeEditorIntel; saveBladeAs); codeIde.ts a page that is an IDE for one piece of
+                         code (the slim bar, Monaco with the host's intelligence, Properties, runPanel: Output
+                         | Result | Problems, resizable, folded until something runs; design principle 8.14);
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
                          connectionsWindow.ts's forms (a form per type) open in the Connections page;
                          addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the

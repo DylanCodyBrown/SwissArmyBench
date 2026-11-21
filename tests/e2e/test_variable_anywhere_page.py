@@ -80,6 +80,7 @@ def test_the_blades_page_takes_one_too(browser: Browser, server: dict[str, Any],
     try:
         page.get_by_role("button", name="New blade").first.click()
         page.get_by_role("button", name="A table (a DataFrame)").click()
+        page.get_by_role("button", name="Properties").click()  # the IDE's pane, closed until asked for
         field = page.get_by_label("Its table is called")
         field.press_sequentially("${SHOP_R")
         expect(page.get_by_role("listbox", name="Variables").get_by_role("option").first).to_contain_text(

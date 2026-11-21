@@ -13,6 +13,7 @@ import asyncio
 import os
 import platform
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -76,6 +77,7 @@ from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import blade_tables, python_connections
+from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import connection_tables as connection_table_rules
 from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import connections as connection_rules
@@ -121,6 +123,7 @@ from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.codegen import CodeService
 from swissarmybench.services.connection_colours import ConnectionColours
+from swissarmybench.services.connection_slots import Caller, ConnectionSlots
 from swissarmybench.services.connection_swap import ConnectionSwap
 from swissarmybench.services.connection_tables import ConnectionTables as ConnectionTablesService
 from swissarmybench.services.connection_usage import ConnectionUsage
@@ -207,6 +210,7 @@ class Services:
     connections: ConnectionService
     found_connections: FoundConnections
     connection_usage: ConnectionUsage
+    connection_slots: ConnectionSlots
     apis: Apis
     structures: Structures
     api_explorer: ApiExplorer
@@ -364,17 +368,60 @@ def bootstrap(
         job = blade_runner.payload(blade_store, blade, mode, typed, extra)
         given_out(job)
         kind = "catalog" if mode == "catalog" else "blade"
-        # A connection's run through the app (a catalog load, a table read, a query, a test) is a call
-        # the Connections page counts (services/connection_usage.py; memory only).
-        try:
-            answer = await blade_runner.run(
+
+        async def work() -> dict[str, Any]:
+            return await blade_runner.run(
                 job, settings.blade_timeout_seconds, report=lambda *e: process_event(kind, *e)
             )
+
+        # A connection's run through the app (a catalog load, a table read, a query, a test) is a call
+        # the Connections page counts (services/connection_usage.py; memory only); each waits for one of the
+        # connection's slots first (services/connection_slots.py), and gives it back however it ends.
+        try:
+            if blade.kind in ("sql", "other") and mode in slot_rules.KINDS:
+                more = extra or {}
+                place: dict[str, Any] = more["place"] if isinstance(more.get("place"), dict) else {}
+                sql = more.get("sql") or "\n;\n".join(";\n".join(a) for a in more.get("attempts") or [])
+                answer = await slots.run(
+                    blade.name,
+                    work,
+                    kind=mode,
+                    targets=(str(place.get("table") or ""),),
+                    sql=str(sql or ""),
+                    dialect=str(blade.dialect or ""),
+                )
+            else:
+                answer = await work()
         except Exception as error:
             connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
         about = answer.get("about") if isinstance(answer, dict) else None
         connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
+        return answer
+
+    async def stream_blade(
+        blade: Blade,
+        typed: dict[str, str],
+        filename: str,
+        on_output: Callable[[str, str], None],
+        started: Callable[[Callable[[], None]], None],
+    ) -> dict[str, Any]:
+        """The blade IDE's Run: the blade (its code the editor's) in a child process, its output streamed."""
+        job = blade_runner.payload(blade_store, blade, "run", typed)
+        given_out(job)
+        # The code's own lines under a name the error panel reads as your file (never the .blade.py itself,
+        # whose lines start after its header).
+        job["filename"] = os.path.join(tempfile.gettempdir(), "swissarmybench-blades", filename)
+        answer = await blade_runner.run_streaming(
+            job,
+            settings.blade_timeout_seconds,
+            on_output,
+            started,
+            report=lambda *e: process_event("blade", *e),
+        )
+        connection_usage.record(
+            blade.name, "test", ok=bool(answer.get("ok")), error=str(answer.get("failed") or "")
+        )
         return answer
 
     def given_out(job: dict[str, Any]) -> None:
@@ -493,6 +540,15 @@ def bootstrap(
     # The questions for the user that the agent's requests wait on (the page's approval prompt): one
     # for every use case that writes the user's rows to disk for the agent.
     approvals = Approvals(live)
+    # How many queries run at once on each connection, the agent's share and the line (the owner,
+    # 2026-11-21): the one gate run_blade passes through; a kernel's slot is leased by its routes.
+    slots = ConnectionSlots(
+        live,
+        ws.audit,
+        limits_of=lambda name: slot_rules.limits_of_header(blade_store.get(name).queries),
+        save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
+        ask=approvals.ask,
+    )
     datasets = DatasetService(
         ws,
         table_reader,
@@ -519,6 +575,11 @@ def bootstrap(
         environ=os.environ,
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
         kept_names=kept_vault_names,
+        stream_blade=stream_blade,
+    )
+    # The blade IDE's Open as grid: a run's table in a tab of its own.
+    blades.open_table = lambda name, table, who: datasets.store_table(
+        datasets.free_name(name), table, "blade", True, who
     )
     catalog_loading = CatalogLoading(
         ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, live.windows
@@ -582,6 +643,20 @@ def bootstrap(
         kernel_stopped=lambda kernel: hooks.kernel_stopped(kernel),
         hooks=hooks,
     )
+
+    def kernel_caller(kernel: str) -> Caller:
+        role, words = workbench.runner_of(kernel)
+        document = workbench.document_of(kernel)  # Open its source: the document in the Workbench
+        source = {"document": document} if document else {}
+        return Caller(role, "The agent" if role == "agent" else words, kernel=kernel, source=source)
+
+    async def kernel_ended(kernel: str) -> None:
+        slots.kernel_stopped(kernel)  # its slots go back at once
+        await hooks.kernel_stopped(kernel)
+
+    slots.kernel_caller = kernel_caller
+    slots.interrupt_kernel = workbench.interrupt
+    workbench.set_kernel_stopped(kernel_ended)
     kind_colours = KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None))
     # Each connection's colour: the library's colours.toml, the same in every project; never one of the
     # rail's (the kind colours, the accent).
@@ -1217,6 +1292,7 @@ def bootstrap(
         ),
         read_file=lambda path: documents.read(path)[0],
     )
+    blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     context_md = ContextMd(
         ws,
         claude_files,
@@ -1367,6 +1443,7 @@ def bootstrap(
         connections=connections,
         found_connections=found_connections,
         connection_usage=connection_usage,
+        connection_slots=slots,
         apis=apis,
         structures=structures,
         api_explorer=api_explorer,

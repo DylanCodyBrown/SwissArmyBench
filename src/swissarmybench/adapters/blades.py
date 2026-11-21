@@ -35,8 +35,8 @@ from typing import Any
 
 from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import blades as rules
-from swissarmybench.domain import library
-from swissarmybench.domain.blade_tables import with_header
+from swissarmybench.domain import library, snippets
+from swissarmybench.domain.blade_tables import follow_variable, stamp, with_code, with_header
 from swissarmybench.domain.blades import (
     Blade,
     BladeError,
@@ -458,6 +458,51 @@ class BladeStore:
                         self._set_secret(after.name, secret, value)
                     self._delete_secret(blade.name, secret)
             return self.get(after.name)
+
+    def stamp_of(self, name: str) -> str:
+        """The blade's file's stamp (its bytes' digest), "" when it has none."""
+        path = self.file_of(name)
+        try:
+            return stamp(path.read_bytes()) if path is not None else ""
+        except OSError:
+            return ""
+
+    def set_code(self, name: str, code: str) -> Blade:
+        """A blade's code, written into its file after the header (the blade IDE: the owner, 2026-11-21). The
+        header stays as it is but for its variable, which follows the code (a function renamed). Checked as
+        any blade is (it must parse and make its variable); nothing is written when the bytes would not
+        change. A starter's and a pack's are read-only."""
+        with self._lock:
+            blade = self.get(name)
+            if blade.pack == rules.STARTERS:
+                raise BladeError(
+                    f"{blade.name} is a starter (read-only): Copy as your own (blades_copy) to change it."
+                )
+            if blade.pack:
+                raise BladeError(f"{blade.name} comes from the pack {blade.pack}: change it in that pack.")
+            if blade.kind == "secret":
+                raise BladeError(
+                    f"{blade.name} is a secret blade: it has no code, only its variables' names."
+                )
+            path = self.file_of(blade.name)
+            if path is None:
+                raise BladeError(f"{blade.name} has no file to change.")
+            raw = path.read_bytes()
+            bom = raw.startswith(b"\xef\xbb\xbf")
+            text = raw.decode("utf-8-sig")
+            data = read_blade(text.replace("\r\n", "\n"))
+            variable = follow_variable(code, blade.variable) if blade.kind != "snippet" else ""
+            changed = data | {"code": code} | ({"variable": variable} if variable else {})
+            after = parse_blade(changed, blade)  # it parses and makes its variable, or says why
+            body = snippets.file_body(after.code) if blade.kind == "snippet" else code
+            written_text = with_code(text, body)
+            if variable and variable != blade.variable:
+                written_text = with_header(written_text, after.to_json())
+            written = (b"\xef\xbb\xbf" if bom else b"") + written_text.encode("utf-8")
+            if written != raw:
+                write_atomic(path, written)  # the file's own mode kept
+                self._seen.pop(str(path), None)
+            return self.get(blade.name)
 
     def save(self, data: Any, previous_name: str | None = None) -> Blade:
         """Save a new blade, or replace `previous_name` (which may be a rename). A folder blade is saved

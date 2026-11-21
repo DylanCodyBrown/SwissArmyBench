@@ -86,7 +86,7 @@ def routes(workbench: Workbench, window: WorkbenchWindow) -> list[BaseRoute]:
         return json_response(await workbench.start(body))
 
     async def execute(request: Request) -> Response:
-        outputs = workbench.execute(request.path_params["kernel"], await read_json(request))
+        outputs = workbench.execute(request.path_params["kernel"], await read_json(request), actor(request))
 
         async def lines() -> AsyncIterator[bytes]:
             try:

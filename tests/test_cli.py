@@ -115,6 +115,15 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    # A connection's slots (2026-11-21): a kernel's leased slot is its own process's
+    # (client/connection_slot.py); a query's SQL is the user's only (the agent sees names and counts);
+    # a page's Cancel of its own waiting queries (the agent cancels by id: connections_cancel_query).
+    "/connections/slots/acquire": "a Workbench kernel's own slot for its query (client/connection_slot.py)",
+    "/connections/slots/{}/renew": "a Workbench kernel's slot kept while its query runs",
+    "/connections/slots/{}/release": "a Workbench kernel's slot given back when its query ends",
+    "/connections/queries/{}/sql": "a query's SQL text, shown to the user only (403 for the agent)",
+    "/connections/queries/cancel-mine": "a page's Cancel of the queries it asked for (X-Sab-Client); the "
+    "agent cancels by id with connections_cancel_query",
     "/analyze/land": "sab.analyze's own: a result Python computed on a DataFrame, put on the board (the "
     "agent runs an analysis with analyze_run, which lands its cards itself)",
     "/relationships/tangs": "the old name of /relationships/sets (a tang until 2026-11-17), one release",
@@ -183,6 +192,9 @@ NOT_COMMANDS = {
     "/blades/{}/show": "Show its file opens the user's own file manager at a blade's file: the user's click "
     "only (403 for the agent), as the Project Explorer's Show in folder",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
+    "/blades/{}/code": "the open blade IDE's look for an edit made outside (page plumbing): blades_get gives "
+    "the code and its stamp",
+    "/blades/name-check": "Save as's live check: blades_copy refuses a taken name with the same words",
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
     "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",

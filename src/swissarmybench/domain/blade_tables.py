@@ -18,6 +18,7 @@ Standard library only; no I/O.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -25,11 +26,13 @@ from dataclasses import dataclass
 from swissarmybench.domain.blades import (
     HEADER_TYPE,
     TABLE_NAME_RULE,
+    BladeCodeError,
     PortableError,
     Template,
     check_table_name,
     header_block,
     header_span,
+    read_code,
 )
 from swissarmybench.domain.blades import BladeError as _BladeError
 from swissarmybench.domain.connections import connection_kind
@@ -103,6 +106,46 @@ def with_header(text: str, blade: Mapping[str, object]) -> str:
     )
 
 
+# ===== the blade IDE (the owner, 2026-11-21: "This is an IDE not a save form") =====
+
+
+def with_code(text: str, code: str) -> str:
+    """`text` (a blade's file) with the code after its header replaced by `code`: the lines up to and
+    including the header's close as they were, the code in the file's own line ends. A file read and written
+    back with its own code is the same bytes (domain/blades.py read_blade reads the code as every line after
+    the header's close)."""
+    lines = text.splitlines(keepends=True)
+    span = header_span([line.rstrip("\r\n") for line in lines])
+    if span is None:
+        raise PortableError(f"This file has no {HEADER_TYPE} header to keep.")
+    start, end = span
+    newline = "\r\n" if lines[start].endswith("\r\n") else "\n"
+    head = "".join(lines[: end + 1])
+    if not head.endswith("\n"):
+        head += newline
+    body = code.replace("\r\n", "\n")
+    return head + (body.replace("\n", "\r\n") if newline == "\r\n" else body)
+
+
+def follow_variable(code: str, variable: str | None) -> str:
+    """The variable a blade hands back once its code is `code`: `variable` while the code still makes it,
+    else the last thing the code makes (a function renamed in the editor). Code that does not parse keeps
+    `variable` (its run says what is wrong)."""
+    try:
+        found = read_code(code)
+    except BladeCodeError:
+        return variable or ""
+    if not variable or variable in found.assigned:
+        return variable or found.variable or ""
+    return found.variable or variable
+
+
+def stamp(data: bytes) -> str:
+    """A file's stamp: its bytes' digest, short. The open editor saves over the file only while its stamp is
+    the one it read (an edit made outside, in the user's own editor, is never silently overwritten)."""
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
 def listing_for(
     kind: str, template: str | None, dialect: str, templates: Sequence[Template]
 ) -> tuple[str, str] | None:
@@ -123,8 +166,8 @@ def listing_for(
 
 # ===== New blade: the templates the user picks from (the left panel's New blade) =====
 
-# A blade made from one is a file in the library's blades/ folder, edited in the user's own editor.
-NEW_TABLE_CODE: str = '''"""A table: a function that returns a DataFrame. Change it in your own editor."""
+# A blade made from one is a file in the library's blades/ folder, edited in the blade IDE (or its file).
+NEW_TABLE_CODE: str = '''"""A table: a function that returns a DataFrame."""
 
 import pandas as pd
 
@@ -134,9 +177,7 @@ def make_table() -> pd.DataFrame:
 '''
 
 
-NEW_CODE: str = (
-    '"""Any code: what it makes last is what sab.blade gives. Change it in your own editor."""\n\nvalue = 1\n'
-)
+NEW_CODE: str = '"""Any code: what it makes last is what sab.blade gives."""\n\nvalue = 1\n'
 
 
 @dataclass(frozen=True)
@@ -206,3 +247,8 @@ def new_blades(templates: Sequence[Template]) -> list[dict[str, object]]:
     """What New blade offers: NEW_BLADES, then the analysis starters."""
     analyses = [NewBlade(t.id, t.label, t.group, "analysis") for t in templates if t.kind == "analysis"]
     return [m.to_json() for m in [*NEW_BLADES, *analyses]]
+
+
+# What a blade's code is given before it runs (adapters/blade_run.py's secret()), told to the lint so it is
+# never an undefined name.
+SECRET_STUB: str = "def secret(name: str) -> str: ...\n"  # noqa: S105 (a stub, no value)
