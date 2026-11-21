@@ -16,7 +16,7 @@ import json
 import os
 import secrets
 import stat
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -106,6 +106,47 @@ def write_atomic(
         temporary.unlink(missing_ok=True)
         raise
     return True
+
+
+class TextFolder:
+    """One of the library's folders of small text files (the shared catalog's, a vault's names): read, and
+    written atomically only when the bytes change. `library` None: nothing is kept (tests that keep no
+    state); `made` runs before the first write (the library's README.md and .gitignore)."""
+
+    def __init__(
+        self, library: Callable[[], Path] | None, name: str, made: Callable[[], object] = lambda: None
+    ) -> None:
+        self._library = library
+        self._name = name
+        self._made = made
+
+    @property
+    def folder(self) -> Path | None:
+        return self._library() / self._name if self._library is not None else None
+
+    def read(self, name: str) -> str | None:
+        folder = self.folder
+        if folder is None:
+            return None
+        try:
+            return (folder / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            return None
+
+    def write(self, name: str, text: str) -> bool:
+        """Written when its bytes change (atomically). Whether it was."""
+        folder = self.folder
+        if folder is None:
+            return False
+        path = folder / name
+        data = text.encode("utf-8")
+        try:
+            if path.read_bytes() == data:
+                return False
+        except OSError:
+            pass
+        self._made()
+        return write_atomic(path, data)
 
 
 class JsonFile:
