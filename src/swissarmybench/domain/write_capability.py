@@ -145,7 +145,7 @@ def capability(
         return {"writable": False, "operations": [], "how": "", "note": "", "starters": [], "reason": reason,
                 "words": f"Read-only: {reason}"}  # fmt: skip
     names = starters_for(key, starters)
-    words = f"Writes: {', '.join(names)}" if names else f"Writes: {found.how}"
+    words = f"Writes: {', '.join(found.operations)}"
     if found.note:
         words += f" ({found.note})"
     return {

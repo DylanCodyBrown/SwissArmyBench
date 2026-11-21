@@ -955,10 +955,10 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (136 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
+  starters/              the built-in starter pack (99 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
                          DAX, HTML, Markdown, Write; the Streamlit extension brings its 52), listed apart, found by name, Copy as your own (tests/test_starters*.py);
                          Write: 16 functions (write_to_*: one public typed function a target, for functions.py) and
-                         54 calls (a cell's text: the call only, dry_run=True), for the connections that write
+                         17 calls (a cell's text: the call only, dry_run=True; one a target, its mode a placeholder)
   client/push_client.py  push(), ensure_server()
   client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);

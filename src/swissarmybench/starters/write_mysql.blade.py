@@ -1,14 +1,19 @@
 # /// swissarmybench-blade
 # format = 1
-# name = "MySQL replace"
+# name = "MySQL write"
 # kind = "snippet"
-# description = "Replace every row of a MySQL table (dry run first; writes on the user's word)"
+# description = "Write rows to MySQL by mode (dry run first; writes on the user's word)"
 # tags = ["write", "mysql", "mariadb"]
 # family = "Write"
 # language = "python"
 # ///
 snippet = r"""
-# MySQL replace: every row of a table in MySQL or MariaDB replaced by the rows.
+# MySQL write: the rows written as `mode` says (one of these):
+#   append    the rows added to a table in MySQL or MariaDB.
+#   create    a new table in MySQL or MariaDB made from the rows, its types from DuckDB's.
+#   replace   every row of a table in MySQL or MariaDB replaced by the rows.
+#   upsert    the rows inserted into a table in MySQL or MariaDB, or updated where a key matches.
+#   delete    a table's rows in MySQL or MariaDB deleted where their keys are the rows' keys.
 #
 # Dry run first: as it stands it only says what it would do (the target, the rows and their types, the
 # statements, the counts) and changes nothing. Read it, then set dry_run=False and run the cell again.
@@ -20,7 +25,8 @@ write_mysql(
     "<<connection>>",  # its name in the Connections page
     "<<target: shop.orders>>",  # the table written to
     <<table>>,  # a DataFrame (pandas, polars, Arrow) or a DuckDB relation
-    mode="replace",
+    mode="<<mode: append>>",  # append, create, replace, upsert or delete
+    keys=["<<key column>>"],  # upsert and delete: the columns that find a row: ["region", "order_id"] for two
     batch_size=1000,
     dry_run=True,  # False writes: only once the dry run reads right
 )

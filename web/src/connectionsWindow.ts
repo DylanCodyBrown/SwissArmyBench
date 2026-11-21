@@ -251,6 +251,7 @@ interface Card {
 
 interface Writes {
   writable: boolean;
+  operations: string[];
   starters: string[];
   how: string;
   note: string;
@@ -258,11 +259,12 @@ interface Writes {
   words: string;
 }
 
-/** A connection's writes in its detail: each Write starter (its name: the Blades page has it), or why not. */
+/** A connection's writes in its detail: its operations and its Write starter (its name: the Blades page has
+ *  it), or why not. */
 function writesTerm(w: Writes | null | undefined): HTMLElement[] {
   if (!w) return [];
   if (!w.writable) return term("Read-only", w.reason);
-  const said = w.starters.length ? w.starters.join(", ") : w.how;
+  const said = w.starters.length ? `${w.operations.join(", ")} (${w.starters.join(", ")})` : w.how;
   return term("Writes", h("span", { class: "connection-writes-list" }, said, w.note ? h("span", { class: "hint" }, ` (${w.note})`) : ""));
 }
 

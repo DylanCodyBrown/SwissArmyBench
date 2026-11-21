@@ -1203,9 +1203,11 @@ BigQuery, Redshift, Databricks), and a key vault.
   workbook's other sheets kept). Excel write table and Excel range as table are listed here too.
 - **APIs**: the APIs page's Write rows with this call.
 
-Drop one onto a Python cell (or **Insert a snippet…**): the form asks for the connection (those of its
-kind first), the rows (an open table, or any DataFrame or DuckDB relation by its name), the target
-table and the key columns. The cell gets the call only, `write_sqlite("Shop", "orders", orders,
+There is one starter a target (**SQLite write**, **SQL Server write**, **Delta write**...). Drop one onto a
+Python cell (or **Insert a snippet…**): the form asks for the connection (those of its kind first), the
+rows (an open table, or any DataFrame or DuckDB relation by its name), the target table, the **mode**
+(append, create, replace, upsert, delete: the starter's comment lists its own) and the key columns (for
+the modes that find rows). The cell gets the call only, `write_sqlite("Shop", "orders", orders,
 mode="upsert", keys=["order_id"], dry_run=True)`, with the line that fetches the function above it
 (the function itself is the Write family's **Write to SQLite**: Copy as your own to change it). Every
 call ends `dry_run=True`: run it and it says what it would do (the
