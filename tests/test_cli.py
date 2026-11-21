@@ -164,6 +164,13 @@ NOT_COMMANDS = {
     "/static": "page files",
     "/streamlit/live/{}": "a notebook's live Streamlit pages, shown in a frame: streamlit_address says where",
     "/streamlit/live/{}/{}": "the same: the live pages' own files and socket",
+    "/streamlit/run/{}": "a widget run alone and a canvas's Play, shown in a frame: widgets_run, canvas_play say where",
+    "/streamlit/run/{}/{}": "the same: their pages' own files and socket",
+    "/streamlit/widget": "page shell: the Widgets window (the agent works widgets with widgets_*)",
+    "/streamlit/widgets/check-name": "the Name box's live check as it is typed: widgets_header says the same on a rename",
+    "/streamlit/widgets/check-value": "a property's live check as it is typed: widgets_set_property checks the same",
+    "/streamlit/widgets/stop": "the Widgets window's Edit (its run stopped with the window); widgets_run runs headless",
+    "/streamlit/widgets/{}/preview.png": "the preview's picture for the page: widgets_preview gives its state and address",
     "/streamlit/launch/{}": "a launched app's pages, in a window of its own: app_launch says where",
     "/streamlit/launch/{}/{}": "the same: the launched app's own files and socket",
     "/streamlit/perf": "page shell: the Performance Analyzer's window (perf_session is its data)",
@@ -755,7 +762,10 @@ def test_every_command_is_one_lean_typed_tool(live: Live, clients: str) -> None:
     # +300 (2026-11-19): a first run's datasets_sample (Try it with sample data) and app_rail (the
     # rail's names).
     # +300 (2026-11-19, feel-b): column_values, the Filter form's checklist of a column's values and counts.
-    assert size < 96_600, f"the tool list is {size} characters"
+    # +1,000 (2026-11-21): widgets (the owner: "Creating a widget is what will replace the concept of app
+    # cells and app notebooks"): widgets_list, _get, _new, _save, _header, _properties, _set_property, _run,
+    # _copy, _delete, _preview.
+    assert size < 97_600, f"the tool list is {size} characters"
     # Typed: the schema carries the command's real arguments, required ones marked.
     schema = tools["steps_add"].input_schema
     assert set(schema["properties"]) == {"grid", "kind", "params", "index"}

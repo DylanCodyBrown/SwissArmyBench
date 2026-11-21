@@ -678,3 +678,140 @@ def perf_session(a: dict[str, Any]) -> Any:
 )
 def perf_hints(a: dict[str, Any]) -> Any:
     return api.call("GET", f"/streamlit/apps/{_q(a['app'])}/perf/hints")
+
+
+# ===== widgets (the owner, 2026-11-21: a widget replaces app cells and app notebooks) =====
+
+
+@command(
+    "widgets_list",
+    "Every widget of the canvas's framework: the library's, then the prebuilt ones (read-only), with their "
+    "properties (name, type, mask, default)",
+    opt("q", "Words to search names, descriptions, groups and tags."),
+)
+def widgets_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/streamlit/widgets" + (f"?q={_q(a['q'])}" if a.get("q") else ""))
+
+
+@command(
+    "widgets_get", "One widget: its header, code, properties and file", req("name", "The widget's name.")
+)
+def widgets_get(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/widgets/{_q(a['name'])}")
+
+
+@command(
+    "widgets_new",
+    "A new widget in the library (widgets/<name>.widget.py); top-level plain values in its code are its properties",
+    opt("name", "Small letters, digits and _ (default: a free one)."),
+    opt("description", "One line."),
+    opt("code", "Its Streamlit code (default: a starting template)."),
+)
+def widgets_new(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST", "/streamlit/widgets", {k: a[k] for k in ("name", "description", "code") if a.get(k)}
+    )
+
+
+@command(
+    "widgets_save",
+    "Save a widget's code (below its header; the header is kept)",
+    req("name", "The widget's name."),
+    req("code", "Its whole code."),
+)
+def widgets_save(a: dict[str, Any]) -> Any:
+    return api.call("PUT", f"/streamlit/widgets/{_q(a['name'])}", {"code": a["code"]})
+
+
+@command(
+    "widgets_header",
+    "A widget's name, description, group or size, written into its file's header only; a new name renames every "
+    "canvas instance",
+    req("name", "The widget's present name."),
+    opt("new_name", "Its new name."),
+    opt("description", "Its new description."),
+    opt("group", "Buttons, Inputs, Data, Charts, Text, Filters, Forms or Other."),
+)
+def widgets_header(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("description", "group") if a.get(k) is not None}
+    if a.get("new_name"):
+        body["name"] = a["new_name"]
+    return api.call("PATCH", f"/streamlit/widgets/{_q(a['name'])}", body)
+
+
+@command(
+    "widgets_properties",
+    "A widget's properties (each with its type and mask), or those of code not saved yet",
+    opt("name", "The widget's name."),
+    opt("code", "Code to read instead."),
+)
+def widgets_properties(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/streamlit/widgets/properties", {k: a[k] for k in ("name", "code") if a.get(k)})
+
+
+@command(
+    "widgets_set_property",
+    "A property's default, written into only its own characters in the widget's code (checked first)",
+    req("name", "The widget's name."),
+    req("property", "The property."),
+    req("value", "Its new value (JSON: a string, a number, true...).", "any"),
+)
+def widgets_set_property(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST",
+        f"/streamlit/widgets/{_q(a['name'])}/property",
+        {"property": a["property"], "value": a["value"]},
+    )
+
+
+@command(
+    "widgets_run",
+    "Run a widget alone, headless (AppTest): what it drew, its errors (each failing widget's own panel), its "
+    "address when live is true",
+    req("name", "The widget's name."),
+    opt("values", "Property values to run it with (JSON object).", "json"),
+    opt("live", "Also run it as a live page and give its address.", "bool"),
+)
+def widgets_run(a: dict[str, Any]) -> Any:
+    body = {"values": a.get("values") or {}}
+    checked = api.call("POST", f"/streamlit/widgets/{_q(a['name'])}/check", body)
+    if a.get("live"):
+        checked["live"] = api.call(
+            "POST", f"/streamlit/widgets/{_q(a['name'])}/run", body | {"window": "agent"}
+        )
+    return checked
+
+
+@command(
+    "widgets_copy",
+    "Copy a widget (a prebuilt one) into the library as your own",
+    req("name", "The widget to copy."),
+    opt("new_name", "The copy's name (default: my_<name>)."),
+)
+def widgets_copy(a: dict[str, Any]) -> Any:
+    return api.call(
+        "POST",
+        f"/streamlit/widgets/{_q(a['name'])}/copy",
+        {"name": a["new_name"]} if a.get("new_name") else {},
+    )
+
+
+@command(
+    "widgets_delete",
+    "Delete a widget from the library. Waits for the user's Allow; declined, nothing is deleted",
+    req("name", "The widget's name."),
+)
+def widgets_delete(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/streamlit/widgets/{_q(a['name'])}")
+
+
+@command(
+    "widgets_preview",
+    "A widget's small rendered preview (PNG): its state (ready with its address, coming, failed with why)",
+    req("name", "The widget's name."),
+    opt("theme", "light or dark."),
+)
+def widgets_preview(a: dict[str, Any]) -> Any:
+    return api.call(
+        "GET", f"/streamlit/widgets/{_q(a['name'])}/preview?theme={_q(a.get('theme') or 'light')}"
+    )

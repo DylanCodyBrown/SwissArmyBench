@@ -52,6 +52,10 @@ AREAS = (
     ("builds", "Builds: every launch of an app, kept in its project's builds/ (list, compare)"),
     ("build", "One build: run it again, restore its code into the app"),
     ("perf", "The Performance Analyzer: a launched app's reruns, calls, caches, web socket, hints"),
+    (
+        "widgets",
+        "Widgets: the library's and the prebuilt ones, their properties (types, masks), run alone, previews",
+    ),
 )
 FAMILIES = ["Streamlit", "Components", "Controllers", "Text and layout"]
 MODE: dict[str, Any] = {
@@ -78,7 +82,8 @@ BASE_MODE_ADDS: dict[str, list[str]] = {"canvases": ["streamlit"]}
 
 STARTERS = str(Path(__file__).resolve().parent / "starters")
 LIVE_PREFIX = "/streamlit/live/"
-SECRET_PATHS = (LIVE_PREFIX,)
+LIVE_RUN = "/streamlit/run/"  # a widget run alone and a canvas's Play (services/widgets.py LiveRuns)
+SECRET_PATHS = (LIVE_PREFIX, LIVE_RUN)
 SESSION_RULES: dict[str, Any] = {}  # its words are the base's today (domain/session_log.py's app rules)
 
 
@@ -152,6 +157,57 @@ def routes(services: Any) -> list[Any]:
     services.launches = launches
     services.controllers = controllers
 
+    # Widgets (the owner, 2026-11-21): the library's widgets/ and the prebuilt ones, run alone or on a canvas.
+    from swissarmybench_streamlit.adapters.widget_files import PreviewFiles, WidgetFiles
+    from swissarmybench_streamlit.server import routes_widgets
+    from swissarmybench_streamlit.server.live_runs import LiveRuns
+    from swissarmybench_streamlit.services.widgets import Widgets
+
+    library = getattr(services, "library", None)
+    widget_files = WidgetFiles(
+        library.folder if library is not None else None,
+        made=library.made if library is not None else (lambda: None),
+    )
+    live_runs = LiveRuns(app_files, runner)
+    settings = getattr(services, "settings", None)
+    state_dir = getattr(settings, "state_dir", None)
+    preview_files = PreviewFiles(Path(state_dir) / "widget-previews" if state_dir else None)
+
+    def open_tables() -> dict[str, list[str] | None]:
+        from swissarmybench.domain.codegen import variable_name
+
+        found: dict[str, list[str] | None] = {}
+        for info in services.ws.store.all():
+            if services.ws.grids.first_for(info.name) is not None:
+                found.setdefault(variable_name(info.name), [c.name for c in info.columns])
+        return found
+
+    def project_python() -> str | None:
+        project = (
+            (services.sab_projects.state().get("project") or {}) if hasattr(services, "sab_projects") else {}
+        )
+        folder = project.get("folder")
+        if not folder:
+            return None
+        try:
+            return documents.environment(str(Path(folder) / "data.ipynb"))  # type: ignore[no-any-return]
+        except Exception:
+            return None
+
+    widgets = Widgets(
+        services.ws,
+        widget_files,
+        live_runs,
+        services.agent.approvals,
+        tables=open_tables,
+        table_data=apps.table_data,
+        project_python=project_python,
+        previews=preview_files,
+        variables=lambda: set(os.environ),
+    )
+    services.widgets = widgets
+    services.live_runs = live_runs
+
     hooks = services.hooks
     hooks.documents = apps.documents
     hooks.unsaved = apps.unsaved
@@ -166,6 +222,8 @@ def routes(services: Any) -> list[Any]:
     hooks.project_app = project_app
     hooks.app_pages = streamlit_cells.outline_pages
     return [
+        *routes_widgets.routes(widgets, None, getattr(settings, "web_root", Settings().web_root)),
+        *streamlit_proxy.routes(live_runs.port_of, prefix=LIVE_RUN, what="This widget or canvas"),
         *routes_streamlit.routes(apps),
         *routes_controllers.routes(controllers),
         *routes_canvas.routes(pane, apps),
@@ -184,6 +242,9 @@ async def stop(services: Any) -> None:
     launches = getattr(services, "launches", None)
     if launches is not None:
         await launches.stop_all()
+    live_runs = getattr(services, "live_runs", None)
+    if live_runs is not None:
+        await live_runs.stop_all()
     apps = getattr(services, "streamlit", None)
     if apps is not None:
         await apps.stop_all()
