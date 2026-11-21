@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from swissarmybench.cli import api
-from swissarmybench.cli.commands import Command, Registrar, _q, opt, req
+from swissarmybench.cli.commands import Command, CommandError, Registrar, _q, opt, req
 
 COMMANDS: dict[str, Command] = {}
 
@@ -325,7 +325,7 @@ _BUILDS = ("list", "files", "compare", "relaunch", "restore")
 def canvas_builds(a: dict[str, Any]) -> Any:
     action, c = a.get("action") or "list", _q(a["canvas"])
     if action not in _BUILDS:
-        raise ValueError(f"action is one of {', '.join(_BUILDS)}.")
+        raise CommandError(f"action is one of {', '.join(_BUILDS)}.")
     if action == "list":
         return api.call("GET", f"/streamlit/canvases/{c}/builds")
     if a.get("build") is None:
@@ -355,7 +355,7 @@ _PERF = ("session", "hints", "attach", "pause", "clear", "detach", "save", "save
 def canvas_perf(a: dict[str, Any]) -> Any:
     action, c = a.get("action") or "session", _q(a["canvas"])
     if action not in _PERF:
-        raise ValueError(f"action is one of {', '.join(_PERF)}.")
+        raise CommandError(f"action is one of {', '.join(_PERF)}.")
     if action == "session":
         return api.call("GET", f"/streamlit/canvases/{c}/perf")
     if action == "hints":
