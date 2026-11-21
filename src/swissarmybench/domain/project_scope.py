@@ -105,27 +105,23 @@ def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) 
 
 DATA_NOTEBOOK: str = "data.ipynb"  # the project's data notebook, at its top
 DATA_ROLE: str = "data"
-APP_ROLE: str = "app"
 
 
 def notebook_roles(documents: Iterable[Mapping[str, Any]]) -> dict[str, str]:
-    """Each notebook's role by its path inside the project (the owner, 2026-11-16: "data notebooks and
-    app notebooks"): "data" for THE data notebook, data.ipynb at the project's top; "app" for every
-    other notebook, whether a canvas uses it yet or not. Other documents have none."""
-    roles: dict[str, str] = {}
-    for document in documents:
-        if document.get("kind") != "notebook":
-            continue
-        path = str(document["path"])
-        roles[path] = DATA_ROLE if path.replace("\\", "/").casefold() == DATA_NOTEBOOK else APP_ROLE
-    return roles
+    """Each notebook's role by its path inside the project: "data" for THE data notebook, data.ipynb at
+    the project's top (the owner, 2026-11-16). Every other notebook is plain and has none (app notebooks
+    went, 2026-11-21: widgets on the Canvas replaced them); other documents have none either."""
+    return {
+        str(d["path"]): DATA_ROLE
+        for d in documents
+        if d.get("kind") == "notebook" and str(d["path"]).replace("\\", "/").casefold() == DATA_NOTEBOOK
+    }
 
 
 def notebook_kind(path: str, project: str | None) -> str | None:
     """A notebook's kind by its whole path and the open project's folder (None: no project open):
     "data" for data.ipynb (at the project's top, or anywhere with no project: its Data mode is its
-    own), "app" for any other notebook in the project, "" (plain) for one outside it. None: not a
-    notebook."""
+    own), "" (plain) for every other notebook. None: not a notebook."""
     whole = path.replace("\\", "/")
     if not whole.casefold().endswith(".ipynb"):
         return None
@@ -135,7 +131,8 @@ def notebook_kind(path: str, project: str | None) -> str | None:
     top = project.replace("\\", "/").rstrip("/")
     if not whole.casefold().startswith(top.casefold() + "/"):
         return ""
-    return notebook_roles([{"path": whole[len(top) + 1 :], "kind": "notebook"}])[whole[len(top) + 1 :]]
+    inside = whole[len(top) + 1 :]
+    return notebook_roles([{"path": inside, "kind": "notebook"}]).get(inside, "")
 
 
 def inside(folder: str, relative: str) -> str:

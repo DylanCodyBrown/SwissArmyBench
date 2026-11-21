@@ -145,11 +145,12 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `{{ name }}` filled from the kernel), widgets and the Canvas (2026-11-21: a widget is the library's `widgets/<name>.widget.py`, its top-level
   values its properties with masks; the Widgets window writes and runs one; the Canvas lays pages out from
   containers and widget instances in pixels, rule-checked and undoable; Play, Launch, Export from one builder;
-  app notebooks, `.stapp.json` canvases, live cells, controllers and the Performance Analyzer went),
+  Launch with the Performance Analyzer, Builds' Compare and Restore; a table property takes `[Conn].table`;
+  app notebooks, `.stapp.json` canvases, live cells and controllers went),
   projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
   window or the grid page's Ctrl+K), tabs that pop out into windows of their own (and move
-  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
+  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
   Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
@@ -218,7 +219,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the agent's save or Copy project to with rows waits for the user's Allow. Copy project to copies the
   folder (`.sab/data/` on a tick). **Launch's builds (the owner, 2026-11-19: "think Visual Studio"; "we just have
   apps in folders"):** each launch of a Streamlit app writes `builds/<app>/<n>/` at the project's top (code,
-  cells.json, build.json; never rows or a secret; shared in Git), and a saved analyzer session goes beside it
+  canvas.json, build.json; never rows or a secret; shared in Git), and a saved analyzer session goes beside it
   (perf-<time>.json: names, times, sizes, counts only). `recent_projects.json` holds the projects' folder paths and times only;
   `projects.json` the Project Explorer's projects folder, sort, custom order and hidden ones. The old
   single .sab file is not read any more (its conversion removed, the owner, 2026-11-17: `swissarmybench open
@@ -682,7 +683,9 @@ src/swissarmybench/
                          remove, Show (the user's: 403 for the agent); the values set in this server's environment
     connection_tables.py the contract's list and read for every kind, DuckDB SQL naming a connection's table (each
                          read: every row the query needs, counted first, refused past the limit; kept for the
-                         session by what was sent, Refresh), the Connections page's tree, Open all of a dataset
+                         session by what was sent, Refresh), the Connections page's tree, Open all of a dataset;
+                         listed (a loaded catalog's tables as SQL names them) and read_named (one `[Conn].table`
+                         read whole: a widget's table property)
     connection_slots.py  the one gate every connection run passes (bootstrap's run_blade): wait in line, Cancel
                          (the child killed), the wait limit (Try again); who from the request (CURRENT: the agent,
                          a page's X-Sab-Client, a kernel's X-Kernel); kernels' leased slots; the Queries window's
@@ -1132,8 +1135,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          grid page's Find data dialog (Ctrl+K, gridCommands.ts): one search, chips, a
                          connection picker, recent searches, each result's actions, its drag
                          (EXPLORER_DRAG: lazy/codeEditor.ts drops the cell's language's code)),
-                         workbenchCellsPane.ts (App mode's Streamlit cells panel: every cell that calls
-                         Streamlit, by name: dragged onto a canvas), workbenchMenu.ts (its drop-
+                         workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
                          workbenchPages.ts (Notebooks and Scripts, two pages: the page of a file or a kind, this
                          window's, openOnPage and bringPage by the windows' names, the old session split once);
@@ -1162,15 +1164,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchNotebook.ts, its completion in workbenchCompletion.ts;
                          workbenchLineage.ts (the Lineage overlay: Mermaid flow, a value card per step;
                          window.openLineage), workbenchApprovals.ts (Approve the output, the amber note);
-                         workbenchStreamlit.ts (a document's live cells: the Python cells that call
-                         Streamlit, their state; a cell's link, dragged or copied); workbenchCanvas.ts
-                         is a Streamlit app's canvas, a document tab (pages as tabs, blocks on a
-                         12-column grid, Play showing the page live in place, Edit, Export, Save as;
-                         Test this page, a default said quietly, a thin-cell hint and Move to data.ipynb);
+                         cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
+                         pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
-                         notebook's kind (in a project data.ipynb the data notebook, any other an app notebook;
-                         outside one plain: notebookRole, kindIcon);
+                         notebook's kind (in a project data.ipynb the data notebook; every other plain:
+                         notebookRole, kindIcon);
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
                          (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
                          for the types explained, where; save, Keep its rows asked once; Copy project to…;
@@ -1210,11 +1209,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          claudeLaunch.ts the status bars' Launch Claude (one found: straight to it; both: a
                          menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
-                         in its group, the status bar's toggles), workbenchApp.ts (App: Properties, page
-                         settings, State), workbenchStarters.ts (App mode's Starters panel: the gallery),
-                         workbenchDocModes.ts (Notebook's Outline, Script's Run settings and Run history,
-                         Data's Dictionary and Lineage's place); the canvas's selection, wiring, undo,
-                         align, duplicate, zoom and Play's preview are in workbenchCanvas.ts
+                         in its group, the status bar's toggles), workbenchDocModes.ts (Notebook's Outline,
+                         Script's Run settings and Run history, Data's Dictionary and Lineage's place)
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, catalog,
@@ -1251,7 +1247,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
-                         tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity)
+                         tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity; 11: a widget on
+                         a canvas in both layouts, played, exported)
 plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
 .claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
@@ -1276,13 +1273,16 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          it the app is the BI base: no Canvas, no Widgets, its tools and its door say which
                          extension they need. tests/conftest.py puts its src on the path and switches it on.
                          Widgets and the Canvas (the owner, 2026-11-21) replaced app notebooks, .stapp.json
-                         canvases, live Streamlit cells, controllers, the designer and the Performance Analyzer
+                         canvases, live Streamlit cells, controllers and the designer (2026-11-21; the Performance
+                         Analyzer and Builds came back on the widget Canvas, branch canvas-rest2)
   src/swissarmybench_streamlit/
     extension.py         ID, NAME, ADDS, MODE (the Streamlit project: its canvas, widget_framework, its tools),
                          STARTERS, SECRET_PATHS (/streamlit/run/); routes(services) its composition root (widgets,
                          canvases, live runs, previews; the base's hooks: an old app file said, a new project's
                          canvas, the outline's canvas pages); scaffold (data.ipynb and an empty canvas)
-    commands.py          the agent's widgets_* and canvas_* tools and app_launch; GONE: the old app canvas's
+    commands.py          the agent's widgets_* and canvas_* tools (canvas_builds and canvas_perf by an action), app_launch;
+                         OLD_NAMES (canvas_list, canvas_show, canvas_stop answer one release);
+                         GONE: the old app canvas's
                          commands, each said gone (cli/commands.py gone_commands)
     domain/widgets.py    a widget's file (library/widgets/<name>.widget.py: a swissarmybench-widget TOML header,
                          its Streamlit code), the header rewritten alone, names checked (available, taken, invalid)
@@ -1304,7 +1304,12 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
                          of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
                          place, its failure there; table, sample, var, key); the kernel's setup
-    domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, the canvas, build.json)
+    domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, canvas.json, build.json):
+                         what changed between two canvases in words (canvas_changes), a build's widgets read back
+                         with ast (widget_code), compare file by file
+    domain/perf.py       the Performance Analyzer: a protobuf wire reader (a ForwardMsg's kind, element and path, a
+                         BackMsg's rerun and widgets: never content), the socket per rerun, the page's records joined
+                         (each block a widget instance), the caches, the hints in plain words
     adapters/widget_files.py  the library's widgets/ and the prebuilt ones; a canvas file read with a stamp, written
                          atomically only when it changes, a broken one's copy; the previews' cache (by hash, theme)
     adapters/streamlit_files.py, build_files.py  a run's temporary folder and an export's; a build's folder
@@ -1313,7 +1318,11 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          headless check, previews' state
     services/canvas.py   Canvases: open (validated), command (versioned: another window's change refused with the
                          canvas as it is now; a file changed on disk read first), undo, redo, state (missing, marks,
-                         notes said once), play, check, launch, export (the agent's on Allow), rename_widget
+                         notes said once), play, check, export (the agent's on Allow), replace (one change: a
+                         build's Restore), rename_widget
+    services/launch.py   Launches: Launch (a build, then its run with sab_perf.py beside; analyzer from the first
+                         load), Relaunch, Stop, builds (list, files, compare two or with now, Restore), the analyzer
+                         (attach, the proxy's tap, session, hints, save into the build, a saved one)
     services/open_tables.py  the open tables' names and columns (the pickers, a value's check) and Parquet
     server/live_runs.py  LiveRuns: a widget run alone and a canvas's Play, each a Streamlit process passed through
                          at /streamlit/run/<key>-<secret>/; check: the pages headless with AppTest (CHECK_RUNNER);
@@ -1324,26 +1333,33 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          box), one at a time in the background, kept by its file's hash and the theme
     server/streamlit_apps.py  a Streamlit process: `streamlit run` in the project's Python, 127.0.0.1 only, ended
                          with the server (Streamlit is never the app's dependency); install
-    server/routes_widgets.py, routes_canvases.py  /streamlit/widget (the window), /streamlit/widgets/*,
-                         /streamlit/canvas (the page), /streamlit/canvases/*
+    server/sab_perf.py   copied beside a launch's pages only: each rerun's trigger, each widget's time (sab_canvas.render
+                         calls it), calls, caches; one JSON line a rerun, only while sab_perf.on is there
+    server/routes_widgets.py, routes_canvases.py, routes_launch.py  /streamlit/widget (the window),
+                         /streamlit/widgets/*, /streamlit/canvas (the page), /streamlit/canvases/* (…/launch,
+                         …/builds…, …/perf…), /streamlit/perf (the analyzer's window)
     widgets/             the 56 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py)
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
 web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list, Monaco with the Workbench's
                          intelligence over a kernel of its own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code;
                          a failure's error panel with Go to line; remembered per widget this session), Properties
                          (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
-web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties)
+web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties); a table's
+                         picker grouped: sample, open tables, data.ipynb's, each connection's [Conn].table (typed
+                         when its catalog is not listed yet)
 web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,
                          nest, snap with guides, nudge, zoom); right-click Insert widget; the Properties and Widgets
-                         panes (hideable, resizable, a card's hover preview; Show on); the top row's Play (its ▾:
-                         Launch; Stop while running) and Export, also every right-click menu's last group; the
+                         panes (hideable, resizable, a card's hover preview; Show on); the top row's Play (F5; its ▾:
+                         Launch Ctrl+F5, Launch with the Performance Analyzer Ctrl+Shift+F5, Share… while launched,
+                         Builds…; Stop while running) and Export (Ctrl+Shift+E), also every right-click menu's last group; the
                          bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the
                          panes' toggles, zoom); the frame's right-edge width
                          handle (px shown); versions and notices
 web/src/canvasGrid.ts    the Canvas's placement maths: the step, the grid's lines, edges and centres, nudges, dots
-                         (old app canvas modules still in web/src, unreachable: workbenchCanvas.ts, canvasPane.ts,
-                         canvasLaunch.ts, canvasToolbox.ts, workbenchStreamlit.ts, workbenchCellsPane.ts,
-                         workbenchApp.ts, workbenchStarters.ts, perfPage.ts: their removal is its own change)
+web/src/canvasBuilds.ts  the Canvas's Builds (newest first, what changed; Compare two or with now in Monaco's diff
+                         editor; Open; Relaunch; Restore) and the analyzer's window (analyzerAddress, openAnalyzer)
+web/src/perfPage.ts      the Performance Analyzer's window (static/perf.html, ?canvas=): Timeline, Calls, Cache, Web
+                         socket, Hints; Pause, Clear, Save into the build; a saved session read-only
 extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
                          project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
                          page, through GitHub's web API (no Git on the computer)

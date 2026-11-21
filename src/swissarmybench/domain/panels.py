@@ -13,14 +13,11 @@ from typing import Any
 # Each panel: its id (the page's and the agent's), the page it is on, and its name in Settings.
 PANELS: tuple[tuple[str, str, str], ...] = (
     ("workbench.explorer", "Workbench", "Data Explorer"),
-    ("workbench.streamlit", "Workbench", "Streamlit cells"),
     ("workbench.console", "Workbench", "Console"),
     ("workbench.variables", "Workbench", "Variables"),
     ("workbench.status", "Workbench", "Status bar"),
-    # The Workbench's modes (2026-11-15): each document's own panels.
-    ("workbench.properties", "Workbench", "Properties"),
-    ("workbench.state", "Workbench", "State"),
-    ("workbench.starters", "Workbench", "Starters"),
+    # The Workbench's modes (2026-11-15): each document's own panels (App mode's Properties, State, Starters
+    # and Streamlit cells went with app notebooks, 2026-11-21).
     ("workbench.outline", "Workbench", "Outline"),
     ("workbench.runSettings", "Workbench", "Run settings"),
     ("workbench.runHistory", "Workbench", "Run history"),

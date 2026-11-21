@@ -142,6 +142,46 @@ class Context:
     tables: dict[str, list[str] | None] | None = None
     variables: set[str] | None = None
     values: dict[str, Any] = field(default_factory=dict)
+    # The saved connections' names (a `[Conn].table` value names one; None: not known here).
+    connections: set[str] | None = None
+
+
+# A connection's table as DuckDB SQL names it (the connection-tables contract): [Finance Captive].Sales,
+# [Shop].public.orders. A table property takes one as its value; the run reads it through the contract.
+CONNECTION_TABLE = re.compile(r"^\[(?P<connection>[^\[\]]{1,120})\]\.(?P<table>\S.{0,300})$")
+
+
+def connection_of(value: Any) -> str | None:
+    """The connection a table property's value names (`[Conn].table`), None for any other value."""
+    found = CONNECTION_TABLE.match(value) if isinstance(value, str) else None
+    return found.group("connection") if found else None
+
+
+def module_tables(text: str | None) -> list[str]:
+    """The tables a project's data.py makes, by its top-level names (read with ast, never run): each name
+    assigned a value that is not a constant, an import or a function (a sab_canvas.table() of the same
+    name reads it from data.py beside the app)."""
+    if not text:
+        return []
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return []
+    found: list[str] = []
+    for node in tree.body:
+        targets: list[ast.expr] = []
+        value: ast.expr | None = None
+        if isinstance(node, ast.Assign):
+            targets, value = list(node.targets), node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        if value is None or isinstance(value, (ast.Constant, ast.Lambda, ast.List, ast.Dict, ast.Tuple)):
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and not target.id.startswith("_") and not target.id.isupper():
+                if target.id not in found:
+                    found.append(target.id)
+    return found
 
 
 # ===== reading the code =====
@@ -439,10 +479,19 @@ def check(prop: Property, value: Any, context: Context | None = None) -> None:
         raise PropertyError(
             f"{name} is one of {', '.join(prop.choices)}.", f"Pick one of {', '.join(prop.choices[:6])}."
         )
+    elif kind == "table" and value and connection_of(value) is not None:
+        conn = connection_of(value) or ""
+        if context.connections is not None and conn.casefold() not in {
+            c.casefold() for c in context.connections
+        }:
+            raise PropertyError(
+                f"There is no connection called {conn[:60]} here.",
+                "Pick a connection's table from the list, or add the connection on the Connections page.",
+            )
     elif kind == "table" and value and context.tables is not None and value not in context.tables:
         raise PropertyError(
             f"There is no table called {value[:60]} here.",
-            "Pick an open table, or leave it empty for sample data.",
+            "Pick an open table, a data.ipynb table or a connection's, or leave it empty for sample data.",
         )
     elif kind == "column" and value:
         table = context.values.get(prop.of or "", None) if prop.of else None

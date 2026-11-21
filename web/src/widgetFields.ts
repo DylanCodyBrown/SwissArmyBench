@@ -5,7 +5,8 @@
  *   switch    a checkbox switch                 number   a number box (its range and step)
  *   text      a text box                        colour   a colour picker beside its #rrggbb
  *   date, datetime, time  the browser's pickers  dropdown its choices
- *   table     the open tables (empty: made-up sample data)
+ *   table     one picker, grouped: the open tables, data.ipynb's, each connection's (`[Conn].table`, as DuckDB SQL
+ *             names it; a connection not listed yet: its table typed) (empty: made-up sample data)
  *   column    the columns of the table its `of` property names
  *   variable  the variables (the Variables page's names)
  *   path      a text box                        json     a small JSON editor, checked as it is typed
@@ -34,6 +35,61 @@ export interface Prop {
 export interface FieldContext {
   tables: Record<string, string[] | null>;
   variables: string[];
+  /** The groups of the table picker (GET /streamlit/widgets/context); without them, every table is one list. */
+  open_tables?: string[];
+  data_tables?: string[];
+  /** Each connection's tables as SQL names them; null: its catalog is not listed yet (the table is typed). */
+  connection_tables?: Record<string, string[] | null>;
+}
+
+/** The table picker: Sample, Open tables, data.ipynb, then a group per connection. */
+function tablePicker(context: FieldContext, value: string, readOnly: boolean, send: (next: string) => void): HTMLElement {
+  const box = h("select", { class: "wg-input wg-table-picker", disabled: readOnly });
+  const known = new Set<string>([""]);
+  const add = (parent: HTMLElement, v: string, label: string): void => {
+    known.add(v);
+    parent.append(h("option", { value: v, selected: v === value }, label));
+  };
+  add(box, "", "Sample data (made up)");
+  const group = (label: string, values: string[]): void => {
+    if (!values.length) return;
+    const g = h("optgroup", { label });
+    for (const v of values) add(g, v, v);
+    box.append(g);
+  };
+  const grouped = context.open_tables !== undefined;
+  if (grouped) {
+    group("Open tables", context.open_tables ?? []);
+    group("data.ipynb", context.data_tables ?? []);
+  } else group("Tables", Object.keys(context.tables).sort());
+  const TYPE = "sab-type:";
+  for (const [connection, tables] of Object.entries(context.connection_tables ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
+    const g = h("optgroup", { label: connection, "data-connection": connection });
+    for (const t of tables ?? []) add(g, t, t);
+    g.append(h("option", { value: `${TYPE}${connection}` }, tables === null ? `Type a table of ${connection}…` : `Another table of ${connection}…`));
+    box.append(g);
+  }
+  if (value && !known.has(value)) box.append(h("option", { value, selected: true }, value.startsWith("[") ? value : `${value} (not here)`));
+  const typed = h("input", { type: "text", class: "wg-input wg-table-typed", hidden: true, spellcheck: "false", "aria-label": "The connection's table", "data-no-variables": "" }) as HTMLInputElement;
+  box.addEventListener("change", () => {
+    const picked = (box as HTMLSelectElement).value;
+    if (picked.startsWith(TYPE)) {
+      typed.hidden = false;
+      typed.value = `[${picked.slice(TYPE.length)}].`;
+      typed.focus();
+      return;
+    }
+    typed.hidden = true;
+    send(picked);
+  });
+  const done = (): void => {
+    if (typed.value.trim() && !/\]\.$/.test(typed.value.trim())) send(typed.value.trim());
+  };
+  typed.addEventListener("change", done);
+  typed.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") done();
+  });
+  return h("span", { class: "wg-table-field" }, box, typed);
 }
 
 type OnValue = (value: unknown, said: (text: string) => void) => Promise<void> | void;
@@ -108,10 +164,7 @@ export function propertyField(prop: Prop, values: Record<string, unknown>, conte
       break;
     }
     case "table": {
-      const tables = Object.keys(context.tables).sort();
-      const box2 = select([{ value: "", label: "Sample data (made up)" }, ...tables.map((t) => ({ value: t, label: t }))], text(value), readOnly);
-      box2.addEventListener("change", () => send(box2.value));
-      box = box2;
+      box = tablePicker(context, text(value), readOnly, (next) => send(next));
       break;
     }
     case "column": {

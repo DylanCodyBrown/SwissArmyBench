@@ -1,7 +1,7 @@
 # The Workbench
 
 Notebooks (`.ipynb`) and scripts (`.py`) on IPython kernels on this computer, in a browser window of
-their own (the rail's Notebooks, Scripts and Apps open it; code never opens in the grid page).
+their own (the rail's Notebooks and Scripts open it; code never opens in the grid page).
 
 ## Files and kernels (no window needed)
 - `workbench_home` (default folder, recent files), `workbench_open`, `workbench_save` (refused if the
@@ -26,17 +26,16 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
   `workbench_environment_choose` (the Python a document runs in).
 
 ## The window (it must be open; the "front document" is the one in front)
-- Its top bar: Save, Save as…, New (the kind on show: notebook, script or Streamlit app; "file.newNotebook",
-  "file.newScript", "file.newApp") and Open… ("file.open"). The rail's Notebooks, Scripts and Apps land
-  on a page of cards. In a project data.ipynb is THE data notebook and every other notebook an app
-  notebook (tab kinds `dataNotebook`, `appNotebook`; outside a project a plain `notebook`):
-  `project_documents` and "documents" give each notebook's `role` (data, app or ""). The Notebooks page
-  groups them under Data notebook and App notebooks; in a project "file.newNotebook" makes an app notebook.
+- New ("file.newNotebook", "file.newScript"; "file.newApp" opens the Canvas page) and Open… ("file.open").
+  In a project data.ipynb is THE data notebook; every other notebook is plain (tab kinds `dataNotebook`,
+  `notebook`): `project_documents` and "documents" give the data notebook's `role` ("data"; the others
+  none). App notebooks, live Streamlit cells and the old `.stapp.json` canvases went (2026-11-21): an app
+  is widgets on the Canvas (the streamlit guide); a cell that calls Streamlit runs in the kernel like any
+  other, and "file.open" of a `.stapp.json` says so in one line.
   The Data Explorer (the left pane, off until opened: "view.explorer", Ctrl+Shift+E) sits beside every
   document; "documents" panes.data_explorer says open or closed. "explorer.search" searches it
   (as `explorer_search`), "explorer.insert" puts a result's insert code in the front document's cell,
-  "explorer.popOut" opens the Data page (the one place to browse tables) in a window of its own. A canvas's
-  Streamlit cells and Starters are its own left panels ("data.streamlitCells", "data.starters").
+  "explorer.popOut" opens the Data page (the one place to browse tables) in a window of its own.
 - `workbench_window(command, args)`: any palette command. "documents" says what is open and how the
   groups are arranged; "commands" lists them all (cells, running, splitting, moving tabs, the Data Explorer).
 - `workbench_pop_out` moves the front document (unsaved text, kernel) to a window of its own;

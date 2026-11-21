@@ -131,6 +131,7 @@ class Lineage:
         read_document: Callable[[str], tuple[str, str, float]],
         project_files: ProjectFiles,
         kernel_values: KernelValues,
+        kernel_for: Callable[[str], str | None] = lambda path: None,
     ) -> None:
         self.ws = ws
         # The open documents as their windows hold them, a canvas, a playing page's notes: the extension
@@ -140,6 +141,7 @@ class Lineage:
         self._read = read_document  # a file's text and full path (the Workbench's documents)
         self._project = project_files
         self._kernel_values = kernel_values
+        self._kernel_for = kernel_for  # the Workbench's kernel started for a document
 
     # ===== the documents, as they are now =====
 
@@ -287,6 +289,8 @@ class Lineage:
             held = self._hooks.held(path)
             if held is not None and held.kernel:
                 kernels[path] = held.kernel
+            elif (found := self._kernel_for(path)) is not None:
+                kernels[path] = found
         if isinstance(body.get("kernel"), str) and body["kernel"]:
             kernels[target[0]] = body["kernel"]
         errors = self._errors(body.get("errors"), target[0])

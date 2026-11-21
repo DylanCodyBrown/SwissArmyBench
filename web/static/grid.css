@@ -18662,6 +18662,15 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   background: var(--bg);
   color: var(--fg);
 }
+/* A table property's picker and, for a connection not listed yet, its typed [Conn].table under it. */
+.wg-table-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wg-table-typed {
+  font-family: var(--mono, ui-monospace, monospace);
+}
 .wg-name-line {
   font-size: 0.78rem;
   min-height: 1em;

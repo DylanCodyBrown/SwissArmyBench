@@ -1,8 +1,8 @@
 # ruff: noqa: F811
-"""Data notebooks and app notebooks, in a real browser (the owner, 2026-11-16: "I didnt see that data
-notebooks and app notebooks had been seperated in the app yet. the data panel is nice but it should only
-show on app notebooks its useless in a data notebook"). In a project data.ipynb is THE data notebook and
-every other notebook an app notebook; outside a project a notebook is plain. Made-up data only.
+"""The data notebook and the other notebooks, in a real browser (the owner, 2026-11-16: "differentiate
+with seperate icons the data notebook"). In a project data.ipynb is THE data notebook; every other notebook
+is plain (app notebooks went, 2026-11-21: "Creating a widget is what will replace the concept of app cells
+and app notebooks"). Opening an old app canvas (.stapp.json) says so in one line. Made-up data only.
 
 With SWISSARMYBENCH_NBKINDS_SHOTS set to a folder, the tests also save screenshots there (2x)."""
 
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.error
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +43,8 @@ def workbench(browser: Browser, server: dict[str, Any], query: str = "") -> Page
 
 @pytest.fixture
 def orchard(server: dict[str, Any], tmp_path: Path) -> Path:
-    """A made-up project: data.ipynb, two more notebooks (one a canvas uses, one not yet) and the canvas."""
+    """A made-up project: data.ipynb, two more notebooks (one held a live Streamlit cell once) and an old
+    app canvas (.stapp.json) from before widgets."""
     project = call(server, "POST", "/projects", {"folder": str(tmp_path), "name": "orchard", "app": False})
     folder = Path(project["folder"])
     (folder / "pickers.ipynb").write_text(json.dumps(PLAIN), encoding="utf-8")
@@ -60,7 +62,7 @@ def orchard(server: dict[str, Any], tmp_path: Path) -> Path:
         "version": 1,
         "pages": [{"id": "p1", "name": "Page 1", "blocks": [block]}],
     }
-    del app  # (app canvases were replaced by widgets, 2026-11-21: none is written)
+    (folder / "shop.stapp.json").write_text(json.dumps(app), encoding="utf-8")
     return folder
 
 
@@ -75,16 +77,16 @@ def test_a_projects_notebooks_wear_their_kind_on_tabs_cards_and_files(
     window(server, "project.open", folder=str(orchard))
     for title, kind, word in (
         ("data.ipynb", "dataNotebook", "Data notebook"),
-        ("pickers.ipynb", "appNotebook", "App notebook"),
-        ("views.ipynb", "appNotebook", "App notebook"),
+        ("pickers.ipynb", "notebook", "Notebook"),
+        ("views.ipynb", "notebook", "Notebook"),
     ):
         expect(tab(page, title)).to_have_attribute("data-kind", kind, timeout=30000)
         expect(tab(page, title).locator(".wb-tab-icon")).to_have_attribute("data-icon", kind)
         expect(tab(page, title).locator(".wb-tab-icon")).to_have_attribute("title", word)
         expect(page.locator(".wb-file-open", has_text=title)).to_have_attribute("title", word)
-    # The agent sees the same kinds.
+    # The agent sees the same kinds: the data notebook's role, none for the others.
     roles = {d["title"]: d.get("role") for d in window(server, "documents")["documents"]}
-    assert roles["data.ipynb"] == "data" and roles["pickers.ipynb"] == "app", roles
+    assert roles["data.ipynb"] == "data" and not roles["pickers.ipynb"], roles
     # The Notebooks page's explorer (2026-11-21): the data notebook first, then the rest, each its icon.
     explorer = page.locator(".wb-codex.page-notebooks")
     heads = explorer.locator(".wb-codex-group-head > span:not(.wb-codex-count)")
@@ -92,25 +94,45 @@ def test_a_projects_notebooks_wear_their_kind_on_tabs_cards_and_files(
     data_files = explorer.locator(".wb-codex-group[data-group='data'] .wb-codex-file")
     expect(data_files).to_have_count(1)
     expect(data_files.first.locator("svg").first).to_have_attribute("data-icon", "dataNotebook")
-    apps = explorer.locator(".wb-codex-group[data-group='notebooks'] .wb-codex-file")
-    expect(apps).to_have_count(2)
-    expect(apps.locator("svg[data-icon='appNotebook']")).to_have_count(2)
+    others = explorer.locator(".wb-codex-group[data-group='notebooks'] .wb-codex-file")
+    expect(others).to_have_count(2)
+    expect(page.locator("svg[data-icon='appNotebook']")).to_have_count(0)
     shot(page, "notebooks-page-two-groups")
-    # New on that page makes an app notebook (the project has one data notebook).
+    # New on that page makes a plain notebook (never an app notebook).
     page.get_by_role("button", name="Workbench menu", exact=True).click()
-    page.get_by_role("menuitem", name="New app notebook", exact=True).click()
+    expect(page.get_by_role("menuitem", name="New app notebook")).to_have_count(0)
+    page.get_by_role("menuitem", name="New notebook", exact=True).click()
     made = tab(page, "Untitled notebook")
-    expect(made).to_have_attribute("data-kind", "appNotebook", timeout=20000)
-    expect(made.locator(".wb-tab-icon")).to_have_attribute("title", "App notebook")
-    shot(page, "new-app-notebook")
+    expect(made).to_have_attribute("data-kind", "notebook", timeout=20000)
+    expect(made.locator(".wb-tab-icon")).to_have_attribute("title", "Notebook")
+    # The notebook that held a live Streamlit cell is a plain notebook: its cell is code, never a live page.
+    tab(page, "views.ipynb").click()
+    expect(page.locator(".wb-cell.kind-streamlit")).to_have_count(0)
+    expect(page.locator(".wb-cell.kind-code")).to_have_count(1)
+
+
+def test_an_old_app_canvas_says_so_in_one_line(
+    browser: Browser, server: dict[str, Any], orchard: Path
+) -> None:
+    """Opening an old .stapp.json (the agent's file.open, or the server's own open) says in one line that
+    apps are built from widgets on the Canvas now: never a crash, never a tab."""
+    page = workbench(browser, server)
+    window(server, "project.open", folder=str(orchard))
+    expect(page.locator(".wb-tab")).to_have_count(3, timeout=30000)  # its three notebooks, no canvas
+    window(server, "file.open", path=str(orchard / "shop.stapp.json"))
+    note = page.locator(".error-note, .toast").filter(has_text="replaced by widgets")
+    expect(note.first).to_be_visible(timeout=10000)
+    expect(page.locator(".wb-tab")).to_have_count(3)
+    with pytest.raises(urllib.error.HTTPError) as said:
+        call(server, "POST", "/workbench/open", {"path": str(orchard / "shop.stapp.json")})
+    assert "replaced by widgets" in said.value.read().decode()
 
 
 def test_the_data_explorer_is_beside_every_document(
     browser: Browser, server: dict[str, Any], orchard: Path
 ) -> None:
     """The Data panel was only beside app notebooks and canvases (2026-11-16); the Data Explorer that
-    took its place (2026-11-17) is beside every document once opened: the data notebook, an app notebook, a
-    canvas (whose Streamlit cells are its own panel)."""
+    took its place (2026-11-17) is beside every document once opened: the data notebook, another notebook."""
     page = workbench(browser, server)
     window(server, "project.open", folder=str(orchard))
     panel = page.locator(".wb-explorer")

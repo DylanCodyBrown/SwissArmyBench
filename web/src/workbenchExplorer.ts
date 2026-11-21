@@ -1,10 +1,10 @@
 /**
  * workbenchExplorer.ts: the Workbench's Data Explorer pane (the owner, 2026-11-17: "perhaps the data pane
  * can move to its own pane called Data Explorer"), on the left like VS Code's Explorer. It replaced the Data
- * panel: its tables and blade variables are Explorer results now, its Streamlit cells are App mode's panel
- * (workbenchCellsPane.ts) and its Starters App mode's too. [WIRE]
+ * panel: its tables and blade variables are Explorer results now (its Streamlit cells and Starters went with
+ * app notebooks, 2026-11-21). [WIRE]
  *
- *   [PANE]     beside every document (the data notebook, app notebooks, scripts, canvases, a landing page),
+ *   [PANE]     beside every document (the data notebook, notebooks, scripts, a landing page),
  *              off until opened: the status bar's Data Explorer, Ctrl+Shift+E; open or closed and its width
  *              remembered per window (this window's session storage). Resizable by its right edge
  *   [SEARCH]   dataExplorer.ts: one search over everything that holds data
@@ -23,7 +23,7 @@ import { type Explorer, type ExplorerHost, type ExplorerState, mountExplorer } f
 export interface ProjectFile {
   path: string;
   icon?: string;
-  /** Its kind's word (Data notebook, App notebook): the tooltip. */
+  /** Its kind's word (Data notebook, Notebook): the tooltip. */
   word?: string;
   /** Made from another file (data.py from data.ipynb): muted, set in. */
   derived?: boolean;

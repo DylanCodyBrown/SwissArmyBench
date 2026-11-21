@@ -33,7 +33,6 @@ from typing import Any
 from swissarmybench.domain import html_cells
 from swissarmybench.domain.codegen import output_call, python_string, variable_name
 from swissarmybench.domain.datasets import Column, quote
-from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 # A query naming a table through its connection: [Finance Captive].Sales, "Shop".orders.
 _NAMES_A_CONNECTION = re.compile(r'(?:\[[^\]\n]+\]|"[^"\n]+")\s*\.')
@@ -423,17 +422,7 @@ def arrange(
     users = [c for c in numbered if c.role not in app]
     if move:
         users = [replace(c, role="", table=None, grouped=False) for c in users]
-    # A cell that calls Streamlit runs in a Streamlit page, never in the kernel: it makes no table.
-    usual = usual_name(tuple(c.source for c in users if c.kind == "code" and not c.html))
-    live = {
-        id(c)
-        for c in users
-        if c.kind == "code" and not c.html and not c.fixed and uses_streamlit(split_uses(c.source)[1], usual)
-    }
-    known = {
-        id(c): facts(split_uses(c.source)[1]) if c.kind == "code" and id(c) not in live else Facts()
-        for c in users
-    }
+    known = {id(c): facts(split_uses(c.source)[1]) if c.kind == "code" else Facts() for c in users}
     places = {id(c): i for i, c in enumerate(users)}
 
     def cell_facts(cell: PlanCell) -> Facts:
@@ -865,7 +854,7 @@ def outline(text: str) -> dict[str, Any]:
     """Where a script's cells are, for the editor: each cell's marker line and last line (1-based), its
     number, role and table, its name, its first line of code; and the Tables group's first and last line. An
     HTML cell also says the HTML its lines hold (or what is wrong with them) and its pane's height.
-    A Python cell that calls Streamlit has the kind "streamlit" here: the editor shows it live."""
+    A Python cell that calls Streamlit is a Python cell like any other (live cells went, 2026-11-21)."""
     lines = text.split("\n")
     first = sum(1 for _ in _leading(lines))
     end = next((i for i, line in enumerate(lines) if i > first and _REGION_END.match(line)), None)
@@ -916,14 +905,6 @@ def outline(text: str) -> dict[str, Any]:
             "name": None if inside or role else marker_name(found.group("title")),
         }
     close(len(lines))
-    # A Python cell that calls Streamlit is shown live in its cell (domain/streamlit_use.py).
-    own = [c for c in cells if c["kind"] == "code" and not c["grouped"] and not c["role"]]
-    codes = {id(c): split_uses("\n".join(lines[c["line"] : c["end"]]))[1] for c in own}
-    # Whether `st` means Streamlit is the whole file's to say (its main code too).
-    usual = usual_name((text, *codes.values()))
-    for cell in own:
-        if uses_streamlit(codes[id(cell)], usual):
-            cell["kind"] = "streamlit"
     return {"region": region, "cells": cells}
 
 

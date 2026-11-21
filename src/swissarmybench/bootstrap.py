@@ -1672,6 +1672,7 @@ def bootstrap(
             documents.read,
             project_files,
             workbench.lineage_values,
+            kernel_for=workbench.kernel_for,
         ),
         projects=projects,
         sab_projects=sab_projects,

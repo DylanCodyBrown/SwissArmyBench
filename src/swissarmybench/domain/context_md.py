@@ -437,7 +437,7 @@ def _variables(s: State, trims: set[str]) -> list[str]:
 def _documents(s: State, trims: set[str]) -> list[str]:
     if not s.documents:
         return ["None." if s.project else "No project is open (`project_new`, `project_open`)."]
-    words = {"data": "the data notebook", "app": "an app notebook"}
+    words = {"data": "the data notebook"}
     out = [
         f"- {code(d.path)}: {words.get(d.role or '', d.kind)}"
         for d in sorted(s.documents, key=lambda d: (d.kind, d.path.casefold()))

@@ -150,7 +150,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "sandbox": "Local sandbox APIs: the project's sandbox, API.py, mock clients, Run, Try it, Export",
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
-    "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
+    "streamlit": "Streamlit: the Canvas and widgets (the extension's)",
     "projects": "Projects as folders: open, save, the recent ones, tables that need a fix",
     "library": "The library: connections, APIs, vaults, blades, relationship sets, variables as a Git repo's files",
     "accounting": "Accounting (an extension): the Excel canvas, Play, workbook.py, templates, statements",
@@ -3833,11 +3833,8 @@ def workbench_html_marks(a: dict[str, Any]) -> Any:
     return api.call("POST", f"/workbench/kernels/{_q(a['kernel'])}/html-marks", {"names": a["names"]})
 
 
-# ===== Streamlit: the canvas, live cells, projects (docs/ideas.md, 2026-11-15) =====
-# A Streamlit app is a document of its own: pages of blocks, each block a link to a Python, Markdown or
-# HTML cell of a notebook or script (a Markdown or HTML cell is st.markdown or st.html on the page). There is no Streamlit kind of cell: a Python cell that calls Streamlit is shown
-# live in its cell. The window's commands work on what is in front; the streamlit_* commands on an
-# app by its id; the project_* commands on a project's folder.
+# ===== projects (docs/ideas.md, 2026-11-15): the project_* commands work on a project's folder. An app is
+# widgets on the Canvas (the Streamlit extension's canvas_* and widgets_*; app notebooks went, 2026-11-21).
 
 
 @command(
@@ -4366,7 +4363,7 @@ def app_context(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_cell_copy",
-    "Copy a cell of the front document (as C does): for a canvas or a notebook",
+    "Copy a cell of the front document (as C does)",
     opt("number", "The cell's own number (default: the selected cell).", "int"),
 )
 def workbench_cell_copy(a: dict[str, Any]) -> Any:
@@ -4375,7 +4372,7 @@ def workbench_cell_copy(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_cell_paste",
-    "Paste the copied cell (as V does): a block on a canvas, the cell in a notebook",
+    "Paste the copied cell into the front notebook (as V does)",
 )
 def workbench_cell_paste(a: dict[str, Any]) -> Any:
     return _window("cell.paste", {})
@@ -4393,28 +4390,24 @@ def workbench_cell_name(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_lineage",
-    "A cell's or a canvas block's lineage back to the data: nodes, edges, Mermaid, each value summarised",
+    "A cell's lineage back to the data: nodes, edges, Mermaid, each value summarised",
     opt("document", "The notebook or script (its path)."),
     opt("cell", "The cell's own number.", "int"),
-    opt("app", "Or a canvas: its app id (streamlit_read)."),
-    opt("page", "The block's page id."),
-    opt("block", "The block's id."),
     opt("values", "false: the graph alone.", "bool"),
     values=True,
 )
 def workbench_lineage(a: dict[str, Any]) -> Any:
-    keys = ("document", "cell", "app", "page", "block", "values")
+    keys = ("document", "cell", "values")
     return api.call("POST", "/workbench/lineage", {k: a[k] for k in keys if a.get(k) is not None})
 
 
 @command(
     "workbench_lineage_show",
-    "Show the lineage overlay in the Workbench: a cell of the front document, or a block of its canvas",
+    "Show the lineage overlay in the Workbench for a cell of the front document",
     opt("number", "The cell's own number (default: the selected cell).", "int"),
-    opt("block", "Or a block's id on the front canvas's page."),
 )
 def workbench_lineage_show(a: dict[str, Any]) -> Any:
-    return _window("lineage.open", {k: a[k] for k in ("number", "block") if a.get(k) is not None})
+    return _window("lineage.open", {"number": a["number"]} if a.get("number") is not None else {})
 
 
 @command(
@@ -4770,8 +4763,7 @@ def workbench_run_notebook(a: dict[str, Any]) -> Any:
     )
     results = []
     for cell in opened["cells"]:
-        # A cell that calls Streamlit is shown live in a Streamlit page, never run in the kernel.
-        if cell["kind"] == "markdown" or cell.get("live") or not cell["source"].strip():
+        if cell["kind"] == "markdown" or not cell["source"].strip():
             continue
         lines = api.call_lines(
             "POST",
@@ -5419,6 +5411,9 @@ def _add_extensions() -> None:
         for name, said in (gone() if callable(gone) else {}).items():
             if name not in REGISTRY:
                 GONE_NAMES.setdefault(name, said)
+        # Its old names and arguments, one release (as the base's OLD_NAMES and OLD_ARGS).
+        OLD_NAMES.update(getattr(module, "OLD_NAMES", {}))
+        OLD_ARGS.update(getattr(module, "OLD_ARGS", {}))
         known = {area for area, _ in AREAS}
         AREAS = AREAS + tuple(a for a in getattr(module, "AREAS", ()) if a[0] not in known)
     _arrange()  # an extension's commands in an area of the base's (workbench_canvas...) go with it

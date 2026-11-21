@@ -326,3 +326,14 @@ def test_a_script_run_as_a_file_runs_its_table_cells_safely() -> None:
         exec(compile(safe, "report.py", "exec"), namespace)  # noqa: S102 (the made-up script above)
         assert len(namespace["orders"]) == 3
     assert table_cells.safe_source("x = 1\n# %% [3]\ny = 2\n") == "x = 1\n# %% [3]\ny = 2\n"
+
+
+def test_a_cell_that_calls_streamlit_runs_like_any_other() -> None:
+    """Live Streamlit cells went (2026-11-21: app notebooks were replaced by widgets on the Canvas): Run file
+    keeps a Streamlit cell's lines, and the script's outline calls it a Python cell."""
+    from swissarmybench.domain import table_cells as rules
+
+    script = "import streamlit as st\n# %% [4] Total\nst.metric('Total', 3)\n"
+    assert table_cells.safe_source(script) == script
+    outline = rules.outline(script)
+    assert [c["kind"] for c in outline["cells"]] == ["code"]

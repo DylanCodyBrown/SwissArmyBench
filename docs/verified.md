@@ -4352,3 +4352,42 @@ fields (read loosely: status, username, provider, tenantId), `access list --json
 loosely: type Organizations or Tenant, provider microsoft), a colleague opening the link after their work sign-in, a
 real Streamlit shared run behind the tunnel (web socket, an upload with XSRF on), the Windows and macOS signature
 checks on those systems, and a tenant whose policy blocks Dev Tunnels (the words are matched on "policy" and AADSTS530xx).
+
+## The Canvas's rest (2026-11-21, branch canvas-rest2)
+
+Checked:
+- App notebooks gone: tests/e2e/test_notebook_kinds.py (Chromium: a project's other notebooks plain, no "New app
+  notebook", a notebook that held a live Streamlit cell opens as code; an old .stapp.json said in one line, no tab,
+  the server's open says the same), test_workbench_feedback.py (the icons), test_panels_page.py (ten switches);
+  tests/test_project_scope.py, test_table_cells_live.py (a Streamlit cell runs like any other), test_panels.py.
+- The TypeScript build without the eight deleted modules (npm run typecheck, npm run build); the agent's tool list
+  (tests/test_cli.py: every route has a command, the budget; tests/test_agent_index.py: the index's tools exist;
+  builds and the analyzer are two tools with an action, and four canvas tools were folded into
+  others: the list is about 150 characters smaller than before this branch; the old names answer, one
+  release).
+- Launch, Builds and the analyzer: tests/test_canvas_launch.py (the wire reader on the golden Streamlit messages,
+  the hints' rules, build.json, what changed between canvases in words, a build's widgets read with ast, compare;
+  over HTTP with a stand-in process: two launches, Compare two and with now, Restore and its Undo, Relaunch, an old
+  app build refused, the analyzer recording only while attached and naming the widget); tests/e2e/test_canvas_page.py
+  (Chromium, Streamlit 1.67: Ctrl+Shift+F5 opens the app and the analyzer, the analyzer's reruns name the widget
+  instance, Ctrl+F5 a second build, Builds…: Compare in Monaco's diff editor, Restore, Ctrl+Z; the menus' keys).
+- The lineage e2e test (test_lineage_page.py, both tests pass): the agent's lineage has the kernel's values again.
+- A connection's table in a table property: tests/test_widget_connection_tables.py (the reference, the file name
+  rule shared with the runtime, the check's sentence and fix, data.py's names; over HTTP: a made-up SQLite
+  connection's table read on Play into the run's data/ through the connection-tables read, listed in the
+  session's reads).
+- Use case 11 and 11a against the real test bed (PostgreSQL 16, MariaDB): 33 actions; the export run by AppTest
+  in a plain Python with the client wheel.
+- The merge of share-app: its Share… among the launched app's entries (tests/e2e/test_share_app_page.py updated
+  for the longer ▾ menu).
+
+Runs (Chromium, Streamlit 1.67, the test bed up): the quick suite 4,868 passed, 4 failed under load (each passes
+alone but tests/test_performance.py::test_million_row_targets, a timing test on a shared machine); the e2e suite
+383 passed, 11 failed: use cases 1 and 4 to 10 of test_real_world.py fail at the Workbench's "Add a blade" and the
+catalog tree, which moved with the Scripts page before this branch (11 and 11a pass); test_claude_launch_page's
+Workbench status bar is hidden with nothing open on the base too; two Workbench tests that fail under load pass
+alone.
+
+Not checked: a real connection catalog's picker list in the browser (the listing is checked over HTTP only); the
+analyzer's "needless rerun" hint on the Canvas (it cannot fire: the canvas does not know which widget makes a
+value); the desktop app's own windows for Launch with the analyzer (Chromium's popups only).

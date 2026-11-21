@@ -1,19 +1,21 @@
 /**
  * perfPage.ts: the Performance Analyzer, a window of its own (the owner, 2026-11-19: "a separate window that can
  * be launched from the app canvas that can monitor apps as they run from our platform. We can see calls,
- * triggers, network activity and what is actually traveling through the web socket").
+ * triggers, network activity and what is actually traveling through the web socket"; carried over to the widget
+ * Canvas, 2026-11-21: each block is a widget instance, named "<widget> (<id>)").
  *
- *   [ATTACH]    opened with ?app=<canvas id>: it attaches to that app's launch and records while it is open
+ *   [ATTACH]    opened with ?canvas=<canvas id>: it attaches to that canvas's launch and records while open
  *               (Pause and Record; closing the window detaches). ?build=&file=: a saved session, read-only
  *   [TIMELINE]  Chrome's Performance panel: each rerun a bar (its trigger: a widget, a page switch, the first
- *               load), its time, and under it each block's time
+ *               load), its time, and under it each widget instance's time
  *   [CALLS]     each query (SQL, DAX), outside request and file read: its block, time, rows, its rerun
  *   [CACHE]     each st.cache_data / st.cache_resource function: calls, hits, misses, what the misses cost
  *   [SOCKET]    the web socket: messages per rerun, by element (a dataframe, a chart, markdown), the biggest
  *               first; kinds and sizes only, never the content
  *   [HINTS]     in plain words: what to change, and where
  *
- * ROUTING: POST/GET/DELETE /streamlit/apps/{app}/perf, POST …/perf/save, GET …/builds/{n}/perf/{file}.
+ * ROUTING: POST/GET/DELETE /streamlit/canvases/{canvas}/perf, POST …/perf/save, GET …/builds/{n}/perf/{file}
+ * (routes_launch.py).
  */
 import { api, requireSession } from "./api";
 import { button, clear, h } from "./dom";
@@ -46,7 +48,7 @@ interface Rerun {
 }
 
 interface Session {
-  app: string;
+  canvas: string;
   build: number;
   recording: boolean;
   reruns: Rerun[];
@@ -57,12 +59,12 @@ interface Session {
 }
 
 const params = new URLSearchParams(location.search);
-const app = params.get("app") ?? "";
+const app = params.get("canvas") ?? params.get("app") ?? "";
 const savedBuild = params.get("build");
 const savedFile = params.get("file");
 const saved = !!(savedBuild && savedFile);
 const root = document.getElementById("perf")!;
-const path = `/streamlit/apps/${encodeURIComponent(app)}/perf`;
+const path = `/streamlit/canvases/${encodeURIComponent(app)}/perf`;
 let tab: "timeline" | "calls" | "cache" | "socket" | "hints" = "timeline";
 let session: Session | null = null;
 let picked: number | null = null;
@@ -159,7 +161,7 @@ function draw(): void {
 
 async function read(): Promise<void> {
   try {
-    session = await api<Session>(saved ? `/streamlit/apps/${encodeURIComponent(app)}/builds/${savedBuild}/perf/${encodeURIComponent(savedFile!)}` : path);
+    session = await api<Session>(saved ? `/streamlit/canvases/${encodeURIComponent(app)}/builds/${savedBuild}/perf/${encodeURIComponent(savedFile!)}` : path);
     if (saved) session.recording = false;
     draw();
   } catch (e) {
