@@ -832,7 +832,9 @@ src/swissarmybench/
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
-                         zip) and JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py)
+                         zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
+                         TextFolder (one of the library's folders of small text files: shared_catalog.py's
+                         and vault_names.py's read and write)
     database.py          the locked DuckDB, the priority worker pool, DuckDB's own SQL grammar
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
     views.py             the view cache and windows
@@ -900,7 +902,9 @@ src/swissarmybench/
     app.py               asks bootstrap for the services, mounts the routes behind the guard
     http.py              reading requests, shaping answers, each error as its status in the one refusal shape
                          (domain/refusals.py; refusal(), error_as(); UTF-8; the guard, an unknown address and a
-                         method not taken answer it too; cli/api.py reads a words-only one as its words)
+                         method not taken answer it too; cli/api.py reads a words-only one as its words); the
+                         handler wrappers every route module uses instead of its own try/except: safely,
+                         with_body, with_actor, answered, json_lines (a run streamed as JSON lines)
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
@@ -1012,6 +1016,7 @@ src/swissarmybench/
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
                          Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
+                         lazyLoad.ts the one loader each for Monaco and the diagrams (loadEditors, loadDiagrams);
                          lazyPages.ts the rail's pages that load when first opened (APIs, Structures, Code App,
                          Source Control, Extensions: their names, whether a plug-in page is on, stand-in layers
                          (nav.ts registerLazyLayer), the shared cards' sync, what is heard before a page opens);

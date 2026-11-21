@@ -4656,3 +4656,30 @@ no Tables group, Run API starts it, the file's bytes unchanged).
 Not checked: Run API in the desktop app's window (Chromium only); an extension's own API target in the picker
 beyond the registry's list (tests/test_api_export.py lists one); the Output fold with a very long single line
 (cut at 2,000 characters by rule, not driven in a browser).
+
+## The simplicity pass (2026-11-21, branch simplify)
+
+Relied on, and checked here:
+- **Starlette's `Route(path, endpoint)` takes any async callable**, so a handler wrapped by `http.safely`,
+  `with_body`, `with_actor` or `answered` is registered exactly as the bare function was (Starlette 0.x as
+  installed; the whole quick suite drives every route through TestClient).
+- **A bound method captured when the routes are built** (`with_body(service.method)`) answers as the method
+  looked up per request did: no test or service replaces a service's method after the app is made (the suite
+  passes; 58 routes already did this).
+- **`functools.partial(load, schema, table)`** stands in for a closure made per table in client/sql_cell.py
+  (the pending loaders are called with nothing): tests/test_sql_cell*.py.
+- **mypy reads `winreg` only under `sys.platform == "win32"`** (typeshed): each registry helper in
+  server/claude_finder.py starts with that check, as the method it came from did.
+- **A page's stylesheet link is added once**: lazyLoad.ts looks for the link first, so workbench.html (which
+  links Monaco's stylesheet itself) gets no second one.
+
+Checked: `ruff check`, `ruff format --check`, `mypy` (1,025 files), `npm run typecheck`, `npm run build`;
+the quick suite (`pytest -n 4 --dist loadfile tests --ignore=tests/e2e`) after each batch; in Chromium the
+browser tests of the pages the front-end changes touch (15 files: the connection forms, the Queries window,
+Source Control, Structures and APIs, Relationships, Lineage, the Analyze board, the Workbench's notebooks,
+scripts and text cells, the Code App page). The numbers are in the branch's report.
+
+Not checked: the registry walk itself (Windows only: flattened by hand, the same calls in the same order, not
+run here); the whole browser suite (only the files above); Edge (Chromium stands in); the generated script
+run as an Azure Function (its text changed in its docstring only).
+
