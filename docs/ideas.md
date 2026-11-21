@@ -7824,3 +7824,7 @@ Gaps found on the way (proposals, not built):
 transform the app." Answers: in the library folder (library/extensions/<name>/, shared through Git); the library is
 trusted (loads without asking, as blades do); a missing package through the one Install now prompt. Plan:
 Plans/folder-extensions.plan.md.
+
+## The simplicity pass: decided (the owner, 2026-11-21)
+The owner's answers to the critic's list: Plans/simplify-decisions.plan.md (four cleanups, eleven removals, six merges,
+what stays, and the connection colour as the card's highlight, not a dot).
