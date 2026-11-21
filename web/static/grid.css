@@ -19503,6 +19503,17 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   flex: 1;
 }
 
+/* the local sandbox API's slim bar (localApis.ts) and its folded Properties */
+.local-api-bar { border: 1px solid var(--border); border-radius: 6px; gap: 6px; }
+.local-api-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted, #888); flex: none; }
+.local-api-dot.on { background: var(--ok, #2e7d32); }
+.local-api-props { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 6px 8px; border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; }
+.local-api-about input { min-width: 260px; }
+.local-api-agent { display: inline-flex; align-items: center; gap: 4px; padding: 0 2px 0 8px; border-radius: 10px; background: var(--sandbox-soft, rgb(58 58 160 / 12%)); font-size: 0.86em; }
+.local-api-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.local-api-head > h2 { margin: 0; }
+.local-api-pane-bar { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid var(--border); }
+
 .btn.ide-btn {
   min-height: 24px;
   padding: 1px 8px;

@@ -187,7 +187,10 @@ class LocalApi:
     def running(self) -> bool:
         return self._runner is not None and self._runner.alive()
 
-    async def state(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+    async def state(self, body: Any = None, who: str = "user", full: bool = False) -> dict[str, Any]:
+        """API.py as every door reads it: its settings, endpoints (each one's data words, fields and made-up
+        request), models, problems, targets, whether it runs. `full`: its OpenAPI document too (the agent's
+        state is brief without it; the critic's proposal 11, approved 2026-11-21)."""
         folder = self._project()
         if folder is None:
             return {"project": None, "exists": False, "running": None}
@@ -231,13 +234,16 @@ class LocalApi:
             "endpoints": endpoints,
             "models": api.to_json()["models"],
             "problems": api.problems,
-            "openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path),
             "examples_file": rules.EXAMPLES_FILE,
             "targets": self.targets(),
             "running": self._running_json(),
             "failed": self._failed,
             "agent_writes": self.agent_writes(),
-        }
+        } | (
+            {"openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path)}
+            if full
+            else {}
+        )
 
     def _running_json(self) -> dict[str, Any] | None:
         if not self.running() or self._runner is None:

@@ -506,9 +506,12 @@ def test_try_its_body_kept_as_the_endpoints_example(tmp_path: Path) -> None:
             "examples"
         ] == {"POST /orders": body}
         assert API_PY == (folder / "API.py").read_text(encoding="utf-8")  # API.py itself never written
-        state = ok(client.get("/local-api", headers=AUTH))
+        brief = ok(client.get("/local-api", headers=AGENT))
+        assert "openapi" not in brief  # the agent's state is brief: the document on asking (full)
+        state = ok(client.get("/local-api?full=true", headers=AUTH))
         [post] = [e for e in state["endpoints"] if e["method"] == "POST"]
         assert post["example"] == body
+        assert len(json.dumps(brief)) < len(json.dumps(state))
         assert (
             state["openapi"]["paths"]["/orders"]["post"]["requestBody"]["content"]["application/json"][
                 "example"

@@ -4274,7 +4274,8 @@ _API = {
     ),
     opt(
         "args",
-        'call: {"method", "path", "query"?, "body"?}; agent_writes: {"allow": bool}; settings: {"name", '
+        'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
+        'agent_writes: {"allow": bool}; settings: {"name", '
         '"target", "base_path"}; example: {"endpoint": "POST /orders", "body"}.',
         "json",
     ),
@@ -4284,7 +4285,10 @@ def api_command(a: dict[str, Any]) -> Any:
     if action not in _API:
         raise CommandError(f"action is one of: {', '.join(_API)}.")
     method, path = _API[action]
-    return api.call(method, path, None if method == "GET" else dict(a.get("args") or {}), timeout=900)
+    given = dict(a.get("args") or {})
+    if action == "state" and given.get("full"):
+        path += "?full=true"  # its OpenAPI document too (brief without it)
+    return api.call(method, path, None if method == "GET" else given, timeout=900)
 
 
 _SANDBOX = {

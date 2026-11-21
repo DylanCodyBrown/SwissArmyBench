@@ -3,8 +3,12 @@
  * sandbox apis"): the project's API.py, beside the imported APIs. Its endpoints run only against the project's
  * sandbox, through mock clients with the connections' own shape ("No never run against live data ever").
  *
- *   [HEAD]      its name, its target (FastAPI, Azure Functions, AWS Lambda), its base path; Run / Stop, where it
- *               runs; Open API.py (the Scripts page); New local sandbox API… while the project has none
+ *   [BAR]       one slim bar as the blade IDE's (design principle 8.14; the owner approved the critic's proposal 2,
+ *               2026-11-21): its name, a dot and where it runs, "The agent may write" with Stop while the agent's
+ *               writes are allowed for the session, Run / Stop, Open API.py, Properties, "…" (New endpoint from a
+ *               table…, Will this work for real?, Export…). PROPERTIES (closed until asked for): its target
+ *               (FastAPI, Azure Functions, AWS Lambda: asked here and at New, never again at Export), its base
+ *               path, its description. New local sandbox API… (with its target) while the project has none
  *   [PROBLEMS]  API.py's problems with their lines (Go to line), a start that failed with its line
  *   [ENDPOINTS] each one: method, path, summary, its data ("Mock of Warehouse (sqlserver)"); Try it: the path's and
  *               the query's boxes, the body prefilled with a made-up example from its model, Send: status, time,
@@ -14,10 +18,15 @@
  *               value), kept current; Output: what API.py printed, folded
  *   The sandbox's panel (dataSandbox.ts) sits above it: Reset beside the API.
  *
- * ROUTING: GET /local-api · POST /local-api/new, /run, /stop, /call · PUT /local-api/settings · GET /local-api/log
+ * The Scripts page's API.py tab has the same endpoints beside the code (endpointsPane: Endpoints, closed until
+ * asked for; the owner approved the critic's proposal 3, 2026-11-21): Run / Stop, each endpoint's Try it, the
+ * requests.
+ *
+ * ROUTING: GET /local-api · POST /local-api/new, /run, /stop, /call, /agent-writes · PUT /local-api/settings ·
+ *          GET /local-api/log, /local-api/targets
  */
 import { api, onNoticeWhile } from "./api";
-import { button, h, openDialog, toast } from "./dom";
+import { button, h, openDialog, showMenu, toast } from "./dom";
 import { errorHere, errorNote } from "./errorNote";
 import { busyClick, loadingBlock } from "./loading";
 import { mountTree, type Value } from "./structureTree";
@@ -51,6 +60,20 @@ interface State {
   failed?: { error: string; line: number | null } | null;
   /** The framework targets (the backend's registry: the base's three and each extension's). */
   targets?: { id: string; label: string }[];
+  /** The agent may write through the API for the rest of this session (one Allow; the sandbox only). */
+  agent_writes?: boolean;
+}
+
+/** A small button of the slim bar (codeIde.ts's look). */
+const small = (label: string, run: (e: MouseEvent) => void, icon: string, extra: { class?: string; title?: string; iconOnly?: boolean } = {}): HTMLButtonElement =>
+  button(label, run, { icon, class: `ide-btn ${extra.class ?? "ghost"}`, title: extra.title ?? label, iconOnly: extra.iconOnly });
+
+/** Properties shown or not (this browser's choice; closed until asked for). */
+let propsOpen = false;
+try {
+  propsOpen = localStorage.getItem("sab.localApi.props") === "on";
+} catch {
+  /* private window: closed */
 }
 
 /** The targets' picker: the backend's list (an extension's target shows like the base's). */
@@ -85,14 +108,7 @@ export function localApisSection(): HTMLElement {
       return;
     }
     if (!got.exists) {
-      head.append(button("New local sandbox API…", busyClick("Making API.py…", async (b) => {
-        try {
-          await api("/local-api/new", "POST", {});
-          await draw();
-        } catch (e) {
-          errorHere(e, {}, b);
-        }
-      }), { icon: "plus", class: "primary" }));
+      head.append(button("New local sandbox API…", () => void newApi(() => void draw()), { icon: "plus", class: "primary" }));
       section.replaceChildren(head, h("p", { class: "empty-note" }, "The project has no API.py yet."));
       return;
     }
@@ -101,20 +117,48 @@ export function localApisSection(): HTMLElement {
     target.addEventListener("change", () => void saveSettings({ target: target.value }, target));
     const base = h("input", { "aria-label": "Its base path", value: s.base_path, placeholder: "/api", class: "mono local-api-base", spellcheck: false }) as HTMLInputElement;
     base.addEventListener("change", () => void saveSettings({ base_path: base.value }, base));
-    const runWords = got.running ? `Running on ${got.running.url} since ${got.running.since}` : "Not running";
-    head.append(
-      h("span", { class: "local-api-name" }, s.name),
+    const about = h("input", { "aria-label": "Its description", value: s.description, placeholder: "What it is for", spellcheck: true }) as HTMLInputElement;
+    about.addEventListener("change", () => void saveSettings({ description: about.value }, about));
+    const props = h("div", { class: "local-api-props", role: "group", "aria-label": "Properties", hidden: !propsOpen },
       h("label", { class: "field-inline" }, h("span", { class: "muted" }, "Target"), target),
       h("label", { class: "field-inline" }, h("span", { class: "muted" }, "Base path"), base),
-      h("span", { class: `local-api-status${got.running ? " on" : ""}`, role: "status" }, runWords),
-      got.running
-        ? button("Stop", busyClick("Stopping…", (b) => act(b, "/local-api/stop")), { icon: "stop" })
-        : button("Run", busyClick("Starting…", (b) => act(b, "/local-api/run")), { icon: "play", class: "primary" }),
-      button("Open API.py", () => void openOnPage(got.file!, { line: 1 }), { icon: "code" }),
-      button("New endpoint from a table…", () => void newEndpoint(), { icon: "plus" }),
-      button("Will this work for real?", busyClick("Checking…", (b) => checkReal(b, got)), { icon: "check", title: "Each endpoint's SQL against its connection's loaded catalog: never a query on the source" }),
-      button("Export…", () => openExport(got), { icon: "export" }),
+      h("label", { class: "field-inline local-api-about" }, h("span", { class: "muted" }, "Description"), about),
     );
+    const propsBtn = small("Properties", () => {
+      propsOpen = !propsOpen;
+      props.hidden = !propsOpen;
+      propsBtn.setAttribute("aria-pressed", String(propsOpen));
+      try {
+        localStorage.setItem("sab.localApi.props", propsOpen ? "on" : "off");
+      } catch {
+        /* kept for this page only */
+      }
+    }, "properties", { iconOnly: true });
+    propsBtn.setAttribute("aria-pressed", String(propsOpen));
+    const runWords = got.running ? `Running on ${got.running.url} since ${got.running.since}` : "Not running";
+    const more = small("More", (e) => {
+      const at = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      showMenu(at.left, at.bottom + 2, "More", [
+        ["plus", "New endpoint from a table…", () => void newEndpoint()],
+        ["check", "Will this work for real?", () => void checkReal(more, got)],
+        ["export", "Export…", () => openExport(got)],
+      ]);
+    }, "more", { iconOnly: true, title: "More" });
+    const bar = h("div", { class: "ide-bar local-api-bar", role: "toolbar", "aria-label": "Local sandbox API" },
+      h("span", { class: "ide-title" }, h("span", { class: "ide-name local-api-name" }, s.name)),
+      h("span", { class: `local-api-dot${got.running ? " on" : ""}`, "aria-hidden": "true" }),
+      h("span", { class: `local-api-status${got.running ? " on" : ""}`, role: "status" }, runWords),
+      agentMark(got, () => void draw()),
+      h("span", { class: "ide-bar-gap" }),
+      got.running
+        ? small("Stop", busyClick("Stopping…", (b) => act(b, "/local-api/stop")), "stop")
+        : small("Run", busyClick("Starting…", (b) => act(b, "/local-api/run")), "play", { class: "primary" }),
+      small("Open API.py", () => void openOnPage(got.file!, { line: 1 }), "code"),
+      propsBtn,
+      more,
+    );
+    head.className = "local-api-head";
+    head.replaceChildren(h("h2", {}, "Local sandbox APIs"), bar, props);
     const problems = [...(got.problems ?? []), ...(got.failed ? [{ line: got.failed.line ?? 1, message: got.failed.error }] : [])];
     const problemNotes = problems.map((p) => errorNote(p.message, { where: `API.py line ${p.line}`, fixes: [{ label: "Go to line", run: () => void openOnPage(got.file!, { line: p.line }) }] }));
     const endpoints = (got.endpoints ?? []).map((e) => endpointRow(e, got, tries));
@@ -306,12 +350,15 @@ interface Exported {
  *  own code; the variables to set; a file edited by hand kept (Replace, Compare). */
 function openExport(got: State): void {
   const { body, foot, close } = openDialog("Export the local sandbox API", true);
-  const target = targetSelect(got, "Target");
+  // Its target is asked once (New, or Properties): said here, never asked again.
+  const chosen = got.settings?.target ?? "";
+  const target = { value: chosen };
+  const targetWords = (got.targets ?? []).find((t) => t.id === chosen)?.label ?? chosen;
   const usesSandbox = (got.endpoints ?? []).some((e) => e.data.some((d) => d.startsWith("The sandbox")));
   const rows = h("input", { type: "checkbox", "aria-label": "Include the sandbox's rows" }) as HTMLInputElement;
   const result = h("div", { class: "local-api-exported" });
   body.append(
-    h("label", { class: "field" }, h("span", {}, "Target"), target),
+    h("p", { class: "local-api-target" }, "For ", h("strong", {}, targetWords), h("span", { class: "muted" }, " (its target: change it in Properties)")),
     usesSandbox ? h("label", { class: "field-inline" }, rows, h("span", {}, "Include the sandbox's rows (data/sandbox.duckdb), for the endpoints that use connection(\"Sandbox\")")) : "",
     result,
   );
@@ -340,6 +387,95 @@ function openExport(got: State): void {
   };
   foot.append(button("Close", () => close()), button("Export", busyClick("Exporting…", (b) => run(b)), { class: "primary" }));
 }
+
+/** "The agent may write" while one Allow lets the agent write through the API this session (the sandbox only),
+ *  with Stop: its writes ask again. */
+function agentMark(got: State, redraw: () => void): HTMLElement | string {
+  if (!got.agent_writes) return "";
+  return h("span", { class: "local-api-agent", title: "One Allow lets the agent write through the local sandbox API for the rest of this session: the sandbox only, never live; Reset undoes it" },
+    "The agent may write",
+    small("Stop", busyClick("Stopping…", async (b) => {
+      try {
+        await api("/local-api/agent-writes", "POST", { allow: false });
+        redraw();
+      } catch (e) {
+        errorHere(e, {}, b);
+      }
+    }), "stop", { title: "Stop: each of the agent's writes asks again" }),
+  );
+}
+
+/** New local sandbox API…: its target asked once (Export never asks again), then API.py made. */
+async function newApi(made: () => void): Promise<void> {
+  const { body, foot, close } = openDialog("New local sandbox API");
+  let targets: { id: string; label: string }[] = [];
+  try {
+    targets = (await api<{ targets: { id: string; label: string }[] }>("/local-api/targets")).targets;
+  } catch {
+    /* the default target (FastAPI) */
+  }
+  const pick = h("select", { "aria-label": "Its target" }, ...targets.map((t, i) => h("option", { value: t.id, selected: i === 0 }, t.label))) as HTMLSelectElement;
+  body.append(h("label", { class: "field" }, h("span", {}, "Its target (where it is deployed; Export makes it ready for this)"), pick));
+  foot.append(button("Cancel", () => close()), button("Make API.py", busyClick("Making API.py…", async (b) => {
+    try {
+      await api("/local-api/new", "POST", pick.value ? { target: pick.value } : {});
+      close();
+      made();
+    } catch (e) {
+      errorHere(e, {}, b);
+    }
+  }), { class: "primary" }));
+}
+
+/** API.py's endpoints beside its code (the Scripts page's tab, its Endpoints panel): Run / Stop, each endpoint's
+ *  Try it, the requests; drawn again when API.py or the API changes, while it is shown. */
+export function endpointsPane(body: HTMLElement): void {
+  const kept = paneTries.get(body) ?? new Map();
+  paneTries.set(body, kept);
+  const draw = async (): Promise<void> => {
+    let got: State;
+    try {
+      got = await api<State>("/local-api");
+    } catch (e) {
+      body.replaceChildren();
+      errorHere(e, {}, body);
+      return;
+    }
+    if (!got.exists) {
+      body.replaceChildren(h("p", { class: "empty-note" }, "The project has no API.py yet."));
+      return;
+    }
+    const act = (path: string) => busyClick(path.endsWith("stop") ? "Stopping…" : "Starting…", async (b) => {
+      try {
+        await api(path, "POST", {});
+        await draw();
+      } catch (e) {
+        errorHere(e, {}, b);
+      }
+    });
+    const line = h("div", { class: "local-api-pane-bar" },
+      h("span", { class: `local-api-dot${got.running ? " on" : ""}`, "aria-hidden": "true" }),
+      h("span", { class: `local-api-status${got.running ? " on" : ""}`, role: "status" }, got.running ? `Running on ${got.running.url}` : "Not running"),
+      agentMark(got, () => void draw()),
+      h("span", { class: "ide-bar-gap" }),
+      got.running ? small("Stop", act("/local-api/stop"), "stop") : small("Run", act("/local-api/run"), "play", { class: "primary" }),
+    );
+    const rows = (got.endpoints ?? []).map((e) => endpointRow(e, got, kept));
+    body.replaceChildren(
+      line,
+      rows.length ? h("div", { class: "local-api-endpoints", role: "list" }, ...rows) : h("p", { class: "empty-note" }, "No endpoints yet: write one with @endpoint."),
+    );
+  };
+  void draw();
+  let timer = 0;
+  onNoticeWhile(body, (n) => {
+    if (n.type !== "local_api_changed" && n.type !== "project_changed" && n.type !== "file_changed") return;
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void draw(), 300);
+  });
+}
+
+const paneTries = new WeakMap<HTMLElement, TryKept>();
 
 /** New endpoint from a table: the CRUD set over a sandbox table, appended to API.py in its source's own style.
  *  `table`: the one to start on (the sandbox panel's row). */
