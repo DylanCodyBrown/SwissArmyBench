@@ -2444,8 +2444,7 @@ def connections_colours(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_slots",
-    "Each connection's running and waiting queries and its limits (8 at once, 4 the agent's by default): "
-    "names and counts",
+    "Each connection's running and waiting query counts and limits (default 8 at once, 4 the agent's)",
 )
 def connections_slots(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connections/slots")
@@ -2453,7 +2452,7 @@ def connections_slots(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_queries",
-    "The running and waiting queries (who, what, tables, place in line, time) and the finished ones; no SQL",
+    "Running, waiting and finished queries (who, what, tables, place, time); no SQL",
     opt("connection", "One connection's (default: every one's)."),
     opt("clear", "true: empty the finished list first.", "bool"),
 )
@@ -2466,8 +2465,7 @@ def connections_queries(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_cancel_query",
-    "Cancel a running or waiting query (its id from connections_queries): your own at once, the user's on "
-    "their Allow",
+    "Cancel a query by its id: yours at once, the user's on their Allow",
     req("id", "The query's id."),
 )
 def connections_cancel_query(a: dict[str, Any]) -> Any:
@@ -2476,8 +2474,7 @@ def connections_cancel_query(a: dict[str, Any]) -> Any:
 
 @command(
     "connections_set_limits",
-    "A connection's queries at once (1 to 64), the agent's share (at most that) and the seconds one waits "
-    "in line; kept in its library file",
+    "Set a connection's queries at once (1-64), the agent's share and the wait in seconds",
     req("name", "The connection."),
     opt("total", "Queries at once.", "int"),
     opt("agent", "The agent's share.", "int"),
