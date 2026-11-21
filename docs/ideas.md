@@ -7010,3 +7010,40 @@ Decisions:
 
 Not done: the tenant's display name ("Your organization: <name>") — devtunnel's `user show` does not say it; Graph
 would need another sign-in, so "Your organization" stands alone until a source is found.
+
+## Widget starter packs and a large made-up business (the owner, 2026-11-21; built, branch data-and-packs)
+
+His words: "Build some widget starter packs. Build a large dataset." Then: "Preload the release library with a ton of
+widgets that cover most objects. The big ones for me are user inputs. And dealing with excel files from streamlit."
+
+Decisions:
+- **A pack is a header field, not a folder:** `pack = "Sales dashboard"` in a prebuilt widget's header (written only
+  when set, so every older file keeps its bytes); `domain/widget_packs.py` holds the packs' order and one-line
+  descriptions. The listing puts the packs' widgets first, in that order, then the plain groups; the Widgets window,
+  the Canvas's Widgets pane and Insert widget head them by pack (the pane and the window show the description under
+  the heading). A widget belongs to one pack; the 56 older prebuilt ones stay in their groups.
+- **Eight packs, 53 widgets:** Sales dashboard (5), Operations (4), Customer service (5), Data entry (4), Admin (3),
+  User inputs (22: every Streamlit input, each with label, help, placeholder where Streamlit has one, default,
+  required, disabled, its session state key and a validation message; one red-star marker and one red error line),
+  Excel (6: upload with sheet by name or number, header row and range, types guessed; column matching by name with
+  short words read as their field's (Order No is order_id, Qty quantity) and difflib; row rules; formatted
+  download, several sheets; a template with Excel's own checks; the round trip), Form builder (4: designer, picker,
+  fill, submissions; definitions and submissions plain JSON).
+- **Data in and out without storage of their own:** a widget that reads data takes a table property (and column
+  properties) and draws its own made-up rows until one is picked; widgets pass values by session state keys
+  (`filter_key`, `selected_key`, `in_key`/`out_key`, `definition_key`, `submissions_key`); one that hands data on
+  puts `{"event": "save", "widget", "payload"}` under its `save_event` key, for the page or a local API to keep.
+- **openpyxl:** the app's dependency, not necessarily the project's Python where widgets run; an Excel widget that
+  finds none says `pip install openpyxl` in its place (an old .xls says the same of xlrd).
+- **Larkfield Goods** (tools/testbed/large_company.py): 14 tables, DuckDB SQL over range() with hash-based randomness
+  (deterministic by seed and scale), skewed customers and products, a November and December peak, growth, nulls
+  where they would be; the deliberate problems (an order sent twice, a late-arriving order, a negative quantity, a
+  delivery before its shipment, a customer entered twice) listed in data_quality_issues. small 10k order lines,
+  medium 1M, large 10M; written as Parquet (and optionally one DuckDB file) only outside the repository.
+
+Open (proposals for the owner, not built): a choice list from a table's column; a default from another widget's
+value; a property kind for "a table or a session state value" (so an upload's table feeds a table property); a
+list-of-tables property (Excel download's sheets are names in a list today); an event kind the canvas wires (today
+the save event is a session state key); the runtime's sample() by kind (each pack widget carries its own made-up
+rows); shared helpers for the pack's marker and error look (each widget carries its own copy); the editors' small
+lint calls a format spec inside an f-string (`f"{x:.1%}"`) "an f-string without placeholders" (older widgets too).
