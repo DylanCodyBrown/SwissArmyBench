@@ -7818,3 +7818,9 @@ Gaps found on the way (proposals, not built):
    each SQL string: fast at today's sizes; for a very large API.py, keep the parse by the text's hash. S.
 5. `sab_canvas.viewer()` changed from a name to a dict; no prebuilt widget called it, but a user's own may have.
    A one-release `viewer_name()` would ease it. S.
+
+## Extensions as folders (the owner, 2026-11-21)
+"Extensions should be loadable as a folder in the app so users can create them with their own agents as needed and
+transform the app." Answers: in the library folder (library/extensions/<name>/, shared through Git); the library is
+trusted (loads without asking, as blades do); a missing package through the one Install now prompt. Plan:
+Plans/folder-extensions.plan.md.
