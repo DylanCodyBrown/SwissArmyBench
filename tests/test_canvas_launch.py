@@ -17,6 +17,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.cli.commands import CommandError
 from swissarmybench_streamlit.domain import builds, canvas_build, perf
 from swissarmybench_streamlit.domain import canvas_layouts as model
 from tests.conftest import AUTH, make_client, push
@@ -393,5 +394,5 @@ def test_the_folded_canvas_commands_answer_by_their_old_names() -> None:
     assert "canvas_undo redo=true" in commands.GONE_NAMES["canvas_redo"]
     for name in ("canvas_builds", "canvas_perf", "app_launch"):
         assert name in commands.REGISTRY
-    with pytest.raises(ValueError, match="action is one of"):
+    with pytest.raises(CommandError, match="action is one of"):
         commands.execute_result("canvas_builds", {"canvas": "cv1", "action": "everything"})
