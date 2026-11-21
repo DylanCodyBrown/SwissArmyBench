@@ -19,6 +19,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -322,6 +323,133 @@ def _scaffold_of(project_type: str) -> Any:
     return None
 
 
+# ===== bootstrap's parts, by area (each built once, in bootstrap's order) =====
+
+
+def _blade_store(settings: Settings, library_folder: LibraryFolder, on_extensions: list[Any]) -> BladeStore:
+    """The saved blades: the library's files, the blade folders, the built-in and the extensions' starters."""
+    state_dir = settings.state_dir
+    return BladeStore(
+        library_folder.root,
+        made=library_folder.ensure,
+        folders_file=state_dir / "blade_folders.json",
+        pins_file=state_dir / "blade_pins.json",
+        # The built-in starter pack ships inside the package, so each version brings its own.
+        starters=Path(__file__).resolve().parent / "starters",
+        # Each extension that is on: its own starters (its module's STARTERS folder).
+        more_starters=lambda: [Path(s) for m in on_extensions if (s := getattr(m, "STARTERS", None))],
+        # A connection's tables are always listed: one saved with no listing query gets its starter's.
+        listing=lambda b: blade_tables.listing_for(b.kind, b.template, b.dialect, TEMPLATES),
+    )
+
+
+def _given_out(kept_vault_names: KeptVaultNames, blade_store: BladeStore, job: dict[str, Any]) -> None:
+    """A vault that loads every secret: its names as given out here (no variable twice, a taken one
+    prefixed), the ones it lists now given out the same way (`yours`, `kept`: a kernel's load)."""
+    job["yours"] = sorted(kept_vault_names.defined())
+    for vault in job.get("vaults") or []:
+        if isinstance(vault, dict) and vault.get("every"):
+            label = str(vault.get("label") or "")
+            vault["kept"] = kept_vault_names.kept_of(label)
+            try:
+                vault["mapping"] = kept_vault_names.mapping(blade_store.get(label)) | dict(vault["mapping"])
+            except KeyError:
+                pass
+
+
+async def _vault_values(
+    blade_store: BladeStore, seconds: float, wanted: dict[str, dict[str, str]]
+) -> tuple[dict[str, str], list[str]]:
+    """A scheduled script's variables from key vaults (vault -> variable -> secret), and what failed."""
+    sources = {
+        variable: {"from": "vault", "vault": vault, "secret": secret}
+        for vault, mapping in wanted.items()
+        for variable, secret in mapping.items()
+    }
+    try:
+        jobs = python_connections.vault_jobs(sources, blade_store.get, blade_store.saved_secrets)
+        answer = await blade_runner.run(
+            {"mode": "load", "label": "the vaults", "kind": "load", "vaults": jobs},
+            seconds,
+        )
+    except (python_connections.PythonConnectionError, blade_runner.RefreshError) as error:
+        return {}, [str(error)]
+    values = {str(k): str(v) for k, v in dict(answer.get("values") or {}).items()}
+    return values, [str(p) for p in answer.get("problems") or []]
+
+
+def _secrets_of(blade_store: BladeStore, name: str) -> list[str] | None:
+    """A connection's or blade's passwords by the names its code asks secret() for (None: none here)."""
+    try:
+        return blade_store.get(name).secrets
+    except KeyError:
+        return None
+
+
+def _files_of(blade_store: BladeStore, name: str) -> list[str]:
+    """A connection's certificate and keystore files read from a variable: those variables."""
+    try:
+        return [m["variable"] for m in env_settings(blade_store.get(name).code)]
+    except KeyError:
+        return []
+
+
+def _workspace(
+    settings: Settings,
+    port: int,
+    token: str,
+    store: DatasetStore,
+    connection: Any,
+    live: LiveUpdates,
+    workers: PriorityWorkers,
+    session_log: SessionLog,
+    audit_log: bool,
+) -> Workspace:
+    """The workspace: the ports every use case shares."""
+    state_dir = settings.state_dir
+    return Workspace(
+        settings=settings,
+        addresses=Addresses(port, token),
+        store=store,
+        # Derived view tables may use a quarter of the data budget; they are evicted freely.
+        views=ViewEngine(connection, settings.max_total_bytes // 4),
+        grids=GridRegistry(settings.max_grids),
+        live=live,
+        workers=workers,
+        # The audit log, heard by the Session page's log (this session's entries, each naming its object).
+        audit=Heard(AuditLog(state_dir / "audit.log" if audit_log else None), session_log),
+        grammar=grammar_later(),  # read from DuckDB on the first query, not at start
+        interrupted=duckdb.InterruptException,
+        engine_error=duckdb.Error,
+    )
+
+
+def _beta_log(ws: Workspace, settings: Settings, store: DatasetStore, token: str, audit_log: bool) -> BetaLog:
+    """The beta log: errors, slow requests, processes, page errors and notes, redacted (written only where
+    the audit log is; beta mode on or off is beta.json, SWISSARMYBENCH_BETA wins)."""
+    state_dir = settings.state_dir
+    return BetaLog(
+        ws,
+        BetaFiles(state_dir / "logs" if audit_log else None, settings.beta_log_bytes, settings.beta_log_days),
+        BetaSwitch(state_dir / "beta.json" if audit_log else None),
+        variable=os.environ.get("SWISSARMYBENCH_BETA", ""),
+        facts={
+            "version": __version__,
+            "os": f"{platform.system()} {platform.release()}",
+            "python": platform.python_version(),
+        },
+        home=str(Path.home()),
+        names=lambda: {
+            "table": [info.name for info in store.all()],
+            "column": [c.name for info in store.all() for c in info.columns],
+        },
+        # Never in a message: the server's token, and any environment variable's value.
+        secrets=lambda: (token, *(v for v in os.environ.values() if len(v) >= 8)),
+        listen=listen_for_crashes,
+        now=time.time,
+    )
+
+
 def bootstrap(
     port: int,
     token: str,
@@ -351,18 +479,7 @@ def bootstrap(
         VaultNameFiles((lambda: library_folder.root) if audit_log else None, library_folder.ensure),
         lambda: datetime.now(UTC).isoformat(timespec="seconds"),
     )
-    blade_store = BladeStore(
-        library_folder.root,
-        made=library_folder.ensure,
-        folders_file=state_dir / "blade_folders.json",
-        pins_file=state_dir / "blade_pins.json",
-        # The built-in starter pack ships inside the package, so each version brings its own.
-        starters=Path(__file__).resolve().parent / "starters",
-        # Each extension that is on: its own starters (its module's STARTERS folder).
-        more_starters=lambda: [Path(s) for m in on_extensions if (s := getattr(m, "STARTERS", None))],
-        # A connection's tables are always listed: one saved with no listing query gets its starter's.
-        listing=lambda b: blade_tables.listing_for(b.kind, b.template, b.dialect, TEMPLATES),
-    )
+    blade_store = _blade_store(settings, library_folder, on_extensions)
     verifier = Verifier(settings.duckdb_memory_limit)
 
     def process_event(
@@ -432,52 +549,10 @@ def bootstrap(
         )
         return answer
 
-    def given_out(job: dict[str, Any]) -> None:
-        """A vault that loads every secret: its names as given out here (no variable twice, a taken one
-        prefixed), the ones it lists now given out the same way (`yours`, `kept`: a kernel's load)."""
-        job["yours"] = sorted(kept_vault_names.defined())
-        for vault in job.get("vaults") or []:
-            if isinstance(vault, dict) and vault.get("every"):
-                label = str(vault.get("label") or "")
-                vault["kept"] = kept_vault_names.kept_of(label)
-                try:
-                    vault["mapping"] = kept_vault_names.mapping(blade_store.get(label)) | dict(
-                        vault["mapping"]
-                    )
-                except KeyError:
-                    pass
-
-    async def vault_values(wanted: dict[str, dict[str, str]]) -> tuple[dict[str, str], list[str]]:
-        """A scheduled script's variables from key vaults (vault -> variable -> secret), and what failed."""
-        sources = {
-            variable: {"from": "vault", "vault": vault, "secret": secret}
-            for vault, mapping in wanted.items()
-            for variable, secret in mapping.items()
-        }
-        try:
-            jobs = python_connections.vault_jobs(sources, blade_store.get, blade_store.saved_secrets)
-            answer = await blade_runner.run(
-                {"mode": "load", "label": "the vaults", "kind": "load", "vaults": jobs},
-                settings.vault_timeout_seconds,
-            )
-        except (python_connections.PythonConnectionError, blade_runner.RefreshError) as error:
-            return {}, [str(error)]
-        values = {str(k): str(v) for k, v in dict(answer.get("values") or {}).items()}
-        return values, [str(p) for p in answer.get("problems") or []]
-
-    def secrets_of(name: str) -> list[str] | None:
-        """A connection's or blade's passwords by the names its code asks secret() for (None: none here)."""
-        try:
-            return blade_store.get(name).secrets
-        except KeyError:
-            return None
-
-    def files_of(name: str) -> list[str]:
-        """A connection's certificate and keystore files read from a variable: those variables."""
-        try:
-            return [m["variable"] for m in env_settings(blade_store.get(name).code)]
-        except KeyError:
-            return []
+    given_out = partial(_given_out, kept_vault_names, blade_store)
+    vault_values = partial(_vault_values, blade_store, settings.vault_timeout_seconds)
+    secrets_of = partial(_secrets_of, blade_store)
+    files_of = partial(_files_of, blade_store)
 
     async def vault_environment() -> tuple[dict[str, str], list[str]]:
         """Every vault's entries for a Workbench kernel about to start, and the vaults that failed."""
@@ -502,45 +577,12 @@ def bootstrap(
 
     # ===== the workspace: the ports every use case shares =====
     session_log = SessionLog(live, JsonFile(state_dir / "follow.json" if audit_log else None))
-    ws = Workspace(
-        settings=settings,
-        addresses=Addresses(port, token),
-        store=store,
-        # Derived view tables may use a quarter of the data budget; they are evicted freely.
-        views=ViewEngine(connection, settings.max_total_bytes // 4),
-        grids=GridRegistry(settings.max_grids),
-        live=live,
-        workers=workers,
-        # The audit log, heard by the Session page's log (this session's entries, each naming its object).
-        audit=Heard(AuditLog(state_dir / "audit.log" if audit_log else None), session_log),
-        grammar=grammar_later(),  # read from DuckDB on the first query, not at start
-        interrupted=duckdb.InterruptException,
-        engine_error=duckdb.Error,
-    )
+    ws = _workspace(settings, port, token, store, connection, live, workers, session_log, audit_log)
 
     # ===== the beta log: errors, slow requests, processes, page errors and notes, redacted =====
     # (written only where the audit log is; beta mode on or off is beta.json, SWISSARMYBENCH_BETA wins)
     # Read each time: the Variables page's values join the environment as they are added.
-    beta = BetaLog(
-        ws,
-        BetaFiles(state_dir / "logs" if audit_log else None, settings.beta_log_bytes, settings.beta_log_days),
-        BetaSwitch(state_dir / "beta.json" if audit_log else None),
-        variable=os.environ.get("SWISSARMYBENCH_BETA", ""),
-        facts={
-            "version": __version__,
-            "os": f"{platform.system()} {platform.release()}",
-            "python": platform.python_version(),
-        },
-        home=str(Path.home()),
-        names=lambda: {
-            "table": [info.name for info in store.all()],
-            "column": [c.name for info in store.all() for c in info.columns],
-        },
-        # Never in a message: the server's token, and any environment variable's value.
-        secrets=lambda: (token, *(v for v in os.environ.values() if len(v) >= 8)),
-        listen=listen_for_crashes,
-        now=time.time,
-    )
+    beta = _beta_log(ws, settings, store, token, audit_log)
 
     # ===== the services =====
     processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
