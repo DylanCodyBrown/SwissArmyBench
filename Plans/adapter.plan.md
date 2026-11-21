@@ -272,9 +272,10 @@ does.
 - **When to build:** now, in parallel with other work; 0.0.32 is not released yet.
 
 ## The owner's answers after phase 1 (2026-11-21)
-- **A fifth write mode, `truncate`:** truncate and insert (the owner: "Truncate is better terminology. Truncate and
-  insert"): the table's (or an Excel sheet's) rows all replaced in one go, all or none, everything else kept. For
-  every source.
+- **A fifth write mode, `truncate`** (the owner: "Truncate is better terminology. Truncate and insert" / "Sometimes
+  you just wanna clear a table. So truncate is a much more flexible command"): with no rows it clears the table (or
+  an Excel sheet), keeping its columns; with rows it clears it and inserts them, in one go, all or none. Everything
+  else is kept. For every source.
 - **The rule covers everything, the engine too** (asked: does "every data call goes through the adapter" cover the
   app's own DuckDB engine working on grids already loaded, the steps, the SQL box, views, analyses? The owner: "Yes,
   everything"). So the open grids are a source of the adapter like any other (tables: the open grids; read: a plan
