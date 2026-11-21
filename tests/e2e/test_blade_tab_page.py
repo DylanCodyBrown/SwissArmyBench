@@ -54,3 +54,33 @@ def test_new_blade_is_a_blank_working_scaffold_with_its_properties(
     detail = call(server, "GET", "/blades/Made-up%20orders")
     assert 'family = "Made-up shop"' in Path(detail["file"]).read_text(encoding="utf-8")
     call(server, "DELETE", "/blades/Made-up%20orders")
+
+
+def test_the_blade_tab_never_crowds_the_code(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+) -> None:
+    """Design principle 8.14: Properties closed (it opened by itself only on the new scaffold), the panel
+    folded to its tabs until a problem appears, then about 30% of the area; no minimap."""
+    call(server, "POST", "/blades/new", {"name": "Made-up loaves", "kind": "table"})
+    try:
+        page = page_of(browser, server, "scripts?pane=blades&blade=Made-up%20loaves")
+        ide = page.locator(".code-ide:visible")
+        expect(ide.locator(".ide-editor .monaco-editor")).to_be_visible(timeout=20000)
+        expect(ide.locator(".ide-props")).to_be_hidden()
+        panel = ide.locator(".ide-panel")
+        expect(panel).to_have_class(re.compile(r"\bfolded\b"))
+        expect(ide.locator(".minimap")).to_be_hidden()  # Monaco keeps the element, with no width
+        ide.locator(".ide-editor .view-lines").click()
+        page.keyboard.press("Control+End")
+        page.keyboard.insert_text("\nmissing_name + 1\n")
+        expect(panel).not_to_have_class(re.compile(r"\bfolded\b"), timeout=20000)
+        expect(ide.get_by_role("tab", name=re.compile("Problems"))).to_have_attribute("aria-selected", "true")
+        share = page.evaluate(
+            "() => { const c = document.querySelector('.code-ide .ide-center');"
+            " const p = c.querySelector('.ide-panel');"
+            " return p.getBoundingClientRect().height / c.getBoundingClientRect().height; }"
+        )
+        assert 0.2 < share < 0.4, share
+    finally:
+        call(server, "DELETE", "/blades/Made-up%20loaves")

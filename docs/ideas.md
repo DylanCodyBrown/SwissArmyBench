@@ -6928,3 +6928,13 @@ Decisions:
 - The shell's own F11 (QShortcut) asks the page first (window.sabFullScreen): a page with a full screen of its
   own takes it (and asks for the window's); any other page toggles the window alone, as before.
 - Checked under Qt off screen (tests/desktop_drive.py: F11 twice on the Notebooks page).
+
+## Layout as 8.14 says (built 2026-11-21, branch scripts-rest)
+
+- The blade tab's Properties is closed each time a blade opens (no longer remembered open); it opens by itself
+  only on a brand-new scaffold.
+- codeIde.ts's panel (Output | Result | Problems) stays folded to its tabs until something runs or a lint error
+  appears (it opens on Problems then; a fold by the user's own click holds until the next run); the first time
+  it opens with no height of its own it takes about 30% of the area, and a dragged height is remembered.
+- The Workbench's console opens on a run as before, now at about 30% (leftTop 70%), its size remembered.
+- The minimap was already off by default (lazy/codeEditor.ts); the browser test checks it.

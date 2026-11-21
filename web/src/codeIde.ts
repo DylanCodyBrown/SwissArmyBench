@@ -177,7 +177,13 @@ export function runPanel(options: RunPanelOptions = {}): RunPanel {
     if (folded && open) setFolded(false);
   }
   for (const [key, el] of Object.entries(tabs) as [IdeTab, HTMLButtonElement][]) el.addEventListener("click", () => showTab(key));
-  const foldBtn = button("Fold the panel", () => setFolded(!folded), { icon: "collapse", iconOnly: true, class: "ghost ide-btn" });
+  // Folded by the user's own click: the lint's problems do not open it again until the next run.
+  let userFolded = false;
+  let within: (() => HTMLElement) | null = null;
+  const foldBtn = button("Fold the panel", () => {
+    userFolded = !folded;
+    setFolded(!folded);
+  }, { icon: "collapse", iconOnly: true, class: "ghost ide-btn" });
   const element = h(
     "section",
     { class: "ide-panel", "aria-label": "Output, result and problems" },
@@ -188,6 +194,12 @@ export function runPanel(options: RunPanelOptions = {}): RunPanel {
   if (height > 60) element.style.height = `${height}px`;
   function setFolded(fold: boolean): void {
     folded = fold;
+    // Opened for the first time with no height of its own: about 30% of the area it shares (8.14); a
+    // dragged height is remembered and used from then on.
+    if (!fold && !element.style.height && within) {
+      const area = within().getBoundingClientRect().height;
+      if (area > 0) element.style.height = `${Math.max(120, Math.round(area * 0.3))}px`;
+    }
     element.classList.toggle("folded", fold);
     foldBtn.setAttribute("aria-pressed", String(fold));
     foldBtn.title = fold ? "Open the panel" : "Fold the panel";
@@ -227,7 +239,8 @@ export function runPanel(options: RunPanelOptions = {}): RunPanel {
       outputPane.scrollTop = outputPane.scrollHeight;
     },
   };
-  function splitter(within: () => HTMLElement): HTMLElement {
+  function splitter(area: () => HTMLElement): HTMLElement {
+    within = area;
     const split = h("div", { class: "ide-split", role: "separator", "aria-orientation": "horizontal", "aria-label": "Resize the panel", tabindex: "0" });
     split.addEventListener("pointerdown", (down) => {
       down.preventDefault();
@@ -236,7 +249,7 @@ export function runPanel(options: RunPanelOptions = {}): RunPanel {
       if (folded) setFolded(false);
       split.setPointerCapture(down.pointerId);
       const move = (e: PointerEvent): void => {
-        const max = Math.max(120, within().getBoundingClientRect().height - 80);
+        const max = Math.max(120, area().getBoundingClientRect().height - 80);
         element.style.height = `${Math.round(Math.min(max, Math.max(60, from + start - e.clientY)))}px`;
         options.layout?.();
       };
@@ -267,12 +280,16 @@ export function runPanel(options: RunPanelOptions = {}): RunPanel {
     showResult: (content) => resultPane.replaceChildren(...(content ? [content] : [])),
     showTab: (tab) => showTab(tab),
     setLint: (found) => {
+      const before = lint.some((p) => p.severity === "error");
       lint = found;
       drawProblems();
+      // A problem appears: the panel opens on it (8.14), unless the user folded it since the last run.
+      if (folded && !userFolded && !before && found.some((p) => p.severity === "error")) showTab("problems");
     },
     lint: () => lint,
     setFolded,
     running: async (words, work, abort) => {
+      userFolded = false;
       output.clear();
       resultPane.replaceChildren();
       showTab("output");
@@ -351,12 +368,12 @@ export function codeIde(options: IdeOptions): CodeIde {
   const editorHost = h("div", { class: "ide-editor", "data-own-zoom": "", "aria-label": `${options.name} code` }, h("pre", { class: "code-box ide-plain" }, options.value));
   const props = options.properties ? h("aside", { class: "ide-props", "aria-label": "Properties" }, h("h3", { class: "ide-props-title" }, "Properties"), options.properties) : null;
   // Design principle 8.14 ("Never crowd the place where code is written"): closed until asked for.
-  let propsShown = options.propertiesOpen ?? remembered(options.remember, "props") === "on";
+  // Closed each time the IDE opens (never remembered open), but on a brand-new scaffold (propertiesOpen).
+  let propsShown = options.propertiesOpen ?? false;
   function setProps(shown: boolean): void {
     propsShown = shown;
     if (props) props.hidden = !shown;
     propsBtn?.setAttribute("aria-pressed", String(shown));
-    keep(options.remember, "props", shown ? "on" : "off");
   }
 
   // ----- the panel: Output | Result | Problems (runPanel, mountable on its own) -----
