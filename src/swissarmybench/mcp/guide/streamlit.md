@@ -40,7 +40,7 @@ says so in one line.
   4, 8 or grid), `canvas_page` (add, rename, move, remove), `canvas_undo`, `canvas_redo`.
 - `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
   `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window), `canvas_export` (a
-  folder that runs on a hosted Streamlit app: app.py, app_pages/*.py, sab_canvas.py, sab_widgets.py, the tables
+  folder that runs on a hosted Streamlit app: app.py, a page file each, sab_canvas.py, sab_widgets.py, the tables
   it names as Parquet, data.py; it copies rows, so it waits for the user's Allow).
 - The page reproduces the canvas's pixels: each container and widget is an st.container placed
   absolutely by its key's CSS. A widget that fails shows its own error in its place; the page runs on.
