@@ -882,7 +882,8 @@ let galleryFocus: string | null = null;
 let galleryQuery = "";
 const previews = new Map<string, { state: string; url?: string; said?: string }>();
 
-const grouped = (): WidgetEntry[] => [...widgets].sort((a, b) => Number(a.prebuilt) - Number(b.prebuilt) || a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
+/** Yours first, then the prebuilt ones by group in the server's order (Buttons, Inputs, Data, Charts...). */
+const grouped = (): WidgetEntry[] => [...widgets].sort((a, b) => Number(a.prebuilt) - Number(b.prebuilt));
 
 /** A widget's rendered preview: the picture when it is made, a placeholder until then, its mark when it failed. */
 function preview(name: string, className: string): HTMLElement {

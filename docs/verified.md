@@ -4219,3 +4219,26 @@ app_navigate new_query and query:<connection> do the same. The updated e2e tests
 keys, the Projects landing) pass. Quick suite 4826 passed, 49 skipped; e2e suite (-n 2) 396 passed, 15 skipped.
 Not checked: a search past 8 connections and the "needs a password" mark in a browser (no test makes them), and
 Edge.
+
+## Widgets and the Canvas (2026-11-21, branch widgets-canvas)
+
+Checked: property detection, masks, write-back into only a value's characters and every value check
+(tests/test_widgets.py); the widget routes, the library's files written only when they change, a prebuilt one
+read-only and copied, the header written alone, the agent's delete on Allow (tests/test_widgets_routes.py); all 56
+prebuilt widgets run with Streamlit 1.67's AppTest through the page builder, a failing widget's own error with its
+line while the rest runs, a missing table and a deleted widget said in place (tests/test_widgets_apptest.py); the
+canvas model's rules, the file read back byte for byte, a broken file's line, a newer one read-only, a missing
+widget, pruned overrides, the page's pixels, and 40 random sequences of 60 commands keeping every rule with pages
+that compile (tests/test_canvas_model.py); the canvases over HTTP: saved at once and undoable, another window's
+version refused, a file changed on disk read first, a broken file never written over, a rename followed, marks,
+Play, Launch's build (no rows) and Export the same files, the agent's export on Allow (tests/test_canvas_routes.py).
+In Chromium: the Widgets window (Run in place, Edit, a colour refused then kept, Name checked live, Description
+written; a prebuilt one copied) and the Canvas (the gallery's previews rendered by Qt WebEngine off screen, two
+containers drawn and snapped to 8 px, Scrollable by right-click, Insert widget from the menu, a property set, a
+card dragged into a container, a double-click into the selected one, another window's change said, Undo and Redo,
+the panes hidden and shown, Play with every box within 1 px of the canvas, the exported app's check, a hover
+preview, a description changed in the Widgets window shown on its card).
+Not checked: Edge; the desktop app (Qt) window for the Canvas; the Copilot ghost text in the Widgets window; a
+`[Conn].table` value for a table property (the open tables and data.py only); the Canvas at a narrow width (the
+sizing's "…" menu) and at 400 % zoom in a browser; a launched build's window in a browser (its HTTP route is
+tested); previews in the dark theme in a browser.

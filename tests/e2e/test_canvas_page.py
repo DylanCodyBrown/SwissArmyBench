@@ -179,6 +179,9 @@ def test_build_a_page_on_the_canvas_and_play_it(
     page.locator(".cvs-toggle", has_text="Properties").click()
     expect(gallery).to_be_visible()
     page.keyboard.press("Escape")
+    if SHOTS:  # the gallery's previews as they come (made one at a time in the background)
+        page.wait_for_function("document.querySelectorAll('.cvs-card img').length >= 8", timeout=300000)
+        gallery.locator(".cvs-cards").evaluate("(e) => e.parentElement.scrollTo(0, 0)")
     shot(page, "canvas-widgets-pane")
     # Play: the page live in place; its boxes where the canvas put them.
     page.locator(".cvs-play").click()

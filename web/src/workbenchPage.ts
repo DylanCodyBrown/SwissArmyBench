@@ -107,7 +107,7 @@ import { closeProject, copyProject, exportOutline, loadProject, mountProject, ne
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
-import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
+import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc } from "./workbenchStreamlit";
 import { installVariableAnywhere } from "./variableAnywhere";
 import { errorHere, errorNote, errorToast } from "./errorNote";
 
@@ -321,25 +321,9 @@ let paneTimer: number | null = null;
 let paneReady = false;
 const isData = (doc: Doc): boolean => !!doc.notebook && !!doc.path && baseName(doc.path).toLowerCase() === DATA_NOTEBOOK;
 
-/** A notebook's or script's own app: the server hears its Python cells as they are typed, says which
- *  call Streamlit (they show live), and gives them to the canvases that link to them. */
-function attachStreamlit(doc: Doc): void {
-  doc.streamlit = new StreamlitDoc(
-    {
-      title: () => doc.title,
-      path: () => doc.path,
-      python: () => doc.python,
-      kernel: () => doc.kernel?.id ?? null,
-      window: WINDOW_ID,
-      cells: () => viewOf(doc)?.pieces() ?? [],
-      unsaved: () => doc.dirty,
-      // A project's data.ipynb is exported as data.py: the server needs every cell of it.
-      every: () => (isData(doc) ? doc.notebook!.everyCells() : null),
-      dictionary: () => (isData(doc) ? (dataViews.get(doc)?.dictionary ?? null) : null),
-    },
-    () => viewOf(doc)?.drawPieces(),
-  );
-}
+/** A notebook's or script's own app: gone (2026-11-21: app notebooks and live Streamlit cells were replaced by
+ *  widgets). Nothing is sent to the server for a notebook's cells any more. */
+function attachStreamlit(_doc: Doc): void {}
 
 /** Every open notebook and script has told the server its cells as they stand (before Play). */
 const settleDocuments = async (): Promise<void> => {
@@ -363,29 +347,7 @@ const streamlitInstall = (doc: Doc): PromptOptions => ({
   },
 });
 
-/** A live cell's Install: the prompt again, asked for (after Not now). */
-async function installStreamlit(doc: Doc): Promise<void> {
-  const problem = doc.streamlit?.state?.problem;
-  if (problem?.kind === "missing") void promptInstall(problem, { ...streamlitInstall(doc), force: true });
-}
 
-const streamlitHost = (doc: Doc): StreamlitHost => ({
-  state: () => doc.streamlit?.state ?? null,
-  changed: () => doc.streamlit?.syncSoon(),
-  isLive: (cell) => doc.streamlit?.isLive(cell) ?? Promise.resolve(false),
-  run: () => runApp(doc),
-  install: () => void installStreamlit(doc),
-  link: () => ({ document: doc.path, title: doc.title }),
-  addToApp: async (cell) => {
-    // The cell's document is saved (a block links to a file), then placed on the app in front (else the
-    // first open one, else a new one).
-    if (!(await save(doc))) throw new Error(`${doc.title} could not be saved.`);
-    await doc.streamlit?.sync().catch(() => null);
-    const app = (current?.canvas ? current : null) ?? docs.find((d) => d.canvas) ?? openApp(null, [], null);
-    show(app);
-    await app.canvas!.place({ document: doc.path, cell, title: doc.title });
-  },
-});
 
 /** A Streamlit app: its canvas as a document of its own. */
 function openApp(path: string | null, pages: SavedPage[], modified: number | null, settings?: AppSettings): Doc {
@@ -1367,7 +1329,7 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
     opened: cells.length > 0, // from a file or a reload: its tables' cells have not run since
     restoreSteps,
     tablesChanged: () => doc === current && drawTablesTool(),
-    streamlit: streamlitHost(doc),
+    // No live Streamlit cells (2026-11-21: app notebooks were replaced by widgets): no streamlit host.
     datasets: () => datasetNames,
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
     ran: () => flowSoon(doc),
@@ -1397,7 +1359,7 @@ function openScript(path: string | null, text: string, modified: number | null):
     openGrid: (name) => void openGrid(doc, name),
     openResult: (n, name) => void openResult(doc, n, name),
     tablesChanged: () => doc === current && drawTablesTool(),
-    streamlit: streamlitHost(doc),
+    // No live Streamlit cells (2026-11-21): no streamlit host.
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
     // Script mode: Run file takes the run settings' arguments, and is kept in the run history.
     arguments: () => scriptArguments.get(doc) ?? "",
