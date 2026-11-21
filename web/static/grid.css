@@ -18913,6 +18913,60 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 .cvs-widget.marked {
   border-color: var(--warn);
 }
+/* The wiring (canvasWiring.ts): a selected widget's sources and readers lit; a broken wire marked at both ends. */
+.cvs-widget.wire-source {
+  box-shadow: 0 0 0 2px var(--ok);
+}
+.cvs-widget.wire-reader {
+  box-shadow: 0 0 0 2px var(--agent);
+}
+.cvs-widget.wire-broken {
+  border: 1.5px dashed var(--error);
+}
+.cvs-wires {
+  position: absolute;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+}
+.cvs-wire {
+  fill: none;
+  stroke: var(--agent);
+  stroke-width: 2;
+}
+.cvs-wire.auto {
+  stroke-dasharray: 5 4;
+}
+.cvs-wire-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.cvs-wire-row select {
+  flex: 1;
+  min-width: 0;
+}
+.cvs-readers {
+  color: var(--muted);
+  font-size: 12px;
+}
+.cvs-action {
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+.cvs-action-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+.cvs-source-typed {
+  margin-top: 4px;
+}
 .cvs-widget.missing {
   border: 1.5px dashed var(--error);
   background: var(--error-soft);
@@ -20880,3 +20934,19 @@ body.wb-full .wb-col-right {
 .connection-card.fam-sandbox .connection-card-icon { color: var(--sandbox); }
 .sandbox-mocked select { margin-top: 2px; }
 .sandbox-cell-edit .error-note { margin-top: 2px; max-width: 420px; box-shadow: 0 2px 8px rgb(0 0 0 / 18%); }
+
+/* The Widgets window's contract (widgetPage.ts): Inputs, Outputs, Events as the code declares them. */
+.wg-contract h3 {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+.wg-upgrade-diff {
+  max-height: 50vh;
+  overflow: auto;
+  font-size: 12px;
+  background: var(--surface);
+  padding: 8px;
+}

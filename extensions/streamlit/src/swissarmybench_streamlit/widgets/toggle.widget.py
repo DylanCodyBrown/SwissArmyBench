@@ -9,10 +9,11 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key
 
 label = "Show details"
 on = False
-state_key = "details"
+# On or off, for the widgets on the page that read it
+details: Out[bool] = None
 
-st.toggle(label, value=on, key=state_key or key("toggle"))
+details = st.toggle(label, value=on, key=key("toggle"))

@@ -15,6 +15,7 @@ import pytest
 
 from swissarmybench_streamlit.domain import canvas_build as build
 from swissarmybench_streamlit.domain import canvas_model as model
+from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain import widget_packs as packs
 from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain import widgets as rules
@@ -73,27 +74,39 @@ def test_every_pack_widget_reads_its_properties_without_a_problem() -> None:
 
 
 def test_the_inputs_share_their_properties_marker_and_error_look() -> None:
-    common = {"label", "help_text", "required", "disabled", "state_key", "validation_message"}
+    """Their one required marker and error look are the runtime's (sab_canvas.marked, problem), once."""
+    common = {"label", "help_text", "required", "disabled", "validation_message"}
     for name, widget in PACKED.items():
         if widget.pack != "User inputs":
             continue
         found = _properties(widget)
         assert common <= set(found), (name, common - set(found))
-        assert ':red[\\\\*]" if needed else text' in widget.code, name
-        assert 'st.markdown(f":red[{message}]")' in widget.code, name
+        assert "def _label" not in widget.code and (
+            "marked(label, required)" in widget.code or name == "input_data_editor"
+        )
+        assert "problem(validation_message" in widget.code and "def _problem" not in widget.code, name
+    assert (
+        ':red[\\\\*]" if needed else text' in build.RUNTIME
+        and 'st.markdown(f":red[{message}]")' in build.RUNTIME
+    )
 
 
 def test_the_widgets_that_read_data_take_a_table_and_those_that_hand_it_on_a_save_event() -> None:
     for name in ("sales_kpi_row", "ops_low_stock_table", "cs_ticket_queue", "de_edit_grid", "admin_audit_log",
                  "input_data_editor", "excel_round_trip", "form_submissions"):  # fmt: skip
-        found = _properties(PACKED[name])
-        assert found["table_name"].type == "table", name
+        ports = {p.name: p for p in contract.detect(PACKED[name].code)}
+        assert (ports["table_name"].direction, ports["table_name"].type) == ("in", "Table"), name
+        assert "table_name" not in _properties(PACKED[name]), name
     for name in ("cs_reply_form", "de_record_form", "de_edit_grid", "de_approve_reject", "admin_settings_form",
                  "excel_round_trip", "form_designer", "form_fill"):  # fmt: skip
-        assert "save_event" in _properties(PACKED[name]), name
-        assert '{"event": "save", "widget": _WIDGET, "payload": payload}' in PACKED[name].code, name
+        events = [p for p in contract.detect(PACKED[name].code) if p.direction == "event"]
+        assert events and all(e.type == "dict" and e.problem is None for e in events), name
+        assert (
+            "save_event" not in _properties(PACKED[name])
+            and "session_state[save_event]" not in PACKED[name].code
+        )
     designer = _properties(PACKED["form_designer"])
-    assert designer["definition"].type == "dict" and designer["definition_key"].type == "str"
+    assert designer["definition"].type == "dict" and "definition_key" not in designer
 
 
 # ===== driven as a viewer would, with AppTest =====
@@ -150,7 +163,7 @@ def _drive(folder: Path, cases: list[dict[str, Any]]) -> dict[str, Any]:
     plan = []
     for at, case in enumerate(cases, start=1):
         widget = WIDGETS[case["widget"]]
-        built[widget.name] = build.Built(widget.code, tuple(props.detect(widget.code)))
+        built[widget.name] = build.made(widget.code)
         page = build.one_widget(widget.name, built[widget.name], case.get("values", {}), widget.size)[
             "pages"
         ][0]
@@ -188,83 +201,80 @@ def test_inputs_and_forms_as_a_viewer_uses_them(tmp_path: Path) -> None:
     cases: list[dict[str, Any]] = [
         {"name": "text_required", "widget": "input_text", "values": {"required": True, "label": "Name"},
          "steps": [["text_input", 0, "input", "   "]], "keys": ["w1-value"]},
-        {"name": "text_given", "widget": "input_text", "values": {"required": True, "state_key": "who"},
-         "steps": [["text_input", 0, "input", "Ada"]], "keys": ["who"]},
-        {"name": "fill_empty", "widget": "form_fill", "steps": [["button", 0, "click"]], "keys": ["form_submitted"]},
+        {"name": "text_given", "widget": "input_text", "values": {"required": True},
+         "steps": [["text_input", 0, "input", "Ada"]], "keys": ["sab:w1.value"]},
+        {"name": "fill_empty", "widget": "form_fill", "steps": [["button", 0, "click"]], "keys": ["sab:w1.saved"]},
         {"name": "fill_done", "widget": "form_fill",
          "values": {"definition": {"name": "count", "title": "Count", "fields": [
              {"name": "product", "label": "Product", "type": "text", "required": True},
              {"name": "counted", "label": "Counted", "type": "number", "required": True, "format": "0..100"}]},
-             "definition_key": ""},
+             },
          "steps": [["text_input", 0, "input", "Kettle"], ["number_input", 0, "set_value", 12], ["button", 0, "click"]],
-         "keys": ["form_submitted", "form_submissions"]},
+         "keys": ["sab:w1.saved", "sab:w1.form_submissions"]},
         {"name": "fill_range", "widget": "form_fill",
          "values": {"definition": {"name": "count", "fields": [
              {"name": "counted", "label": "Counted", "type": "number", "required": True, "format": "0..100"}]},
-             "definition_key": ""},
-         "steps": [["number_input", 0, "set_value", 200], ["button", 0, "click"]], "keys": ["form_submitted"]},
+             },
+         "steps": [["number_input", 0, "set_value", 200], ["button", 0, "click"]], "keys": ["sab:w1.saved"]},
         {"name": "designer_save", "widget": "form_designer", "steps": [["button", 0, "click"]],
-         "keys": ["form_saved", "form_definition"]},
+         "keys": ["sab:w1.saved", "sab:w1.form_definition"]},
         {"name": "settings_empty", "widget": "admin_settings_form",
-         "steps": [["text_input", 0, "input", ""], ["button", 0, "click"]], "keys": ["settings_saved"]},
+         "steps": [["text_input", 0, "input", ""], ["button", 0, "click"]], "keys": ["sab:w1.saved"]},
         {"name": "filter_bar", "widget": "sales_filter_bar", "steps": [["multiselect", 0, "select", "North"]],
-         "keys": ["sales_filter"]},
+         "keys": ["sab:w1.sales_filter"]},
     ]  # fmt: skip
     found = _drive(tmp_path, cases)
     assert not any(case["exceptions"] for case in found.values()), found
     assert any(":red[Enter a value.]" in m for m in found["text_required"]["markdown"])
-    assert found["text_given"]["state"]["who"] == "Ada"
+    assert found["text_given"]["state"]["sab:w1.value"] == "Ada"
     assert not any(":red[" in m for m in found["text_given"]["markdown"])
     empty = found["fill_empty"]
-    assert empty["state"]["form_submitted"] is None
+    assert empty["state"]["sab:w1.saved"] is None
     assert any("Store: Fill this in." in m for m in empty["markdown"]) and any(
         "Your name" in m for m in empty["markdown"]
     )
     done = found["fill_done"]["state"]
-    assert done["form_submitted"]["event"] == "save" and done["form_submitted"]["widget"] == "form_fill"
-    assert done["form_submitted"]["payload"]["values"] == {"product": "Kettle", "counted": 12.0}
-    assert len(done["form_submissions"]) == 1
-    assert found["fill_range"]["state"]["form_submitted"] is None
+    assert done["sab:w1.saved"]["form"] == "count"
+    assert done["sab:w1.saved"]["values"] == {"product": "Kettle", "counted": 12.0}
+    assert len(done["sab:w1.form_submissions"]) == 1
+    assert found["fill_range"]["state"]["sab:w1.saved"] is None
     assert any(m.startswith(":red[Counted: ") for m in found["fill_range"]["markdown"])
     saved = found["designer_save"]["state"]
-    assert (
-        saved["form_saved"]["payload"]["name"] == "site_visit"
-        and len(saved["form_saved"]["payload"]["fields"]) == 8
-    )
-    assert saved["form_definition"] == saved["form_saved"]["payload"]
-    assert found["settings_empty"]["state"]["settings_saved"] is None
+    assert saved["sab:w1.saved"]["name"] == "site_visit" and len(saved["sab:w1.saved"]["fields"]) == 8
+    assert saved["sab:w1.form_definition"] == saved["sab:w1.saved"]
+    assert found["settings_empty"]["state"]["sab:w1.saved"] is None
     assert any("Company name: Fill this in." in m for m in found["settings_empty"]["markdown"])
-    assert found["filter_bar"]["state"]["sales_filter"]["regions"] == ["North"]
+    assert found["filter_bar"]["state"]["sab:w1.sales_filter"]["regions"] == ["North"]
 
 
 @needs_streamlit
 @pytest.mark.skipif(not _has("openpyxl"), reason="no openpyxl in the Streamlit Python")
 def test_the_excel_pack_reads_maps_validates_and_round_trips(tmp_path: Path) -> None:
     cases: list[dict[str, Any]] = [
-        {"name": "upload", "widget": "excel_upload", "keys": ["uploaded"]},
-        {"name": "upload_range", "widget": "excel_upload", "values": {"cell_range": "A1:C5", "sheet": "1"}, "keys": ["uploaded"]},
-        {"name": "map", "widget": "excel_map_columns", "keys": ["mapped", "mapped_mapping"]},
-        {"name": "validate", "widget": "excel_validate_rows", "keys": ["valid"]},
-        {"name": "round_trip", "widget": "excel_round_trip", "steps": [["button", 0, "click"]], "keys": ["round_trip_saved"]},
+        {"name": "upload", "widget": "excel_upload", "keys": ["sab:w1.uploaded"]},
+        {"name": "upload_range", "widget": "excel_upload", "values": {"cell_range": "A1:C5", "sheet": "1"}, "keys": ["sab:w1.uploaded"]},
+        {"name": "map", "widget": "excel_map_columns", "keys": ["sab:w1.mapped", "sab:w1.mapping"]},
+        {"name": "validate", "widget": "excel_validate_rows", "keys": ["sab:w1.valid"]},
+        {"name": "round_trip", "widget": "excel_round_trip", "steps": [["button", 0, "click"]], "keys": ["sab:w1.saved"]},
     ]  # fmt: skip
     found = _drive(tmp_path, cases)
     assert not any(case["exceptions"] for case in found.values()), found
-    assert found["upload"]["state"]["uploaded"] == {
+    assert found["upload"]["state"]["sab:w1.uploaded"] == {
         "columns": ["Order No", "Cust. name", "Product", "Qty", "Unit price", "Order date", "Status"],
         "rows": 12,
     }
-    assert found["upload_range"]["state"]["uploaded"] == {
+    assert found["upload_range"]["state"]["sab:w1.uploaded"] == {
         "columns": ["Order No", "Cust. name", "Product"],
         "rows": 4,
     }
-    mapping = found["map"]["state"]["mapped_mapping"]
+    mapping = found["map"]["state"]["sab:w1.mapping"]
     assert mapping == {
         "order_id": "Order No", "customer_name": "Cust. name", "product": "Product", "quantity": "Qty",
         "unit_price": "Unit price", "order_date": "Order date", "status": "Status",
     }  # fmt: skip
     metrics = found["validate"]["metrics"]
     assert metrics["Rows"] == "12" and int(metrics["Problems"]) >= 4  # quantity 0 and 12, the misspelt status
-    assert found["validate"]["state"]["valid"]["rows"] == int(metrics["Rows that pass"])
+    assert found["validate"]["state"]["sab:w1.valid"]["rows"] == int(metrics["Rows that pass"])
     trip = found["round_trip"]
     assert trip["metrics"] == {"Added": "0", "Changed": "0", "Removed": "0", "Problems": "0"}
-    assert trip["state"]["round_trip_saved"]["payload"] == {"added": [], "changed": [], "removed": []}
+    assert trip["state"]["sab:w1.saved"] == {"added": [], "changed": [], "removed": []}

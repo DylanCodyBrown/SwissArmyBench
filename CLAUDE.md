@@ -1320,6 +1320,13 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          (switch, number with a range, text, colour, date, datetime, time, dropdown, table, column,
                          variable, path, JSON); an annotation wins; a value checked before it is kept and written
                          into only its own characters; the assignments made `pass` for the page to give the values
+    domain/widget_contract.py  a widget's I/O contract (2026-11-21): `x: In[T]`, `y: Out[T]`, `z: Event[dict]` at the top
+                         level, read with ast (Table, str, int, float, bool, date, datetime, list[...], dict), each
+                         one's problem in a sentence; fits (types), fits_value (a typed value); declarations made pass
+    domain/canvas_wiring.py  the canvas's wiring (an instance's `wires`): an In's source (a table, an Out, a page value,
+                         a GET endpoint, a variable, a value, tables), an Event's actions (call, set, rerun), each
+                         checked with the reason; automatic wires by name, readers, broken wires, the run order
+    domain/widget_upgrade.py  Upgrade to In/Out: a widget's session state keys rewritten as declarations (a preview)
     domain/canvas_model.py  the canvas file (<app>.canvas.json, byte-stable; pages of containers holding containers
                          and widget instances; the pixel engine at one layout's design width; sizing: columns, row
                          height, gap, snap, step) validated on read (its line; newer: read-only; a missing widget a placeholder), the
@@ -1333,7 +1340,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
     domain/canvas_build.py  the ONE page builder (Play, Launch, a widget run alone, a preview, Export): app.py,
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
                          of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
-                         place, its failure there; table, sample, var, key); the kernel's setup
+                         place, its failure there, its Ins, Outs and Events wired; table, sample(kind), var, key, choices,
+                         marked, problem, api_call); the kernel's setup
     domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, canvas.json, build.json):
                          what changed between two canvases in words (canvas_changes), a build's widgets read back
                          with ast (widget_code), compare file by file
@@ -1392,6 +1400,8 @@ web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): pa
                          bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the
                          panes' toggles, zoom); the frame's right-edge width
                          handle (px shown); versions and notices
+web/src/canvasWiring.ts  the Canvas's Inputs, Outputs and Events sections (a source picker, readers, actions), the
+                         board's marks (sources, readers, broken) and the Wiring view's lines
 web/src/canvasGrid.ts    the Canvas's placement maths: the step, the grid's lines, edges and centres, nudges, dots
 web/src/canvasBuilds.ts  the Canvas's Builds (newest first, what changed; Compare two or with now in Monaco's diff
                          editor; Open; Relaunch; Restore) and the analyzer's window (analyzerAddress, openAnalyzer)

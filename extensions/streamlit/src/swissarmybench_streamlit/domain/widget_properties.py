@@ -380,14 +380,40 @@ def _fits(kind: str, value: Any) -> bool:
     return value is None or isinstance(value, str)
 
 
+_MARKERS = ("In", "Out", "Event")
+
+
+def _declared(statement: ast.stmt) -> tuple[str, str] | None:
+    """A top-level In/Out/Event declaration (the widget's contract, domain/widget_contract.py): (its name, its
+    type's text); None for anything else. Never a property."""
+    if not isinstance(statement, ast.AnnAssign) or not isinstance(statement.target, ast.Name):
+        return None
+    annotation = statement.annotation
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        try:
+            annotation = ast.parse(annotation.value, mode="eval").body
+        except SyntaxError:
+            return None
+    head = annotation.value if isinstance(annotation, ast.Subscript) else annotation
+    name = head.id if isinstance(head, ast.Name) else head.attr if isinstance(head, ast.Attribute) else ""
+    if name not in _MARKERS:
+        return None
+    inner = ast.unparse(annotation.slice) if isinstance(annotation, ast.Subscript) else ""
+    return statement.target.id, f"{name}[{inner}]"
+
+
 def detect(code: str, tables: set[str] | frozenset[str] = frozenset()) -> list[Property]:
-    """The widget's properties, in the order they are written. Code that does not parse raises
-    PropertyError (its line)."""
+    """The widget's properties, in the order they are written (its In/Out/Event declarations are its
+    contract, not properties). Code that does not parse raises PropertyError (its line)."""
     module = parse(code)
     source = _Source(code)
     found: list[Property] = []
     seen: set[str] = set()
+    # A column property's table may be one of the widget's In[Table] declarations.
+    table_ins = [d[0] for d in map(_declared, module.body) if d and d[1] in ("In[Table]", "In[DataFrame]")]
     for statement in module.body:
+        if _declared(statement) is not None:
+            continue
         if isinstance(statement, ast.Assign):
             if len(statement.targets) != 1 or not isinstance(statement.targets[0], ast.Name):
                 continue
@@ -433,7 +459,11 @@ def detect(code: str, tables: set[str] | frozenset[str] = frozenset()) -> list[P
         of = None
         if kind == "column":
             said_of = _COLUMN_OF.search(comment)
-            of = said_of.group(1) if said_of else next((p.name for p in found if p.type == "table"), None)
+            of = (
+                said_of.group(1)
+                if said_of
+                else next((p.name for p in found if p.type == "table"), table_ins[0] if table_ins else None)
+            )
         elif kind == "path_values":
             said_of = _PATH_OF.search(comment)
             of = said_of.group(1) if said_of else next((p.name for p in found if p.type == "endpoint"), None)

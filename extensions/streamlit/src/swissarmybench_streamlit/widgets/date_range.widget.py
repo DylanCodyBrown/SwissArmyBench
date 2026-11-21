@@ -9,15 +9,17 @@
 # min_size = [2, 1]
 # ///
 import datetime
+from datetime import date
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key
 
 label = "Dates"
 start = "2026-01-01"
 end = "2026-03-31"
-state_key = "dates"
+# The first and last day picked, for the widgets on the page that read them
+dates: Out[list[date]] = None
 
 first = datetime.date.fromisoformat(start)
 last = datetime.date.fromisoformat(end)
-st.date_input(label, (first, max(first, last)), key=state_key or key("dates"))
+dates = list(st.date_input(label, (first, max(first, last)), key=key("dates")))

@@ -9,12 +9,13 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key
 
 label = "Threshold"
 value = 50  # 0..100
 smallest = 0
 largest = 100
-state_key = "threshold"
+# The number, for the widgets on the page that read it
+threshold: Out[float] = None
 
-st.slider(label, smallest, largest, value, key=state_key or key("slider"))
+threshold = st.slider(label, smallest, largest, value, key=key("slider"))

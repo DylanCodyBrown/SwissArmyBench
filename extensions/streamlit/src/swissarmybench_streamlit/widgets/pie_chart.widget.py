@@ -10,13 +10,13 @@
 # ///
 import altair as alt
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 category = "region"  # column of table_name
 amount = "revenue"  # column of table_name
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 chart = alt.Chart(frame).mark_arc().encode(theta=f"sum({amount})", color=category)
 st.altair_chart(chart, use_container_width=True, key=key("chart"))

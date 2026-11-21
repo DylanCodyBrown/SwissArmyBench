@@ -46,6 +46,7 @@ import { mountNav, startNav } from "./nav";
 import { mountNavRail, openWidgets } from "./rail";
 import { effectiveTheme } from "./theme";
 import { type Prop, propertyField } from "./widgetFields";
+import { brokenWords, nodeMarks, type Wiring, type WiringContext, wiresOverlay, wiringSections } from "./canvasWiring";
 import { headingElement, headingOf } from "./widgetPacks";
 import type { Context, WidgetEntry } from "./widgetPage";
 
@@ -61,6 +62,8 @@ interface Node {
   children?: Node[];
   widget?: string;
   values?: Record<string, unknown>;
+  /** Its Ins' sources and its Events' actions (services/canvas.py wire). */
+  wires?: Record<string, Record<string, unknown>>;
 }
 
 interface ContainerProps {
@@ -105,6 +108,8 @@ interface State {
   /** Each page's items in pixels at each layout's design width (desktop 1200, phone 390). */
   views: Record<string, Record<Layout, Node[]>>;
   design: Record<Layout, number>;
+  /** Each instance's contract, sources, the Outs' readers, the wires, the broken ones. */
+  wiring?: Wiring;
 }
 
 type Layout = "desktop" | "phone";
@@ -118,7 +123,15 @@ let state: State | null = null;
 let page = "";
 let selected: string[] = [];
 let widgets: WidgetEntry[] = [];
-let context: Context = { tables: {}, variables: [] };
+let context: Context & WiringContext = { tables: {}, variables: [] };
+// The Wiring view: lines between the widgets that pass values (remembered for the session).
+let showWires = (() => {
+  try {
+    return sessionStorage.getItem("sab-canvas-wires") === "1";
+  } catch {
+    return false;
+  }
+})();
 let zoom = 1;
 let layout: Layout = "desktop";
 const previewWidth: Record<Layout, number> = { desktop: 1200, phone: 390 };
@@ -464,6 +477,16 @@ function drawBottom(): void {
     sep(),
     widgetsToggle,
     propsToggle,
+    button("Wiring", () => {
+      showWires = !showWires;
+      try {
+        sessionStorage.setItem("sab-canvas-wires", showWires ? "1" : "0");
+      } catch {
+        /* the session's own */
+      }
+      drawBottom();
+      drawBoard();
+    }, { icon: "link", class: "ghost cvs-toggle cvs-wiring-toggle", pressed: showWires, title: "Show the wires between widgets" }),
     h("span", { class: "cvs-grow" }),
     button("Zoom out", () => setZoom(zoom / 1.25), { icon: "minus", iconOnly: true, class: "ghost" }),
     zoomLabel,
@@ -507,6 +530,15 @@ function drawBoard(): void {
   }
   guidesLayer = h("div", { class: "cvs-guides", "aria-hidden": "true" });
   clear(board, columns, ...children.map((c) => drawNode(c)), guidesLayer, widthHandle());
+  if (showWires) {
+    const centre = (id: string): { x: number; y: number } | null => {
+      const at = find(id);
+      if (!at || !(state?.wiring?.ports[id]?.page === page)) return null;
+      const corner = absolute(id);
+      return { x: X(corner.x + at.node.w / 2), y: corner.y + at.node.h / 2 };
+    };
+    board.append(wiresOverlay(state.wiring, centre, previewWidth[layout], height));
+  }
   if (state.broken) board.append(h("div", { class: "cvs-broken" }, icon("warning"), `${state.broken.error}${state.broken.line ? ` (line ${state.broken.line})` : ""}. A copy is kept at ${state.broken.copy}.`));
   else if (state.read_only) board.append(h("div", { class: "cvs-broken" }, icon("warning"), state.read_only));
   else if (!children.length) board.append(h("div", { class: "cvs-empty" }, "Drag on the grid to draw a container, or drag a widget here from Widgets."));
@@ -539,7 +571,7 @@ function drawNode(node: Node): HTMLElement {
   const marks = state?.marks[node.id];
   const element = h(
     "div",
-    { class: `cvs-node cvs-widget${elsewhere}${isSelected ? " selected" : ""}${missing ? " missing" : ""}${marks ? " marked" : ""}`, "data-id": node.id, "data-widget": node.widget ?? "", style: place },
+    { class: `cvs-node cvs-widget${elsewhere}${isSelected ? " selected" : ""}${missing ? " missing" : ""}${marks ? " marked" : ""}${nodeMarks(node.id, selected, state?.wiring)}`, "data-id": node.id, "data-widget": node.widget ?? "", style: place },
     missing
       ? h(
           "div",
@@ -565,7 +597,11 @@ function replaceMenu(node: Node, anchor: HTMLElement): void {
 
 function select(ids: string[]): void {
   selected = ids;
-  for (const element of board.querySelectorAll<HTMLElement>(".cvs-node")) element.classList.toggle("selected", ids.includes(element.dataset.id ?? ""));
+  for (const element of board.querySelectorAll<HTMLElement>(".cvs-node")) {
+    const id = element.dataset.id ?? "";
+    element.classList.toggle("selected", ids.includes(id));
+    for (const mark of ["wire-source", "wire-reader"]) element.classList.toggle(mark, nodeMarks(id, ids, state?.wiring).includes(mark));
+  }
   drawProps();
   propsDot();
 }
@@ -1214,6 +1250,10 @@ function drawProps(): void {
   if (known) {
     const marks = state.marks[first.id] ?? {};
     const values: Record<string, unknown> = { ...Object.fromEntries(known.properties.map((p) => [p.name, p.default])), ...(first.values ?? {}) };
+    // A column property of an In[Table]: the columns of the table it is wired to (another source: typed).
+    for (const port of state.wiring?.ports[first.id]?.ins ?? []) {
+      if (port.type === "Table") values[port.name] = (first.wires?.[port.name] as { table?: string } | undefined)?.table ?? (first.wires?.[port.name] ? "?" : "");
+    }
     const fields = known.properties.map((prop: Prop) =>
       propertyField(
         prop,
@@ -1229,7 +1269,19 @@ function drawProps(): void {
         { marked: marks[prop.name] ?? null, overridden: nodes.length === 1 && Object.hasOwn(first.values ?? {}, prop.name), onReset: () => void send("set_values", { id: first.id, values: { [prop.name]: null } }) },
       ),
     );
-    propsPane.append(section("PROPERTIES", ...fields));
+    if (fields.length) propsPane.append(section("PROPERTIES", ...fields));
+    if (nodes.length === 1) {
+      const sendWire = async (port: string, wire: Record<string, unknown> | null): Promise<void> => {
+        if (!state) return;
+        try {
+          take(await api<State>(`/streamlit/canvases/${state.canvas}/command`, "POST", { kind: "wire", id: first.id, port, wire, version: state.version, window: WINDOW }));
+        } catch (e) {
+          if (e instanceof ApiError && e.status === 409) await reload();
+          throw new Error(String((e instanceof ApiError ? saidOf(e)?.error : null) ?? (e instanceof Error ? e.message : e)));
+        }
+      };
+      propsPane.append(...wiringSections(first.id, first.wires, state.wiring, context, editable(), sendWire, (title, ...children) => section(title, ...children)));
+    }
   }
   if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)), section("LAYOUT", showOn(first)));
 }
@@ -1307,6 +1359,8 @@ async function gated(words: string, work: () => Promise<void>): Promise<void> {
 
 async function play(): Promise<void> {
   if (!state) return;
+  const broken = brokenWords(state.wiring);
+  if (broken) say(broken); // listed before Play: the page runs, each broken In on its starting value
   await gated("Starting the page…", async () => {
     try {
       const said = await api<{ ok: boolean; url?: string; problem?: { message?: string; command?: string } }>(`/streamlit/canvases/${state!.canvas}/play`, "POST", { page });

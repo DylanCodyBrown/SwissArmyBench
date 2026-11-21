@@ -1424,9 +1424,27 @@ line; the data notebook (data.ipynb, data.py) stays.
 **A widget** is a small Streamlit program kept in your library (`widgets/<name>.widget.py`, shared with your
 team like blades). Its top-level plain values are its **properties**: `title = "Sales"` is a text box,
 `show = True` a switch, `count = 5  # 1..20` a number with a range, `colour = "#1f77b4"` a colour picker,
-`start = "2026-01-01"` a date, `kind: Literal["line", "bar"] = "line"` a dropdown, `table_name = ""  # table`
-a table picker (empty: made-up sample data), `x = "month"  # column of table_name` a column picker,
-`key = os.environ["ORDERS_KEY"]` a variable. The comment lines above one are its help. 109 prebuilt widgets
+`start = "2026-01-01"` a date, `kind: Literal["line", "bar"] = "line"` a dropdown, `x = "month"  # column of
+orders` a column picker, `key = os.environ["ORDERS_KEY"]` a variable. The comment lines above one are its help.
+
+**A widget's inputs and outputs** (its contract, 2026-11-21) are declared at its top with three markers from
+`sab_canvas`, and the app reads them from the code (it never runs it to find them):
+
+```python
+from sab_canvas import Event, In, Out, Table
+
+orders: In[Table] = None  # data coming in: wired on the Canvas (None here: its own made-up rows)
+region: In[str] = "All"  # the value it takes when nothing is wired
+picked: Out[int] = None  # data going out: the code assigns it (picked = 42)
+saved: Event[dict] = None  # an action it fires: saved({"id": 7}); the Canvas says what it does
+```
+
+The types: `Table`, `str`, `int`, `float`, `bool`, `date`, `datetime`, `list[...]`, `dict`. Plain values stay
+its properties (what you set while designing); Inputs, Outputs and Events are what passes at run time. The
+Widgets window's Properties shows them under **Inputs**, **Outputs** and **Events**; a declaration that does
+not read says why under it. A widget of yours that passes values through `st.session_state["key"]` shows
+**Upgrade to In/Out…**: a preview of the rewrite (each key an In or an Out, what is kept and why), then Apply.
+113 prebuilt widgets
 come with the app (buttons, inputs, tables, metrics, KPI rows, charts, text, callouts, filters, forms): they
 are read-only; **Copy as your own** to change one.
 
@@ -1436,13 +1454,16 @@ that drives them), **Operations** (inventory status, low stock, shipments timeli
 **Customer service** (ticket queue, ticket detail, status pie, SLA met, reply form), **Data entry** (a form from
 a table, an edit grid, approve or reject, validation messages), **Admin** (users, audit log, settings),
 **User inputs** (every Streamlit input, each with a label, help, default, required with a red star and the
-same red line under it when missing, disabled and its session state key), **Excel** (upload a workbook and pick
+same red line under it when missing, disabled; its value an Out, its starting value an In from another widget;
+the selects, radios, pills and segmented controls take their choices from a table's column too: its distinct
+values, sorted, the first 1,000 with a note), **Excel** (upload a workbook and pick
 its sheet, header row and range; match its columns to your fields; check its rows; download tables or a
 template as formatted Excel; the round trip) and **Form builder** (design a form, pick one, fill it in, see
-the submissions). Each draws made-up rows until you pick a table. The widgets of a page talk through session
-state keys (a filter bar's picks, a picked ticket, an upload's table); one that saves something puts it under
-its **save_event** key for the page to keep. The Excel widgets need openpyxl in the project's Python and say
-so in their place when it is missing.
+the submissions). Each draws made-up rows until you wire a table. A pack's widgets pass their values by Ins and
+Outs of the same name, which wire by themselves on a page (the filter bar's `sales_filter`, a queue's
+`ticket_id`, an upload's `uploaded` into Map columns' `mapped` into Validate rows' `valid`, a form's
+`form_definition` and `form_submissions`); Save, Submit, Send, Approve and Reject are Events. The Excel widgets
+need openpyxl (xlrd for old .xls): a project's Python gets both when it is made; an older one says so in place.
 
 **The Widgets window** (Widgets on the rail; a window of its own, no rail): the list on the left (yours, then
 the starter packs, then the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,
@@ -1473,7 +1494,16 @@ grid cell), Undo and Redo, the **Widgets** and **Properties** panes' toggles, an
   container, or double-click (or Insert) to put it in the selected container. Right-click a container:
   **Insert widget ▸**, Insert container, Scrollable, Resizable by viewers, Delete.
 - **Properties** pane: a widget's properties (its values here override the widget's defaults; ↺ goes back to
-  the default), **Edit widget** (the Widgets window), its size; a container's title, border, scrollable,
+  the default), **Edit widget** (the Widgets window), its size. Then its **Inputs** (each one's source: a table,
+  another widget's Out of a fitting type under Page values, a GET endpoint of the local sandbox API, a
+  variable, a value you type; a list of tables in order for one that takes several; **Automatic** when the
+  page has one Out of its name), its **Outputs** (who reads each) and its **Events** (actions in order: **Call
+  an API endpoint** with the payload, a part of it or a field each as its body; **Set a page value**; **Rerun
+  the page**). A source of the wrong type is refused right there, with why. Selecting a widget lights its
+  sources and readers on the board; **Wiring** in the bottom bar draws the wires (automatic ones dashed); a wire
+  broken by a delete or a type change is marked at both ends and listed when you Play. An export runs the same
+  wiring with no Swiss Army Bench; its README.md lists the API's variables to set (SAB_API_URL, SAB_API_KEY,
+  SAB_API_BASE) when its events call one; a container's title, border, scrollable,
   resizable, height, padding, columns inside, background and size.
 - Every change is saved at once and can be undone. Another window's change is shown with a notice, never
   written over. A widget deleted from the library stays as a placeholder with **Replace** and **Remove**.

@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Event, key
 
 # The endpoint it calls
 endpoint = ""  # endpoint
@@ -26,6 +26,9 @@ path_values = {}  # path values of endpoint
 # The body it sends (a POST, PUT or PATCH)
 body = {}
 show_answer = True
+
+# Fired once the endpoint answered ({"answer": ...}); the Canvas wires what it does next
+answered: Event[dict] = None
 
 
 def _call(method, path, body=None, query=None, root=False):
@@ -90,9 +93,11 @@ if st.button(label, key=key("button"), disabled=not endpoint):
         answer, problem = _call(method, path, body if method in ("POST", "PUT", "PATCH") else None)
         if problem:
             st.error(problem)
-        elif show_answer:
-            st.json(answer)
         else:
-            st.success("Done.")
+            answered({"answer": answer})
+            if show_answer:
+                st.json(answer)
+            else:
+                st.success("Done.")
 if not endpoint:
     st.caption("Pick the endpoint in Properties.")

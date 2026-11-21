@@ -31,8 +31,11 @@ from typing import Any
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_model as model
+from swissarmybench_streamlit.domain import canvas_wiring as wiring
+from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain import widget_packs as packs
 from swissarmybench_streamlit.domain import widget_properties as props_rules
+from swissarmybench_streamlit.domain import widget_upgrade as upgrade_rules
 from swissarmybench_streamlit.domain import widgets as rules
 from swissarmybench_streamlit.domain.widgets import Widget, WidgetError
 
@@ -126,6 +129,8 @@ class Widgets:
     # The project's local sandbox API's endpoints ("GET /orders": the base's services/local_api.py), for an
     # endpoint property's picker and check (None: not known here).
     endpoints: Callable[[], list[str]] | None = None
+    # Each endpoint's body fields (an Event's body mapping), the same seam.
+    endpoint_fields: Callable[[], dict[str, list[str]]] | None = None
 
     def _endpoints(self) -> list[str] | None:
         try:
@@ -149,10 +154,24 @@ class Widgets:
         except props_rules.PropertyError as error:
             return [], {"error": str(error), "fix": error.fix, "line": error.line}
 
+    def _ports(self, code: str) -> list[contract.Port]:
+        try:
+            return contract.detect(code)
+        except props_rules.PropertyError:
+            return []
+
+    def _contract(self, code: str) -> dict[str, list[dict[str, Any]]]:
+        ports = self._ports(code)
+        return {
+            kind: [p.to_json() for p in ports if p.direction == direction]
+            for kind, direction in (("ins", "in"), ("outs", "out"), ("events", "event"))
+        }
+
     def _entry(self, widget: Widget, text: str) -> dict[str, Any]:
         found, problem = self._properties(widget.code)
         return widget.to_json() | {
             "properties": [p.to_json() for p in found],
+            "contract": self._contract(widget.code),
             "problem": problem,
             "hash": _hash(text),
             "pack_description": packs.PACKS.get(widget.pack, ""),
@@ -197,6 +216,8 @@ class Widgets:
             "text": text,
             "kernel_path": kernel_path,
             "kernel_setup": build_rules.kernel_setup(),
+            # Upgrade to In/Out is offered while its code hands values on by session state keys
+            "upgradable": bool((self._upgrade_plan(widget.code) or {}).get("changes")),
         }
 
     async def context_info(self) -> dict[str, Any]:
@@ -221,8 +242,15 @@ class Widgets:
             "connection_tables": listing,
             "variables": names,
             "endpoints": self._endpoints() or [],
+            "endpoint_fields": self._endpoint_fields(),
             "project": self._project_folder(),
         }
+
+    def _endpoint_fields(self) -> dict[str, list[str]]:
+        try:
+            return dict(self.endpoint_fields()) if self.endpoint_fields is not None else {}
+        except Exception:  # API.py's own trouble
+            return {}
 
     def _data_tables_safe(self) -> list[str]:
         try:
@@ -234,17 +262,20 @@ class Widgets:
         made: dict[str, model.WidgetFacts] = {}
         for name, (widget, _text) in self._all().items():
             found, _ = self._properties(widget.code)
-            made[name] = model.WidgetFacts(widget.size, widget.min_size, frozenset(p.name for p in found))
+            made[name] = model.WidgetFacts(
+                widget.size,
+                widget.min_size,
+                frozenset(p.name for p in found),
+                frozenset(p.name for p in self._ports(widget.code) if p.direction != "out"),
+                tuple((p.name, p.type) for p in self._ports(widget.code) if p.direction == "in"),
+            )
         return made
 
     def built(self) -> dict[str, build_rules.Built]:
         made: dict[str, build_rules.Built] = {}
         for name, (widget, _text) in self._all().items():
-            found, problem = self._properties(widget.code)
-            if problem is None:
-                made[name] = build_rules.Built(widget.code, tuple(found))
-            else:  # code that does not parse: its error shows in its place on the page
-                made[name] = build_rules.Built(f"raise SyntaxError({problem['error']!r})", ())
+            # code that does not parse: its error shows in its place on the page
+            made[name] = build_rules.made(widget.code)
         return made
 
     def properties(self, body: Any) -> dict[str, Any]:
@@ -254,7 +285,11 @@ class Widgets:
         if not isinstance(code, str):
             code = self._one(str(body.get("name")))[0].code
         found, problem = self._properties(code)
-        return {"properties": [p.to_json() for p in found], "problem": problem}
+        return {
+            "properties": [p.to_json() for p in found],
+            "contract": self._contract(code),
+            "problem": problem,
+        }
 
     def check_name(self, name: Any, own: str | None = None) -> dict[str, Any]:
         return rules.check_name(name, frozenset(self.names()), own)
@@ -268,6 +303,9 @@ class Widgets:
             code = self._one(str(body.get("name")))[0].code
         found, problem = self._properties(code)
         prop = next((p for p in found if p.name == body.get("property")), None)
+        port = next((p for p in self._ports(code) if p.name == body.get("property")), None)
+        if prop is None and port is not None and port.direction != "out":
+            return self.check_wire(port, body.get("wire", body.get("value")), body.get("values"))
         if prop is None:
             return {
                 "ok": False,
@@ -277,6 +315,31 @@ class Widgets:
         try:
             props_rules.check(prop, body.get("value"), self.context(body.get("values")))
         except props_rules.PropertyError as error:
+            return {"ok": False, "said": str(error), "fix": error.fix}
+        return {"ok": True}
+
+    def check_wire(self, port: contract.Port, wire: Any, values: Any = None) -> dict[str, Any]:
+        """An In's source or an Event's actions, checked as far as it can be without a page (a table's name:
+        its connection; a typed value: its type). The canvas checks the page's Outs as it wires."""
+        context = self.context(values)
+        if isinstance(wire, str) and port.type == "Table":
+            try:
+                props_rules.check(props_rules.Property(port.name, "table", ""), wire, context)
+            except props_rules.PropertyError as error:
+                return {"ok": False, "said": str(error), "fix": error.fix}
+            return {"ok": True}
+        if not isinstance(wire, dict):
+            wire = {"value": wire}
+        try:
+            if port.direction == "event":
+                wiring.check_event(port, wire, context.endpoints)
+            elif "out" not in wire:
+                wiring.check_in(
+                    port,
+                    wire,
+                    wiring.Context({}, context.endpoints, context.variables, None),
+                )
+        except contract.ContractError as error:
             return {"ok": False, "said": str(error), "fix": error.fix}
         return {"ok": True}
 
@@ -374,6 +437,31 @@ class Widgets:
         await self._changed(name)
         return self.get(name)
 
+    def _upgrade_plan(self, code: str) -> dict[str, Any] | None:
+        try:
+            return upgrade_rules.plan(code)
+        except (props_rules.PropertyError, SyntaxError, ValueError):
+            return None
+
+    async def upgrade(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Upgrade to In/Out: its session state keys as the contract's declarations. A preview (the code, each
+        key's In or Out, what is kept and why, the diff) until `apply`; applied, the code is saved (a
+        prebuilt widget's is refused: Copy as your own)."""
+        body = body if isinstance(body, dict) else {}
+        widget, _text = self._one(name)
+        code: str = body.get("code") if isinstance(body.get("code"), str) else widget.code
+        found = self._upgrade_plan(code)
+        if found is None:
+            raise ValueError("The widget's code does not read: fix it first.")
+        if not body.get("apply"):
+            return found | {"widget": name, "applied": False}
+        if not found["changes"]:
+            return found | {"widget": name, "applied": False}
+        self._mine(name)
+        saved = await self.save(name, {"code": found["code"]}, who)
+        self.ws.audit.write(who, "upgrade_widget", name)
+        return found | {"widget": name, "applied": True, "saved": saved}
+
     async def copy(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         widget, text = self._one(name)
         wanted = (body or {}).get("name") if isinstance(body, dict) else None
@@ -440,16 +528,13 @@ class Widgets:
             props = list(built[node["widget"]].properties)
             values = props_rules.values(props, node["values"], context)
             found |= {str(values[p.name]) for p in props if p.type == "table" and values.get(p.name)}
-        return found
+        return found | wiring.tables(canvas)
 
     def _one_app(self, name: str, body: Any) -> tuple[dict[str, str], Mapping[str, Any]]:
         body = body if isinstance(body, dict) else {}
         widget, _text = self._one(name)
         code: str = body.get("code") if isinstance(body.get("code"), str) else widget.code
-        found, problem = self._properties(code)
-        built = build_rules.Built(
-            code if problem is None else f"raise SyntaxError({problem['error']!r})", tuple(found)
-        )
+        built = build_rules.made(code)
         values = body.get("values") if isinstance(body.get("values"), dict) else {}
         canvas = build_rules.one_widget(name, built, values, widget.size)
         context = self.context(values)
@@ -471,8 +556,7 @@ class Widgets:
         widget, _ = self._one(name)
         sent = body.get("code") if isinstance(body, dict) else None
         code = sent if isinstance(sent, str) else widget.code
-        found, _problem = self._properties(code)
-        return {name: build_rules.Built(code, tuple(found))}
+        return {name: build_rules.made(code)}
 
     async def check(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         """The widget run headless (AppTest): what it drew and its errors (the agent's widgets_run)."""

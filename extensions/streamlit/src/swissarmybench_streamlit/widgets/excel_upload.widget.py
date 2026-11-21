@@ -13,7 +13,7 @@ import io
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, Table, key, sample
 
 label = "Upload a workbook"
 # The file types taken
@@ -26,8 +26,8 @@ header_row: int = 1  # 1..1000
 cell_range = ""
 # How many rows the preview shows
 preview_rows: int = 10  # 1..1000
-# The session state key the table is kept under (Map columns and Validate rows read it)
-out_key = "uploaded"
+# The table read, for the page's widgets (excel_map_columns reads it by itself; wire it to any table In)
+uploaded: Out[Table] = None
 
 
 def _openpyxl():
@@ -38,26 +38,6 @@ def _openpyxl():
         st.warning("Excel files need openpyxl in this app's Python: pip install openpyxl")
         return None
     return openpyxl
-
-
-def _sample_orders():
-    """Made-up orders as an export might send them: headers in its own words."""
-    people = ["Ada Ashdown", "Bram Brookfield", "Cleo Calloway", "Dov Dunmore", "Esme Everly"]
-    products = ["Desk lamp", "Kettle", "Planter", "Wok", "Notebook"]
-    return pd.DataFrame(
-        [
-            {
-                "Order No": 81000 + at,
-                "Cust. name": people[at % 5],
-                "Product": products[(at * 3) % 5],
-                "Qty": [2, 1, 4, 0, 3, 12, 1, 2][at % 8],
-                "Unit price": [24.5, 39.0, 12.99, 9.5, 3.25][at % 5],
-                "Order date": pd.Timestamp(2026, 11, 1 + at),
-                "Status": ["Delivered", "Shipped", "Pending", "Delivred"][at % 4],
-            }
-            for at in range(12)
-        ]
-    )
 
 
 def _read(data, file_name, sheet, header_row, cell_range, openpyxl):
@@ -185,7 +165,8 @@ if openpyxl is not None:
     if upload is None:
         data, file_name = (
             _workbook(
-                {"Orders": _sample_orders(), "Notes": pd.DataFrame({"Note": ["Made-up sample"]})}, openpyxl
+                {"Orders": sample(kind="orders"), "Notes": pd.DataFrame({"Note": ["Made-up sample"]})},
+                openpyxl,
             ),
             "sample.xlsx",
         )
@@ -202,7 +183,7 @@ if openpyxl is not None:
         picked = st.selectbox("Sheet", names, index=default, key=key("sheet"))
         if picked != names[default]:
             frame, names = _read(data, file_name, picked, header_row, cell_range, openpyxl)
-    st.session_state[out_key] = frame
+    uploaded = frame
     st.caption(f"{len(frame)} rows, {len(frame.columns)} columns")
     st.dataframe(frame.head(int(preview_rows)), hide_index=True, use_container_width=True)
     with st.expander("Types guessed"):

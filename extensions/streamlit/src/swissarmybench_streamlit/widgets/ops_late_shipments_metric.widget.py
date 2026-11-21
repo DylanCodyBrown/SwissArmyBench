@@ -13,10 +13,10 @@ import datetime
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import table
+from sab_canvas import In, Table
 
 # The shipments table (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 delivered_column = "delivered_on"  # column of table_name
 promised_column = "promised_on"  # column of table_name
 label = "Late shipments"
@@ -51,7 +51,7 @@ def _sample():
     return frame
 
 
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else _sample()
 if delivered_column not in frame.columns or promised_column not in frame.columns:
     st.warning(f"Pick the shipment columns: {delivered_column} or {promised_column} is not in the table.")
 else:

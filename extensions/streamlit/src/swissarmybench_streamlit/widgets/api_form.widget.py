@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Event, key
 
 # The endpoint it sends to (a POST or a PUT whose body is a row)
 endpoint = ""  # endpoint
@@ -25,6 +25,8 @@ path_values = {}  # path values of endpoint
 # The fields (empty: its body's, as API.py's model gives them)
 fields = []
 button = "Send"
+# Fired once the row was sent ({"request", "answer"}); the Canvas wires what it does next
+sent: Event[dict] = None
 
 
 def _call(method, path, body=None, query=None, root=False):
@@ -122,3 +124,4 @@ else:
             else:
                 st.success("Sent.")
                 st.json(answer)
+                sent({"request": values, "answer": answer})

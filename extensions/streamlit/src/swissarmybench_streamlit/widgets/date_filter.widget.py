@@ -9,17 +9,21 @@
 # min_size = [2, 1]
 # ///
 import datetime
+from datetime import date
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key
 
 label = "Period"
 start = "2026-01-01"
 end = "2026-12-31"
-state_key = "period"
+# The first and last day picked, for the widgets on the page that read them
+period: Out[list[date]] = None
 
-st.date_input(
-    label,
-    (datetime.date.fromisoformat(start), datetime.date.fromisoformat(end)),
-    key=state_key or key("period"),
+period = list(
+    st.date_input(
+        label,
+        (datetime.date.fromisoformat(start), datetime.date.fromisoformat(end)),
+        key=key("period"),
+    )
 )

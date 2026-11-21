@@ -9,15 +9,15 @@
 # min_size = [2, 2]
 # ///
 import streamlit as st
-from sab_canvas import table
+from sab_canvas import In, Table, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 # The column to rank by
 by = "revenue"  # column of table_name
 count = 5  # 1..100
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 if by in frame.columns:
     frame = frame.sort_values(by, ascending=False)
 st.dataframe(frame.head(count), use_container_width=True, hide_index=True)

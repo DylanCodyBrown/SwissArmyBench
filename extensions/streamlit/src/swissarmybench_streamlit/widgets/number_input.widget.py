@@ -9,12 +9,13 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key
 
 label = "Quantity"
 value = 10
 smallest = 0
 largest = 100
-state_key = "quantity"
+# The number, for the widgets on the page that read it
+quantity: Out[float] = None
 
-st.number_input(label, min_value=smallest, max_value=largest, value=value, key=state_key or key("number"))
+quantity = st.number_input(label, min_value=smallest, max_value=largest, value=value, key=key("number"))

@@ -13,10 +13,10 @@ import io
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, Table, key, sample
 
-# The session state key the table to check is under (empty, or nothing there: made-up sample data)
-in_key = "mapped"
+# The table to check: the page's excel_map_columns' mapped, wired by itself (none yet: made-up sample data)
+mapped: In[Table] = None
 # The rules: a column each, with required, type (text, number, whole, date), min, max, choices, pattern
 rules = [
     {"column": "order_id", "required": True, "type": "whole"},
@@ -26,8 +26,8 @@ rules = [
     {"column": "status", "choices": ["Pending", "Shipped", "Delivered", "Cancelled"]},
 ]
 file_name = "row-problems.xlsx"
-# The session state key the rows that pass are kept under
-out_key = "valid"
+# The rows that pass, for the page's widgets
+valid: Out[Table] = None
 all_good = "Every row passes its rules."
 
 # How the workbook looks
@@ -46,26 +46,6 @@ def _openpyxl():
         st.warning("Excel files need openpyxl in this app's Python: pip install openpyxl")
         return None
     return openpyxl
-
-
-def _sample_orders():
-    """Made-up orders as an export might send them: headers in its own words."""
-    people = ["Ada Ashdown", "Bram Brookfield", "Cleo Calloway", "Dov Dunmore", "Esme Everly"]
-    products = ["Desk lamp", "Kettle", "Planter", "Wok", "Notebook"]
-    return pd.DataFrame(
-        [
-            {
-                "Order No": 81000 + at,
-                "Cust. name": people[at % 5],
-                "Product": products[(at * 3) % 5],
-                "Qty": [2, 1, 4, 0, 3, 12, 1, 2][at % 8],
-                "Unit price": [24.5, 39.0, 12.99, 9.5, 3.25][at % 5],
-                "Order date": pd.Timestamp(2026, 11, 1 + at),
-                "Status": ["Delivered", "Shipped", "Pending", "Delivred"][at % 4],
-            }
-            for at in range(12)
-        ]
-    )
 
 
 def _problems(frame, rules):
@@ -168,11 +148,10 @@ def _workbook(sheets, openpyxl):
     return out.getvalue()
 
 
-found = st.session_state.get(in_key) if in_key else None
-if isinstance(found, pd.DataFrame) and len(found.columns):
-    frame = found.reset_index(drop=True)
+if mapped is not None and len(mapped.columns):
+    frame = mapped.reset_index(drop=True)
 else:
-    sample = _sample_orders()
+    sample = sample(kind="orders")
     frame = sample.rename(
         columns={
             "Order No": "order_id",
@@ -184,7 +163,7 @@ else:
     )
 problems = _problems(frame, rules)
 bad_rows = sorted({p["row"] for p in problems if p["row"] is not None})
-st.session_state[out_key] = frame.drop(index=[r - 1 for r in bad_rows])
+valid = frame.drop(index=[r - 1 for r in bad_rows])
 first, second, third = st.columns(3)
 first.metric("Rows", len(frame))
 second.metric("Rows that pass", len(frame) - len(bad_rows))

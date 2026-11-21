@@ -7406,3 +7406,54 @@ Gaps to approve (not built):
   values when it merges.
 - Edits of LIST, STRUCT, MAP and other nested columns in the grid are refused (edit them through the API).
 - The Catalog's Sandbox section sorts in the page only (the agent sorts through `sandbox(list)`).
+
+## Widget I/O contract and the canvas's wiring (the owner, 2026-11-21; built, branch widget-gaps)
+
+The owner approved the widget gaps (choices from a table, a default from another widget, a page value as a
+table, a several-tables picker, events wired on the Canvas, openpyxl and xlrd in a project's Python), then
+added: "Make a way for input and out from widgets to be defined and clear. Perhaps the app detects a certain
+format". The contract replaces the "page value as a table" property kind that was first planned: page values
+ARE the Outs.
+
+- **The format** (domain/widget_contract.py, read with ast, never run): `orders: In[Table] = None`, `region:
+  In[str] = "All"`, `picked: Out[int] = None`, `saved: Event[dict]` (or `= None`, so a linter knows the name).
+  Types: Table, str, int, float, bool, date, datetime, list[...], dict. `sab_canvas.In[...]`, a string
+  annotation and `In["list[str]"]` read too; a declaration twice: the first counts; `_private` and anything
+  not at the top level are not part of the contract; a bad marker, type or starting value is listed with its
+  problem in one sentence. Plain values stay properties; together they are the contract (`contract` in
+  `widgets_get` and `widgets_properties`).
+- **The wiring** (domain/canvas_wiring.py; the canvas file's `wires` beside an instance's `values`,
+  byte-stable): an In's source is a table, an Out (`{"out": "w3.filtered"}`, its type fitting; int feeds
+  float, records feed a Table), a page value an action set, a GET endpoint's answer, a variable or a typed
+  value; a list[Table] In an ordered list (the several-tables picker). An Event's wire is its actions in order
+  (call an endpoint with the payload, a part of it or a field each as the body and path values; set a page
+  value; rerun). **Decisions:** an unwired In takes the page's one Out of its name and a fitting type by itself
+  (so the packs work as dropped: `sales_filter`, `ticket_id`, `uploaded` -> `mapped` -> `valid`,
+  `form_definition`, `form_submissions`); an Event's last payload is readable as an Out; a broken wire (its
+  widget or Out deleted, a type changed) stays in the file (Undo brings the widget back and the wire holds),
+  marked at both ends, listed before Play and said in its place while the In takes its starting value.
+- **The builder** (one, for Play, Launch and Export): the page runs each widget after what it reads (siblings
+  ordered by their reads; the boxes are placed by CSS, so the order is free), so a value arrives on the first
+  run. sab_canvas.render gives each In its source's value (coerced: records to a table, text to a number or a
+  date), each Out its last value and keeps it after the run (`sab:<instance>.<port>` in session state), each
+  Event a callable. An export's README.md lists SAB_API_URL, SAB_API_KEY and SAB_API_BASE (the deployed API)
+  when its events call one.
+- **Migration:** all 113 prebuilt widgets declare their Ins, Outs and Events (table properties became
+  `table_name: In[Table]`, `state_key` became each input's `value: Out[...]` with `default_from: In[...]`, the
+  selects got `options_table: In[Table]` and `options_column`, the pack keys became Ins and Outs, save_event
+  became Events). An instance's value for a name that is now an In (an older canvas, `canvas_set_values`,
+  `canvas_insert_widget`) is wired as it opens: a table's name `{"table"}`, a list `{"tables"}`, else
+  `{"value"}`, said once. **Upgrade to In/Out** (domain/widget_upgrade.py; the Widgets window, a preview
+  first; `widgets_upgrade`) rewrites a user widget's string session state keys (or a property holding one) as
+  declarations; a write inside a block or a function is kept and said.
+- **Hygiene:** the inputs' `_label`/`_problem` are the runtime's `marked`/`problem`; `sample(kind=...)` gives
+  sales, orders, products, tickets and stock, so 14 pack widgets lost their own rows.
+- **Packages:** a new environment gets openpyxl and xlrd (domain/environments.py EXCEL); a Python set up for
+  Streamlit gets them with Streamlit (streamlit_apps.py EXTRAS, said as `extras` and never blocking); an older
+  one keeps the widget's own "needs openpyxl" line. The app's own server's dependencies are unchanged.
+- **The Canvas:** Properties | Inputs | Outputs | Events (canvasWiring.ts), a selected widget's sources and
+  readers lit, the bottom bar's **Wiring** view, broken wires marked and listed before Play. The agent:
+  `canvas_wire`, `canvas_state`'s `wiring`, `widgets_upgrade`.
+- Gaps (not built, to approve): an In wired from an Out of another canvas page (refused: a page's own Outs
+  only); an Out's columns for a column property wired from it (typed instead); the Wiring view's lines go
+  between boxes' centres, not ports.

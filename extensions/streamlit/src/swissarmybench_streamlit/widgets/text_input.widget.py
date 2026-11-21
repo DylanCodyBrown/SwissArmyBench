@@ -9,11 +9,11 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key
 
 label = "Name"
 placeholder = "Type here"
-# The session state key other widgets read
-state_key = "name"
+# The text, for the widgets on the page that read it
+name: Out[str] = None
 
-st.text_input(label, placeholder=placeholder, key=state_key or key("text"))
+name = st.text_input(label, placeholder=placeholder, key=key("text"))

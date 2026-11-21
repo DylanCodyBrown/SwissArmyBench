@@ -203,6 +203,7 @@ def routes(services: Any) -> list[Any]:
     local_api = getattr(services, "local_api", None)
     if local_api is not None:
         widgets.endpoints = local_api.endpoint_names
+        widgets.endpoint_fields = local_api.endpoint_fields
 
         def api_uses() -> list[dict[str, Any]]:
             """Each canvas widget instance whose endpoint property names one of API.py's (Payload shapes)."""

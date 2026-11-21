@@ -13,9 +13,8 @@ import re
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Event, Out, key
 
-_WIDGET = "form_designer"
 _TYPES = ["text", "number", "money", "date", "choice", "yes/no", "file"]
 # The form to start from (data in): a name, a title and its fields
 definition = {
@@ -38,19 +37,14 @@ definition = {
         {"name": "notes", "label": "Notes", "type": "text", "format": "long"},
     ],
 }
-# The session state key a definition may come from instead, and is kept under on Save (data out)
-definition_key = "form_definition"
+# The form's definition once saved, for the page's form_fill (it reads it by itself); it starts from it
+form_definition: Out[dict] = None
 button = "Save form"
-# The session state key the form is handed to the page under ({"event": "save", ...})
-save_event = "form_saved"
+# Fired on Save: the form's definition; the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+saved: Event[dict] = None
 
 
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
-
-
-start = st.session_state.get(definition_key) if definition_key else None
+start = form_definition
 form = start if isinstance(start, dict) and start.get("fields") is not None else definition
 left, right = st.columns(2)
 title = left.text_input("Title :red[\\*]", form.get("title", ""), key=key("title"))
@@ -143,7 +137,6 @@ for problem in problems:
     st.markdown(f":red[{problem}]")
 st.caption(f"{len(made['fields'])} fields")
 if st.button(button, key=key("save"), type="primary", disabled=bool(problems)):
-    if definition_key:
-        st.session_state[definition_key] = made
-    _save(made)
+    form_definition = made
+    saved(made)
     st.success(f"{made['title']} handed to the page.")

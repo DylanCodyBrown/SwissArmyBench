@@ -53,8 +53,20 @@ export interface WidgetEntry {
   min_size: [number, number];
   prebuilt: boolean;
   properties: Prop[];
+  /** Its contract: Ins, Outs and Events declared in its code (domain/widget_contract.py). */
+  contract?: { ins: ContractPort[]; outs: ContractPort[]; events: ContractPort[] };
   problem: { error: string; fix: string; line: number | null } | null;
   hash: string;
+}
+
+interface ContractPort {
+  name: string;
+  type: string;
+  words: string;
+  default: unknown;
+  help: string;
+  line: number;
+  problem: string | null;
 }
 
 interface WidgetFull extends WidgetEntry {
@@ -62,6 +74,8 @@ interface WidgetFull extends WidgetEntry {
   file: string;
   kernel_path: string | null;
   kernel_setup: string;
+  /** Upgrade to In/Out is offered: its code hands values on by session state keys. */
+  upgradable?: boolean;
 }
 
 export interface Context {
@@ -323,8 +337,8 @@ async function liveProps(): Promise<void> {
   propsTimer = null;
   if (!current || !editor) return;
   try {
-    const found = await api<{ properties: Prop[]; problem: WidgetEntry["problem"] }>("/streamlit/widgets/properties", "POST", { code: editor.value() });
-    current = { ...current, properties: found.properties, problem: found.problem };
+    const found = await api<{ properties: Prop[]; contract: WidgetEntry["contract"]; problem: WidgetEntry["problem"] }>("/streamlit/widgets/properties", "POST", { code: editor.value() });
+    current = { ...current, properties: found.properties, contract: found.contract, problem: found.problem };
     drawProps();
   } catch {
     /* the pane keeps what it showed */
@@ -412,6 +426,7 @@ function drawProps(): void {
       }),
     );
   }
+  props.append(...contractSections(widget));
   if (!widget.prebuilt) {
     props.append(
       h(
@@ -434,6 +449,75 @@ function drawProps(): void {
         ),
       ),
     );
+  }
+}
+
+/** The contract, read-only: its Inputs, Outputs and Events as the code declares them (the Canvas wires them);
+ *  Upgrade to In/Out for a widget that hands values on by session state keys (a preview first). */
+function contractSections(widget: WidgetFull): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const port = (p: ContractPort, kind: string): HTMLElement =>
+    h(
+      "div",
+      { class: `wg-prop wg-port${p.problem ? " marked" : ""}`, "data-port": p.name, "data-direction": kind },
+      h("div", { class: "wg-prop-head" }, h("span", { class: "wg-prop-name" }, p.name), h("span", { class: "wg-prop-mask" }, kind === "event" ? "Event" : `${kind === "in" ? "In" : "Out"} · ${p.words}`)),
+      p.help ? h("div", { class: "wg-prop-help" }, p.help) : null,
+      p.problem ? h("div", { class: "wg-field-line" }, p.problem) : null,
+    );
+  const c = widget.contract;
+  if (c?.ins.length) out.push(h("section", { class: "wg-contract", "data-section": "inputs" }, h("h3", {}, "Inputs"), ...c.ins.map((p) => port(p, "in"))));
+  if (c?.outs.length) out.push(h("section", { class: "wg-contract", "data-section": "outputs" }, h("h3", {}, "Outputs"), ...c.outs.map((p) => port(p, "out"))));
+  if (c?.events.length) out.push(h("section", { class: "wg-contract", "data-section": "events" }, h("h3", {}, "Events"), ...c.events.map((p) => port(p, "event"))));
+  if (widget.upgradable && !widget.prebuilt) {
+    const said = h("div", { class: "wg-field-line", hidden: true });
+    out.push(
+      h(
+        "section",
+        { class: "wg-contract wg-upgrade" },
+        button("Upgrade to In/Out…", () => void upgradePreview(widget, said), { icon: "link", class: "ghost wg-upgrade-button" }),
+        said,
+      ),
+    );
+  }
+  return out;
+}
+
+async function upgradePreview(widget: WidgetFull, said: HTMLElement): Promise<void> {
+  try {
+    await flush();
+    const plan = await api<{ diff: string; changes: { key: string; port: string; direction: string; type: string }[]; kept: string[] }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/upgrade`, "POST", {});
+    const dialog = h(
+      "dialog",
+      { class: "wg-upgrade-dialog", "aria-label": "Upgrade to In/Out" },
+      h("h2", {}, "Upgrade to In/Out"),
+      h("ul", {}, ...plan.changes.map((c) => h("li", {}, `${c.key}: ${c.port}: ${c.direction === "in" ? "In" : "Out"}[${c.type}]`))),
+      plan.kept.length ? h("p", { class: "wg-prop-help" }, `Kept as it is: ${plan.kept.join("; ")}`) : null,
+      h("pre", { class: "wg-upgrade-diff" }, plan.diff),
+      h(
+        "div",
+        { class: "wg-dialog-buttons" },
+        button("Cancel", () => dialog.close(), { class: "ghost" }),
+        button("Apply", async () => {
+          try {
+            const done = await api<{ saved: WidgetFull }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/upgrade`, "POST", { apply: true });
+            dialog.close();
+            applying = true;
+            editor?.replaceText(done.saved.code);
+            applying = false;
+            current = { ...widget, ...done.saved };
+            drawProps();
+          } catch (e) {
+            errorHere(e, {}, dialog);
+          }
+        }, { class: "primary" }),
+      ),
+    );
+    dialog.addEventListener("close", () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+  } catch (e) {
+    said.hidden = false;
+    errorHere(e, {}, said);
   }
 }
 

@@ -78,7 +78,7 @@ RUNNER = textwrap.dedent(
 
 def _widget(name: str) -> tuple[rules.Widget, build.Built]:
     widget = rules.read_widget((PREBUILT / f"{name}.widget.py").read_text(encoding="utf-8"), prebuilt=True)
-    return widget, build.Built(widget.code, tuple(props.detect(widget.code)))
+    return widget, build.made(widget.code)
 
 
 def _run(folder: Path, uses: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:

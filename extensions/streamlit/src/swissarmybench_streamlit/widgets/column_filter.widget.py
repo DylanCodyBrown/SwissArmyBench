@@ -9,15 +9,15 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Out, Table, key, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 column = "region"  # column of table_name
 label = "Region"
-# The session state key other widgets read (filtered_table reads it)
-state_key = "filter"
+# The value picked (All: none), for the widgets on the page that read it (filtered_table)
+filter: Out[str] = "All"
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 values = sorted(frame[column].dropna().astype(str).unique()) if column in frame.columns else []
-st.selectbox(label, ["All", *values], key=state_key or key("filter"))
+filter = st.selectbox(label, ["All", *values], key=key("filter"))

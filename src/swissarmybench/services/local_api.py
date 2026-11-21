@@ -148,6 +148,24 @@ class LocalApi:
         text = self._text()
         return [] if text is None else [f"{e.method} {e.path}" for e in rules.parse(text).endpoints]
 
+    def endpoint_fields(self) -> dict[str, list[str]]:
+        """Each endpoint whose body is one of API.py's models: its fields, in order ("POST /visits" -> [...]),
+        for an Event's body mapping on the Canvas."""
+        text = self._text() if self._project() is not None else None
+        if text is None:
+            return {}
+        try:
+            api = rules.parse(text)
+        except Exception:  # API.py's own trouble: no fields to offer
+            return {}
+        found: dict[str, list[str]] = {}
+        for e in api.endpoints:
+            body = next((p for p in e.params if p.where == "body"), None)
+            model = api.models.get(body.type.strip("'\"")) if body is not None else None
+            if model is not None:
+                found[f"{e.method} {e.path}"] = list(model.fields)
+        return found
+
     def data_keys(self) -> set[str]:
         """The keys the sandbox's data route takes: the running API's only."""
         return {self._data_key} if self._data_key and self.running() else set()

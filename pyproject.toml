@@ -184,6 +184,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "tests/test_large_company.py" = ["S608"]
 # The packs' viewer cases are kept one per line as a viewer would do them.
 "tests/test_widget_packs.py" = ["E501"]
+"tests/test_widget_contract.py" = ["E501", "S603"]
 # The starter pack: its Power BI blades reach the REST API at the address their workspace connection holds,
 # and a snippet's lines (DAX, HTML, a piece for a Python cell) are kept as the cell will hold them.
 "src/swissarmybench/starters/**" = ["S310", "E501"]

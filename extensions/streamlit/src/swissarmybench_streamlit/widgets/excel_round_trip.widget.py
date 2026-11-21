@@ -13,11 +13,10 @@ import io
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import Event, In, Table, key
 
-_WIDGET = "excel_round_trip"
 # The rows to send out (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 
 # The fields: name, type (text, number, whole, money, date), required, choices, help
 fields = [
@@ -38,8 +37,8 @@ max_rows: int = 1000  # 1..100000
 # The field that names each row (how a row coming back is matched to one sent out)
 key_field = "order_id"
 file_name = "fill-in.xlsx"
-# The session state key the changes are handed to the page under ({"event": "save", ...})
-save_event = "round_trip_saved"
+# Fired on Save: the rows added, changed and removed; the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+saved: Event[dict] = None
 
 
 def _openpyxl():
@@ -229,11 +228,6 @@ def _problems(frame, rules):
     return found
 
 
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
-
-
 def _plain(value):
     if value is None or (not isinstance(value, str) and pd.isna(value)):
         return None
@@ -258,7 +252,7 @@ def _sample():
 openpyxl = _openpyxl()
 if openpyxl is not None:
     names = [f["name"] for f in fields]
-    sent = table(table_name) if table_name else _sample()
+    sent = table_name if table_name is not None else _sample()
     sent = sent[[n for n in names if n in sent.columns]]
     out = _template(fields, sent, openpyxl)
     st.markdown("**1. Download, fill in in Excel**")
@@ -309,7 +303,7 @@ if openpyxl is not None:
     if problems:
         st.dataframe(pd.DataFrame(problems), hide_index=True, use_container_width=True)
     if st.button("Save the changes", key=key("save"), type="primary", disabled=bool(problems)):
-        _save(
+        saved(
             {
                 "added": [{n: _plain(after[k].get(n)) for n in names} for k in added],
                 "changed": [{n: _plain(after[k].get(n)) for n in names} for k in changed],

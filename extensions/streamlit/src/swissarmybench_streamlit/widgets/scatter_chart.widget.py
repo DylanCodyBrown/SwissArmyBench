@@ -10,16 +10,16 @@
 # ///
 import altair as alt
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 x = "units"  # column of table_name
 y = "revenue"  # column of table_name
 group = "region"  # column of table_name
 size = 60  # 10..400
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 encoding = {"x": x, "y": y}
 if group in frame.columns:
     encoding["color"] = group

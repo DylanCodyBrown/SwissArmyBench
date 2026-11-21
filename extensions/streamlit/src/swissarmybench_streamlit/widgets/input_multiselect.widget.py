@@ -10,7 +10,7 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, Table, choices, key, marked, problem
 
 # The words above the input
 label = "Regions"
@@ -25,29 +25,27 @@ default = ["North"]
 # The viewer must give a value (a red star; the message below while it is missing)
 required = False
 disabled = False
-# The session state key the value is kept under (empty: this widget's own)
-state_key = ""
+# The value, for the widgets on the page that read it
+value: Out[list[str]] = None
+# Its starting value from another widget (not wired: default above)
+default_from: In[list[str]] = None
+# Take the choices from a table's column instead (its distinct values, sorted; not wired: options)
+options_table: In[Table] = None
+options_column = ""  # column of options_table
 # Said under the input while it is required and missing, or does not fit
 validation_message = "Choose at least one."
 # The most choices (0: no limit)
 max_selections: int = 0  # 0..1000
 
 
-def _label(text, needed):
-    """The pack's one required marker: a red star after the label."""
-    return f"{text} :red[\\*]" if needed else text
-
-
-def _problem(message):
-    """The pack's one error look, under the input."""
-    st.markdown(f":red[{message}]")
-
-
-_key = state_key or key("value")
+options = choices(options, options_table, options_column)
+if default_from is not None:
+    default = default_from
+_key = key("value")
 if _key not in st.session_state:
     st.session_state[_key] = [d for d in default if d in options]
 value = st.multiselect(
-    _label(label, required),
+    marked(label, required),
     options,
     key=_key,
     max_selections=max_selections or None,
@@ -56,4 +54,4 @@ value = st.multiselect(
     disabled=disabled,
 )
 if required and not value:
-    _problem(validation_message)
+    problem(validation_message)

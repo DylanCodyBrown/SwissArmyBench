@@ -10,7 +10,7 @@
 # min_size = [3, 3]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, key, marked, problem
 
 # The words above the input
 label = "Chat"
@@ -23,8 +23,8 @@ default = "Hello, how can we help?"
 # The viewer must give a value (a red star; the message below while it is missing)
 required = False
 disabled = False
-# The session state key the value is kept under (empty: this widget's own)
-state_key = ""
+# The value, for the widgets on the page that read it
+value: Out[str] = None
 # Said under the input while it is required and missing, or does not fit
 validation_message = "Write a message."
 # The most characters (0: no limit)
@@ -33,22 +33,12 @@ max_chars: int = 0  # 0..100000
 answer = "Thank you: someone will answer shortly."
 
 
-def _label(text, needed):
-    """The pack's one required marker: a red star after the label."""
-    return f"{text} :red[\\*]" if needed else text
-
-
-def _problem(message):
-    """The pack's one error look, under the input."""
-    st.markdown(f":red[{message}]")
-
-
-_key = state_key or key("value")
+_key = key("value")
 history = st.session_state.setdefault(
     key("history"), [{"role": "assistant", "content": default}] if default else []
 )
 if label:
-    st.markdown(f"**{_label(label, required)}**")
+    st.markdown(f"**{marked(label, required)}**")
 box = st.container(height=220)
 for message in history:
     box.chat_message(message["role"]).write(message["content"])
@@ -58,4 +48,5 @@ if said:
     history.append({"role": "assistant", "content": answer})
     st.rerun()
 if required and len([m for m in history if m["role"] == "user"]) == 0:
-    _problem(validation_message)
+    problem(validation_message)
+value = next((m["content"] for m in reversed(history) if m["role"] == "user"), None)

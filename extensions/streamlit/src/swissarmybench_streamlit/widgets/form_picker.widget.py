@@ -10,7 +10,7 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, key
 
 label = "Form"
 # The forms to pick from (data in): each a definition with its name, title and fields
@@ -45,13 +45,13 @@ forms = [
         ],
     },
 ]
-# The session state key a list of forms may come from instead (the page's, or an API's answer)
-forms_key = ""
-# The session state key the picked form's definition is kept under (Fill a form reads it)
-definition_key = "form_definition"
+# A list of forms to pick from instead (another widget's, or an endpoint's answer; not wired: the ones above)
+forms_in: In[list[dict]] = None
+# The picked form's definition, for the page's form_fill (it reads it by itself)
+form_definition: Out[dict] = None
 
 
-found = st.session_state.get(forms_key) if forms_key else None
+found = forms_in
 choices = found if isinstance(found, list) and found else forms
 titles = [f.get("title") or f.get("name") or f"Form {at + 1}" for at, f in enumerate(choices)]
 if not titles:
@@ -59,6 +59,6 @@ if not titles:
 else:
     picked = st.selectbox(label, range(len(titles)), format_func=lambda at: titles[at], key=key("form"))
     chosen = choices[picked]
-    st.session_state[definition_key] = chosen
+    form_definition = chosen
     needed = sum(1 for f in chosen.get("fields") or [] if f.get("required"))
     st.caption(f"{len(chosen.get('fields') or [])} fields, {needed} required")

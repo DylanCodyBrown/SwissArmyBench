@@ -10,27 +10,21 @@
 # min_size = [3, 3]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Event, In, key
 
-_WIDGET = "cs_reply_form"
-# The session state key the queue keeps the picked ticket's id under
-selected_key = "ticket"
+# The ticket replied to: the queue's picked ticket_id, wired by itself (none: 9100)
+ticket_id: In[int] = None
 reply_label = "Reply"
 placeholder = "Write to the customer…"
 statuses = ["Open", "Waiting on customer", "Resolved", "Closed"]
 button = "Send reply"
 # Said under the reply while it is empty
 validation_message = "Write a reply before sending."
-# The session state key the reply is handed to the page under ({"event": "save", ...})
-save_event = "reply_saved"
+# Fired on Send: the reply (ticket_id, reply, status); the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+sent: Event[dict] = None
 
 
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
-
-
-ticket = st.session_state.get(selected_key, 9100)
+ticket = ticket_id if ticket_id is not None else 9100
 st.markdown(f"**Reply to ticket #{ticket}**")
 with st.form(key("form")):
     text = st.text_area(f"{reply_label} :red[\\*]", placeholder=placeholder, key=key("text"))
@@ -40,5 +34,5 @@ if sent:
     if not text.strip():
         st.markdown(f":red[{validation_message}]")
     else:
-        _save({"ticket_id": ticket, "reply": text.strip(), "status": status})
+        sent({"ticket_id": ticket, "reply": text.strip(), "status": status})
         st.success(f"Reply to ticket #{ticket} handed to the page.")

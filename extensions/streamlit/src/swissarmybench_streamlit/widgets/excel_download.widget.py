@@ -13,11 +13,13 @@ import io
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key, sample
 
 label = "Download as Excel"
-# The tables, a sheet each (empty: made-up sample data)
-tables = []
+# The tables, a sheet each, in order (not wired: made-up sample data)
+tables: In[list[Table]] = None
+# Each sheet's name, in the tables' order (missing ones: Sheet 1, Sheet 2, ...)
+sheet_names = []
 file_name = "tables.xlsx"
 
 # How the workbook looks
@@ -36,26 +38,6 @@ def _openpyxl():
         st.warning("Excel files need openpyxl in this app's Python: pip install openpyxl")
         return None
     return openpyxl
-
-
-def _sample_orders():
-    """Made-up orders as an export might send them: headers in its own words."""
-    people = ["Ada Ashdown", "Bram Brookfield", "Cleo Calloway", "Dov Dunmore", "Esme Everly"]
-    products = ["Desk lamp", "Kettle", "Planter", "Wok", "Notebook"]
-    return pd.DataFrame(
-        [
-            {
-                "Order No": 81000 + at,
-                "Cust. name": people[at % 5],
-                "Product": products[(at * 3) % 5],
-                "Qty": [2, 1, 4, 0, 3, 12, 1, 2][at % 8],
-                "Unit price": [24.5, 39.0, 12.99, 9.5, 3.25][at % 5],
-                "Order date": pd.Timestamp(2026, 11, 1 + at),
-                "Status": ["Delivered", "Shipped", "Pending", "Delivred"][at % 4],
-            }
-            for at in range(12)
-        ]
-    )
 
 
 def _workbook(sheets, openpyxl):
@@ -112,9 +94,12 @@ def _workbook(sheets, openpyxl):
 openpyxl = _openpyxl()
 if openpyxl is not None:
     if tables:
-        sheets = {name: table(name) for name in tables}
+        sheets = {
+            (sheet_names[at] if at < len(sheet_names) and sheet_names[at] else f"Sheet {at + 1}"): frame
+            for at, frame in enumerate(tables)
+        }
     else:
-        orders = _sample_orders()
+        orders = sample(kind="orders")
         sheets = {"Orders": orders, "Totals": orders.groupby("Product", as_index=False)["Qty"].sum()}
     st.caption(" · ".join(f"{name}: {len(frame)} rows" for name, frame in sheets.items()))
     st.download_button(

@@ -11,10 +11,10 @@
 # ///
 import pandas as pd
 import streamlit as st
-from sab_canvas import table
+from sab_canvas import In, Table, sample
 
 # The stock table (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 name_column = "product_name"  # column of table_name
 on_hand_column = "on_hand"  # column of table_name
 reorder_column = "reorder_point"  # column of table_name
@@ -25,40 +25,7 @@ rows: int = 20  # 1..500
 hide_on_order = False
 
 
-def _sample():
-    """Made-up stock: twelve products in two stores (the shape of inventory_snapshots)."""
-    names = [
-        "Desk lamp",
-        "Storage box",
-        "Cushion",
-        "Planter",
-        "Trowel",
-        "Kettle",
-        "Claw hammer",
-        "Screw pack",
-        "Notebook",
-        "Shipping box",
-        "Wok",
-        "Bench",
-    ]
-    rows = []
-    for at, name in enumerate(names):
-        for store in ("Larkfield Shop", "Marshby Depot"):
-            on_hand = (at * 37 + len(store) * 11) % 140 - 15
-            rows.append(
-                {
-                    "store": store,
-                    "product_id": 100 + at,
-                    "product_name": name,
-                    "on_hand": max(on_hand, 0),
-                    "on_order": 48 if on_hand < 20 else 0,
-                    "reorder_point": 20 + (at % 4) * 5,
-                }
-            )
-    return pd.DataFrame(rows)
-
-
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else sample(kind="stock")
 if on_hand_column not in frame.columns or reorder_column not in frame.columns:
     st.warning(f"Pick the stock columns: {on_hand_column} or {reorder_column} is not in the table.")
 else:

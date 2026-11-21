@@ -13,7 +13,10 @@ runs in the app is what an export runs on a hosted Streamlit app, unchanged).
     sab_canvas.py       the runtime (RUNTIME below): render() runs one widget in its place, wrapped: a widget
                         that fails shows its own error panel there while the rest of the page runs; a slow
                         one shows Streamlit's spinner; a table or variable that is missing is said in place;
-                        table(), sample() (made-up data), var(), key()
+                        table() (a page value too: "page:<key>"), sample(kind) (made-up data), var(),
+                        key(), choices() (a select's from a table's column), start() (a starting value from
+                        another widget's key), marked() and problem() (the inputs' one look), emit() (an
+                        event's wiring carried out: call the local sandbox API, set a page value, rerun)
 
 Pure rules: no I/O, standard library only.
 """
@@ -29,7 +32,10 @@ from typing import Any
 
 from swissarmybench_streamlit.domain import canvas_layouts as layouts
 from swissarmybench_streamlit.domain import canvas_layouts as model
+from swissarmybench_streamlit.domain import canvas_wiring as wiring
+from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain import widget_properties as props_rules
+from swissarmybench_streamlit.domain.widget_contract import Port
 from swissarmybench_streamlit.domain.widget_properties import Property
 
 # The pages' folder: not "pages/", which Streamlit would also list as pages of its own beside st.navigation's.
@@ -40,10 +46,25 @@ REQUIREMENTS: tuple[str, ...] = ("streamlit>=1.43", "pandas", "pyarrow")
 
 @dataclass(frozen=True)
 class Built:
-    """A widget as the builder uses it: its code and its properties."""
+    """A widget as the builder uses it: its code, its properties and its contract's Ins, Outs and Events."""
 
     code: str
     properties: tuple[Property, ...]
+    ports: tuple[Port, ...] = ()
+
+
+def made(code: str, properties: Any = None) -> Built:
+    """A widget's code as the builder uses it (its properties and contract read; code that does not read: its
+    error raised in its place on the page)."""
+    try:
+        found = tuple(props_rules.detect(code)) if properties is None else tuple(properties)
+        return Built(code, found, tuple(contract.detect(code)))
+    except props_rules.PropertyError as error:
+        return Built(f"raise SyntaxError({str(error)!r})", ())
+
+
+def contracts(widgets: Mapping[str, Built]) -> dict[str, list[Port]]:
+    return {name: list(built.ports) for name, built in widgets.items()}
 
 
 def table_stem(name: str) -> str:
@@ -87,6 +108,8 @@ class _Writer:
         self.canvas = canvas
         self.widgets = widgets
         self.context = context
+        self.sources = wiring.analyse(canvas, contracts(widgets))["sources"]
+        self.needs = wiring.needs(self.sources)
         self.lines: list[str] = []
         self.css: list[str] = []
         self.phone: list[str] = []
@@ -116,8 +139,8 @@ class _Writer:
         self.phone.append(f".st-key-{key} {{ {self._box(at['phone'], inset)}; {'; '.join(phone)}; }}")
 
     def children(self, children: list[dict[str, Any]], indent: int, inset: int = 0) -> None:
-        order = sorted(children, key=lambda c: (c["at"]["desktop"]["y"], c["at"]["desktop"]["x"]))
-        for child in order:
+        # Each placed by its key's CSS, so they run in the wiring's order: a reader after what it reads.
+        for child in wiring.order(children, self.needs):
             if child["kind"] == "container":
                 self.container(child, indent, inset)
             else:
@@ -162,7 +185,9 @@ class _Writer:
             self.emit(indent + 1, f"sab.missing({node['widget']!r}, {node['id']!r})")
             return
         values = props_rules.values(list(built.properties), node["values"], self.context)
-        self.emit(indent + 1, f"sab.render({node['widget']!r}, {_py(values)}, {node['id']!r})")
+        wires = self.sources.get(node["id"]) or {}
+        tail = f", {_py(wires)}" if wires else ""
+        self.emit(indent + 1, f"sab.render({node['widget']!r}, {_py(values)}, {node['id']!r}{tail})")
 
 
 def _py(value: Any) -> str:
@@ -217,14 +242,23 @@ def widgets_module(widgets: Mapping[str, Built]) -> str:
         "",
         "CODE: dict[str, str] = {}",
         "VARIABLES: dict[str, list[str]] = {}",
+        "# Each widget's contract: its Ins and Outs (type, starting value), its Events (payload).",
+        "PORTS: dict[str, dict] = {}",
         "",
     ]
     for name in sorted(widgets):
         built = widgets[name]
         code = props_rules.without_properties(built.code, list(built.properties))
+        code = contract.without_declarations(code, list(built.ports))
         variables = [p.name for p in built.properties if p.type == "variable"]
         lines.append(f"CODE[{name!r}] = {_text(code)}")
         lines.append(f"VARIABLES[{name!r}] = {variables!r}")
+        if built.ports:
+            ports = {
+                kind: {p.name: [p.type, p.default] for p in built.ports if p.direction == direction}
+                for kind, direction in (("ins", "in"), ("outs", "out"), ("events", "event"))
+            }
+            lines.append(f"PORTS[{name!r}] = {_py(ports)}")
         lines.append("")
     return "\n".join(lines)
 
@@ -279,6 +313,9 @@ def build(
     }
     for page_id, stem in page_files(canvas).items():
         files[f"{PAGES}/{stem}.py"] = page_code(canvas, page_id, mine, context)
+    calls = wiring.api_calls(canvas)
+    if calls:
+        files["README.md"] = readme(canvas, calls)
     return files
 
 
@@ -330,6 +367,30 @@ def kernel_setup() -> str:
         "    pass\n"
         "del _sys, _types, _sab_w, _sab_c\n"
     )
+
+
+def readme(canvas: Mapping[str, Any], calls: list[str]) -> str:
+    """README.md of an app whose events call the local sandbox API: the variables its host sets to the
+    deployed API's address (the runtime reads them; Play and Launch give the running sandbox's)."""
+    lines = [
+        f"# {canvas['name']}",
+        "",
+        "Made from its canvas (Swiss Army Bench). Run: `streamlit run app.py`.",
+        "",
+        "## The API it calls",
+        "",
+        "Its events call these endpoints of the project's local sandbox API (API.py):",
+        "",
+        *[f"- `{c}`" for c in calls],
+        "",
+        "Set these on the host to the deployed API (Play and Launch set them to the running sandbox):",
+        "",
+        "- `SAB_API_URL`: the API's address, as https://orders-api.azurewebsites.net",
+        "- `SAB_API_KEY`: its key, sent as `Authorization: Bearer <key>` (a secret: the host's settings)",
+        "- `SAB_API_BASE`: its base path (empty when it has none)",
+        "",
+    ]
+    return "\n".join(lines)
 
 
 def compiles(files: Mapping[str, str]) -> list[str]:
@@ -389,8 +450,26 @@ def key(name: str = "") -> str:
     return f"{instance}-{name}" if name else instance
 
 
-def sample(rows: int = 24) -> Any:
-    """Made-up sales: month, region, product, revenue, units, margin, lat, lon (the same every time)."""
+SAMPLES = ("sales", "orders", "products", "tickets", "stock")
+
+
+def sample(rows: int | None = None, kind: str = "sales") -> Any:
+    """Made-up data, the same every time, by kind:
+    sales     month, region, product, revenue, units, margin, lat, lon (24 rows)
+    orders    an export's orders, headers in its own words: Order No, Cust. name, Product, Qty, ... (12)
+    products  product_id, sku, product_name, category, unit_price, launched_on, discontinued (8)
+    tickets   support tickets: ticket_id, customer_name, subject, priority, status, opened_at, ... (18)
+    stock     store, product_id, product_name, on_hand, on_order, reorder_point (24)"""
+    if kind == "sales":
+        return _sales(24 if rows is None else int(rows))
+    made = _SAMPLE.get(kind)
+    if made is None:
+        raise ValueError(f"sample's kind is one of {', '.join(SAMPLES)}.")
+    frame = made()
+    return frame if rows is None else frame.head(int(rows))
+
+
+def _sales(rows: int) -> Any:
     import pandas as pd
 
     regions = ["North", "South", "East", "West"]
@@ -418,12 +497,138 @@ def sample(rows: int = 24) -> Any:
     return frame
 
 
+def _orders() -> Any:
+    import pandas as pd
+
+    people = ["Ada Ashdown", "Bram Brookfield", "Cleo Calloway", "Dov Dunmore", "Esme Everly"]
+    products = ["Desk lamp", "Kettle", "Planter", "Wok", "Notebook"]
+    return pd.DataFrame(
+        [
+            {
+                "Order No": 81000 + at,
+                "Cust. name": people[at % 5],
+                "Product": products[(at * 3) % 5],
+                "Qty": [2, 1, 4, 0, 3, 12, 1, 2][at % 8],
+                "Unit price": [24.5, 39.0, 12.99, 9.5, 3.25][at % 5],
+                "Order date": pd.Timestamp(2026, 11, 1 + at),
+                "Status": ["Delivered", "Shipped", "Pending", "Delivred"][at % 4],
+            }
+            for at in range(12)
+        ]
+    )
+
+
+def _products() -> Any:
+    import datetime
+
+    import pandas as pd
+
+    names = ["Desk lamp", "Storage box", "Cushion", "Planter", "Trowel", "Kettle", "Claw hammer", "Notebook"]
+    categories = ["Lighting", "Storage", "Textiles", "Planters", "Garden tools", "Small appliances",
+                  "Hand tools", "Paper"]  # fmt: skip
+    rows = [
+        {
+            "product_id": 100 + at,
+            "sku": f"LG-{100 + at:06d}",
+            "product_name": name,
+            "category": categories[at],
+            "unit_price": round(4.99 + at * 7.5, 2),
+            "launched_on": datetime.date(2024, 1 + at, 10),
+            "discontinued": at == 5,
+        }
+        for at, name in enumerate(names)
+    ]
+    frame = pd.DataFrame(rows)
+    frame["launched_on"] = pd.to_datetime(frame["launched_on"])
+    return frame
+
+
+def _tickets() -> Any:
+    import datetime
+
+    import pandas as pd
+
+    subjects = ["Where is my order?", "Item arrived damaged", "Wrong item sent", "Refund not received",
+                "Change delivery address", "Invoice copy please", "Product question",
+                "Missing part"]  # fmt: skip
+    people = ["Ada Ashdown", "Bram Brookfield", "Cleo Calloway", "Dov Dunmore", "Esme Everly",
+              "Finn Fairbank"]  # fmt: skip
+    statuses = ["New", "Open", "Waiting on customer", "Open", "Resolved", "Closed"]
+    priorities = ["Normal", "High", "Low", "Urgent", "Normal", "Normal"]
+    hours = {"Urgent": 4, "High": 8, "Normal": 24, "Low": 72}
+    start = datetime.datetime(2026, 10, 20, 8, 0)
+    rows = []
+    for at in range(18):
+        priority = priorities[at % 6]
+        status = statuses[(at * 5) % 6]
+        opened = start + datetime.timedelta(hours=at * 7)
+        rows.append(
+            {
+                "ticket_id": 9100 + at,
+                "customer_name": people[at % 6],
+                "subject": subjects[at % 8],
+                "priority": priority,
+                "status": status,
+                "channel": ["Email", "Chat", "Phone"][at % 3],
+                "opened_at": opened,
+                "closed_at": opened + datetime.timedelta(hours=5 + at)
+                if status in ("Resolved", "Closed")
+                else None,
+                "sla_hours": hours[priority],
+                "first_response_minutes": (at * 97) % 1500 + 5,
+            }
+        )
+    frame = pd.DataFrame(rows)
+    frame["closed_at"] = pd.to_datetime(frame["closed_at"])
+    return frame
+
+
+def _stock() -> Any:
+    import pandas as pd
+
+    names = ["Desk lamp", "Storage box", "Cushion", "Planter", "Trowel", "Kettle", "Claw hammer",
+             "Screw pack", "Notebook", "Shipping box", "Wok", "Bench"]  # fmt: skip
+    rows = []
+    for at, name in enumerate(names):
+        for store in ("Larkfield Shop", "Marshby Depot"):
+            on_hand = (at * 37 + len(store) * 11) % 140 - 15
+            rows.append(
+                {
+                    "store": store,
+                    "product_id": 100 + at,
+                    "product_name": name,
+                    "on_hand": max(on_hand, 0),
+                    "on_order": 48 if on_hand < 20 else 0,
+                    "reorder_point": 20 + (at % 4) * 5,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+_SAMPLE = {"orders": _orders, "products": _products, "tickets": _tickets, "stock": _stock}
+
+
 def _stem(name: str) -> str:
     """A table's file name in data/ (canvas_build.table_stem's twin): its own name, or made safe."""
     if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,80}", name):
         return name
     base = re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")[:60] or "table"
     return f"{base}_{hashlib.sha256(name.encode('utf-8')).hexdigest()[:8]}"
+
+
+def as_table(found: Any, name: str = "") -> Any:
+    """A value as a table: a DataFrame as it is, records (a list of dicts) or columns (a dict of lists) made
+    one; None stays None."""
+    import pandas as pd
+
+    if found is None or isinstance(found, pd.DataFrame):
+        return found
+    if isinstance(found, (list, dict)):
+        try:
+            return pd.DataFrame(found)
+        except (ValueError, TypeError):
+            pass
+    raise Missing(f"{name or 'The value'} is not a table: wire it to a table, or an Out that holds one.")
 
 
 def table(name: str = "") -> Any:
@@ -449,6 +654,217 @@ def table(name: str = "") -> Any:
     if found is not None:
         return found
     raise Missing(f"The table {name} is not here: open it in Swiss Army Bench, or pick another table.")
+
+
+LIMIT = 1000
+
+
+def choices(options: Any, frame: Any = None, column: str = "", limit: int = LIMIT) -> list[Any]:
+    """A select's choices: a table's column's distinct values, sorted (the first `limit`, with a note), or the
+    typed options when no table is wired (or no column picked)."""
+    if frame is None or not column:
+        return list(options or [])
+    frame = as_table(frame, "options_table")
+    if column not in frame.columns:
+        raise Missing(f"The choices' table has no column {column}: pick another in Properties.")
+    values = frame[column].dropna().unique().tolist()
+    try:
+        values.sort()
+    except TypeError:  # mixed kinds: as text
+        values.sort(key=str)
+    if len(values) > limit:
+        st.caption(f"The first {limit:,} of {len(values):,} choices from {column}.")
+        values = values[:limit]
+    return [v.item() if hasattr(v, "item") else v for v in values]
+
+
+def marked(text: str, needed: bool) -> str:
+    """The inputs' one required marker: a red star after the label."""
+    return f"{text} :red[\\*]" if needed else text
+
+
+def problem(message: str) -> None:
+    """The inputs' one error look, under the input."""
+    st.markdown(f":red[{message}]")
+
+
+def pick(payload: Any, path: str = "") -> Any:
+    """A part of an event's payload by its dotted path ("values.store"; empty: the whole payload)."""
+    found = payload
+    for part in [p for p in (path or "").split(".") if p]:
+        found = found.get(part) if isinstance(found, dict) else None
+    return found
+
+
+def api_call(
+    method: str, path: str, body: Any = None, query: Any = None, root: bool = False
+) -> tuple[Any, Any]:
+    """One request to the project's local sandbox API: its address and key from SAB_API_URL, SAB_API_KEY and
+    SAB_API_BASE (Play and Launch give the running sandbox's; a host the deployed API's). (answer,
+    problem)."""
+    import json
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    base = os.environ.get("SAB_API_URL", "")
+    if not base:
+        return None, "Run the local sandbox API (the APIs page), then Play again."
+    url = base.rstrip("/") + ("" if root else os.environ.get("SAB_API_BASE", "")) + path
+    if query:
+        url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
+    data = None if body is None else json.dumps(body, default=str).encode("utf-8")
+    headers = {
+        "Authorization": "Bearer " + os.environ.get("SAB_API_KEY", ""),
+        "Content-Type": "application/json",
+    }
+    try:
+        request = urllib.request.Request(url, data, headers, method=method)  # noqa: S310 (the API's address)
+        with urllib.request.urlopen(request, timeout=30) as answer:  # noqa: S310
+            raw = answer.read()
+            return (json.loads(raw) if raw else None), None
+    except urllib.error.HTTPError as failed:
+        try:
+            said = json.loads(failed.read() or b"{}").get("error") or failed.reason
+        except ValueError:
+            said = failed.reason
+        return None, f"{failed.code}: {said}"
+    except OSError as failed:
+        return None, f"The local sandbox API could not be reached ({getattr(failed, 'reason', failed)})."
+
+
+# ===== the contract: In, Out, Event =====
+
+
+class _Marker:
+    """In[...], Out[...], Event[...]: what a widget declares (read by the app from its code, never run)."""
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def __getitem__(self, kind: Any) -> Any:
+        return Any
+
+    def __repr__(self) -> str:
+        return self._name
+
+
+In = _Marker("In")
+Out = _Marker("Out")
+Event = _Marker("Event")
+Table = Any  # a table: a pandas DataFrame
+
+
+def _out_key(ref: str) -> str:
+    return "sab:" + ref
+
+
+def _coerce(value: Any, kind: str, name: str) -> Any:
+    """A value as an In's type takes it (a table made from records, a number from text, a date from
+    2026-01-31); one that cannot be is said in the widget's place."""
+    import datetime as _dt
+
+    if value is None:
+        return None
+    try:
+        if kind == "Table":
+            return as_table(value, name)
+        if kind in ("int", "float") and isinstance(value, str):
+            return int(value) if kind == "int" else float(value)
+        if kind == "bool" and isinstance(value, str):
+            return value.strip().lower() in ("1", "true", "yes", "on")
+        if kind == "date" and isinstance(value, str):
+            return _dt.date.fromisoformat(value[:10])
+        if kind == "datetime" and isinstance(value, str):
+            return _dt.datetime.fromisoformat(value)
+        if kind.startswith("list[Table") and isinstance(value, list):
+            return [as_table(v, name) for v in value]
+    except (ValueError, TypeError):
+        raise Missing(f"{name} takes {kind}: {str(value)[:40]!r} is not.") from None
+    return value
+
+
+def _source(wire: Any, kind: str, default: Any, name: str) -> Any:
+    """An In's value from its wire (the canvas's wiring): a table, an Out, a page value, an endpoint's answer,
+    a variable, a value; none: its starting value."""
+    if not isinstance(wire, dict) or not wire:
+        return _coerce(default, kind, name)
+    if "broken" in wire:
+        st.warning(f"{name}: {wire['broken']} It takes its starting value until it is wired again.")
+        return _coerce(default, kind, name)
+    if "table" in wire:
+        return table(str(wire["table"]))
+    if "out" in wire:
+        return _coerce(st.session_state.get(_out_key(str(wire["out"])), default), kind, name)
+    if "page" in wire:
+        return _coerce(st.session_state.get(str(wire["page"]), default), kind, name)
+    if "endpoint" in wire:
+        _method, _, path = str(wire["endpoint"]).partition(" ")
+        answer, failed = api_call("GET", path)
+        if failed:
+            raise Missing(f"{name}: GET {path}: {failed}")
+        return _coerce(answer, kind, name)
+    if "variable" in wire:
+        return _coerce(var(str(wire["variable"])), kind, name)
+    if "value" in wire:
+        return _coerce(wire["value"], kind, name)
+    if "tables" in wire:
+        return [_source(item, "Table", None, name) for item in wire["tables"]]
+    return _coerce(default, kind, name)
+
+
+class _Fire:
+    """An Event as the widget calls it: `saved(payload)`. Its payload is kept (another widget's In can read
+    it, as an Out), then its actions run in order: call an endpoint of the local sandbox API with the payload
+    mapped to its body, set a page value, rerun. A failure is said in the widget's place. Returns {"ok",
+    "answers", "errors"}."""
+
+    def __init__(self, instance: str, name: str, actions: list[Any]) -> None:
+        self.instance, self.name, self.actions = instance, name, actions
+
+    def __call__(self, payload: Any = None) -> dict[str, Any]:
+        import urllib.parse
+
+        st.session_state[_out_key(f"{self.instance}.{self.name}")] = payload
+        answers: list[Any] = []
+        errors: list[str] = []
+        rerun = False
+        for action in self.actions:
+            do = action.get("do") if isinstance(action, dict) else None
+            if do == "set":
+                st.session_state[str(action.get("key"))] = pick(payload, str(action.get("value") or ""))
+            elif do == "rerun":
+                rerun = True
+            elif do == "call":
+                method, _, path = str(action.get("endpoint") or "").partition(" ")
+                given = action.get("body", "")
+                if isinstance(given, dict):
+                    body = {field: pick(payload, at) for field, at in given.items()}
+                else:
+                    body = pick(payload, given)
+                params = action.get("params") or {}
+                missing = None
+                for part in re.findall(r"\{(\w+)\}", path):
+                    value = pick(payload, params[part]) if part in params else (
+                        body.get(part) if isinstance(body, dict) else None
+                    )
+                    if value is None:
+                        missing = part
+                        break
+                    path = path.replace("{" + part + "}", urllib.parse.quote(str(value), safe=""))
+                if missing:
+                    errors.append(f"{self.name} needs {missing} for {path}: map it in the widget's Events.")
+                    continue
+                answer, failed = api_call(method, path, None if method == "GET" else body)
+                if failed:
+                    errors.append(f"{method} {path}: {failed}")
+                else:
+                    answers.append(answer)
+        for said in errors:
+            st.error(said)
+        if rerun and not errors:
+            st.rerun()
+        return {"ok": not errors, "answers": answers, "errors": errors}
 
 
 def var(name: str) -> str:
@@ -526,15 +942,26 @@ def _code(name: str) -> Any:
     return _COMPILED[key]
 
 
-def render(name: str, values: dict[str, Any], instance: str) -> None:
-    """One widget in its place, with its properties' values; whatever it does wrong stays in its place."""
+def render(name: str, values: dict[str, Any], instance: str, wires: dict[str, Any] | None = None) -> None:
+    """One widget in its place, with its properties' values and its contract wired: each In its source's
+    value, each Out its last value (kept for the page once it has run), each Event a callable that carries out
+    its actions. Whatever it does wrong stays in its place."""
     token = _INSTANCE.set(instance)
     if _perf is not None:
         _perf.before(instance)
+    wires = wires or {}
+    ports = getattr(_widgets(), "PORTS", {}).get(name, {})
+    namespace: dict[str, Any] = {}
     try:
-        namespace: dict[str, Any] = {"__name__": f"sab_widget_{name}", **values}
+        namespace.update({"__name__": f"sab_widget_{name}", **values})
         for variable in _widgets().VARIABLES.get(name, []):
             namespace[variable] = var(str(values.get(variable) or ""))
+        for port, (kind, default) in ports.get("outs", {}).items():
+            namespace[port] = st.session_state.get(_out_key(f"{instance}.{port}"), default)
+        for port, _kind in ports.get("events", {}).items():
+            namespace[port] = _Fire(instance, port, list((wires.get(port) or {}).get("actions") or []))
+        for port, (kind, default) in ports.get("ins", {}).items():
+            namespace[port] = _source(wires.get(port), kind, default, port)
         with st.spinner(f"Loading {name}…"):
             exec(_code(name), namespace)  # noqa: S102 (the user's own widget, from their library)
     except Missing as said:
@@ -549,6 +976,9 @@ def render(name: str, values: dict[str, Any], instance: str) -> None:
         with st.expander("Details"):
             st.code(traceback.format_exc(), language="text")
     finally:
+        for port in ports.get("outs", {}):  # each Out kept for the page (a rerun keeps the last one)
+            if port in namespace:
+                st.session_state[_out_key(f"{instance}.{port}")] = namespace[port]
         _INSTANCE.reset(token)
         if _perf is not None:
             _perf.mark(instance)

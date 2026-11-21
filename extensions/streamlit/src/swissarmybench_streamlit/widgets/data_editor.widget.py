@@ -9,14 +9,14 @@
 # min_size = [2, 2]
 # ///
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 # Rows can be added and taken away
 add_rows = True
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 st.data_editor(
     frame, num_rows="dynamic" if add_rows else "fixed", use_container_width=True, key=key("editor")
 )

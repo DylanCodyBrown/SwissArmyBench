@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Out, Table, key
 
 # The endpoint whose rows it shows (a GET that answers a list)
 endpoint = ""  # endpoint
@@ -24,6 +24,8 @@ endpoint = ""  # endpoint
 path_values = {}  # path values of endpoint
 # Rows a page
 page_size = 20  # 1..500
+# The page of rows shown, for the widgets on the page that read it
+rows: Out[Table] = None
 # The query's names for the page (its limit and offset parameters)
 limit_name = "limit"
 offset_name = "offset"

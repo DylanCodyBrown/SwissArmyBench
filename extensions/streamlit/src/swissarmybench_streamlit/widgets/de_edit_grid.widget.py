@@ -9,15 +9,12 @@
 # size = [8, 5]
 # min_size = [4, 3]
 # ///
-import datetime
-
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import Event, In, Table, key, sample
 
-_WIDGET = "de_edit_grid"
 # The table to edit (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 # The column that names each row
 key_column = "product_id"  # column of table_name
 # Rows can be added and taken away
@@ -25,44 +22,8 @@ add_rows = True
 # The columns that cannot be changed
 locked_columns = ["product_id"]
 button = "Save changes"
-# The session state key the changes are handed to the page under ({"event": "save", ...})
-save_event = "grid_saved"
-
-
-def _sample():
-    """Made-up products (the shape of products, with a category name)."""
-    rows = []
-    names = ["Desk lamp", "Storage box", "Cushion", "Planter", "Trowel", "Kettle", "Claw hammer", "Notebook"]
-    categories = [
-        "Lighting",
-        "Storage",
-        "Textiles",
-        "Planters",
-        "Garden tools",
-        "Small appliances",
-        "Hand tools",
-        "Paper",
-    ]
-    for at, name in enumerate(names):
-        rows.append(
-            {
-                "product_id": 100 + at,
-                "sku": f"LG-{100 + at:06d}",
-                "product_name": name,
-                "category": categories[at],
-                "unit_price": round(4.99 + at * 7.5, 2),
-                "launched_on": datetime.date(2024, 1 + at, 10),
-                "discontinued": at == 5,
-            }
-        )
-    frame = pd.DataFrame(rows)
-    frame["launched_on"] = pd.to_datetime(frame["launched_on"])
-    return frame
-
-
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
+# Fired on Save: the changes (edited, added, removed); the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+saved: Event[dict] = None
 
 
 def _plain(value):
@@ -74,7 +35,7 @@ def _plain(value):
     return value.item() if hasattr(value, "item") else value
 
 
-frame = (table(table_name) if table_name else _sample()).reset_index(drop=True)
+frame = (table_name if table_name is not None else sample(kind="products")).reset_index(drop=True)
 editor_key = key("editor")
 st.data_editor(
     frame,
@@ -95,7 +56,7 @@ if right.button(button, key=key("save"), disabled=not (edited or added or remove
     def _row_key(at):
         return _plain(frame.iloc[int(at)][key_column]) if key_column in frame.columns else int(at)
 
-    _save(
+    saved(
         {
             "changed": [
                 {"key": _row_key(at), "values": {c: _plain(v) for c, v in values.items()}}

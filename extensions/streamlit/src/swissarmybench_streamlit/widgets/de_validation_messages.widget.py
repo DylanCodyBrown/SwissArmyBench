@@ -9,14 +9,12 @@
 # size = [6, 4]
 # min_size = [3, 2]
 # ///
-import datetime
-
 import pandas as pd
 import streamlit as st
-from sab_canvas import table
+from sab_canvas import In, Table, problem, sample
 
 # The table to check (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 # The rules: each a column and what it must be (required, type: text | number | date, min, max, choices, pattern)
 rules = [
     {"column": "product_name", "required": True},
@@ -30,37 +28,6 @@ rules = [
 # How many messages at most
 rows: int = 50  # 1..1000
 all_good = "Every row passes its rules."
-
-
-def _sample():
-    """Made-up products (the shape of products, with a category name)."""
-    rows = []
-    names = ["Desk lamp", "Storage box", "Cushion", "Planter", "Trowel", "Kettle", "Claw hammer", "Notebook"]
-    categories = [
-        "Lighting",
-        "Storage",
-        "Textiles",
-        "Planters",
-        "Garden tools",
-        "Small appliances",
-        "Hand tools",
-        "Paper",
-    ]
-    for at, name in enumerate(names):
-        rows.append(
-            {
-                "product_id": 100 + at,
-                "sku": f"LG-{100 + at:06d}",
-                "product_name": name,
-                "category": categories[at],
-                "unit_price": round(4.99 + at * 7.5, 2),
-                "launched_on": datetime.date(2024, 1 + at, 10),
-                "discontinued": at == 5,
-            }
-        )
-    frame = pd.DataFrame(rows)
-    frame["launched_on"] = pd.to_datetime(frame["launched_on"])
-    return frame
 
 
 def _problems(frame, rules):
@@ -101,7 +68,7 @@ def _problems(frame, rules):
     return found
 
 
-frame = (table(table_name) if table_name else _sample()).reset_index(drop=True)
+frame = (table_name if table_name is not None else sample(kind="products")).reset_index(drop=True)
 found = _problems(frame, rules)
 if not found:
     st.success(all_good)

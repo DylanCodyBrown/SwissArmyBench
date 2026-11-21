@@ -9,14 +9,11 @@
 # size = [8, 5]
 # min_size = [4, 3]
 # ///
-import datetime
-
-import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Out, Table, key, sample
 
 # The tickets table (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 id_column = "ticket_id"  # column of table_name
 status_column = "status"  # column of table_name
 priority_column = "priority"  # column of table_name
@@ -25,61 +22,11 @@ opened_column = "opened_at"  # column of table_name
 open_statuses = ["New", "Open", "Waiting on customer"]
 # Most urgent first: the priorities in order
 priority_order = ["Urgent", "High", "Normal", "Low"]
-# The session state key the picked ticket's id is kept under (Ticket detail and Reply form read it)
-selected_key = "ticket"
+# The picked ticket's id, for the page's ticket widgets (they read it by themselves)
+ticket_id: Out[int] = None
 
 
-def _sample():
-    """Made-up tickets (the shape of support_tickets, with the customer's name)."""
-    subjects = [
-        "Where is my order?",
-        "Item arrived damaged",
-        "Wrong item sent",
-        "Refund not received",
-        "Change delivery address",
-        "Invoice copy please",
-        "Product question",
-        "Missing part",
-    ]
-    people = [
-        "Ada Ashdown",
-        "Bram Brookfield",
-        "Cleo Calloway",
-        "Dov Dunmore",
-        "Esme Everly",
-        "Finn Fairbank",
-    ]
-    statuses = ["New", "Open", "Waiting on customer", "Open", "Resolved", "Closed"]
-    priorities = ["Normal", "High", "Low", "Urgent", "Normal", "Normal"]
-    hours = {"Urgent": 4, "High": 8, "Normal": 24, "Low": 72}
-    start = datetime.datetime(2026, 10, 20, 8, 0)
-    rows = []
-    for at in range(18):
-        priority = priorities[at % 6]
-        status = statuses[(at * 5) % 6]
-        opened = start + datetime.timedelta(hours=at * 7)
-        rows.append(
-            {
-                "ticket_id": 9100 + at,
-                "customer_name": people[at % 6],
-                "subject": subjects[at % 8],
-                "priority": priority,
-                "status": status,
-                "channel": ["Email", "Chat", "Phone"][at % 3],
-                "opened_at": opened,
-                "closed_at": opened + datetime.timedelta(hours=5 + at)
-                if status in ("Resolved", "Closed")
-                else None,
-                "sla_hours": hours[priority],
-                "first_response_minutes": (at * 97) % 1500 + 5,
-            }
-        )
-    frame = pd.DataFrame(rows)
-    frame["closed_at"] = pd.to_datetime(frame["closed_at"])
-    return frame
-
-
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else sample(kind="tickets")
 if status_column not in frame.columns or id_column not in frame.columns:
     st.warning(f"Pick the ticket columns: {id_column} or {status_column} is not in the table.")
 else:
@@ -106,4 +53,4 @@ else:
     rows = getattr(getattr(picked, "selection", None), "rows", []) or []
     if rows:
         value = queue.iloc[rows[0]][id_column]
-        st.session_state[selected_key] = value.item() if hasattr(value, "item") else value
+        ticket_id = value.item() if hasattr(value, "item") else value

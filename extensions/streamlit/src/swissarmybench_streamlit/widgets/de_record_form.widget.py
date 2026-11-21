@@ -9,15 +9,12 @@
 # size = [5, 6]
 # min_size = [3, 3]
 # ///
-import datetime
-
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import Event, In, Table, key, sample
 
-_WIDGET = "de_record_form"
 # The table the form is made from (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 # The columns shown, in order (empty: every column)
 columns = []
 # The columns that must be filled in (marked with a red star)
@@ -27,44 +24,8 @@ start_row: int = 0  # -1..100000
 button = "Save record"
 # Said under a required field left empty
 validation_message = "Fill this in."
-# The session state key the record is handed to the page under ({"event": "save", ...})
-save_event = "record_saved"
-
-
-def _sample():
-    """Made-up products (the shape of products, with a category name)."""
-    rows = []
-    names = ["Desk lamp", "Storage box", "Cushion", "Planter", "Trowel", "Kettle", "Claw hammer", "Notebook"]
-    categories = [
-        "Lighting",
-        "Storage",
-        "Textiles",
-        "Planters",
-        "Garden tools",
-        "Small appliances",
-        "Hand tools",
-        "Paper",
-    ]
-    for at, name in enumerate(names):
-        rows.append(
-            {
-                "product_id": 100 + at,
-                "sku": f"LG-{100 + at:06d}",
-                "product_name": name,
-                "category": categories[at],
-                "unit_price": round(4.99 + at * 7.5, 2),
-                "launched_on": datetime.date(2024, 1 + at, 10),
-                "discontinued": at == 5,
-            }
-        )
-    frame = pd.DataFrame(rows)
-    frame["launched_on"] = pd.to_datetime(frame["launched_on"])
-    return frame
-
-
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
+# Fired on Save: the record, a field each; the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+saved: Event[dict] = None
 
 
 def _plain(value):
@@ -76,7 +37,7 @@ def _plain(value):
     return value.item() if hasattr(value, "item") else value
 
 
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else sample(kind="products")
 shown = [c for c in (columns or list(frame.columns)) if c in frame.columns]
 first = frame.iloc[int(start_row)] if 0 <= int(start_row) < len(frame) else None
 values, missing = {}, []
@@ -108,5 +69,5 @@ if saved:
     for column in missing:
         st.markdown(f":red[{column.replace('_', ' ').capitalize()}: {validation_message}]")
     if not missing:
-        _save({c: _plain(v) for c, v in values.items()})
+        saved({c: _plain(v) for c, v in values.items()})
         st.success("Record handed to the page.")

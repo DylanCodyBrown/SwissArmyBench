@@ -32,8 +32,10 @@ from typing import Any
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_layouts as model
+from swissarmybench_streamlit.domain import canvas_wiring as wiring
 from swissarmybench_streamlit.domain import widget_properties as props_rules
 from swissarmybench_streamlit.domain.canvas_model import WidgetFacts
+from swissarmybench_streamlit.domain.widget_contract import ContractError
 
 HISTORY = 200
 
@@ -207,7 +209,79 @@ class Canvases:
             # Each page's items in pixels at each layout's design width (what the Canvas page draws).
             "views": model.views(opened.canvas) if not opened.read_only else {},
             "design": model.DESIGN,
+            "wiring": self.wiring(opened.canvas, built),
         }
+
+    def wiring(self, canvas: dict[str, Any], built: dict[str, Any] | None = None) -> dict[str, Any]:
+        """The canvas's wiring: each instance's contract, sources, each Out's readers, the wires to draw and
+        the broken ones (both ends)."""
+        built = built if built is not None else self._widgets.built()
+        contracts = build_rules.contracts(built)
+        context = self._widgets.context()
+        found = wiring.analyse(
+            canvas,
+            contracts,
+            context.endpoints,
+            context.variables,
+            set(context.tables) if context.tables is not None else None,
+        )
+        found["ports"] = {
+            node["id"]: {
+                "page": page["id"],
+                "widget": node["widget"],
+                "ins": [p.to_json() for p in contracts.get(node["widget"], []) if p.direction == "in"],
+                "outs": [p.to_json() for p in contracts.get(node["widget"], []) if p.direction == "out"],
+                "events": [p.to_json() for p in contracts.get(node["widget"], []) if p.direction == "event"],
+            }
+            for page, node in model.walk(canvas)
+            if node["kind"] == "widget"
+        }
+        return found
+
+    async def wire(self, canvas: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """An instance's In given a source, or its Event its actions (None: unwired): checked against its
+        contract and its page (a type that does not fit is refused with the reason), kept for Undo,
+        written."""
+        body = dict(body) if isinstance(body, dict) else {}
+        opened = self._get(canvas)
+        self._writable(opened)
+        await self._fresh(opened)
+        sent = body.pop("version", None)
+        if sent is not None and sent != opened.version:
+            raise Conflict("The canvas changed in another window: it is shown as it is now. Do it again.")
+        page, _parent, node = model.find(opened.canvas, str(body.get("id")))
+        built = self._widgets.built()
+        ports = {p.name: p for p in build_rules.contracts(built).get(node.get("widget", ""), [])}
+        name = str(body.get("port") or "")
+        port = ports.get(name)
+        if node["kind"] != "widget" or port is None or port.direction == "out":
+            raise ValueError(f"{node.get('widget', node['id'])} has no In or Event {name[:40]}.")
+        wire = body.get("wire")
+        if wire is not None:
+            context = self._widgets.context()
+            outs = wiring.page_outs(opened.canvas, page["id"], build_rules.contracts(built))
+            outs.pop(f"{node['id']}.{name}", None)
+            check = wiring.Context(
+                {k: v["type"] for k, v in outs.items() if v["instance"] != node["id"]},
+                context.endpoints,
+                context.variables,
+                set(context.tables) if context.tables is not None else None,
+            )
+            try:
+                if port.direction == "event":
+                    wiring.check_event(port, wire, context.endpoints)
+                else:
+                    wiring.check_in(port, wire, check)
+            except ContractError as error:
+                raise ValueError(f"{error} {error.fix}".strip()) from None
+        after = wiring.set_wire(opened.canvas, {"id": node["id"], "port": name, "wire": wire})
+        if after != opened.canvas:
+            opened.back.append(opened.canvas)
+            del opened.back[:-HISTORY]
+            opened.forward.clear()
+            await self._keep(opened, after, str(body.get("window", "")))
+            self.ws.audit.write(who, "canvas_wire", f"{opened.path} {node['id']}.{name}")
+        return self.state(canvas)
 
     # ===== changes =====
 
@@ -238,6 +312,8 @@ class Canvases:
 
     async def command(self, canvas: str, body: Any, who: str = "user") -> dict[str, Any]:
         body = dict(body) if isinstance(body, dict) else {}
+        if body.get("kind") == "wire":  # an In's source or an Event's actions (services' own check)
+            return await self.wire(canvas, {k: v for k, v in body.items() if k != "kind"}, who)
         opened = self._get(canvas)
         self._writable(opened)
         await self._fresh(opened)
@@ -358,6 +434,7 @@ class Canvases:
         model.page_of(opened.canvas, page_id)
         files, names = self._app(opened, page_id)
         tables = await self._widgets.tables_for(names)
+        broken = self.wiring(opened.canvas)["broken"]
         started = time.monotonic()
         # The played page is the app's default (built so): its address is the app's own, never a page's
         # path (a path Streamlit has not yet heard of says "Page not found" before the first run).
@@ -369,6 +446,7 @@ class Canvases:
             "canvas": opened.id,
             "page": page_id,
             "seconds": round(time.monotonic() - started, 2),
+            "broken": broken,
         }
 
     async def stop(self, canvas: str, body: Any = None) -> dict[str, Any]:
