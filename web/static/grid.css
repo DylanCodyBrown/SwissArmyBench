@@ -18819,9 +18819,64 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 }
 
 .ide-props-form input,
-.ide-props-form textarea {
+.ide-props-form textarea,
+.ide-props-form select {
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Every header field (domain/blade_header.py): a check's words under its box. */
+.ide-props-form .ide-prop-check:empty {
+  display: none;
+}
+
+.ide-prop-check.error {
+  color: var(--error, #b00020);
+}
+
+.ide-prop-check.ok {
+  color: var(--muted, inherit);
+}
+
+.ide-props-form label.ide-prop-bool {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+
+.ide-props-form label.ide-prop-bool input {
+  width: auto;
+}
+
+.ide-props-form textarea.mono {
+  font-family: var(--mono, monospace);
+  font-size: 0.9em;
+}
+
+.ide-prop-read {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.ide-prop-read code {
+  overflow-wrap: anywhere;
+}
+
+/* New blade: a name and a kind. */
+.new-blade-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.new-blade-kind {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 /* The hosts it fills: the blades page's main area, the Workbench's blade tab. */

@@ -62,7 +62,7 @@ from swissarmybench.server.http import (
     read_json_object,
     refusal,
 )
-from swissarmybench.services.blades import BladeService, ChangedOnDisk, NeedsValues
+from swissarmybench.services.blades import BladeService, ChangedOnDisk, IncompleteBlade, NeedsValues
 
 
 def _agent_refused() -> Response:
@@ -99,12 +99,31 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return json_response(
                 {"error": str(error), "changed_on_disk": True, "stamp": error.stamp}, status_code=409
             )
+        except IncompleteBlade as error:
+            return _incomplete(error)
         except VaultUnavailableError as error:
             return error_as(error, 409)
         except Exception as error:
             return error_response(error)
 
     # ===== the blade IDE (the owner, 2026-11-21) =====
+
+    def _incomplete(error: IncompleteBlade) -> Response:
+        # The one refusal shape, with the line the code lacks its kind's part at (the editor marks it).
+        return json_response(
+            {"error": str(error), "where": f"line {error.line}", "line": error.line}, status_code=422
+        )
+
+    async def header(request: Request) -> Response:
+        try:
+            if request.method == "GET":
+                return json_response(blades.header(request.path_params["name"]))
+            body = await read_json(request)
+            return json_response(await blades.header_set(request.path_params["name"], body, actor(request)))
+        except IncompleteBlade as error:
+            return _incomplete(error)
+        except Exception as error:
+            return error_response(error)
 
     async def code(request: Request) -> Response:
         try:
@@ -419,6 +438,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades/{name}", remove_blade, methods=["DELETE"]),
         Route("/blades/{name}/secrets", set_secrets, methods=["PUT"]),
         Route("/blades/{name}/code", code),
+        Route("/blades/{name}/header", header, methods=["GET", "PUT"]),
         Route("/blades/{name}/run", run_blade, methods=["GET", "POST"]),
         Route("/blades/{name}/result/open", open_result, methods=["POST"]),
         Route("/blades/{name}/problems", problems, methods=["POST"]),

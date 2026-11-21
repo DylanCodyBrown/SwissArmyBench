@@ -24,6 +24,7 @@ from dataclasses import replace
 from typing import Any, Protocol
 
 from swissarmybench.domain import (
+    blade_header,
     blade_tables,
     dataverse,
     errors,
@@ -128,6 +129,14 @@ class NeedsValues(Exception):
     def __init__(self, missing: dict[str, str]) -> None:
         super().__init__(f"Type {', '.join(missing)} for this run (never kept).")
         self.missing = missing
+
+
+class IncompleteBlade(BladeError):
+    """The code lacks its kind's required part (a table blade's return, a connection's listing); `line`."""
+
+    def __init__(self, message: str, line: int) -> None:
+        super().__init__(message)
+        self.line = line
 
 
 def _free_name(name: str, taken: set[str]) -> str:
@@ -376,7 +385,56 @@ class BladeService:
             details["placeholders"] = [p.to_json() for p in snippets.placeholders(blade.code)]
         elif blade.code:
             details["inspect"] = self.inspect(blade.code, blade.template, blade.name)
+        # Every header field this kind has, for the blade tab's Properties (domain/blade_header.py).
+        details["header"] = blade_header.fields(blade.to_json(), self._shape(blade), blade.secrets)
         return details
+
+    @staticmethod
+    def _shape(blade: Blade) -> blade_header.Shape:
+        return blade_header.Shape(
+            kind=blade.kind,
+            connection=connection_kind(blade.kind, blade.template),
+            names_table=blade_tables.names_table(blade.kind, blade.template, blade.web_call),
+            web_call=bool(blade.web_call),
+            template=blade.template,
+        )
+
+    def header(self, name: str) -> dict[str, Any]:
+        """A blade's header as its Properties fields (the agent's blades_header_set takes the same keys)."""
+        blade = self._blades.get(name)
+        fields = blade_header.fields(blade.to_json(), self._shape(blade), blade.secrets)
+        return {"name": blade.name, "kind": blade.kind, "fields": fields}
+
+    def _missing(self, blade: Blade, code: str, changes: Mapping[str, Any] | None = None) -> None:
+        """Refused before a save: what the code lacks for its kind (domain/blade_header.py), with its line."""
+        changes = changes or {}
+        variable = str(changes.get("variable") or "") or blade_tables.follow_variable(code, blade.variable)
+        catalog = changes.get("catalog")
+        read = changes.get("read")
+        found = blade_header.required_part(
+            self._shape(blade),
+            code,
+            variable,
+            str((catalog or {}).get("command") or "") if catalog is not None else blade.catalog_command or "",
+            str((read or {}).get("command") or "") if read is not None else blade.read_command or "",
+        )
+        if found is not None:
+            raise IncompleteBlade(found.message, found.line)
+
+    async def header_set(self, name: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """Change any of a blade's header fields (keys as `header` gives them): its file's header only."""
+        if not isinstance(body, dict) or not body:
+            raise BladeError('Send the fields to change: {"description": "...", "queries.total": 4}.')
+        blade = self._blades.get(name)
+        changes = blade_header.changes(blade.to_json(), body, self._shape(blade))
+        if "table" in changes and str(changes["table"] or "").strip():
+            self._table_free(changes["table"], str(changes.get("name") or blade.name))
+        if "variable" in changes:
+            self._missing(blade, blade.code, changes)
+        saved = self._blades.set_header(blade.name, changes)
+        self.ws.audit.write(who, "save_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
+        await self.ws.live.broadcast({"type": "blades_changed"})
+        return self.header(saved.name) | {"stamp": self._blades.stamp_of(saved.name)}
 
     def fill(self, code: str, values: dict[str, Any], template: Any, name: Any) -> dict[str, Any]:
         """Write new values into a blade's code at its settings (by the ids `settings` gave for this
@@ -444,8 +502,21 @@ class BladeService:
             raise BladeError('Send {"code", "stamp", "name", "description", "tags", "table"}.')
         blade = self._blades.get(name)
         now = blade.to_json()
+        # Properties' other fields (domain/blade_header.py keys: dialect, queries.total, catalog.command...).
+        extra = {
+            k: body[k]
+            for k in body
+            if k in blade_header.KEYS
+            and k not in self.HEADER_FIELDS
+            and (k not in now or body[k] != now[k])  # the whole blade sent back: only what it changes
+        }
         for key, value in body.items():
-            if key in self.HEADER_FIELDS or key in ("secrets", "code", "stamp", "force") or key not in now:
+            if (
+                key in extra
+                or key in self.HEADER_FIELDS
+                or key in ("secrets", "code", "stamp", "force")
+                or key not in now
+            ):
                 continue
             if key in ("path", "pack", "source", "created_at", "updated_at"):
                 continue
@@ -460,6 +531,8 @@ class BladeService:
             if not isinstance(code, str):
                 raise BladeError('Send the code as text: {"code": "..."}.')
             if code.replace("\r\n", "\n") != blade.code:
+                if not blade.pack:  # a starter's and a pack's are refused below (Copy as your own)
+                    self._missing(blade, code, blade_header.changes(now, extra, self._shape(blade)))
                 stamp = self._blades.stamp_of(blade.name)
                 base = body.get("stamp")
                 if isinstance(base, str) and base and base != stamp and body.get("force") is not True:
@@ -472,6 +545,7 @@ class BladeService:
                 blade = self._blades.set_code(blade.name, code)
                 code_changed = True
         changes = {k: body[k] for k in self.HEADER_FIELDS if k in body}
+        changes |= blade_header.changes(blade.to_json(), extra, self._shape(blade)) if extra else {}
         if "table" in changes and str(changes["table"] or "").strip():
             if not blade_tables.names_table(blade.kind, blade.template, blade.web_call):
                 raise BladeError(
@@ -482,7 +556,7 @@ class BladeService:
         if isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(saved.name, body["secrets"])
         word = _kind_word(saved.kind, saved.template)
-        changed = "changed" if code_changed else None
+        changed = "changed" if code_changed or extra else None
         self.ws.audit.write(who, "save_blade", saved.name, kind=word, code=changed)
         await self.ws.live.broadcast({"type": "blades_changed"})
         if code_changed:
@@ -637,6 +711,8 @@ class BladeService:
     async def new(self, body: Any, who: str = "user") -> dict[str, Any]:
         """New blade: a new .blade.py file in the library's blades/ folder from the template picked, to be
         edited in the user's own editor (Show its file). {"template", "name", "table"?}."""
+        if isinstance(body, dict) and isinstance(body.get("kind"), str) and not body.get("template"):
+            return await self._new_scaffold(body, who)
         if not isinstance(body, dict) or not isinstance(body.get("template"), str):
             raise BladeError(
                 'Send {"template": "table", "name": "My table"} (the choices: blades_new_choices).'
@@ -653,6 +729,27 @@ class BladeService:
         self.ws.audit.write(who, "new_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
         await self.ws.live.broadcast({"type": "blades_changed"})
         return self.summary(saved) | {"file": str(self._blades.file_of(saved.name) or "")}
+
+    async def _new_scaffold(self, body: dict[str, Any], who: str) -> dict[str, Any]:
+        """New blade by a name and a kind: the kind's blank, valid blade (domain/blade_header.py scaffold),
+        its comments saying what to write and a body over made-up rows, so Run works at once."""
+        kind = str(body["kind"])
+        name = body.get("name")
+        taken = {b.name.casefold() for b in self._blades.all()}
+        wanted = name.strip() if isinstance(name, str) and name.strip() else f"New {kind}"
+        if wanted.casefold() in taken:
+            if isinstance(name, str) and name.strip():
+                raise BladeError(f"{wanted} is a blade already: pick another name.")
+            wanted = _free_name(wanted, taken)
+        made = blade_header.scaffold(kind, wanted)
+        saved = self._blades.save(made)
+        self.ws.audit.write(who, "new_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
+        await self.ws.live.broadcast({"type": "blades_changed"})
+        return self.summary(saved) | {
+            "file": str(self._blades.file_of(saved.name) or ""),
+            "line": blade_header.body_line(saved.code),
+            "scaffold": True,
+        }
 
     async def show_file(self, name: str, who: str = "user") -> dict[str, Any]:
         """Show its file: the system's file manager at the blade's file. The user's click only (the same as

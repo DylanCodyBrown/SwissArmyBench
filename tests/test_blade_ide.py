@@ -101,7 +101,7 @@ def test_the_ide_saves_code_into_the_file_only_when_it_changes(client: TestClien
     }
     # Code that does not parse is not saved: the file stays as it was, the words say where.
     refused = client.put("/blades/Loaves", json={"code": "def (:\n"}, headers=AUTH)
-    assert refused.status_code == 400 and "not valid Python" in refused.text
+    assert refused.status_code == 422 and "not valid Python" in refused.text and refused.json()["line"] == 1
     assert file.read_text(encoding="utf-8").endswith(code)
     # Its kind is not the app's to change.
     assert client.put("/blades/Loaves", json={"kind": "analysis"}, headers=AUTH).status_code == 400

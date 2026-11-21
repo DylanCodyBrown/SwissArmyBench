@@ -6847,3 +6847,29 @@ fields beyond the blade IDE's Properties and New blade's blank scaffold by kind 
 the old /catalog page's redirect to the Blades pane (its import, export and folders dialogs still there); Notebooks'
 clean reload in place (a notebook changed elsewhere asks even when unchanged here); the desktop app's window full
 screen (the page's full screen only).
+
+## The blade tab: every header field, New blade's scaffold (built 2026-11-21, branch scripts-rest)
+
+The owner (2026-11-21): "the blade format requires extra stuff so we should add those properties to the ide
+experience along with the option to save the blade. we should scaffold a blank blade for the user".
+
+Decisions:
+- **One table of fields** (domain/blade_header.py FIELDS): every key the `# /// swissarmybench-blade` header writes,
+  with its words and type; `applies(key, shape)` says which a kind has (a table blade: variable, table; a database:
+  dialect, rows to open, queries.total/agent/wait, catalog.language/command; a Python connection: read.command too;
+  a snippet: language, cell_name; a vault: vault_all, vault_mapping; a secret: env_names). Kind, secrets, template,
+  web_call and variables are shown read-only (they follow from the code or the file). The details answer carries
+  `header`; Properties draws it generically (bladeProperties), each box checked as typed (name and table by the
+  server's checks, variable against what the code makes, numbers, names, mappings and tags by their rules).
+- Save sends the code and only the changed fields (name, description, tags and table always, as before); the
+  server writes the header through set_header (parse_blade checks it all). A field the kind has not is refused.
+- **Before a save**: compiling, and the kind's required part (required_part): a table blade's function takes no
+  required argument and returns something; an analysis takes 1 or 2 arguments; a Python connection has its listing
+  and Read a table; a vault's reader is a function. Refused 422 with `line`: the line marked in the editor, the one
+  error note in Result. A starter's or a pack's Save stays refused first (Copy as your own).
+- **New blade** asks a name (checked live) and a kind: table, code, analysis, connection (DuckDB in memory with
+  made-up orders and its listing query), snippet, secret. The scaffold has comments on what to write and made-up
+  rows; Run works at once (an analysis is tried on six made-up rows by the IDE's Run). It opens as a tab, the
+  cursor in its body, Properties open (the only time they open by themselves).
+- The agent: blades_new(name, kind), blades_header_set(name, fields) (none: the fields and values).
+- The editor never showed the header (it is Properties'), so "fold the header away" holds as built.

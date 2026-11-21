@@ -70,6 +70,8 @@ export interface IdeOptions {
   runWords?: string;
   menu?: () => IdeMenuItem[];
   properties?: HTMLElement | null;
+  /** Properties shown from the start (a brand-new scaffold), whatever was remembered. */
+  propertiesOpen?: boolean;
   /** The editor's intelligence and keys (complete, intel, inline, sendToAgent...), as the Workbench gives. */
   editor?: Partial<CodeEditorOptions>;
   /** Where the panel's height and the Properties pane's fold are remembered (localStorage), per host. */
@@ -349,7 +351,7 @@ export function codeIde(options: IdeOptions): CodeIde {
   const editorHost = h("div", { class: "ide-editor", "data-own-zoom": "", "aria-label": `${options.name} code` }, h("pre", { class: "code-box ide-plain" }, options.value));
   const props = options.properties ? h("aside", { class: "ide-props", "aria-label": "Properties" }, h("h3", { class: "ide-props-title" }, "Properties"), options.properties) : null;
   // Design principle 8.14 ("Never crowd the place where code is written"): closed until asked for.
-  let propsShown = remembered(options.remember, "props") === "on";
+  let propsShown = options.propertiesOpen ?? remembered(options.remember, "props") === "on";
   function setProps(shown: boolean): void {
     propsShown = shown;
     if (props) props.hidden = !shown;

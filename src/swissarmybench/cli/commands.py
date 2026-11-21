@@ -1269,17 +1269,29 @@ def blades_templates(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_new",
-    "New blade: a .blade.py file in the library's blades/ folder from a template (no template: the choices); "
-    "its code is then changed with blades_update",
-    opt("template", "table, code, secret, snippet, or an analysis starter's id (none: the list)."),
-    opt("name", "Its name (default: the template's)."),
-    opt("table", "Its table's name, for a table blade (blades_table_name_check first)."),
+    "New blade by name and kind: a blank, working .blade.py (made-up rows) in the library; or from a template",
+    opt("name", "Its name."),
+    opt("kind", "table, code, analysis, connection, snippet or secret."),
+    opt("template", "Instead of kind: table, code, secret, snippet, or an analysis starter's id."),
+    opt("table", "A table blade's table name."),
 )
 def blades_new(a: dict[str, Any]) -> Any:
-    if not a.get("template"):
+    if not a.get("template") and not a.get("kind"):
         return api.call("GET", "/blades/new")
-    body = {k: a[k] for k in ("template", "name", "table") if a.get(k) is not None}
+    body = {k: a[k] for k in ("template", "kind", "name", "table") if a.get(k) is not None}
     return api.call("POST", "/blades/new", body)
+
+
+@command(
+    "blades_header_set",
+    "Set any of a blade's header fields (none given: the fields its kind has, with their values)",
+    req("name", "The blade."),
+    opt("fields", 'Keys as listed: {"description": "...", "dialect": "duckdb", "queries.total": 4}.', "json"),
+)
+def blades_header_set(a: dict[str, Any]) -> Any:
+    if not a.get("fields"):
+        return api.call("GET", f"/blades/{_q(a['name'])}/header")
+    return api.call("PUT", f"/blades/{_q(a['name'])}/header", a["fields"])
 
 
 @command(

@@ -53,7 +53,7 @@ import { ideMoves, searchScripts } from "./workbenchIde";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
-import { type BladeKind, type BladeSummary, editBlade, showTemplatePicker } from "./bladeEditor";
+import { type BladeKind, type BladeSummary, editBlade, newBladeDialog } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
 import { button, clear, h, icon, openDialog, toast } from "./dom";
@@ -2423,17 +2423,21 @@ function drawStatus(): void {
 
 // ===== the Data Explorer: one search over what holds data; the catalog and the blades beside it =====
 
-function bladeDoc(name: string | null): void {
-  const doc = makeDoc("blade", name ?? "New blade", null, null);
+function bladeDoc(name: string | null, fresh?: { line: number }): void {
+  if (name === null) {
+    // New blade (the owner, 2026-11-21): a name and a kind; the blank blade opens straight away, Properties open.
+    void newBladeDialog().then((made) => {
+      if (!made) return;
+      rail.bladeSaved(made.name);
+      bladeDoc(made.name, { line: made.line });
+    });
+    return;
+  }
+  const doc = makeDoc("blade", name, null, null);
   editingBlade = true;
   const done = (): void => { editingBlade = false; close(doc); };
   const saved = (savedName: string): void => { editingBlade = false; rail.bladeSaved(savedName); void loadConnections(); };
-  if (name !== null) void editBlade(doc.element, name, null, "other" as BladeKind, saved, done);
-  else
-    void showTemplatePicker(doc.element, (made) => {
-      saved(made);
-      void editBlade(doc.element, made, null, "other" as BladeKind, saved, done);
-    });
+  void editBlade(doc.element, name, null, "other" as BladeKind, saved, done, undefined, fresh);
   show(doc);
 }
 
@@ -3186,6 +3190,7 @@ const COMMANDS: Command[] = [
   // File
   { id: "file.newNotebook", group: "File", title: "New notebook", keys: inApp() ? "Ctrl+N" : undefined, run: () => void openNotebook(null, [], null) },
   { id: "file.newScript", group: "File", title: "New script", run: () => void openScript(null, "", null) },
+  { id: "file.newBlade", group: "File", title: "New blade", run: () => bladeDoc(null) },
   { id: "file.newApp", group: "File", title: "New Streamlit app", when: () => canvasAnywhere("streamlit"), whyNot: "the Streamlit extension is not installed (Extensions: Install)", run: () => {
     const doc = openApp(null, [], null);
     return { document: doc.title };

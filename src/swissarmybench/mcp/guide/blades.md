@@ -13,8 +13,16 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
 - `blades_inspect`: what code makes, asks for (secrets), imports and needs; its settings (server,
   database, path). `blades_fill` gives the code with values at those settings (a connection's form
   uses it); nothing is saved or run.
-- `blades_new` (no template: the choices; `table`, `code`, `secret`, `snippet`, an analysis): a new
-  `.blade.py` in the library's blades/ folder. Connections are made with `connections_create`.
+- `blades_new(name, kind)`: kind `table`, `code`, `analysis`, `connection` (DuckDB in memory), `snippet` or
+  `secret`: a blank, working `.blade.py` in the library's blades/ folder (comments on what to write, made-up
+  rows: `blades_run` works at once; `line` is where its body starts). `template=` instead: the older choices.
+  Connections from a form are `connections_create`.
+- `blades_header_set(name)`: every header field its kind has, with its value (`queries.total`,
+  `catalog.command`, `dialect`, `variable`, `env_names`...); `fields={...}` sets any of them. Kind, secrets,
+  template and web call follow from the code or file. `blades_update` takes the same keys beside `code`.
+- A save is refused (422, `line`) when the code does not compile or lacks its kind's part: a table blade's
+  function returns its table and takes no required argument; an analysis takes the rows; a Python connection
+  has How its tables are listed and Read a table; a vault's reader is a function.
 - `blades_update(code=, stamp=)`: its code, written into its file after the header (its variable follows a
   renamed function); `stamp` (from `blades_get`) refuses the save with 409 when the file changed on disk
   since. Name, description, tags and table name are the header's. A starter's or a pack's is refused:
