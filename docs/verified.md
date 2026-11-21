@@ -4711,3 +4711,17 @@ Not checked: a real App Service sign-in's headers reaching st.context (made-up c
 or PostgreSQL refusing a duplicate key (DuckDB's words rewritten); paging memory on a 10M-row read through a
 mock (it holds the rest as Arrow, by design the same as the real client's fetchall); the JSON box in the
 desktop app's window.
+
+## The local sandbox API at the large scale (2026-11-21, after the api-approved and simplify merges)
+`SWISSARMYBENCH_STRESS=1 SWISSARMYBENCH_STRESS_SCALES=large`, Larkfield Goods large (10M order lines), forms_recon's
+API.py on this container (4 workers, about 3 GB free): every check passed (the one error was the test's
+SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
+- Adding the Trino copy and the ledger to the sandbox: 5.3 s. One month's ledger loaded from its table: 0.83 s.
+- Reconciling 704,639 entries against the source: 0.88 s (702,443 matched, 688 different, 686 only in the source,
+  754 duplicates: the made-up data's planted problems). A page of differences: 0.03 s. Reset: 0.77 s.
+- 100k typed entries in 20 batches: 3.6 s; the PIVOT column store's count 0.027 s, a page 0.045 s.
+- Excel: 100k rows written 0.19 s, read by excel_upload 3.4 s, sent to the API in 10 parts 2.7 s.
+- Requests at 1 / 8 / 32 callers (p50 ms): GET /forms 7.7 / 27 / 97; GET /recons/{id} 5.7 / 23 / 92; a results page
+  22 / 85 / 335; POST 10 typed rows 39 / 220 / 900. The slowest: a page of 100 entries from the PIVOT column store
+  171 / 977 / 3,939 ms; one API process serves one request at a time, so latency grows with callers (a note for
+  the adapter plan: reads that fold into the source scale; the column store's page is computed whole each time).
