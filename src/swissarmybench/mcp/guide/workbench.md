@@ -109,3 +109,17 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
   time, sources, log), `workbench_script_history` (memory only).
 - Data (data.ipynb): "data.view" (cells, lineage, dictionary), "dictionary.list", "dictionary.describe"
   (kept in data.ipynb, written into data.py); `project_dictionary` reads a saved project's.
+
+
+## Notebooks and Scripts: two pages (2026-11-21)
+
+- A notebook opens only on the Notebooks page, a .py only on the Scripts page. `workbench_window` takes `page`
+  (notebooks or scripts); without it, the page of `args.path`, the kind a command makes, else the window last used.
+  `app_navigate` takes `window` notebooks or scripts.
+- The Scripts page is a Python IDE over the project's code and the library's: `project_tree` (its groups, each
+  module's outline), `workbench_outline`, `workbench_definition`, `workbench_references`, `workbench_rename` (a
+  plan; `apply` writes it, never a made file), `workbench_search` (with `to`: replace), `workbench_format`,
+  `workbench_fine_tune` (a table's transformations as a new script). The window's `view.fullScreen`,
+  `view.files`, `view.codeSize`, `search.scripts`.
+- Every code file changed anywhere is said with the `file_changed` notice; data.py edited by hand is kept
+  (`project_export_data` with `replace` to write it again).

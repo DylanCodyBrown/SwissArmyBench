@@ -310,11 +310,12 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     area(page, "analyze").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
     expect(current(page)).to_have_attribute("data-area", "analyze")
-    # Blades: this tab goes to the blades page, Blades marked; Settings opens there; ERD comes home.
+    # Blades: this tab goes to the Scripts page's Blades (2026-11-21), Blades marked; Settings opens
+    # there; ERD comes home.
     area(page, "blades").click()
-    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
+    expect(page).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
     expect(current(page)).to_have_attribute("data-area", "blades")
-    assert left_of(page, ".cat-top") >= right_edge(page) - 0.5
+    expect(page.locator(".wb-codex-lower.lower-blades")).to_be_visible()
     area(page, "settings").click()
     expect(page).to_have_url(re.compile(r"open=settings"))
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
@@ -324,7 +325,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
     # Back walks the same tab back through the pages.
     page.go_back()
-    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
+    expect(page).to_have_url(re.compile(r"/scripts"), timeout=20000)
     assert len(page.context.pages) == pages
 
     # A new window only on request: Ctrl+click, a middle click, or the right-click's menu, on every area.
@@ -342,7 +343,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     with page.context.expect_page() as middle:
         area(page, "grids").click(button="middle")
     middle.value.close()
-    expect(page).to_have_url(re.compile(r"/catalog"))  # this tab stayed where it was
+    expect(page).to_have_url(re.compile(r"/scripts"))  # this tab stayed where it was
     page.context.close()
 
 

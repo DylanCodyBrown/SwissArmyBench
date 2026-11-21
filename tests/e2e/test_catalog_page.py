@@ -79,8 +79,9 @@ def test_the_rail_takes_this_tab_to_the_blades_page(browser: Browser, orders_url
     page = open_grid(browser, orders_url)
     pages = len(page.context.pages)
     page.locator(".nav-rail [data-area='blades']").click()
-    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
-    expect(page.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
+    # The blades live on the Scripts page, below its files (the owner, 2026-11-21).
+    expect(page).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
+    expect(page.locator(".wb-codex-lower.lower-blades .blade-list")).to_be_visible(timeout=20000)
     assert len(page.context.pages) == pages
     page.close()
 

@@ -187,6 +187,7 @@ def test_the_scripts_ide(browser: Browser, server: dict[str, Any], shop: Path) -
     # The explorer folds to a strip (Ctrl+B) and opens again.
     page.locator(".wb-codex-fold-all").click()
     expect(page.locator(".wb-codex-strip")).to_be_visible()
+    shot(page, "scripts-ide-explorer-folded")
     page.locator(".wb-codex-strip").click()
     expect(explorer.locator(".wb-codex-search")).to_be_visible()
     page.context.close()

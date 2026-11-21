@@ -1398,6 +1398,7 @@ export function notebookView(
     void loadEditors().then((m) => {
       if (disposed || !cells.includes(cell)) return; // deleted (or the notebook closed) before its editor loaded
       cell.editor = m.createCodeEditor(editorHost, {
+        pageZoom: true, // the page's code zoom (Ctrl+wheel, Ctrl+= - 0)
         intel: {
           signature: (text, offset) => (cell.kind === "code" ? intel.signature(text, offset) : Promise.resolve(null)),
           hover: (text, offset) => (cell.kind === "code" ? intel.hover(text, offset) : Promise.resolve("")),

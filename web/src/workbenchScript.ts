@@ -787,6 +787,7 @@ export function scriptView(
     const intel = pythonIntel(kernel, { notebook: false, document: docName });
     const intelKey = `${Math.random()}`;
     editor = m.createCodeEditor(editorHost, {
+      pageZoom: true, // the page's code zoom (Ctrl+wheel, Ctrl+= - 0)
       language: "python",
       value: initial,
       theme: theme(),

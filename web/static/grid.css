@@ -19190,6 +19190,8 @@ body.wb-full.has-rail {
   overflow: auto;
   padding: 8px;
   background: var(--surface);
+}
+
 /* ===== a connection's slots (connectionSlots.ts) and the Queries window (queriesWindow.ts) ===== */
 
 .connection-card {
@@ -19535,4 +19537,14 @@ body.queries-window {
 .queries-header-table th:nth-child(5),
 .queries-table td:nth-child(5) {
   width: 112px;
+}
+/* Full screen: the documents take the whole height and width (the console's and Variables' room gone too). */
+body.wb-full .wb-col-left {
+  flex: 1 !important;
+  grid-template-rows: minmax(0, 1fr) 0 0 !important;
+}
+body.wb-full .wb-col-left > .wb-split,
+body.wb-full .wb-split.vertical,
+body.wb-full .wb-col-right {
+  display: none !important;
 }

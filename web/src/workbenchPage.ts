@@ -2535,6 +2535,56 @@ codexHooks.mark = codex.mark;
 window.addEventListener("sab-blades", () => codex.showLower());
 if (new URLSearchParams(location.search).get("pane") === "blades") window.setTimeout(() => codex.showLower(), 0);
 
+// ===== the code's own zoom (the owner, 2026-11-21: "Can the blade ide be zoomable"; the same on this page) =====
+// Ctrl + wheel and Ctrl+= / Ctrl+- / Ctrl+0 over the documents size the code alone (8 to 40 px), per page,
+// remembered in this browser; the page's own zoom (zoom.ts) leaves [data-own-zoom] alone.
+const FONT_KEY = `wb-font:${PAGE}`;
+const BASE_FONT = 13;
+let codeFont = (() => {
+  try {
+    return Math.min(40, Math.max(8, Number(localStorage.getItem(FONT_KEY)) || BASE_FONT));
+  } catch {
+    return BASE_FONT;
+  }
+})();
+const editors = (): Promise<typeof import("./lazy/codeEditor")> => import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>;
+function setCodeFont(px: number): number {
+  codeFont = Math.min(40, Math.max(8, Math.round(px)));
+  try {
+    localStorage.setItem(FONT_KEY, String(codeFont));
+  } catch {
+    /* storage blocked */
+  }
+  void editors().then((m) => m.setPageFontSize(codeFont));
+  return codeFont;
+}
+if (codeFont !== BASE_FONT) setCodeFont(codeFont);
+layout.source.dataset.ownZoom = "";
+const stepCode = (by: number): void => void setCodeFont(codeFont + by * (codeFont >= 20 ? 2 : 1));
+layout.source.addEventListener(
+  "wheel",
+  (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    stepCode(e.deltaY < 0 ? 1 : -1);
+  },
+  { capture: true, passive: false },
+);
+layout.source.addEventListener(
+  "keydown",
+  (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const by = e.key === "=" || e.key === "+" ? 1 : e.key === "-" ? -1 : e.key === "0" ? 0 : null;
+    if (by === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (by === 0) setCodeFont(BASE_FONT);
+    else stepCode(by);
+  },
+  true,
+);
+
 // ===== full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable") =====
 const FULL_KEY = `wb-fullscreen:${PAGE}`;
 let full = false;
@@ -3486,6 +3536,7 @@ const COMMANDS: Command[] = [
   // Full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable"): the tabs and the editor fill
   // the window; the rail, the explorer and the bottom panels go; Escape or the same button comes back.
   { id: "view.fullScreen", group: "View", title: "Full screen", keys: "F11", args: "on: true or false (default: the other way)", run: (a) => ({ on: fullScreen(typeof a.on === "boolean" ? a.on : undefined) }) },
+  { id: "view.codeSize", group: "View", title: "Code size", args: "px: 8 to 40 (13: as it was)", run: (a) => ({ px: setCodeFont(typeof a.px === "number" ? a.px : BASE_FONT) }) },
   { id: "view.files", group: "View", title: "Show or hide the explorer", keys: "Ctrl+B", args: "show: true or false (default: the other way)", run: (a) => ({ open: codex.toggle(typeof a.show === "boolean" ? a.show : undefined) }) },
   ...(PAGE === "scripts"
     ? [{ id: "search.scripts", group: "Find", title: "Search in scripts…", keys: "Ctrl+Shift+F", run: () => (searchScripts({ openAt: (p: string, line: number) => void openAt(p, line) }, () => (current?.script ? { path: () => current!.path, text: () => current!.script!.text(), python: () => current!.python, replaceText: (t: string) => current!.script!.replaceText(t), reveal: (line: number) => current!.script!.reveal(line) } : null)), { opened: true }) }]

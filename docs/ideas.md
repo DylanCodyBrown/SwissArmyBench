@@ -6780,3 +6780,70 @@ Decisions as built:
   on the user's Allow), connections_set_limits; the guide's connections topic says to batch. A Session entry when
   the agent waited more than 3 s.
 - Not gated (each named in the report): see docs/verified.md.
+
+## Notebooks and Scripts, two pages; the Scripts page a Python IDE (built 2026-11-21, branch separate-pages)
+
+The owner's words (2026-11-21): "notebooks and scripts should not reuse the same page they are seperate things" /
+"right now they all open tabbed beside each other"; on the Scripts landing: "scripts should open to on the page a new
+script creator just like it does but without all of this at the top. What it should have is a project file explorer
+to browse and open all project scripts"; "Scripts will open Tabbed inside the ide with their names at the top and we
+will see their code"; "the ide pane should be fullscreenable"; "scripts autoupdate when they are touched anywhere in
+the app"; "this is meant to expose the high level code of everything in the app for fine tuning"; "maybe the
+navigation and blade pane can split the left screen" / "navigation on top, blade on bottom"; "I want prioritize the
+ide real estate"; the rail: "scripts and blades should be beside each other", "Apis and Structure should be side by
+side", "a + is confusing just make this a normal icon", "just call it home instead of projects", "rename Data
+Catalog to just catalog, and Source Control to GIT". Earlier (2026-11-17): "the scripts rail page should simply be a
+navigation for the project files with our robust IDE for python ... a by module navigation tree on the left to
+navigate all of the scripts(except the notebooks) those are edited in the notebooks page exclusivly".
+
+Decisions:
+- **Two pages, one page code.** /notebooks (window sab-notebooks) and /scripts (sab-scripts) serve the same
+  workbench.html; the window's path says which it is (workbenchPages.ts thisPage). A notebook, an app's canvas and a
+  workbook design open on the Notebooks page (the canvas stays there until the widgets-canvas branch moves it); a
+  .py only on the Scripts page. makeDoc refuses the other kind; open() hands the other page's file to its window
+  (asked through the server's workbench_window with `page`, else that window opened on it); the handoff take
+  refuses a wrong-kind document in one line ("A notebook opens on the Notebooks page, not here."): that is the
+  wrong-kind drop (tabs never drag between windows; a pop-out keeps its page). /workbench?kind= redirects; an old
+  /workbench#open=load.py goes to the Scripts page before anything draws.
+- **The agent:** workbench_window takes `page` (else args.path's page, the kind file.newScript or file.newApp makes,
+  else the window last used); app_navigate takes window notebooks or scripts ("workbench": either). The live socket
+  says each window's page.
+- **Restore per page:** session storage `workbench-documents:<page>`; the old mixed key split by kind once (its groups
+  start again). The project's .sab layout keeps `workbench.notebooks` and `workbench.scripts`; an older layout's list
+  is read for this page's kind only.
+- **No top bar** on either page: Save in the document's row (Ctrl+S), Save as… in its "…" (Ctrl+Shift+S), New and
+  the page's menu ("Workbench menu") at the explorer's head; with nothing open, Scripts shows its creator (one
+  sentence, New script, Try it with sample data), Notebooks its Start a notebook / Start an app.
+- **The explorer** (codeExplorer.ts, GET /scripts/tree, GET /project/tree?page=notebooks): Your scripts by module
+  (`scripts/etl/load.py` is etl.load), Project code (data.py made from data.ipynb, pages/*.py from the canvas:
+  read-only with a key until edited by hand, then a pencil), the library's Connections, APIs, Key vaults and Widgets
+  (the folder once it exists), Generated (each open table's transformations, read-only, Fine-tune as a script: a
+  new scripts/<table>_tuned.py). Each module unfolds to its outline (ast; as typed for the open one). Folds to a
+  strip (Ctrl+B), resizes, remembered per page. Never a notebook on Scripts.
+- **Blades below the files** on the Scripts page (a splitter, each folds); the rail's Blades lands there
+  (/scripts?pane=blades). A blade opens as a tab: `bladeDoc()` in workbenchPage.ts composes the blade IDE's
+  editBlade (its Properties pane, Run with Output / Result / Problems, a starter's Save refused with Copy as your
+  own). That function is the seam for the blade IDE's pieces.
+- **The IDE's moves** over the editors' one intelligence (Jedi's project world, shared with services/intellisense.py):
+  F12 Go to definition (another module's file opened at the line; a library's place said), Shift+F12 references
+  (a list), F2 rename across the project's modules (a preview of each line; a made file skipped with why; the open
+  document's change in its editor, the others written), Shift+Alt+F Format (Ruff in the script's Python, else said),
+  Ctrl+Shift+F search and replace across the scripts (regex, case, word; Replace all's preview). Monaco's own
+  bindings for those keys give way.
+- **Full screen** (F11, the tab row's button, the agent's view.fullScreen): the rail, the explorer, the console and
+  Variables and the status bar go; Escape or the button comes back; remembered per page for the session. The code's
+  own zoom (Ctrl+wheel, Ctrl+= - 0 over the documents; view.codeSize) as the blade IDE has it, per page.
+- **file_changed** (services/code_files.py): {path, hash, by} at once for the app's writes (a save, a rename, a
+  replace, Fine-tune) and within a few seconds for anything else (the open project's and the library's .py and
+  .ipynb looked at, off the loop). An unchanged script reloads in place; one with unsaved edits shows Changed
+  elsewhere: Reload / Keep mine / Compare (Monaco's diff), and Save waits for the choice; a gone file: Save as /
+  Close. The open and save answers carry the hash, so a window's own save is not said back to it.
+- **Edited by hand:** a made file saved by the user or the agent is recorded in .sab/hand-edited.json; data.py's
+  regenerate then keeps it (New project, a Save as) and Export data.py asks (409: keep, or replace=true).
+
+Left (not built this round): the debugger (breakpoints, debugpy through the kernel's debug_request); New package,
+Rename, Delete and Duplicate in the tree; go to definition into a library opening it read-only; the blades' header
+fields beyond the blade IDE's Properties and New blade's blank scaffold by kind (blades_header_set, blades_save);
+the old /catalog page's redirect to the Blades pane (its import, export and folders dialogs still there); Notebooks'
+clean reload in place (a notebook changed elsewhere asks even when unchanged here); the desktop app's window full
+screen (the page's full screen only).

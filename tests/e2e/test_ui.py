@@ -94,7 +94,7 @@ def launch_browser(p: Playwright) -> Browser:
     # actions (milliseconds, 350 by default when headed).
     headed = os.environ.get("SAB_HEADED") == "1"
     slow = int(os.environ.get("SAB_SLOWMO", "350" if headed else "0"))
-    return p.chromium.launch(executable_path="/opt/pw-browsers/chromium", headless=not headed, slow_mo=slow)
+    return p.chromium.launch(channel="msedge", headless=not headed, slow_mo=slow)
 
 
 @pytest.fixture(scope="session")

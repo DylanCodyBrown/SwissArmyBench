@@ -683,9 +683,20 @@ export interface CodeEditorOptions {
   ide?: IdeMoves;
   /** The minimap (the Scripts IDE's "…" turns it on; off by default). */
   minimap?: boolean;
+  /** Its size follows the page's code zoom (setPageFontSize): the Notebooks and Scripts pages' editors. */
+  pageZoom?: boolean;
 }
 
 let ideKeysFreed = false;
+
+// ===== the page's code size (the Notebooks and Scripts pages: their code's own zoom, Ctrl+wheel, Ctrl+= -, 0) =====
+let pageFont = 13;
+const pageEditors = new Set<{ setFontSize: (px: number) => void }>();
+/** Every editor of this page (made with `pageZoom`) at `px`, and the ones made from now on. */
+export function setPageFontSize(px: number): void {
+  pageFont = px;
+  for (const e of pageEditors) e.setFontSize(px);
+}
 
 export interface IdeMoves {
   definition: (line: number, column: number) => void;
@@ -884,7 +895,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     hideCursorInOverviewRuler: true,
     scrollbar: options.grow ? { vertical: "hidden", horizontal: "auto", alwaysConsumeMouseWheel: false, handleMouseWheel: false } : {},
     wordWrap: options.language === "markdown" ? "on" : "off",
-    fontSize: 13,
+    fontSize: options.pageZoom ? pageFont : 13,
     tabSize: 4,
     insertSpaces: true,
     dropIntoEditor: { enabled: false }, // ownDrops: Monaco's own drop leaves a snippet's $0 behind
@@ -1112,7 +1123,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     new ResizeObserver(() => editor.layout({ width: host.clientWidth, height: host.clientHeight })).observe(host);
     fit();
   }
-  return {
+  const made: CodeEditor = {
     value: () => editor.getValue(),
     setValue: (text) => editor.setValue(text),
     selection: () => {
@@ -1366,12 +1377,15 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       return (m && linted.get(m)) || [];
     },
     dispose: () => {
+      pageEditors.delete(made);
       window.clearTimeout(lintTimer);
       options.intel?.onLint?.([]);
       editor.getModel()?.dispose();
       editor.dispose();
     },
   };
+  if (options.pageZoom) pageEditors.add(made);
+  return made;
 }
 
 // ===== the "+" tab's SQL editor (queryTab.ts) =====

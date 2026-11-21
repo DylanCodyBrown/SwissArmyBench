@@ -150,35 +150,32 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     expect(page.locator(".workspace")).to_have_attribute("data-view", "grid")
     # Notebooks: this tab goes to the Workbench's page of notebooks, never a menu beside the icon.
     area(page, "notebooks").click()
-    expect(page).to_have_url(f"{base}/workbench?kind=notebook&view=list", timeout=20000)
+    expect(page).to_have_url(f"{base}/notebooks?kind=notebook&view=list", timeout=20000)
     landing = page.locator(".wb-landing")
     expect(landing).to_be_visible(timeout=20000)
     no_box(page)
-    expect(landing.get_by_role("heading", name="Notebooks", exact=True)).to_be_visible()
-    expect(
-        page.locator(".wb-top").get_by_role("button", name="New notebook")
-    ).to_be_visible()  # the top bar's (2026-11-16)
-    expect(landing.locator(".wb-landing-card", has_text="harvest notes.ipynb")).to_be_visible()
-    expect(landing.locator(".wb-landing-card", has_text="harvest totals.py")).to_have_count(0)
+    # The page's creator (no top bar, 2026-11-21); its explorer says no project is open.
+    expect(landing.get_by_role("button", name="New notebook")).to_be_visible()
+    expect(page.locator(".wb-top")).to_be_hidden()
+    expect(page.locator(".wb-codex.page-notebooks")).to_contain_text("No project is open.")
     shot(page, "notebooks-landing")
-    # Scripts: its own page, the script among its cards.
-    area(page, "scripts").click()
-    expect(page).to_have_url(re.compile(r"kind=script&view=list"))
-    expect(landing.locator(".wb-landing-card", has_text="harvest totals.py")).to_be_visible()
-    no_box(page)
-    # A card opens the document; Back returns to the page of cards.
-    landing.locator(".wb-landing-card", has_text="harvest totals.py").click()
-    expect(landing).to_be_hidden()
-    expect(page.locator(".wb-tab", has_text="harvest totals.py")).to_be_visible(timeout=20000)
-    expect(page).not_to_have_url(re.compile(r"view=list"))
-    page.go_back()
-    expect(landing).to_be_visible()
-    expect(landing.locator(".wb-landing-card", has_text="harvest totals.py")).to_contain_text("Open")
-    # Apps: the top bar's New makes one.
+    # Scripts: a page of its own, another window; its creator makes a script there.
+    with page.context.expect_page() as opened:
+        area(page, "scripts").click()
+    scripts = opened.value
+    expect(scripts).to_have_url(re.compile(r"/scripts\?kind=script&view=list"), timeout=20000)
+    scripts_landing = scripts.locator(".wb-landing")
+    expect(scripts_landing.get_by_role("button", name="New script")).to_be_visible(timeout=20000)
+    no_box(scripts)
+    scripts_landing.get_by_role("button", name="New script").click()
+    expect(scripts.locator(".wb-tab", has_text="Untitled script")).to_be_visible(timeout=20000)
+    scripts.close()
+    # Apps: on the Notebooks page, its menu's New makes one.
     area(page, "apps").click()
     expect(landing).to_be_visible()
     no_box(page)
-    page.locator(".wb-top").get_by_role("button", name="New Streamlit app").click()
+    page.get_by_role("button", name="Workbench menu", exact=True).click()
+    page.get_by_role("menuitem", name="New Streamlit app", exact=True).click()
     expect(page.locator(".cv-board")).to_be_visible(timeout=20000)
     expect(landing).to_be_hidden()
     # Settings and Connections are pages in the Workbench too.
@@ -188,14 +185,17 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     area(page, "notebooks").click()
     expect(page.locator(".area-page")).to_have_count(0)
     expect(landing).to_be_visible()
-    # Blades: the blades page.
-    area(page, "blades").click()
-    expect(page).to_have_url(re.compile(r"/catalog"), timeout=20000)
-    no_box(page)
-    area(page, "connections").click()
-    expect(page.locator(".area-page[data-page='connections']")).to_be_visible()
-    area(page, "blades").click()
-    expect(page.locator(".area-page")).to_have_count(0)
+    # Blades: the Scripts page's Blades pane (2026-11-21), the Scripts window brought forward.
+    with page.context.expect_page() as opened:
+        area(page, "blades").click()
+    scripts = opened.value
+    expect(scripts).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
+    expect(scripts.locator(".wb-codex-lower.lower-blades")).to_be_visible(timeout=20000)
+    no_box(scripts)
+    area(scripts, "connections").click()
+    expect(scripts.locator(".area-page[data-page='connections']")).to_be_visible()
+    area(scripts, "blades").click()
+    expect(scripts.locator(".area-page")).to_have_count(0)
     page.context.close()
 
 
