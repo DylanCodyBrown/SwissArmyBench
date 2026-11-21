@@ -80,15 +80,15 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   the field and `field` its path (`order.lines[0].quantity`). Numbers as FastAPI takes them: 3.0 or "3" for an
   int, "12.5" for a float (converted); never True for a number.
 - `state` (brief): settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems
-  with their lines, whether it runs, the `targets`, `agent_writes`; `{"full": true}` adds the OpenAPI document
+  with their lines, whether it runs, the `targets`, whether the agent may write this session; `{"full": true}` adds the OpenAPI document
   (or `openapi`). Each endpoint's `fields` (its body model's, with
   `type` and `required`) and `try` (a made-up request: `path`, `query`, `body`; the kept example first): the one
   definition Try it, the Canvas's Event mapping and Payload shapes read. `settings` `{name, description, target, base_path}`.
 - `run` (127.0.0.1, a key of its own; started again when API.py changes), `stop`, `log` (method, path, status,
   ms, rows; a refusal's `error` and its API.py `line`; `output`: the last lines API.py printed), `openapi`, `address` (its URL and key, for this computer's callers).
 - `call` `{"method": "POST", "path": "/orders", "body": {...}}`: the first write waits for the user's Allow, and
-  that Allow covers the rest of the session (the project's sandbox only; `state`'s `agent_writes`).
-  `agent_writes` `{"allow": false}` stops it (each write asks again); `{"allow": true}` asks for it. A refusal
+  that Allow covers the rest of the session (the project's sandbox only; `state` says whether).
+  `writes` with `{"allow": false}` stops it (each write asks again); `{"allow": true}` asks for it. A refusal
   (400 and up) also has `error` (its sentence) and, when the endpoint itself failed, `line` and `where`
   ("API.py line 45"). A path no endpoint answers is the API's own 404 (`{"error"}`).
 - `example` `{"endpoint": "POST /orders", "body": {...}}`: Try it's body kept as the endpoint's example (Try it

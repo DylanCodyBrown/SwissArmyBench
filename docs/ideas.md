@@ -7703,7 +7703,7 @@ BUILT, each with its decision:
   records the file no longer holds. A view with a bound value is refused (DuckDB, like PostgreSQL, cannot keep
   one). Plain `CREATE TABLE t (cols)` stays refused: Add table… makes an empty one.
 - **One Allow for the agent's writes**: the first write asks, the Allow covers the session for the open
-  project's sandbox; `api agent_writes {allow:false}` and the bar's Stop take it back.
+  project's sandbox; `api writes {allow:false}` and the bar's Stop take it back.
 - **The Catalog's Sandbox sort for the agent**: `explorer_browse` and `explorer_search` take `sort` and `order`,
   the sandbox list's own rule.
 - **LIST, STRUCT and MAP cells**: a small JSON box in the sandbox grid (Enter writes, Shift+Enter a new line),

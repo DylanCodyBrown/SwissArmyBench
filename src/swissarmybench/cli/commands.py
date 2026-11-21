@@ -4250,7 +4250,7 @@ _API = {
     "run": ("POST", "/local-api/run"),
     "stop": ("POST", "/local-api/stop"),
     "call": ("POST", "/local-api/call"),
-    "agent_writes": ("POST", "/local-api/agent-writes"),
+    "writes": ("POST", "/local-api/agent-writes"),
     "log": ("GET", "/local-api/log"),
     "address": ("GET", "/local-api/address"),
     "openapi": ("GET", "/local-api/openapi.json"),
@@ -4269,13 +4269,13 @@ _API = {
     "the session)",
     req(
         "action",
-        "state, new, settings, run, stop, call, agent_writes, log, address, openapi, targets, export, scaffold, "
+        "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, scaffold, "
         "check, shapes, example.",
     ),
     opt(
         "args",
         'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
-        'agent_writes: {"allow": bool}; settings: {"name", '
+        'writes: {"allow": bool} (the agent writing this session); settings: {"name", '
         '"target", "base_path"}; example: {"endpoint": "POST /orders", "body"}.',
         "json",
     ),

@@ -725,7 +725,7 @@ src/swissarmybench/
                          connection's from the shared catalog, put back after Reset and Restore); mock_dialects
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
                          (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
-                         the session, agent_writes), log, address, scaffold (New endpoint from a table, appended to
+                         the session; api writes), log, address, scaffold (New endpoint from a table, appended to
                          API.py; its key kept by the sandbox); state brief (full: the OpenAPI document)
     api_export.py        Export for a target: the bundle, the made folder (only changed bytes, stale files gone,
                          a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
