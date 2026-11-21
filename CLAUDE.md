@@ -895,8 +895,8 @@ src/swissarmybench/
     http.py              reading requests, shaping answers, each error as its status in the one refusal shape
                          (domain/refusals.py; refusal(), error_as(); UTF-8; the guard, an unknown address and a
                          method not taken answer it too; cli/api.py reads a words-only one as its words); the
-                         handler wrappers every route module uses instead of its own try/except: safely,
-                         with_body, with_actor, answered, json_lines (a run streamed as JSON lines)
+                         handler wrappers: with_body, with_actor, answered, json_lines (a run streamed as JSON
+                         lines); guarded (app.py): every route's handler under safely once, no route its own
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, connections, apis, folders, workbench, table_cells, lineage,
@@ -1187,7 +1187,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
                          pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
-                         kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
+                         kindColours.ts the kind colours (fixed: grid.css's tokens) and a
                          notebook's kind (in a project data.ipynb the data notebook; every other plain:
                          notebookRole, kindIcon);
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
@@ -1211,8 +1211,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          blank grid) and a built table's tray; the project's group in the
                          Application row (Save, Copy to…, Close, Autosave) and the strip of tables to fix;
                          connectionColours.ts each connection's colour worn by whatever names it
-                         (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
-                         swatch and palette; panes.ts groups the home page's tabs by connection;
+                         (data-connections): its own box (a card, the Data Catalog's row, a tab group's head) as
+                         its border and a light tint, what names it (tabs, cells, Session entries) as a stripe;
+                         the swatch and palette on its detail; dom.ts dateTime and plural, the pages' one date
+                         and one count; panes.ts groups the home page's tabs by connection;
                          localApis.ts the APIs page's Local sandbox APIs (one slim bar: name, where it runs, the
                          agent's session writes with Stop, Run / Stop, Open API.py, Properties folded: target, base
                          path, description; "…": New endpoint, Will this work for real?, Export (its target said,
