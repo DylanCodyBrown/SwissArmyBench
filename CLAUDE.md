@@ -520,9 +520,6 @@ src/swissarmybench/
     packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
                          files, Claude Code's install record read loosely, which plugins are switched off
     panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
-    page_queries.py      a Streamlit page's SQL and DAX blocks: the page values a query names (`{{ region }}`,
-                         read by the same text the page runs) and sab_queries.py (the exporter's connections, then
-                         the page's sql/dax: values bound or written as DAX literals, cached; one worker thread)
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
                          (the package check, settings, the vault by managed identity, connections)

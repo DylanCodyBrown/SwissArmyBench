@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
-from swissarmybench.domain import dataverse, notebooks, page_queries, portability
+from swissarmybench.domain import dataverse, notebooks, portability
 from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import script_export as rules
 from swissarmybench.domain import script_runtime as runtime
@@ -188,18 +188,6 @@ class ScriptExports:
             found.append((blade.name, blade.code, blade.template, passwords))
         return portability.export_notes(found)
 
-    def query_module(self, cells: list[ExportCell]) -> page_queries.QueryModule:
-        """sab_queries.py for a Streamlit page's SQL and DAX blocks (the Streamlit extension's canvas):
-        each connection they name written out as an export writes it. Checked as an export is: it
-        compiles and holds no saved password's value (Refused otherwise: nothing is written)."""
-        names = self._code_names()
-        pieces, values = self._pieces(rules.references(cells, names))
-        made = page_queries.query_module(rules.plan("pages", "pages.ipynb", cells, pieces, names))
-        stopped = rules.check(made.text, values)
-        if stopped:
-            raise Refused("sab_queries.py was not written: " + "; ".join(dict.fromkeys(stopped)) + ".")
-        return made
-
     def connections_code(self, wanted: list[str]) -> dict[str, Any]:
         """The connections a local sandbox API's export uses (services/api_export.py), each as its own code
         (as a script export writes it: settings from the environment, a vault by managed identity), then
@@ -216,7 +204,7 @@ class ScriptExports:
         names = self._code_names()
         pieces, values = self._pieces(wanted)
         made = rules.plan("API", "API.py", cells, pieces, names)
-        shared = page_queries.shared_text(made)
+        shared = rules.shared_parts(made)
         text = "\n\n".join(
             [
                 runtime.IMPORTS,
