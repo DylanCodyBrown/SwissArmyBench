@@ -28,13 +28,9 @@ import { pulse } from "./sessionPage";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { errorHere, errorNote } from "./errorNote";
 import { actionButtons } from "./pageActions";
+import { loadDiagrams } from "./lazyLoad";
 
 let host: HTMLElement;
-let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
-const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
-  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
-  return diagramModule;
-};
 
 export function mountErd(element: HTMLElement): void {
   host = element;
@@ -166,7 +162,7 @@ async function render(): Promise<void> {
     const erd = await api<{ mermaid: string }>(
       inProject && showAll ? "/relationships/erd?scope=all" : `/relationships/erd?tables=${encodeURIComponent(covered.join(","))}`,
     );
-    const m = await diagrams();
+    const m = await loadDiagrams();
     if (mine !== renders) return;
     await m.drawDiagram(slot, erd.mermaid, effectiveTheme() !== "light");
     fitted = true; // a diagram just drawn fits the window

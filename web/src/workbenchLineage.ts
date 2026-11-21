@@ -19,6 +19,7 @@ import { api } from "./api";
 import { button, clear, h } from "./dom";
 import { effectiveTheme } from "./theme";
 import { errorHere, errorNote } from "./errorNote";
+import { loadDiagrams } from "./lazyLoad";
 
 export interface LineageTarget {
   /** A cell of a notebook or script: its path (or, unsaved, its title) and its own number. */
@@ -89,11 +90,6 @@ const POLL_MS = 3000;
 const KINDS: Record<LineageNode["kind"], string> = { cell: "Cell", controller: "Controller", text: "Text", table: "Table", step: "Grid step", source: "Source" };
 
 // Mermaid (lazy/diagram.ts), loaded the first time a lineage opens.
-let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
-const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
-  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
-  return diagramModule;
-};
 
 const count = new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 });
 const plural = (n: number, word: string): string => `${count.format(n)} ${word}${n === 1 ? "" : "s"}`;
@@ -298,7 +294,7 @@ export async function openLineage(target: LineageTarget, host: LineageHost, into
     const text = themed(graph.mermaid, panel);
     if (text === drawn) return;
     drawn = text;
-    const m = await diagrams();
+    const m = await loadDiagrams();
     try {
       await m.drawDiagram(chart, text, effectiveTheme().endsWith("dark"));
     } catch (e) {

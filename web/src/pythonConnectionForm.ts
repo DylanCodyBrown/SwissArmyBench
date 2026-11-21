@@ -26,6 +26,7 @@ import { backButton } from "./nav";
 import { effectiveTheme } from "./theme";
 import { previewLine } from "./variableBox";
 import { errorNote } from "./errorNote";
+import { loadEditors } from "./lazyLoad";
 
 interface Source {
   name: string;
@@ -95,13 +96,6 @@ export function tablePreview(preview: TablePreview): HTMLElement[] {
 }
 
 // The Workbench's editor (Monaco), loaded when a form first opens; its styles with it.
-let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
-function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
-  if (!document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) {
-    document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
-  }
-  return (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
-}
 
 interface Box {
   element: HTMLElement;

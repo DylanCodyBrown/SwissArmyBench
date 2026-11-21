@@ -22,6 +22,7 @@ import { button, clear, h, icon, toast } from "./dom";
 import { errorHere } from "./errorNote";
 import type { EditorLanguage } from "./lazy/codeEditor";
 import { effectiveTheme } from "./theme";
+import { loadEditors } from "./lazyLoad";
 
 interface Query {
   id: string;
@@ -91,13 +92,6 @@ function clock(seconds: number): string {
 
 const at = (epoch: number): string => new Date(epoch * 1000).toLocaleTimeString();
 
-let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
-function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
-  if (!document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) {
-    document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
-  }
-  return (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
-}
 
 export async function mountQueriesWindow(): Promise<void> {
   const params = new URLSearchParams(location.search);

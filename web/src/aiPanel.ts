@@ -42,6 +42,7 @@ import { effectiveTheme, gridZoom, onThemeChange, setTheme, themeChoice } from "
 import type { Drawn } from "./lazy/charts";
 import { errorHere, errorNote, showError } from "./errorNote";
 import { analyzeParts, cardActions, handleAnalyzeNotice, type CardAnalysis } from "./analyzePage";
+import { loadDiagrams } from "./lazyLoad";
 
 type CardKind = "chart" | "note" | "table" | "diagram" | "graphviz" | "plotly" | "echarts" | "vegalite" | "image";
 
@@ -221,11 +222,6 @@ let workspace: HTMLElement;
 let panel: HTMLElement;
 let chartsModule: Promise<typeof import("./lazy/charts")> | null = null;
 
-let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
-const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
-  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
-  return diagramModule;
-};
 
 let plotlyModule: Promise<typeof import("./lazy/plotly")> | null = null;
 let echartsModule: Promise<typeof import("./lazy/echarts")> | null = null;
@@ -609,7 +605,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     const slot = h("div", { class: "diagram", role: "img", "aria-label": card.title || "Diagram" });
     content.append(slot);
     pictures.set(card.id, async () => { const svg = slot.querySelector("svg"); return svg ? svgToPng(svg) : null; });
-    void diagrams().then((m) => m.drawDiagram(slot, card.body ?? "", dark)).catch((e: unknown) => failed(slot, e));
+    void loadDiagrams().then((m) => m.drawDiagram(slot, card.body ?? "", dark)).catch((e: unknown) => failed(slot, e));
   } else if (card.kind === "graphviz") {
     const slot = h("div", { class: "diagram", role: "img", "aria-label": card.title || "Graph" });
     content.append(slot);

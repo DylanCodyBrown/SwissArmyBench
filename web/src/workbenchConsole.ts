@@ -14,6 +14,7 @@ import type { CodeEditor, Completer, Helper, Intel } from "./lazy/codeEditor";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
 import { type Kernel, runInto, type RunBody } from "./workbenchKernel";
 import { type ErrorHooks, outputArea, resultName } from "./workbenchOutputs";
+import { loadEditors } from "./lazyLoad";
 
 /** Where a run's code came from, so an error's lines map back to the script: the file (Run file), or
  *  lines from `start` that lost `indent` columns to the dedent (a statement or a selection). */
@@ -35,9 +36,6 @@ export interface ConsoleView {
   dispose: () => void;
 }
 
-let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
-export const loadEditors = (): Promise<typeof import("./lazy/codeEditor")> =>
-  (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
 
 export function consoleView(
   kernel: Kernel,

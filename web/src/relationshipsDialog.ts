@@ -36,12 +36,8 @@ import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, 
 import { busyClick, loadingBlock } from "./loading";
 import { errorHere, errorNote } from "./errorNote";
 import { effectiveTheme } from "./theme";
+import { loadDiagrams } from "./lazyLoad";
 
-let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
-const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
-  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
-  return diagramModule;
-};
 
 interface SavedSet {
   name: string;
@@ -483,7 +479,7 @@ export function openRelationships(startFinding = false): void {
     if (!found.suggestions.length) return;
     try {
       const erd = await api<{ mermaid: string }>(`/relationships/erd?tables=${encodeURIComponent(found.tables.join(","))}`);
-      const m = await diagrams();
+      const m = await loadDiagrams();
       if (!picture.isConnected) return;
       await m.drawDiagram(picture, erd.mermaid, effectiveTheme() !== "light");
     } catch (e) {

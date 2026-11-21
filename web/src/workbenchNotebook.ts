@@ -59,7 +59,6 @@ import type { CodeEditor } from "./lazy/codeEditor";
 import { renderMarkdown } from "./markdown";
 import { draggedSnippet, type FilledSnippet, fillSnippet, pickSnippet, refusal, SNIPPET_CELL, SNIPPET_DRAG, type SnippetLanguage } from "./starters";
 import { codeItem, currentDocument, sendToAgent } from "./workbenchAgent";
-import { loadEditors } from "./workbenchConsole";
 import { type CellRoute, cellRoute } from "./modes";
 import { openRoutedTable, previewRouted, routedTypes, runRouted } from "./routedCells";
 import { namedConnections } from "./connectionSql";
@@ -73,6 +72,7 @@ import { type ErrorHooks, type Output, type OutputArea, outputArea, resultName }
 import { cleanName, copiedCell, copyCell, MAX_CELL_NAME } from "./cellClipboard";
 import { type ArrangedCell, firstLine, groupLineText, noteParts, type RunRecord, type TableInfo, type TableLine, tableLineText, type TableState, tableState, type UsesForm, withUses } from "./workbenchTables";
 import { errorHere, errorNote } from "./errorNote";
+import { loadDiagrams, loadEditors } from "./lazyLoad";
 
 /** A SQL cell's first line as the kernel runs it (domain/notebooks.py sql_line). */
 export function sqlLine(connection: string | null): string {
@@ -362,11 +362,6 @@ export interface NotebookView {
 const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
 
 // Mermaid (lazy/diagram.ts), loaded the first time a Markdown cell holds a ```mermaid block.
-let diagramModule: Promise<typeof import("./lazy/diagram")> | null = null;
-const diagrams = (): Promise<typeof import("./lazy/diagram")> => {
-  diagramModule ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>;
-  return diagramModule;
-};
 const isHeading = (role: string): boolean => role === "tables" || role === "table";
 
 export function notebookView(
@@ -511,7 +506,7 @@ export function notebookView(
       const text = block.textContent ?? "";
       const host = h("div", { class: "md-mermaid", role: "img", "aria-label": "Diagram" });
       block.replaceWith(host);
-      void diagrams()
+      void loadDiagrams()
         .then((m) => m.drawDiagram(host, text, dark()))
         .catch((e: unknown) => host.replaceChildren(errorNote(e, { dismiss: false })));
     }
