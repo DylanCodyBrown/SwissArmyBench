@@ -100,7 +100,13 @@ def test_go_to_definition_into_a_library_opens_it_read_only(
 def notebook(source: str) -> str:
     import json
 
-    cell = {"cell_type": "code", "metadata": {}, "source": source, "outputs": [], "execution_count": None}
+    cell: dict[str, Any] = {
+        "cell_type": "code",
+        "metadata": {},
+        "source": source,
+        "outputs": [],
+        "execution_count": None,
+    }
     return json.dumps({"cells": [cell], "metadata": {}, "nbformat": 4, "nbformat_minor": 5})
 
 

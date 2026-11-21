@@ -84,7 +84,9 @@ SHELL_SCRIPT = """
   // The page knows it is in the desktop app: the browser's keys are the app's (Ctrl+W, Ctrl+T, Ctrl+N,
   // Ctrl+Tab, Ctrl+Shift+T), and print waits for the PDF. close(): this window (asking its page first).
   // fullScreen(on): the window itself full screen or back (the pages' F11, 2026-11-21).
-  const app = Object.freeze({ app: true, close: () => say({ close: true }), fullScreen: (on) => say({ full: !!on }) });
+  const app = Object.freeze({
+    app: true, close: () => say({ close: true }), fullScreen: (on) => say({ full: !!on }),
+  });
   Object.defineProperty(window, "sabApp", { value: app, enumerable: false });
   // The keys a page leaves alone: F5 and Ctrl+R reload, Ctrl+W closes the window. A page that takes one
   // (the Workbench's F5 runs, a grid page's Ctrl+W closes its tab) prevents its default first.
@@ -433,8 +435,8 @@ class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy
     # ----- full screen, developer tools, permissions -----
 
     def toggle_full_screen(self) -> None:
-        """F11: a page with a full screen of its own (the Notebooks and Scripts pages: the IDE alone) takes it,
-        and asks for the window's through sabApp.fullScreen; any other page, the window alone."""
+        """F11: a page with a full screen of its own (the Notebooks and Scripts pages: the IDE alone) takes
+        it, and asks for the window's through sabApp.fullScreen; any other page, the window alone."""
 
         def answered(took: Any) -> None:
             if took is True:
