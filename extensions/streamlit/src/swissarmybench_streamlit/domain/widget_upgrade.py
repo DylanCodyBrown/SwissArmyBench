@@ -6,8 +6,8 @@ by named keys, rewritten as the contract's declarations (domain/widget_contract.
     st.session_state["picked"] = choice                    picked: Out[str] = None ... picked = choice
 
 A key read and never written becomes an In; one written becomes an Out (read too: its own last value). A key
-is a string, or a property whose value is one (that property goes once nothing else reads it). Only plain uses at
-the top level are rewritten (a read anywhere; a write as a statement of its own at the module's level); any
+is a string, or a property whose value is one (that property goes once nothing else reads it). Only plain uses
+at the top level are rewritten (a read anywhere; a write as a statement of its own at the module's level); any
 other use is listed as kept, with why. Its type is guessed (a table's words, the value written), and may be
 changed in the preview's code before it is applied.
 

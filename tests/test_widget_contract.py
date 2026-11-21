@@ -318,7 +318,7 @@ def _run(folder: Path, files: dict[str, str], pages: list[str]) -> list[dict[str
         (folder / name).write_text(text, encoding="utf-8")
     (folder / "check.json").write_text(json.dumps({"pages": pages}), encoding="utf-8")
     assert PYTHON is not None
-    done = subprocess.run(  # noqa: S603
+    done = subprocess.run(
         [PYTHON, "-I", "-c", CHECK_RUNNER, str(folder)],
         capture_output=True,
         text=True,
