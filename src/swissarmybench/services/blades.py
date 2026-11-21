@@ -55,7 +55,6 @@ from swissarmybench.domain.connections import code_names, connection_kind, opens
 from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.packages import blade_feature, connection_feature, missing_packages
-from swissarmybench.domain.packs import CROSS_LISTED
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.vault_names import KeptVaultNames
@@ -208,7 +207,7 @@ class BladeService:
         return self._blades.get(name)
 
     def everything(self) -> list[Blade]:
-        """Every blade: saved, in a blade folder, in a pack."""
+        """Every blade: saved or in a blade folder."""
         return self._blades.all()
 
     def summary(
@@ -1202,7 +1201,7 @@ class BladeService:
                 }
             families.setdefault(blade.family or "Other", []).append(entry)
         # A starter listed in another family too (Excel's writers in Write), marked `also`.
-        for family, names in CROSS_LISTED.items():
+        for family, names in rules.CROSS_LISTED.items():
             listed = {e["name"].casefold(): e for found in families.values() for e in found}
             for name in names:
                 if name.casefold() in listed and family in families:
@@ -1387,7 +1386,7 @@ class BladeService:
                         else [],
                         "conflict": {
                             "name": taken.name,
-                            "source": "pack" if taken.pack else "folder" if taken.path else "saved",
+                            "source": "folder" if taken.path else "saved",
                         }
                         if taken
                         else None,

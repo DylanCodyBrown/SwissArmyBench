@@ -6,7 +6,6 @@
     sab add_step g1 filter '{"column": "balance", "op": "gt", "value": 100}'
     sab put_steps g1 --steps @steps.json
     sab events --types grid_updated --seconds 60
-    sab pack new ./data-blades --marketplace data-blades --pack sales --owner "Sales team"
 
 Required arguments can be given in order without a name; any argument can be `--name value`. A
 value of `@file` reads the file and `-` reads standard input, which is the easy way to pass JSON or
@@ -86,63 +85,8 @@ def save_picture(data: bytes) -> Path:
     return path
 
 
-def pack_new(argv: list[str]) -> int:
-    """`sab pack new <folder> [--marketplace name] [--pack name] [--owner name] [--description text]`:
-    a new Claude Code plugin marketplace repository with one pack (blades/ and relationship-sets/), on this
-    computer, with no server needed. Push it to GitHub and teammates add it with /plugin."""
-    from swissarmybench.domain.packs import PackError, scaffold
-
-    options: dict[str, str] = {}
-    rest: list[str] = []
-    i = 0
-    while i < len(argv):
-        if argv[i].startswith("--") and i + 1 < len(argv):
-            options[argv[i][2:]] = argv[i + 1]
-            i += 2
-        else:
-            rest.append(argv[i])
-            i += 1
-    if len(rest) != 1:
-        print("sab: pack new <folder> [--marketplace name] [--pack name] [--owner name]", file=sys.stderr)
-        return 1
-    target = Path(rest[0]).expanduser().resolve()
-    marketplace = options.get("marketplace") or target.name
-    pack = options.get("pack") or "blades"
-    try:
-        files = scaffold(marketplace, options.get("owner", ""), pack, options.get("description", ""))
-    except PackError as error:
-        print(f"sab: {error}", file=sys.stderr)
-        return 1
-    if target.exists() and any(target.iterdir()):
-        print(f"sab: {target} is not empty: pick a new folder.", file=sys.stderr)
-        return 1
-    for relative, text in files.items():
-        path = target / relative
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    print(
-        json.dumps(
-            {
-                "folder": str(target),
-                "files": sorted(files),
-                "next": [
-                    f"Add {target} as a blade folder (blades page, Blade folders), save blades and "
-                    f"relationship sets into packs/{pack}/blades and packs/{pack}/relationship-sets, "
-                    "then push it to GitHub.",
-                    "Teammates: /plugin marketplace add <owner>/<repository>, then "
-                    f"/plugin install {pack}@{marketplace}",
-                ],
-            },
-            indent=2,
-        )
-    )
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
-    if args[:2] == ["pack", "new"]:
-        return pack_new(args[2:])
     try:
         if args and args[0] in ("-h", "--help", "help"):
             print(json.dumps(catalog(None), indent=2))

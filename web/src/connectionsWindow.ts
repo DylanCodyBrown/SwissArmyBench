@@ -753,7 +753,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     if (mine !== drawing) return;
     const c = listed;
     const config = usage.configuration;
-    const readOnly = c?.source === "pack";
+    const readOnly = c?.source === "starter";
     const path = encodeURIComponent(name);
     const swatch = config.kind === "vault" ? null : colourPicker(name);
     setHeading(name, " ", statusPill(usage));

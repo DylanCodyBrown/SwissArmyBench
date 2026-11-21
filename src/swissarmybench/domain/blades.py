@@ -34,6 +34,9 @@ from typing import Any
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
 from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import variable_refs as refs
+from swissarmybench.domain.blade_templates import CROSS_LISTED as CROSS_LISTED
+from swissarmybench.domain.blade_templates import FAMILIES as FAMILIES
+from swissarmybench.domain.blade_templates import STARTERS as STARTERS
 from swissarmybench.domain.blade_templates import Template as Template
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
 from swissarmybench.domain.packages import CALL_NEEDS as CALL_NEEDS
@@ -43,8 +46,6 @@ from swissarmybench.domain.packages import install_command as install_command
 from swissarmybench.domain.packages import missing_module_hint as missing_module_hint
 from swissarmybench.domain.packages import pip_name as pip_name
 from swissarmybench.domain.packages import provided as provided
-from swissarmybench.domain.packs import FAMILIES as FAMILIES
-from swissarmybench.domain.packs import STARTERS as STARTERS
 from swissarmybench.domain.variable_refs import env_name_for_secret as env_name_for_secret
 from swissarmybench.domain.variable_refs import every_secret as every_secret
 
@@ -1229,7 +1230,7 @@ class Blade:
     web_call: dict[str, Any] = field(default_factory=dict)  # a web call blade's (domain/web_calls.py)
     table: str = ""  # its result's table name (domain/blade_tables.py); "": the name its code makes
     path: str | None = None  # a blade folder's file; None for a blade saved in the app
-    pack: str | None = None  # an installed pack's label (sales@team 1a2b3c): read-only, from a marketplace
+    pack: str | None = None  # STARTERS for the built-in starter pack's (read-only), else None
     created_at: float = 0.0
     updated_at: float = 0.0
 
@@ -1261,10 +1262,10 @@ class Blade:
 
     @property
     def source(self) -> str:
-        """Where it lives: "starter" (the built-in pack), "pack", "folder" or "saved"."""
+        """Where it lives: "starter" (the built-in pack), "folder" or "saved"."""
         if self.pack == STARTERS:
             return "starter"
-        return "pack" if self.pack else "folder" if self.path else "saved"
+        return "folder" if self.path else "saved"
 
     def to_json(self) -> dict[str, Any]:
         return {

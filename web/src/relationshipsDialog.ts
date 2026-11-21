@@ -46,7 +46,7 @@ interface SavedSet {
   saved_at: string;
   author: string;
   file: string;
-  where: "mine" | "shared" | "package" | "environment" | "pack";
+  where: "mine" | "shared" | "package" | "environment";
   set: boolean;
   tables: string[];
   open_tables: string[];
@@ -79,7 +79,7 @@ interface RunResult extends Join {
 }
 
 const KINDS = ["many-to-one", "one-to-one", "one-to-many", "many-to-many"];
-const WHERE: Record<SavedSet["where"], string> = { mine: "Mine", shared: "Shared", package: "Built in", environment: "Folder", pack: "Pack" };
+const WHERE: Record<SavedSet["where"], string> = { mine: "Mine", shared: "Shared", package: "Built in", environment: "Folder" };
 // Where a saved set can be renamed or deleted here (a pack's changes in its repository).
 const EDITABLE: SavedSet["where"][] = ["mine", "shared"];
 const STATUS: Record<RunResult["status"], [string, string]> = {
@@ -237,7 +237,7 @@ export function openRelationships(startFinding = false): void {
 
   function setMenu(t: SavedSet, at: HTMLElement): void {
     const box = at.getBoundingClientRect();
-    const locked = EDITABLE.includes(t.where) ? undefined : t.where === "pack" ? "A pack's set changes in its repository" : "Read-only here";
+    const locked = EDITABLE.includes(t.where) ? undefined : "Read-only here";
     const items: MenuItem[] = [
       ["rename", "Rename…", () => renameSet(t), locked],
       ["export", "Export", () => void exportSaved(t.name)],

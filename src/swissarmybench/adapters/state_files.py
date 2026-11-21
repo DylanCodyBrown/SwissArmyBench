@@ -270,8 +270,8 @@ SHARED_DEPTH = 4
 _SKIPPED_DIRS = frozenset(
     {"__pycache__", "node_modules", "site-packages", ".venv", "venv", "env", "build", "dist"}
 )
-# Where a set may be renamed or deleted: the person's own and the shared folders. The package's, a
-# pack's (from a marketplace: changed in its repository) and SWISSARMYBENCH_MODELS' are read-only.
+# Where a set may be renamed or deleted: the person's own and the shared folders. The package's and
+# SWISSARMYBENCH_MODELS' are read-only.
 EDITABLE = ("mine", "shared")
 
 
@@ -283,7 +283,6 @@ class ModelFiles:
         self,
         state_dir: Path,
         shared: Callable[[], list[str]] | None = None,
-        packs: Callable[[], list[tuple[Path, str]]] | None = None,
         library: Callable[[], Path] | None = None,
         made: Callable[[], object] | None = None,
     ) -> None:
@@ -292,8 +291,6 @@ class ModelFiles:
         # The library's relationship-sets/ (Plans/library.plan.md): where a saved set goes.
         self._library = library
         self._shared = shared or (lambda: [])
-        # Installed packs' relationship-sets folders (adapters/packs.py): read-only sets from a marketplace.
-        self._packs = packs or (lambda: [])
 
     @property
     def mine(self) -> Path:
@@ -324,7 +321,6 @@ class ModelFiles:
             if p.strip()
         ]
         folders += [(Path(p), "shared") for p in self.shared_folders()]
-        folders = [(folder, "pack") for folder, _ in self._packs()] + folders  # a clone wins over its install
         return folders
 
     def _set_files(self, folder: Path, deep: bool) -> list[Path]:
@@ -351,13 +347,13 @@ class ModelFiles:
             if not folder.is_dir():
                 continue
             plain = sorted(p for p in folder.glob("*.json") if not is_set_file(p.name))
-            for path in plain if where not in ("shared", "pack") else []:
+            for path in plain if where != "shared" else []:
                 try:
                     model = parse_model(json.loads(path.read_text(encoding="utf-8")))
                     found[model.name] = (model, str(path))
                 except (OSError, ValueError) as error:
                     problems.append(f"{path.name}: {error}")
-            for path in self._set_files(folder, deep=where in ("shared", "pack")):
+            for path in self._set_files(folder, deep=where == "shared"):
                 try:
                     if path.stat().st_size > 2_000_000:
                         raise RelationshipSetError("larger than 2 MB")

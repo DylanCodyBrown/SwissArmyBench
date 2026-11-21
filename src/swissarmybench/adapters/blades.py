@@ -69,7 +69,6 @@ class BladeStore:
         folder: Path,
         folders_file: Path | None = None,
         pins_file: Path | None = None,
-        packs: Callable[[], list[tuple[Path, str]]] | None = None,
         starters: Path | None = None,
         made: Callable[[], object] | None = None,
         more_starters: Callable[[], list[Path]] | None = None,
@@ -87,8 +86,6 @@ class BladeStore:
         # The extensions' own starter blades (each an extension's STARTERS folder, while it is on).
         self._more_starters = more_starters or (lambda: [])
         self.folders_file = folders_file
-        # Installed packs' blades folders, with each pack's label: read-only blades from a marketplace.
-        self._packs = packs or (lambda: [])
         # The built-in starter pack (src/swissarmybench/starters/): read-only, shipped with the app, so a
         # new version brings new starters; listed apart (starters()), found by name after the rest.
         self.starters_folder = starters
@@ -295,13 +292,11 @@ class BladeStore:
                         problems.append({"path": str(path), "error": problem})
                     if blade is not None:
                         found.append(blade)
-        for root, label in self._packs():
-            found += self._pack_files(root, label, problems)
         self.problems = problems
         return found
 
     def _pack_files(self, root: Path, label: str, problems: list[dict[str, str]]) -> list[Blade]:
-        """Every blade file of a pack's folder (read again only when it changed), marked with the pack."""
+        """Every blade file of a starter folder (read again only when it changed), marked with `label`."""
         found: list[Blade] = []
         for path in sorted(root.rglob("*.py")) if root.is_dir() else []:
             try:
@@ -390,8 +385,8 @@ class BladeStore:
         return replace(blade, catalog_language=found[0], catalog_command=found[1])
 
     def all(self) -> list[Blade]:
-        """Saved blades, folder blades and pack blades; a saved blade comes first when two share a
-        name, then the first folder's (a clone being edited), then an installed pack's."""
+        """Saved blades and folder blades; a saved blade comes first when two share a name, then the first
+        folder's."""
         by_name: dict[str, Blade] = {}
         for blade in [*self._saved(), *self._scan()]:
             by_name.setdefault(blade.name.casefold(), blade)
@@ -411,20 +406,18 @@ class BladeStore:
         raise KeyError(name)
 
     def file_of(self, name: str) -> Path | None:
-        """The file a blade is kept in (the library's, a blade folder's, a pack's or a starter's)."""
+        """The file a blade is kept in (the library's, a blade folder's or a starter's)."""
         blade = self.get(name)
         return Path(blade.path) if blade.path else self.saved_file(blade.name)
 
     def set_header(self, name: str, changes: Mapping[str, Any]) -> Blade:
         """Change a blade's name, description, tags or table name: its file's header only, the code's bytes
-        untouched (domain/blades.py with_header). Nothing is written when nothing changes. A starter's and a
-        pack's are read-only."""
+        untouched (domain/blades.py with_header). Nothing is written when nothing changes. A starter's is
+        read-only."""
         with self._lock:
             blade = self.get(name)
             if blade.pack == rules.STARTERS:
                 raise BladeError(f"{blade.name} is a starter (read-only): copy it as your own to change.")
-            if blade.pack:
-                raise BladeError(f"{blade.name} comes from the pack {blade.pack}: change it in that pack.")
             path = self.file_of(blade.name)
             if path is None:
                 raise BladeError(f"{blade.name} has no file to change.")
@@ -467,15 +460,13 @@ class BladeStore:
         """A blade's code, written into its file after the header (the blade IDE: the owner, 2026-11-21). The
         header stays as it is but for its variable, which follows the code (a function renamed). Checked as
         any blade is (it must parse and make its variable); nothing is written when the bytes would not
-        change. A starter's and a pack's are read-only."""
+        change. A starter's is read-only."""
         with self._lock:
             blade = self.get(name)
             if blade.pack == rules.STARTERS:
                 raise BladeError(
                     f"{blade.name} is a starter (read-only): Copy as your own (blades_copy) to change it."
                 )
-            if blade.pack:
-                raise BladeError(f"{blade.name} comes from the pack {blade.pack}: change it in that pack.")
             if blade.kind == "secret":
                 raise BladeError(
                     f"{blade.name} is a secret blade: it has no code, only its variables' names."
@@ -512,11 +503,6 @@ class BladeStore:
                     raise BladeError(f"No blade named {previous_name!r} to change.") from None
             if previous is not None and previous.pack == rules.STARTERS:
                 raise BladeError(f"{previous.name} is a starter (read-only): copy it as your own to change.")
-            if previous is not None and previous.pack:
-                raise BladeError(
-                    f"{previous.name} comes from the pack {previous.pack}: change it in that pack's "
-                    "repository (a clone added as a blade folder), or save a copy under another name."
-                )
             blade = parse_blade(data, previous)
             renamed = previous is not None and previous.name.casefold() != blade.name.casefold()
             if previous is None or renamed:
@@ -585,11 +571,6 @@ class BladeStore:
                 return
             if blade.pack == rules.STARTERS:
                 raise BladeError(f"{blade.name} is a starter: it comes with the app and stays.")
-            if blade.pack:
-                raise BladeError(
-                    f"{blade.name} comes from the pack {blade.pack}. Uninstall or disable the pack in Claude "
-                    "Code (/plugin) to remove its blades."
-                )
             if blade.path:
                 raise BladeError(
                     f"{blade.name} is a file in your blade folder ({blade.path}). Delete or move the file "

@@ -880,7 +880,7 @@ class Models:
 
     @property
     def library_files(self) -> ModelLibrary:
-        """The relationship sets themselves (packs copy sets out of them)."""
+        """The relationship sets themselves."""
         return self._library
 
     def current(self) -> dict[str, Any]:

@@ -50,7 +50,6 @@ from swissarmybench.adapters.found_connections import ConnectionFinder
 from swissarmybench.adapters.intellisense import JediWorld, Linters, ProjectModules
 from swissarmybench.adapters.library import LibraryFolder
 from swissarmybench.adapters.live_updates import LiveUpdates
-from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
@@ -162,7 +161,6 @@ from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.local_api import LocalApi
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
-from swissarmybench.services.packs import Packs
 from swissarmybench.services.ports import INTERACTIVE as PRIORITY_INTERACTIVE
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
@@ -239,7 +237,6 @@ class Services:
     models: Models
     project_tables: ProjectTables
     finder: Finder
-    packs: Packs
     keys: KeyFinder
     compares: Compares
     tie_out: TieOut
@@ -345,13 +342,6 @@ def bootstrap(
         connection, settings.max_dataset_bytes, settings.max_total_bytes, settings.max_datasets
     )
     live = LiveUpdates()
-    # Packs: installed Claude Code plugins that carry blades and relationship sets, and editable clones in
-    # the blade folders. Their blades and sets join the blade store and the relationship sets read-only.
-    pack_files = PackFolders(
-        settings.claude_dir,
-        shared=lambda: [f["path"] for f in blade_store.folders() if f["exists"]],
-        environ=os.environ,
-    )
     # The library (Plans/library.plan.md): this computer's connections, APIs, vaults, blades, relationship
     # sets, variables and colours, in one folder made to be a Git repository, whatever project is open;
     # Settings points it elsewhere (library.json: the path only). README.md and .gitignore made on first use.
@@ -367,7 +357,6 @@ def bootstrap(
         made=library_folder.ensure,
         folders_file=state_dir / "blade_folders.json",
         pins_file=state_dir / "blade_pins.json",
-        packs=pack_files.blade_dirs,
         # The built-in starter pack ships inside the package, so each version brings its own.
         starters=Path(__file__).resolve().parent / "starters",
         # Each extension that is on: its own starters (its module's STARTERS folder).
@@ -621,7 +610,6 @@ def bootstrap(
         ModelFiles(
             state_dir,
             shared=lambda: [f["path"] for f in blade_store.folders() if f["exists"]],
-            packs=pack_files.set_dirs,
             library=lambda: library_folder.root,
             made=library_folder.ensure,
         ),
@@ -1682,7 +1670,6 @@ def bootstrap(
         models=models,
         project_tables=project_tables,
         finder=Finder(ws, models),
-        packs=Packs(ws, pack_files, blade_store, models.library_files),
         library=library,
         library_setup=library_setup,
         team=team,

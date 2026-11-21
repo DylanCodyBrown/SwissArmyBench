@@ -71,13 +71,6 @@ def _projects_dir() -> Path:
     return Path(override) if override else Path.home() / "Swiss Army Bench Projects"
 
 
-def _claude_dir() -> Path:
-    """Claude Code's folder, where installed plugins (packs) live: SWISSARMYBENCH_CLAUDE_DIR (tests),
-    else Claude Code's own CLAUDE_CONFIG_DIR, else ~/.claude."""
-    override = os.environ.get("SWISSARMYBENCH_CLAUDE_DIR", "") or os.environ.get("CLAUDE_CONFIG_DIR")
-    return Path(override) if override else Path.home() / ".claude"
-
-
 def _claude_standin() -> Path | None:
     """SWISSARMYBENCH_CLAUDE_STANDIN (tests): a JSON file says which Claude was found; launches are written
     beside it, so nothing is probed and no terminal opens."""
@@ -255,8 +248,6 @@ class Settings:
     # (the file chooser's first look at it, or a save into it).
     workbench_dir: Path = field(default_factory=_workbench_dir)
     projects_dir: Path = field(default_factory=_projects_dir)
-    # Claude Code's folder: installed plugins that carry blades and relationship sets (packs) are read here.
-    claude_dir: Path = field(default_factory=_claude_dir)
 
     @property
     def library_dir(self) -> Path:

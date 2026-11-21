@@ -91,9 +91,6 @@ What a grid page does:
   stay. With a project open, the ERD and **In use now** show only the tables the project uses (open,
   its own, or named in its notebooks' and scripts' code) and a join only when both ends are; **All
   tables** shows the rest, and the ERD says how many are not drawn.
-- **Packs:** blades and relationship sets a team keeps in a GitHub repository that is also a Claude Code
-  plugin marketplace. Install a pack with `/plugin install` and its blades and sets show up, marked with the
-  pack; `/plugin marketplace update` brings the team's latest.
 - **Analyze** (its own page on the rail): a toolbar of every analysis and one guided form beside the board.
   The table is already picked, the columns are picked for you as chips (only the ones that fit are offered,
   the rest listed with why), one sentence says what will run, and the result lands on the board by itself.
@@ -201,10 +198,10 @@ relationships, a `.relationships.json` file in the library's `relationship-sets/
 is **Relationships** (**Saved sets**, **Save as a set…**). On its first start this version writes the
 library's `tangs/*.tang` as `relationship-sets/*.relationships.json` and keeps the old folder in
 `~/.swissarmybench/backup/before-relationship-sets-<date>/` (said once on the page). The old names work
-for one release: `.tang` files (in a library, a shared folder, a pack's `tangs/` folder, an import), the
+for one release: `.tang` files (in a library, a shared folder, an import), the
 routes `/relationships/tangs` and `/relationships/tang`, the agent's `relationships_save_tang`,
 `relationships_export_tang` and `relationships_import_tang` (each runs its `_set` one; only the new names
-are listed), `relationships_check`'s `tang` and `packs_add`'s `tangs` arguments.
+are listed), `relationships_check`'s `tang` argument.
 
 ## Install it: one package, two installs
 
@@ -412,7 +409,7 @@ cell, the side bar or an agent uses it. Each load runs in its own process, a cou
 waits, and the SQL cell's suggestions pick it up as it lands. One that signs in with a browser window
 (MFA) is not loaded at start-up, only on first use. **Refresh catalog** reads it again after the
 database changes. Catalogs stay in memory only. Connections are kept with the
-blades (so folders, packs, the catalog and Refresh work the same) but listed apart.
+blades (so folders, the catalog and Refresh work the same) but listed apart.
 
 A **Power BI workspace** is a connection too: one connection reaches every dataset (semantic model)
 in the workspace, each read with DAX through Power BI's Execute Queries request. Its form asks for the
@@ -660,45 +657,11 @@ conn = psycopg.connect(host="db.example", user="reader", password=secret("passwo
   code. Passwords are never settings: they stay `secret("...")`, and the import review lets you type them
   straight into this computer's vault.
 
-### Packs: blades and relationship sets from a Claude Code plugin marketplace
-
-A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) and a `relationship-sets/`
-folder (`.relationships.json` files; an older pack's `tangs/` folder still reads, one release). A team keeps its packs in a GitHub repository that is a plugin marketplace
-(`.claude-plugin/marketplace.json`); each person installs a pack once in Claude Code:
-
-```
-/plugin marketplace add <owner>/<repository>
-/plugin install sales@team-blades
-```
-
-- **Installed packs** are found in Claude Code's plugin folder (`~/.claude`, or `CLAUDE_CONFIG_DIR`, or
-  `SWISSARMYBENCH_CLAUDE_DIR`; the cache follows `CLAUDE_CODE_PLUGIN_CACHE_DIR`). Their blades are on the
-  blades page and their relationship sets in the Relationships window, marked **pack**, read-only: Claude Code
-  replaces the installed copy on every update. **Save a copy** keeps your own; Test and Refresh the
-  catalog work without saving. A pack switched off in Claude Code adds nothing.
-- **Updates:** `/plugin marketplace update team-blades`. A pack with no `version` (as made here) is
-  updated by every commit.
-- **Making one:** **Packs** on the blades page, then **New marketplace**, or from a terminal:
-
-  ```
-  sab pack new ./team-blades --pack sales --owner "Sales team"
-  ```
-
-  It writes the marketplace, one pack and a README with the commands, and (from the page) adds the
-  folder as a blade folder. Push it to GitHub.
-- **Adding to one:** a clone of the repository in your blade folders is an **editable** pack. **Add to
-  pack** copies chosen blades and relationship sets into it (files already there are kept unless you ask to
-  replace them); then commit, open a pull request, and once it is merged everyone updates.
-- **Trust:** a pack's blades are its maintainers' code, run on your computer when you use one, as with
-  any plugin you install. Secrets never travel in a pack, only their names. The agent cannot list,
-  make or fill packs.
-
 **This repository is a marketplace too.** `/plugin marketplace add DylanCodyBrown/SwissArmyBench`
-offers two plugins: `swissarmybench` (the user guide as a skill, and the agent tools, the
+offers the `swissarmybench` plugin (the user guide as a skill, and the agent tools, the
 `swissarmybench-mcp` server the installer puts on your computer; remove a copy you added by hand so the
-tools are not listed twice) and `sample-store`, an example pack with a made-up blade and a relationship
-set holding the ten relationships of `examples/sample_store.py` (push its tables with
-`python examples/sample_store.py --push`, then **Check** the set).
+tools are not listed twice). Packs (a plugin carrying blades and relationship sets) went 2026-11-21: a
+team shares blades through its team library.
 
 The agent reads catalogs with `catalog_list`, `catalog_schemas`, `catalog_tables`, `catalog_columns`
 (with a first SELECT quoted for the source) and `catalog_search`.

@@ -51,10 +51,9 @@ export interface BladeSummary {
   tags: string[];
   /** A favourite on this computer: listed first. */
   pinned: boolean;
-  /** "folder": its own .blade.py file in a blade folder (`path`); "saved": kept by the app; "pack":
-   * from an installed Claude Code plugin (a marketplace), read-only; "starter": the built-in starter pack,
-   * read-only (Copy as your own). */
-  source: "saved" | "folder" | "pack" | "starter";
+  /** "folder": its own .blade.py file in a blade folder (`path`); "saved": kept by the app; "starter": the
+   * built-in starter pack, read-only (Copy as your own). */
+  source: "saved" | "folder" | "starter";
   /** Its family in the starter pack (kept on a copy); a snippet's language and the name a Streamlit
    * piece gives its cell. */
   family?: string;
@@ -730,7 +729,7 @@ export function bladeProperties(detail: BladeDetail, options: { readOnly: boolea
   const element = h(
     "div",
     { class: "editor ide-props-form" },
-    h("div", { class: "blade-kind-line" }, h("span", { class: `blade-kind ${detail.kind}` }, kindLabel(detail.kind)), starter ? h("span", { class: "warning-text" }, `${detail.family ?? ""} starter: read-only`.trim()) : detail.pack ? h("span", { class: "warning-text" }, `From the pack ${detail.pack}: read-only`) : null),
+    h("div", { class: "blade-kind-line" }, h("span", { class: `blade-kind ${detail.kind}` }, kindLabel(detail.kind)), starter ? h("span", { class: "warning-text" }, `${detail.family ?? ""} starter: read-only`.trim()) : null),
     ...shown.map(fieldBox),
     secretsHost,
     packagesHost,

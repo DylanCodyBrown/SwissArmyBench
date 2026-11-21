@@ -148,7 +148,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
     "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
     "sandbox": "Local sandbox APIs: the project's sandbox, API.py, mock clients, Run, Try it, Export",
-    "blades": "Blades and starters: saved code, the starter pack, packs",
+    "blades": "Blades and starters: saved code, the starter pack",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: the Canvas and widgets (the extension's)",
     "projects": "Projects as folders: open, save, the recent ones, tables that need a fix",
@@ -4934,53 +4934,6 @@ def workbench_environment_choose(a: dict[str, Any]) -> Any:
     return api.call("POST", "/workbench/environment", {"path": a["path"], "python": a["python"]})
 
 
-# ===== packs: blades and relationship sets from a Claude Code plugin marketplace =====
-
-
-@command(
-    "packs_list", "Installed packs, editable ones (clones in the blade folders), and the commands to get more"
-)
-def packs_list(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/packs")
-
-
-@command(
-    "packs_new",
-    "Make a new marketplace repository folder with one pack (and add it as a blade folder)",
-    req("folder", "The new folder."),
-    req("marketplace", "The marketplace's name."),
-    req("pack", "The first pack's name."),
-    opt("owner", "Who keeps it."),
-    opt("description", "What it holds."),
-)
-def packs_new(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("folder", "marketplace", "pack", "owner", "description") if a.get(k)} | {
-        "add_folder": True
-    }
-    return api.call("POST", "/packs/new", body)
-
-
-@command(
-    "packs_add",
-    "Copy saved blades and relationship sets into an editable pack",
-    req("pack", "The pack's folder (packs_list)."),
-    opt("blades", "Blade names.", "list"),
-    opt("sets", "Relationship set names.", "list"),
-    opt("replace", "Replace ones already there.", "bool"),
-)
-def packs_add(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST",
-        "/packs/add",
-        {
-            "pack": a["pack"],
-            "blades": a.get("blades") or [],
-            "sets": a.get("sets") or [],
-            "replace": bool(a.get("replace")),
-        },
-    )
-
-
 # ===== the rest of what the user can do (the golden rule) =====
 
 
@@ -5250,7 +5203,6 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("project", "Projects: a folder (its files, and .sab/: tables, steps, Analyze, relationships)"),
     ("projects", "The Project Explorer: every project as a card, sorted; the project types explained"),
-    ("packs", "Packs: blades and relationship sets from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
@@ -5296,7 +5248,6 @@ OLD_NAMES: dict[str, str] = {
 # An old argument's name, one release: (command, old) -> new. A tang became a relationship set.
 OLD_ARGS: dict[tuple[str, str], str] = {
     ("relationships_check", "tang"): "set",
-    ("packs_add", "tangs"): "sets",
 }
 
 

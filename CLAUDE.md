@@ -89,7 +89,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   writes the code after the file's header (PUT /blades/{name} {code, stamp}; only when the bytes change; the
   header's variable follows a renamed function); an edit made outside is noticed (the stamp, looked at every
   2 s: taken at once with nothing unsaved, else Reload / Keep mine; a Save over it is 409), never silently
-  overwritten. A starter's or a pack's Save is refused: Copy as your own. Run is Test's child process with the
+  overwritten. A starter's Save is refused: Copy as your own. Run is Test's child process with the
   output streamed (POST /blades/{name}/run), the result a table (Open as grid) or a value, a failure the error
   panel with the line marked. The agent: `blades_update(code, stamp)`, `blades_run`, `blades_problems`,
   `blades_copy(code)`; Show its file stays the user's click (403 for the agent). The catalog checkbox and the
@@ -510,8 +510,6 @@ src/swissarmybench/
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
                          the missing table (DuckDB's own-table "Did you mean" dropped)
-    packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
-                         files, Claude Code's install record read loosely, which plugins are switched off
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
                          (the package check, settings, the vault by managed identity, connections)
@@ -825,7 +823,6 @@ src/swissarmybench/
     tieout.py            the tie-out report on a compare's two grids
     processes.py         Python sessions offering tables: the registry and the Open list
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
-    packs.py             list packs, make a marketplace, add saved blades and relationship sets to an editable pack
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
@@ -895,8 +892,6 @@ src/swissarmybench/
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
     intellisense.py      Jedi's Project and Environment per folder and Python, the project's modules read,
                          pyflakes, Ruff in the document's Python (on stdin; never installed by itself), DuckDB's parser
-    packs.py             installed packs in Claude Code's plugin folder, editable ones in the blade
-                         folders; writing a new marketplace and a pack's files
 
   server/                the HTTP door, and everything that starts a process
     app.py               asks bootstrap for the services, mounts the routes behind the guard
@@ -907,7 +902,7 @@ src/swissarmybench/
                          with_body, with_actor, answered, json_lines (a run streamed as JSON lines)
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
+                         processes, snapshots, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, navigation, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
@@ -1089,7 +1084,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          place in the rail's order that goes there and lights up the real control,
                          two made-up tables staged and closed again, back to where it started;
                          nav.ts returnTo; loaded when first opened);
-                         catalogRail.ts (the blades list, its "…": import, export, blade folders, packs; the
+                         catalogRail.ts (the blades list, its "…": import, export, blade folders; the
                          catalog tree only where a page gives it a place: the Workbench's "+ Table") is the
                          Scripts page's Blades pane (the blades page went 2026-11-21: /catalog redirects there,
                          ?blade=<name> that blade's tab); bladeEditor.ts is the
@@ -1296,14 +1291,13 @@ tools/                   screenshots.py, vscode_check.py; testbed/: the real-wor
                          (`python -m tools.testbed.large_company --scale large --out <folder>`)
 plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
-.claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
+.claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/)
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
 examples/forms_recon/    the owner's first app POC as a test app, made by the app through the agent's commands: API.py
                          (forms with versions, entries stored long, a PIVOT column store, monthly reconciliations),
                          three canvas pages, widgets/api_bridge.widget.py (the project's own widget);
                          tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
-examples/packs/          sample-store: an example pack (a made-up blade, the store's relationship set)
 build.py                 build the page (release) and the one wheel; --vsix also packages the extension
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
