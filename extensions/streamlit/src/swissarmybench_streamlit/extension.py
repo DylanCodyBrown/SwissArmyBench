@@ -22,6 +22,7 @@ the app is the BI base without it (no Canvas, no Widgets; its tools say which ex
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,7 @@ NAME = "Streamlit"
 VERSION = __version__
 DESCRIPTION = "Build Streamlit apps from widgets on a canvas."
 ADDS = [
-    "Widgets: your own in the library and 56 prebuilt ones, each with its properties",
+    "Widgets: your own in the library and 60 prebuilt ones (four call the local sandbox API)",
     "The Widgets window: write a widget with completion and help, Run it in place",
     "The Canvas: draw containers, insert widgets, set their properties; Play, Launch, Export",
 ]
@@ -198,6 +199,35 @@ def routes(services: Any) -> list[Any]:
         connection_listing=connection_listing,
         read_connection_table=read_connection_table,
     )
+    # An endpoint property's picker: the project's local sandbox API (the base's API.py), when it is there.
+    local_api = getattr(services, "local_api", None)
+    if local_api is not None:
+        widgets.endpoints = local_api.endpoint_names
+
+        def api_uses() -> list[dict[str, Any]]:
+            """Each canvas widget instance whose endpoint property names one of API.py's (Payload shapes)."""
+            from swissarmybench_streamlit.domain import canvas_model
+
+            folder = project_folder()
+            if folder is None:
+                return []
+            out: list[dict[str, Any]] = []
+            for file in sorted(Path(folder).glob("*.canvas.json")):
+                try:
+                    canvas = json.loads(file.read_text(encoding="utf-8"))
+                    nodes = list(canvas_model.walk(canvas))
+                except (OSError, ValueError, KeyError, TypeError):
+                    continue
+                for page, node in nodes:
+                    values = node.get("values") or {}
+                    if node.get("kind") == "widget" and values.get("endpoint"):
+                        out.append(
+                            {"canvas": file.name, "page": page.get("name"), "instance": node.get("id"),
+                             "widget": node.get("widget"), "values": values}
+                        )  # fmt: skip
+            return out
+
+        local_api.api_uses = api_uses
     # The Canvas: the project's <app>.canvas.json files, every change rule-checked, kept and undoable.
     canvases = Canvases(
         services.ws,

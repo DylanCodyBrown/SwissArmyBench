@@ -25,8 +25,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
   (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
-  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (cli/commands.py OLD_NAMES: run, never
-  listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
+  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (until 2026-11-21, when the project's sandbox
+  took the word: GONE_NAMES says each is analyze_*), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
   `sandbox` key. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
 - **Renamed (the owner, 2026-11-19): Visualizations is Analyze, and the analyses live there** ("Let's move the
   analyze from the table bar to the visualizations pane and then rename the visualizations pane Analyze" /
@@ -165,7 +165,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
-  project's scaffold, `.sab/data/` only on the user's tick), the audit log and, in beta mode,
+  project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox:
+  the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
+  sandbox API never touches live data, its process gets only the sandbox, through mock clients, and no
+  connection's code, variable or secret), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
   **GitHub sync (the owner, 2026-11-18; the Git extension) sends the team library's and shared projects' files to
@@ -207,7 +210,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   backup first, nothing else changed, no token).
   **A project is a folder (the owner, 2026-11-17: "consider entire folders projects and take out the
   .sab" / "share entire projects in git repos nativly"; it reverses 2026-11-16's one .sab file):** its
-  documents are ordinary files at its top, written by their own Save; the app's state is the project
+  documents are ordinary files at its top, written by their own Save (API.py among them: the project's local
+  sandbox API, its settings in its header, made by New project, the user's own file); the app's state is the project
   folder's `.sab/` (project.json: sorted, no timestamp; visualizations.json and visualizations/ (saved
   dashboards); model.json), written on Save, on New project (scaffolded where the user named, .gitignore
   and README.md only when absent), by Autosave (on by default) and by the Autosave switch, each file only
@@ -616,6 +620,24 @@ src/swissarmybench/
                          in plain words, a connection's access in one line; the Microsoft kinds it checks (Azure SQL,
                          Dataverse, SharePoint, OneLake, Data Lake: each one's scope, place, refusals in words) and a
                          connection's code made to sign in with a registration (signed_in_with: its place kept)
+    sandbox.py           the project's sandbox (2026-11-21): .sab/sandbox/ (sandbox.duckdb, baseline.duckdb,
+                         checkpoints/, sandbox.json: each table's source and the client its rows are mocked as, the
+                         baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values)
+    sandbox_dialects.py  a mock client's language over the sandbox: the source's SQL and its driver's marks made
+                         DuckDB SQL by sqlglot (each mark numbered in its own order; SELECT, INSERT, UPDATE, DELETE
+                         on the sandbox's tables only), OData $filter and $orderby, FetchXML, a list's filters;
+                         what cannot be emulated refused with its line
+    local_api.py         API.py (2026-11-21): its `# /// swissarmybench-api` header (name, description, target,
+                         base_path), its endpoints read with ast (method, path, parameters: path, query, body; the
+                         answer; the connections and SQL it uses; problems with lines), models, OpenAPI 3.0, the
+                         scaffold, the hosting process's environment made from nothing (runner_env)
+    api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
+                         Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
+                         sab_api.py, connections.py: the real connections' own code; README with the deploy steps,
+                         the checklist and the variables; no secret), exports/api/<target>/ a made folder
+    api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
+                         delete by a key; a TypedDict of the columns) in the source's style (DuckDB, a DB-API
+                         database's SQL and marks, T-SQL, Dataverse OData reads, SharePoint list calls)
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -679,6 +701,15 @@ src/swissarmybench/
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
                          Structures' documents and paths and APIs' table-returning web calls registered from
                          theirs (register("structures"/"apis")); one failing source skipped
+    sandbox.py           the project's sandbox: add (an open grid's view, a connection's table read once, a file,
+                         columns), remove, Reset (the agent's on Allow), baseline, checkpoints, a mock client's
+                         reads and writes (counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias),
+                         the Catalog's Sandbox section
+    local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
+                         (started again when API.py changes), call (the agent's writes on Allow), log, address,
+                         scaffold (New endpoint from a table, appended to API.py)
+    api_export.py        Export for a target: the bundle, the made folder (only changed bytes, stale files gone,
+                         a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
                          blade, a web call blade per operation, openapi.json, source.json), inline (the exporter)
     api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
@@ -812,6 +843,9 @@ src/swissarmybench/
                          Azure SQL by mssql-python with the token, Dataverse's WhoAmI and roles, Graph's site, lists
                          and libraries, a lake path's listing)
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
+    sandbox.py           a project's sandbox file: DuckDB with external access off, one lock, the baseline and the
+                         checkpoints as whole-file copies (Reset is one copy; one table from the baseline read
+                         alone), sandbox.json; API.py's file (LocalApiFiles); an export's folder (ExportFolder)
     tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
                          Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
                          (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)
@@ -865,7 +899,7 @@ src/swissarmybench/
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
-                         connection_swap, variables, connection_colours, connection_tables, connection_slots,
+                         connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
                          explorer, library,
                          shared_catalog, team, found_connections, script_ide, debugger, sharing). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
@@ -903,6 +937,12 @@ src/swissarmybench/
                          the result a table or a value, a failure as the error panel's detail); installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
+    api_runtime.py       sab_api, what API.py imports (standard library; copied into each export): endpoint,
+                         connection (use_clients), records, ApiError, handle (one request: every target calls it)
+    sandbox_clients.py   the mock clients (MockDbApi, MockSqlServer, MockDataverse, MockSharePoint, MockDuckDB): the
+                         real clients' public shape (tests/test_sandbox_clients.py), the sandbox's data route only
+    api_host.py          a local sandbox API hosted (`python -I`): the app's client functions taken over first,
+                         Starlette on 127.0.0.1, its key, the request log; api_runs.py starts and stops it
     streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
                          so a page's frame policy stays `frame-src 'self'`: the Streamlit extension's apps and
                          the Power Apps extension's dev server mount it with their own prefix
@@ -923,6 +963,7 @@ src/swissarmybench/
                          Standard library only; the statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
+  client/api_client.py   sab.api(): the project's local sandbox API through the app (get, post, put, patch, delete)
   client/connection_slot.py a Workbench kernel's query in one of its connection's slots (acquire, wait with its
                          place shown, renew, release); no gate outside a kernel or with no app
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,
@@ -1166,6 +1207,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          connectionColours.ts each connection's colour worn by whatever names it
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
                          swatch and palette; panes.ts groups the home page's tabs by connection;
+                         localApis.ts the APIs page's Local sandbox APIs (API.py: target, base path, Run, Stop,
+                         each endpoint's data words and Try it, problems with Go to line, the request log);
+                         dataSandbox.ts the project's sandbox (the grid's Add to sandbox; the APIs page's panel:
+                         tables and their mock clients, Open in Grids, Reset, Set as baseline, checkpoints, the log);
                          swapConnection.ts the Table row's Connection: <name> (a table read from another
                          connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
                          ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
@@ -1314,15 +1359,17 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          …/builds…, …/perf…), /streamlit/perf (the analyzer's window)
     domain/widget_packs.py  the widget starter packs (2026-11-21): their order and descriptions; a prebuilt widget
                          names its pack in its header (`pack = "..."`); listed first, each under its heading
-    widgets/             the 109 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py),
-                         53 of them in eight starter packs (sales_, ops_, cs_, de_, admin_, input_, excel_, form_)
+    widgets/             the 113 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py),
+                         53 of them in eight starter packs (sales_, ops_, cs_, de_, admin_, input_, excel_, form_);
+                         four, api_*, call the local sandbox API
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
 web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list, Monaco with the Workbench's
                          intelligence over a kernel of its own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code;
                          a failure's error panel with Go to line; remembered per widget this session), Properties
                          (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
 web/src/widgetPacks.ts   a widget's heading in the lists (its pack, else its group) and a pack's description line
-web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties); a table's
+web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties; endpoint:
+                         a picker of API.py's endpoints); a table's
                          picker grouped: sample, open tables, data.ipynb's, each connection's [Conn].table (typed
                          when its catalog is not listed yet)
 web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,

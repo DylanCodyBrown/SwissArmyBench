@@ -539,7 +539,9 @@ def fix_for(table: str, source: Source, problem: str) -> dict[str, Any]:
 # .sab/.gitignore: the app's own folder, so always the app's to write.
 APP_IGNORE_FILE: str = f"{APP_FOLDER}/.gitignore"
 APP_GITIGNORE: str = (
-    "# Swiss Army Bench: a table's rows kept on a tick stay out of Git (data is sensitive).\ndata/\n"
+    "# Swiss Army Bench: a table's rows kept on a tick, and the sandbox's, stay out of Git\n"
+    "# (data is sensitive).\n"
+    "data/\nsandbox/\n"
 )
 GITIGNORE_FILE: str = ".gitignore"
 README_FILE: str = "README.md"
@@ -547,6 +549,7 @@ GITIGNORE: str = """\
 # Swiss Army Bench: rows kept with "Keep its rows" stay on this computer (data is sensitive).
 # Remove this line to commit them on purpose.
 .sab/data/
+.sab/sandbox/
 
 __pycache__/
 .ipynb_checkpoints/
@@ -566,7 +569,8 @@ in any editor. It is ordinary files, so it can be a Git repository.
 - `.sab/` is the app's own state: `project.json` (each table's source and steps, the tabs and windows),
   `visualizations.json` and `visualizations/` (Visualizations and its saved dashboards), `model.json`
   (the relationships).
-- `.sab/data/` holds a table's rows only when you ticked Keep its rows. Data is sensitive, so
+- `.sab/data/` holds a table's rows only when you ticked Keep its rows; `.sab/sandbox/` the sandbox's tables
+  (Add to sandbox), for the local sandbox APIs. Data is sensitive, so
   `.gitignore` and `.sab/.gitignore` keep it out of Git; remove those lines to commit data on purpose.
 - No password, token or secret is ever written here: a connection is named, and each computer finds its
   password in its own keyring, environment or key vault.

@@ -1,7 +1,6 @@
 # Swiss Army Bench: the index (read first; live picture: `app_context`, swissarmybench://context)
 
 A local server on 127.0.0.1: the user's tables in live grids; DuckDB SQL transforms.
-Workflow: data -> a notebook or script -> a deliverable.
 A project is a folder; connections, APIs, vaults, blades, variables: the library.
 
 ## Start
@@ -26,7 +25,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `compare_` | two grids | `compare_create` |
 | `connections_`, `variables_` | connections; variables; app registrations' access | `connections_list`, `variables_resolve`, `app_registration_check` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
-| `apis_` | APIs: operations, calls | `apis_search`, `apis_call` |
+| `apis_`; `sandbox_`, `api_` | APIs; local sandbox APIs | `apis_call`; `sandbox`, `api` |
 | `structures_` | JSON, YAML, XML, TOML | `structures_open`, `structures_show` |
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_new` |
@@ -54,7 +53,7 @@ No prefix: `guide`, `commands`, `health`.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
-  streamlit, projects, library, accounting, powerapps, powerbi, git, writing, privacy. Or
+  streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, writing, privacy. Or
   swissarmybench://guide/<topic>.
 - swissarmybench://analyze/contracts: each analysis's contract; then `analyze_run`.
 - `commands(match="word")`: each tool's arguments.

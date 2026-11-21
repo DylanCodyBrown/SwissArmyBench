@@ -323,6 +323,14 @@ _QUOTED = (
     (re.compile(r"\bos\.environ\.get\(\s*[\"']([^\"'\n]*)$"), "variable"),
     (re.compile(r"\bos\.getenv\(\s*[\"']([^\"'\n]*)$"), "variable"),
     (re.compile(r"(?<![\w.])secret\(\s*[\"']([^\"'\n]*)$"), "variable"),
+    # API.py (the local sandbox API): sab_api's connection("|"), and a table after FROM in its SQL.
+    (re.compile(r"(?<![\w.])connection\(\s*[\"']([^\"'\n]*)$"), "mock"),
+    (
+        re.compile(
+            r"\.(?:execute|read_arrow)\(\s*[\"'][^\"'\n]*\b(?:FROM|JOIN|INTO|UPDATE)\s+(?:\w+\.)?(\w*)$", re.I
+        ),
+        "sandbox_table",
+    ),
     (re.compile(r"^\s*%%sql\s+([^\s]*)$", re.M), "connection"),
     (re.compile(r"^\s*%%dax\s+([^\n]*)$", re.M), "dataset"),
 )

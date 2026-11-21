@@ -139,6 +139,10 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # name through quote(); no caller text is ever spliced in. S608 cannot see that, so it is off
 # here rather than sprinkled as noqa on every line.
 "src/swissarmybench/domain/steps.py" = ["S608"]
+# A local sandbox API's exported projects as text: the lines are the generated files' own.
+"src/swissarmybench/domain/api_targets.py" = ["E501"]
+# New endpoint from a table: the CRUD set's code as text, its SQL the user's own to read (checked names).
+"src/swissarmybench/domain/api_scaffold.py" = ["E501", "S608"]
 "src/swissarmybench/adapters/views.py" = ["S608"]
 "src/swissarmybench/services/profile.py" = ["S608"]
 "src/swissarmybench/domain/charts.py" = ["S608"]

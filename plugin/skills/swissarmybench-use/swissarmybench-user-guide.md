@@ -1806,3 +1806,27 @@ With the Git extension installed (GitHub sync: Join a team… installs it), the 
 - Read the Key Finder list before you pick a key. The top row is the best match, not always the column you mean.
 - Use Pin as new grid for a SQL result you want to keep as its own table.
 - The status bar shows the sum and average of the selected numbers, so a quick total needs no step.
+
+## Local sandbox APIs
+
+Every project has `API.py` at its top: its own API, run here against the project's **sandbox**, never against live
+data.
+
+1. **Fill the sandbox.** On a grid's Table row, **Add to sandbox** copies the table as you see it (after its steps)
+   into the project's sandbox (`.sab/sandbox/`, kept out of Git). The APIs page's Sandbox panel adds a file, an
+   empty table by its columns, or an open table, and shows each table's rows, where it came from and the client its
+   rows answer as ("Mock of Warehouse (sqlserver)" for a table read from that connection).
+2. **Write endpoints.** **New endpoint from a table…** writes list, get, create, update and delete into API.py in the
+   source's own style; or write your own with `@endpoint("GET", "/orders/{region}")`. `connection("Warehouse")` is a
+   mock with Warehouse's own client's methods over the sandbox.
+3. **Run** it (127.0.0.1, its own key): **Try it** on each endpoint; the request log under it; the change log
+   counts every row it inserted, updated or deleted.
+4. **Reset** puts every sandbox table back to its baseline (a table's own Reset, that one alone); **Save
+   checkpoint…** keeps a state to come back to.
+5. **On the canvas**, the API table, API form, API button and API metric widgets call it; their endpoint is picked
+   in Properties. **Payload shapes** says when a widget expects another shape than its endpoint answers.
+6. **Will this work for real?** checks each endpoint's tables and columns against its connection's loaded catalog
+   (load it on the Connections page first): nothing is sent to the source.
+7. **Export…** writes a ready-to-deploy folder (`exports/api/<target>/`) for FastAPI, Azure Functions or AWS Lambda,
+   using the real connections' own code; its README lists the variables to set and the deploy steps.
+

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Any
 
 from swissarmybench.domain import script_export as exporter
 from swissarmybench.domain import script_runtime as runtime
@@ -75,3 +76,9 @@ def query_module(made: exporter.Plan) -> QueryModule:
     requirements = dict(shared.requirements)
     requirements.pop("streamlit", None)  # the page's own
     return QueryModule("\n".join(out), tuple(requirements.values()), tuple(listed), made.problems)
+
+
+def shared_text(made: exporter.Plan) -> Any:
+    """What a script holds besides its steps (the settings, helpers, connections and their registry), for
+    another file that writes connections out (a local sandbox API's connections.py)."""
+    return exporter._shared(made)

@@ -270,7 +270,8 @@ pre,
 .btn.run {
   border-color: var(--ok);
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
   font-weight: 600;
 }
 
@@ -3918,7 +3919,8 @@ body.agent-view .titlebar {
 .tour-choice.right {
   border-color: var(--ok);
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 
 .tour-choice.wrong {
@@ -12167,7 +12169,8 @@ g.follow-pulse > path:first-of-type {
 
 .structures-status.ok {
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 
 .structures-status.bad {
@@ -12719,7 +12722,8 @@ g.follow-pulse > path:first-of-type {
 
 .api-status.s2 {
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 
 .api-status.s4,
@@ -20717,3 +20721,136 @@ body.wb-full .wb-col-right {
 .share-mark .icon-svg { width: 14px; height: 14px; }
 .cvs-share { display: inline-flex; align-items: center; }
 .cvs-share:empty { display: none; }
+
+/* ===== the project's sandbox (dataSandbox.ts) and the local sandbox APIs (localApis.ts) ===== */
+.sandbox-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.sandbox-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.sandbox-head h2 {
+  margin: 0 auto 0 0;
+  font-size: 15px;
+}
+.sandbox-tables {
+  width: 100%;
+  border-collapse: collapse;
+}
+.sandbox-tables th,
+.sandbox-tables td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+.sandbox-tables td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.sandbox-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+.sandbox-checkpoints ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.sandbox-checkpoints h3 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.local-apis {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.local-api-name {
+  font-weight: 600;
+}
+.local-api-status {
+  color: var(--muted);
+}
+.local-api-status.on {
+  color: var(--ok);
+  font-weight: 600;
+}
+.local-api-base {
+  width: 9em;
+}
+.field-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.local-api-endpoints {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.local-api-endpoint {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.local-api-endpoint-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-data {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.local-api-try {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+.local-api-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.local-api-said.bad,
+.sandbox-tables td.bad {
+  color: var(--error);
+}
+.local-api-log h3 {
+  margin: 4px 0;
+  font-size: 13px;
+}
+.local-api-kept {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.local-api-compare pre {
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+}

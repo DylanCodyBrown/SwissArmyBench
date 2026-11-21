@@ -107,6 +107,9 @@ class Intellisense:
         self._kernel_of = kernel_of
         self._project_folder = project_folder
         self._blades = blades
+        # The project's sandbox (services/sandbox.py): its mocked connections and its tables, for API.py.
+        self.sandbox_clients: Callable[[], list[tuple[str, str]]] = lambda: []
+        self.sandbox_tables: Callable[[], list[tuple[str, list[str]]]] = lambda: []
         self._variables = variables
         self._structures = structures
         self._dialect_of = dialect_of
@@ -334,6 +337,12 @@ class Intellisense:
         elif quoted.kind == "column" and quoted.table:
             for column, kind in self._columns(quoted.table):
                 offer(column, "column", f"{quoted.table} · {kind}")
+        elif quoted.kind == "mock":
+            for name, words in self.sandbox_clients():
+                offer(name, "connection", words, "A mock of its client over the project's sandbox (API.py)")
+        elif quoted.kind == "sandbox_table":
+            for table, columns in self.sandbox_tables():
+                offer(table, "table", f"sandbox · {len(columns)} columns", ", ".join(columns[:30]))
         elif quoted.kind == "dataset":
             for b in self._blades():
                 if b.get("dialect") == "dax":

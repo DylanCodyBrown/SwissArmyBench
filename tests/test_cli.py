@@ -228,6 +228,8 @@ NOT_COMMANDS = {
     "/team/pull": "the Team box's Pull: github_pull (the team library's folder) is the same",
     "/team/push": "the Team box's Push: github_push (the team library's folder) is the same",
     "/team/pending": "the Team box's step kept over Install's restart (page plumbing): team_status reads it",
+    "/sandbox/data": "a local sandbox API's mock clients' data calls; the agent calls the API (api_call)",
+    "/sandbox/data/{}": "the same, from a running local sandbox API's own process, by its key",
     "/sharing/install": "devtunnel's download: sharing_start does it for the agent, on the user's Allow",
     "/sharing/sign-in": "signing in to share (Microsoft Entra) is the user's own (403 for the agent)",
     "/team/show": "Show its folder opens the user's own file manager: the user's click only (403 for the "
@@ -451,11 +453,18 @@ BOARD = (
 )  # fmt: skip
 
 
-@pytest.mark.parametrize("old", ["sandbox", "visualizations"])
+def test_the_old_sandbox_board_names_say_where_they_went() -> None:
+    """The project's sandbox took the word (2026-11-21): a board's old sandbox_* name says it is analyze_*."""
+    from swissarmybench.cli.commands import GONE_NAMES
+
+    assert "analyze_delete" in GONE_NAMES["sandbox_delete"] and "sandbox" in REGISTRY
+    assert "analyze_chart_code" in GONE_NAMES["sandbox_code"]
+
+
+@pytest.mark.parametrize("old", ["visualizations"])
 def test_the_old_board_names_still_run_their_analyze_commands(live: Live, clients: str, old: str) -> None:
-    """The Sandbox became Visualizations (the owner, 2026-11-16) and Visualizations became Analyze
-    (2026-11-19): every sandbox_* and visualizations_* name runs its analyze_* command for one release, by
-    `sab` and by an MCP call, but is never listed."""
+    """Visualizations became Analyze (2026-11-19): every visualizations_* name runs its analyze_* command for
+    one release, by `sab` and by an MCP call, but is never listed. (sandbox_* went: the project's sandbox.)"""
     from swissarmybench.cli import main as cli_main
     from swissarmybench.cli.commands import OLD_NAMES
 

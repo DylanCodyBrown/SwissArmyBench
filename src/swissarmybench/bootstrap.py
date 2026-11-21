@@ -39,7 +39,7 @@ from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
-from swissarmybench.adapters.database import PriorityWorkers, grammar_later, open_database
+from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, grammar_later, open_database
 from swissarmybench.adapters.datasets import DatasetStore, file_stamp
 from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
@@ -54,6 +54,7 @@ from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
+from swissarmybench.adapters.sandbox import ExportFolder, LocalApiFiles, SandboxFiles
 from swissarmybench.adapters.script_ide import ScriptCode
 from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
@@ -80,6 +81,7 @@ from swissarmybench.adapters.vault_names import VaultNameFiles
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
+from swissarmybench.domain import api_targets as api_target_rules
 from swissarmybench.domain import blade_tables, python_connections
 from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import connection_tables as connection_table_rules
@@ -90,17 +92,21 @@ from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import lifecycle as lifecycle_rules
+from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
+from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import variables as variable_rules
 from swissarmybench.domain.blades import Blade, env_settings
+from swissarmybench.domain.connection_swap import Place
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_explorer import local_only_words as explorer_rules_words
 from swissarmybench.domain.project_scope import APP_FOLDER
+from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
-from swissarmybench.server import blade_runner, dialog_runner, file_manager
+from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
@@ -118,6 +124,7 @@ from swissarmybench.services.agent import AgentService, Approvals, ExportTickets
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.analyze import Analyze
 from swissarmybench.services.api_explorer import Explorer as ApiExplorer
+from swissarmybench.services.api_export import ApiExport
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.app_registrations import AppRegistrations
 from swissarmybench.services.beta_log import BetaLog
@@ -155,6 +162,7 @@ from swissarmybench.services.library import Library
 from swissarmybench.services.library_setup import LibrarySetup
 from swissarmybench.services.lifecycle import Lifecycle
 from swissarmybench.services.lineage import Lineage
+from swissarmybench.services.local_api import LocalApi
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
@@ -169,6 +177,7 @@ from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
+from swissarmybench.services.sandbox import Sandbox, SandboxAlias, SourcesFrom
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
@@ -262,6 +271,9 @@ class Services:
     library_setup: LibrarySetup
     team: Team
     sharing: Sharing
+    sandbox: Sandbox
+    local_api: LocalApi
+    api_export: ApiExport
     shared_catalog: SharedCatalog
     app_registrations: AppRegistrations
     script_runs: ScriptRuns
@@ -855,7 +867,9 @@ def bootstrap(
         catalogs,
         catalog_loading,
         table_reader.table_to_arrow_stream,
-        aliases=lambda: hooks.dataset_aliases(),
+        aliases=lambda: (
+            hooks.dataset_aliases() | ({sandbox_rules.NAME: sandbox_alias} if sandbox.folder() else {})
+        ),
     )
     datasets.connection_sql = connection_tables
     connection_swap = ConnectionSwap(
@@ -1176,6 +1190,64 @@ def bootstrap(
     )
     explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
 
+    # The project's sandbox (domain/sandbox.py): the data a local sandbox API reads and writes, mocked as the
+    # client of the connection each table came from; [Sandbox].orders in DuckDB SQL; a section in the Catalog.
+    def sandbox_client(table: str | None, connection: str | None) -> dict[str, Any]:
+        name = connection
+        if name is None and table is not None:
+            name = datasets.origins.get(table).connection
+        if not name:
+            return {"kind": sandbox_rules.PLAIN}
+        try:
+            blade, _ = connections.blade(name)
+            saved, tables_kind = connection_tables.kind(name)
+        except Exception:
+            return {"kind": sandbox_rules.PLAIN, "connection": name}
+        return {
+            "kind": tables_kind,
+            "connection": saved,
+            "template": blade.template or "",
+            "dialect": blade.dialect or "",
+        }
+
+    async def sandbox_grid_view(name: str) -> Any:
+        body = await table_cells.view(name)
+        return table_reader.arrow_stream_to_table(body, settings.max_dataset_bytes)
+
+    async def sandbox_connection_table(name: str, place: Place) -> Any:
+        kept, _ = await connection_tables.read(name, place)
+        return kept.read.table
+
+    async def sandbox_show(name: str, table: Any, follow: bool) -> dict[str, Any]:
+        return await datasets.store_table(name, table, "sandbox", False, "user", follow=follow)
+
+    def sandbox_ignore(folder: str) -> None:
+        archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
+
+    sandbox = Sandbox(
+        ws,
+        lambda: sab_projects.current.folder if sab_projects.current is not None else None,
+        SandboxFiles,
+        SourcesFrom(
+            sandbox_grid_view, sandbox_connection_table, datasets.read_file, sandbox_show, sandbox_client
+        ),
+        approvals,
+        lambda sql: duckdb_grammar().parse(sql),
+        ignore=sandbox_ignore,
+    )
+    sandbox_alias = SandboxAlias(sandbox)
+    # The project's local sandbox API (API.py): hosted in a process of its own that gets only the sandbox.
+    local_api = LocalApi(
+        ws,
+        sandbox.folder,
+        LocalApiFiles(),
+        api_runs.start,
+        sandbox,
+        approvals,
+        data_url=lambda key: f"http://127.0.0.1:{port}/sandbox/data/{key}",
+    )
+    explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
+
     async def open_work() -> dict[str, Any]:
         """What is open and what an update would lose: the tables, the Workbench
         window's documents (when one is open), the documents with unsaved changes, the kernels."""
@@ -1489,6 +1561,46 @@ def bootstrap(
     key_finder = KeyFinder(ws)
     tie_out = TieOut(compares)
 
+    # Export as one Python script: the document's cells, its connections' own code, ruff's check.
+    script_exports = ScriptExports(
+        ws,
+        blade_store,
+        read_document=documents.read,
+        write_document=documents.write,
+        arrange=table_cells.arrange,
+        lint=script_lint,
+        folder_of=lambda path: str(Path(path).expanduser().parent),
+        join=lambda folder, name: str(Path(folder) / name),
+        inline=apis.inline,  # an API_<name>.py the document imports travels inside the export
+    )
+    # A local sandbox API exported for its framework target: the real connections' own code.
+    api_export = ApiExport(
+        ws,
+        sandbox.folder,
+        lambda folder: LocalApiFiles.read(str(Path(folder) / local_api_rules.FILE)),
+        lambda: Path(api_runtime.__file__).read_text(encoding="utf-8"),
+        script_exports,
+        ExportFolder(sandbox.copy_now),
+        project_scope.edited_in,
+        approvals,
+    )
+    for extension in on_extensions:
+        for raw in getattr(extension, "API_TARGETS", ()) or ():
+            api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
+    local_api.target_ids = api_export.registry.ids
+    local_api.catalog = catalogs
+
+    def publish_api(values: dict[str, str]) -> None:
+        for name in ("SAB_API_URL", "SAB_API_KEY", "SAB_API_BASE"):
+            if name in values:
+                os.environ[name] = values[name]
+            else:
+                os.environ.pop(name, None)
+
+    local_api.publish = publish_api
+    intellisense.sandbox_clients = sandbox.mock_names
+    intellisense.sandbox_tables = sandbox.table_columns
+
     return Services(
         settings=settings,
         ws=ws,
@@ -1536,6 +1648,9 @@ def bootstrap(
         library_setup=library_setup,
         team=team,
         sharing=sharing,
+        sandbox=sandbox,
+        local_api=local_api,
+        api_export=api_export,
         shared_catalog=shared_catalog,
         app_registrations=app_registrations,
         keys=key_finder,
@@ -1592,18 +1707,7 @@ def bootstrap(
         project_explorer=project_explorer,
         project_scope=project_scope,
         project_outline=project_outline,
-        # Export as one Python script: the document's cells, its connections' own code, ruff's check.
-        script_exports=ScriptExports(
-            ws,
-            blade_store,
-            read_document=documents.read,
-            write_document=documents.write,
-            arrange=table_cells.arrange,
-            lint=script_lint,
-            folder_of=lambda path: str(Path(path).expanduser().parent),
-            join=lambda folder, name: str(Path(folder) / name),
-            inline=apis.inline,  # an API_<name>.py the document imports travels inside the export
-        ),
+        script_exports=script_exports,
         live=live,
         workers=workers,
     )

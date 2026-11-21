@@ -25,6 +25,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import dictionary, notebooks
+from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import projects as rules
 from swissarmybench.domain.projects import DataCell, ProjectError
 from swissarmybench.services.agent import Approvals
@@ -182,6 +183,9 @@ class Projects:
                 + exported["requirements"]
             )
             self._files.write(folder, rules.REQUIREMENTS_FILE, rules.merged_requirements(None, needed))
+            # The project's local sandbox API (2026-11-21: "this project now needs a new file ... called
+            # API.py").
+            self._files.write(folder, local_api_rules.FILE, local_api_rules.scaffold(name))
         except PermissionError as error:
             raise Conflict(str(error)) from None
         self.ws.audit.write(who, "new_project", folder, type=kind)

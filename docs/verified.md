@@ -4423,3 +4423,37 @@ value); the desktop app's own windows for Launch with the analyzer (Chromium's p
 - Not checked: camera, audio and file inputs with a real device or file (AppTest cannot give one); the map's tiles
   (no network here); the packs on a phone width; Excel's own opening of the made workbooks (openpyxl wrote them and
   read them back).
+
+## Local sandbox APIs and the sandbox (2026-11-21, branch local-apis)
+
+Checked:
+- The sandbox's file: DuckDB 2.0 opened on a file with external access off still refuses read_csv and ATTACH from a
+  query (PermissionException); a DML statement's fetchall() is its count; json_serialize_sql serializes SELECTs only
+  (a write and two statements are told apart by it). Reset restores the baseline's exact Arrow table; a failing
+  write in a transaction leaves nothing written (tests/test_sandbox.py).
+- sqlglot 30's reads of T-SQL `TOP (?)`, `OFFSET ? ROWS FETCH NEXT ? ROWS ONLY` (DuckDB's LIMIT $3 OFFSET $2: the
+  marks numbered in source order keep their values), `OUTPUT INSERTED.id` (RETURNING id), MERGE and EXEC refused;
+  PostgreSQL `%s` and `'50%%'`; Oracle `:name` (tests/test_sandbox_clients.py).
+- Every public method of the SQL Server starter's SqlServer and Cursor, Dataverse's Dataverse and SqlCursor, and the
+  SharePoint lists starter's SharePointLists (each class taken from the starter's own code) is on its mock with the
+  same parameters and defaults; one function reads sqlite3 and its mock alike, and Dataverse's stand-in and its
+  mock alike.
+- A local sandbox API run by the app (`python -I`): GET, POST, 404 through it; the sandbox grid following; Reset;
+  its process's environment holds no secret, token or connection variable while the server's has one; sab.blade
+  refused inside it; a broken API.py says its line; a change on disk restarts it (tests/test_local_api.py).
+- The three exports run with no app against the real made-up SQLite connection (its keyring password given as the
+  platform's variable): the Lambda handler with REST 1.0 and HTTP 2.0 events, the Azure Functions app's functions,
+  the FastAPI app served; once against fastapi 0.165.0, azure-functions 1.26.0 and duckdb in a separate Python
+  (SWISSARMYBENCH_EXPORT_PYTHON; uv from PyPI): passed; by default against stand-ins of their few names.
+- The four API widgets in Streamlit 1.67's AppTest against a running API (rows, metrics, no exception), and with
+  none running (each says how to start it). In Chromium: Add to sandbox from the ribbon, New endpoint from a table,
+  Run, Try it a POST (201, the log, the change log), Reset; an api_table widget on a canvas, its endpoint picked in
+  Properties, played: its rows shown (tests/e2e/test_local_apis_page.py).
+
+Not checked:
+- `func start` (Azure Functions Core Tools) and `sam local start-api` (AWS SAM with Docker): not installed here; the
+  generated function_app.py was imported with the real azure-functions package and its functions called.
+- A real SQL Server, Dataverse environment or SharePoint site behind a mock (the signatures and the stand-ins
+  were); the Write starters run against the mocks; lakes, SharePoint documents, Power BI and Python connections
+  have no mock yet (said in one sentence).
+- The canvas Export does not write SAB_API_URL as a variable to set (left to the canvas's own export).
