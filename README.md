@@ -171,7 +171,7 @@ pack, by lighting up each one on the page.
 Swiss Army Bench was called SwissArmyGrid until this release. Everything has the new name: the package
 and the wheel (`swissarmybench`), the import (`import swissarmybench as sab`), the commands
 (`swissarmybench`, `sab`, `swissarmybench-mcp`, `swissarmybench-context`), the MCP server, the Claude Code
-plugin and its skill (`swissarmybench-use`), the VS Code extension, the state folder
+plugin and its skill (`swissarmybench-use`), the state folder
 (`~/.swissarmybench`), the environment variables (`SWISSARMYBENCH_*`), the blade header
 (`# /// swissarmybench-blade`) and the notebook metadata (`swissarmybench`).
 
@@ -205,7 +205,7 @@ are listed), `relationships_check`'s `tang` argument.
 
 ## Install it: one package, two installs
 
-From a release (each release carries the wheel, the VS Code extension and two installers), one line:
+From a release (each release carries the wheel and two installers), one line:
 
 ```powershell
 irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/latest/download/install.ps1 | iex
@@ -253,10 +253,7 @@ import swissarmybench as sab
 sab.push(orders)  # a grid named "orders" opens; push again to refresh it in place
 ```
 
-Visual Studio Code is optional. Everything installs with uv; the extension in `vscode-extension/`
-only points VS Code at what uv installed: Swiss Army Bench's MCP tools become VS Code's own tools (agent
-mode), and an Open Swiss Army Bench button (the editor and notebook toolbars, the status bar) starts the
-server when it is not running and opens it in its own window. It needs VS Code 1.101 or later. Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
+Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
 saved workspaces, a relationships view): [Plans/standalone-workspaces.plan.md](Plans/standalone-workspaces.plan.md).
 
 Grids open as tabs in one window, the workspace (`/workspace`): the first push opens it, and
@@ -744,8 +741,8 @@ adds to each prompt what you sent your agent from the Workbench (right-click an 
 Send to the agent: once, then it is marked read; the `agent_inbox` tool reads it too) and a short
 summary of the table in front (grid, row count, columns and types, steps; never cell values), the way an
 IDE hands Claude the open file. It prints nothing when no server is running.
-Build the one wheel (the page inside it) with `python build.py`; `python build.py --vsix`
-packages the VS Code extension around it too.
+Build the one wheel (the page inside it) with `python build.py`. (The optional VS Code extension went
+2026-11-21, the owner's simplicity pass: the agent's tools come from the swissarmybench MCP server.)
 
 ## Launch Claude
 
@@ -872,8 +869,7 @@ counting the user's actions: `python tools/testbed/testbed.py up`, then
 `python -m pytest -q tests/e2e/test_real_world.py`, then `python tools/testbed/testbed.py down`. Without
 it up, those tests skip and say why.
 
-`tools\screenshots.py` photographs every screen into `docs\screenshots\`, and
-`tools\vscode_check.py <url> <png>` checks a grid inside VS Code's browser.
+`tools\screenshots.py` photographs every screen into `docs\screenshots\`.
 
 ## Credits
 

@@ -2,11 +2,10 @@
 # release yet, or on a pushed version tag (v1.0.0, ...). On main, GitHub creates the tag with the release.
 # Every push still runs the checks, the build and the installer tests.
 #
-# 1. build:   the checks, then python build.py --vsix (the page, the one wheel, the installers, the
-#             VS Code extension), on Linux.
+# 1. build:   the checks, then python build.py (the page, the one wheel, the installers), on Linux.
 # 2. install: the installer itself, on Linux, Windows and macOS, from the built wheel, then the smoke test
 #             (start the installed server, push the made-up store from a client-only environment).
-# 3. release: only when both pass, a GitHub release with the wheel, the .vsix and the two installers.
+# 3. release: only when both pass, a GitHub release with the wheel and the two installers.
 # 4. pypi:    the same wheel to PyPI, by trusted publishing (no token: PyPI trusts this workflow file,
 #             release.yml, in the `pypi` environment of DylanCodyBrown/SwissArmyBench).
 name: release
@@ -56,9 +55,6 @@ jobs:
       - name: Page dependencies
         run: npm ci
         working-directory: web
-      - name: Extension dependencies
-        run: npm ci
-        working-directory: vscode-extension
       - name: Lint, format and types
         run: |
           uv run --no-sync ruff check .
@@ -67,17 +63,13 @@ jobs:
           npm run typecheck --prefix web
       - name: Tests (the browser tests need Edge and run on a desktop before tagging)
         run: uv run --no-sync pytest -q --ignore=tests/e2e
-      - name: Extension tests
-        run: npm test
-        working-directory: vscode-extension
       - name: Build
-        run: uv run --no-sync python build.py --vsix --skip-npm-install
+        run: uv run --no-sync python build.py --skip-npm-install
       - uses: actions/upload-artifact@v4
         with:
           name: dist
           path: |
             dist/*.whl
-            dist/*.vsix
             dist/install.sh
             dist/install.ps1
           if-no-files-found: error

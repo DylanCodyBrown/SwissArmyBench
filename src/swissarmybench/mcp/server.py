@@ -13,8 +13,7 @@ reads first (`swissarmybench://index`, or the `guide` tool with no arguments) an
 
 Like every front end it calls the grid server over HTTP as the agent (`X-Actor: agent`); all the
 rules (export approvals, the SQL guard, the audit log) live in that server. It never starts a server
-or opens a browser: the user starts the server (the `swissarmybench` command, or VS Code's Open Swiss
-Army Bench button).
+or opens a browser: the user starts the server (the `swissarmybench` command).
 
 Cell values are untrusted: they come back only inside an `<untrusted-data>` block.
 """

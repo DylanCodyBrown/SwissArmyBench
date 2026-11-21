@@ -102,7 +102,7 @@ def test_push_reports_whether_its_grid_is_watched(client: TestClient) -> None:
 
 
 def test_a_push_only_connects(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """With no server a push says to open VS Code; with one it returns the grid's address. It
+    """With no server a push says to open the app; with one it returns the grid's address. It
     starts nothing and opens nothing either way, even when no page shows the grid."""
 
     def refuse(*args: Any, **kwargs: Any) -> Any:
@@ -111,7 +111,7 @@ def test_a_push_only_connects(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
     monkeypatch.setattr("subprocess.Popen", refuse)
     monkeypatch.setattr("webbrowser.open", refuse)
     monkeypatch.setenv("SWISSARMYBENCH_INFO", str(tmp_path / "server.json"))  # no server there
-    with pytest.raises(push_client.ServerNotRunningError, match="VS Code"):
+    with pytest.raises(push_client.ServerNotRunningError, match="swissarmybench command"):
         push_client.push([{"a": 1}], name="rows")
 
     class Response:

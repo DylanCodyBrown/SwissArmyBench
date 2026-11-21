@@ -49,7 +49,7 @@ class AlreadyRunningError(RuntimeError):
     def __init__(self, info: dict[str, Any]) -> None:
         super().__init__(
             f"Swiss Army Bench is already running on http://127.0.0.1:{info.get('port')} "
-            f"(process {info.get('pid')}). Restart it from VS Code's status bar, or stop it with "
+            f"(process {info.get('pid')}). Stop it with "
             "`swissarmybench stop` first."
         )
         self.info = info
@@ -72,9 +72,7 @@ class InstanceLock:
 
     def __init__(self, info_path: Path) -> None:
         digest = hashlib.sha256(str(info_path.resolve()).lower().encode()).hexdigest()[:16]
-        taken = AlreadyStartingError(
-            "Another Swiss Army Bench server is running or starting; VS Code's status bar item shows it."
-        )
+        taken = AlreadyStartingError("Another Swiss Army Bench server is running or starting.")
         self._handle: Any = None
         if sys.platform == "win32":
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)

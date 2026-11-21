@@ -22,8 +22,7 @@ The server runs while the app is open (the owner, 2026-11-18: "I wanted the serv
 app is active and shutdown when it's not"): services/lifecycle.py stops it 30 seconds after the last window
 closes (at once when the desktop app closes), or 10 minutes after the last request of the agent, VS Code or
 a Python session with still no window open. There is no tray and no start at sign-in any more: `tray` and
-`autostart` (and --no-tray) are accepted for one release and say so. VS Code's extension runs this command
-with SWISSARMYBENCH_STARTED_BY=vscode: the server only, no window.
+`autostart` (and --no-tray) are accepted for one release and say so.
 
 Start-up order matters (server/lifecycle.py): take the instance lock, refuse if a healthy server
 is already running, bind and listen, write the connection file, serve, delete the file on every
@@ -121,10 +120,9 @@ def main() -> None:
     args = parser.parse_args()
     path = info_file_path()
     # No command: the app. With a server's options (--port, --no-window, --background: the older
-    # `swissarmybench --port N`), or from VS Code's extension, the server, as before.
+    # `swissarmybench --port N`), the server, as before.
     server_only = args.port is not None or args.no_window or args.background
-    vscode = os.environ.get("SWISSARMYBENCH_STARTED_BY", "") == "vscode"
-    command = args.command or ("start" if server_only or vscode else "app")
+    command = args.command or ("start" if server_only else "app")
 
     if command in ("tray", "autostart"):
         print(GONE_WORDS)
@@ -398,8 +396,7 @@ def start(port: int | None, window: bool = True) -> None:
             "pid": os.getpid(),
             "version": __version__,
             "started": time.time(),
-            # Who started it, and from which install: VS Code's status bar item tells its own
-            # server from one started by hand or from another install (another version).
+            # Who started it, and from which install (another version's tells its own apart).
             "started_by": started_by,
             "executable": sys.executable,
         },
@@ -407,7 +404,7 @@ def start(port: int | None, window: bool = True) -> None:
     print(f"Swiss Army Bench {__version__} on http://127.0.0.1:{actual_port}  (connection file: {path})")
     address = page_address({"port": actual_port, "token": token})
     print(f"Open it: {address}")
-    if window and started_by != "vscode" and os.environ.get("SWISSARMYBENCH_NO_BROWSER", "") != "1":
+    if window and os.environ.get("SWISSARMYBENCH_NO_BROWSER", "") != "1":
         # The socket already listens: the app's window (or a browser) asks now and waits for the answer.
         threading.Timer(0.5, open_address, args=(address,)).start()
     try:

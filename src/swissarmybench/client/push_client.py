@@ -37,7 +37,7 @@ _NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _TIMEOUT_SECONDS: float = 300.0
 NOT_RUNNING: str = (
     "Swiss Army Bench isn't running. Open the app (the swissarmybench command, or its launcher in the "
-    "Start menu or Applications), or VS Code's Open Swiss Army Bench button."
+    "Start menu or Applications)."
 )
 
 

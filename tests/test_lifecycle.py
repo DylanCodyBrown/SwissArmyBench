@@ -212,7 +212,7 @@ def test_push_names_the_dataset_after_the_variable_and_keeps_types(env: dict[str
         url = push_client.push(quarterly_sales)
         assert "/g/" in url and "#token=" in url
         info = push_client.ensure_server()
-        # Started by hand here, so the status bar in VS Code can tell it from its own server.
+        # Started by hand here.
         assert info["started_by"] == "cli" and info["executable"] == sys.executable
         listing = _get(info, "/datasets")
         assert [d["name"] for d in listing["datasets"]] == ["quarterly_sales"]
@@ -229,8 +229,8 @@ def test_push_names_the_dataset_after_the_variable_and_keeps_types(env: dict[str
 
 
 def test_a_push_never_starts_a_server(env: dict[str, str]) -> None:
-    """VS Code starts the server; a push with none running says so and starts nothing."""
-    with pytest.raises(push_client.ServerNotRunningError, match="VS Code"):
+    """The app starts the server; a push with none running says so and starts nothing."""
+    with pytest.raises(push_client.ServerNotRunningError, match="swissarmybench command"):
         push_client.push(pd.DataFrame({"a": [1, 2]}), name="auto")
     time.sleep(0.5)
     assert lifecycle.running_server(Path(env["SWISSARMYBENCH_INFO"])) is None

@@ -54,8 +54,8 @@ class Snapshots:
             raise ValueError("scale must be 1 or 2.")
         if not ws.live.page_open():
             raise Conflict(
-                "No Swiss Army Bench page is open to draw the snapshot. Ask the user to open the "
-                "Swiss Army Bench tab in VS Code."
+                "No Swiss Army Bench page is open to draw the snapshot. Ask the user to open Swiss Army "
+                "Bench."
             )
         snapshot_id = secrets.token_hex(6)
         waiting: Answer = asyncio.get_running_loop().create_future()

@@ -5,8 +5,8 @@ uvicorn + in-memory DuckDB) that lives while the app is open: tabular data in li
 profiling, SQL, export, verified code generation, charts and an MCP door for agents. The owner, 2026-11-18:
 "Change that to the primary install. It's not an extension it is the app framework now and it should have been
 since the start." The browser stays possible (`swissarmybench open --browser`), secondary. It runs only on the
-user's machine. This repository is the whole product: the Python package at the root, its page in `web/`, and
-the optional VS Code extension in `vscode-extension/`.
+user's machine. This repository is the whole product: the Python package at the root and its page in `web/` (the VS Code
+extension went 2026-11-21, the simplicity pass).
 
 One package, two installs (`python build.py` builds the wheel, page inside): the plain wheel is a
 standard-library-only push client for any Python environment; the `[server]` extra is the app (the server and
@@ -1275,7 +1275,7 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          orders service, every sign-in it takes stood in for), devtunnel_standin.py (Microsoft's
                          devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
                          and Git Data APIs and the device flow over in-memory repositories of made-up files)
-tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
+tools/                   screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
                          tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity; 11: a widget on
@@ -1294,7 +1294,7 @@ examples/forms_recon/    the owner's first app POC as a test app, made by the ap
                          three canvas pages, widgets/api_bridge.widget.py (the project's own widget);
                          tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
-build.py                 build the page (release) and the one wheel; --vsix also packages the extension
+build.py                 build the page (release) and the one wheel
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
 tools/smoke_install.py   start the installed server, push the sample store, check it all arrived (used by releases)
@@ -1467,8 +1467,6 @@ web/src/gates.ts         a project type's gates (GET /app/gates): a closed area 
                          by their area: gatedRun; an address on a closed area covered by it: a popover over the
                          page), Settings' switch, the first-open pop-up once per project, the mode's own tour cards
 web/src/areaMarks.ts     the footer's marks an extension's area answers (GET /app/areas' mark route), generic
-vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
-                         and an Open Swiss Army Bench button (starts the server when needed, opens its window)
 extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
                          powerapps = swissarmybench_powerapps.extension; project type codeapp): Power Apps code
                          apps built with Microsoft's own command lines (pa for the app, pac for environments and
