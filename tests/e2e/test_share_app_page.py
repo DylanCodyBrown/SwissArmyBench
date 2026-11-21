@@ -1,0 +1,121 @@
+"""Share… in a real browser (shareApp.ts; the owner, 2026-11-21): Share, the install prompt, signing in with a
+device code (the stand-in devtunnel: tests/devtunnel_standin.py), the link with Copy and Open, the amber note,
+the Shared mark beside where the app runs, then Stop sharing. Its own server in this process, with a made-up
+app on a port of its own as the share target. Made-up names only; nothing leaves the computer."""
+
+from __future__ import annotations
+
+import os
+import socket
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Any
+
+import pytest
+from playwright.sync_api import Browser, expect
+
+from swissarmybench.server.app import create_app
+from swissarmybench.services.sharing import Opened
+from swissarmybench.settings import Settings
+from tests.e2e.test_ui import browser  # noqa: F401
+from tests.live_server import running
+
+SHOTS = os.environ.get("SWISSARMYBENCH_SHARE_SHOTS")
+
+
+class MadeUpApp:
+    def __init__(self) -> None:
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            self.port = int(probe.getsockname()[1])
+        self.closed: list[str] = []
+
+    async def open(self, app: str) -> Opened:
+        return Opened(self.port, "Regional sales POC · build 4")
+
+    async def close(self, app: str) -> None:
+        self.closed.append(app)
+
+
+@pytest.fixture(scope="module")
+def own_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
+    tmp: Path = tmp_path_factory.mktemp("share")
+    settings = Settings(
+        state_dir=tmp / "state",
+        export_dir=tmp / "exports",
+        claude_dir=tmp / "claude",
+        legacy_home=tmp / "home",
+        workbench_dir=tmp / "home" / "SwissArmyBench",
+        projects_dir=tmp / "home" / "Projects",
+        auto_load_catalogs=False,
+        auto_read_vaults=False,
+    )
+    made: dict[str, Any] = {}
+
+    def make(port: int) -> Any:
+        made["app"] = create_app(port, "share-token", settings)
+        return made["app"]
+
+    with running(make) as (port, _server):
+        target = MadeUpApp()
+        made["app"].state.ctx.hooks.share_targets["streamlit"] = target
+        yield {"port": port, "token": "share-token", "target": target}
+
+
+def test_share_install_sign_in_link_copy_and_stop(browser: Browser, own_server: dict[str, Any]) -> None:  # noqa: F811
+    context = browser.new_context(viewport={"width": 1280, "height": 860}, device_scale_factor=2)
+    context.grant_permissions(
+        ["clipboard-read", "clipboard-write"], origin=f"http://127.0.0.1:{own_server['port']}"
+    )
+    page = context.new_page()
+    page.goto(f"http://127.0.0.1:{own_server['port']}/workspace#token={own_server['token']}")
+    page.wait_for_function("() => !!globalThis.sabShare")
+    app = "{kind: 'streamlit', id: 'regional-sales', title: 'Regional sales POC'}"
+    # Where the app's Launch / Stop shows: the mark, hidden while not shared.
+    page.evaluate(
+        f"() => {{ const m = sabShare.shareMark({app}); m.id = 'mark'; document.body.prepend(m); }}"
+    )
+    expect(page.locator("#mark")).to_be_hidden()
+    page.evaluate(f"() => sabShare.openShareDialog({app})")
+    dialog = page.locator("dialog.share-dialog")
+    expect(dialog.locator(".share-sentence")).to_have_text(
+        "People in your organization can open this app after signing in with their work account. It runs on "
+        "this computer while it is shared."
+    )
+    expect(dialog.locator(".share-needs")).to_contain_text("Sharing needs devtunnel")
+    dialog.locator(".share-install").click()
+    # Installed (the stand-in's bytes, their checksum checked): the sign-in, the user's own.
+    dialog.locator(".share-device-code").click()
+    expect(dialog.locator(".share-code")).to_have_text("MADEUP42")
+    expect(dialog.locator(".share-start")).to_be_visible()
+    expect(dialog.locator(".share-account")).to_contain_text("dana.lee@contoso-made-up.example")
+    dialog.locator(".share-start").click()
+    link = dialog.locator(".share-link")
+    expect(dialog).to_have_attribute("data-state", "sharing", timeout=20_000)
+    url = link.input_value()
+    assert url.startswith("https://made-up-") and url.endswith(
+        f"-{own_server['target'].port}.usw2.devtunnels.ms/"
+    )
+    assert f"-{own_server['port']}." not in url  # never the server's own port
+    expect(dialog.locator(".share-who")).to_have_text("Your organization")
+    expect(dialog.locator(".share-note")).to_have_text(
+        "Shared: anyone in your organization with the link can use this app. Its queries run on this "
+        "computer with your connections."
+    )
+    expect(dialog.locator(".share-open")).to_be_visible()
+    dialog.locator(".share-copy").click()
+    assert page.evaluate("() => navigator.clipboard.readText()") == url
+    expect(page.locator("#mark")).to_be_visible()
+    expect(page.locator("#mark .share-mark-label")).to_have_attribute(
+        "title", f"Shared with your organization: {url}"
+    )
+    if SHOTS:
+        Path(SHOTS).mkdir(parents=True, exist_ok=True)
+        page.wait_for_timeout(400)
+        dialog.screenshot(path=str(Path(SHOTS) / "share-dialog-sharing.png"))
+        page.screenshot(path=str(Path(SHOTS) / "share-dialog-page.png"))
+    dialog.locator(".share-stop").click()
+    expect(dialog).to_have_attribute("data-state", "ready")
+    expect(page.locator("#mark")).to_be_hidden()
+    assert own_server["target"].closed == ["regional-sales"]
+    context.close()

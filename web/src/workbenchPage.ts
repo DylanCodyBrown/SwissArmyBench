@@ -47,6 +47,7 @@
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
 import { inlineStatus } from "./inlineCompletion";
+import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
 import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
 import { ideMoves, searchScripts } from "./workbenchIde";

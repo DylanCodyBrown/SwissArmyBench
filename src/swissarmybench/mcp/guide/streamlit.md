@@ -91,3 +91,9 @@ drives the cells on the same page that read it.
 - The analyzer records only while attached: `perf_attach` (on=false pauses; clear; detach; save: into the
   build), `perf_session` (reruns with trigger and each block's ms, calls, caches, the socket's kinds and
   sizes; build= and file=: a saved one), `perf_hints`.
+
+## Share a launched app with the organization (Microsoft Dev Tunnels)
+- `sharing_status app=<canvas id>`: devtunnel installed, signed in, the share's state and link.
+- `sharing_start app=<canvas id>` (waits for Allow; installs devtunnel first if needed): the launched app's own
+  port tunnelled, organization only (work accounts of the user's tenant), never anonymous, never this server.
+  The user signs in themselves (Share…, Sign in). `sharing_stop` ends it (Allow); a new launch or Stop ends it too.

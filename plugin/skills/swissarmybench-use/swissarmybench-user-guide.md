@@ -1726,6 +1726,19 @@ travelled to the page, by element (a dataframe, a chart, markdown), the biggest 
 does not read the widget that changed, a cache that always misses, a slow query run again with the same
 text, many small messages from a loop.
 
+### Share a launched app with your organization
+
+**Share…** (beside Launch) lets people in your organization open the launched app in their own browser,
+after signing in with their Microsoft work account. It runs on this computer while it is shared: its queries
+run here, with your connections. There are no public links.
+
+The first time, Share… asks to install Microsoft's **devtunnel** (Install now): it is downloaded from
+Microsoft, checked, and kept in Swiss Army Bench's own folder. Then **Sign in with your work account** (or
+**Use a code instead** where there is no browser), and **Share**: the link appears with **Copy** and
+**Open**, and a small **Shared** mark stays beside the app's Launch and Stop. The share ends on **Stop
+sharing**, when you stop or launch the app again, or when Swiss Army Bench closes. If your organization does
+not allow Microsoft Dev Tunnels, Share… says what to ask IT for.
+
 ### Projects: start with the data
 
 A project is a folder that starts with the data. **data.ipynb** is where you work on it: each table's

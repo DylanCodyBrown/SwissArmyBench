@@ -170,7 +170,19 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
   **GitHub sync (the owner, 2026-11-18; the Git extension) sends the team library's and shared projects' files to
   GitHub on the user's Clone, Pull, Push and Commit only (`sync.json` in the state folder: links, never a file's
-  content or the token); see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
+  content or the token); see the library bullet.** **Sharing a running app (the owner, 2026-11-21: "I just wanted a place
+  for a user to host a POC so others can connect to it like an app"; Plans none, docs/ideas.md "Share a running app")
+  sends that app's own traffic through Microsoft Dev Tunnels on the user's Share… only** (the agent's `sharing_start`
+  on Allow): organization only ("People open the link after signing in with their Microsoft work account... There are
+  no public links at all": the tunnel's access is the signed-in user's Entra tenant, never anonymous, the access read
+  back before hosting; a policy that blocks it is said with what to ask IT, never worked round), until you stop it
+  ("A link always ends with its app": Stop sharing, the app's stop, Swiss Army Bench closing), and only the app's own
+  127.0.0.1 port (a Streamlit launch's shared run), never this server's port, token, routes or pages. Microsoft's
+  devtunnel command line is downloaded on the first share only, into the state folder's `devtunnel/`, from Microsoft's
+  download store, checked against the Content-MD5 it publishes and, on Windows and macOS, its Microsoft signature;
+  sign-in (`devtunnel user login --entra`, its token in the system's key chain by devtunnel) is the user's own. The
+  Session log says which app was shared and stopped, never the link or a token.
+  **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; its on/off is a hidden setting (`update.json`, the agent's `app_update_check on`), and Settings shows only
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
@@ -423,6 +435,10 @@ src/swissarmybench/
     library_setup.py     Set up this computer: each vault (readable, its sign-in, the variables it gives), the
                          values to type once, each connection's status (works, needs, only works here), shared
                          projects not set up here, the count's words, the notice
+    sharing.py           Share a running app with your organization (Microsoft Dev Tunnels, 2026-11-21): devtunnel's
+                         download (Microsoft's store, Content-MD5, Windows' and macOS' signatures), each command line
+                         (values checked; never anonymous; never the server's port), its output read (--json, host's
+                         address, the device code), a policy's words (what to ask IT), the states and the words
     team.py              a team (one GitHub repository: the library at its top, projects/): the layout (README.md,
                          .gitignore, projects/), the local copy's place (team/<owner>-<repo>), the steps and the one
                          kept over Install's restart, the repositories newest first, what a new team takes, Leave's
@@ -730,6 +746,9 @@ src/swissarmybench/
                          folders (the agent's on Allow), Share (on Allow) and Make a local copy, rename,
                          remove from the list, locate; Show in folder and Delete (to the trash, on its typed
                          name) the user's only
+    sharing.py           Share…: status, install, sign in (the user's only), start (the target's port, a tunnel with the
+                         tenant's access read back, the port, host, the link), stop; ends with the app (app_stopped)
+                         and the server (stop_all); share_start and share_stop audited (the app, never the link)
     team.py              Settings' Team box: status, join, start, leave (the folders pointed and put back,
                          team.json), pull, push, show; the GitHub work is hooks.team's (the Git extension's TeamPort)
     library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
@@ -781,6 +800,9 @@ src/swissarmybench/
                          Azure SQL by mssql-python with the token, Dataverse's WhoAmI and roles, Graph's site, lists
                          and libraries, a lake path's listing)
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
+    tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
+                         Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
+                         (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)
     library.py           the library folder: where (library.json), README.md and .gitignore on first write,
                          counts, the one-time move of this computer's older stores (a dated backup), an older
                          project's .sab/blades read and dropped from its working folder
@@ -833,7 +855,7 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots,
                          explorer, library,
-                         shared_catalog, team, found_connections, script_ide). Every route serves
+                         shared_catalog, team, found_connections, script_ide, sharing). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -859,6 +881,8 @@ src/swissarmybench/
     routes_lifecycle.py  GET /lifecycle (app_lifecycle), POST /lifecycle/closed (the app's)
     routes_desktop.py    GET /desktop, POST /desktop/open (desktop_status, desktop_open)
     routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)
+    tunnels.py           devtunnel run: Windows' Authenticode and macOS' codesign checks, a command's words, `host` and
+                         `user login` as running processes (their lines as they come)
     dialog_runner.py     the system's file dialog in a short-lived child process: one at a time, ten minutes at
                          most, the start folder the nearest that is there; GET /dialogs says whether one opens
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
@@ -1025,7 +1049,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          `[data-no-variables]` left alone) and `globalThis.sabVariables` for SQL editors;
                          fileChooser.ts picks real paths: the system's own dialog first (GET /dialogs, POST
                          /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
-                         recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package
+                         recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys).
+                         shareApp.ts Share… for any running app (openShareDialog(app), shareMark(app);
+                         globalThis.sabShare): the sentence, Install now, Sign in with your work account (or a code),
+                         Share, the link with Copy and Open, Your organization, the amber note, Stop sharing; the
+                         Shared mark beside an app's Launch / Stop. missingPackages.ts is the one missing-package
                          prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
                          Not now, no nagging this session), used by every place that finds one;
                          emptyState.ts an empty page that leads somewhere (one sentence, the primary button, Try
@@ -1173,7 +1201,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          made-up SQLite file), test_sql_server_real.py (a real SQL Server when
                          SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
-                         orders service, every sign-in it takes stood in for), github_standin.py (GitHub's REST
+                         orders service, every sign-in it takes stood in for), devtunnel_standin.py (Microsoft's
+                         devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
                          and Git Data APIs and the device flow over in-memory repositories of made-up files)
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
@@ -1246,6 +1275,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
     domain/perf.py       the Performance Analyzer: a protobuf wire reader (a ForwardMsg's kind, element and path, a
                          BackMsg's rerun and widgets: never content), the socket per rerun, the page's records
                          joined, the caches, the hints in plain words
+    services/sharing_target.py  Share… for a launched app (the base's ShareTarget): a shared run of the launch's folder
+                         on its own port at the root (SHARED_FLAGS), closed when the launch ends (Launches.stopped)
     services/launch.py   Launch (a build, then a run folder of its own, timed; /streamlit/launch/<key>/), Stop,
                          builds (list, files, compare, relaunch, restore), the analyzer (attach, tap, session, save)
     server/sab_perf.py   copied beside a launch's pages: each rerun's trigger, blocks' times, calls, caches; one

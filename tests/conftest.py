@@ -83,6 +83,8 @@ def no_folder_in_the_real_home(tmp_path_factory: pytest.TempPathFactory) -> Iter
         "SWISSARMYBENCH_PROJECTS_DIR": str(tmp_path_factory.mktemp("projects") / "Swiss Army Bench Projects"),
         "SWISSARMYBENCH_TRAY": "0",
         "SWISSARMYBENCH_UPDATE_FEED": "none",
+        # Sharing's devtunnel: the stand-in, never Microsoft's download (nothing leaves this computer).
+        "SWISSARMYBENCH_DEVTUNNEL_STANDIN": str(Path(__file__).parent / "devtunnel_standin.py"),
     }
     before = {key: os.environ.get(key) for key in wanted}
     os.environ.update(wanted)

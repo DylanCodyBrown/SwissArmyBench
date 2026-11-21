@@ -165,6 +165,10 @@ def routes(services: Any) -> list[Any]:
     hooks.live_cells = streamlit_cells.live_cells
     hooks.project_app = project_app
     hooks.app_pages = streamlit_cells.outline_pages
+    # Share… (the base's services/sharing.py): a launched app's own port, tunnelled to the organization.
+    from swissarmybench_streamlit.services import sharing_target
+
+    services.share_target = sharing_target.wire(services, launches, runner)
     return [
         *routes_streamlit.routes(apps),
         *routes_controllers.routes(controllers),
@@ -184,6 +188,9 @@ async def stop(services: Any) -> None:
     launches = getattr(services, "launches", None)
     if launches is not None:
         await launches.stop_all()
+    shared = getattr(services, "share_target", None)
+    if shared is not None:
+        await shared.close_all()
     apps = getattr(services, "streamlit", None)
     if apps is not None:
         await apps.stop_all()

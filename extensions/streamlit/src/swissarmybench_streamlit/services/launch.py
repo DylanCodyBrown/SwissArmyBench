@@ -20,7 +20,7 @@ import json
 import re
 import secrets
 import time as clock
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -61,6 +61,7 @@ class Launched:
     process: Process | None = None
     started: float = 0.0
     recording: Recording | None = None
+    python: str = ""  # the canvas's Python (a shared run starts in it too)
 
     @property
     def key(self) -> str:
@@ -90,6 +91,8 @@ class Launches:
         self._now = now
         self._keep = keep
         self._running: dict[str, Launched] = {}  # by the canvas's id
+        # Told when a launch ends (its Stop, a launch again, the server's stop): a share of it ends with it.
+        self.stopped: list[Callable[[str], Awaitable[None]]] = []
 
     # ===== where an app's builds live =====
 
@@ -101,6 +104,12 @@ class Launches:
         project = self._project.folder_of(app.document)
         name = rules.folder_name(cells.app_title(app.document))
         return self._builds.join(project, rules.BUILDS, name), app.title
+
+    def running(self, app_id: str) -> Launched | None:
+        """The app's launch while its process runs (None: not launched)."""
+        launched = self._running.get(app_id)
+        alive = launched is not None and launched.process is not None and launched.process.alive()
+        return launched if alive else None
 
     def port_of(self, key: str) -> int | None:
         for launched in self._running.values():
@@ -177,6 +186,7 @@ class Launches:
         self._running[app_id] = launched
         start = clock.perf_counter()
         python = made["python"]
+        launched.python = python
         result, error, first = "started", None, None
         try:
             found = await self._runner.check(python)
@@ -230,6 +240,9 @@ class Launches:
 
     async def stop(self, app_id: str, who: str = "user", quiet: bool = False) -> dict[str, Any]:
         launched = self._running.pop(app_id, None)
+        if launched is not None:
+            for told in self.stopped:  # a share ends first: its process runs from this run's folder
+                await told(app_id)
         if launched is None:
             if quiet:
                 return {}
