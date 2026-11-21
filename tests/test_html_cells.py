@@ -674,20 +674,6 @@ def test_a_table_alone_on_its_line_is_a_pipe_table_and_elsewhere_its_size() -> N
     assert rules.fill_markdown("{{ long }}", {"long": long}).html.strip().endswith("*first 50 of 120 rows*")
 
 
-def test_a_page_reads_its_values_where_it_stands() -> None:
-    def gone() -> Any:
-        raise NameError("nowhere")
-
-    getters = {"region": lambda: "</b>*West*", "nowhere": gone}
-    assert rules.page_markdown("For {{ region }}: {{ nowhere }}", getters) == (
-        "For &lt;/b&gt;\\*West\\*: *\\{\\{ nowhere \\}\\} not found*"
-    )
-    shown = rules.page_html("<p>{{ region }}</p><script>let r = {{ region }};</script>", getters)
-    assert shown == '<p>&lt;/b&gt;*West*</p><script>let r = "\\u003c/b\\u003e*West*";</script>'
-    frame = pd.DataFrame({"a": [1]})
-    assert "<table" in rules.page_html("{{ t }}", {"t": lambda: frame})
-
-
 def test_a_script_is_found_by_the_browsers_own_reading() -> None:
     assert rules.has_script("<p>hi</p><script>let x = 1;</script>")
     assert rules.has_script("<SCRIPT type=module>go()</SCRIPT>")

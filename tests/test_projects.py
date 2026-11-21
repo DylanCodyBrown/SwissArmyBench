@@ -161,5 +161,3 @@ def test_a_projects_files_open_data_first() -> None:
     for bad in ("", "a/b", "..", "x" * 61, "what?"):
         with pytest.raises(rules.ProjectError):
             rules.check_folder_name(bad)
-    readme = rules.readme("sales", ["Overview"], "sales.stapp.json", ["customers"], ["mockups.ipynb"])
-    assert "FILL IN: data.py cannot read customers again" in readme and "No rows and no passwords" in readme

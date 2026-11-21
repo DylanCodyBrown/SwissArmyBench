@@ -351,7 +351,7 @@ def create_app(
                 *routes_cards.routes(ctx.cards),
                 *routes_catalog.routes(ctx.catalogs),
                 *routes_blades.routes(ctx.blades),
-                # Before the routes that read /connections/{name}: /connections/slots and /connections/queries.
+                # Before the routes that read /connections/{name}: /connections/slots, /connections/queries.
                 *routes_connection_slots.routes(
                     ctx.connection_slots,
                     lambda: [str(c["name"]) for c in ctx.connections.listing()["connections"]],

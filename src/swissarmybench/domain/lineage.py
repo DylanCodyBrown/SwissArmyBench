@@ -4,8 +4,7 @@ any cell, back through every cell to the data. Pure rules, no I/O.
 The walk starts at one cell (a notebook's or a script's; a canvas block is a link to one) and goes back
 by what each cell reads:
 
-  names       a name a cell reads comes from the cell that makes it: on a canvas page, the first block
-              placed that makes it (the page's own run order); else in the cell's document, the
+  names       a name a cell reads comes from the cell that makes it: in the cell's document, the
               nearest cell above that makes it (else the first below); else a project's data.ipynb
               (what data.py gives: `from data import ...` names go there too); else an open table
   @cell       a comment's `@cell7` links the cell to cell 7 of its document (a dotted edge)
@@ -95,7 +94,6 @@ class Node:
     table: str | None = None  # a table's variable (a table, its steps, its source)
     step: int | None = None  # a grid step's place, from 1
     target: bool = False
-    on_page: bool = False
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -111,7 +109,6 @@ class Node:
             "table": self.table,
             "step": self.step,
             "target": self.target,
-            "on_page": self.on_page,
         }
 
 
@@ -258,7 +255,6 @@ def _label(cell: DocCell) -> str:
 class _Walk:
     docs: Mapping[str, Document]
     tables: Mapping[str, TableFacts]
-    page: tuple[Key, ...]
     data: str | None
     nodes: dict[str, Node] = field(default_factory=dict)  # by a key of its own (below)
     order: list[str] = field(default_factory=list)  # the keys, as found
@@ -300,10 +296,6 @@ class _Walk:
 
     def maker(self, at: Key, name: str) -> tuple[str, Any] | None:
         """Where a name a cell reads comes from: ("cell", key) or ("table", variable)."""
-        if at in self.page:
-            for key in self.page:
-                if key != at and self.makes(key, name):
-                    return ("cell", key)
         mine = self.read(at)
         if name not in mine.from_data:
             found = self.in_doc_maker(at[0], at[1], name)
@@ -383,7 +375,6 @@ class _Walk:
                 shown,
                 tuple(n for n in mine.reads if n not in ("st", "pd")),
                 cell.table if kind == "table" else None,
-                on_page=key in self.page,
             ),
         )
         if kind == "table" and cell.table:
@@ -482,15 +473,13 @@ def trace(
     target: Key,
     docs: Mapping[str, Document],
     tables: Mapping[str, TableFacts],
-    page: Sequence[Key] = (),
     data: str | None = None,
 ) -> Graph:
     """The lineage of one cell: every node it comes from, in flow order, the cell itself last.
 
-    `docs`: the documents by path (the target's, the canvas page's, data.ipynb). `tables`: the open
-    tables by their names as Python variables. `page`: a canvas page's blocks, in the order placed,
-    when the cell is a block's. `data`: the project's data.ipynb, when there is one."""
-    walk = _Walk(docs, tables, tuple(page), data if data in docs else None)
+    `docs`: the documents by path (the target's, data.ipynb). `tables`: the open tables by their names as
+    Python variables. `data`: the project's data.ipynb, when there is one."""
+    walk = _Walk(docs, tables, data if data in docs else None)
     if walk.cell(target) is None:
         raise LineageError(f"{file_name(target[0])} has no cell {target[1]} to trace.")
     start = walk.cell_node(target)

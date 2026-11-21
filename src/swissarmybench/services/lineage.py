@@ -264,7 +264,7 @@ class Lineage:
         if data is not None:
             docs[data] = Document(data, docs[data].cells, True)
         tables = self._open_tables()
-        graph = rules.trace(target, docs, self._table_facts(tables), [], data)
+        graph = rules.trace(target, docs, self._table_facts(tables), data)
         self.ws.audit.write(who, "lineage", f"{rules.file_name(target[0])} @cell{target[1]}")
         if body.get("values") is False:
             return graph.to_json()

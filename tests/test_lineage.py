@@ -211,18 +211,6 @@ def test_a_name_imported_from_data_goes_back_into_data_ipynb() -> None:
     assert all(n.cell != 1 or n.document != BOOK for n in graph.nodes)  # the import line is no step
 
 
-def test_a_block_on_a_page_reads_the_other_blocks_first() -> None:
-    doc = book(
-        cell(1, 'region = "West"'),
-        cell(2, 'region = st.selectbox("Region", ["East", "West"])', name="Region filter"),
-        cell(3, "st.metric('Total', region)", name="Total"),
-    )
-    page = [(BOOK, 3), (BOOK, 2)]
-    graph = rules.trace((BOOK, 3), {BOOK: doc}, {}, page=page)
-    assert [n.cell for n in graph.nodes] == [2, 3]
-    assert graph.nodes[-1].on_page and graph.nodes[0].on_page
-
-
 def test_a_script_cell_is_green_and_a_notebook_blue() -> None:
     doc = book(cell(1, "a = 1"), cell(2, "b = a"), path=SCRIPT)
     graph = rules.trace((SCRIPT, 2), {SCRIPT: doc}, {})
