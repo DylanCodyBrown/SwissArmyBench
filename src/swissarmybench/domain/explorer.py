@@ -26,6 +26,8 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import sandbox as boxes
+
 # The kinds of result, in the order the groups are shown (the filter chips' too).
 KINDS: tuple[str, ...] = ("connections", "tables", "columns", "structures", "apis", "variables", "blades")
 LABELS: dict[str, str] = {
@@ -492,7 +494,24 @@ def _by_name(r: Result) -> tuple[list[str], str]:
     return [p.casefold() for p in r.path], r.name.casefold()
 
 
-def browse_sections(results: Sequence[Result], query: Query) -> list[dict[str, Any]]:
+def sandbox_order(results: Sequence[Result], sort: tuple[str, bool]) -> list[Result]:
+    """The Sandbox's tables among `results` in the sandbox list's own order (domain/sandbox.py sort_tables:
+    name, rows, source, created, last changed), each in a slot one of them held; everything else stays."""
+
+    slots = [at for at, r in enumerate(results) if r.kind == "tables" and r.more.get("source") == "sandbox"]
+    rows = [
+        {**results[at].more, "name": results[at].more.get("table") or results[at].name, "_at": at}
+        for at in slots
+    ]
+    out = list(results)
+    for slot, row in zip(slots, boxes.sort_tables(rows, *sort), strict=True):
+        out[slot] = results[int(row["_at"])]
+    return out
+
+
+def browse_sections(
+    results: Sequence[Result], query: Query, sandbox_sort: tuple[str, bool] | None = None
+) -> list[dict[str, Any]]:
     """The sections after the connections, from the providers' results (a browse query's: with their
     children): the open tables and their columns, Structures' documents and their paths, the APIs'
     table-returning calls and their columns, the blades whose result is a table."""
@@ -514,7 +533,11 @@ def browse_sections(results: Sequence[Result], query: Query) -> list[dict[str, A
     shared_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "shared"]
     items: dict[str, list[dict[str, Any]]] = {
         "open": _nested(sorted(grids, key=_by_name), grid_columns, lambda c: c.more.get("table")),
-        "sandbox": _nested(sorted(boxed, key=_by_name), boxed_columns, lambda c: c.more.get("table")),
+        "sandbox": _nested(
+            sandbox_order(boxed, sandbox_sort) if sandbox_sort else sorted(boxed, key=_by_name),
+            boxed_columns,
+            lambda c: c.more.get("table"),
+        ),
         "structures": _nested(sorted(docs, key=_by_name), paths, lambda c: c.path[0] if c.path else ""),
         "apis": _nested(sorted(calls, key=_by_name), call_columns, lambda c: c.more.get("table")),
         "blades": [r.to_json() for r in sorted(blades, key=_by_name)],

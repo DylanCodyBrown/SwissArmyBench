@@ -511,7 +511,35 @@ _TYPE_WORDS = (
 _YES = {"yes": True, "y": True, "true": True, "1": True, "no": False, "n": False, "false": False, "0": False}
 
 
+# A LIST, STRUCT or MAP column (the owner approved, 2026-11-21: edited as a small JSON box, type-checked): its
+# type as DuckDB names it, of these characters only (a struct's field names quoted by DuckDB itself).
+_NESTED_CHARS = re.compile(r'^[A-Za-z0-9_ ,()\[\]"]+$')
+
+
+def is_nested(duck_type: str) -> bool:
+    """A list (INTEGER[], VARCHAR[3]), a struct (STRUCT(...)) or a map (MAP(...)): a JSON value in its
+    cell."""
+    upper = duck_type.upper().strip()
+    return upper.endswith("]") or upper.startswith(("STRUCT(", "MAP("))
+
+
+def _nested_words(duck_type: str) -> str:
+    upper = duck_type.upper().strip()
+    if upper.endswith("]"):
+        return "a list, written in JSON as [1, 2]"
+    if upper.startswith("MAP("):
+        return 'a map, written in JSON as {"key": 1}'
+    return 'a record, written in JSON as {"field": 1}'
+
+
+def cast_mark(cast: str) -> str:
+    """The bound value's mark as it is written into its column: a nested one from its JSON text."""
+    return f"CAST(?::JSON AS {cast})" if is_nested(cast) else f"CAST(? AS {cast})"
+
+
 def type_words(duck_type: str) -> str:
+    if is_nested(duck_type):
+        return _nested_words(duck_type)
     upper = duck_type.upper()
     for names, words in _TYPE_WORDS:
         if upper.split("(")[0].strip() in names or upper.startswith(names):
@@ -521,6 +549,10 @@ def type_words(duck_type: str) -> str:
 
 def editable_type(column: str, duck_type: str) -> str:
     """A column's type as an edit's CAST names it (DuckDB's own words for a plain type), or SandboxError."""
+    if is_nested(duck_type):
+        if not _NESTED_CHARS.match(duck_type.strip()):
+            raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
+        return duck_type.strip()
     upper = duck_type.upper().strip()
     if not _EDITABLE_TYPE.match(upper):
         raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
@@ -531,6 +563,18 @@ def cell_value(value: Any, duck_type: str) -> Any:
     """What a cell edit sent, as it is bound: an empty box is blank for anything but text; yes and no for a
     yes/no column; every other value as sent (DuckDB's CAST checks it)."""
     upper = duck_type.upper()
+    if is_nested(duck_type):  # its JSON text (DuckDB casts it to the column's own type)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if not isinstance(value, str):
+            return json.dumps(value)
+        try:
+            json.loads(value)
+        except ValueError:
+            raise SandboxError(
+                f"{value[:40]!r} is not JSON: this column takes {_nested_words(duck_type)}."
+            ) from None
+        return value
     if isinstance(value, str):
         if value == "" and not upper.startswith(_TEXT_TYPES):
             return None
@@ -564,8 +608,21 @@ def edit_update(
     if column not in columns:
         raise SandboxError(f"{table} has no column named {column}.")
     where, params = _row_where(table, columns, row)
-    sql = f"UPDATE {quote(table)} SET {quote(column)} = CAST(? AS {cast}) WHERE {where}"  # noqa: S608
+    sql = f"UPDATE {quote(table)} SET {quote(column)} = {cast_mark(cast)} WHERE {where}"  # noqa: S608
     return Statement(sql, [value, *params])
+
+
+def edit_update_where(
+    table: str, columns: Sequence[str], values: Mapping[str, tuple[Any, str]], where: Any
+) -> Statement:
+    """The rows `where` picks, each column given set (its value and its CAST type, a nested one from JSON)."""
+    if not values:
+        raise SandboxError("update takes the values to set: a dict of column to value.")
+    known = _known(table, columns, values)
+    sets = ", ".join(f"{quote(known[c])} = {cast_mark(cast)}" for c, (_, cast) in values.items())
+    clause, more = _where(table, columns, where)
+    sql = f"UPDATE {quote(table)} SET {sets} WHERE {clause}"  # noqa: S608 (checked names and types)
+    return Statement(sql, [v for v, _ in values.values()] + more)
 
 
 def edit_delete(table: str, columns: Sequence[str], row: Sequence[Any]) -> Statement:
@@ -578,7 +635,7 @@ def edit_insert(table: str, values: Mapping[str, tuple[Any, str]]) -> Statement:
     if not values:
         return Statement(f"INSERT INTO {quote(table)} DEFAULT VALUES", [])
     names = ", ".join(quote(c) for c in values)
-    marks = ", ".join(f"CAST(? AS {cast})" for _, cast in values.values())
+    marks = ", ".join(cast_mark(cast) for _, cast in values.values())
     sql = f"INSERT INTO {quote(table)} ({names}) VALUES ({marks})"  # noqa: S608 (checked names and types)
     return Statement(sql, [v for v, _ in values.values()])
 

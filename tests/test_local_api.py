@@ -204,13 +204,14 @@ def live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[int]:
         yield port
 
 
-def _ask(port: int, method: str, path: str, body: Any = None) -> Any:
+def _ask(port: int, method: str, path: str, body: Any = None, agent: bool = False) -> Any:
     data = None if body is None else json.dumps(body).encode()
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}{path}",
         data=data,
         method=method,
-        headers={"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"},
+        headers=headers | ({"X-Actor": "agent"} if agent else {}),
     )
     try:
         with urllib.request.urlopen(request, timeout=60) as answer:  # noqa: S310
@@ -281,6 +282,61 @@ def test_the_full_loop_sandbox_api_run_write_grid_reset(live: int, tmp_path: Pat
     assert failed and failed["line"] == API_PY.count("\n") + 2
     stopped = _ask(port, "POST", "/local-api/stop", {})
     assert stopped["running"] is None
+
+
+def _answer_next_approval(port: int, allow: bool) -> str:
+    """The user's answer to the one approval the agent is waiting on: its words."""
+    for _ in range(200):
+        pending = _ask(port, "GET", "/agent/approvals")["pending"]
+        if pending:
+            _ask(port, "POST", f"/agent/approvals/{pending[0]['id']}", {"approve": allow})
+            return str(pending[0]["detail"])
+        time.sleep(0.05)
+    raise AssertionError("no approval was asked for")
+
+
+def _try(call: Any) -> Any:
+    try:
+        return call()
+    except AssertionError as failed:
+        return str(failed)
+
+
+def test_one_allow_lets_the_agent_write_through_the_api_for_the_session(live: int, tmp_path: Path) -> None:
+    import threading
+
+    port = live
+    folder = tmp_path / "shop"
+    _ask(port, "POST", "/project/new", {"path": str(folder)})
+    csv = tmp_path / "orders.csv"
+    csv.write_text(ORDERS, encoding="utf-8")
+    _ask(port, "POST", "/sandbox/tables", {"from": "file", "path": str(csv)})
+    (folder / "API.py").write_text(API_PY, encoding="utf-8")
+    assert _ask(port, "POST", "/local-api/run", {})["running"]
+    assert _ask(port, "GET", "/local-api", agent=True)["agent_writes"] is False
+
+    def add(order_id: int) -> Any:
+        body = {"order_id": order_id, "region": "West", "amount": 1.0}
+        return _ask(
+            port, "POST", "/local-api/call", {"method": "POST", "path": "/orders", "body": body}, True
+        )
+
+    said: dict[str, Any] = {}
+    first = threading.Thread(target=lambda: said.update(r=add(10)))
+    first.start()
+    words = _answer_next_approval(port, True)
+    first.join(30)
+    assert said["r"]["status"] == 201 and "for the rest of this session" in words and "never live" in words
+    assert add(11)["status"] == 201  # no question this time
+    assert _ask(port, "GET", "/local-api", agent=True)["agent_writes"] is True
+    assert _ask(port, "POST", "/local-api/agent-writes", {"allow": False}) == {"agent_writes": False}
+    second = threading.Thread(target=lambda: said.update(r=_try(lambda: add(12))))
+    second.start()
+    _answer_next_approval(port, False)
+    second.join(30)
+    assert "403" in said["r"]
+    assert _ask(port, "GET", "/sandbox")["log"]["orders"]["inserted"] == 2
+    _ask(port, "POST", "/local-api/stop", {})
 
 
 # ===== New endpoint from a table =====

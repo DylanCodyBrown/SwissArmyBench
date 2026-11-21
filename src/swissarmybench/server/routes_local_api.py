@@ -8,6 +8,8 @@ api(settings)
 POST  /local-api/run         hosted on 127.0.0.1 (started again when API.py changes)              api(run)
 POST  /local-api/stop                                                                             api(stop)
 POST  /local-api/call        {method, path, query, body}: one request (the agent's writes on Allow) api(call)
+POST  /local-api/agent-writes  {allow}: the agent's writes for the rest of this session (one Allow; the
+                             sandbox only); allow false stops them                         api(agent_writes)
 GET   /local-api/log         its requests: method, path, status, ms, rows                         api(log)
 GET   /local-api/address     where it runs and its key (this computer's own callers)              api(address)
 GET   /local-api/openapi.json  its OpenAPI document
@@ -54,6 +56,7 @@ def routes(api: LocalApi, export: ApiExport) -> list[BaseRoute]:
         Route("/local-api/run", with_body(api.run), methods=["POST"]),
         Route("/local-api/stop", with_body(api.stop), methods=["POST"]),
         Route("/local-api/call", with_body(api.call), methods=["POST"]),
+        Route("/local-api/agent-writes", with_body(api.set_agent_writes), methods=["POST"]),
         Route("/local-api/log", with_actor(lambda who: api.log(None, who))),
         Route("/local-api/address", with_actor(lambda who: api.address(None, who))),
         Route("/local-api/openapi.json", openapi),

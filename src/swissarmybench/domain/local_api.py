@@ -31,6 +31,16 @@ HEADER_TYPE = "swissarmybench-api"
 _OPEN = f"# /// {HEADER_TYPE}"
 _CLOSE = "# ///"
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
+
+
+def agent_writes_words(first: str) -> str:
+    """What the agent's first write through the API asks: Allow covers the rest of this session."""
+    return (
+        f"{first} on the local sandbox API. Allow lets the agent write through it for the rest of this "
+        "session: the project's sandbox only, never live data; Reset undoes it."
+    )
+
+
 DEFAULT_TARGET = "fastapi"
 _PATH = re.compile(
     r"^/(?:[A-Za-z0-9._~-]+|\{[A-Za-z_][A-Za-z0-9_]*\})?(?:/(?:[A-Za-z0-9._~-]+|\{[A-Za-z_][A-Za-z0-9_]*\}))*$"

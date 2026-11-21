@@ -7,7 +7,9 @@
  *            Delete rows (the selected rows) and Reset <table>
  *   [EDIT]   double-click, Enter or F2 on a cell: a box over the cell; Enter writes it (POST /sandbox/edit: a
  *            sandbox write, counted in the change log; Reset undoes it); a value its column's type refuses is
- *            said under the box, which stays open; Esc leaves it
+ *            said under the box, which stays open; Esc leaves it. A LIST, STRUCT or MAP column's cell is a small
+ *            JSON box (Enter writes, Shift+Enter a new line; not JSON is said before anything is sent; the
+ *            server checks the shape against its type)
  *   [TITLE]  the tab's words: its designation (sandboxTitle)
  *
  * ROUTING: GET /sandbox · POST /sandbox/edit, /sandbox/reset
@@ -111,7 +113,8 @@ async function deleteRows(t: SandboxTable, b: HTMLElement): Promise<void> {
 function addRow(t: SandboxTable): void {
   const { body, foot, close } = openDialog(`Add a row to ${t.name}`);
   const boxes = t.columns.map((c) => {
-    const input = h("input", { "aria-label": c.name, placeholder: c.type, spellcheck: false, "data-column": c.name }) as HTMLInputElement;
+    const placeholder = isNested(c.type) ? `${c.type} as JSON` : c.type;
+    const input = h("input", { "aria-label": c.name, placeholder, spellcheck: false, "data-column": c.name }) as HTMLInputElement;
     body.append(h("label", { class: "field" }, h("span", {}, c.name, h("span", { class: "muted" }, ` ${c.type}${c.key ? " · key" : ""}`)), input));
     return input;
   });
@@ -131,40 +134,84 @@ function addRow(t: SandboxTable): void {
   boxes[0]?.focus();
 }
 
+/** A LIST, STRUCT or MAP column (domain/sandbox.py is_nested): its cell takes JSON. */
+export const isNested = (type: string): boolean => {
+  const upper = type.toUpperCase().trim();
+  return upper.endsWith("]") || upper.startsWith("STRUCT(") || upper.startsWith("MAP(");
+};
+
+/** A nested cell's value as its JSON box shows it. */
+export const asJson = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "string") {
+    try {
+      JSON.parse(value);
+      return value;
+    } catch {
+      return JSON.stringify(value);
+    }
+  }
+  return JSON.stringify(value);
+};
+
+/** Why a nested cell's text cannot be sent (not JSON), else null. */
+export function jsonProblem(text: string): string | null {
+  if (!text.trim()) return null;
+  try {
+    JSON.parse(text);
+    return null;
+  } catch (e) {
+    return `Not JSON: ${(e as Error).message}`;
+  }
+}
+
 /** A sandbox grid's cell edited in place (gridView.ts asks first: true when it took the cell). */
 export function editSandboxCell(dataset: string, row: number, column: string, cell: HTMLElement, current: () => Promise<unknown>): boolean {
   const t = known.get(dataset);
-  if (!t || !t.columns.some((c) => c.name === column)) return false;
+  const col = t?.columns.find((c) => c.name === column);
+  if (!t || !col) return false;
   document.querySelector(".sandbox-cell-edit")?.remove();
   const at = cell.getBoundingClientRect();
-  const input = h("input", { class: "sandbox-cell-input", "aria-label": `${column}, row ${row + 1}`, spellcheck: false, "data-no-variables": "" }) as HTMLInputElement;
-  const box = h("div", { class: "sandbox-cell-edit", style: `left:${at.left}px;top:${at.top}px;min-width:${Math.max(at.width, 140)}px` }, input);
+  const nested = isNested(col.type);
+  const label = `${column}, row ${row + 1}`;
+  const input = nested
+    ? (h("textarea", { class: "sandbox-cell-input sandbox-cell-json", "aria-label": `${label} (JSON)`, spellcheck: false, rows: 3, "data-no-variables": "" }) as HTMLTextAreaElement)
+    : (h("input", { class: "sandbox-cell-input", "aria-label": label, spellcheck: false, "data-no-variables": "" }) as HTMLInputElement);
+  const box = h("div", { class: "sandbox-cell-edit", style: `left:${at.left}px;top:${at.top}px;min-width:${Math.max(at.width, nested ? 260 : 140)}px` }, input);
   document.body.append(box);
   void current().then((v) => {
-    input.value = v === null || v === undefined ? "" : String(v);
+    input.value = nested ? asJson(v) : v === null || v === undefined ? "" : String(v);
     input.select();
   });
+  const said = (err: unknown): void => {
+    box.querySelector(".error-note")?.remove();
+    box.append(errorNote(err, { agent: false }));
+    input.focus();
+  };
   input.focus();
   let sending = false;
   const leave = (): void => {
     box.remove();
     cell.focus();
   };
-  input.addEventListener("keydown", (e) => {
+  (input as HTMLElement).addEventListener("keydown", (e: KeyboardEvent) => {
     if (e.key === "Escape") {
       e.preventDefault();
       leave();
-    } else if (e.key === "Enter" && !sending) {
+    } else if (e.key === "Enter" && !e.shiftKey && !sending) {
       e.preventDefault();
+      const problem = nested ? jsonProblem(input.value) : null;
+      if (problem) {
+        said(problem);
+        e.stopPropagation();
+        return;
+      }
       sending = true;
       void api("/sandbox/edit", "POST", { table: t.name, op: "update", row, column, value: input.value }).then(
         () => leave(),
         (err: unknown) => {
           sending = false;
-          // In place: under the box, which stays open with what was typed (9.5).
-          box.querySelector(".error-note")?.remove();
-          box.append(errorNote(err, { agent: false }));
-          input.focus();
+          said(err); // in place: under the box, which stays open with what was typed (9.5)
         },
       );
     }

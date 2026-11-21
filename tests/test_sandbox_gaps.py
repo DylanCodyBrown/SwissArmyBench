@@ -106,8 +106,21 @@ def test_an_edit_names_its_row_by_every_value_and_casts_to_its_type() -> None:
     assert rules.cell_value("", "DOUBLE") is None and rules.cell_value("", "VARCHAR") == ""
     assert rules.cell_value("yes", "BOOLEAN") is True
     assert rules.editable_type("amount", "decimal(18,2)") == "DECIMAL(18,2)"
+    # A LIST, STRUCT or MAP: a JSON value, cast from JSON to its own type (the owner approved, 2026-11-21).
+    assert (
+        rules.editable_type("pt", 'STRUCT(x INTEGER, "label" VARCHAR)')
+        == 'STRUCT(x INTEGER, "label" VARCHAR)'
+    )
+    assert rules.edit_insert("t", {"tags": ('["a"]', "VARCHAR[]")}).sql == (
+        'INSERT INTO "t" ("tags") VALUES (CAST(?::JSON AS VARCHAR[]))'
+    )
+    assert rules.cell_value(["a", "b"], "VARCHAR[]") == '["a", "b"]'
+    assert rules.cell_value('{"k": 1}', "MAP(VARCHAR, INTEGER)") == '{"k": 1}'
+    assert rules.cell_value(" ", "INTEGER[]") is None
+    with pytest.raises(SandboxError, match="is not JSON: this column takes a list, written in JSON as"):
+        rules.cell_value("a, b", "VARCHAR[]")
     with pytest.raises(SandboxError, match="through the API"):
-        rules.editable_type("tags", "STRUCT(a INTEGER)")
+        rules.editable_type("tags", "STRUCT(a INTEGER); DROP TABLE t")
     assert rules.not_a("amount", "abc", "DOUBLE") == "'abc' is not a number: amount is DOUBLE."
 
 
@@ -197,6 +210,72 @@ def test_variants_sorting_and_the_change_log_from_a_grid_edit(tmp_path: Path) ->
         cells = {t["name"]: t for t in ok(client.get("/workbench/tables", headers=AUTH))["tables"]}
         text = json.dumps(cells["sandbox_orders_sandbox"])
         assert "sab.sql(" in text and "SELECT * FROM [Sandbox].orders_sandbox" in text
+
+
+def test_list_struct_and_map_cells_are_edited_as_json_and_checked_against_their_type(tmp_path: Path) -> None:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    table = pa.table(
+        {
+            "id": [1, 2],
+            "tags": [["red"], []],
+            "pt": [{"x": 1, "label": "a"}, {"x": 2, "label": "b"}],
+            "m": pa.array([[("k", 1)], []], type=pa.map_(pa.string(), pa.int32())),
+        }
+    )
+    pq.write_table(table, tmp_path / "shapes.parquet")
+    with make_client(tmp_path) as client:
+        _project(client, tmp_path)
+        ok(
+            client.post(
+                "/sandbox/tables",
+                json={"from": "file", "path": str(tmp_path / "shapes.parquet")},
+                headers=AUTH,
+            )
+        )
+        values = {"tags": ["blue", "green"], "pt": '{"x": 7, "label": "z"}', "m": {"q": 3}}
+        ok(
+            client.post(
+                "/sandbox/edit",
+                json={"table": "shapes", "op": "update", "where": {"id": 2}, "values": values},
+                headers=AUTH,
+            )
+        )
+        ok(
+            client.post(
+                "/sandbox/edit",
+                json={"table": "shapes", "op": "insert", "values": {"id": 3, "tags": '["x"]'}},
+                headers=AGENT,
+            )
+        )
+        got = ok(
+            client.post(
+                "/sandbox/data",
+                json={"op": "sql", "connection": "Sandbox", "sql": "SELECT * FROM shapes ORDER BY id"},
+                headers=AUTH,
+            )
+        )
+        assert got["rows"][1] == [2, ["blue", "green"], {"x": 7, "label": "z"}, {"q": 3}]
+        assert got["rows"][2][:2] == [3, ["x"]]
+        wrong = client.post(
+            "/sandbox/edit",
+            json={"table": "shapes", "op": "update", "where": {"id": 1}, "values": {"pt": {"y": 1}}},
+            headers=AUTH,
+        )
+        assert wrong.status_code == 400 and "pt is STRUCT(" in wrong.json()["error"], wrong.text
+        assert 'unknown key "y"' in wrong.json()["error"]
+        not_json = client.post(
+            "/sandbox/edit",
+            json={"table": "shapes", "op": "update", "where": {"id": 1}, "values": {"tags": "red, blue"}},
+            headers=AUTH,
+        )
+        assert not_json.status_code == 400 and "is not JSON" in not_json.json()["error"]
+        assert ok(client.get("/sandbox", headers=AUTH))["log"]["shapes"] == {
+            "inserted": 1,
+            "updated": 1,
+            "deleted": 0,
+        }
 
 
 def test_an_edit_on_a_row_that_changed_says_so(tmp_path: Path) -> None:
@@ -375,6 +454,43 @@ def test_a_structure_becomes_a_sandbox_variant(tmp_path: Path) -> None:
         browse = ok(client.get("/explorer/browse", headers=AUTH))
         [item] = next(s for s in browse["sections"] if s["kind"] == "sandbox")["items"]
         assert item["variant"] and item["icon"] == "branch" and item["title"] == "shop · sandbox"
+
+
+def test_the_agents_catalog_commands_sort_the_sandbox_as_the_catalog_does(tmp_path: Path) -> None:
+    """explorer_browse and explorer_search take the Catalog's Sort for the Sandbox section (the sandbox list's
+    own: name, rows, source, created, changed); a wrong one is said in the list's words."""
+    from swissarmybench.cli import commands
+
+    with make_client(tmp_path) as client:
+        _project(client, tmp_path)
+        for name, rows in (("alpha", 2), ("beta", 5), ("gamma", 1)):
+            cols = [{"name": "id", "type": "integer"}]
+            ok(
+                client.post(
+                    "/sandbox/tables", json={"from": "columns", "name": name, "columns": cols}, headers=AUTH
+                )
+            )
+            for at in range(rows):
+                ok(
+                    client.post(
+                        "/sandbox/data", json={"op": "insert", "table": name, "row": {"id": at}}, headers=AUTH
+                    )
+                )
+
+        def names(answer: dict[str, Any]) -> list[str]:
+            return [i["name"] for i in next(s for s in answer["sections"] if s["kind"] == "sandbox")["items"]]
+
+        assert names(ok(client.get("/explorer/browse", headers=AGENT))) == ["alpha", "beta", "gamma"]
+        by_rows = ok(client.get("/explorer/browse?sort=rows&order=desc", headers=AGENT))
+        assert names(by_rows) == ["beta", "alpha", "gamma"]
+        found = ok(client.get("/explorer/search?q=a&kinds=tables&sort=rows&order=asc", headers=AGENT))
+        tables = [r["name"] for g in found["groups"] if g["kind"] == "tables" for r in g["results"]]
+        assert [t for t in tables if t in ("alpha", "beta", "gamma")] == ["gamma", "alpha", "beta"]
+        wrong = client.get("/explorer/browse?sort=size", headers=AGENT)
+        assert (
+            wrong.status_code == 400 and "Sort by one of: name, rows, source, created, changed" in wrong.text
+        )
+        assert {"sort", "order"} <= {x.name for x in commands.REGISTRY["explorer_browse"].args}
 
 
 def test_try_its_body_kept_as_the_endpoints_example(tmp_path: Path) -> None:

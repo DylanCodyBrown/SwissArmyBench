@@ -21000,6 +21000,7 @@ body.wb-full .wb-col-right {
 .sandbox-sort .icon-svg { width: 12px; height: 12px; }
 .sandbox-cell-edit { position: fixed; z-index: 1000; }
 .sandbox-cell-input { width: 100%; box-sizing: border-box; font: inherit; padding: 2px 4px; border: 2px solid var(--sandbox); }
+.sandbox-cell-json { font-family: var(--mono, ui-monospace, monospace); resize: vertical; min-height: 4.5em; }
 .sandbox-never-live { color: var(--sandbox); }
 .connection-card.fam-sandbox { border-left: 4px solid var(--sandbox); }
 .connection-card.fam-sandbox .connection-card-icon { color: var(--sandbox); }

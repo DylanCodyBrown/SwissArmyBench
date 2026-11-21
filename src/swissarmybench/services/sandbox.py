@@ -740,8 +740,7 @@ class Sandbox:
         statements: list[rules.Statement] = []
         if op == "update" and given.get("where") is not None:
             values = await self._typed(files, types, given.get("values"))
-            plain = {c: v for c, (v, _) in values.items()}
-            statements = [rules.update_statement(table, columns, plain, given.get("where"))]
+            statements = [rules.edit_update_where(table, columns, values, given.get("where"))]
         elif op == "update":
             column = self._column(types, given.get("column"))
             [(value, cast)] = (await self._typed(files, types, {column: given.get("value")})).values()
@@ -794,7 +793,14 @@ class Sandbox:
             column = self._column(types, wanted)
             cast = rules.editable_type(column, types[column])
             value = rules.cell_value(sent, types[column])
-            if value is not None:
+            if value is not None and rules.is_nested(cast):  # a wrong shape: DuckDB's cast refuses it
+                check = rules.Statement(f"SELECT {rules.cast_mark(cast)} IS NULL AS bad", [value])
+                try:
+                    await self._run(files.query, check, 1)
+                except Exception as error:
+                    said = str(error).split("\n")[0].split(": ", 1)[-1]
+                    raise SandboxError(f"{rules.not_a(column, sent, types[column])} ({said})") from None
+            elif value is not None:
                 check = rules.Statement(f"SELECT TRY_CAST(? AS {cast}) IS NULL AS bad", [value])
                 try:
                     _, _, found, _ = await self._run(files.query, check, 1)
