@@ -140,6 +140,10 @@ class Kernel:
         self._runs: list[str] = []  # recent runs' ids: their late output still comes through
         self._input: asyncio.Queue[str] = asyncio.Queue()
         self._warm: asyncio.Task[Any] | None = None
+        # The debugger (services/debugger.py): its events from iopub, its requests on the control channel.
+        self._debug_events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._control = asyncio.Lock()
+        self._debug_seq = 0
 
     async def ready(self) -> None:
         # The client has no limit on messages waiting to be read (_client): set for new and restarted kernels.
@@ -228,6 +232,9 @@ class Kernel:
                     continue
                 parent = msg.get("parent_header", {}).get("msg_id")
                 kind, content = msg["msg_type"], msg["content"]
+                if kind == "debug_event":  # the debugger's (a stop, a log point's line): its own queue
+                    self._debug_events.put_nowait(dict(content))
+                    continue
                 if parent != msg_id:
                     # A thread of an earlier run still printing: hand it on rather than lose it.
                     if (
@@ -254,6 +261,39 @@ class Kernel:
                 if detail:
                     yield {"error_detail": detail}
             yield {"done": {"ok": ok, "execution_count": count}}
+
+    # ===== the debugger: the Jupyter debug protocol (ipykernel's debugpy), 2026-11-21 =====
+
+    async def debug(self, command: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+        """One debug_request on the control channel (it is answered while a run is paused), its reply's
+        content: {success, body, message}."""
+        async with self._control:
+            self._debug_seq += 1
+            request = {
+                "type": "request",
+                "seq": self._debug_seq,
+                "command": command,
+                "arguments": arguments or {},
+            }
+            msg = self.client.session.msg("debug_request", request)
+            self.client.control_channel.send(msg)
+            deadline = asyncio.get_running_loop().time() + _ASK_SECONDS
+            while (left := deadline - asyncio.get_running_loop().time()) > 0:
+                try:
+                    reply = await self.client.get_control_msg(timeout=left)
+                except Exception:  # queue.Empty: no answer in time
+                    break
+                if reply.get("parent_header", {}).get("msg_id") == msg["header"]["msg_id"]:
+                    return dict(reply.get("content") or {})
+            raise KernelError(f"The debugger did not answer {command} in time.")
+
+    async def debug_event(self, timeout: float) -> dict[str, Any] | None:
+        """The next debugger event (a stop, a continue, a log point's output), or None in `timeout`. Events
+        come with a run's messages; between runs they wait in the channel."""
+        try:
+            return await asyncio.wait_for(self._debug_events.get(), timeout=timeout)
+        except TimeoutError:
+            return None
 
     async def _input_request(self) -> dict[str, Any] | None:
         """The kernel asking for a line of input (input(), getpass, pdb), if it is."""

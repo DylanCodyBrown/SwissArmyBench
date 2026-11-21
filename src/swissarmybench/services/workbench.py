@@ -338,6 +338,11 @@ class Workbench:
         """The document a kernel was started for (None: not known, or no kernel)."""
         return self._documents_of.get(kernel_id) if kernel_id else None
 
+    def kernel_for(self, document: str) -> str | None:
+        """The running kernel a document was started for (the newest), None when none is."""
+        found = [k for k, d in self._documents_of.items() if k in self._running and d == document]
+        return found[-1] if found else None
+
     def running_documents(self) -> list[str]:
         """The documents a running kernel was started for (context.md's Windows)."""
         return sorted({d for k, d in self._documents_of.items() if k in self._running and d})

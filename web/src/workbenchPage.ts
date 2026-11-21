@@ -50,6 +50,8 @@ import { inlineStatus } from "./inlineCompletion";
 import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
 import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile, searchScripts } from "./workbenchIde";
+import { debugSession, type DebugSession, type DebugState } from "./workbenchDebug";
+import type { CodeEditor } from "./lazy/codeEditor";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
@@ -128,6 +130,8 @@ interface Doc {
   dirty: boolean;
   /** A library's read-only tab: its editor to a line. */
   libraryAt?: (line: number) => void;
+  /** A script's debugger on the Scripts page (workbenchDebug.ts). */
+  debug?: DebugSession;
   kernel: Kernel | null;
   python: string | null;
   element: HTMLElement;
@@ -1419,6 +1423,9 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
   return doc;
 }
 
+/** Each script's editor once it has loaded (the debugger's gutter and paused line). */
+const scriptEditors = new WeakMap<Doc, CodeEditor>();
+
 /** A notebook document's view of its cells (its kernel the document's: a reload in place keeps its names). */
 function notebookOf(doc: Doc, cells: CellData[], nextCell?: number): NotebookView {
   return notebookView(cells, doc.kernel!, () => connectionNames, () => effectiveTheme(), markChanged(doc), () => bladeNames, () => codeNames, {
@@ -1439,6 +1446,19 @@ function notebookOf(doc: Doc, cells: CellData[], nextCell?: number): NotebookVie
 
 function openScript(path: string | null, text: string, modified: number | null): Doc {
   const doc = makeDoc("script", path ? baseName(path) : `Untitled script ${counter + 1}`, path, modified);
+  // The Scripts page's debugger: breakpoints in the gutter, Start debugging, the panel under the code.
+  const debug =
+    PAGE === "scripts"
+      ? debugSession({
+          kernel: () => doc.kernel!.ensure(),
+          path: () => doc.path,
+          text: () => doc.script!.text(),
+          editor: () => scriptEditors.get(doc) ?? null,
+          openAt: (p, line) => void openAt(p, line).catch(() => openLibraryDoc(p, line, null).catch((e: Error) => errorHere(e))),
+          layout: () => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize"))),
+        })
+      : undefined;
+  doc.debug = debug;
   const file = {
     path: () => doc.path,
     // Run file runs what is on disk: a changed file with a path is saved first (an untitled one runs
@@ -1460,6 +1480,11 @@ function openScript(path: string | null, text: string, modified: number | null):
       if (!doc.path) return;
       void recordRunFile(doc.path, ok, seconds).then(() => doc.modes?.redraw("runHistory"), () => undefined);
     },
+    breakpoints: debug?.gutter,
+    editorReady: (editor) => {
+      scriptEditors.set(doc, editor);
+      debug?.attach(editor);
+    },
     // The Scripts IDE's moves (workbenchIde.ts): F12, Shift+F12, F2, Shift+Alt+F.
     ide: ideMoves(
       { path: () => doc.path, text: () => doc.script!.text(), python: () => doc.python, replaceText: (t) => doc.script!.replaceText(t), reveal: (line) => doc.script!.reveal(line) },
@@ -1468,6 +1493,7 @@ function openScript(path: string | null, text: string, modified: number | null):
   });
   attachStreamlit(doc);
   doc.element.append(doc.script.element);
+  if (debug) doc.script.element.append(debug.element);
   scriptModes(doc);
   if (path) void readArguments(doc);
   show(doc);
@@ -2315,12 +2341,13 @@ function drawControls(): void {
     ? button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" })
     : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
   // Script mode: Run as scheduled (a fresh process with no app); Notebook and Data mode: the view's switch.
+  const debugButton = doc.debug ? button("Start debugging", () => void doc.debug!.start().catch((e: Error) => errorHere(e)), { icon: "bug", iconOnly: true, class: "ghost wb-debug-start", title: "Start debugging (Ctrl+Shift+D)" }) : null;
   const scheduled = doc.script ? button("Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
   if (scheduled && scheduling.has(doc)) markBusy(scheduled, "Running…"); // loading.ts
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, debugButton, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -3253,6 +3280,13 @@ const COMMANDS: Command[] = [
   { id: "file.newNotebook", group: "File", title: "New notebook", keys: inApp() ? "Ctrl+N" : undefined, run: () => void openNotebook(null, [], null) },
   { id: "file.newScript", group: "File", title: "New script", run: () => void openScript(null, "", null) },
   { id: "file.newBlade", group: "File", title: "New blade", run: () => bladeDoc(null) },
+  { id: "debug.start", group: "Debug", title: "Start debugging", keys: "Ctrl+Shift+D", when: () => !!current?.debug && !current.debug.active(), whyNot: "no script is in front on the Scripts page", run: () => void current!.debug!.start().catch((e: Error) => errorHere(e)) },
+  { id: "debug.toggleBreakpoint", group: "Debug", title: "Toggle breakpoint", keys: "F9", when: () => !!current?.debug, whyNot: "no script is in front on the Scripts page", run: () => current!.debug!.toggleAtCursor() },
+  { id: "debug.continue", group: "Debug", title: "Continue", keys: "F5", when: () => !!current?.debug?.paused(), whyNot: "not paused", run: () => void current!.debug!.step("continue") },
+  { id: "debug.stepOver", group: "Debug", title: "Step over", keys: "F10", when: () => !!current?.debug?.paused(), whyNot: "not paused", run: () => void current!.debug!.step("over") },
+  { id: "debug.stepInto", group: "Debug", title: "Step into", keys: "F11", when: () => !!current?.debug?.paused(), whyNot: "not paused", run: () => void current!.debug!.step("into") },
+  { id: "debug.stepOut", group: "Debug", title: "Step out", keys: "Shift+F11", when: () => !!current?.debug?.paused(), whyNot: "not paused", run: () => void current!.debug!.step("out") },
+  { id: "debug.stop", group: "Debug", title: "Stop debugging", keys: "Shift+F5", when: () => !!current?.debug?.active(), whyNot: "not debugging", run: () => void current!.debug!.stop() },
   { id: "file.newApp", group: "File", title: "New Streamlit app", when: () => canvasAnywhere("streamlit"), whyNot: "the Streamlit extension is not installed (Extensions: Install)", run: () => {
     const doc = openApp(null, [], null);
     return { document: doc.title };
@@ -3785,6 +3819,24 @@ function keyName(e: KeyboardEvent): string {
 document.addEventListener(
   "keydown",
   (e) => {
+    // The debugger's keys (VS Code's) while the script in front is paused; F9 a breakpoint at the cursor.
+    const debugging = current?.debug;
+    const debugKeys: Record<string, () => void> = debugging?.paused()
+      ? { F5: () => void debugging.step("continue"), F10: () => void debugging.step("over"), F11: () => void debugging.step("into"), "Shift+F11": () => void debugging.step("out"), "Shift+F5": () => void debugging.stop() }
+      : debugging?.active()
+        ? { "Shift+F5": () => void debugging.stop() }
+        : {};
+    if (debugging) {
+      debugKeys.F9 = () => debugging.toggleAtCursor();
+      if (!debugging.active()) debugKeys["Ctrl+Shift+D"] = () => void debugging.start().catch((err: Error) => errorHere(err));
+    }
+    const debugKey = debugKeys[keyName(e)];
+    if (debugKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      debugKey();
+      return;
+    }
     const id = WINDOW_KEYS[keyName(e)] ?? APP_KEYS[keyName(e)];
     if (!id) return;
     // A blade's tab is an IDE of its own (codeIde.ts): its Save and Run take Ctrl+S and F5 there.
@@ -3862,6 +3914,7 @@ onNotice((notice) => {
   if (handedTo !== null && (handedTo === WINDOW_ID || (handedTo === "main" && isMainWindow()))) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => {
       if (!(e instanceof ApiError && e.status === 409)) errorToast(e); // another main window took it
     });
+  if (notice.type === "debug_state") for (const d of docs) d.debug?.heard(notice as unknown as DebugState);
   if (notice.type === "code_file_moved") {
     // A module or package renamed (the explorer's Rename, the agent's workbench_file): its tabs follow it.
     const said = notice as unknown as { from: string; to: string | null };

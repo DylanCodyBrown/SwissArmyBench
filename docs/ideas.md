@@ -6938,3 +6938,22 @@ Decisions:
   it opens with no height of its own it takes about 30% of the area, and a dragged height is remembered.
 - The Workbench's console opens on a run as before, now at about 30% (leftTop 70%), its size remembered.
 - The minimap was already off by default (lazy/codeEditor.ts); the browser test checks it.
+
+## The Scripts page's debugger (built 2026-11-21, branch scripts-rest)
+
+- The kernel's own debugger: ipykernel ships debugpy (no new dependency); the Jupyter debug protocol over the
+  control channel (server/kernels.py debug: debug_request; debug_event from iopub into its own queue).
+  initialize and attach once per kernel, dumpCell (the script's text to the kernel's file for it), setBreakpoints
+  there, configurationDone, then the text runs as a cell in the document's kernel. Its names stay in the kernel
+  after (as Run's do); `__file__` and `sys.argv` are a cell's, not %run's (said).
+- services/debugger.py: a session per kernel (domain/debugger.py Session: state idle, running, paused, ended;
+  frames; output, memory only), a watcher task reading the events (stopped: stackTrace; continued; output: a log
+  point's words), `debug_state` notices (no output in the notice; read with GET /workbench/debug). Steps set
+  running before they are sent (the run may end before the answer). Stop: no breakpoints, continue, interrupt.
+- The page (workbenchDebug.ts): glyph margin breakpoints (a dot; a ringed dot conditional; a diamond log point)
+  that follow edits (Monaco decorations), right-click menu, F9; the bug button and Ctrl+Shift+D; while paused F5,
+  F10, F11 (into: full screen stays F11 otherwise), Shift+F11, Shift+F5; the paused line highlighted; the panel
+  under the code only while debugging (8.14): Call stack (a library frame opens read-only), Variables (Locals
+  and Globals, unfolding), Watch, Output, Debug console.
+- The agent: workbench_debug(action, document) (the tool list stays under 99,500: blades_update now takes the
+  code alone, the header is blades_header_set's; a few blades_ descriptions shortened).

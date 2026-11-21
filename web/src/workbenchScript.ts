@@ -214,7 +214,7 @@ export function scriptView(
   changed: () => void,
   names: () => { connections: string[]; blades: string[]; codeNames?: { name: string; connection: string; kind: string }[]; datasets?: string[] },
   file: ScriptFile,
-  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void; arguments?: () => string; ranFile?: (ok: boolean, seconds: number) => void; ide?: IdeMoves } = {},
+  hooks: { cursor?: (line: number, column: number) => void; help?: () => void; fix?: (fix: Fix) => boolean; openFile?: (path: string, line: number) => void; openGrid?: (name: string) => void; openResult?: (count: number, name?: string) => void; tablesChanged?: () => void; streamlit?: StreamlitHost; lineage?: (number: number) => void; arguments?: () => string; ranFile?: (ok: boolean, seconds: number) => void; ide?: IdeMoves; breakpoints?: { toggle: (line: number) => void; menu: (line: number, x: number, y: number) => void }; editorReady?: (editor: CodeEditor) => void } = {},
 ): ScriptView {
   const editorHost = h("div", { class: "wb-script-editor" });
   let editor: CodeEditor | null = null;
@@ -800,6 +800,7 @@ export function scriptView(
       })),
       keys: { f5: () => void runFile(), ctrlEnter: () => void runSelection(), shiftEnter: () => void runSelection(), f1: hooks.help },
       ide: hooks.ide, // the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F (workbenchIde.ts)
+      breakpoints: hooks.breakpoints, // the debugger's gutter (workbenchDebug.ts)
       complete: (text, offset) => intel.complete(text, offset).then((found) => found ?? python(text, offset)),
       intel: {
         signature: intel.signature,
@@ -826,6 +827,7 @@ export function scriptView(
           ]
         : [],
     });
+    hooks.editorReady?.(editor);
     editor.onChange((change) => {
       text = editor!.value();
       version++;

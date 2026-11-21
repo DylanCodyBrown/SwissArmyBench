@@ -4278,3 +4278,18 @@ asking. The e2e tests that assumed one mixed Workbench were moved to the two pag
 
 Not checked: the desktop app's own full screen (none built); Ruff's format itself (Ruff is not beside the test
 Python here: said, skipped); the debugger (not built).
+
+## The Scripts page's rest (2026-11-21, branch scripts-rest)
+
+Checked: the blade header's fields per kind, the save's refusals with their line, every scaffold kind valid and
+read back, New blade by name and kind running at once (tests/test_blade_header.py; the browser:
+tests/e2e/test_blade_tab_page.py with the 8.14 layout); /catalog's redirect and every e2e file that opened it;
+the tree's Rename with imports following (same package, another package, a package folder), Duplicate, Delete to
+a made-up freedesktop trash, the agent refused (tests/test_script_files.py; the browser answers the delete itself
+so no real trash is used); a library's source read-only and a project file refused; a notebook reloading in place
+and a dirty one asking (the browser); the desktop app's F11 under Qt off screen (tests/desktop_drive.py); the
+debugger end to end over HTTP with a real ipykernel 7.4 and debugpy 1.8 (pause on a conditional breakpoint, a log
+point's words, variables, evaluate, step over, continue to the end, stop while paused) and in Chromium.
+Not checked: Windows and macOS trash for a module (the same file_manager.trash the Project Explorer uses); a
+script's own environment without debugpy (ipykernel requires it; an older ipykernel without the debugger would
+say "The debugger could not start"); debugging a notebook (Scripts only); `__file__` inside a debugged script.

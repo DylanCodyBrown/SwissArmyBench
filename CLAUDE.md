@@ -330,6 +330,11 @@ src/swissarmybench/
                          a connection, another blade's table, not a valid name), a connection's listing query from
                          its starter (listing_for), New blade's choices, a file's header rewritten (with_header:
                          the code's bytes untouched)
+    blade_header.py      the blade tab's Properties: every header field (FIELDS) for the kinds it applies to, a
+                         save's changes, the kind's required part before a save (its line), New blade's scaffold
+                         per kind (table, code, analysis, connection, snippet, secret: made-up rows, Run at once)
+    debugger.py          the Scripts page's debugger's rules: breakpoints (plain, condition, log), steps, a stop's
+                         frames (the script's own lines, a library's), variables, the Session
     blades.py            a blade as text and as a record: what its code makes, asks for and imports
                          (read with ast), its pip packages, the portable .blade.py file (a
                          `# /// swissarmybench-blade` TOML header, zips), its settings (found with ast,
@@ -519,7 +524,9 @@ src/swissarmybench/
                          the groups (Your scripts, Project code, made files and what they are made from, the
                          library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (data first)
     script_ide.py        the Scripts IDE's rules: search and replace across the scripts (regex, case, word), a
-                         rename's plan and preview that never writes a made file, a Python name checked
+                         rename's plan and preview that never writes a made file, a Python name checked; a
+                         module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
+                         name, a library's source that may be shown read-only (library_file)
     script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
                          plain value, a key vault, never a secret's value), the variables a script needs,
                          a scheduled run's plan, a run's record
@@ -684,6 +691,9 @@ src/swissarmybench/
     script_ide.py        the Scripts IDE: its tree (the project's code, the library's, Generated), go to definition,
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
+    debugger.py          the Scripts page's debugger: a session per kernel over the kernel's own debugpy (the
+                         Jupyter debug protocol), the run and the events' watcher, steps, variables, evaluate,
+                         stop; `debug_state` notices
     code_files.py        code files that update themselves everywhere: `file_changed` {path, hash, by} on the app's
                          writes (touched) and on a look every few seconds at the project's and library's .py and
                          .ipynb (off the loop); its listeners (a made file saved by hand: project_scope.saw)
@@ -833,7 +843,7 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots,
                          explorer, library,
-                         shared_catalog, team, found_connections, script_ide). Every route serves
+                         shared_catalog, team, found_connections, script_ide, debugger). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -997,13 +1007,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          place in the rail's order that goes there and lights up the real control,
                          two made-up tables staged and closed again, back to where it started; then
                          a matching game; nav.ts returnTo; loaded when first opened);
-                         catalogRail.ts (the blades list; the catalog tree only where a page gives it a
-                         place: the Workbench's "+ Table") is the blades page's (catalogPage.ts,
-                         static/catalog.html: no catalog panel since 2026-11-17); bladeEditor.ts is the
+                         catalogRail.ts (the blades list, its "…": import, export, blade folders, packs; the
+                         catalog tree only where a page gives it a place: the Workbench's "+ Table") is the
+                         Scripts page's Blades pane (the blades page went 2026-11-21: /catalog redirects there,
+                         ?blade=<name> that blade's tab); bladeEditor.ts is the
                          blade screen, an IDE on codeIde.ts, and New blade; its pieces mount on their own in
                          another page's tab (bladeProperties: the header and the live table-name check;
                          runBladeCode into codeIde.ts's runPanel; watchOutsideEdits: Reload / Keep mine;
-                         bladeEditorIntel; saveBladeAs); codeIde.ts a page that is an IDE for one piece of
+                         bladeEditorIntel; saveBladeAs; newBladeDialog: a name and a kind); codeIde.ts a page that is an IDE for one piece of
                          code (the slim bar, Monaco with the host's intelligence, Properties, runPanel: Output
                          | Result | Problems, resizable, folded until something runs; design principle 8.14);
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
@@ -1072,7 +1083,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          codeExplorer.ts (each page's explorer on the left: the server's groups, a module's outline
                          as typed, marks, search, New; folds to a strip with Ctrl+B and resizes; on Scripts, Blades
                          below with a splitter); workbenchIde.ts (the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F
-                         and Ctrl+Shift+F over /scripts/*);
+                         and Ctrl+Shift+F over /scripts/*; the tree's Rename with its imports' preview,
+                         Duplicate, Delete, New package; a library's file read-only on F12);
+                         workbenchDebug.ts (the debugger: gutter breakpoints, conditional and log points, the
+                         panel under the code while debugging: call stack, variables, watch, output, console);
                          workbenchCommands.ts (every window action by one name: the palette (recent first), the keys (? lists
                          them: the shortcuts sheet, the grid page's too), and
                          the agent's workbench_window), workbenchNotebook.ts (cells, Jupyter's command
@@ -1145,8 +1159,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          align, duplicate, zoom and Play's preview are in workbenchCanvas.ts
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
-web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, catalog,
-                         workbench, perf) split on its own (chunks/<page>-<hash>.js: what loads when first
+web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, workbench,
+                         perf) split on its own (chunks/<page>-<hash>.js: what loads when first
                          opened), lazy/* and the workers as before, grid.css minified into build/grid.css
 web/static/              index.html, grid.css (all theme tokens; the pages load build/grid.css), build/
                          (gitignored); design.html is the

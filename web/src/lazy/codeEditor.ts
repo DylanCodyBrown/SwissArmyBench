@@ -594,6 +594,11 @@ export interface CodeEditor {
   setTheme: (theme: string) => void;
   /** The text's size in px (an IDE's own zoom: codeIde.ts). */
   setFontSize: (px: number) => void;
+  /** The gutter's breakpoints (the debugger's): drawn, and their lines as edits have moved them. */
+  setBreakpoints: (marks: BreakpointMark[]) => void;
+  breakpointLines: () => number[];
+  /** The line a paused run stopped at (highlighted, scrolled to); null clears it. */
+  setExecutionLine: (line: number | null) => void;
   /** Lint now (the language or the kernel changed), and what the lint shows. */
   lint: () => void;
   lintProblems: () => IntelProblem[];
@@ -685,6 +690,16 @@ export interface CodeEditorOptions {
   minimap?: boolean;
   /** Its size follows the page's code zoom (setPageFontSize): the Notebooks and Scripts pages' editors. */
   pageZoom?: boolean;
+  /** Breakpoints in the gutter (the Scripts page's debugger): a click on the gutter toggles one; a right-click
+   *  there offers the host's menu (conditional, log point, remove) at that line. */
+  breakpoints?: { toggle: (line: number) => void; menu: (line: number, x: number, y: number) => void };
+}
+
+/** A breakpoint as the gutter draws it: plain, conditional or a log point (a diamond). */
+export interface BreakpointMark {
+  line: number;
+  kind: "plain" | "condition" | "log";
+  title?: string;
 }
 
 let ideKeysFreed = false;
@@ -886,7 +901,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     automaticLayout: !options.grow,
     minimap: { enabled: !!options.minimap },
     lineNumbers: options.grow ? "off" : "on",
-    glyphMargin: false,
+    glyphMargin: !!options.breakpoints,
     folding: !options.grow,
     lineDecorationsWidth: options.grow ? 6 : 10,
     scrollBeyondLastLine: false,
@@ -1123,7 +1138,45 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     new ResizeObserver(() => editor.layout({ width: host.clientWidth, height: host.clientHeight })).observe(host);
     fit();
   }
+  // ----- the debugger's gutter: breakpoints, the paused line -----
+  const breakpointDecorations = editor.createDecorationsCollection([]);
+  const executionDecoration = editor.createDecorationsCollection([]);
+  if (options.breakpoints) {
+    const gutter = (e: monaco.editor.IEditorMouseEvent): number | null =>
+      e.target.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS ? (e.target.position?.lineNumber ?? null) : null;
+    editor.onMouseDown((e) => {
+      const line = gutter(e);
+      if (line === null || e.event.rightButton) return;
+      if (e.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN) return;
+      options.breakpoints!.toggle(line);
+    });
+    editor.onContextMenu((e) => {
+      const line = gutter(e);
+      if (line === null) return;
+      e.event.preventDefault();
+      options.breakpoints!.menu(line, e.event.posx, e.event.posy);
+    });
+  }
   const made: CodeEditor = {
+    setBreakpoints: (marks) =>
+      breakpointDecorations.set(
+        marks.map((m) => ({
+          range: new monaco.Range(m.line, 1, m.line, 1),
+          options: {
+            glyphMarginClassName: `sab-breakpoint bp-${m.kind}`,
+            glyphMarginHoverMessage: m.title ? { value: m.title } : undefined,
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          },
+        })),
+      ),
+    breakpointLines: () => breakpointDecorations.getRanges().map((r) => r.startLineNumber),
+    setExecutionLine: (line) => {
+      if (line === null) return void executionDecoration.clear();
+      executionDecoration.set([
+        { range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "sab-paused-line", glyphMarginClassName: "sab-paused-arrow" } },
+      ]);
+      editor.revealLineInCenterIfOutsideViewport(line);
+    },
     value: () => editor.getValue(),
     setValue: (text) => editor.setValue(text),
     selection: () => {
