@@ -39,6 +39,21 @@ data): the published Environment Mockup artifact; its source in the session scra
   the viewer), the Variables page, the grid page's Open list. The Data Explorer's open tables read the Environment's
   one list; the Data Catalog stays.
 
+## One page, search and browse that work
+The owner: "Variables, tables, structs all are one page. Not exactly like RStudio but similar with a search and browse
+that works." So:
+- **One page, one list:** tables, values, structures and settings together, each row its kind's icon and colour;
+  the groups are a filter (chips: All, Tables, Values, Structures, Settings), not separate screens.
+- **Search that works:** one box over names, a table's columns, a structure's keys and paths, a value's type and
+  short text, a setting's source; matched in any case and by parts (cust finds customer_id and CustomerKey), as the
+  Data Explorer already does (domain/explorer.py: reuse it, never a second search); the match is shown highlighted in
+  the row, and a column or a path that matched opens the row there.
+- **Browse that works:** every row unfolds in place, one level at a time: a table to its columns (type, blanks,
+  range, first values), a structure to its keys down its paths, a dictionary or a list of a value to its items, a
+  setting to where it comes from and what uses it. Keys move through it (arrows, Right opens, Left closes, Enter
+  opens the item's viewer), and the place is kept when the list refreshes.
+- Not RStudio's three fixed panes: one list that is searched and browsed, the viewer opening beside it.
+
 ## The watcher
 The trigger: after each cell runs (IPython's post-run hook), and its timer for plain scripts; it reports tables,
 values and structure-shaped values (names and sizes only) and the server sends one `environment_changed` notice.
