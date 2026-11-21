@@ -27,7 +27,8 @@ from swissarmybench.domain import connections as rules
 from swissarmybench.domain.blades import BladeError
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.catalogs import CatalogService
-from swissarmybench.services.workspace import Workspace
+from swissarmybench.services.connection_slots import BACKGROUND, calling_as
+from swissarmybench.services.workspace import TimedOut, Workspace
 
 # Start-up's loads wait for the app's first window (its page connected), then SETTLE_SECONDS more for the
 # page's own first requests; with no window, START_WAIT_SECONDS from the start (a server for the agent).
@@ -71,10 +72,17 @@ class CatalogLoading:
         key = blade.name.casefold()
         if self._enabled and key not in self._running:
             self._state.pop(key, None)
-            task = asyncio.get_running_loop().create_task(self._load(blade.name, who))
+            # Counted as background work on the connection's slots: behind the user's own queries.
+            with calling_as(BACKGROUND):
+                task = asyncio.get_running_loop().create_task(self._load(blade.name, who))
             self._running[key] = task
-            task.add_done_callback(lambda _: self._running.pop(key, None))
+            task.add_done_callback(lambda done: self._finished(key, done))
         return {"name": blade.name, **(self.state(blade.name) or {"state": "loaded"})}
+
+    def _finished(self, key: str, task: asyncio.Task[None]) -> None:
+        self._running.pop(key, None)
+        if not task.cancelled():
+            task.exception()  # a background load's TimedOut is heard here, said by its state
 
     async def ready(self, name: str) -> bool:
         """A connection's catalog loaded, waiting for it when it is not yet (a swap matches its tables
@@ -146,6 +154,12 @@ class CatalogLoading:
             try:
                 await self._blades.refresh(self._blades.get(name), {}, who)
                 state = "loaded"
+            except TimedOut:
+                # Its slot's wait ran out, or it was cancelled (services/connection_slots.py): not the
+                # catalog's failure, so nothing is kept against it; the one who asked hears why.
+                self._state.pop(name.casefold(), None)
+                await self.ws.live.broadcast({"type": "catalog_loading", "name": name, "state": "none"})
+                raise
             except NeedsValues as error:
                 state = "failed"
                 self._state[name.casefold()] = {"state": state, "error": f"needs {', '.join(error.missing)}"}

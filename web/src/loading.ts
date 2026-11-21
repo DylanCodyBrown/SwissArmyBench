@@ -12,6 +12,9 @@
  *                                       where the work was (not only a toast), then thrown on.
  *   loadingBlock(words, options)       an empty area's placeholder: the spinner and the words centred in the
  *                                       space the content will take (its height kept, so nothing jumps).
+ *   (a connection's line)              while a query of this page's waits for a slot on its connection, the
+ *                                       words say its place ("Waiting: 2nd in line for Warehouse (8 queries
+ *                                       running)") and Cancel gives it up (slotWait.ts)
  *   busyButton(button, work, words)    a button while its work runs: disabled with a small spinner and its own
  *                                       words ("Testing…"), put back after; a second click does nothing.
  *
@@ -21,6 +24,7 @@
 
 import { h } from "./dom";
 import { clearError, showError } from "./errorNote";
+import { cancelWaiting, whileWaiting } from "./slotWait";
 
 /** How long work runs before anything is drawn (shorter work never flickers). */
 export const SHOW_AFTER_MS = 150;
@@ -81,7 +85,10 @@ export async function busy<T>(host: HTMLElement, words: string, work: Work<T>, o
   }
 }
 
+let gates = 0;
+
 async function gate<T>(host: HTMLElement, words: string, work: Work<T>, options: BusyOptions): Promise<T> {
+  const gateCount = ++gates;
   const hadFocus = host.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
   const wasInert = host.inert;
   host.inert = true;
@@ -137,6 +144,20 @@ async function gate<T>(host: HTMLElement, words: string, work: Work<T>, options:
   };
   show = window.setTimeout(draw, SHOW_AFTER_MS);
 
+  // A query of this page's waiting in a connection's line (services/connection_slots.py): the words say its
+  // place, and Cancel gives it up; back to the words once it runs. The newest gate on the page says it.
+  const said = panel.querySelector<HTMLElement>(".busy-words")!;
+  const stopWaiting = whileWaiting(gateCount, (waiting) => {
+    said.textContent = waiting ?? words;
+    if (waiting && !panel.querySelector(".busy-cancel")) {
+      panel.append(h("button", { type: "button", class: "btn busy-cancel busy-line-cancel", onclick: () => {
+        options.abort?.abort();
+        options.onCancel?.();
+        void cancelWaiting();
+      } }, "Cancel"));
+    }
+    if (waiting && !cover.isConnected) draw();
+  });
   try {
     return await (typeof work === "function" ? work(options.abort?.signal) : work);
   } catch (e) {
@@ -145,6 +166,7 @@ async function gate<T>(host: HTMLElement, words: string, work: Work<T>, options:
     }
     throw e;
   } finally {
+    stopWaiting();
     done = true;
     window.clearTimeout(show);
     cancelAnimationFrame(frame);

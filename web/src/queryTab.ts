@@ -34,7 +34,8 @@ import { button, clear, formatCount, h, icon, toast } from "./dom";
 import { contextOf, currentDraft, finishDraft, gridList, onAgentView, onPaneCreated, onPaneDropped, renameDraft, viewingQuery, type Context } from "./panes";
 import { effectiveTheme, gridTheme, onThemeChange } from "./theme";
 import type { SqlEditor } from "./lazy/codeEditor";
-import { markBusy } from "./loading";
+import { busy, markBusy } from "./loading";
+import { cancelWaiting } from "./slotWait";
 
 /** What POST /datasets/{name}/query answers. */
 interface Built {
@@ -373,15 +374,24 @@ async function build(tray: Tray, name: string, replace: boolean, source: Source 
   const sql = tray.editor.value().trim();
   if (!sql) return null;
   tray.busy(true);
+  // The one loading state over the tray: a query waiting in a connection's line says its place, and Cancel
+  // gives it up or stops it (loading.ts, slotWait.ts).
+  const abort = new AbortController();
   try {
-    const built = source.connection
-      ? await api<Built>(`/datasets/${encodeURIComponent(name)}/connection-query`, "POST", { connection: source.connection, sql, replace, ...(source.dataset ? { dataset: source.dataset } : {}) })
-      : await api<Built>(`/datasets/${encodeURIComponent(name)}/query`, "POST", { sql, replace });
+    const built = await busy(
+      tray.element,
+      "Running…",
+      (signal) =>
+        source.connection
+          ? api<Built>(`/datasets/${encodeURIComponent(name)}/connection-query`, "POST", { connection: source.connection, sql, replace, ...(source.dataset ? { dataset: source.dataset } : {}) }, signal)
+          : api<Built>(`/datasets/${encodeURIComponent(name)}/query`, "POST", { sql, replace }, signal),
+      { abort, onCancel: () => void cancelWaiting(), errorIn: false },
+    );
     tray.report(`${rowsText(built.rows)} in ${built.dataset} (version ${built.version}).${readsText(built)}`);
     offerRefresh(built);
     return built;
   } catch (e) {
-    tray.report((e as Error).message, true);
+    tray.report(abort.signal.aborted ? "Cancelled." : (e as Error).message, !abort.signal.aborted);
     return null;
   } finally {
     tray.busy(false);

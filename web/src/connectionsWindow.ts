@@ -53,6 +53,7 @@
  */
 import { showAddApi } from "./addApi";
 import { api, onNotice, token } from "./api";
+import { slotLine, slotsSection } from "./connectionSlots";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
 import { accessSection } from "./connectionAccess";
@@ -660,6 +661,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-calls" }, callsWord(c.calls)),
           c.about?.length ? h("span", { class: "connection-card-about" }, c.about[0]) : null,
           c.local?.length ? h("span", { class: "connection-card-local" }, errorMark(c.local[0]!.words, { level: "warning", title: c.local.map((n) => n.words).join("\n") })) : null,
+          // "Running 3 of 8 · 1 waiting", live, while anything runs or waits (connectionSlots.ts).
+          c.connection === "vault" ? null : slotLine(c.name),
         ),
       );
     const groups: [string, (c: Card) => boolean][] = [
@@ -802,6 +805,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           { class: "connection-detail-side" },
           h("section", { class: "connection-section", "aria-label": "Configuration" }, h("h2", {}, icon("cog"), "Configuration"), configuration),
           config.kind === "vault" ? null : accessSection(name),
+          config.kind === "vault" ? null : slotsSection(name),
           h("section", { class: "connection-section", "aria-label": "Calls this session" }, h("h2", {}, icon("clock"), "Calls this session", h("span", { class: "count connection-calls-count" }, String(calls.total))), counted),
         ),
       ),

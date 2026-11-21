@@ -236,3 +236,17 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
   {kind: "sql", source})`, Insert `workbench_window("explorer.insert")`. The same search is the Workbench's
   pane (Ctrl+Shift+E; "explorer.popOut" opens the Data page in a window of its own) and Ctrl+K on the
   grid page.
+
+## How many queries at once (each connection's slots)
+- Every connection runs at most 8 queries at once by default, and at most 4 of them are yours (the agent's
+  share), whoever asks: the user's grids and "+" queries, notebooks and scripts in Workbench kernels, the
+  background catalog loads and you. Past that a query waits in line, first come first served (the user's
+  work goes ahead of background loads), and gives up after its wait limit (2 minutes by default) with a
+  refusal whose fix is Try again. Your code in a Workbench kernel counts as your share too.
+- So batch: one query that reads what you need (a join, a GROUP BY, columns named) beats many small ones in
+  parallel, and a burst of reads past your share only waits. `connections_slots` shows each connection's
+  running and waiting counts and limits; `connections_queries` the queries themselves (who, what, tables,
+  place in line, elapsed; never the SQL text, which is the user's) and the finished ones.
+- `connections_cancel_query(id)` stops one: yours at once, the user's only on their Allow.
+  `connections_set_limits(name, total, agent, wait)` changes a connection's (total 1 to 64, your share at
+  most the total), written into its library file's `[queries]` table and shared with the team library.

@@ -2439,6 +2439,55 @@ def connections_colours(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connection-colours")
 
 
+# ----- each connection's slots: queries at once, the agent's share, the line (2026-11-21) -----
+
+
+@command(
+    "connections_slots",
+    "Each connection's running and waiting queries and its limits (8 at once, 4 the agent's by default): "
+    "names and counts",
+)
+def connections_slots(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/connections/slots")
+
+
+@command(
+    "connections_queries",
+    "The running and waiting queries (who, what, tables, place in line, time) and the finished ones; no SQL",
+    opt("connection", "One connection's (default: every one's)."),
+    opt("clear", "true: empty the finished list first.", "bool"),
+)
+def connections_queries(a: dict[str, Any]) -> Any:
+    if a.get("clear"):
+        api.call("POST", "/connections/queries/clear", {})
+    query = "?connection=" + _q(a["connection"]) if a.get("connection") else ""
+    return api.call("GET", "/connections/queries" + query)
+
+
+@command(
+    "connections_cancel_query",
+    "Cancel a running or waiting query (its id from connections_queries): your own at once, the user's on "
+    "their Allow",
+    req("id", "The query's id."),
+)
+def connections_cancel_query(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/queries/{_q(a['id'])}/cancel", {})
+
+
+@command(
+    "connections_set_limits",
+    "A connection's queries at once (1 to 64), the agent's share (at most that) and the seconds one waits "
+    "in line; kept in its library file",
+    req("name", "The connection."),
+    opt("total", "Queries at once.", "int"),
+    opt("agent", "The agent's share.", "int"),
+    opt("wait", "Seconds a query waits in line before it gives up.", "int"),
+)
+def connections_set_limits(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("total", "agent", "wait") if a.get(k) is not None}
+    return api.call("PUT", f"/connections/{_q(a['name'])}/limits", body)
+
+
 # ----- a table's connection swapped (its steps kept), and the code that named the old one -----
 
 

@@ -75,7 +75,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
 
-from swissarmybench.client import blades_client, connection_use, standalone
+from swissarmybench.client import blades_client, connection_slot, connection_use, standalone
 from swissarmybench.client.kernel_values import is_table
 from swissarmybench.client.push_client import ServerNotRunningError
 from swissarmybench.client.writes import quote
@@ -693,7 +693,10 @@ def run(found: Connection, sql: str) -> Any:
     if not text:
         raise SqlCellError(f"The cell has no {'DAX' if found.language == 'dax' else 'SQL'} to run.")
     try:
-        answer = _run(found, text)
+        # One of the connection's slots in a Workbench kernel (client/connection_slot.py; none elsewhere).
+        dialect = "dax" if found.language == "dax" else ""
+        with connection_slot.slot(found.name, "query", sql=text, dialect=dialect):
+            answer = _run(found, text)
     except Exception:
         connection_use.report(found.name, "query", ok=False)
         raise

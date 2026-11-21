@@ -897,6 +897,18 @@ these at Trino** changes the name in the ticked cells only, and nothing else (a 
 the name stays). An open notebook or script changes in the Workbench, unsaved until you save it; a table's
 own read-only cell follows its table by itself.
 
+### How many queries at once
+
+Each connection runs at most 8 queries at once, at most 4 of them the agent's, whoever asks: your grids and new
+queries, notebooks and scripts, background catalog loads and the agent. Past that a query waits in line: its
+loading cover says "Waiting: 2nd in line for Warehouse (8 queries running)" with Cancel, a notebook cell says
+"Waiting for a slot on Warehouse (2nd in line)", and after 2 minutes it gives up with Try again. The card shows
+"Running 3 of 8 · 1 waiting" while anything runs or waits; the connection's detail has the three limits (At once,
+The agent's, Wait in seconds) and **Queries in progress…**, a window of its own with every running and waiting
+query (who, what, its tables, its place, the time ticking), Cancel, and the SQL laid out and coloured when you
+open a row (Copy, Copy as written, Open in a new query). The limits are saved in the connection's library file, so
+a team shares them.
+
 ## APIs
 
 The rail's **APIs** icon (after the ERD) is every API you added, from this computer's library (never a project's: every project sees every API).
