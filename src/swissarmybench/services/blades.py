@@ -37,6 +37,7 @@ from swissarmybench.domain import (
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import project_scope as scope_rules
+from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import vault_names as vault_rules
 from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
@@ -764,6 +765,12 @@ class BladeService:
 
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         read_names: list[str] | None = None
+        if (
+            isinstance(body, dict)
+            and connection_rules.is_connection(str(body.get("kind", "")), body.get("template"))
+            and sandbox_rules.is_sandbox(body.get("name") or previous)
+        ):
+            raise BladeError(sandbox_rules.NAME_TAKEN)
         if isinstance(body, dict):
             self._table_free(body.get("table"), str(body.get("name") or previous or ""))
             if body.get("kind") == "vault":

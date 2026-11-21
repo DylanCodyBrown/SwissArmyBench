@@ -30,7 +30,7 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
-from swissarmybench.domain.sandbox import SandboxError, quote
+from swissarmybench.domain.sandbox import SandboxError, check_table_name, quote
 
 # A connection's dialect (domain/catalogs.py's words) as sqlglot reads it, and its driver's parameter marks.
 SQLGLOT: dict[str, str] = {
@@ -217,8 +217,8 @@ def marked(sql: str, params: Any, style: str, quoting: str = "ansi") -> tuple[st
 class Translated:
     sql: str
     params: list[Any]
-    kind: str  # select, insert, update, delete
-    table: str | None = None  # a write's table
+    kind: str  # select, insert, update, delete; a definition: "create view", "drop sequence", ... (DEFINES)
+    table: str | None = None  # a write's table (a definition's: what it makes or drops)
     tables: list[str] = field(default_factory=list)
 
 
@@ -238,6 +238,65 @@ _REFUSED: tuple[tuple[type[exp.Expression], str, str], ...] = (
     (exp.Use, "USE", "USE"),
 )
 _SYSTEM = {"sys", "information_schema", "pg_catalog", "sqlite_master", "mysql", "performance_schema"}
+# What an API may make in the sandbox through its mock (the test app's gap 8; Reset undoes it): a view, a
+# table made from a query, a sequence; and drop them again (a table only one an API made: the service checks).
+DEFINES = (
+    "create view",
+    "create table",
+    "create sequence",
+    "drop view",
+    "drop table",
+    "drop sequence",
+)
+
+
+def is_definition(kind: str) -> bool:
+    return kind in DEFINES
+
+
+def _definition(tree: exp.Expr, text: str, language: str) -> tuple[exp.Expr, str, exp.Table] | None:
+    """A statement that makes or drops a view, a query's table or a sequence: (the tree, its kind as in
+    DEFINES, the table node it names); None: any other statement. Anything else CREATE or DROP says is
+    refused here, in one sentence."""
+    if isinstance(tree, exp.Select) and isinstance(
+        tree.args.get("into"), exp.Into
+    ):  # T-SQL's SELECT ... INTO
+        into = tree.args["into"]
+        query = tree.copy()
+        query.set("into", None)
+        tree = exp.Create(this=into.this.copy(), kind="TABLE", expression=query)
+    if not isinstance(tree, (exp.Create, exp.Drop)):
+        return None
+    verb = "create" if isinstance(tree, exp.Create) else "drop"
+    what = str(tree.args.get("kind") or "").lower()
+    named = list(tree.args.get("tables") or []) if verb == "drop" else [tree.this]
+    line = _word_line(text, verb.upper())
+    if verb == "create" and what == "table" and not isinstance(tree.args.get("expression"), exp.Query):
+        raise SandboxError(
+            f"Line {line}: the sandbox's mock makes a table from a query (CREATE TABLE ... AS SELECT); add a "
+            "new empty table on the Sandbox page (Add table…)."
+        )
+    if what not in ("view", "table", "sequence") or len(named) != 1 or not isinstance(named[0], exp.Table):
+        raise SandboxError(
+            f"Line {line}: the sandbox's mock makes a view, a table from a query or a sequence, and drops "
+            f"them, one at a time ({language})."
+        )
+    target = named[0]
+    try:
+        name = check_table_name(target.name)
+    except SandboxError as error:
+        raise SandboxError(f"Line {line}: {error}") from None
+    target.set("this", exp.to_identifier(name, quoted=True))
+    target.set("db", None)
+    target.set("catalog", None)
+    return tree, f"{verb} {what}", target
+
+
+def _sequence_calls(tree: exp.Expr) -> None:
+    """T-SQL's NEXT VALUE FOR s as DuckDB's nextval('s')."""
+    for node in list(tree.find_all(exp.NextValueFor)):
+        name = node.this.name if isinstance(node.this, (exp.Column, exp.Table)) else str(node.this)
+        node.replace(exp.Anonymous(this="nextval", expressions=[exp.Literal.string(check_table_name(name))]))
 
 
 def to_duckdb(sql: Any, dialect: str | None, params: Any, tables: Iterable[str]) -> Translated:
@@ -258,6 +317,11 @@ def to_duckdb(sql: Any, dialect: str | None, params: Any, tables: Iterable[str])
         style = "named"
     marked_sql, values = marked(text, params if params is not None else [], style, quoting)
     out, kind, target, used = _translate(text, marked_sql, reads, language, tuple(tables))
+    if kind == "create view" and values:
+        raise SandboxError(
+            f"Line 1: a view cannot hold a value given apart ({language}): write it in the view's SQL, or "
+            "filter the view when it is read."
+        )
     return Translated(out, values, kind, target, list(used))
 
 
@@ -292,6 +356,9 @@ def _translate(
         raise SandboxError(f"Line {line}: the sandbox's mock has no temporary tables ({temporary.group(1)}).")
     if isinstance(tree, exp.Command):
         raise SandboxError(f"Line 1: the sandbox's mock cannot run {str(tree.this).upper()} ({language}).")
+    defined = _definition(tree, text, language)
+    if defined is not None:
+        return _define(*defined, reads, language, tables)
     for refused, keyword, words in _REFUSED:
         if isinstance(tree, refused) or (refused is exp.Merge and tree.find(exp.Merge)):
             line = _word_line(text, keyword or text.split()[0])
@@ -325,11 +392,8 @@ def _translate(
         table.set("db", None)
         table.set("catalog", None)
         used.append(real)
-    for node_kind in (exp.Column, exp.Var, exp.Identifier):
-        for node in list(tree.find_all(node_kind)):
-            found = _SENTINEL_RE.match(node.name or "")
-            if found:
-                node.replace(exp.Parameter(this=exp.Literal.number(int(found.group(1)))))
+    _marks(tree)
+    _sequence_calls(tree)
     returning = tree.find(exp.Returning)
     if returning is not None:  # T-SQL's OUTPUT INSERTED.id: DuckDB's RETURNING id
         for column in returning.find_all(exp.Column):
@@ -351,6 +415,46 @@ def _translate(
     except sqlglot.errors.UnsupportedError as error:
         raise SandboxError(f"Line 1: the sandbox's mock cannot run this {language}: {error}.") from None
     return out, kind, target, tuple(dict.fromkeys(used))
+
+
+def _marks(tree: exp.Expr) -> None:
+    for node_kind in (exp.Column, exp.Var, exp.Identifier):
+        for node in list(tree.find_all(node_kind)):
+            found = _SENTINEL_RE.match(node.name or "")
+            if found:
+                node.replace(exp.Parameter(this=exp.Literal.number(int(found.group(1)))))
+
+
+def _define(
+    tree: exp.Expr, kind: str, target: exp.Table, reads: str, language: str, tables: tuple[str, ...]
+) -> tuple[str, str, str | None, tuple[str, ...]]:
+    """A definition's DuckDB SQL: the query a view or table is made from uses the sandbox's tables only."""
+    known = {t.casefold(): t for t in tables}
+    used: list[str] = []
+    query = tree.args.get("expression")
+    if isinstance(query, exp.Expression):
+        ctes = {c.alias_or_name.casefold() for c in query.find_all(exp.CTE)}
+        for table in query.find_all(exp.Table):
+            name = table.name
+            if not name or (not table.db and name.casefold() in ctes):
+                continue
+            if (table.db or "").casefold() in _SYSTEM or name.casefold() in _SYSTEM:
+                raise SandboxError(f"Line 1: the sandbox's mock has no system views ({table.sql(reads)}).")
+            real = known.get(name.casefold())
+            if real is None:
+                has = ", ".join(sorted(known.values())[:12]) or "none"
+                raise SandboxError(f"Line 1: the sandbox has no table {name} here (it has: {has}).")
+            table.set("this", exp.to_identifier(real, quoted=True))
+            table.set("db", None)
+            table.set("catalog", None)
+            used.append(real)
+        _marks(query)
+        _sequence_calls(query)
+    try:
+        out = tree.sql("duckdb")
+    except sqlglot.errors.UnsupportedError as error:
+        raise SandboxError(f"Line 1: the sandbox's mock cannot run this {language}: {error}.") from None
+    return out, kind, target.name, tuple(dict.fromkeys(used))
 
 
 def to_duckdb_many(

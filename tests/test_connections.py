@@ -92,6 +92,27 @@ def test_saved_connections_are_listed_apart_and_marked_on_the_blades_list(
     assert client.get("/connections/Weather%20API", headers=AUTH).status_code == 400
 
 
+def test_a_connection_is_never_called_sandbox(client: TestClient, tmp_path: Path) -> None:
+    """[Sandbox] is the project's sandbox in DuckDB SQL: a saved connection by that name (any case, saved or
+    renamed, by the form or as a blade) is refused; a plain blade may be called so."""
+    (tmp_path / "orders.csv").write_text("order_id,amount\n1,10.5\n", encoding="utf-8")
+    for name in ("Sandbox", " sandbox "):
+        refused = client.post(
+            "/connections", json=csv_connection(tmp_path / "orders.csv", name), headers=AUTH
+        )
+        assert refused.status_code == 400 and "the project's sandbox" in refused.text, refused.text
+        as_blade = client.post("/blades", json=csv_connection(tmp_path / "orders.csv", name), headers=AUTH)
+        assert as_blade.status_code == 400
+    saved = client.post("/connections", json=csv_connection(tmp_path / "orders.csv", "Orders"), headers=AUTH)
+    assert saved.status_code == 200
+    renamed = client.put(
+        "/connections/Orders", json=csv_connection(tmp_path / "orders.csv", "SANDBOX"), headers=AUTH
+    )
+    assert renamed.status_code == 400 and "another name" in renamed.text
+    blade = {"name": "Sandbox", "kind": "other", "code": "import json\nsession = json"}
+    assert client.post("/blades", json=blade, headers=AUTH).status_code == 200
+
+
 def test_test_runs_the_unsaved_form_with_the_typed_password_and_checks_paths(
     client: TestClient, tmp_path: Path
 ) -> None:

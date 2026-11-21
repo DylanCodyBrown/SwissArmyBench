@@ -38,7 +38,9 @@ META_FILE = "sandbox.json"
 GRID_PREFIX = "sandbox_"  # an open grid of a sandbox table: sandbox_orders
 FORMAT = 1
 PLAIN = "duckdb"  # a table from a file or made empty: mocked as a plain DuckDB client
-MAX_ROWS_ANSWERED = 10_000  # a query's rows sent back at most (the API's own paging says the rest)
+MAX_ROWS_ANSWERED = 10_000  # a query's rows sent back at once (a mock's read: the rest in pages of as many)
+MAX_KEPT_READS = 16  # a mock's reads whose rest is kept for its next page at once (the oldest dropped)
+REST_GONE = "The rest of that read is gone (the sandbox keeps the last 16 unfinished reads): read it again."
 MAX_WRITE_ROWS = 5_000  # rows one insert takes
 
 _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
@@ -365,6 +367,8 @@ def source_words(source: Mapping[str, Any]) -> str:
         return "Made empty, by its columns"
     if kind == "structure":
         return f"From the structure {source.get('structure', '')}"
+    if kind == "made":
+        return f"Made by the API ({'a view' if source.get('what') == 'view' else 'a table from a query'})"
     return "Added"
 
 
@@ -380,6 +384,12 @@ COLOUR = "#3a3aa0"  # indigo
 def is_sandbox(name: Any) -> bool:
     """`name` is the Sandbox's (any case): never a real connection, never exported as one."""
     return str(name or "").strip().casefold() == NAME.casefold()
+
+
+NAME_TAKEN = (
+    "Sandbox is the project's sandbox's name in DuckDB SQL ([Sandbox].orders): give the connection "
+    "another name."
+)
 
 
 # ===== sorting (the owner, 2026-11-21: "We need all sandbox tables to be sortable") =====
@@ -571,6 +581,43 @@ def edit_insert(table: str, values: Mapping[str, tuple[Any, str]]) -> Statement:
     marks = ", ".join(f"CAST(? AS {cast})" for _, cast in values.values())
     sql = f"INSERT INTO {quote(table)} ({names}) VALUES ({marks})"  # noqa: S608 (checked names and types)
     return Statement(sql, [v for v, _ in values.values()])
+
+
+# ===== what an API makes through its mock (the test app's gap 8): views, query tables, sequences =====
+
+
+def not_made(name: str, verb: str) -> str:
+    """The refusal of a definition over a table the user added: only what an API made is replaced or
+    dropped."""
+    doing = "replace" if verb == "create" else "drop"
+    return (
+        f"{name} is a sandbox table you added: an API cannot {doing} it (make a view or table under another "
+        "name; remove a table on the Sandbox page)."
+    )
+
+
+def made_record(what: str, client: Mapping[str, Any], at: str) -> dict[str, Any]:
+    """sandbox.json's record of a view or a query's table an API made: its connection's table from then on."""
+    connection = str(client.get("connection") or NAME)
+    return {
+        "source": {"kind": "made", "what": what, "connection": connection},
+        "client": dict(client),
+        "added_at": at,
+    }
+
+
+def unmade(meta: Meta, there: Iterable[str]) -> list[str]:
+    """After Reset or Restore: the records of what an API made that the file no longer holds, taken out."""
+    held = {t.casefold() for t in there}
+    gone = [
+        t
+        for t, record in meta.tables.items()
+        if (record.get("source") or {}).get("kind") == "made" and t.casefold() not in held
+    ]
+    for t in gone:
+        meta.tables.pop(t, None)
+        meta.log.pop(t, None)
+    return gone
 
 
 def touched(meta: Meta, tables: Iterable[str], at: str) -> None:
