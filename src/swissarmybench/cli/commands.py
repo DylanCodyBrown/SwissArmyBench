@@ -3405,9 +3405,9 @@ def workbench_debug(a: dict[str, Any]) -> Any:
         "stop": "/workbench/debug/stop",
     }
     if act not in routes:
-        raise ValueError(
-            "action: start, state, breakpoints, over, into, out, continue, variables, evaluate, stop."
-        )
+        return {
+            "error": "action: start, state, breakpoints, over, into, out, continue, variables, evaluate, stop."
+        }
     return api.call("POST", routes[act], body)
 
 
