@@ -7752,6 +7752,54 @@ The owner's model replaces the per-feature data paths: API -> sab_adapter.py -> 
 -> Grids; Grids -> Notebooks; Grids, Blades, Variables, Structures -> Widgets -> Canvas. The adapter streams reads and
 writes and holds nothing; grids (named Arrow tables) are the only data kept; an export is the fewest files that build
 the app. The per-source mock clients are dropped (the owner: "use my model"). Plan: Plans/adapter.plan.md.
+
+**Phase 1 built (2026-11-21, branch adapter).** Decisions:
+- Where it lives: `src/swissarmybench/adapters/sab_adapter.py`. It is a driven adapter (DuckDB and Arrow), so the
+  layers test allows its imports there and the wheel ships it; it imports nothing of `swissarmybench` (a test holds
+  it to the standard library, duckdb and pyarrow, and runs a copy of it alone), so an export copies its bytes as they
+  are. The API's process names it `sab_adapter` (`from sab_adapter import read, Plan`).
+- The contract: `tables(source)`, `read(source, table, plan) -> (RecordBatchReader, Folded)`, `write(source, table,
+  batches, key, mode) -> Counts` (insert, update, merge, delete; all or none), `grid(name)`, `refresh(name)`;
+  `from_json(pages, columns, strict)` (DuckDB's json_transform a page at a time; the first page's types when none
+  are given). A source is any object with the three functions; `use(find)` says how a name is found.
+- The plan: columns, filters ([column, op, value]: = != < <= > >= in between like, is null), sort, limit, offset,
+  group and totals (count, count_distinct, sum, avg, min, max). A source says which parts it folded; they must be the
+  first ones in SQL's order (filters, group, totals, columns, sort, offset, limit), and the rest is done by DuckDB over
+  the stream. DuckDB folds it all.
+- Holding nothing: a read is a reader that keeps its connection (the sandbox's: its gate) only while read. DuckDB
+  2.0 copies a DB-API result's Arrow (`execute(...).to_arrow_table()` warns), so the adapter reads
+  `con.sql(sql, params=...).to_arrow_reader(50_000)`.
+- Grids: in the app the dataset store keeps a grid (the adapter's `make_grid` makes it); `Grids` and `grid(name)` are
+  for a kernel, the API's process and an export.
+- Moved: the sandbox's Open in Grids and [Sandbox].table; a DuckDB file connection's Open as grid (its child process
+  reads the user's own connection through the adapter: the limit folded, the count a total, DuckDB's own types); a
+  local sandbox API's sandbox (sab_adapter.Remote: /sandbox/data/<key>/tables, /read as an Arrow IPC stream with
+  X-Sab-Folded, /write an Arrow IPC stream in; /sandbox/adapter/* with the token); every SQL mock's tables() and
+  columns(); the SharePoint mock's rows(), read(), create(), update(), delete() (its rows typed by the list's
+  columns, strict).
+- What stays on the mocks: SQL in a source's dialect (cursor().execute, read_arrow), Dataverse's OData and FetchXML
+  text, MockDuckDB's SQL, the ids() lookup: they need domain/sandbox_dialects.py, so they go when each kind becomes a
+  backend with its own folding (Order 2). Small change: the SharePoint mock's update and delete now answer the rows
+  changed (was: the rows given), and an empty read keeps its columns' types (was: text).
+- Not built, and what each needs: contract.json loading (a JSON schema, the base reading MODE from it); folder
+  extensions; the endpoint wizard; the other connection kinds as backends (each kind's tables, read folding its
+  plan into its dialect by sqlglot or OData/Graph, write by its Write starter's statements); the export's file list
+  (sab_adapter.py beside sab_api.py: an API.py that imports sab_adapter is not exportable until then); a kernel's
+  `sab.grid` (the client importing the adapter lazily: the plain client stays standard library); the answer path
+  (Arrow to JSON for an endpoint's answer, a request body through from_json and its model); streaming the child
+  process's answer (today one Arrow IPC base64 in its JSON line) and a write's body (Starlette reads it whole).
+- An Excel workbook (the owner, Plans/excel.plan.md) fits the contract as one more source: tables its sheets and
+  named tables, read folding nothing (DuckDB does the plan over its batches), write a sheet. Its "sheet replaced,
+  others kept" needs a `replace` mode MODES does not have yet.
+- The places outside the adapter that still open a driver or turn JSON into rows (tests/test_adapter_boundary.py, -s
+  prints them): adapters/catalogs, codegen, database, datasets (read_json), export, found_connections (sqlite3),
+  intellisense, sandbox, views, apis and library (read_json), bootstrap.py, stats.py, server/http.py, routes_agent,
+  routes_grids (duckdb), client/sql_cell (duckdb, from_pylist, from_records), structures_client (from_records),
+  writes and write_sql, server/sandbox_clients (from_pylist, from_records for the SQL mocks), the 14 Write starters;
+  SQL text: domain/api_clients and powerapps' ts_notebook (read_json_auto), domain/sharepoint and blade_templates
+  (read_json); the extensions' accounting runtime (duckdb), service (read_json), powerbi's pbix readers (pbixray).
+  Many are the app's own engine (the locked DuckDB, views, the SQL box), not a source's data: the later steps decide
+  which are "data calls" under the rule.
 ## The approved API and sandbox items, and three canvas gaps (the owner, 2026-11-21; branch api-approved)
 
 BUILT, each with its decision:

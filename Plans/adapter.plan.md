@@ -1,6 +1,24 @@
 # One adapter: the simple architecture (the owner, 2026-11-21)
 
-Status: agreed; being built (branch `adapter`).
+Status: agreed; phase 1 built (branch `adapter`, 2026-11-21): Order 1 and the start of 2.
+
+### What is built (phase 1)
+
+- `src/swissarmybench/adapters/sab_adapter.py`: the contract (tables, read with a plan and what was folded, write by
+  mode, grid, refresh), the plan (columns, filters, sort, limit, offset, group, totals; the unfolded rest done by
+  DuckDB over the stream), JSON pages to Arrow by DuckDB with given types, grids. Standard library, duckdb and
+  pyarrow only: an export copies it as it is. Sources: `DuckDB` (a file, a connection given, a gated connection)
+  and `Remote` (the sandbox through the app's data door, Arrow IPC both ways).
+- Through it: the sandbox's Open in Grids and [Sandbox].table; a DuckDB file connection's Open as grid; a local
+  sandbox API's sandbox (its one backend; API.py may `from sab_adapter import read, Plan`); every SQL mock's
+  tables() and columns(); the SharePoint mock's reads and writes.
+- Tests: tests/test_sab_adapter.py (memory stays flat: a streamed read grows the process far less than the rows
+  held), test_adapter_grids.py, test_adapter_sandbox.py, test_adapter_boundary.py (every place outside the adapter
+  that opens a driver or turns JSON into rows, listed; enforced for what moved). Larkfield's 10M order lines:
+  docs/verified.md. Decisions and what each later step needs: docs/ideas.md "One adapter".
+- Not yet: contract.json, folder extensions, the endpoint wizard, the other connection kinds as backends, the
+  export's file list (sab_adapter.py beside sab_api.py), a kernel's grid, the answer path (Arrow to JSON), an Excel
+  workbook as a source (Plans/excel.plan.md: it needs a `replace` write mode).
 
 ## The owner's words
 
