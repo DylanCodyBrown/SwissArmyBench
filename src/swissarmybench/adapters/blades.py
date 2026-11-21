@@ -172,10 +172,9 @@ class BladeStore:
             while target.name.casefold() in taken or target.exists():
                 target, number = root / f"{stem}-{number}{rules.SUFFIX}", number + 1
         text = self.text_of(blade)
-        if not (target.is_file() and target.read_text(encoding="utf-8") == text):
+        # Only this user may read it: a blade's code can name servers and accounts.
+        if write_atomic(target, text, mode=0o600, newline="\n", if_changed=True):
             self._made()
-            # Only this user may read it: a blade's code can name servers and accounts.
-            write_atomic(target, text, mode=0o600, newline="\n")
         if own is not None and own != target:
             own.unlink(missing_ok=True)  # it changed kind (a connection now a vault): its old file goes
         return target

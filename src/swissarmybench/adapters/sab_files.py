@@ -193,13 +193,9 @@ class SabArchive:
         if not root.is_dir():
             raise FileNotFoundError(f"The project's folder {root} is not there.")
         target = self._inside(folder, relative)
-        if target.is_file():
-            if target.stat().st_size == len(body) and target.read_bytes() == body:
-                return False
-            if not os.access(target, os.W_OK):
-                raise PermissionError(f"{target} is read-only.")
-        write_atomic(target, body)
-        return True
+        if target.is_file() and not os.access(target, os.W_OK) and target.read_bytes() != body:
+            raise PermissionError(f"{target} is read-only.")
+        return write_atomic(target, body, if_changed=True)
 
     def remove_state(self, folder: str, relative: str) -> bool:
         """One of the app's own files in .sab/ taken away (Visualizations emptied, a row tick taken off)."""

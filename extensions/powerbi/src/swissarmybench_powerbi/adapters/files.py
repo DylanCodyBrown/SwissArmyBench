@@ -14,6 +14,8 @@ import zipfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
+from swissarmybench.adapters.atomic_files import write_atomic
+
 MAX_FILES: int = 5_000  # files an export's folder is looked through for
 
 
@@ -44,18 +46,8 @@ def write(folder: str, files: Mapping[str, bytes]) -> list[str]:
     root = Path(folder).resolve()
     written: list[str] = []
     for relative in sorted(files):
-        target = _inside(root, relative)
-        data = files[relative]
-        try:
-            if target.is_file() and target.read_bytes() == data:
-                continue
-        except OSError:
-            pass
-        target.parent.mkdir(parents=True, exist_ok=True)
-        partial = target.with_name(f".{target.name}.{secrets.token_hex(4)}.saving")
-        partial.write_bytes(data)
-        os.replace(partial, target)
-        written.append(relative)
+        if write_atomic(_inside(root, relative), files[relative], if_changed=True):
+            written.append(relative)
     return written
 
 
@@ -132,7 +124,4 @@ class StateFiles:
             return None
 
     def write_text(self, path: str, text: str) -> bool:
-        from swissarmybench.adapters.atomic_files import write_atomic
-
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        return bool(write_atomic(path, text, if_changed=True))
+        return write_atomic(path, text, if_changed=True)

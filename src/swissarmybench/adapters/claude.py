@@ -63,12 +63,7 @@ class ClaudeFiles:
                 return None
             folder.mkdir(parents=True, exist_ok=True)
         target = folder / "context.md"
-        try:
-            if target.read_text(encoding="utf-8") == text:
-                return str(target)
-        except OSError:
-            pass
-        write_atomic(target, text)
+        write_atomic(target, text, if_changed=True)
         return str(target)
 
     def context_path(self, name: str) -> str | None:
