@@ -336,8 +336,6 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     page.context.close()
 
 
-
-
 def test_the_steps_window_is_only_the_transformations(browser: Browser, orchard: str) -> None:
     """The owner (2026-11-16): transformations "should open in a pop out window in their own window not as a
     duplicate of the entire page": no rail, no tabs, no ribbon; the grid page's row says Transformations."""
