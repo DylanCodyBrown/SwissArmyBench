@@ -168,9 +168,6 @@ class Settings:
     # The update check (services/updates.py): the one request that leaves the computer, at start and every
     # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
     update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)
-    # The older versions' start-at-sign-in entries are looked for (and removed, once) under this home folder
-    # instead of the user's own (tests); None: the user's (server/legacy_tray.py).
-    legacy_home: Path | None = None
     # The server's life follows the app's windows (services/lifecycle.py; the owner, 2026-11-18): it stops
     # this long after the last window closed (a reload must not end it), this long after its start when no
     # window came, and this long after the last request of a client that is not a page (the agent, VS Code,

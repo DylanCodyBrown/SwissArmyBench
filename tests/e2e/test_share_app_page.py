@@ -48,7 +48,6 @@ def own_server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, A
         state_dir=tmp / "state",
         export_dir=tmp / "exports",
         claude_dir=tmp / "claude",
-        legacy_home=tmp / "home",
         workbench_dir=tmp / "home" / "SwissArmyBench",
         projects_dir=tmp / "home" / "Projects",
         auto_load_catalogs=False,

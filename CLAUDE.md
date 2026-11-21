@@ -934,7 +934,6 @@ src/swissarmybench/
                          keys (the page's first), Open in browser, a file handed over the channel or dropped on a
                          window (its real path), the channel's quit, the server it starts (off the window
                          thread; Starting… meanwhile) and tells when its last window closed
-    legacy_tray.py       an older version's tray and start-at-sign-in entry, removed once (said once)
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
                          installs with uv, checks the version, starts the app, or the old one and a note;
                          Install and Remove an extension the same way (launch_change)

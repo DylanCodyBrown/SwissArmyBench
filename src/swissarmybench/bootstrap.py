@@ -91,7 +91,6 @@ from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
-from swissarmybench.domain import lifecycle as lifecycle_rules
 from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
@@ -113,7 +112,6 @@ from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder,
 from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.desktop import SystemShell, qt_version
 from swissarmybench.server.kernels import Launcher
-from swissarmybench.server.legacy_tray import remove_old_tray
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.text_process import run_text
@@ -1328,13 +1326,6 @@ def bootstrap(
             "kernels": workbench.kernel_count(),
         }
 
-    # The tray and start at sign-in are gone (the owner, 2026-11-18): what an older version left, removed
-    # once, and said once in the page.
-    home = settings.legacy_home
-    if audit_log and remove_old_tray(
-        state_dir, home, environ={"APPDATA": str(home / "AppData" / "Roaming")} if home else None
-    ):
-        library.notice("computer", lifecycle_rules.NOTICE_GONE)
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
     failure_note = state_dir / "update_failed.json" if audit_log else None
     # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
