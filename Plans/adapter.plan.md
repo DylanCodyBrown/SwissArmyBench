@@ -38,6 +38,16 @@ Structures ──┘   (read and write,  └─> API.py (endpoints)             
   in an exported project, the same `sab_adapter.py` with the real connections behind it. A local sandbox API's
   backend is the sandbox only (never live data: unchanged).
 
+## The one rule
+
+The owner: "every single data call and every api payload in and out should travel through the adapter. This will
+make everything else simple." So no code reads or writes data any other way: a grid's load, a notebook's SQL cell, a
+widget's table, a blade that returns rows, a connection's Test and Preview, the Catalog's listing, an export's data,
+an Add API web call, a local sandbox API's request body and its answer, a write back to a source. A request body
+comes in through the adapter (JSON to Arrow, checked against its model); an answer goes out through it (Arrow to
+JSON or Arrow). A test enforces it, like the layers test: outside sab_adapter.py and the sources it calls, nothing
+imports a database driver, opens a source's HTTP client, or turns JSON into rows.
+
 ## The adapter's contract (sab_adapter.py)
 
 Three calls, the same for every source:
