@@ -713,6 +713,20 @@ settings, a path, Run settings, a project setting and a SQL query take `${NAME}`
 
 **Kits are built in parallel, so they must not tangle:** each kit's parts live in its own files; shared lists (cell kinds, dialects, connection types) change by adding an entry, never by reshaping. A registry where a kit declares its parts in one place is the planned next step (after the starter pack), and kits as packs (a team shares a whole kit, connection and cell type included) after that.
 
+**Extensions change; the universal tools underneath do not** (the owner, 2026-11-21: "as we add more project
+types we need to keep the extensions in a universal format. The next canvas ... will probably be for databricks
+... we're adding additional universal extensions that can completely change but the underlying universal tools
+that we built to read and write and the API can adapters stay exactly the same"):
+- an extension (a project type and its canvas: Streamlit today, Databricks next) is free to look and work
+  completely differently, but it reaches data only through the shared tools: the connections' read and write
+  contract (list tables, read a plan to Arrow, write Arrow), the sandbox, the local sandbox API and its targets,
+  convert.py, the widget contract;
+- an extension never adds its own reader, writer, client or API adapter for something a shared tool does; if
+  it needs one the shared tool lacks, the shared tool grows (for every extension) and the extension uses it;
+- every extension has the same shape: its manifest (MODE, AREAS, RAIL, STARTERS, API_TARGETS), its commands,
+  its routes, its scaffold; adding one never changes another or the base;
+- the test: a new extension is built without editing a single shared reader, writer or adapter.
+
 ## 13b. Feedback from real use, and a clean release (the owner, 2026-11-15)
 
 Real use finds what tests miss, so the app is built to be reported on, and every release goes out lean.

@@ -7675,3 +7675,9 @@ with its reason before Play), the connection forms' live checks, the one loading
     endpoints): `state` without it, `openapi` for it. S.
 12. **A saved connection named "Sandbox"** (the earlier gap) is refused on save. S.
 
+
+## Next project type: Databricks (the owner, 2026-11-21, for future reference)
+"The next canvas instead of tools we create will probably be for databricks." Not designed yet: ask the owner first.
+It follows design principle 13a's last rule: the Databricks extension may look and work completely differently, but
+reads and writes only through the shared tools (the connections' read/write contract, the sandbox, the local sandbox
+API and its targets, convert.py, the widget contract); none of those changes shape for it.
