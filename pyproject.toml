@@ -99,7 +99,7 @@ python_version = "3.12"
 files = ["src", "tests", "examples", "tools", "build.py", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "extensions/powerbi/src"]
 mypy_path = "src:extensions/accounting/src:extensions/copilot/src:extensions/powerapps/src:extensions/streamlit/src:extensions/git/src:extensions/powerbi/src"
 # The prebuilt widgets are a Streamlit app's code (Streamlit is never the app's dependency): run by AppTest instead.
-exclude = ["extensions/streamlit/src/swissarmybench_streamlit/widgets/"]
+exclude = ["extensions/streamlit/src/swissarmybench_streamlit/widgets/", "examples/forms_recon/"]
 
 [[tool.mypy.overrides]]
 # These ship no type information.
@@ -126,12 +126,18 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 110
 target-version = "py312"
+# A project made by the app (its API.py and its widget are the user's own files, formatted by the app's Format:
+# Ruff's defaults, not this repository's), checked by running it: tests/e2e/test_forms_recon_app.py.
+extend-exclude = ["examples/forms_recon"]
 src = ["src", "extensions/accounting/src", "extensions/copilot/src", "extensions/powerapps/src", "extensions/streamlit/src", "extensions/git/src", "extensions/powerbi/src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
+# The stress test and the app's browser test read made-up Parquet files with DuckDB by their own paths.
+"tests/stress/test_local_api_stress.py" = ["S608", "S310"]
+"tests/e2e/test_forms_recon_app.py" = ["S608"]
 # Tests use assert and fixed fake tokens; golden cases hold deliberate Greek letters.
 "tests/**" = ["S101", "S105", "S106", "RUF001"]
 # These modules build SQL text by design (domain/codegen.py also holds the templates for generated

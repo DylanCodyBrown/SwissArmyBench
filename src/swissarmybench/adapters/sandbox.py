@@ -4,7 +4,9 @@ sandbox.json.
 
 The file is opened by this server only, with external access off (no file, no network, no ATTACH from a query
 an
-API sends) and no spill folder. Every call holds one lock: a write, a reset and a read never cross. A baseline
+API sends) and no spill folder. Reads and writes share the file (each on a cursor of its own, DuckDB's own
+transactions keeping them apart), so callers at once are read at once; a reset, a baseline, a checkpoint and a
+table added or dropped hold it alone, so none crosses a read or a write. A baseline
 or
 a checkpoint is a copy of the whole file, taken after a CHECKPOINT with the file closed, so Reset is one file
 copy
@@ -13,9 +15,11 @@ and gives back exactly the bytes' tables. Rows reach this disk only on the user'
 
 from __future__ import annotations
 
+import contextlib
+import copy
 import shutil
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +43,54 @@ def _connect(path: Path) -> duckdb.DuckDBPyConnection:
     )
 
 
+class _Gate:
+    """Many readers and writers at once (shared), or one holder alone (exclusive: the file closed, copied or
+    its tables changed). Re-entrant for the one holding it alone."""
+
+    def __init__(self) -> None:
+        self._condition = threading.Condition(threading.Lock())
+        self._shared = 0
+        self._owner: int | None = None
+        self._depth = 0
+
+    @contextlib.contextmanager
+    def shared(self) -> Iterator[None]:
+        me = threading.get_ident()
+        if self._owner == me:  # inside its own exclusive hold
+            yield
+            return
+        with self._condition:
+            while self._owner is not None:
+                self._condition.wait()
+            self._shared += 1
+        try:
+            yield
+        finally:
+            with self._condition:
+                self._shared -= 1
+                if not self._shared:
+                    self._condition.notify_all()
+
+    @contextlib.contextmanager
+    def exclusive(self) -> Iterator[None]:
+        me = threading.get_ident()
+        with self._condition:
+            if self._owner == me:
+                self._depth += 1
+            else:
+                while self._owner is not None or self._shared:
+                    self._condition.wait()
+                self._owner, self._depth = me, 1
+        try:
+            yield
+        finally:
+            with self._condition:
+                self._depth -= 1
+                if not self._depth:
+                    self._owner = None
+                    self._condition.notify_all()
+
+
 class SandboxFiles:
     """One project's sandbox: `folder` is the project's top."""
 
@@ -48,8 +100,13 @@ class SandboxFiles:
         self.baseline = self.root / rules.BASELINE_FILE
         self.points = self.root / rules.CHECKPOINTS
         self.meta_path = self.root / rules.META_FILE
-        self._lock = threading.RLock()
+        self._gate = _Gate()
+        self._opening = threading.Lock()
         self._con: duckdb.DuckDBPyConnection | None = None
+        self._names: list[str] | None = None  # the tables' names, kept until a table is added or dropped
+        self._meta: tuple[tuple[int, int], rules.Meta] | None = (
+            None  # sandbox.json as last read, by its stamp
+        )
 
     # ===== the file =====
 
@@ -57,12 +114,14 @@ class SandboxFiles:
         return self.db.exists()
 
     def _open(self) -> duckdb.DuckDBPyConnection:
-        if self._con is None:
-            self.root.mkdir(parents=True, exist_ok=True)
-            self._con = _connect(self.db)
-        return self._con
+        with self._opening:
+            if self._con is None:
+                self.root.mkdir(parents=True, exist_ok=True)
+                self._con = _connect(self.db)
+            return self._con
 
     def _shut(self) -> None:
+        self._names = None
         if self._con is not None:
             try:
                 self._con.execute("CHECKPOINT").fetchall()
@@ -71,7 +130,7 @@ class SandboxFiles:
                 self._con = None
 
     def close(self) -> None:
-        with self._lock:
+        with self._gate.exclusive():
             self._shut()
 
     def _all(self, sql: str, params: Sequence[Any] = ()) -> list[tuple[Any, ...]]:
@@ -94,10 +153,20 @@ class SandboxFiles:
     # ===== the meta file =====
 
     def read_meta(self) -> rules.Meta:
+        """sandbox.json, read again only when the file changed (a copy each time: callers change it)."""
         try:
-            return rules.read_meta(self.meta_path.read_text(encoding="utf-8"))
+            found = self.meta_path.stat()
         except OSError:
             return rules.Meta()
+        stamp = (found.st_mtime_ns, found.st_size)
+        kept = self._meta
+        if kept is None or kept[0] != stamp:
+            try:
+                kept = (stamp, rules.read_meta(self.meta_path.read_text(encoding="utf-8")))
+            except OSError:
+                return rules.Meta()
+            self._meta = kept
+        return copy.deepcopy(kept[1])
 
     def write_meta(self, meta: rules.Meta) -> None:
         write_atomic(self.meta_path, rules.meta_text(meta), if_changed=True)
@@ -106,15 +175,8 @@ class SandboxFiles:
 
     def tables(self) -> list[dict[str, Any]]:
         """Each table: its name, rows and columns (name, type)."""
-        with self._lock:
-            if not self.exists():
-                return []
-            names = [
-                str(r[0])
-                for r in self._all(
-                    "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main' ORDER BY table_name"
-                )
-            ]
+        with self._gate.shared():
+            names = self.table_names()
             out = []
             for name in names:
                 cols = self._columns(name)
@@ -141,18 +203,37 @@ class SandboxFiles:
         return [{"name": str(r[0]), "type": str(r[1]), "key": str(r[0]) in keys} for r in rows]
 
     def columns(self, table: str) -> list[dict[str, Any]]:
-        with self._lock:
+        with self._gate.shared():
             return self._columns(table)
+
+    def table_names(self) -> list[str]:
+        """The tables' names, sorted: read once, kept until a table is added, dropped or put back (a mock
+        client's every call asks; counting every table's rows for it was the slow part)."""
+        with self._gate.shared():
+            names = self._names
+            if names is None:
+                if not self.exists():
+                    return []
+                names = [
+                    str(r[0])
+                    for r in self._all(
+                        "SELECT table_name FROM duckdb_tables() WHERE schema_name = 'main' "
+                        "ORDER BY table_name"
+                    )
+                ]
+                self._names = names
+            return list(names)
 
     def table_name(self, wanted: str) -> str | None:
         """The table's own name (any case), or None."""
-        for t in self.tables():
-            if t["name"].casefold() == wanted.casefold():
-                return str(t["name"])
+        for name in self.table_names():
+            if name.casefold() == wanted.casefold():
+                return name
         return None
 
     def put_table(self, name: str, table: pa.Table, replace: bool) -> int:
-        with self._lock:
+        with self._gate.exclusive():
+            self._names = None
             cursor = self._open().cursor()
             try:
                 cursor.register("__sab_incoming", table)
@@ -164,17 +245,19 @@ class SandboxFiles:
             return int(table.num_rows)
 
     def create_empty(self, name: str, columns: Sequence[rules.Column], replace: bool) -> None:
-        with self._lock:
+        with self._gate.exclusive():
+            self._names = None
             if replace:
                 self._all(f"DROP TABLE IF EXISTS {rules.quote(name)}")
             self._all(rules.create_sql(name, columns))
 
     def drop(self, name: str) -> None:
-        with self._lock:
+        with self._gate.exclusive():
+            self._names = None
             self._all(f"DROP TABLE IF EXISTS {rules.quote(name)}")
 
     def arrow(self, name: str) -> pa.Table:
-        with self._lock:
+        with self._gate.shared():
             cursor = self._open().cursor()
             try:
                 return cursor.sql(f"SELECT * FROM {rules.quote(name)}").to_arrow_table()  # noqa: S608
@@ -187,7 +270,7 @@ class SandboxFiles:
         self, statement: rules.Statement, limit: int
     ) -> tuple[list[str], list[str], list[list[Any]], bool]:
         """A read: its columns, their DuckDB types, its rows (at most `limit`), whether more were cut."""
-        with self._lock:
+        with self._gate.shared():
             cursor = self._open().cursor()
             try:
                 result = cursor.execute(statement.sql, statement.params)
@@ -203,7 +286,7 @@ class SandboxFiles:
 
     def change(self, statement: rules.Statement) -> tuple[list[str], list[str], list[list[Any]]]:
         """One write in its own transaction: what it answers (its RETURNING rows, else its count)."""
-        with self._lock:
+        with self._gate.shared():
             con = self._open().cursor()
             con.execute("BEGIN TRANSACTION")
             try:
@@ -220,7 +303,7 @@ class SandboxFiles:
 
     def write(self, groups: Sequence[Sequence[rules.Statement]]) -> list[int]:
         """Each group's statements, all in one transaction: the rows each group changed, all or none."""
-        with self._lock:
+        with self._gate.shared():
             con = self._open().cursor()
             con.execute("BEGIN TRANSACTION")
             counts: list[int] = []
@@ -239,16 +322,62 @@ class SandboxFiles:
                 con.close()
             return counts
 
+    def insert_columns(self, table: str, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> int:
+        """Many rows into a table's columns in one statement and one transaction (an executemany of a plain
+        INSERT ... VALUES): the rows as one Arrow table, each value cast to its column's type by DuckDB."""
+        incoming = pa.table(
+            {f"c{i}": pa.array([r[i] for r in rows]) for i in range(len(columns))}
+            if rows
+            else {f"c{i}": pa.array([], pa.null()) for i in range(len(columns))}
+        )
+        names = ", ".join(rules.quote(c) for c in columns)
+        picked = ", ".join(f'"c{i}"' for i in range(len(columns)))
+        with self._gate.shared():
+            cursor = self._open().cursor()
+            try:
+                cursor.register("__sab_many", incoming)
+                cursor.execute("BEGIN TRANSACTION")
+                try:
+                    cursor.execute(
+                        f"INSERT INTO {rules.quote(table)} ({names}) SELECT {picked} FROM __sab_many"  # noqa: S608
+                    )
+                    cursor.execute("COMMIT")
+                except BaseException:
+                    cursor.execute("ROLLBACK")
+                    raise
+                cursor.unregister("__sab_many")
+            finally:
+                cursor.close()
+        return len(rows)
+
+    def change_many(self, sql: str, sets: Sequence[Sequence[Any]]) -> int:
+        """One statement for each parameter set, all in one transaction: the rows they changed."""
+        with self._gate.shared():
+            con = self._open().cursor()
+            con.execute("BEGIN TRANSACTION")
+            changed = 0
+            try:
+                for params in sets:
+                    found = con.execute(sql, list(params)).fetchall()
+                    changed += int(found[0][0]) if found and isinstance(found[0][0], int) else 0
+                con.execute("COMMIT")
+            except BaseException:
+                con.execute("ROLLBACK")
+                raise
+            finally:
+                con.close()
+            return changed
+
     # ===== baseline, reset, checkpoints =====
 
     def set_baseline(self) -> None:
-        with self._lock:
+        with self._gate.exclusive():
             self._open()
             self._copy(self.db, self.baseline)
 
     def reset(self) -> bool:
         """The file put back to the baseline. False: there is none."""
-        with self._lock:
+        with self._gate.exclusive():
             if not self.baseline.exists():
                 return False
             self._shut()
@@ -257,7 +386,7 @@ class SandboxFiles:
 
     def reset_table(self, name: str) -> bool:
         """One table back to the baseline (the baseline file read alone, read-only). False: not in it."""
-        with self._lock:
+        with self._gate.exclusive():
             if not self.baseline.exists():
                 return False
             other = duckdb.connect(
@@ -277,12 +406,12 @@ class SandboxFiles:
             return True
 
     def save_checkpoint(self, name: str) -> None:
-        with self._lock:
+        with self._gate.exclusive():
             self._open()
             self._copy(self.db, self.points / rules.checkpoint_file(name))
 
     def restore_checkpoint(self, name: str) -> bool:
-        with self._lock:
+        with self._gate.exclusive():
             source = self.points / rules.checkpoint_file(name)
             if not source.exists():
                 return False
@@ -291,12 +420,12 @@ class SandboxFiles:
             return True
 
     def delete_checkpoint(self, name: str) -> None:
-        with self._lock:
+        with self._gate.exclusive():
             (self.points / rules.checkpoint_file(name)).unlink(missing_ok=True)
 
     def copy_to(self, target: Path) -> None:
         """The sandbox as it is now, copied whole (an export's bundled data)."""
-        with self._lock:
+        with self._gate.exclusive():
             self._open()
             self._copy(self.db, target)
 

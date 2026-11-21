@@ -164,7 +164,9 @@ def main() -> int:
 
     log: collections.deque[dict[str, Any]] = collections.deque(maxlen=LOG_SIZE)
     app = build(key, log)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # IPPROTO_TCP named, as server/lifecycle.py does: asyncio sets TCP_NODELAY only on a socket whose proto
+    # says TCP, and without it every answer after a connection's first waited ~40 ms (Nagle and delayed ACK).
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)
     sock.bind(("127.0.0.1", 0))
     sock.listen(128)
     port = int(sock.getsockname()[1])

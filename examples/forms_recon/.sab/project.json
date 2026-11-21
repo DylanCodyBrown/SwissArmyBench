@@ -1,0 +1,32 @@
+{
+ "analyze": null,
+ "app_version": "0.0.31",
+ "autosave": true,
+ "diagram": {},
+ "format": 1,
+ "model": null,
+ "structures": {
+  "open": []
+ },
+ "swissarmybench": "project",
+ "tables": [],
+ "tabs": {},
+ "type": "streamlit",
+ "workbench": {
+  "notebooks": {
+   "current": 0,
+   "documents": [
+    "data.ipynb"
+   ],
+   "groups": {
+    "focused": 0,
+    "root": {
+     "active": 0,
+     "tabs": [
+      0
+     ]
+    }
+   }
+  }
+ }
+}

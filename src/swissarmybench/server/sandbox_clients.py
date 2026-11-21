@@ -31,16 +31,18 @@ from __future__ import annotations
 
 import datetime
 import decimal
+import http.client
 import inspect
 import json
 import os
+import threading
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 from collections.abc import Iterator, Sequence
 from typing import Any
 
 URL_VARIABLE = "SAB_SANDBOX_DATA"  # the app's /sandbox/data/<key> address, this process's only door
+MANY_AT_ONCE = 50_000  # an executemany's parameter sets sent in one call
 
 
 class MockError(RuntimeError):
@@ -68,28 +70,56 @@ def _where_in_api() -> str:
 
 
 class Link:
-    """The one door: a JSON POST to the app's sandbox data route with this run's key in its path."""
+    """The one door: a JSON POST to the app's sandbox data route with this run's key in its path. Each thread
+    keeps its connection open (HTTP/1.1 keep-alive), so a call is one request, not a new TCP connection."""
 
     def __init__(self, url: str, error: type[MockError] = MockError) -> None:
         self.url = url
         self.error = error
+        parts = urllib.parse.urlsplit(url)
+        self._host, self._port, self._path = parts.hostname or "127.0.0.1", parts.port or 80, parts.path
+        self._local = threading.local()
+
+    def _connection(self) -> http.client.HTTPConnection:
+        found: http.client.HTTPConnection | None = getattr(self._local, "connection", None)
+        if found is None:
+            found = http.client.HTTPConnection(self._host, self._port, timeout=600)
+            self._local.connection = found
+        return found
+
+    def _drop(self) -> None:
+        found = getattr(self._local, "connection", None)
+        if found is not None:
+            found.close()
+        self._local.connection = None
 
     def ask(self, op: str, **body: Any) -> dict[str, Any]:
         data = json.dumps({"op": op} | body, default=_json_default).encode()
-        request = urllib.request.Request(  # noqa: S310 (127.0.0.1, the app's own route)
-            self.url, data=data, headers={"Content-Type": "application/json"}, method="POST"
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=120) as answer:  # noqa: S310
-                return dict(json.loads(answer.read() or b"{}"))
-        except urllib.error.HTTPError as failed:
+        headers = {"Content-Type": "application/json"}
+        for attempt in (1, 2):  # a kept connection the server closed meanwhile: once more on a new one
             try:
-                said = json.loads(failed.read() or b"{}").get("error") or failed.reason
-            except ValueError:
-                said = failed.reason
-            raise self.error(f"{_where_in_api()}{said}") from None
-        except OSError as failed:
-            raise self.error(f"{_where_in_api()}The sandbox could not be reached ({failed}).") from None
+                connection = self._connection()
+                connection.request("POST", self._path, data, headers)
+                answer = connection.getresponse()
+                raw = answer.read()
+            except (http.client.HTTPException, ConnectionError) as failed:
+                self._drop()
+                if attempt == 2:
+                    raise self.error(
+                        f"{_where_in_api()}The sandbox could not be reached ({failed})."
+                    ) from None
+                continue
+            except OSError as failed:
+                self._drop()
+                raise self.error(f"{_where_in_api()}The sandbox could not be reached ({failed}).") from None
+            if answer.status >= 400:
+                try:
+                    said = json.loads(raw or b"{}").get("error") or answer.reason
+                except ValueError:
+                    said = answer.reason
+                raise self.error(f"{_where_in_api()}{said}")
+            return dict(json.loads(raw or b"{}"))
+        raise self.error(f"{_where_in_api()}The sandbox could not be reached.")  # pragma: no cover
 
 
 def _json_default(value: Any) -> Any:
@@ -181,10 +211,20 @@ class MockCursor:
         return self._run(sql, list(parameters) if isinstance(parameters, tuple) else parameters)
 
     def executemany(self, sql: str, seq_of_parameters: Any) -> Any:
+        """Every parameter set in one call to the sandbox (a part of MANY_AT_ONCE sets at a time), each
+        part in one transaction: the same rows as one execute each, without a round trip a row."""
+        sets = [list(p) if isinstance(p, tuple) else p for p in seq_of_parameters]
         total = 0
-        for parameters in seq_of_parameters:
-            self.execute(sql, parameters)
-            total += max(self.rowcount, 0)
+        for at in range(0, len(sets), MANY_AT_ONCE):
+            answer = self._owner._link.ask(
+                "sql_many",
+                connection=self._owner._name,
+                sql=sql,
+                params=sets[at : at + MANY_AT_ONCE],
+                dialect=self._owner._dialect,
+            )
+            total += int(answer.get("rowcount", 0))
+        self._rows, self._at, self.description = [], 0, None
         self.rowcount = total
         return self
 
@@ -261,12 +301,7 @@ class MockSqlServerCursor(MockCursor):
         return self._run(sql, list(params))
 
     def executemany(self, sql: str, rows: Any) -> Any:
-        total = 0
-        for row in rows:
-            self.execute(sql, *row)
-            total += max(self.rowcount, 0)
-        self.rowcount = total
-        return self
+        return MockCursor.executemany(self, sql, [list(r) for r in rows])
 
 
 class MockSqlServer:
@@ -629,12 +664,59 @@ class MockSharePoint:
 # ===== a plain DuckDB client: a table from a file or made empty =====
 
 
+class _PerThread(threading.local):
+    rows: list[tuple[Any, ...]]
+    at: int = 0
+    description: list[tuple[Any, ...]] | None = None
+    rowcount: int = -1
+
+    def __init__(self) -> None:
+        self.rows = []
+
+
 class MockDuckDB(MockCursor):
-    """DuckDB's connection shape over the sandbox (execute returns the connection; fetch* read its answer)."""
+    """DuckDB's connection shape over the sandbox (execute returns the connection; fetch* read its answer).
+
+    connection("Sandbox") is one object for the whole process, and an API answers several requests at once
+    (each in a thread of its own): what execute() answered is kept per thread, so one request never fetches
+    another's rows."""
 
     def __init__(self, link: Link) -> None:
         self._name, self._dialect, self._link = "Sandbox", "duckdb", link
+        self._state = _PerThread()
         super().__init__(self)
+
+    @property
+    def _rows(self) -> list[tuple[Any, ...]]:
+        return self._state.rows
+
+    @_rows.setter
+    def _rows(self, value: list[tuple[Any, ...]]) -> None:
+        self._state.rows = value
+
+    @property
+    def _at(self) -> int:
+        return self._state.at
+
+    @_at.setter
+    def _at(self, value: int) -> None:
+        self._state.at = value
+
+    @property
+    def description(self) -> list[tuple[Any, ...]] | None:
+        return self._state.description
+
+    @description.setter
+    def description(self, value: list[tuple[Any, ...]] | None) -> None:
+        self._state.description = value
+
+    @property
+    def rowcount(self) -> int:
+        return self._state.rowcount
+
+    @rowcount.setter
+    def rowcount(self, value: int) -> None:
+        self._state.rowcount = value
 
     def execute(self, query: str, parameters: Any = None) -> Any:
         return self._run(query, parameters or [])
