@@ -4671,8 +4671,8 @@ Checked by tests (made-up data): a saved connection called Sandbox refused (the 
 sequences through the PostgreSQL and T-SQL mocks, listed by tables() and columns(), refused over a user's
 table, undone by Reset; one Allow covering the agent's writes, Stop asking again; explorer_browse and
 explorer_search sorted by rows; LIST, STRUCT and MAP cells edited as JSON (a wrong key and text that is not JSON
-refused); the body check (12 refusals naming their fields: wrong types, missing, unknown, nested, list items,
-dataclasses) in tests/test_api_body_check.py; keys (Add, set later, Reset, an older checkpoint, rows that
+refused); the body check (13 refusals naming their fields: wrong types, missing, unknown, nested, list items,
+dataclasses; 3.0 and "3" taken for an int as FastAPI takes them) in tests/test_api_body_check.py; keys (Add, set later, Reset, an older checkpoint, rows that
 repeat one, New endpoint from a table) in tests/test_sandbox_keys.py; API.py's squiggles and completion
 (columns in a three-quoted SQL string, sab_api's names, Jedi's hover on sab_api's connection) in
 tests/test_api_editor.py; a hidden titled container (no space, its widget still rendered); the viewer's email, id

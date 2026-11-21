@@ -77,7 +77,8 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   gives it (the mock follows the rest page by page): ask for less with LIMIT and OFFSET when that is all needed.
 - The body is checked against its model (a TypedDict's or a dataclass's fields, nested ones, `list[Model]`)
   before the endpoint runs: a wrong type, a missing required field or an unknown one is a 422, its `error` naming
-  the field and `field` its path (`order.lines[0].quantity`).
+  the field and `field` its path (`order.lines[0].quantity`). Numbers as FastAPI takes them: 3.0 or "3" for an
+  int, "12.5" for a float (converted); never True for a number.
 - `state` (brief): settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems
   with their lines, whether it runs, the `targets`, `agent_writes`; `{"full": true}` adds the OpenAPI document
   (or `openapi`). Each endpoint's `fields` (its body model's, with

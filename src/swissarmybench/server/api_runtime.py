@@ -209,6 +209,21 @@ def _wrong(at: str, kind: Any, value: Any) -> ApiError:
     return ApiError(422, f"{at} is {words}, not {value!r}.", at)
 
 
+def _number(value: Any) -> float | None:
+    """A JSON number, or text that reads as one (a form's box sends text); None for anything else."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            found = float(value.strip())
+        except ValueError:
+            return None
+        return found if found == found and abs(found) != float("inf") else None
+    return None
+
+
 def _model_fields(kind: Any) -> tuple[dict[str, Any], set[str]]:
     """A TypedDict's or a dataclass's fields (name -> type) and the required ones."""
     if typing.is_typeddict(kind):
@@ -279,19 +294,21 @@ def checked(value: Any, kind: Any, at: str) -> Any:
         given = {k: checked(v, fields[k], f"{at}.{k}") for k, v in value.items()}
         if dataclasses.is_dataclass(kind):
             return kind(**given)  # type: ignore[operator]
-        return dict(value)
+        return given
     if kind is bool:
         if not isinstance(value, bool):
             raise _wrong(at, kind, value)
         return value
-    if kind is int:
-        if isinstance(value, bool) or not isinstance(value, int):
+    if kind is int:  # as FastAPI's own takes it: 3, 3.0 and "3", never True or 3.5
+        number = _number(value)
+        if number is None or number != int(number):
             raise _wrong(at, kind, value)
-        return value
-    if kind in (float, decimal.Decimal):
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return int(number)
+    if kind in (float, decimal.Decimal):  # 12, 12.5 and "12.5"
+        number = _number(value)
+        if number is None:
             raise _wrong(at, kind, value)
-        return value
+        return value if isinstance(value, (int, float)) else float(number)
     if kind is str:
         if not isinstance(value, str):
             raise _wrong(at, kind, value)

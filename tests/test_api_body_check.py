@@ -75,12 +75,18 @@ def test_a_body_that_fits_its_model_passes_as_sent(endpoints: list[Any]) -> None
     assert _post("/orders/many", [GOOD, GOOD | {"order_id": 8}]) == (200, {"added": 2})
     assert _post("/visits", {"store": "Larkfield Shop"})[0] == 200
     assert endpoints[-1] == Visit("Larkfield Shop", 0)
+    # As FastAPI's own takes them (a form's boxes): 3.0 and "3" for a whole number, "12.5" for a number.
+    status, said = _post("/orders", GOOD | {"order_id": 3.0, "amount": "12.5"})
+    assert status == 201 and said["order_id"] == 3 and said["amount"] == 12.5
+    assert _post("/visits", {"store": "Larkfield Shop", "staff": "2"})[0] == 200
+    assert endpoints[-1] == Visit("Larkfield Shop", 2)
 
 
 @pytest.mark.parametrize(
     ("path", "body", "field", "words"),
     [
-        ("/orders", GOOD | {"amount": "12"}, "order.amount", "order.amount is a number, not '12'."),
+        ("/orders", GOOD | {"amount": "twelve"}, "order.amount", "order.amount is a number, not 'twelve'."),
+        ("/orders", GOOD | {"order_id": 7.5}, "order.order_id", "order.order_id is a whole number, not 7.5."),
         (
             "/orders",
             GOOD | {"order_id": True},
@@ -103,7 +109,7 @@ def test_a_body_that_fits_its_model_passes_as_sent(endpoints: list[Any]) -> None
         ("/orders", GOOD | {"region": None}, "order.region", "order.region is text, not None."),
         (
             "/orders",
-            GOOD | {"lines": [{"sku": "A", "quantity": "2"}]},
+            GOOD | {"lines": [{"sku": "A", "quantity": "two"}]},
             "order.lines[0].quantity",
             "is a whole number",
         ),

@@ -7709,9 +7709,11 @@ BUILT, each with its decision:
 - **LIST, STRUCT and MAP cells**: a small JSON box in the sandbox grid (Enter writes, Shift+Enter a new line),
   JSON checked in the page, the shape checked by DuckDB's `CAST(?::JSON AS <its type>)` and refused in words.
 - **The body checked against its model** in sab_api (TypedDict and dataclass, nested, `list[Model]`,
-  `NotRequired`, `total=False`): 422 with `error` naming the field and `field` its path. JSON's own types are
-  strict (a "12" for a float is refused, an int for a float is taken); dates must read as ISO text; the body is
-  passed on as sent (a dataclass made from it).
+  `NotRequired`, `total=False`): 422 with `error` naming the field and `field` its path. Numbers as FastAPI's
+  own (pydantic's lax mode) takes them, since an export to FastAPI answers the same and a form's boxes send
+  text or 3.0: a whole number takes 3, 3.0 and "3" (never True or 3.5), a number takes "12.5"; each converted
+  before the endpoint gets it. Text must be text; dates must read as ISO text (kept as sent). First found
+  strict, the widget wiring test (Streamlit's number box sends 3.0) showed why.
 - **The sandbox keeps its keys**: a column list's key, one asked for at Add, a connection's from the shared
   catalog, or New endpoint from a table's; kept in sandbox.json and put back after Reset and an older
   checkpoint's Restore; DuckDB's refusals said as a database says them ("Duplicate key: a row with sku: A-1 is
@@ -7739,8 +7741,8 @@ Gaps found on the way (proposals, not built):
 2. A read past 10,000 rows now arrives whole: an endpoint that lists a 10M-row table without a LIMIT would pull
    it all into the API's process, as the real client would. A warning in Will this work for real? when a GET's
    SQL has no LIMIT and its table is large. S.
-3. The body check is strict about JSON types; a form widget that sends numbers as text (a text box) now gets a
-   422. The prebuilt API form widget sends typed values; a user's own widget may not. Say it in Payload shapes. S.
+3. The body check refuses a number where text is wanted (pydantic does too); a widget that sends an id as a
+   number to a str field gets a 422. Payload shapes could say it before Play. S.
 4. Squiggles for API.py come from the server's parse on each lint (each pause in typing) and a dialect check of
    each SQL string: fast at today's sizes; for a very large API.py, keep the parse by the text's hash. S.
 5. `sab_canvas.viewer()` changed from a name to a dict; no prebuilt widget called it, but a user's own may have.
