@@ -225,6 +225,8 @@ export function headers(json: boolean): Record<string, string> {
   // No token in this tab (a bookmark): the page's cookie is the credential, sent by the browser itself.
   const out: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
   if (json) out["Content-Type"] = "application/json";
+  // This page's id: a query of its waiting in a connection's line is found by it (its place, its Cancel).
+  out["X-Sab-Client"] = clientId;
   return out;
 }
 
