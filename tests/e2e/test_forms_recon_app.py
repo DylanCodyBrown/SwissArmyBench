@@ -144,6 +144,9 @@ def test_design_a_form_upload_excel_reconcile_a_month_and_see_the_differences(
     page = open_canvas(browser, server, app["folder"] / "forms_recon.canvas.json")
     expect(page.locator(".cvs-tab")).to_have_text(["Form designer", "Fill and load", "Reconcile"])
     shot(page, "canvas-form-designer")
+    page.locator(".cvs-bottom button", has_text="Phone").click()
+    shot(page, "canvas-form-designer-phone")
+    page.locator(".cvs-bottom button", has_text="Desktop").click()
     for pane in ("Widgets", "Properties"):  # the played page gets the window's width
         page.locator(".cvs-bottom button", has_text=pane).click()
     page.locator(".cvs-top .cvs-play").click()
@@ -199,8 +202,6 @@ def test_design_a_form_upload_excel_reconcile_a_month_and_see_the_differences(
     )
     expect(frame.locator("[data-testid='stDataFrame']").first).to_be_visible(timeout=60000)
     shot(page, "play-reconcile-differences")
-    page.locator(".cvs-bottom button", has_text="Phone").click()
-    shot(page, "play-reconcile-phone")
     differences = api(server, "GET", f"/runs/{run['run_id']}/results?status=difference")
     assert len(differences) == 2 and all(abs(abs(d["difference"]) - 5) < 0.01 for d in differences)
     page.locator(".cvs-top .cvs-play").click()  # Stop

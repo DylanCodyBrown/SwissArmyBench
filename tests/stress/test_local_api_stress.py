@@ -610,8 +610,9 @@ def test_d_an_excel_workbook_of_100k_rows_through_the_excel_widgets(bench: dict[
     assert names == ["Ledger"] and len(frame) == 100_000
     columns = list(frame.columns)
     mapping = {f["name"]: mapper["_guess_for"](f["name"], columns) for f in FIELDS}
-    mapping["line_id"] = mapping["line_id"] or "Line No"
-    assert mapping == {"line_id": "Line No", "period": "Month", "store_id": "Store", "amount": "Amt"}, mapping
+    # The widget matches three by their names; Month is picked by hand for period, as a user would.
+    assert mapping == {"line_id": "Line No", "period": None, "store_id": "Store", "amount": "Amt"}, mapping
+    mapping["period"] = "Month"
     rows = [
         {field: row[column] for field, column in mapping.items()} for row in frame.to_dict(orient="records")
     ]

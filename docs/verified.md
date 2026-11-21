@@ -4457,3 +4457,62 @@ Not checked:
   were); the Write starters run against the mocks; lakes, SharePoint documents, Power BI and Python connections
   have no mock yet (said in one sentence).
 - The canvas Export does not write SAB_API_URL as a variable to set (left to the canvas's own export).
+
+## The forms and reconciliation test app and the local API under load (2026-11-21, branch test-app)
+
+examples/forms_recon, made by the app through the agent's commands (project_new, datasets_load, tabs_new_query,
+sandbox add, workbench_save of API.py, widgets_new, canvas_*), its pages played and the full loop clicked in
+Chromium (tests/e2e/test_forms_recon_app.py: a form designed and saved, a small Excel workbook uploaded for
+October, October reconciled against the Trino copy: 28 matched, 2 differences, 1 only in the entries, the
+rest only in the source, the duplicates Trino's copy holds; the two differences listed): passed. Launch built
+and ran it (build 1); its phone layout at 390 px.
+
+The stress test (tests/stress/test_local_api_stress.py, SWISSARMYBENCH_STRESS=1), a real server in its own
+process on a 4-core container, the API on its own port with kept-open connections (as a widget calls it),
+Larkfield Goods made-up data. Latency in ms; "before" is the branch's starting code on the SMALL scale (the
+before run could not go further: 10 typed rows took 2.3 s), "after" the fixed code on the MEDIUM scale (the
+October month's 42k ledger lines in the column store), so after is measured on more data than before.
+
+| Endpoint | Callers | Before p50 / p95 / p99 | After p50 / p95 / p99 |
+| --- | --- | --- | --- |
+| GET /forms | 1 | 92 / 108 / 116 | 5.6 / 7.4 / 10.3 |
+| GET /forms | 8 | 320 / 481 / 561 | 39 / 54 / 59 |
+| GET /forms | 32 | 1,386 / 1,721 / 1,928 | 111 / 159 / 178 |
+| GET /forms/{id} | 1 | 180 / 212 / 232 | 10 / 28 / 47 |
+| GET /forms/{id} | 8 | 1,044 / 1,220 / 1,232 | 50 / 81 / 89 |
+| GET /forms/{id} | 32 | 4,192 / 4,664 / 4,908 | 260 / 381 / 410 |
+| GET /forms/{id}/entries (a page of 100, PIVOT) | 1 | 236 / 268 / 280 | 64 / 103 / 134 |
+| GET /forms/{id}/entries | 8 | 1,512 / 1,629 / 1,640 | 334 / 521 / 545 |
+| GET /forms/{id}/entries | 32 | 5,980 / 6,745 / 7,236 | 1,374 / 2,202 / 2,317 |
+| GET /forms/{id}/batches | 1 | 92 / 105 / 108 | 4.5 / 8.9 / 16 |
+| GET /forms/{id}/batches | 8 | 384 / 437 / 488 | 25 / 40 / 46 |
+| GET /forms/{id}/batches | 32 | 1,440 / 1,732 / 2,001 | 93 / 146 / 167 |
+| GET /recons/{id} | 1 | 92 / 108 / 112 | 5.0 / 9.8 / 12.5 |
+| GET /recons/{id} | 8 | 396 / 436 / 436 | 20 / 30 / 37 |
+| GET /recons/{id} | 32 | 1,356 / 1,577 / 1,936 | 68 / 92 / 100 |
+| GET /runs/{id}/results (a page of 100) | 1 | 96 / 112 / 124 | 8.0 / 11.7 / 14.5 |
+| GET /runs/{id}/results | 8 | 368 / 468 / 473 | 42 / 74 / 79 |
+| GET /runs/{id}/results | 32 | 1,432 / 1,793 / 2,020 | 180 / 385 / 427 |
+| POST /forms/{id}/batches (10 typed rows) | 1 | 2,256 / 2,464 / 2,616 | 47 / 88 / 92 |
+| POST /forms/{id}/batches | 8 | 16,368 / 17,012 / 17,142 | 338 / 392 / 399 |
+| POST /forms/{id}/batches | 32 | 62,768 / 66,092 / 66,444 | 1,198 / 1,882 / 1,927 |
+
+At 8 and 32 callers the fixed code is CPU-bound (about 200 small reads a second on 4 cores, two Python processes
+and the JSON both ways), no longer queued behind one lock.
+
+| Measured (after) | Time |
+| --- | --- |
+| 100k typed entries loaded in 20 batches of 5,000 (400k long rows) | 4.7 s (before: one HTTP request and one DuckDB execute a row; DuckDB's own executemany of 100k rows alone took 120 s) |
+| Column store over 100k entries: count / a page | 0.03 s / 0.06 s |
+| Medium: the Trino copy (1,000,035 lines) and the ledger added to the sandbox from Parquet | 1.4 s |
+| Medium: the ledger loaded from its table (1,000,602 entries, 4M long rows) | 2.6 s |
+| Medium: the column store's PIVOT over 1,000,602 entries (count) | 0.33 s |
+| Medium: 1,000,602 entries reconciled against 1,000,035 source lines (results kept) | 3.8 s |
+| Medium: counts against the answer worked out with plain DuckDB from the same files | equal: 996,992 matched, 1,004 differences, 500 only in entries, 986 only in source, 1,053 duplicates |
+| Medium: a page of differences | 0.15 s |
+| Medium: Reset to the baseline; every table's rows the baseline's again, the change log empty | 1.4 s, exact |
+| Excel: 100k rows written (openpyxl) / read by excel_upload's own _read / sent to the API in 10 parts | 0.4 s / 9.3 s / 6.5 s |
+
+Not checked: the large scale (10M lines; one month's reconciliation): the container's disk filled (other runs
+share it) while it ran and the server answered 500 with "No space left on device"; run it again with
+SWISSARMYBENCH_STRESS_SCALES=large where the disk has a few GB.
