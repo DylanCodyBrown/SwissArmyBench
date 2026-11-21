@@ -13,7 +13,7 @@ import io
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import Out, Table, key, sample
+from sab_canvas import File, In, Out, Table, as_file, key, sample
 
 label = "Upload a workbook"
 # The file types taken
@@ -26,6 +26,8 @@ header_row: int = 1  # 1..1000
 cell_range = ""
 # How many rows the preview shows
 preview_rows: int = 10  # 1..1000
+# A file another widget gave (an input_file's file, wired by itself): read instead of this widget's own upload
+file: In[File] = None
 # The table read, for the page's widgets (excel_map_columns reads it by itself; wire it to any table In)
 uploaded: Out[Table] = None
 
@@ -161,7 +163,15 @@ def _workbook(sheets, openpyxl):
 
 openpyxl = _openpyxl()
 if openpyxl is not None:
-    upload = st.file_uploader(label, type=types or None, key=key("file"))
+    given = as_file(file)
+    if given is not None and types and not given.name.lower().endswith(tuple("." + t for t in types)):
+        st.warning(f"{given.name} is not one of {', '.join(types)}: this widget reads its own upload.")
+        given = None
+    if given is not None:
+        upload = given
+        st.caption(f"{given.name}, from the page's file")
+    else:
+        upload = st.file_uploader(label, type=types or None, key=key("file"))
     if upload is None:
         data, file_name = (
             _workbook(

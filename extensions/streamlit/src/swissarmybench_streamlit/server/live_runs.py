@@ -219,6 +219,20 @@ class LiveRuns:
         live = self._runs.get(key)
         return (live.folder, live.python) if live and live.running() and live.folder else None
 
+    def seen_columns(self, key: str) -> dict[str, list[str]]:
+        """Each Out[Table]'s columns as the run last had them (sab_canvas writes .sab_columns.json beside the
+        app: names only, never rows); {} before it ran."""
+        live = self._runs.get(key)
+        if live is None or not live.folder:
+            return {}
+        try:
+            found = json.loads((Path(live.folder) / ".sab_columns.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        if not isinstance(found, dict):
+            return {}
+        return {str(k): [str(c) for c in v][:500] for k, v in found.items() if isinstance(v, list)}
+
     def folder_of(self, key: str) -> str | None:
         live = self._runs.get(key)
         return live.folder if live else None

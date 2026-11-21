@@ -410,7 +410,9 @@ def detect(code: str, tables: set[str] | frozenset[str] = frozenset()) -> list[P
     found: list[Property] = []
     seen: set[str] = set()
     # A column property's table may be one of the widget's In[Table] declarations.
-    table_ins = [d[0] for d in map(_declared, module.body) if d and d[1] in ("In[Table]", "In[DataFrame]")]
+    table_ins = [
+        d[0] for d in map(_declared, module.body) if d and d[1].startswith(("In[Table", "In[DataFrame"))
+    ]
     for statement in module.body:
         if _declared(statement) is not None:
             continue

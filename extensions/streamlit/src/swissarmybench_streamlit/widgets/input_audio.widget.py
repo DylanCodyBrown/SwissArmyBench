@@ -10,7 +10,7 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key, marked, problem
+from sab_canvas import File, Out, as_file, key, marked, problem
 
 # The words above the input
 label = "Record a message"
@@ -23,6 +23,8 @@ disabled = False
 validation_message = "Record a message."
 # Samples a second (16000 for speech; 0: the browser's own)
 sample_rate: int = 16000  # 0..48000
+# The recording (a WAV file: its name, size, type and bytes), for the page's widgets
+file: Out[File] = None
 
 
 _key = key("value")
@@ -36,6 +38,7 @@ else:
         help=help_text or None,
         disabled=disabled,
     )
+    file = as_file(value)
     if value is not None:
         st.audio(value)
     elif required:

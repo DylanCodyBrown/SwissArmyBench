@@ -1,8 +1,9 @@
 """Widgets and canvases on disk.
 
-WidgetFiles: the library's widgets/ folder (one `<name>.widget.py` each, written atomically and only when its
-bytes change, so a save that changes nothing changes nothing in Git) and the extension's prebuilt widgets
-(read-only, shipped in the package's widgets/ folder).
+WidgetFiles: the open project's widgets/ folder (at its top, shared in Git with the project), the library's
+widgets/ folder (one `<name>.widget.py` each, written atomically and only when its bytes change, so a save
+that changes nothing changes nothing in Git) and the extension's prebuilt widgets (read-only, shipped in the
+package's widgets/ folder).
 
 CanvasFiles: a canvas file (`<app>.canvas.json`, a project file): read with a stamp (what it was when read, so
 a change made elsewhere is seen before anything is written over it), written atomically only when its bytes
@@ -25,18 +26,30 @@ from swissarmybench_streamlit.domain import widgets as rules
 PREBUILT = Path(__file__).resolve().parents[1] / "widgets"
 
 
+# Where a widget lives, in the order a name is found: the open project's widgets/ (its top, shared in Git with
+# it), the library's widgets/, the extension's prebuilt ones. A name in the project wins over the library's.
+PLACES: tuple[str, ...] = ("project", "library", "prebuilt")
+
+
 class WidgetFiles:
     def __init__(
         self,
         library: Callable[[], Path] | None,
         made: Callable[[], object] = lambda: None,
         prebuilt: Path = PREBUILT,
+        project: Callable[[], str | Path | None] = lambda: None,
     ) -> None:
         self._library = library
         self._made = made
         self._prebuilt = prebuilt
+        self._project = project
 
-    def folder(self) -> Path | None:
+    def folder(self, place: str = "library") -> Path | None:
+        if place == "prebuilt":
+            return self._prebuilt
+        if place == "project":
+            top = self._project()
+            return None if not top else Path(top) / rules.FOLDER
         return None if self._library is None else self._library() / rules.FOLDER
 
     def _files(self, folder: Path | None) -> list[Path]:
@@ -44,46 +57,63 @@ class WidgetFiles:
             return []
         return sorted(p for p in folder.glob("*" + rules.SUFFIX) if p.is_file())
 
-    def all(self) -> list[tuple[str, str, bool]]:
-        """(file name, text, prebuilt) for every widget file: the library's, then the prebuilt ones."""
-        found: list[tuple[str, str, bool]] = []
-        for prebuilt, folder in ((False, self.folder()), (True, self._prebuilt)):
-            for path in self._files(folder):
+    def all(self) -> list[tuple[str, str, str]]:
+        """(file name, text, place) for every widget file: the project's, the library's, then the prebuilt
+        ones."""
+        found: list[tuple[str, str, str]] = []
+        for place in PLACES:
+            for path in self._files(self.folder(place)):
                 try:
                     text = path.read_text(encoding="utf-8")
                 except (OSError, UnicodeDecodeError):
                     continue
-                found.append((path.name, text, prebuilt))
+                found.append((path.name, text, place))
         return found
 
-    def path(self, name: str, prebuilt: bool = False) -> Path | None:
-        folder = self._prebuilt if prebuilt else self.folder()
+    def path(self, name: str, place: str = "library") -> Path | None:
+        folder = self.folder(place)
         return None if folder is None else folder / rules.file_name(name)
 
-    def read(self, name: str) -> tuple[str, bool] | None:
-        for prebuilt in (False, True):
-            path = self.path(name, prebuilt)
+    def place_of(self, name: str) -> str | None:
+        """Where the widget of this name is found first (None: nowhere)."""
+        for place in PLACES:
+            path = self.path(name, place)
+            if path is not None and path.is_file():
+                return place
+        return None
+
+    def read(self, name: str, place: str | None = None) -> tuple[str, str] | None:
+        """(its text, its place): the first found (or in `place`)."""
+        for one in (place,) if place else PLACES:
+            path = self.path(name, one)
             if path is not None and path.is_file():
                 try:
-                    return path.read_text(encoding="utf-8"), prebuilt
+                    return path.read_text(encoding="utf-8"), one
                 except (OSError, UnicodeDecodeError):
                     return None
         return None
 
-    def write(self, name: str, text: str) -> bool:
-        path = self.path(name)
+    def write(self, name: str, text: str, place: str = "library") -> bool:
+        if place == "prebuilt":
+            raise PermissionError("A prebuilt widget is read-only.")
+        path = self.path(name, place)
         if path is None:
-            raise PermissionError("This server keeps no library (a test's): widgets are not saved.")
-        self._made()
+            raise PermissionError(
+                "Open a project first: its widgets are in its widgets/ folder."
+                if place == "project"
+                else "This server keeps no library (a test's): widgets are not saved."
+            )
+        if place == "library":
+            self._made()
         return write_atomic(path, text, if_changed=True, newline="\n")
 
-    def remove(self, name: str) -> None:
-        path = self.path(name)
+    def remove(self, name: str, place: str = "library") -> None:
+        path = self.path(name, place) if place != "prebuilt" else None
         if path is not None:
             path.unlink(missing_ok=True)
 
-    def where(self, name: str) -> str:
-        path = self.path(name)
+    def where(self, name: str, place: str = "library") -> str:
+        path = self.path(name, place) if place != "prebuilt" else None
         return str(path) if path is not None else ""
 
 

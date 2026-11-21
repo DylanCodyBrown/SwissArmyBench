@@ -10,7 +10,7 @@
 # min_size = [2, 2]
 # ///
 import streamlit as st
-from sab_canvas import key, marked, problem
+from sab_canvas import File, Out, as_file, key, marked, problem
 
 # The words above the input
 label = "Attach a file"
@@ -27,6 +27,8 @@ types = ["csv", "xlsx", "pdf", "png", "jpg"]
 multiple = False
 # The largest file in MB (0: Streamlit's own limit)
 max_mb: int = 0  # 0..1000
+# The file given (the first, when several are): its name, size, type and bytes, for the page's widgets
+file: Out[File] = None
 
 
 _key = key("value")
@@ -40,6 +42,7 @@ value = st.file_uploader(
     disabled=disabled,
 )
 files = value if isinstance(value, list) else ([value] if value is not None else [])
+file = as_file(files)
 if files:
     st.caption(" · ".join(f"{f.name} ({f.size / 1024:,.0f} KB)" for f in files))
 elif required:

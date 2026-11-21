@@ -10,6 +10,7 @@
 # min_size = [3, 3]
 # ///
 import difflib
+import hashlib
 import re
 
 import pandas as pd
@@ -69,6 +70,9 @@ def _guess_for(field, columns):
 frame = uploaded if uploaded is not None and len(uploaded.columns) else sample(kind="orders")
 columns = [str(c) for c in frame.columns]
 choices = ["(none)", *columns]
+# The pickers are keyed by the columns they choose from: a real upload's columns guess again, never keeping the
+# sample's picks
+_of = hashlib.sha256("\x1f".join(columns).encode("utf-8")).hexdigest()[:8]
 mapping, missing = {}, []
 for field in fields:
     guessed = _guess_for(field, columns)
@@ -77,7 +81,7 @@ for field in fields:
         field + (" :red[\\*]" if needed else ""),
         choices,
         index=choices.index(guessed) if guessed else 0,
-        key=key(f"f_{field}"),
+        key=key(f"f_{field}_{_of}"),
     )
     if picked != "(none)":
         mapping[field] = picked
