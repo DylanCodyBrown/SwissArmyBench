@@ -11,22 +11,22 @@
 # ///
 import pandas as pd
 import streamlit as st
-from sab_canvas import table
+from sab_canvas import In, Table, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 date_column = "month"  # column of table_name
 revenue_column = "revenue"  # column of table_name
 units_column = "units"  # column of table_name
 margin_column = "margin"  # column of table_name
 currency = "€"
-# The filter bar's session state key (empty: no filter)
-filter_key = "sales_filter"
+# The filter bar's picks (wired by itself to the page's sales_filter_bar; not wired: no filter)
+sales_filter: In[dict] = None
 
 
 def _filtered(frame):
-    """The filter bar's picks (its session state key) applied where this table has those columns."""
-    picked = st.session_state.get(filter_key) or {}
+    """The filter bar's picks applied where this table has those columns."""
+    picked = sales_filter or {}
     column = picked.get("region_column")
     if column in frame.columns and picked.get("regions"):
         frame = frame[frame[column].astype(str).isin([str(r) for r in picked["regions"]])]
@@ -37,7 +37,7 @@ def _filtered(frame):
     return frame
 
 
-frame = _filtered(table(table_name))
+frame = _filtered(table_name if table_name is not None else sample())
 dates = pd.to_datetime(frame[date_column], errors="coerce") if date_column in frame.columns else None
 last = previous = frame.iloc[0:0]
 if dates is not None and dates.notna().any():

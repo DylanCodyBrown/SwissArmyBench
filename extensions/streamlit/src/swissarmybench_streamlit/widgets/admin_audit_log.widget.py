@@ -9,13 +9,12 @@
 # size = [8, 5]
 # min_size = [4, 3]
 # ///
-
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key
 
 # The audit log (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 time_column = "at"  # column of table_name
 user_column = "user"  # column of table_name
 action_column = "action"  # column of table_name
@@ -51,7 +50,7 @@ def _sample():
     )
 
 
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else _sample()
 left, right = st.columns(2)
 people = sorted(frame[user_column].dropna().astype(str).unique()) if user_column in frame.columns else []
 actions = sorted(frame[action_column].dropna().astype(str).unique()) if action_column in frame.columns else []

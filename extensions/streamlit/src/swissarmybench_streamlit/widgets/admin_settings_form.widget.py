@@ -10,9 +10,8 @@
 # min_size = [3, 3]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Event, key
 
-_WIDGET = "admin_settings_form"
 title = "Settings"
 # Each setting and its value: text, a whole number, a number or a switch (true/false)
 settings = {
@@ -27,13 +26,8 @@ required = ["Company name", "Currency"]
 button = "Save settings"
 # Said under a required setting left empty
 validation_message = "Fill this in."
-# The session state key the settings are handed to the page under ({"event": "save", ...})
-save_event = "settings_saved"
-
-
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
+# Fired on Save: the settings; the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+saved: Event[dict] = None
 
 
 values = {}
@@ -56,5 +50,5 @@ if saved:
     for name in empty:
         st.markdown(f":red[{name}: {validation_message}]")
     if not empty:
-        _save(values)
+        saved(values)
         st.success("Settings handed to the page.")

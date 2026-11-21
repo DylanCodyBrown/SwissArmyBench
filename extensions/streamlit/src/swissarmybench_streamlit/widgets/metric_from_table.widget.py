@@ -9,15 +9,15 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import table
+from sab_canvas import In, Table, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 label = "Total revenue"
 column = "revenue"  # column of table_name
 how = "sum"  # choices: sum, mean, max, min, count
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 if column in frame.columns:
     found = getattr(frame[column], how)()
     st.metric(label, f"{found:,.0f}" if isinstance(found, (int, float)) else found)

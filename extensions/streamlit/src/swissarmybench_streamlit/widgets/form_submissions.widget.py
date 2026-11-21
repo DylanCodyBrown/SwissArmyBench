@@ -11,11 +11,12 @@
 # ///
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key
 
-# The submissions (data in): a table (each row one), or the session state key Fill a form adds them to
-table_name = ""  # table
-submissions_key = "form_submissions"
+# The submissions as a table (each row one; not wired: the form_submissions below)
+table_name: In[Table] = None
+# The page's form_fill submissions (wired by itself)
+form_submissions: In[list[dict]] = None
 # Only this form's submissions (empty: every form)
 form_name = ""
 file_name = "submissions.csv"
@@ -41,10 +42,10 @@ def _sample():
     ]
 
 
-if table_name:
-    frame = table(table_name)
+if table_name is not None:
+    frame = table_name
 else:
-    found = st.session_state.get(submissions_key) if submissions_key else None
+    found = form_submissions
     shown = found if isinstance(found, list) and found else _sample()
     if not (isinstance(found, list) and found):
         st.caption("Made-up submissions shown until a form is submitted.")

@@ -10,9 +10,10 @@
 # min_size = [2, 1]
 # ///
 import datetime
+from datetime import date
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, key, marked, problem
 
 # The words above the input
 label = "Delivery date"
@@ -23,8 +24,10 @@ default = ""  # date
 # The viewer must give a value (a red star; the message below while it is missing)
 required = False
 disabled = False
-# The session state key the value is kept under (empty: this widget's own)
-state_key = ""
+# The value, for the widgets on the page that read it
+value: Out[date] = None
+# Its starting value from another widget (not wired: default above)
+default_from: In[date] = None
 # Said under the input while it is required and missing, or does not fit
 validation_message = "Pick a date in range."
 # The earliest and latest dates allowed (empty: no limit)
@@ -33,25 +36,17 @@ latest = ""  # date
 date_format = "YYYY/MM/DD"  # choices: YYYY/MM/DD, DD/MM/YYYY, MM/DD/YYYY
 
 
-def _label(text, needed):
-    """The pack's one required marker: a red star after the label."""
-    return f"{text} :red[\\*]" if needed else text
-
-
-def _problem(message):
-    """The pack's one error look, under the input."""
-    st.markdown(f":red[{message}]")
-
-
 def _date(text):
     return datetime.date.fromisoformat(text) if text else None
 
 
-_key = state_key or key("value")
+if default_from is not None:
+    default = default_from.isoformat()
+_key = key("value")
 if _key not in st.session_state:
     st.session_state[_key] = _date(default)
 value = st.date_input(
-    _label(label, required),
+    marked(label, required),
     key=_key,
     min_value=_date(earliest),
     max_value=_date(latest),
@@ -60,4 +55,4 @@ value = st.date_input(
     disabled=disabled,
 )
 if required and value is None:
-    _problem(validation_message)
+    problem(validation_message)

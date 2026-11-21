@@ -13,10 +13,9 @@ import datetime
 import re
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import Event, In, Out, key
 
-_WIDGET = "form_fill"
-# The form to fill (data in) when definition_key holds none
+# The form to fill when no definition comes in
 definition = {
     "name": "site_visit",
     "title": "Site visit report",
@@ -37,21 +36,16 @@ definition = {
         {"name": "notes", "label": "Notes", "type": "text", "format": "long"},
     ],
 }
-# The session state key the form's definition is read from (Form picker and Form designer keep it there)
-definition_key = "form_definition"
+# The form's definition from the page's form_picker or form_designer (wired by itself; not wired: the one above)
+form_definition: In[dict] = None
 button = "Submit"
 # Said under a required field left empty
 validation_message = "Fill this in."
 thanks = "Thank you: your answers were handed on."
-# The session state key every submission is added to (data out: a list; Submissions reads it)
-submissions_key = "form_submissions"
-# The session state key the submission is handed to the page under ({"event": "save", ...})
-save_event = "form_submitted"
-
-
-def _save(payload):
-    """The page's hand-off: {"event": "save", "widget": ..., "payload": ...} under save_event."""
-    st.session_state[save_event] = {"event": "save", "widget": _WIDGET, "payload": payload}
+# Every submission so far, for the page's form_submissions (it reads them by itself)
+form_submissions: Out[list[dict]] = None
+# Fired on Submit: the submission (form, submitted_at, values); the Canvas wires what it does (call an API.py endpoint, set a page value, rerun)
+saved: Event[dict] = None
 
 
 def _range(text):
@@ -134,7 +128,7 @@ def _plain(value):
     return value
 
 
-found = st.session_state.get(definition_key) if definition_key else None
+found = form_definition
 form = found if isinstance(found, dict) and found.get("fields") is not None else definition
 fields = form.get("fields") or []
 values = {}
@@ -156,6 +150,6 @@ if sent:
             "submitted_at": datetime.datetime.now().isoformat(timespec="seconds"),
             "values": {n: _plain(v) for n, v in values.items()},
         }
-        st.session_state.setdefault(submissions_key, []).append(submission)
-        _save(submission)
+        form_submissions = [*(form_submissions or []), submission]
+        saved(submission)
         st.success(thanks)

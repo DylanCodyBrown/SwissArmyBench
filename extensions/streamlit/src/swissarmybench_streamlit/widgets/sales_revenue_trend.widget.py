@@ -12,22 +12,22 @@
 import altair as alt
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key, sample
 
 # The table to show (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 date_column = "month"  # column of table_name
 value_column = "revenue"  # column of table_name
 period = "month"  # choices: week, month, quarter
 colour = "#1f77b4"
 title = "Revenue by month"
-# The filter bar's session state key (empty: no filter)
-filter_key = "sales_filter"
+# The filter bar's picks (wired by itself to the page's sales_filter_bar; not wired: no filter)
+sales_filter: In[dict] = None
 
 
 def _filtered(frame):
-    """The filter bar's picks (its session state key) applied where this table has those columns."""
-    picked = st.session_state.get(filter_key) or {}
+    """The filter bar's picks applied where this table has those columns."""
+    picked = sales_filter or {}
     column = picked.get("region_column")
     if column in frame.columns and picked.get("regions"):
         frame = frame[frame[column].astype(str).isin([str(r) for r in picked["regions"]])]
@@ -38,7 +38,7 @@ def _filtered(frame):
     return frame
 
 
-frame = _filtered(table(table_name))
+frame = _filtered(table_name if table_name is not None else sample())
 if date_column not in frame.columns or value_column not in frame.columns:
     st.warning(f"Pick a date column and a value column: {date_column} or {value_column} is not in the table.")
 else:

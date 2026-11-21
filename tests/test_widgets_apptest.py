@@ -70,7 +70,7 @@ def test_every_prebuilt_widget_renders_without_an_error(tmp_path: Path) -> None:
     canvas["pages"] = []
     for at, path in enumerate(sorted(PREBUILT.glob("*.widget.py")), start=1):
         widget = rules.read_widget(path.read_text(encoding="utf-8"), prebuilt=True)
-        built[widget.name] = build.Built(widget.code, tuple(props.detect(widget.code)))
+        built[widget.name] = build.made(widget.code)
         one = build.one_widget(widget.name, built[widget.name], {}, widget.size)
         page = one["pages"][0]
         page["id"] = f"p{at}"

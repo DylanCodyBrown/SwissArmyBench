@@ -9,13 +9,12 @@
 # size = [8, 5]
 # min_size = [4, 3]
 # ///
-
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key
 
 # The users table (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 name_column = "name"  # column of table_name
 role_column = "role"  # column of table_name
 active_column = "active"  # column of table_name
@@ -42,7 +41,7 @@ def _sample():
     )
 
 
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else _sample()
 left, middle, right = st.columns([3, 2, 1])
 words = left.text_input("Search", placeholder="Name or email", key=key("search"))
 roles = sorted(frame[role_column].dropna().astype(str).unique()) if role_column in frame.columns else []

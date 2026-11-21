@@ -14,10 +14,10 @@ import re
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, Table, key, sample
 
-# The session state key the uploaded table is under (empty, or nothing there: made-up sample data)
-in_key = "uploaded"
+# The table to map: the page's excel_upload's, wired by itself (none yet: made-up sample data)
+uploaded: In[Table] = None
 # The fields the table must give, in order
 fields = ["order_id", "customer_name", "product", "quantity", "unit_price", "order_date", "status"]
 # The fields that must be matched (marked with a red star)
@@ -26,28 +26,10 @@ required_fields = ["order_id", "quantity"]
 match_cutoff: float = 0.6  # 0..1 step 0.05
 # Said under a required field left unmatched
 validation_message = "Match a column to this field."
-# The session state key the mapped table is kept under (Validate rows reads it)
-out_key = "mapped"
-
-
-def _sample_orders():
-    """Made-up orders as an export might send them: headers in its own words."""
-    people = ["Ada Ashdown", "Bram Brookfield", "Cleo Calloway", "Dov Dunmore", "Esme Everly"]
-    products = ["Desk lamp", "Kettle", "Planter", "Wok", "Notebook"]
-    return pd.DataFrame(
-        [
-            {
-                "Order No": 81000 + at,
-                "Cust. name": people[at % 5],
-                "Product": products[(at * 3) % 5],
-                "Qty": [2, 1, 4, 0, 3, 12, 1, 2][at % 8],
-                "Unit price": [24.5, 39.0, 12.99, 9.5, 3.25][at % 5],
-                "Order date": pd.Timestamp(2026, 11, 1 + at),
-                "Status": ["Delivered", "Shipped", "Pending", "Delivred"][at % 4],
-            }
-            for at in range(12)
-        ]
-    )
+# The mapped table, for the page's excel_validate_rows (it reads it by itself)
+mapped: Out[Table] = None
+# Which column each field took
+mapping: Out[dict] = None
 
 
 # Short words a header often uses, read as the field's word
@@ -84,8 +66,7 @@ def _guess_for(field, columns):
     return words[0] if len(words) == 1 else None
 
 
-found = st.session_state.get(in_key) if in_key else None
-frame = found if isinstance(found, pd.DataFrame) and len(found.columns) else _sample_orders()
+frame = uploaded if uploaded is not None and len(uploaded.columns) else sample(kind="orders")
 columns = [str(c) for c in frame.columns]
 choices = ["(none)", *columns]
 mapping, missing = {}, []
@@ -104,8 +85,7 @@ for field in fields:
         missing.append(field)
         st.markdown(f":red[{validation_message}]")
 mapped = pd.DataFrame({field: frame[column].values for field, column in mapping.items()})
-st.session_state[out_key] = mapped
-st.session_state[out_key + "_mapping"] = mapping
+
 st.caption(
     f"{len(mapping)} of {len(fields)} fields matched"
     + (f"; still to match: {', '.join(missing)}" if missing else "")

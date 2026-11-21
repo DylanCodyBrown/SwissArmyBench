@@ -9,13 +9,13 @@
 # min_size = [3, 2]
 # ///
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key, sample
 
 # The table to search (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 placeholder = "Search"
 
-frame = table(table_name)
+frame = table_name if table_name is not None else sample()
 words = st.text_input("Search", placeholder=placeholder, key=key("search"), label_visibility="collapsed")
 if words:
     found = frame.astype(str).apply(lambda column: column.str.contains(words, case=False, regex=False))

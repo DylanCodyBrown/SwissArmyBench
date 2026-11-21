@@ -9,11 +9,16 @@
 # min_size = [2, 1]
 # ///
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, Table, choices, key
 
 label = "Products"
 options = ["Alpha", "Beta", "Gamma"]
 picked = ["Alpha"]
-state_key = "products"
+# Take the choices from a table's column instead (its distinct values, sorted; not wired: options)
+options_table: In[Table] = None
+options_column = ""  # column of options_table
+# The choices, for the widgets on the page that read them
+products: Out[list[str]] = None
 
-st.multiselect(label, options, default=[p for p in picked if p in options], key=state_key or key("multi"))
+options = choices(options, options_table, options_column)
+products = st.multiselect(label, options, default=[p for p in picked if p in options], key=key("multi"))

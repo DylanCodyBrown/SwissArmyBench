@@ -6,6 +6,8 @@ POST   /streamlit/canvases                     {"path"} or {"name", "folder"?}: 
 GET    /streamlit/canvases/{canvas}            its model, version, read-only, broken, missing, marks, notes
 DELETE /streamlit/canvases/{canvas}            closed (its Play stopped)
 POST   /streamlit/canvases/{canvas}/command    {"kind", "version"?, "window"?, ...}: one rule-checked change
+                                               (kind "wire": {id, port, wire}: an In's source, an Event's
+                                               actions; null unwires)
 POST   /streamlit/canvases/{canvas}/undo       and /redo
 POST   /streamlit/canvases/{canvas}/play       {"page"?}: the pages built and run live: its address
 POST   /streamlit/canvases/{canvas}/stop

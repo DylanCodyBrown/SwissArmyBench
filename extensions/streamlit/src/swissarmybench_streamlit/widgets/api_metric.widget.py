@@ -16,6 +16,7 @@ import urllib.parse
 import urllib.request
 
 import streamlit as st
+from sab_canvas import Out
 
 # The endpoint it reads (a GET answering an object, or a list: its first row, or how many)
 endpoint = ""  # endpoint
@@ -26,6 +27,8 @@ field = ""
 label = "Value"
 prefix = ""
 suffix = ""
+# The number shown, for the widgets on the page that read it
+value: Out[float] = None
 
 
 def _call(method, path, body=None, query=None, root=False):

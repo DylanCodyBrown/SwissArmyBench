@@ -96,6 +96,36 @@ class WidgetFacts:
     size: tuple[int, int] = (4, 2)
     min_size: tuple[int, int] = (1, 1)
     properties: frozenset[str] = frozenset()
+    ports: frozenset[str] = frozenset()  # its contract's Ins and Events (what an instance's wires name)
+    ins: tuple[tuple[str, str], ...] = ()  # its Ins: (name, type)
+
+
+def take_ins(node: dict[str, Any], known: WidgetFacts | None) -> list[str]:
+    """An instance's values for names that are now its widget's Ins (a table property ported to In[Table], an
+    agent's or an older canvas's value): each made the In's wire (a table's name: {"table"}; a list of them:
+    {"tables"}; any other value: {"value"}). The names moved, for a note."""
+    if known is None or not known.ins:
+        return []
+    moved: list[str] = []
+    types = dict(known.ins)
+    for name in [k for k in node["values"] if k in types]:
+        value = node["values"].pop(name)
+        kind = types[name]
+        if value in ("", None, []):  # nothing: unwired
+            (node.get("wires") or {}).pop(name, None)
+            if "wires" in node and not node["wires"]:
+                del node["wires"]
+            moved.append(name)
+            continue
+        if kind == "Table" and isinstance(value, str):
+            wire: dict[str, Any] = {"table": value}
+        elif kind.startswith("list[Table") and isinstance(value, list):
+            wire = {"tables": [{"table": str(v)} for v in value]}
+        else:
+            wire = {"value": value}
+        node.setdefault("wires", {})[name] = wire
+        moved.append(name)
+    return moved
 
 
 Facts = Mapping[str, WidgetFacts]
@@ -633,7 +663,10 @@ def insert_widget(
     node["w"] = min(node["w"], max(MIN_PX, parent["w"] - node["x"]))
     values = body.get("values") or {}
     if values:
-        node["values"] = {k: v for k, v in dict(values).items() if k in known.properties}
+        given = dict(values)
+        node["values"] = {k: v for k, v in given.items() if k in dict(known.ins)}
+        take_ins(node, known)
+        node["values"] |= {k: v for k, v in given.items() if k in known.properties}
     for other in parent["children"]:
         if _overlap(node, other):
             raise CanvasError(f"That place is taken by {other['id']}.")
@@ -715,7 +748,12 @@ def set_values(canvas: dict[str, Any], body: Mapping[str, Any], facts: Facts | N
     if node["kind"] != "widget":
         raise CanvasError(f"{node['id']} is a container: its properties are set with set_container.")
     known = (facts or {}).get(node["widget"])
+    ins = dict(known.ins) if known is not None else {}
     for key, value in dict(body.get("values") or {}).items():
+        if key in ins:  # an In: its value is its wire (a table's name, or a typed value)
+            node["values"][key] = value
+            take_ins(node, known)
+            continue
         if known is not None and key not in known.properties:
             raise CanvasError(f"{node['widget']} has no property {key}.")
         if value is None:
@@ -736,6 +774,10 @@ def replace_widget(canvas: dict[str, Any], body: Mapping[str, Any], facts: Facts
         raise CanvasError(f"There is no widget called {str(name)[:60]}.")
     node["widget"] = name
     node["values"] = {k: v for k, v in node["values"].items() if k in facts[name].properties}
+    if node.get("wires"):  # the wires the new widget's contract has
+        node["wires"] = {k: v for k, v in node["wires"].items() if k in facts[name].ports}
+        if not node["wires"]:
+            del node["wires"]
     least = minimum(node, facts, canvas)
     node["w"], node["h"] = max(node["w"], least[0]), max(node["h"], least[1])
     if parent is not None:
@@ -826,6 +868,9 @@ def prune(canvas: dict[str, Any], facts: Facts) -> tuple[dict[str, Any], list[st
     for _, node in walk(canvas):
         if node["kind"] != "widget" or node["widget"] not in facts:
             continue
+        moved = take_ins(node, facts[node["widget"]])
+        if moved:
+            said.append(f"{node['id']} ({node['widget']}): {', '.join(moved)} wired as its In now.")
         gone = sorted(k for k in node["values"] if k not in facts[node["widget"]].properties)
         for key in gone:
             del node["values"][key]

@@ -14,10 +14,10 @@ import datetime
 import altair as alt
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Table, key
 
 # The shipments table (empty: made-up sample data)
-table_name = ""  # table
+table_name: In[Table] = None
 id_column = "shipment_id"  # column of table_name
 shipped_column = "shipped_on"  # column of table_name
 delivered_column = "delivered_on"  # column of table_name
@@ -54,7 +54,7 @@ def _sample():
     return frame
 
 
-frame = table(table_name) if table_name else _sample()
+frame = table_name if table_name is not None else _sample()
 needed = [id_column, shipped_column, promised_column]
 missing = [c for c in needed if c not in frame.columns]
 if missing:

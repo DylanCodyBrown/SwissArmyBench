@@ -11,19 +11,19 @@
 # ///
 import pandas as pd
 import streamlit as st
-from sab_canvas import key, table
+from sab_canvas import In, Out, Table, key, problem
 
 # The words above the input
 label = "Order lines"
 # Shown beside the label as a ?
 help_text = ""
 # The table to edit (empty: made-up rows)
-table_name = ""  # table
+table_name: In[Table] = None
 # The viewer must give a value (a red star; the message below while it is missing)
 required = False
 disabled = False
-# The session state key the value is kept under (empty: this widget's own)
-state_key = ""
+# The value, for the widgets on the page that read it
+value: Out[Table] = None
 # Said under the input while it is required and missing, or does not fit
 validation_message = "Fill in every required cell."
 # Each column: its name, type (text, number, money, date, choice, yes/no), required, and for a choice its
@@ -42,16 +42,6 @@ column_config = [
 ]
 # Rows can be added and taken away
 add_rows = True
-
-
-def _label(text, needed):
-    """The pack's one required marker: a red star after the label."""
-    return f"{text} :red[\\*]" if needed else text
-
-
-def _problem(message):
-    """The pack's one error look, under the input."""
-    st.markdown(f":red[{message}]")
 
 
 def _sample():
@@ -88,8 +78,8 @@ def _column(spec):
     return st.column_config.TextColumn(shown, required=needed)
 
 
-_key = state_key or key("value")
-frame = table(table_name) if table_name else _sample()
+_key = key("value")
+frame = table_name if table_name is not None else _sample()
 if label:
     st.markdown(f"**{label}**", help=help_text or None)
 edited = st.data_editor(
@@ -113,4 +103,5 @@ gaps = [
     if value is None or pd.isna(value) or str(value).strip() == ""
 ]
 if gaps or (required and edited.empty):
-    _problem(validation_message + (" " + ", ".join(f"row {r}: {c}" for r, c in gaps[:10]) if gaps else ""))
+    problem(validation_message + (" " + ", ".join(f"row {r}: {c}" for r, c in gaps[:10]) if gaps else ""))
+value = edited
