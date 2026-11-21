@@ -480,6 +480,14 @@ can:
   Tie-out on the Compare row. Compare stays (it is a view of two grids), and so do a column's quick Profile
   and the plain "Send to Analyze" of a profile, a value or a row.
 
+**8.14 Never crowd the place where code is written** (the owner, 2026-11-21: "never crowd the ide or the place
+where the user enters code" / "I want prioritize the ide real estate"). The editor takes every pixel the work
+does not need: one slim tab row (tabs, the few small buttons, full screen), no toolbars stacked above it, no page
+heading, no repeated titles. Everything beside it folds away and remembers its size: the side panes (one click
+or Ctrl+B, each pane on its own too), properties closed until asked for, the output panel folded to its tabs
+until something runs or a problem appears. Full screen hides all of it. A new control goes in a menu or a pane
+that folds, never as another row over the code.
+
 ## 9. Errors
 
 **9.1 Explain and fix the error where it happened.** Follow Visual Studio's Exception Helper: the error
