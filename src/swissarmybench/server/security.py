@@ -53,8 +53,6 @@ from starlette.websockets import WebSocket
 from swissarmybench.domain.lifecycle import from_a_page
 
 WEBSOCKET_SUBPROTOCOL: str = "swissarmybench"
-# What a client from before the rename offers (SwissArmyGrid's): still answered, for one release.
-OLD_WEBSOCKET_SUBPROTOCOL: str = "swissarmygrid"
 
 # The page shell and its files: prefixes for /g/<id> and /static/..., and the exact paths of the
 # workspace, catalog and workbench pages (a prefix would also let "/workspaceanything" skip the token check).

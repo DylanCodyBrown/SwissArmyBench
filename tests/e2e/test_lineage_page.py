@@ -10,6 +10,7 @@ With SWISSARMYBENCH_SHOTS set to a folder, the tests also save screenshots there
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -20,11 +21,10 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.domain import notebooks
-from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, kernel_of, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 LONG = 60000  # Streamlit's first start, in milliseconds
 ORDERS = (
     "orders = pd.DataFrame({'region': ['East', 'West', 'East', 'North', 'West', 'East'], "

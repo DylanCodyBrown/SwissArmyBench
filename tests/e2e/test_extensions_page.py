@@ -7,6 +7,7 @@ version mark's tooltip naming the installed extensions. Made-up data only."""
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -16,10 +17,9 @@ from playwright.sync_api import Browser, Page, Route, expect
 
 from swissarmybench import __version__
 from swissarmybench.client import push_client
-from swissarmybench.renamed import env
 from tests.e2e.test_ui import browser, server  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 DEVELOPMENT = "This copy is a development checkout, not the installed app: uv pip install sab-ledger"
 
 

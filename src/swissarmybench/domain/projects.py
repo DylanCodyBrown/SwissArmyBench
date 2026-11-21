@@ -299,7 +299,7 @@ def data_requirements(text: str) -> list[str]:
         needed.append("duckdb")
     if "read_excel" in text:
         needed.append("openpyxl")
-    if re.search(r"\b(?:sab|sag)\.", text):  # sag: the old alias, in a notebook from before the rename
+    if re.search(r"\bsab\.", text):
         needed.append(
             "# swissarmybench: install Swiss Army Bench's wheel (data.py reads through one of its "
             "connections or blades)"

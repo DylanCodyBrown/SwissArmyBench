@@ -21,11 +21,10 @@ from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench import __version__
 from swissarmybench.client import push_client
-from swissarmybench.renamed import env
 from tests.e2e.test_ui import browser, call  # noqa: F401
 from tests.test_updates import StandIn, pypi
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 
 
 @pytest.fixture(scope="module")

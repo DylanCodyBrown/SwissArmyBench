@@ -180,27 +180,13 @@ plugin and its skill (`swissarmybench-use`), the VS Code extension, the state fo
 (`~/.swissarmybench`), the environment variables (`SWISSARMYBENCH_*`), the blade header
 (`# /// swissarmybench-blade`) and the notebook metadata (`swissarmybench`).
 
-The old names still work for this release, and go in the next one:
+The old names went in 0.0.32 (the owner's simplicity pass, 2026-11-21): `import swissarmygrid`, the
+`swissarmygrid`, `sag`, `swissarmygrid-mcp` and `swissarmygrid-context` commands, the `SWISSARMYGRID_*`
+variables, `~/.swissarmygrid` (no longer moved: move it to `~/.swissarmybench` by hand), the old notebook
+metadata, blade header, keyring service and remembered page settings are no longer read.
 
-- `import swissarmygrid as sag` works, with a DeprecationWarning that names the new import. Code the app
-  writes (copied code, table cells, data.py) always uses the new names.
-- `swissarmygrid`, `sag`, `swissarmygrid-mcp` and `swissarmygrid-context` are still installed: each says
-  its new name in one line, then runs it. An already installed plugin or VS Code extension keeps working.
-- Old notebooks run: `%sag_run`, `%%sag_table`, `%%sag_html` and `%%sag` still work, and the old
-  `swissarmygrid` metadata, `# /// swissarmygrid-blade` headers, relationship sets, Streamlit apps and their saved
-  pages are read. Files are written with the new names.
-- On its first start the server moves `~/.swissarmygrid` to `~/.swissarmybench` and says so once in its
-  log; if it cannot (an old server still running from it, say), it reads the old folder where it is. An
-  existing `~/SwissArmyGrid` Workbench folder stays your folder while there is no `~/SwissArmyBench`.
-- `SWISSARMYBENCH_*` variables are read first, then the old `SWISSARMYGRID_*` ones.
-- Passwords saved in the system keyring under the old name are found, and copied to the new name on their
-  first read. The page's remembered settings (theme, zoom, Analyze's card sizes) are read from their
-  old keys when the new ones are empty.
-
-The installers remove the old `swissarmygrid` uv tool before installing the new one, which brings the old
-commands with it; by hand, that is `uv tool uninstall swissarmygrid`, then the install below. Update the
-VS Code extension too: the new one finds the new install (and still finds an old one). The GitHub
-repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
+The installers remove the old `swissarmygrid` uv tool before installing the new one; by hand, that is
+`uv tool uninstall swissarmygrid`, then the install below. The GitHub repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
 
 **Visualizations is now Analyze, and the analyses live there** (the owner, 2026-11-19): the rail's Analyze page has a
 toolbar of every analysis and one guided form beside the board; every result lands on the board by itself, and

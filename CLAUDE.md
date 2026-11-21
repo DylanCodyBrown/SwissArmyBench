@@ -21,8 +21,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   project is saved first (Autosave on) or the stop waits. No tray, no start at sign-in, no watchdog.
 
 - **Renamed (the owner, 2026-11-15):** SwissArmyGrid is now Swiss Army Bench: `swissarmybench`, alias `sab`.
-  Write only the new names; the old ones are read for one release (`renamed.py`, README "Renamed from
-  SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
+  Write only the new names; the old ones are no longer read (removed 2026-11-21, the simplicity pass; README
+  "Renamed from SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
   (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
   answer for one release: `sab.sandbox` (a warning), `sandbox_*` (until 2026-11-21, when the project's sandbox
@@ -294,12 +294,9 @@ has the rules and why. Three layers, imports pointing inwards, nothing deeper th
 `tests/test_architecture.py` checks all of it.
 
 ```
-src/swissarmygrid/       the old name, one release: `import swissarmygrid` is this package under it (a warning)
 src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
-  renamed.py             the old name (SwissArmyGrid) for one release: SWISSARMYGRID_* read after the new
-                         variables, the state folder moved on first start, the old commands; the next
-                         release removes it, src/swissarmygrid/ and every OLD_* name (tests/test_renamed.py)
+  renamed.py             `env` only, for client/sql_cell.py (the adapter branch's file); goes when it merges
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
   bootstrap.py           the composition root: builds the adapters, hands them to the services
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or

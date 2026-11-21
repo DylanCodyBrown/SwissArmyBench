@@ -158,7 +158,6 @@ def test_a_workbench_kernel_reports_a_call_and_other_pythons_do_not(monkeypatch:
 
     monkeypatch.setattr("threading.Thread", Now)
     monkeypatch.delenv("SWISSARMYBENCH_KERNEL", raising=False)
-    monkeypatch.delenv("SWISSARMYGRID_KERNEL", raising=False)
     connection_use.report("Warehouse", "query")
     assert sent == []  # the user's own Jupyter, a terminal: not counted
     monkeypatch.setenv("SWISSARMYBENCH_KERNEL", "k1")

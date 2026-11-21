@@ -149,7 +149,6 @@ from swissarmybench.server import (
 from swissarmybench.server.beta_requests import BetaRequests
 from swissarmybench.server.routes_connection_slots import CallerAtTheDoor
 from swissarmybench.server.security import (
-    OLD_WEBSOCKET_SUBPROTOCOL,
     WEBSOCKET_SUBPROTOCOL,
     LocalOnlyGuard,
     cookie_name,
@@ -226,7 +225,7 @@ def create_app(
     async def live(websocket: WebSocket) -> None:
         # Echo our subprotocol only when the client offered it (browsers do; others may not).
         offered: list[str] = websocket.scope.get("subprotocols", [])
-        ours = [p for p in (WEBSOCKET_SUBPROTOCOL, OLD_WEBSOCKET_SUBPROTOCOL) if p in offered]
+        ours = [p for p in (WEBSOCKET_SUBPROTOCOL,) if p in offered]
         await websocket.accept(subprotocol=ours[0] if ours else None)
         ctx.live.add(
             websocket,

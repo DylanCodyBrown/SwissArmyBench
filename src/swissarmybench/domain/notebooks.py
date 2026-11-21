@@ -61,8 +61,7 @@ MAX_NAME: int = 80  # a cell's name: one line
 MAX_CONNECTION_CHARS: int = 200  # a DAX cell's is a connection, a slash and a dataset's name
 ROLES: tuple[str, ...] = ("", "tables", "table", "maker", "imports", "transformations")
 MAX_STEPS_CHARS: int = 200_000
-# %%sag: the SQL cell's own magic before the rename to Swiss Army Bench, still read (renamed.py).
-_SQL_LINE = re.compile(r"^%%(?:sql|sab|sag)\b(?!_)")
+_SQL_LINE = re.compile(r"^%%(?:sql|sab)\b(?!_)")
 _DAX_LINE = re.compile(r"^%%dax\b")
 _HTML_LINE = re.compile(r"^%%html\b")
 
@@ -180,18 +179,16 @@ def _lines(text: str) -> list[str]:
     return text.splitlines(keepends=True)
 
 
-# The notebook's and each cell's own metadata key; SwissArmyGrid's, before the rename, is still read (an
-# old notebook keeps its cell numbers, names and kinds) and written over with the new one on save.
+# The notebook's and each cell's own metadata key.
 OWN_KEY: str = "swissarmybench"
-OLD_KEY: str = "swissarmygrid"
 
 
 def _own(raw: dict[str, Any]) -> Any:
-    """What the file keeps under this app's key in `raw`'s metadata: the new key, else the old one."""
+    """What the file keeps under this app's key in `raw`'s metadata."""
     metadata = raw.get("metadata") or {}
     if not isinstance(metadata, dict):
         return None
-    return metadata[OWN_KEY] if OWN_KEY in metadata else metadata.get(OLD_KEY)
+    return metadata.get(OWN_KEY)
 
 
 def _marked(cell: Cell, raw: dict[str, Any]) -> Cell:

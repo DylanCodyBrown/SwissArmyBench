@@ -135,8 +135,8 @@ export async function importRelationships(picked: File, after: () => Promise<voi
   } catch {
     model = undefined;
   }
-  // A saved set is JSON too, marked "swissarmybench" ("swissarmygrid" before the first rename): reviewed below.
-  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmybench" in model) && !("swissarmygrid" in model)) {
+  // A saved set is JSON too, marked "swissarmybench": reviewed below.
+  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmybench" in model)) {
     try {
       await api("/relationships", "POST", { model });
       await after();

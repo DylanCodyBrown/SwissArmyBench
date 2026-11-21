@@ -20,11 +20,6 @@ import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
-from swissarmybench.renamed import env as renamed_env
-
-# The uv tool SwissArmyGrid was installed as before its rename (renamed.py): still found, for one release.
-OLD_TOOL: str = "swissarmygrid"
-
 # What the server needs that the client does not have.
 SERVER_MODULES: tuple[str, ...] = ("uvicorn", "starlette", "duckdb", "pyarrow")
 
@@ -44,10 +39,9 @@ def has_server(find_spec: Callable[[str], object | None] = importlib.util.find_s
 
 
 def tool_pythons(env: Mapping[str, str], home: Path, platform: str, uv_tool_dir: str | None) -> list[Path]:
-    """Where the server's own Python may be, in the order to try: SWISSARMYBENCH_SERVER (or the old
-    SWISSARMYGRID_SERVER), then uv's tool folder (UV_TOOL_DIR, what `uv tool dir` says, then uv's defaults),
-    as the VS Code extension looks; in each, the swissarmybench tool, then the old swissarmygrid one."""
-    named = renamed_env("SWISSARMYBENCH_SERVER", environ=env)
+    """Where the server's own Python may be, in the order to try: SWISSARMYBENCH_SERVER, then uv's tool
+    folder (UV_TOOL_DIR, what `uv tool dir` says, then uv's defaults); in each, the swissarmybench tool."""
+    named = env.get("SWISSARMYBENCH_SERVER", "")
     if named:
         return [Path(named)]
     python = ("Scripts", "python.exe") if platform == "win32" else ("bin", "python")
@@ -59,17 +53,11 @@ def tool_pythons(env: Mapping[str, str], home: Path, platform: str, uv_tool_dir:
         roots.append(Path(env["APPDATA"]) / "uv" / "tools")
     roots.append(Path(env.get("XDG_DATA_HOME") or home / ".local" / "share") / "uv" / "tools")
     seen: list[Path] = []
-    for tool in ("swissarmybench", OLD_TOOL):
-        for root in roots:
-            candidate = root.joinpath(tool, *python)
-            if candidate not in seen:
-                seen.append(candidate)
+    for root in roots:
+        candidate = root.joinpath("swissarmybench", *python)
+        if candidate not in seen:
+            seen.append(candidate)
     return seen
-
-
-def server_module(python: Path) -> str:
-    """The server's module in an installed tool's Python: the old swissarmygrid tool has only the old name."""
-    return "swissarmygrid.server" if python.parent.parent.name == OLD_TOOL else "swissarmybench.server"
 
 
 def _uv_tool_dir() -> str | None:
@@ -109,7 +97,7 @@ def main() -> None:
         sys.exit(1)
     # A child, not exec: Windows has no real exec, and the child's exit code is passed on as ours.
     # The server's own installed Python, running this package's server with the person's arguments.
-    done = subprocess.run([str(python), "-m", server_module(python), *sys.argv[1:]], check=False)  # noqa: S603
+    done = subprocess.run([str(python), "-m", "swissarmybench.server", *sys.argv[1:]], check=False)  # noqa: S603
     sys.exit(done.returncode)
 
 

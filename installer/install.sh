@@ -119,9 +119,9 @@ else
   fi
 fi
 
-# 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes (this one keeps the old commands working).
+# 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes.
 if uv tool list 2>/dev/null | grep -q '^swissarmygrid '; then
-  say "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it; its old commands still work)..."
+  say "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it)..."
   uv tool uninstall swissarmygrid >/dev/null 2>&1 || true
 fi
 

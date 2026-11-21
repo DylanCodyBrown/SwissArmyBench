@@ -23,11 +23,10 @@ lives in this package and never pushes, fast to start.
 
 from __future__ import annotations
 
+import os
 import sys
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
-
-from swissarmybench.renamed import env
 
 if TYPE_CHECKING:
     from swissarmybench.client.analyze_client import analyze
@@ -116,7 +115,7 @@ def __dir__() -> list[str]:
 # already the decision to use the grid. The watcher's own autostart makes the final call (and honors
 # SWISSARMYBENCH_WATCH=0); this only avoids loading it when it cannot start: IPython has to be
 # loaded already for it to be running, so a plain script, the server and the MCP never pay for the import.
-if env("SWISSARMYBENCH_WATCH", "") == "1" or "IPython" in sys.modules:
+if os.environ.get("SWISSARMYBENCH_WATCH", "") == "1" or "IPython" in sys.modules:
     from swissarmybench.client.watcher import autostart
 
     autostart()

@@ -29,12 +29,10 @@ import type { Output } from "./workbenchOutputs";
 
 /** The output an HTML cell's run gives (client/html_cells.py MIME). */
 export const HTML_MIME = "application/vnd.swissarmybench.html-cell+json";
-/** The same, in an output saved before the rename to Swiss Army Bench (still read, for one release). */
-const OLD_HTML_MIME = "application/vnd.swissarmygrid.html-cell+json";
-/** What an HTML cell's output says about its names: under the new MIME type, else the old one. */
+/** What an HTML cell's output says about its names. */
 function htmlDetail(data: unknown): { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined {
   const held = data as Record<string, unknown> | undefined;
-  return (held?.[HTML_MIME] ?? held?.[OLD_HTML_MIME]) as { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined;
+  return held?.[HTML_MIME] as { values?: Record<string, HtmlValue>; marks?: Record<string, string> } | undefined;
 }
 export const HEIGHT_MIN = 60;
 export const HEIGHT_MAX = 2000;

@@ -256,8 +256,6 @@ def needed(code: str, installed: Callable[[str], bool]) -> list[Package]:
 
 FORMAT: int = 1
 HEADER_TYPE: str = "swissarmybench-blade"
-# The header SwissArmyGrid wrote before the rename: still a blade (written with the new header on export).
-OLD_HEADER_TYPE: str = "swissarmygrid-blade"
 SUFFIX: str = ".blade.py"
 # An analysis blade is the user's own analysis: a function of the grid's rows (a pandas DataFrame, and
 # optionally the selected columns) that returns markdown, a table, a figure, or a list or dict of them.
@@ -419,7 +417,7 @@ def _header_start(lines: list[str]) -> int | None:
     not count, so an ordinary script that mentions the marker is never taken for a blade."""
     for i, line in enumerate(lines[:200]):
         match = _OPEN.match(line)
-        if match and match["type"] in (HEADER_TYPE, OLD_HEADER_TYPE):
+        if match and match["type"] == HEADER_TYPE:
             return i
         if line.strip() and not line.lstrip().startswith("#"):
             return None

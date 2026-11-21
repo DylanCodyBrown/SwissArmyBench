@@ -205,7 +205,5 @@ def _run_file(line: str) -> None:
 def install(shell: Any) -> None:
     """`%%sab_table <name>`: how the Workbench runs a table's cell. `%sab_run`: how it runs a script."""
     if shell is not None:
-        # sag_table and sag_run: the names before the rename, for old notebooks (renamed.py).
-        for prefix in ("sab", "sag"):
-            shell.register_magic_function(_magic, magic_kind="cell", magic_name=f"{prefix}_table")
-            shell.register_magic_function(_run_file, magic_kind="line", magic_name=f"{prefix}_run")
+        shell.register_magic_function(_magic, magic_kind="cell", magic_name="sab_table")
+        shell.register_magic_function(_run_file, magic_kind="line", magic_name="sab_run")

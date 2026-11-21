@@ -429,23 +429,18 @@ export function remember(key: string, value: string): void {
   }
 }
 
-/** Settings this browser remembered before the rename to Swiss Army Bench were kept under the old prefix:
- *  read when the new key has nothing, for one release (src/swissarmybench/renamed.py). */
-export const OLD_STORAGE_PREFIX = "swissarmygrid.";
-
 export function recall(key: string): string | null {
   try {
-    return localStorage.getItem(`swissarmybench.${key}`) ?? localStorage.getItem(`${OLD_STORAGE_PREFIX}${key}`);
+    return localStorage.getItem(`swissarmybench.${key}`);
   } catch {
     return null;
   }
 }
 
-/** Forget a remembered setting, under its new key and its old one. */
+/** Forget a remembered setting. */
 export function forget(key: string): void {
   try {
     localStorage.removeItem(`swissarmybench.${key}`);
-    localStorage.removeItem(`${OLD_STORAGE_PREFIX}${key}`);
   } catch {
     // Blocked storage: nothing was remembered.
   }

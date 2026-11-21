@@ -107,12 +107,5 @@ def client_path() -> str:
             holder / "swissarmybench",
             ignore=shutil.ignore_patterns("web_static", "__pycache__", "*.pyc"),
         )
-        # The old name beside it (renamed.py), so an old notebook's `import swissarmygrid` runs this
-        # package, not an older copy the environment may still have installed.
-        old = package.parent / "swissarmygrid"
-        if old.is_dir():
-            shutil.copytree(
-                old, holder / "swissarmygrid", ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
-            )
         _client_copy.append(str(holder))
     return _client_copy[0]

@@ -20,11 +20,10 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, expect
 
-from swissarmybench.renamed import env
 from tests.e2e.test_ui import browser, call  # noqa: F401
 from tests.e2e.test_ui import server as plain_server  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 ROOT = Path(__file__).resolve().parents[2]
 
 

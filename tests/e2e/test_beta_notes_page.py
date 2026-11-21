@@ -8,6 +8,7 @@ Made-up data only."""
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -16,13 +17,12 @@ import pandas as pd
 from playwright.sync_api import Browser, Locator, Page, expect
 
 from swissarmybench.client import push_client
-from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 from tests.e2e.test_workbench_page import menu
 
 VALUE = "Globex-Acme-77"  # a made-up cell value that must never reach the log
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 
 
 def notes(server: dict[str, Any]) -> list[dict[str, Any]]:

@@ -11,6 +11,7 @@ With SWISSARMYBENCH_MODES_SHOTS set to a folder, the tests also save screenshots
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -21,11 +22,10 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_MODES_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_MODES_SHOTS", "") or None
 ORDERS = pd.DataFrame(
     {
         "order_id": [10482, 10377, 10611, 10295, 10540, 10123],

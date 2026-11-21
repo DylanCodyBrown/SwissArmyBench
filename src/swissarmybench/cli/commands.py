@@ -3538,9 +3538,7 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
             )
         elif item.get("output_type") in ("execute_result", "display_data"):
             data = item.get("data", {})
-            cell = data.get("application/vnd.swissarmybench.html-cell+json") or data.get(
-                "application/vnd.swissarmygrid.html-cell+json"  # an output saved before the rename
-            )
+            cell = data.get("application/vnd.swissarmybench.html-cell+json")
             if isinstance(cell, dict):
                 # An HTML cell's run: the design with its names filled, and what filled it (the values
                 # go back to workbench_html_fill as they are; the marks to workbench_html_marks).

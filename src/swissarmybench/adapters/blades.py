@@ -47,12 +47,8 @@ from swissarmybench.domain.blades import (
     read_blade,
     write_blade,
 )
-from swissarmybench.renamed import env
 
 KEYRING_SERVICE: str = "SwissArmyBench"
-# The service SwissArmyGrid saved under before its rename (renamed.py): a secret found only there is
-# copied to the new service on its first read, so saved passwords keep working; the next release drops it.
-OLD_KEYRING_SERVICE: str = "SwissArmyGrid"
 # Whether a blade's secret is saved, kept this long (a listing asks for every blade's, and an operating
 # system's vault can take milliseconds an answer); a save or forget here clears it at once, so the time
 # only bounds a change made outside the app.
@@ -229,7 +225,7 @@ class BladeStore:
             except (OSError, ValueError):
                 saved = []
             listed += [{"path": str(p), "from_env": False} for p in saved if isinstance(p, str)]
-        for part in env("SWISSARMYBENCH_BLADE_FOLDERS", "").split(os.pathsep):
+        for part in os.environ.get("SWISSARMYBENCH_BLADE_FOLDERS", "").split(os.pathsep):
             if part.strip():
                 listed.append({"path": part.strip(), "from_env": True})
         seen: set[str] = set()
@@ -629,14 +625,6 @@ class BladeStore:
     def _secret(self, name: str, secret: str) -> str | None:
         vault, user = self._keyring(), self._user(name, secret)
         value: str | None = vault.get_password(KEYRING_SERVICE, user)
-        if value is None:
-            # Saved before the rename: found under the old service, and copied across once.
-            value = vault.get_password(OLD_KEYRING_SERVICE, user)
-            if value is not None:
-                try:
-                    vault.set_password(KEYRING_SERVICE, user, value)
-                except Exception:  # noqa: S110 (a vault that will not write still gives the value)
-                    pass
         return value
 
     def _has_secret(self, name: str, secret: str) -> bool:
@@ -663,13 +651,12 @@ class BladeStore:
             self._saved_status.pop(self._user(name, secret), None)
 
     def _forget_secret(self, name: str, secret: str) -> None:
-        for service in (KEYRING_SERVICE, OLD_KEYRING_SERVICE):  # forgotten under the old name too
-            try:
-                self._keyring().delete_password(service, self._user(name, secret))
-            except VaultUnavailableError:
-                return
-            except Exception:  # noqa: S112 (keyring raises PasswordDeleteError for one never set)
-                continue
+        try:
+            self._keyring().delete_password(KEYRING_SERVICE, self._user(name, secret))
+        except VaultUnavailableError:
+            return
+        except Exception:
+            return
 
     def copy_secrets(self, source: str, target: str) -> None:
         """A blade kept under a new name (a project's, beside the library's own): the values saved under the

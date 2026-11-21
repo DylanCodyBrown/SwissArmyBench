@@ -180,7 +180,7 @@ def _call_sources(tree: ast.AST) -> list[tuple[str, str]]:
             continue
         owner = node.func.value
         attr = node.func.attr
-        if attr in _SOURCES and isinstance(owner, ast.Name) and owner.id in ("sab", "sag"):
+        if attr in _SOURCES and isinstance(owner, ast.Name) and owner.id == "sab":
             kind = "blade" if attr == "blade" else "connection"
             found.append((kind, first.value.split("/")[0] if attr == "dax" else first.value))
         elif _FILE_READERS.match(attr):

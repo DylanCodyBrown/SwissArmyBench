@@ -24,14 +24,13 @@ import inspect
 import io
 import json
 import linecache
+import os
 import re
 import urllib.error
 import urllib.request
 from pathlib import Path
 from types import FrameType
 from typing import Any
-
-from swissarmybench.renamed import env, home_state_folder
 
 _MIB: int = 1024 * 1024
 _NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
@@ -56,8 +55,8 @@ class TableNotOpenError(RuntimeError):
 
 def info_file() -> Path:
     """The server's connection file; SWISSARMYBENCH_INFO overrides it (tests use this)."""
-    override = env("SWISSARMYBENCH_INFO")
-    return Path(override) if override else home_state_folder() / "server.json"
+    override = os.environ.get("SWISSARMYBENCH_INFO", "")
+    return Path(override) if override else (Path.home() / ".swissarmybench") / "server.json"
 
 
 def _read_info() -> dict[str, Any] | None:
@@ -367,7 +366,7 @@ def push(
     if _process:
         headers["X-Process"] = _process
     # A Workbench kernel says which one it is: the table's cell goes into that kernel's document.
-    kernel = env("SWISSARMYBENCH_KERNEL", "")
+    kernel = os.environ.get("SWISSARMYBENCH_KERNEL", "")
     if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", kernel):
         headers["X-Kernel"] = kernel
     request = urllib.request.Request(

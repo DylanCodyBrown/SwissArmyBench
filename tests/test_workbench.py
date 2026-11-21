@@ -110,8 +110,7 @@ def test_the_workbench_folder_can_be_set_for_tests(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("SWISSARMYBENCH_WORKBENCH_DIR", str(tmp_path / "elsewhere"))
     assert Settings().workbench_dir == tmp_path / "elsewhere"
     monkeypatch.delenv("SWISSARMYBENCH_WORKBENCH_DIR")
-    monkeypatch.delenv("SWISSARMYGRID_WORKBENCH_DIR", raising=False)
-    monkeypatch.setenv("HOME", str(tmp_path))  # never this machine's own home (test_renamed.py)
+    monkeypatch.setenv("HOME", str(tmp_path))  # never this machine's own home
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
     assert Settings().workbench_dir == Path.home() / "SwissArmyBench"
 

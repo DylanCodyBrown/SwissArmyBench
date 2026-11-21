@@ -24,11 +24,10 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, expect
 
-from swissarmybench.renamed import env
 from tests import powerbi_pbix_fake as fake
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 ROOT = Path(__file__).resolve().parents[2]
 
 

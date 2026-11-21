@@ -8,6 +8,7 @@ With SWISSARMYBENCH_SHOTS set to a folder, the test also saves screenshots there
 
 from __future__ import annotations
 
+import os
 import re
 import urllib.error
 import urllib.request
@@ -16,10 +17,9 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmybench.renamed import env
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 
 
 def outline_text(server: dict[str, Any]) -> str:

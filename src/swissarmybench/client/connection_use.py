@@ -11,12 +11,12 @@ no rows). Standard library only, like the rest of the client.
 from __future__ import annotations
 
 import json
+import os
 import threading
 import urllib.parse
 import urllib.request
 
 from swissarmybench.client.push_client import _read_info
-from swissarmybench.renamed import env
 
 _TIMEOUT_SECONDS = 2.0
 
@@ -41,7 +41,7 @@ def _send(name: str, kind: str, ok: bool) -> None:
 def report(name: str, kind: str, ok: bool = True) -> None:
     """Tell the app a connection was used (`name`: the connection; a Power BI dataset's `Finance/Sales
     model` counts for Finance). Nothing happens outside a Workbench kernel."""
-    if not env("SWISSARMYBENCH_KERNEL", ""):
+    if not os.environ.get("SWISSARMYBENCH_KERNEL", ""):
         return
     base = name.split("/")[0].strip()
     if base:

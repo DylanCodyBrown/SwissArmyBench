@@ -106,7 +106,6 @@ from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.domain.table_cells import Origin as TableOrigin
-from swissarmybench.renamed import env
 from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
@@ -544,7 +543,7 @@ def bootstrap(
         ws,
         BetaFiles(state_dir / "logs" if audit_log else None, settings.beta_log_bytes, settings.beta_log_days),
         BetaSwitch(state_dir / "beta.json" if audit_log else None),
-        variable=env("SWISSARMYBENCH_BETA"),
+        variable=os.environ.get("SWISSARMYBENCH_BETA", ""),
         facts={
             "version": __version__,
             "os": f"{platform.system()} {platform.release()}",

@@ -74,5 +74,4 @@ def _magic(line: str, cell: str) -> None:
 def install(shell: Any) -> None:
     """`%%sab_html`: how the Workbench runs an HTML cell that asks for names."""
     if shell is not None:
-        for name in ("sab_html", "sag_html"):  # sag_html: the old name, for old notebooks (renamed.py)
-            shell.register_magic_function(_magic, magic_kind="cell", magic_name=name)
+        shell.register_magic_function(_magic, magic_kind="cell", magic_name="sab_html")

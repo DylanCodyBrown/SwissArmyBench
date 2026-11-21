@@ -12,8 +12,6 @@ import tempfile
 import time
 from pathlib import Path
 
-from swissarmybench.renamed import OLD_PREFIX
-
 MAX_OUTPUT_BYTES: int = 256 * 1024
 # What the app's own processes carry and a scheduled run must not: it is a run with no app.
 _DROPPED = ("SWISSARMYBENCH_KERNEL", "SWISSARMYBENCH_TOKEN", "SWISSARMYBENCH_PORT")
@@ -23,7 +21,7 @@ class ScriptRunner:
     async def run(
         self, python: str, script: str, arguments: list[str], environ: dict[str, str], seconds: float
     ) -> tuple[int | None, float, str]:
-        env = {k: v for k, v in environ.items() if k not in _DROPPED and not k.startswith(OLD_PREFIX)}
+        env = {k: v for k, v in environ.items() if k not in _DROPPED}
         nowhere = Path(tempfile.gettempdir()) / "swissarmybench-no-app" / "server.json"
         env |= {"SWISSARMYBENCH_INFO": str(nowhere), "PYTHONUNBUFFERED": "1", "PYTHONIOENCODING": "utf-8"}
         started = time.monotonic()

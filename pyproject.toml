@@ -54,12 +54,6 @@ swissarmybench = "swissarmybench.server.launcher:main"
 swissarmybench-mcp = "swissarmybench.mcp.server:main"
 sab = "swissarmybench.cli.main:main"
 swissarmybench-context = "swissarmybench.client.context_hook:main"
-# The old names, for one release (Swiss Army Bench was SwissArmyGrid): each says the new name on stderr,
-# then runs it (src/swissarmybench/renamed.py). The next release removes them.
-swissarmygrid = "swissarmybench.renamed:swissarmygrid"
-swissarmygrid-mcp = "swissarmybench.renamed:swissarmygrid_mcp"
-sag = "swissarmybench.renamed:sag"
-swissarmygrid-context = "swissarmybench.renamed:swissarmygrid_context"
 
 [dependency-groups]
 dev = [
@@ -84,8 +78,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-# src/swissarmygrid: the old name, a small package that is the new one under it, for one release.
-packages = ["src/swissarmybench", "src/swissarmygrid"]
+packages = ["src/swissarmybench"]
 
 # The plugin installs from the wheel, so the page ships inside it (built by build.py
 # with `npm run build:release`, which writes no source maps).

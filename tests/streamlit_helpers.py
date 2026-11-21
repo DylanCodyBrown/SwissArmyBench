@@ -3,6 +3,7 @@ for the Streamlit process, and the user at the page answering the agent's approv
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 import time
@@ -13,14 +14,12 @@ from typing import Any
 
 import pytest
 
-from swissarmybench.renamed import env
 from swissarmybench_streamlit.server import streamlit_apps
 
 
 def _streamlit_python() -> str | None:
     """A Python with Streamlit, pandas and pyarrow, for the tests that run the real thing."""
-    # SWISSARMYGRID_STREAMLIT_PYTHON, its name before the rename, is still read (renamed.env).
-    for python in (env("SWISSARMYBENCH_STREAMLIT_PYTHON"), sys.executable):
+    for python in (os.environ.get("SWISSARMYBENCH_STREAMLIT_PYTHON", ""), sys.executable):
         if not python or not Path(python).is_file():
             continue
         try:

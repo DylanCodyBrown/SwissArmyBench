@@ -199,8 +199,6 @@ def frame(filename: str, line: int | None, function: str) -> str:
     else:
         if "/swissarmybench/" in path:
             path = "swissarmybench/" + path.rsplit("/swissarmybench/", 1)[1]
-        elif "/swissarmygrid/" in path:
-            path = "swissarmygrid/" + path.rsplit("/swissarmygrid/", 1)[1]
         elif re.search(r"/lib/python3[\d.]*/", path):
             path = "python/" + re.split(r"/lib/python3[\d.]*/", path, maxsplit=1)[1]
         elif re.search(r"/Lib/", path):

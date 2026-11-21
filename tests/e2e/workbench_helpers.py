@@ -4,6 +4,7 @@ notebook with its Python."""
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -14,12 +15,11 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables
 from tests.e2e.test_ui import call
 
 LONG = 60000  # Streamlit's first start, in milliseconds
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 ORDERS = pd.DataFrame(
     {
         "order_id": [1, 2, 3, 4, 5, 6],

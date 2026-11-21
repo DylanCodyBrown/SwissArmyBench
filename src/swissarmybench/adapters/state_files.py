@@ -39,7 +39,6 @@ from swissarmybench.domain.relationships import (
     set_file_name,
     write_set,
 )
-from swissarmybench.renamed import env, home_state_folder
 
 # ===== the audit log =====
 # The audit log: one JSON line per action, never a cell value (plan section 6, rule 9).
@@ -211,8 +210,8 @@ class ThemeFiles:
 
 def info_file_path() -> Path:
     """Where the connection file lives. SWISSARMYBENCH_INFO overrides it (tests use this)."""
-    override: str | None = env("SWISSARMYBENCH_INFO")
-    return Path(override) if override else home_state_folder() / "server.json"
+    override: str | None = os.environ.get("SWISSARMYBENCH_INFO", "")
+    return Path(override) if override else (Path.home() / ".swissarmybench") / "server.json"
 
 
 def write_info_file(path: Path, info: dict[str, Any]) -> None:
@@ -320,7 +319,9 @@ class ModelFiles:
             (self.mine, "mine"),
         ]
         folders += [
-            (Path(p), "environment") for p in env("SWISSARMYBENCH_MODELS", "").split(os.pathsep) if p.strip()
+            (Path(p), "environment")
+            for p in os.environ.get("SWISSARMYBENCH_MODELS", "").split(os.pathsep)
+            if p.strip()
         ]
         folders += [(Path(p), "shared") for p in self.shared_folders()]
         folders = [(folder, "pack") for folder, _ in self._packs()] + folders  # a clone wins over its install

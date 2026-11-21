@@ -39,7 +39,6 @@ from swissarmybench.adapters.blades import KEYRING_SERVICE, BladeStore
 from swissarmybench.domain import dataverse, lakes, library, python_connections
 from swissarmybench.domain.blades import Blade, VaultUnavailableError, is_blade, read_blade
 from swissarmybench.domain.connections import connection_kind, env_name_for
-from swissarmybench.renamed import env, home_state_folder
 
 _PACKAGE = Path(__file__).resolve().parents[1]
 
@@ -61,8 +60,8 @@ class _Store(BladeStore):
 
 
 def _state() -> Path:
-    override = env("SWISSARMYBENCH_STATE")
-    return Path(override) if override else home_state_folder()
+    override = os.environ.get("SWISSARMYBENCH_STATE", "")
+    return Path(override) if override else (Path.home() / ".swissarmybench")
 
 
 def _library() -> Path:
