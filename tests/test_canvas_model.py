@@ -154,27 +154,6 @@ def test_overrides_of_properties_that_went_are_pruned_and_said() -> None:
     assert said == ["w1 (metric): gone went with the widget's code."]
 
 
-def test_the_page_reproduces_the_pixels_and_wraps_each_widget() -> None:
-    canvas, c1 = run(
-        model.new_canvas("Sales"), "add_container", x=13, y=7, w=401, h=203, props={"title": "KPIs"}
-    )
-    canvas, _ = run(
-        canvas, "insert_widget", parent=c1, widget="metric", x=5, y=31, values={"label": "Orders"}
-    )
-    canvas = run(canvas, "set_container", id=c1, props={"scrollable": True, "resizable": True})[0]
-    files = build.build(canvas, BUILT)
-    assert not build.compiles(files)
-    page = files["app_pages/page_1.py"]
-    assert ".st-key-sab-page { position: relative; width: 1200px;" in page
-    assert ".st-key-sab-c1 { position: absolute; left: 13px; top: 7px; width: 401px;" in page
-    assert ".st-key-sab-w1 { position: absolute; left: 4px; top: 30px;" in page  # inside c1's 1 px border
-    assert "resize: both" in page and "with st.container(border=True, height=203, key='sab-c1'):" in page
-    assert 'sab.render(\'metric\', {"label": "Orders", "value": 42}, \'w1\')' in page
-    assert 'sab.heading("KPIs")' in page
-    assert "st.navigation(pages, position='hidden')" in files["app.py"]
-    assert "CODE['metric']" in files["sab_widgets.py"] and "CODE['chart']" not in files["sab_widgets.py"]
-
-
 @pytest.mark.parametrize("seed", range(40))
 def test_random_commands_keep_every_rule_and_the_page_compiles(seed: int) -> None:
     """Random sequences of the commands (add, move, resize, nest, insert, delete, undo, redo, columns, width):
@@ -262,5 +241,3 @@ def test_random_commands_keep_every_rule_and_the_page_compiles(seed: int) -> Non
         canvas = after
         assert model.problems(canvas, FACTS) == [], (seed, kind, body)
         assert model.read(model.write(canvas), FACTS).canvas == canvas
-    files = build.build(canvas, BUILT)
-    assert build.compiles(files) == []

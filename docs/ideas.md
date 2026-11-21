@@ -6754,14 +6754,31 @@ Decisions:
   each drawn from made-up sample data when no table is picked; a test runs all of them with AppTest.
 - The Widgets window is `static/widget.html` (its own build page, no rail): the list, Monaco with the Workbench's
   intelligence over a kernel of its own (primed with the runtime, so `from sab_canvas import table` completes),
-  Copilot's ghost text where on, Run in place through the Streamlit proxy (/streamlit/run/), Edit or Esc back; a
-  failing run is said above the frame and its line marked in the code. Its panes fold (Ctrl+B, Ctrl+Alt+B), as
-  design principle 8.14 asks.
+  Copilot's ghost text where on. It is built on codeIde.ts (the blade IDE's shell: the slim bar, Monaco, its
+  Properties pane, the Output | Result | Problems panel; codeIde gained `actions`, `stage`, `propertiesOpen`,
+  `setStage` and `toggleProperties`, generic). One two-state switch, **Code | Preview** (the coordinator,
+  2026-11-21), replaced Run and Edit: Preview (F5, chosen over Ctrl+Shift+V because F5 already meant run in
+  the Workbench and the blade IDE) runs the widget through the Streamlit proxy (/streamlit/run/) and shows it in
+  the editor's place; Code (Esc) goes back; a failing run is the error panel in the Preview with "Go to line N in
+  the code" (the line also marked); the view is remembered per widget in sessionStorage. Its panes fold (Ctrl+B,
+  Ctrl+Alt+B), as design principle 8.14 asks.
 - The Canvas is a page of its own (`static/canvas.html`, with the rail; the rail's Apps is Canvas, `apps` answers
   as `canvas` one release in app_navigate, `?kind=app` goes to the page). Its file is `<app>.canvas.json`, a
-  project file, sorted and byte-stable. Every place and size is in PIXELS (the owner's "very fine precision"): the
-  page is 1200 px wide (wide) or 704 px (centered, Streamlit's column); columns, row height and gap are a guide to
-  snap to, never a limit. Snap (on by default, kept with the canvas) puts edges on the step (1, 2, 4, 8 px or a grid
+  project file, sorted and byte-stable (format 2). **Two layouts, Phone and Desktop** (the owner, 2026-11-21:
+  "Canvas should only have two layouts phone portrait and desktop just like powerapps but ... always resizable";
+  domain/canvas_layouts.py): every item is in both, `at: {desktop: {x, y, w, h}, phone: {...}}`, x and w fractions
+  of the parent's width (6 digits: a pixel round-trips at both design widths), y and h pixels; `show` (both,
+  desktop, phone). The pixel engine (canvas_model.py) keeps its rules: each layout is viewed in pixels at its
+  design width (desktop 1200, phone 390), the command applied there, the fractions written back; an item new to
+  one layout is placed in the other (phone: stacked full width under what is there, in reading order; desktop:
+  the first free place at its size). Format 1 files are read as desktop with a phone layout made (said once).
+  The built page fills the browser's width (layout wide): each box `left: calc((100% + 2px) * fx - 1px)` inside a
+  bordered parent, desktop CSS by default and the phone's under `@media (max-width: 767px)`, so it picks its layout
+  by width with no rerun; the page root is `flex: none` (Streamlit's own `flex: 1 1 0%` made it 0 px high). The
+  canvas view previews any width in the layout's range by its frame's right-edge handle (desktop 768-1920,
+  phone 320-767, its px shown), x and w drawn scaled; layout and preview width kept per canvas for the session.
+  Play's address is the app's own (the played page is its default): a page's path said "Page not found" first.
+  Columns, row height and gap are a guide to snap to, never a limit. Snap (on by default, kept with the canvas) puts edges on the step (1, 2, 4, 8 px or a grid
   cell) and on other items' edges and centres within 4 screen pixels with guides (canvasSnap.ts's maths); Alt places
   freely for one drag; arrows nudge by the step (Shift ten, Alt one pixel); the dots thin out to stay 12 screen
   pixels apart; zoom scales the view only and is kept per canvas for the session.
@@ -6791,9 +6808,15 @@ Decisions:
   desktop app's own engine, already a dependency) in a child process; kept in the state folder's widget-previews/
   by the widget file's hash and the theme; one at a time in the background; the gallery shows a placeholder until
   it is there, a failing one's mark.
-- The Canvas's layout (the owner's, with the coordinator's mockup): the top bar holds the page tabs and +; the
-  bottom bar the sizing, Snap and its step, Undo and Redo, Play, Launch, Export, the Widgets and Properties toggles
-  and the zoom; Properties (nearest the canvas) and Widgets (far right) are two panes, each resizable and hidden
+- The Canvas's layout (the owner's, with the coordinator's mockup): the top row holds the page tabs and +, and at
+  its right end Play and Export as a block of their own (the owner, 2026-11-21: "Move play launch export to a
+  right click in the canvas", then, on the coordinator's plan, "make them look permanent and pronounced"): Play
+  the page's primary button (34 px, the accent fill, bold 14 px, a soft shadow) with its ▾ (Launch, Ctrl+F5),
+  Stop in its place while the app plays or is launched; Export a raised secondary button; never folded, the tabs
+  scroll instead. The same group (Play Shift+F5, Launch Ctrl+F5, Export… Ctrl+Shift+E; Stop while running) ends
+  every right-click menu of the canvas. Launch with the Performance Analyzer is not offered: the analyzer was not
+  carried over to the widget canvas. The bottom bar holds the sizing with Desktop | Phone and the preview width,
+  Snap and its step, Undo and Redo, the Widgets and Properties toggles and the zoom; Properties (nearest the canvas) and Widgets (far right) are two panes, each resizable and hidden
   completely by its toggle (remembered per canvas; a hidden Properties pane stays hidden on a selection, its button
   shows a dot); a card's hover shows its preview at 480 px.
 

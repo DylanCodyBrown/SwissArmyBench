@@ -16,7 +16,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench_streamlit.domain import canvas_model as model
+from swissarmybench_streamlit.domain import canvas_layouts as model
 from tests.conftest import AGENT, AUTH, make_client, push
 from tests.streamlit_helpers import FakeRunner, answering
 
@@ -56,7 +56,8 @@ def test_every_change_is_saved_at_once_and_undoable(served: tuple[TestClient, Fa
     made = ok(command(client, canvas, "add_container", x=10, y=20, w=400, h=200, version=1))
     assert made["made"] == "c1" and made["version"] == 2
     on_disk = json.loads(path.read_text())
-    assert on_disk["pages"][0]["children"][0]["x"] == 10
+    assert on_disk["format"] == 2
+    assert on_disk["pages"][0]["children"][0]["at"]["desktop"]["x"] == round(10 / 1200, 6)
     ok(command(client, canvas, "insert_widget", parent="c1", widget="metric", values={"label": "Orders"}))
     ok(command(client, canvas, "set_container", id="c1", props={"scrollable": True, "title": "KPIs"}))
     after = ok(client.post(f"/streamlit/canvases/{canvas}/undo", headers=AUTH))
@@ -184,7 +185,7 @@ def test_play_launch_and_export_are_one_builder(
     )
     played = ok(client.post(f"/streamlit/canvases/{canvas}/play", headers=AUTH, json={"python": "/p"}))
     folder = Path(runner.started[-1][1])
-    assert played["url"].endswith("/page_1") and (folder / "data" / "orders.parquet").is_file()
+    assert played["url"].endswith("/") and (folder / "data" / "orders.parquet").is_file()
     page = (folder / "app_pages" / "page_1.py").read_text()
     launched = ok(client.post(f"/streamlit/canvases/{canvas}/launch", headers=AUTH, json={"python": "/p"}))
     build = project / "builds" / "sales" / "1"
@@ -222,3 +223,29 @@ def test_the_agents_export_waits_for_the_users_allow(
     with answering(pending, answer, approve=True):
         ok(client.post(f"/streamlit/canvases/{canvas}/export", headers=AGENT, json={"folder": str(out)}))
     assert (out / "app.py").is_file()
+
+
+def test_a_runs_address_always_finds_its_run() -> None:
+    """A run's address is <key>-<secret>, split at its last "-": the secret never holds one (a token with "-"
+    sent Play, a widget's Preview and a preview's picture to 404 at random)."""
+    from swissarmybench_streamlit.server.live_runs import Live, LiveRuns
+
+    runs = LiveRuns.__new__(LiveRuns)
+    runs._runs = {}
+    for n in range(300):
+        live = Live(f"canvas-cv{n}")
+        assert "-" not in live.secret
+        live.process = type("P", (), {"port": 8000 + n, "alive": lambda self: True})()
+        runs._runs[live.key] = live
+        assert runs.port_of(live.base.rsplit("/", 1)[-1]) == 8000 + n
+
+
+def test_stop_ends_play_or_the_launched_app(served: tuple[TestClient, FakeRunner, Path]) -> None:
+    client, _, project = served
+    canvas = opened(client, project)["canvas"]
+    for run in ("play", "launch"):
+        assert ok(client.post(f"/streamlit/canvases/{canvas}/stop", headers=AUTH, json={"run": run})) == {
+            "ok": False
+        }
+    refused = client.post(f"/streamlit/canvases/{canvas}/stop", headers=AUTH, json={"run": "everything"})
+    assert refused.status_code == 403 and "play or launch" in refused.text

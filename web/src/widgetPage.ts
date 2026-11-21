@@ -11,9 +11,13 @@
  *                the project's Python: Jedi's member list, signatures, hovers, the lint; Copilot's ghost text
  *                where the mode declares it); the code saved as you type (a prebuilt one is read-only: Copy as
  *                your own)
- *   [RUN]        Run (F5) turns the editor into the running widget, in place (the widget alone through the
- *                Streamlit proxy, with the properties' values); Edit (or Esc) turns it back into code. A run
- *                that fails says so in place, and its line is marked in the code
+ *   [CODE|PREVIEW] one two-state switch in the slim bar (the owner, 2026-11-21: "one two-state switch: Code |
+ *                Preview"): Preview (F5) runs the widget and shows it in the editor's place (the widget alone
+ *                through the Streamlit proxy, with the properties' values); Code (or Esc) turns it back into
+ *                code. A run that fails shows the error panel in the Preview with a link to its line in the
+ *                Code. Which one a widget was in is remembered for the session (sessionStorage)
+ *   [IDE]        the middle is codeIde.ts (the blade IDE's shell: the slim bar, Monaco, Properties, the
+ *                Output | Result | Problems panel folded until wanted)
  *   [PROPERTIES] right: Name (checked live: available, taken, not a valid name) and Description (the file's
  *                header only), then the properties the code makes (its top-level plain values), each with its
  *                mask; a value is checked before it is kept and written into only its own characters
@@ -23,10 +27,11 @@
  */
 import { api, connect, onNotice, requireSession } from "./api";
 import { button, clear, h, icon } from "./dom";
-import { clearError, errorHere, showError } from "./errorNote";
+import { errorHere, showError } from "./errorNote";
 import { inlineSource } from "./inlineCompletion";
 import type { CodeEditor } from "./lazy/codeEditor";
-import { busy, busyButton, loadingBlock } from "./loading";
+import { type CodeIde, codeIde } from "./codeIde";
+import { busy, loadingBlock } from "./loading";
 import { watchTheme } from "./catalogRail";
 import { effectiveTheme, onThemeChange } from "./theme";
 import { pythonCompleter } from "./workbenchCompletion";
@@ -60,7 +65,6 @@ export interface Context {
   variables: string[];
 }
 
-const loadEditors = (): Promise<typeof import("./lazy/codeEditor")> => import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>;
 
 const params = new URLSearchParams(location.search);
 const root = document.getElementById("widgets")!;
@@ -77,31 +81,31 @@ let applying = false;
 const list = h("nav", { class: "wg-list", "aria-label": "Widgets" });
 const search = h("input", { type: "search", class: "wg-search", placeholder: "Search widgets", "aria-label": "Search widgets", "data-no-variables": "" });
 const listItems = h("div", { class: "wg-items", role: "listbox", "aria-label": "Widgets" });
-const title = h("h1", { class: "wg-title" }, "Widgets");
 const saved = h("span", { class: "wg-saved", "aria-live": "polite" });
-const runButton = button("Run", () => void run(), { icon: "play", class: "primary wg-run", title: "Run (F5)" });
-const editButton = button("Edit", () => edit(), { icon: "edit", class: "wg-edit", title: "Edit (Esc)" });
-const copyButton = button("Copy as your own", () => void copyCurrent(), { icon: "copy", class: "wg-copy" });
-const stage = h("div", { class: "wg-stage" });
-const editorHost = h("div", { class: "wg-editor" });
-const frameHost = h("div", { class: "wg-frame-host", hidden: true });
-const ranNote = h("div", { class: "wg-ran-note" });
-const props = h("aside", { class: "wg-props", "aria-label": "Properties" });
+const copyButton = button("Copy as your own", () => void copyCurrent(), { icon: "copy", class: "ide-btn ghost wg-copy" });
+// Code | Preview: one two-state switch (F5 Preview, Esc Code).
+const codeTab = h("button", { type: "button", class: "wg-mode-item on", "aria-pressed": "true", "data-mode": "code", title: "Code (Esc)", onclick: () => edit() }, icon("code"), "Code");
+const previewTab = h("button", { type: "button", class: "wg-mode-item", "aria-pressed": "false", "data-mode": "preview", title: "Preview (F5)", onclick: () => void run() }, icon("play"), "Preview");
+const modeSwitch = h("span", { class: "wg-mode", role: "group", "aria-label": "Code or Preview" }, codeTab, previewTab);
+const frameHost = h("div", { class: "wg-frame-host" });
+const props = h("div", { class: "wg-props", "aria-label": "Properties" });
+const main = h("section", { class: "wg-main" });
+let ide: CodeIde | null = null;
 
-// The panes beside the editor fold away and stay folded (design principle 8.14: never crowd the code).
+// The widgets list folds away and stays folded (design principle 8.14: never crowd the code); Properties is
+// codeIde.ts's own pane (its switch, Ctrl+Alt+B).
 const FOLDED = "sab.widgets.folded";
-function folded(): { list: boolean; props: boolean } {
+function folded(): { list: boolean } {
   try {
-    return { list: false, props: false, ...(JSON.parse(localStorage.getItem(FOLDED) ?? "{}") as object) };
+    return { list: false, ...(JSON.parse(localStorage.getItem(FOLDED) ?? "{}") as object) };
   } catch {
-    return { list: false, props: false };
+    return { list: false };
   }
 }
-function fold(pane: "list" | "props", on?: boolean): void {
+function fold(on?: boolean): void {
   const now = folded();
-  now[pane] = on ?? !now[pane];
+  now.list = on ?? !now.list;
   root.classList.toggle("no-list", now.list);
-  root.classList.toggle("no-props", now.props);
   try {
     localStorage.setItem(FOLDED, JSON.stringify(now));
   } catch {
@@ -109,25 +113,40 @@ function fold(pane: "list" | "props", on?: boolean): void {
   }
   window.requestAnimationFrame(() => editor?.layout());
 }
-const listToggle = button("Widgets list (Ctrl+B)", () => fold("list"), { icon: "panel", iconOnly: true, class: "ghost wg-fold" });
-const propsToggle = button("Properties (Ctrl+Alt+B)", () => fold("props"), { icon: "properties", iconOnly: true, class: "ghost wg-fold" });
+const listToggle = button("Widgets list (Ctrl+B)", () => fold(), { icon: "panel", iconOnly: true, class: "ide-btn ghost wg-fold" });
+
+/** Which a widget was in, Code or Preview, for this session. */
+function viewOf(name: string): "code" | "preview" {
+  try {
+    return sessionStorage.getItem(`sab.widgets.view:${name}`) === "preview" ? "preview" : "code";
+  } catch {
+    return "code";
+  }
+}
+function keepView(name: string, view: "code" | "preview"): void {
+  try {
+    sessionStorage.setItem(`sab.widgets.view:${name}`, view);
+  } catch {
+    /* this widget's view is not remembered */
+  }
+}
+function drawMode(): void {
+  codeTab.classList.toggle("on", !running);
+  codeTab.setAttribute("aria-pressed", String(!running));
+  previewTab.classList.toggle("on", running);
+  previewTab.setAttribute("aria-pressed", String(running));
+}
 
 function layout(): void {
   root.classList.toggle("no-list", folded().list);
-  root.classList.toggle("no-props", folded().props);
   clear(root);
   list.append(
     h("div", { class: "wg-list-top" }, search, button("New widget", () => void newWidget(), { icon: "plus", class: "wg-new" })),
     listItems,
   );
-  stage.append(editorHost, frameHost);
-  editButton.hidden = true;
   copyButton.hidden = true;
-  root.append(
-    list,
-    h("section", { class: "wg-main" }, h("div", { class: "wg-bar" }, listToggle, title, saved, h("span", { class: "wg-grow" }), copyButton, editButton, runButton, propsToggle), ranNote, stage),
-    props,
-  );
+  clear(main, loadingBlock("Loading the editor…"));
+  root.append(list, main);
 }
 
 // ===== the list =====
@@ -191,7 +210,7 @@ async function prime(): Promise<void> {
 }
 
 async function select(name: string, keepUrl = false): Promise<void> {
-  if (running) edit();
+  if (running) toCode();
   await flush();
   try {
     current = await api<WidgetFull>(`/streamlit/widgets/${encodeURIComponent(name)}`);
@@ -201,50 +220,62 @@ async function select(name: string, keepUrl = false): Promise<void> {
   }
   if (!keepUrl) history.replaceState(null, "", `?name=${encodeURIComponent(name)}${location.hash}`);
   document.title = `${name} · Widgets`;
-  title.textContent = current.name;
+  ide?.setName(current.name);
   saved.textContent = current.prebuilt ? "Prebuilt: read-only" : "";
   copyButton.hidden = !current.prebuilt;
   drawList();
   await showEditor(current);
   drawProps();
+  if (viewOf(name) === "preview") void run();
 }
 
 async function showEditor(widget: WidgetFull): Promise<void> {
-  if (editor) {
+  if (editor && ide) {
     applying = true;
-    editor.setValue(widget.code);
+    ide.setValue(widget.code, true);
     applying = false;
     editor.setReadOnly(widget.prebuilt);
     editor.lint();
     return;
   }
-  clear(editorHost, loadingBlock("Loading the editor…"));
-  const m = await loadEditors();
-  clear(editorHost);
   const names = (): { connections: string[]; blades: string[] } => ({ connections: [], blades: [] });
   const python = pythonCompleter(kernel, names);
   const docName = (): string => current?.file || `${current?.name ?? "widget"}.widget.py`;
   const intel = pythonIntel(kernel, { notebook: false, document: docName });
-  editor = m.createCodeEditor(editorHost, {
+  // The blade IDE's shell (codeIde.ts): the slim bar (the list's fold, the name, Saved, Copy as your own,
+  // Code | Preview, Properties), Monaco with the Workbench's intelligence, the panel folded until wanted.
+  ide = codeIde({
+    name: widget.name,
+    badge: saved,
     language: "python",
     value: widget.code,
-    theme: effectiveTheme(),
-    readOnly: widget.prebuilt,
-    readOnlyMessage: "A prebuilt widget is read-only: Copy as your own to change it.",
-    keys: { f5: () => void run(), escape: () => edit() },
-    complete: async (text, offset) => {
-      void prime();
-      return (await intel.complete(text, offset)) ?? python(text, offset);
+    theme: effectiveTheme,
+    actions: [copyButton, modeSwitch],
+    stage: frameHost,
+    properties: props,
+    propertiesOpen: true,
+    remember: "widgets",
+    editor: {
+      readOnly: widget.prebuilt,
+      readOnlyMessage: "A prebuilt widget is read-only: Copy as your own to change it.",
+      keys: { f5: () => void run(), escape: () => edit() },
+      complete: async (text, offset) => {
+        void prime();
+        return (await intel.complete(text, offset)) ?? python(text, offset);
+      },
+      intel: {
+        signature: intel.signature,
+        hover: intel.hover,
+        lint: intel.lint,
+        onLint: (problems) => showProblems(`widget:${docName()}`, { document: docName(), place: "", problems, reveal: (line, column) => editor?.reveal(line, column) }),
+      },
+      help: (code, offset) => kernel.help(code, offset),
+      inline: inlineSource(() => (current ? { key: `widget-${current.name}`, name: `${current.name}.py`, kind: "script", language: "python", text: editor?.value() ?? "" } : null)),
     },
-    intel: {
-      signature: intel.signature,
-      hover: intel.hover,
-      lint: intel.lint,
-      onLint: (problems) => showProblems(`widget:${docName()}`, { document: docName(), place: "", problems, reveal: (line, column) => editor?.reveal(line, column) }),
-    },
-    help: (code, offset) => kernel.help(code, offset),
-    inline: inlineSource(() => (current ? { key: `widget-${current.name}`, name: `${current.name}.py`, kind: "script", language: "python", text: editor?.value() ?? "" } : null)),
   });
+  ide.element.querySelector(".ide-bar")?.prepend(listToggle);
+  clear(main, ide.element);
+  editor = await ide.ready;
   editor.onChange(() => {
     if (applying || !current) return;
     if (!current.prebuilt) {
@@ -327,7 +358,7 @@ function headerFields(widget: WidgetFull): HTMLElement {
     try {
       const after = await api<WidgetFull>(`/streamlit/widgets/${encodeURIComponent(current.name)}`, "PATCH", changes);
       current = { ...current, ...after };
-      title.textContent = after.name;
+      ide?.setName(after.name);
       document.title = `${after.name} · Widgets`;
       history.replaceState(null, "", `?name=${encodeURIComponent(after.name)}${location.hash}`);
       line.textContent = "";
@@ -354,7 +385,7 @@ function drawProps(): void {
   clear(props);
   if (!current) return;
   const widget = current;
-  props.append(h("h2", { class: "wg-props-title" }, "Properties"), headerFields(widget));
+  props.append(headerFields(widget));
   if (widget.problem) props.append(h("div", { class: "wg-props-problem" }, icon("warning"), `${widget.problem.error} ${widget.problem.fix}`));
   const values: Record<string, unknown> = Object.fromEntries(widget.properties.map((p) => [p.name, p.default]));
   if (!widget.properties.length && !widget.problem) props.append(h("p", { class: "wg-props-none" }, "A top-level value in the code (title = \"Sales\") is a property."));
@@ -405,49 +436,64 @@ function drawProps(): void {
 // ===== Run in place =====
 
 async function run(): Promise<void> {
-  if (!current || !editor) return;
+  if (!current || !editor || !ide) return;
   const widget = current;
-  clearError(ranNote);
-  await busyButton(runButton, async () => {
-    try {
-      const said = await busy(stage, `Running ${widget.name}…`, api<{ ok: boolean; url?: string; problem?: { kind: string; message?: string; feature?: string; command?: string } }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/run`, "POST", { code: editor!.value(), window: WINDOW_ID }), { errorIn: false });
-      if (!said.ok || !said.url) {
-        showError(ranNote, new Error(said.problem?.message ?? (said.problem?.kind === "missing" ? `Streamlit widgets need ${said.problem.command ?? "Streamlit"} in this Python.` : "The widget did not run.")));
-        return;
-      }
-      const frame = h("iframe", { class: "wg-frame", src: said.url, title: `${widget.name}, running` });
-      clear(frameHost, frame);
-      editorHost.hidden = true;
-      frameHost.hidden = false;
-      running = true;
-      runButton.textContent = "Run again";
-      editButton.hidden = false;
-      // Its errors, headless: said above the frame, and the line marked in the code.
-      void api<{ ok: boolean; pages?: { failed: string[]; exceptions: string[] }[] }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/check`, "POST", { code: editor!.value() })
-        .then((checked) => {
-          const failed = (checked.pages ?? []).flatMap((p) => [...p.failed, ...p.exceptions]);
-          if (!failed.length) return;
-          showError(ranNote, new Error(failed[0]!));
-          const line = /\(line (\d+)\)/.exec(failed.join("\n"));
-          if (line) editor?.setProblems([{ line: Number(line[1]), col: null, endLine: Number(line[1]), endCol: null, message: failed[0]!, hover: failed[0]!, severity: "error", fixes: [] }]);
-        })
-        .catch(() => undefined);
-    } catch (e) {
-      showError(ranNote, e);
+  const code = editor.value();
+  running = true;
+  keepView(widget.name, "preview");
+  drawMode();
+  ide.setStage(true);
+  try {
+    const said = await busy(frameHost, `Running ${widget.name}…`, api<{ ok: boolean; url?: string; problem?: { kind: string; message?: string; feature?: string; command?: string } }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/run`, "POST", { code, window: WINDOW_ID }), { errorIn: false });
+    if (!running || current !== widget) return;
+    if (!said.ok || !said.url) {
+      failed(new Error(said.problem?.message ?? (said.problem?.kind === "missing" ? `Streamlit widgets need ${said.problem.command ?? "Streamlit"} in this Python.` : "The widget did not run.")), null);
+      return;
     }
-  });
+    clear(frameHost, h("iframe", { class: "wg-frame", src: said.url, title: `${widget.name}, running` }));
+    // Its errors, headless: the error panel in the Preview, its line linked to the Code (and marked there).
+    void api<{ ok: boolean; pages?: { failed: string[]; exceptions: string[] }[] }>(`/streamlit/widgets/${encodeURIComponent(widget.name)}/check`, "POST", { code })
+      .then((checked) => {
+        const found = (checked.pages ?? []).flatMap((p) => [...p.failed, ...p.exceptions]);
+        if (!found.length || !running || current !== widget) return;
+        const line = /\(line (\d+)\)/.exec(found.join("\n"));
+        const at = line ? Number(line[1]) : null;
+        if (at) editor?.setProblems([{ line: at, col: null, endLine: at, endCol: null, message: found[0]!, hover: found[0]!, severity: "error", fixes: [] }]);
+        failed(new Error(found[0]!), at);
+      })
+      .catch(() => undefined);
+  } catch (e) {
+    failed(e, null);
+  }
+}
+
+/** A failed run: the error panel in the Preview, above what drew; a link back to its line in the Code. */
+function failed(error: unknown, line: number | null): void {
+  const note = h("div", { class: "wg-preview-error" });
+  frameHost.prepend(note);
+  showError(note, error);
+  if (line !== null) {
+    note.append(
+      button(`Go to line ${line} in the code`, () => {
+        edit();
+        editor?.reveal(line, 1);
+      }, { icon: "code", class: "ghost wg-goto-line" }),
+    );
+  }
 }
 
 function edit(): void {
+  if (current) keepView(current.name, "code");
+  toCode();
+}
+
+/** Back to the code (the remembered view left as it is: another widget chosen). */
+function toCode(): void {
   if (!running) return;
   running = false;
-  frameHost.hidden = true;
   clear(frameHost);
-  editorHost.hidden = false;
-  editButton.hidden = true;
-  runButton.replaceChildren(icon("play"), "Run");
-  editor?.layout();
-  editor?.focus();
+  drawMode();
+  ide?.setStage(false);
   void api("/streamlit/widgets/stop", "POST", { window: WINDOW_ID }).catch(() => undefined);
 }
 
@@ -495,14 +541,15 @@ async function start(): Promise<void> {
       void loadList();
       const said = notice as unknown as { name: string; old?: string | null };
       // Changed by the agent (or another window) while it is not being typed in: shown as it is now.
-      if (current && (said.name === current.name || said.old === current.name) && saveTimer === null && !editor?.hasFocus()) void select(said.name, true);
+      if (current && (said.name === current.name || said.old === current.name) && saveTimer === null && !editor?.hasFocus() && !props.contains(document.activeElement)) void select(said.name, true);
     }
     if (notice.type === "tables_changed" || notice.type === "dataset_added" || notice.type === "dataset_closed") void loadContext().then(drawProps);
   });
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
       e.preventDefault();
-      fold(e.altKey ? "props" : "list");
+      if (e.altKey) ide?.toggleProperties();
+      else fold();
     }
     if (e.key === "Escape" && running) edit();
     if (e.key === "F5") {

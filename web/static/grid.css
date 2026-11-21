@@ -18508,20 +18508,13 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 }
 .wg {
   display: grid;
-  grid-template-columns: 250px minmax(0, 1fr) 300px;
+  grid-template-columns: 250px minmax(0, 1fr);
   height: 100vh;
 }
 .wg.no-list {
-  grid-template-columns: 0 minmax(0, 1fr) 300px;
+  grid-template-columns: 0 minmax(0, 1fr);
 }
-.wg.no-props {
-  grid-template-columns: 250px minmax(0, 1fr) 0;
-}
-.wg.no-list.no-props {
-  grid-template-columns: 0 minmax(0, 1fr) 0;
-}
-.wg.no-list .wg-list,
-.wg.no-props .wg-props {
+.wg.no-list .wg-list {
   display: none;
 }
 .wg-list {
@@ -18634,10 +18627,8 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   background: #ffffff;
 }
 .wg-props {
-  border-left: 1px solid var(--border);
-  background: var(--surface);
-  overflow: auto;
-  padding: 10px 12px 16px;
+  display: flex;
+  flex-direction: column;
 }
 .wg-props-title {
   margin: 0 0 8px;
@@ -19354,6 +19345,7 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   background: var(--selected);
   color: var(--fg);
   border-color: var(--border-strong);
+}
 
 /* ===== codeIde.ts: a page that is an IDE (the owner, 2026-11-21: "This is an IDE not a save form") ===== */
 
@@ -20065,3 +20057,58 @@ body.queries-window {
 .queries-table td:nth-child(5) {
   width: 112px;
 }
+
+/* The Canvas's two layouts: the page frame's right edge previews another width; an item shown in the other
+   layout only is faded here. */
+.cvs-width-handle { position: absolute; top: 0; right: -10px; width: 10px; height: 100%; cursor: ew-resize; z-index: 5; display: flex; align-items: flex-start; justify-content: center; }
+.cvs-width-handle::before { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: var(--border); }
+.cvs-width-handle:hover::before { background: var(--accent); }
+.cvs-width-label { position: sticky; top: 8px; margin-top: 8px; left: 14px; transform: translateX(14px); white-space: nowrap; font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; pointer-events: none; }
+.cvs-node.hidden-here { opacity: 0.35; outline: 1px dashed var(--muted); }
+.cvs-layouts { flex-shrink: 0; }
+.cvs-layouts .cvs-seg-item { white-space: nowrap; }
+.cvs-layouts .icon-svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+
+/* The Widgets window on codeIde.ts: Code | Preview, the Preview in the editor's place. */
+.wg-main > .code-ide { flex: 1; min-height: 0; }
+.ide-stage { position: relative; flex: 1; min-height: 80px; display: flex; flex-direction: column; }
+.ide-stage[hidden] { display: none; }
+.ide-editor[hidden] { display: none; }
+.wg-frame-host { position: relative; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.wg-frame-host .wg-frame { flex: 1; }
+.wg-preview-error { padding: 10px 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.wg-mode { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.wg-mode-item { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.wg-mode-item + .wg-mode-item { border-left: 1px solid var(--border-strong); }
+.wg-mode-item.on { background: var(--selected); color: var(--fg); font-weight: 600; }
+.wg-mode-item .icon-svg { width: 14px; height: 14px; }
+.wg-props .wg-header { margin-top: 0; }
+
+/* The Canvas's right-click run group: its keys at the right, a line above the group. */
+.cvs-menu-key { margin-left: auto; padding-left: 16px; font-family: inherit; font-size: 0.75rem; color: var(--muted); background: none; border: 0; }
+.cvs-menu-sep { height: 1px; margin: 4px 6px; background: var(--border); }
+.cvs-width-field .cvs-preview-width { width: 64px; }
+
+/* The Canvas's top row (the owner, 2026-11-21: "make them look permanent and pronounced"): the page tabs scroll;
+   Play and Export are a block of their own at the right end, set off by a divider, never folded or hidden. */
+.cvs-top { min-height: 50px; padding: 0 0 0 8px; gap: 0; }
+.cvs-top .cvs-tabs { flex: 1; min-width: 0; }
+.cvs-top .cvs-grow { display: none; }
+.cvs-run { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; align-self: stretch; padding: 0 12px; margin-left: 8px; border-left: 1px solid var(--border); }
+.cvs-split { display: inline-flex; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08); border-radius: 7px; }
+.cvs-run .cvs-play,
+.cvs-run .cvs-play-more,
+.cvs-run .cvs-export { height: 34px; font-size: 14px; font-weight: 700; display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.cvs-run .cvs-play { padding: 0 16px 0 13px; background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-radius: 7px 0 0 7px; }
+.cvs-run .cvs-play-more { padding: 0 7px; background: var(--accent); color: var(--accent-fg); border: 1px solid var(--accent); border-left: 1px solid color-mix(in srgb, var(--accent-fg) 35%, var(--accent)); border-radius: 0 7px 7px 0; }
+.cvs-run .cvs-play:hover,
+.cvs-run .cvs-play-more:hover { filter: brightness(1.08); }
+.cvs-run .cvs-play .icon-svg,
+.cvs-run .cvs-play-more .icon-svg,
+.cvs-run .cvs-export .icon-svg { width: 16px; height: 16px; }
+.cvs-run .cvs-play .icon-svg[data-icon="play"],
+.cvs-run .cvs-play .icon-svg[data-icon="stop"] { fill: currentColor; }
+.cvs-run .cvs-play.running { background: var(--accent); }
+.cvs-run .cvs-export { padding: 0 14px; background: var(--surface); color: var(--fg); border: 1.5px solid var(--border-strong); border-radius: 7px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.cvs-run .cvs-export:hover { background: var(--row-hover); }
+.cvs-run .btn-label { display: inline !important; }

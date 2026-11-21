@@ -1435,17 +1435,25 @@ the prebuilt ones by group, search, **New widget**), the code in the middle with
 signatures, help and lint over a kernel of its own, and **Properties** on the right: **Name** (checked as you
 type: available, taken, not a valid name; a rename follows every canvas that uses it), **Description**, then
 each property with its mask. A value is checked before it is kept and written into its own characters in
-the code. **Run** (F5) turns the code into the running widget in place; **Edit** (Esc) turns it back. Ctrl+B
-folds the list, Ctrl+Alt+B the Properties.
+the code. One switch in the slim bar, **Code | Preview**: **Preview** (F5) runs the widget and shows it in the
+code's place; **Code** (Esc) turns it back. A preview that fails shows the error there with **Go to line N in
+the code**. Each widget opens the way you left it this session. Ctrl+B folds the list, Ctrl+Alt+B the
+Properties.
 
-**The Canvas** (Canvas on the rail): a project's `<app>.canvas.json`. The top bar holds the page tabs; the
-bottom bar the sizing (Columns, Row height, Gap, Wide or Centred), **Snap** and its step (1, 2, 4, 8 px or a
-grid cell), Undo and Redo, **Play**, **Launch**, **Export**, the **Widgets** and **Properties** panes'
-toggles, and the zoom (Ctrl+wheel, Ctrl+plus, Ctrl+minus, Ctrl+0; Fit).
+**The Canvas** (Canvas on the rail): a project's `<app>.canvas.json`. The top row holds the page tabs and, at
+its right end, always there: **Play** (Shift+F5; its ▾ has **Launch**, Ctrl+F5; while the app runs it is
+**Stop**) and **Export** (Ctrl+Shift+E). The same three are at the bottom of every right-click menu on the
+canvas (the empty grid, a container, a widget; Stop playing while it plays). The bottom bar **Desktop | Phone** (the two layouts), the sizing (Columns, Row height, Gap), **Snap** and its step (1, 2, 4, 8 px or a
+grid cell), Undo and Redo, the **Widgets** and **Properties** panes' toggles, and the zoom (Ctrl+wheel, Ctrl+plus, Ctrl+minus, Ctrl+0; Fit).
 - Drag on the empty grid to draw a **container**; drag one to move it (into another container too), its
   corner to size it. Snap puts edges on the step and on other items' edges and centres (guides show); hold
   Alt to place freely. Arrows nudge by the step (Shift: ten steps, Alt: one pixel). Places are kept in
   pixels, so a fine placement stays.
+- **Desktop and Phone:** the same containers and widgets in both, each layout with its own places. Something
+  you add on Desktop is stacked at full width on Phone (and something added on Phone gets a free place on
+  Desktop). Drag the page's right edge to see it at another width (it shows the width in px): the page fits any
+  screen; under 768 px it shows the Phone layout. **Show on** in Properties (Phone and Desktop, Desktop only,
+  Phone only) hides an item in one layout; it is faded there on the canvas.
 - **Widgets** pane: a card per widget with its rendered preview; hover for a larger one. Drag a card into a
   container, or double-click (or Insert) to put it in the selected container. Right-click a container:
   **Insert widget ▸**, Insert container, Scrollable, Resizable by viewers, Delete.

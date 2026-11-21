@@ -49,7 +49,7 @@ OLD_SUFFIX: str = ".stapp.json"
 OLD_SAID: str = (
     "App notebooks and their canvases were replaced by widgets: make a new canvas and insert widgets."
 )
-WIDTHS: dict[str, int] = {"wide": 1200, "centered": 704}
+WIDTHS: dict[str, int] = {"wide": 1200, "centered": 704, "desktop": 1200, "phone": 390}
 STEPS: tuple[int | str, ...] = (1, 2, 4, 8, "grid")
 MAX_COLUMNS: int = 48
 MAX_PX: int = 20_000

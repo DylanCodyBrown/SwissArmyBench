@@ -95,36 +95,16 @@ def test_a_failing_widget_shows_its_own_error_and_the_rest_of_the_page_runs(tmp_
         'from sab_canvas import table\n\ntable_name = "nowhere"  # table\n\ntable(table_name)\n', ()
     )
     missing = build.Built(missing.code, tuple(props.detect(missing.code)))
-    canvas = model.new_canvas("Mixed")
+    from swissarmybench_streamlit.domain import canvas_layouts as layouts
+
+    canvas = layouts.new_canvas("Mixed")
     facts = {
         n: model.WidgetFacts((4, 1), (1, 1), frozenset(p.name for p in b.properties))
-        for n, b in {"good": good, "bad": bad, "gone_table": missing}.items()
+        for n, b in {"good": good, "bad": bad, "gone_table": missing, "deleted_one": good}.items()
     }
-    for name in ("bad", "good", "gone_table"):
-        canvas, _ = model.insert_widget(canvas, {"widget": name}, facts)
-    canvas["pages"][0]["children"].append(
-        {
-            "id": "c9",
-            "kind": "container",
-            "x": 0,
-            "y": 900,
-            "w": 400,
-            "h": 80,
-            "props": dict(model.CONTAINER_DEFAULT),
-            "children": [
-                {
-                    "id": "w9",
-                    "kind": "widget",
-                    "widget": "deleted_one",
-                    "x": 0,
-                    "y": 0,
-                    "w": 100,
-                    "h": 60,
-                    "values": {},
-                }
-            ],
-        }
-    )
+    for name in ("bad", "good", "gone_table", "deleted_one"):
+        canvas, _ = layouts.apply(canvas, "insert_widget", {"widget": name}, facts)
+    # deleted_one is not among the widgets the page is built with: a placeholder in its place.
     files = build.build(canvas, {"good": good, "bad": bad, "gone_table": missing})
     (page,) = run_pages(tmp_path, files, [p for p in files if p.startswith("app_pages/")])
     assert not page["exceptions"]

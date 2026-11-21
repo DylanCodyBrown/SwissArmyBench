@@ -26,21 +26,28 @@ says so in one line.
   as your own: 56 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
   state: ready with its address, coming, failed with why).
 
-## The Canvas (`<app>.canvas.json`, a project file; every place and size in pixels)
+## The Canvas (`<app>.canvas.json`, a project file; two layouts, Phone and Desktop)
 - `canvas_list`, `canvas_open` (path, or name: a new one), `canvas_state` (model, version, `missing`
   instances whose widget is gone, `marks`: an instance's values that no longer fit, `notes` said once).
 - A page holds containers; a container holds containers and widget instances placed in its box. The
-  rules hold for every command: nothing overlaps its siblings or leaves its container or the page's width
-  (wide 1200 px, centered 704 px), a widget is never smaller than its min_size; a refused command says why.
+  rules hold for every command: nothing overlaps its siblings or leaves its container or the page's width,
+  a widget is never smaller than its min_size; a refused command says why.
+- Two layouts, `desktop` (designed at 1200 px) and `phone` (portrait, 390 px): the same items in both, each
+  layout with its own places. `canvas_state`'s `views` gives each page's items in pixels at each layout's
+  design width (`design`); the file keeps x and w as fractions of the parent's width, so the built page fits
+  any width (desktop at 768 px and wider, phone below: a media query, no rerun). Every placing command takes
+  `layout` (default desktop); an item made in one layout is placed in the other by itself (phone: stacked at
+  full width in reading order). `canvas_show` (id, show: both, desktop or phone) hides an item in one layout.
 - `canvas_add_container` (page, parent, x, y, w, h, props: title, border, padding, height fit or fixed,
   scrollable, resizable, background, columns), `canvas_insert_widget` (widget, parent: no container makes
   one around it; x, y; values), `canvas_move` (x, y, w, h; parent: into another container, empty for the
   page), `canvas_set_container`, `canvas_set_values` (null: back to the default), `canvas_replace_widget`,
-  `canvas_delete`, `canvas_set` (columns: a guide that re-flows, the row height, gap, width, snap, step 1, 2,
-  4, 8 or grid), `canvas_page` (add, rename, move, remove), `canvas_undo`, `canvas_redo`.
+  `canvas_delete`, `canvas_set` (columns: a guide that re-flows, the row height, gap, snap, step 1, 2, 4, 8 or
+  grid; both layouts), `canvas_page` (add, rename, move, remove), `canvas_undo`, `canvas_redo`.
 - `canvas_play` (live address; check=true: every page headless, each failing widget's own error),
+  `canvas_stop` (run play, the default, or launch),
   `app_launch` (a build in the project's builds/<app>/<n>/, run in its own window), `canvas_export` (a
   folder that runs on a hosted Streamlit app: app.py, a page file each, sab_canvas.py, sab_widgets.py, the tables
   it names as Parquet, data.py; it copies rows, so it waits for the user's Allow).
-- The page reproduces the canvas's pixels: each container and widget is an st.container placed
-  absolutely by its key's CSS. A widget that fails shows its own error in its place; the page runs on.
+- The page reproduces the canvas's places: each container and widget is an st.container placed
+  absolutely by its key's CSS (x and w as fractions of its parent, y and h in pixels; within 1 px). A widget that fails shows its own error in its place; the page runs on.

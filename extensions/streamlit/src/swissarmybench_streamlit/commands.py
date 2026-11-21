@@ -123,7 +123,8 @@ def canvas_state(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_add_container",
-    "Draw a container on a page or in a container (px; without x and y: the first free place)",
+    "Draw a container on a page or in a container (px of the layout's design width: desktop 1200, phone 390; "
+    "without x and y: the first free place). The other layout places it by itself",
     req("canvas", "The canvas's id."),
     opt("page", "The page's id (default: the first)."),
     opt("parent", "A container's id to nest it in."),
@@ -136,9 +137,12 @@ def canvas_state(a: dict[str, Any]) -> Any:
         "title, border, padding, height (fit, fixed), scrollable, resizable, background, columns.",
         "json",
     ),
+    opt("layout", "desktop (default) or phone: whose places these are."),
 )
 def canvas_add_container(a: dict[str, Any]) -> Any:
-    return _command(a["canvas"], "add_container", _given(a, "page", "parent", "x", "y", "w", "h", "props"))
+    return _command(
+        a["canvas"], "add_container", _given(a, "page", "parent", "x", "y", "w", "h", "props", "layout")
+    )
 
 
 @command(
@@ -151,9 +155,12 @@ def canvas_add_container(a: dict[str, Any]) -> Any:
     opt("x", "Left in the container, px.", "int"),
     opt("y", "Top in the container, px.", "int"),
     opt("values", "Property values (JSON object).", "json"),
+    opt("layout", "desktop (default) or phone: whose places these are."),
 )
 def canvas_insert_widget(a: dict[str, Any]) -> Any:
-    return _command(a["canvas"], "insert_widget", _given(a, "widget", "parent", "page", "x", "y", "values"))
+    return _command(
+        a["canvas"], "insert_widget", _given(a, "widget", "parent", "page", "x", "y", "values", "layout")
+    )
 
 
 @command(
@@ -166,9 +173,10 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
     opt("w", "Width, px.", "int"),
     opt("h", "Height, px.", "int"),
     opt("parent", "A container's id; empty for the page."),
+    opt("layout", "desktop (default) or phone: whose places these are."),
 )
 def canvas_move(a: dict[str, Any]) -> Any:
-    body = _given(a, "id", "x", "y", "w", "h")
+    body = _given(a, "id", "x", "y", "w", "h", "layout")
     if "parent" in a and a["parent"] is not None:
         body["parent"] = a["parent"]
     return _command(a["canvas"], "move", body)
@@ -184,6 +192,17 @@ def canvas_move(a: dict[str, Any]) -> Any:
 )
 def canvas_set_container(a: dict[str, Any]) -> Any:
     return _command(a["canvas"], "set_container", {"id": a["id"], "props": a["props"]})
+
+
+@command(
+    "canvas_show",
+    "Show a container or widget in both layouts, or in only one (desktop or phone)",
+    req("canvas", "The canvas's id."),
+    req("id", "The container's or widget's id."),
+    req("show", "both, desktop or phone."),
+)
+def canvas_show(a: dict[str, Any]) -> Any:
+    return _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
 
 
 @command(
@@ -220,17 +239,16 @@ def canvas_delete(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_set",
-    "The canvas's sizing: columns (a guide), row_height, gap, width (wide, centered), snap, step (1, 2, 4, 8, grid)",
+    "The canvas's sizing, shared by both layouts: columns (a guide), row_height, gap, snap, step (1, 2, 4, 8, grid)",
     req("canvas", "The canvas's id."),
     opt("columns", "Columns, 1 to 48.", "int"),
     opt("row_height", "Row height, px.", "int"),
     opt("gap", "Gap, px.", "int"),
-    opt("width", "wide or centered."),
     opt("snap", "Snap on or off.", "bool"),
     opt("step", "1, 2, 4, 8 or grid.", "any"),
 )
 def canvas_set(a: dict[str, Any]) -> Any:
-    return _command(a["canvas"], "sizing", _given(a, "columns", "row_height", "gap", "width", "snap", "step"))
+    return _command(a["canvas"], "sizing", _given(a, "columns", "row_height", "gap", "snap", "step"))
 
 
 @command(
@@ -272,6 +290,16 @@ def canvas_play(a: dict[str, Any]) -> Any:
     if a.get("check"):
         return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/check", {})
     return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/play", _given(a, "page"))
+
+
+@command(
+    "canvas_stop",
+    "Stop a canvas's Play (run play, the default) or its launched app (run launch)",
+    req("canvas", "The canvas's id."),
+    opt("run", "play or launch."),
+)
+def canvas_stop(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/stop", _given(a, "run"))
 
 
 @command(

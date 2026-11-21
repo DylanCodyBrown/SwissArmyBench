@@ -34,7 +34,7 @@ import { watchTheme } from "./catalogRail";
 import { button, clear, h, icon, toast } from "./dom";
 import { clearError, errorHere, showError } from "./errorNote";
 import { chooseFile } from "./fileChooser";
-import { busyButton, loadingBlock } from "./loading";
+import { busy, loadingBlock } from "./loading";
 import { mountNav, startNav } from "./nav";
 import { mountNavRail, openWidgets } from "./rail";
 import { effectiveTheme } from "./theme";
@@ -44,6 +44,7 @@ import type { Context, WidgetEntry } from "./widgetPage";
 interface Node {
   id: string;
   kind: "container" | "widget";
+  show?: "both" | "desktop" | "phone";
   x: number;
   y: number;
   w: number;
@@ -69,7 +70,6 @@ interface Sizing {
   columns: number;
   row_height: number;
   gap: number;
-  width: "wide" | "centered";
   snap: boolean;
   step: Step;
 }
@@ -94,9 +94,15 @@ interface State {
   undo: number;
   redo: number;
   made?: string | null;
+  /** Each page's items in pixels at each layout's design width (desktop 1200, phone 390). */
+  views: Record<string, Record<Layout, Node[]>>;
+  design: Record<Layout, number>;
 }
 
-const WIDTHS = { wide: 1200, centered: 704 } as const;
+type Layout = "desktop" | "phone";
+/** The widths a layout can be previewed at (the built page fits any of them). */
+const RANGE: Record<Layout, [number, number]> = { desktop: [768, 1920], phone: [320, 767] };
+
 const root = document.getElementById("canvas")!;
 const params = new URLSearchParams(location.search);
 const WINDOW = Math.random().toString(36).slice(2, 10);
@@ -106,11 +112,23 @@ let selected: string[] = [];
 let widgets: WidgetEntry[] = [];
 let context: Context = { tables: {}, variables: [] };
 let zoom = 1;
+let layout: Layout = "desktop";
+const previewWidth: Record<Layout, number> = { desktop: 1200, phone: 390 };
 
 // ===== the frame =====
 
 const tabs = h("div", { class: "cvs-tabs", role: "tablist", "aria-label": "Pages" });
-const top = h("header", { class: "cvs-top" }, tabs);
+// The top row's far right (the coordinator's plan, 2026-11-21): ▶ Play with its ▾ (Launch), and Export…; while
+// the app runs, Play is Stop. The right-click menu keeps the same group; the bottom bar holds none of them.
+const playButton = button("Play", () => void (running() ? stopRunning() : play()), { icon: "play", class: "cvs-play", title: "Play (Shift+F5)" });
+const playMore = button("More ways to run", (e) => {
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  menu(r.left, r.bottom + 2, [launched ? { label: "Stop the launched app", run: () => void stopLaunch() } : { label: "Launch", key: "Ctrl+F5", run: () => void launch() }]);
+}, { icon: "down", iconOnly: true, class: "cvs-play-more" });
+const exportButton = button("Export", () => void exportApp(), { icon: "export", class: "cvs-export", title: "Export… (Ctrl+Shift+E)" });
+// Always shown, a block of their own (the owner: "make them look permanent and pronounced"): the tabs scroll.
+const runBar = h("span", { class: "cvs-run", role: "group", "aria-label": "Run the app" }, h("span", { class: "cvs-split" }, playButton, playMore), exportButton);
+const top = h("header", { class: "cvs-top" }, tabs, h("span", { class: "cvs-grow" }), runBar);
 const notice = h("div", { class: "cvs-notice", role: "status", hidden: true });
 const board = h("div", { class: "cvs-board", "aria-label": "Canvas", tabindex: "0" });
 const scaler = h("div", { class: "cvs-scaler" }, board);
@@ -120,9 +138,15 @@ const propsPane = h("aside", { class: "cvs-pane cvs-props", "aria-label": "Prope
 const galleryPane = h("aside", { class: "cvs-pane cvs-gallery", "aria-label": "Widgets" });
 const bottom = h("footer", { class: "cvs-bottom", role: "toolbar", "aria-label": "Canvas" });
 const stage = h("div", { class: "cvs-stage" }, viewport, live);
+// While the page plays, its bar's right-click is the same run group (Stop playing first).
+live.addEventListener("contextmenu", (e) => {
+  if ((e.target as HTMLElement).closest(".cvs-live-frame")) return;
+  e.preventDefault();
+  menu(e.clientX, e.clientY, runGroup(false));
+});
 const body = h("div", { class: "cvs-body" }, stage, propsPane, galleryPane);
 
-function layout(): void {
+function layoutPage(): void {
   clear(root, top, notice, body, bottom);
   for (const pane of [propsPane, galleryPane]) {
     const grip = h("div", { class: "cvs-grip", role: "separator", "aria-orientation": "vertical", title: "Drag to resize" });
@@ -186,6 +210,24 @@ function applyPanes(): void {
 function zoomKey(): string {
   return `sab.canvas.zoom:${state?.path ?? ""}`;
 }
+function viewKey(): string {
+  return `sab.canvas.view:${state?.path ?? ""}`;
+}
+function rememberView(): void {
+  try {
+    sessionStorage.setItem(viewKey(), JSON.stringify({ layout, previewWidth }));
+  } catch {
+    /* this window only */
+  }
+}
+function setLayout(next: Layout): void {
+  layout = next;
+  rememberView();
+  selected = selected.filter((id) => find(id));
+  drawBottom();
+  drawBoard();
+  drawProps();
+}
 function setZoom(next: number): void {
   zoom = Math.max(0.25, Math.min(4, Math.round(next * 100) / 100));
   try {
@@ -202,7 +244,7 @@ function setZoom(next: number): void {
 async function send(kind: string, body: Record<string, unknown>): Promise<State | null> {
   if (!state) return null;
   try {
-    const after = await api<State>(`/streamlit/canvases/${state.canvas}/command`, "POST", { kind, version: state.version, window: WINDOW, ...body });
+    const after = await api<State>(`/streamlit/canvases/${state.canvas}/command`, "POST", { kind, version: state.version, window: WINDOW, layout, ...body });
     take(after);
     return after;
   } catch (e) {
@@ -240,6 +282,13 @@ function take(next: State): void {
       zoom = 1;
     }
     zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+    try {
+      const kept2 = JSON.parse(sessionStorage.getItem(viewKey()) ?? "null") as { layout?: Layout; previewWidth?: Record<Layout, number> } | null;
+      if (kept2?.layout === "phone" || kept2?.layout === "desktop") layout = kept2.layout;
+      if (kept2?.previewWidth) Object.assign(previewWidth, kept2.previewWidth);
+    } catch {
+      /* the defaults */
+    }
     applyPanes();
     document.title = `${next.name} · Canvas`;
   }
@@ -251,7 +300,11 @@ function take(next: State): void {
 
 // ===== the model, read =====
 
-const pageOf = (): State["model"]["pages"][number] | undefined => state?.model.pages.find((p) => p.id === page);
+/** The page in front, its items as the layout in front has them (pixels at the layout's design width). */
+const pageOf = (): { id: string; name: string; children: Node[] } | undefined => {
+  const p = state?.model.pages.find((x) => x.id === page);
+  return p ? { id: p.id, name: p.name, children: state?.views[p.id]?.[layout] ?? [] } : undefined;
+};
 
 function find(id: string): { node: Node; parent: Node | null } | null {
   const look = (children: Node[], parent: Node | null): { node: Node; parent: Node | null } | null => {
@@ -263,13 +316,17 @@ function find(id: string): { node: Node; parent: Node | null } | null {
     return null;
   };
   for (const p of state?.model.pages ?? []) {
-    const found = look(p.children, null);
+    const found = look(state?.views[p.id]?.[layout] ?? [], null);
     if (found) return found;
   }
   return null;
 }
 
-const pageWidth = (): number => WIDTHS[state?.model.sizing.width ?? "wide"];
+/** The layout's design width: every place is in its pixels. */
+const pageWidth = (): number => state?.design[layout] ?? (layout === "phone" ? 390 : 1200);
+/** How wide the page is shown (its preview width) over its design width: x and w are drawn times this. */
+const stretch = (): number => previewWidth[layout] / pageWidth();
+const X = (v: number): number => v * stretch();
 const editable = (): boolean => Boolean(state && !state.read_only && !state.broken);
 
 /** An item's top-left corner in page pixels. */
@@ -340,15 +397,10 @@ function numberBox(label: string, value: number, min: number, max: number, chang
 
 function sizingControls(): HTMLElement[] {
   const s = state!.model.sizing;
-  const width = h("span", { class: "cvs-seg", role: "group", "aria-label": "Page width" });
-  for (const [value, label] of [["wide", "Wide"], ["centered", "Centred"]] as const) {
-    width.append(h("button", { type: "button", class: `cvs-seg-item${s.width === value ? " on" : ""}`, "aria-pressed": String(s.width === value), disabled: !editable(), onclick: () => void send("sizing", { width: value }) }, label));
-  }
   return [
     numberBox("Columns", s.columns, 1, 48, (v) => void send("sizing", { columns: v })),
     numberBox("Row height", s.row_height, 8, 400, (v) => void send("sizing", { row_height: v })),
     numberBox("Gap", s.gap, 0, 64, (v) => void send("sizing", { gap: v })),
-    width,
   ];
 }
 
@@ -369,10 +421,29 @@ function drawBottom(): void {
   undoButton.disabled = !editable() || state.undo === 0;
   redoButton.disabled = !editable() || state.redo === 0;
   const sep = (): HTMLElement => h("span", { class: "cvs-sep", "aria-hidden": "true" });
+  // Phone or Desktop (the owner: "Canvas should only have two layouts phone portrait and desktop").
+  const layouts = h("span", { class: "cvs-seg cvs-layouts", role: "group", "aria-label": "Layout" });
+  for (const [value, label, glyph] of [["desktop", "Desktop", "desktop"], ["phone", "Phone", "phone"]] as const) {
+    layouts.append(h("button", { type: "button", class: `cvs-seg-item${layout === value ? " on" : ""}`, "aria-pressed": String(layout === value), "data-layout": value, onclick: () => setLayout(value) }, icon(glyph), label));
+  }
+  // The preview width, typed (the frame's right-edge handle drags it): within the layout's range.
+  const [low, high] = RANGE[layout];
+  const widthBox = h("input", { type: "number", class: "cvs-num cvs-preview-width", min: low, max: high, value: previewWidth[layout], "aria-label": "Preview width (px)", title: `Preview width: ${low} to ${high} px` });
+  widthBox.addEventListener("change", () => {
+    const v = Math.round(Number(widthBox.value));
+    if (!Number.isFinite(v)) return;
+    previewWidth[layout] = Math.max(low, Math.min(high, v));
+    widthBox.value = String(previewWidth[layout]);
+    rememberView();
+    drawBoard();
+  });
+  // The owner (2026-11-21): "Move play launch export to a right click in the canvas": not in this bar.
   clear(
     bottom,
     h("span", { class: "cvs-group cvs-sizing" }, ...sizingControls()),
     sizingMore,
+    layouts,
+    h("label", { class: "cvs-field cvs-width-field" }, widthBox, h("span", {}, "px")),
     sep(),
     h("label", { class: "cvs-field" }, snap, h("span", {}, "Snap")),
     step,
@@ -380,17 +451,13 @@ function drawBottom(): void {
     undoButton,
     redoButton,
     sep(),
-    button("Play", () => void play(), { icon: "play", class: "ghost cvs-play" }),
-    button("Launch", () => void launch(), { icon: "popout", class: "ghost cvs-launch" }),
-    button("Export", () => void exportApp(), { icon: "export", class: "ghost cvs-export" }),
-    sep(),
     widgetsToggle,
     propsToggle,
     h("span", { class: "cvs-grow" }),
     button("Zoom out", () => setZoom(zoom / 1.25), { icon: "minus", iconOnly: true, class: "ghost" }),
     zoomLabel,
     button("Zoom in", () => setZoom(zoom * 1.25), { icon: "plus", iconOnly: true, class: "ghost" }),
-    button("Fit", () => setZoom((viewport.clientWidth - 48) / pageWidth()), { class: "ghost cvs-fit" }),
+    button("Fit", () => setZoom((viewport.clientWidth - 48) / previewWidth[layout]), { class: "ghost cvs-fit" }),
   );
   propsDot();
 }
@@ -415,20 +482,20 @@ function drawBoard(): void {
   const children = current?.children ?? [];
   const height = Math.max(600, ...children.map((c) => c.y + c.h + 200));
   const spacing = dotSpacing(s.snap ? s.step : 1, zoom);
-  board.style.width = `${pageWidth()}px`;
+  board.style.width = `${previewWidth[layout]}px`;
   board.style.height = `${height}px`;
   board.style.transform = `scale(${zoom})`;
   board.style.setProperty("--dots", `${spacing}px`);
-  scaler.style.width = `${pageWidth() * zoom}px`;
+  scaler.style.width = `${(previewWidth[layout] + 24) * zoom}px`;
   scaler.style.height = `${height * zoom}px`;
   board.classList.toggle("read-only", !editable());
   const columns = h("div", { class: "cvs-columns", "aria-hidden": "true" });
   if (s.snap && s.step === "grid") {
     const lines = gridLines(pageWidth(), s.columns, s.gap);
-    for (let i = 0; i < lines.length; i += 2) columns.append(h("div", { class: "cvs-column", style: { left: `${lines[i]}px`, width: `${lines[i + 1]! - lines[i]!}px` } }));
+    for (let i = 0; i < lines.length; i += 2) columns.append(h("div", { class: "cvs-column", style: { left: `${X(lines[i]!)}px`, width: `${X(lines[i + 1]! - lines[i]!)}px` } }));
   }
   guidesLayer = h("div", { class: "cvs-guides", "aria-hidden": "true" });
-  clear(board, columns, ...children.map((c) => drawNode(c)), guidesLayer);
+  clear(board, columns, ...children.map((c) => drawNode(c)), guidesLayer, widthHandle());
   if (state.broken) board.append(h("div", { class: "cvs-broken" }, icon("warning"), `${state.broken.error}${state.broken.line ? ` (line ${state.broken.line})` : ""}. A copy is kept at ${state.broken.copy}.`));
   else if (state.read_only) board.append(h("div", { class: "cvs-broken" }, icon("warning"), state.read_only));
   else if (!children.length) board.append(h("div", { class: "cvs-empty" }, "Drag on the grid to draw a container, or drag a widget here from Widgets."));
@@ -437,14 +504,15 @@ function drawBoard(): void {
 const entry = (name: string): WidgetEntry | undefined => widgets.find((w) => w.name === name);
 
 function drawNode(node: Node): HTMLElement {
-  const place = { left: `${node.x}px`, top: `${node.y}px`, width: `${node.w}px`, height: `${node.h}px` };
+  const place = { left: `${X(node.x)}px`, top: `${node.y}px`, width: `${X(node.w)}px`, height: `${node.h}px` };
   const isSelected = selected.includes(node.id);
+  const elsewhere = (node.show ?? "both") !== "both" && node.show !== layout ? " hidden-here" : "";
   if (node.kind === "container") {
     const p = node.props!;
     const element = h(
       "div",
       {
-        class: `cvs-node cvs-container${isSelected ? " selected" : ""}${p.scrollable ? " scrollable" : ""}${p.border ? "" : " borderless"}`,
+        class: `cvs-node cvs-container${elsewhere}${isSelected ? " selected" : ""}${p.scrollable ? " scrollable" : ""}${p.border ? "" : " borderless"}`,
         "data-id": node.id,
         style: { ...place, ...(p.background ? { background: p.background } : {}) },
       },
@@ -460,7 +528,7 @@ function drawNode(node: Node): HTMLElement {
   const marks = state?.marks[node.id];
   const element = h(
     "div",
-    { class: `cvs-node cvs-widget${isSelected ? " selected" : ""}${missing ? " missing" : ""}${marks ? " marked" : ""}`, "data-id": node.id, "data-widget": node.widget ?? "", style: place },
+    { class: `cvs-node cvs-widget${elsewhere}${isSelected ? " selected" : ""}${missing ? " missing" : ""}${marks ? " marked" : ""}`, "data-id": node.id, "data-widget": node.widget ?? "", style: place },
     missing
       ? h(
           "div",
@@ -499,7 +567,7 @@ function snapFor(node: Node, parent: Node | null, sizing: boolean, alt: boolean)
     step: s.step,
     grid: { columns: parent ? parent.props!.columns : s.columns, rowHeight: s.row_height, gap: s.gap, width: parent ? parent.w : pageWidth() },
     others: siblings.filter((o) => o.id !== node.id).map((o) => ({ id: o.id, left: o.x, top: o.y, width: o.w, height: o.h })),
-    tolerance: 4 / zoom,
+    tolerance: 4 / zoom / stretch(),
     sizing,
   };
 }
@@ -509,7 +577,7 @@ function drawGuides(found: Guide[], parent: Node | null): void {
   const at = parent ? absolute(parent.id) : { x: 0, y: 0 };
   clear(guidesLayer);
   for (const g of found) {
-    const style = g.axis === "v" ? { left: `${at.x + g.at}px`, top: `${at.y + g.from}px`, height: `${g.to - g.from}px` } : { top: `${at.y + g.at}px`, left: `${at.x + g.from}px`, width: `${g.to - g.from}px` };
+    const style = g.axis === "v" ? { left: `${X(at.x + g.at)}px`, top: `${at.y + g.from}px`, height: `${g.to - g.from}px` } : { top: `${at.y + g.at}px`, left: `${X(at.x + g.from)}px`, width: `${X(g.to - g.from)}px` };
     guidesLayer.append(h("div", { class: `cvs-guide ${g.axis}`, style }));
   }
 }
@@ -534,7 +602,7 @@ function containerAt(px: number, py: number, skip: string | null): Node | null {
 
 function pagePoint(e: MouseEvent): { x: number; y: number } {
   const r = board.getBoundingClientRect();
-  return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
+  return { x: (e.clientX - r.left) / zoom / stretch(), y: (e.clientY - r.top) / zoom };
 }
 
 function hook(element: HTMLElement, node: Node): void {
@@ -560,9 +628,9 @@ function hook(element: HTMLElement, node: Node): void {
       const raw: Rect = sizing ? { id: node.id, left: node.x, top: node.y, width: node.w + dx, height: node.h + dy } : { id: node.id, left: node.x + dx, top: node.y + dy, width: node.w, height: node.h };
       const done = snapRect(raw, snapFor(node, at.parent, sizing, m.altKey));
       moved = done.rect;
-      ghost.style.left = `${moved.left}px`;
+      ghost.style.left = `${X(moved.left)}px`;
       ghost.style.top = `${moved.top}px`;
-      ghost.style.width = `${moved.width}px`;
+      ghost.style.width = `${X(moved.width)}px`;
       ghost.style.height = `${moved.height}px`;
       ghost.classList.add("dragging");
       drawGuides(done.guides, at.parent);
@@ -646,7 +714,7 @@ board.addEventListener("pointerdown", (e) => {
     const placed = snapRect({ ...raw }, snapFor(fake, parent, false, m.altKey)).rect;
     const sized = snapRect({ ...placed, width: raw.left + raw.width - placed.left, height: raw.top + raw.height - placed.top }, snapFor(fake, parent, true, m.altKey)).rect;
     made = sized;
-    Object.assign(band.style, { left: `${origin.x + sized.left}px`, top: `${origin.y + sized.top}px`, width: `${sized.width}px`, height: `${sized.height}px` });
+    Object.assign(band.style, { left: `${X(origin.x + sized.left)}px`, top: `${origin.y + sized.top}px`, width: `${X(sized.width)}px`, height: `${sized.height}px` });
   };
   const up = (): void => {
     window.removeEventListener("pointermove", move);
@@ -663,12 +731,14 @@ board.addEventListener("pointerdown", (e) => {
 board.addEventListener("contextmenu", (e) => {
   if ((e.target as HTMLElement).closest(".cvs-node")) return;
   e.preventDefault();
-  if (!editable()) return;
   const point = pagePoint(e);
-  menu(e.clientX, e.clientY, [
-    { label: "Insert container", run: () => void send("add_container", { page, x: Math.round(point.x), y: Math.round(point.y) }) },
-    { label: "Insert widget", sub: (x, y) => widgetMenu(x, y, (name) => void send("insert_widget", { page, widget: name, x: Math.round(point.x), y: Math.round(point.y) })) },
-  ]);
+  const own: MenuEntry[] = editable()
+    ? [
+        { label: "Insert container", run: () => void send("add_container", { page, x: Math.round(point.x), y: Math.round(point.y) }) },
+        { label: "Insert widget", sub: (x, y) => widgetMenu(x, y, (name) => void send("insert_widget", { page, widget: name, x: Math.round(point.x), y: Math.round(point.y) })) },
+      ]
+    : [];
+  menu(e.clientX, e.clientY, [...own, ...runGroup(own.length > 0)]);
 });
 
 board.addEventListener("dragover", (e) => {
@@ -698,6 +768,17 @@ function selectedContainer(): string | null {
 
 // Keys: arrows nudge, Delete removes, Ctrl+Z / Ctrl+Y, Esc, Insert.
 document.addEventListener("keydown", (e) => {
+  // The run group's keys, anywhere on the page (the browser's own F5 never reloads the canvas).
+  if (e.key === "F5" && state) {
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) void launch();
+    else if (e.shiftKey) void play();
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "e" && state) {
+    e.preventDefault();
+    return void exportApp();
+  }
   const typing = (e.target as HTMLElement).closest("input, textarea, select, [contenteditable]");
   if (typing) return;
   if ((e.ctrlKey || e.metaKey) && !e.altKey) {
@@ -762,6 +843,10 @@ viewport.addEventListener(
 
 interface MenuEntry {
   label: string;
+  /** Its key, shown at the right. */
+  key?: string;
+  /** A line above it: the start of a group. */
+  group?: boolean;
   run?: () => void;
   sub?: (x: number, y: number) => void;
   checked?: boolean;
@@ -793,8 +878,10 @@ function menu(x: number, y: number, entries: MenuEntry[]): void {
       { type: "button", role: item.checked === undefined ? "menuitem" : "menuitemcheckbox", class: "cvs-menu-item", disabled: item.disabled, "aria-checked": item.checked === undefined ? undefined : String(item.checked) },
       h("span", { class: "cvs-check" }, item.checked ? "✓" : ""),
       h("span", {}, item.label),
+      item.key ? h("kbd", { class: "cvs-menu-key" }, item.key) : null,
       item.sub ? h("span", { class: "cvs-sub" }, "▸") : null,
     );
+    if (item.group) element.append(h("div", { class: "cvs-menu-sep", role: "separator" }));
     row.addEventListener("click", () => {
       if (item.sub) {
         const r = row.getBoundingClientRect();
@@ -810,8 +897,19 @@ function menu(x: number, y: number, entries: MenuEntry[]): void {
   floating(element, x, y);
 }
 
+/** The run group at the bottom of every right-click menu (the owner, 2026-11-21): Play, Launch, Export…, each
+ *  with its key; Stop instead while the page plays or the app is launched. */
+function runGroup(after: boolean): MenuEntry[] {
+  const playing = !live.hidden;
+  return [
+    playing ? { label: "Stop playing", key: "Esc", group: after, run: () => stopPlay() } : { label: "Play", key: "Shift+F5", group: after, run: () => void play() },
+    launched ? { label: "Stop the launched app", run: () => void stopLaunch() } : { label: "Launch", key: "Ctrl+F5", run: () => void launch() },
+    { label: "Export…", key: "Ctrl+Shift+E", run: () => void exportApp() },
+  ];
+}
+
 function nodeMenu(node: Node, e: MouseEvent): void {
-  if (!editable()) return;
+  if (!editable()) return void menu(e.clientX, e.clientY, runGroup(false));
   if (node.kind === "container") {
     const p = node.props!;
     menu(e.clientX, e.clientY, [
@@ -820,6 +918,7 @@ function nodeMenu(node: Node, e: MouseEvent): void {
       { label: "Scrollable", checked: p.scrollable, run: () => void send("set_container", { id: node.id, props: { scrollable: !p.scrollable } }) },
       { label: "Resizable by viewers", checked: p.resizable, run: () => void send("set_container", { id: node.id, props: { resizable: !p.resizable } }) },
       { label: "Delete", run: () => void send("delete", { id: node.id }) },
+      ...runGroup(true),
     ]);
     return;
   }
@@ -827,6 +926,7 @@ function nodeMenu(node: Node, e: MouseEvent): void {
     { label: "Edit widget", run: () => openWidgets(node.widget) },
     { label: "Replace widget", sub: (x, y) => widgetMenu(x, y, (name) => void send("replace_widget", { id: node.id, widget: name }), true) },
     { label: "Delete", run: () => void send("delete", { id: node.id }) },
+    ...runGroup(true),
   ]);
 }
 
@@ -1062,6 +1162,7 @@ function drawProps(): void {
   }
   if (first.kind === "container") {
     propsPane.append(section(nodes.length > 1 ? `CONTAINERS (${nodes.length})` : "CONTAINER", ...containerFields(first)));
+    if (nodes.length === 1) propsPane.append(section("LAYOUT", showOn(first)));
     return;
   }
   const known = entry(first.widget ?? "");
@@ -1092,24 +1193,88 @@ function drawProps(): void {
     );
     propsPane.append(section("PROPERTIES", ...fields));
   }
-  if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)));
+  if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)), section("LAYOUT", showOn(first)));
+}
+
+/** Show on: both layouts, or one only (the owner: "Hiding a container or widget in one layout only"). */
+function showOn(node: Node): HTMLElement {
+  const box = h("select", { class: "wg-input cvs-show", "aria-label": "Show on", disabled: !editable() });
+  for (const [value, label] of [["both", "Phone and Desktop"], ["desktop", "Desktop only"], ["phone", "Phone only"]] as const) box.append(h("option", { value, selected: (node.show ?? "both") === value }, label));
+  box.addEventListener("change", () => void send("show", { id: node.id, show: box.value }));
+  return h("label", { class: "wg-field" }, h("span", { class: "wg-label" }, "Show on"), box);
+}
+
+/** The page frame's right edge: dragged, the page is previewed at another width within its layout's range
+ *  (the built page fits any of them); its width in px beside it. */
+function widthHandle(): HTMLElement {
+  const label = h("span", { class: "cvs-width-label" }, `${previewWidth[layout]} px`);
+  const grip = h("div", { class: "cvs-width-handle", role: "separator", "aria-orientation": "vertical", "aria-label": "Page width", title: "Drag to preview another width" }, label);
+  grip.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const start = e.clientX;
+    const from = previewWidth[layout];
+    const [low, high] = RANGE[layout];
+    const move = (m: PointerEvent): void => {
+      previewWidth[layout] = Math.round(Math.max(low, Math.min(high, from + (m.clientX - start) / zoom)));
+      drawBoard();
+    };
+    const up = (): void => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      rememberView();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+  return grip;
 }
 
 // ===== Play, Launch, Export =====
 
+let launched = false;
+let runningWork = false;
+
+function running(): boolean {
+  return !live.hidden || launched;
+}
+function stopRunning(): void {
+  if (!live.hidden) stopPlay();
+  else if (launched) void stopLaunch();
+}
+/** Play is Stop while the app runs (the page playing, or launched). */
+function drawRun(): void {
+  const on = running();
+  playButton.replaceChildren(icon(on ? "stop" : "play"), h("span", { class: "btn-label" }, on ? "Stop" : "Play"));
+  playButton.setAttribute("aria-label", on ? "Stop" : "Play");
+  playButton.title = on ? (!live.hidden ? "Stop playing (Esc)" : "Stop the launched app") : "Play (Shift+F5)";
+  playButton.classList.toggle("running", on);
+}
+
+/** One run at a time (Play, Launch, Export), its words over the canvas meanwhile. */
+async function gated(words: string, work: () => Promise<void>): Promise<void> {
+  if (runningWork) return;
+  runningWork = true;
+  try {
+    await busy(stage, words, work(), { errorIn: false });
+  } finally {
+    runningWork = false;
+  }
+}
+
 async function play(): Promise<void> {
   if (!state) return;
-  const go = bottom.querySelector<HTMLButtonElement>(".cvs-play")!;
-  await busyButton(go, async () => {
+  await gated("Starting the page…", async () => {
     try {
       const said = await api<{ ok: boolean; url?: string; problem?: { message?: string; command?: string } }>(`/streamlit/canvases/${state!.canvas}/play`, "POST", { page });
       if (!said.ok || !said.url) return void showError(notice, new Error(said.problem?.message ?? `Streamlit is not in this Python${said.problem?.command ? `: ${said.problem.command}` : ""}.`));
       clearError(notice);
-      clear(live, h("div", { class: "cvs-live-bar" }, h("span", {}, "Playing"), button("Edit", () => stopPlay(), { icon: "edit", class: "ghost cvs-edit" })), h("iframe", { class: "cvs-live-frame", src: said.url, title: "The page, playing" }));
+      clear(live, h("div", { class: "cvs-live-bar" }, h("span", {}, "Playing"), button("Edit", () => stopPlay(), { icon: "edit", class: "ghost cvs-edit" })), h("iframe", { class: "cvs-live-frame", src: said.url, title: "The page, playing", "data-layout": layout, style: { width: `${previewWidth[layout]}px`, maxWidth: "100%", alignSelf: "center" } }));
       live.hidden = false;
       viewport.hidden = true;
+      drawRun();
     } catch (e) {
-      errorHere(e, {}, go);
+      showError(notice, e);
     }
   });
 }
@@ -1118,41 +1283,49 @@ function stopPlay(): void {
   live.hidden = true;
   viewport.hidden = false;
   clear(live);
+  drawRun();
   if (state) void api(`/streamlit/canvases/${state.canvas}/stop`, "POST", {}).catch(() => undefined);
+}
+
+async function stopLaunch(): Promise<void> {
+  if (!state) return;
+  launched = false;
+  drawRun();
+  await api(`/streamlit/canvases/${state.canvas}/stop`, "POST", { run: "launch" }).catch((e) => showError(notice, e));
 }
 
 async function launch(): Promise<void> {
   if (!state) return;
-  const go = bottom.querySelector<HTMLButtonElement>(".cvs-launch")!;
   const opened = window.open("about:blank", `sab-launch-${state.canvas}`, "popup,width=1300,height=860");
-  await busyButton(go, async () => {
+  await gated("Launching…", async () => {
     try {
       const said = await api<{ ok: boolean; url?: string; title?: string; problem?: { message?: string } }>(`/streamlit/canvases/${state!.canvas}/launch`, "POST", {});
       if (!said.ok || !said.url) {
         opened?.close();
-        return void errorHere(new Error(said.problem?.message ?? "The app did not start."), {}, go);
+        return void showError(notice, new Error(said.problem?.message ?? "The app did not start."));
       }
+      launched = true;
+      drawRun();
       if (opened) opened.location.href = said.url;
-      else errorHere("The browser blocked the new window: allow pop-ups for this address.", {}, go);
+      else showError(notice, new Error("The browser blocked the new window: allow pop-ups for this address."));
       toast(`${said.title ?? "The app"} launched.`);
     } catch (e) {
       opened?.close();
-      errorHere(e, {}, go);
+      showError(notice, e);
     }
   });
 }
 
 async function exportApp(): Promise<void> {
   if (!state) return;
-  const go = bottom.querySelector<HTMLButtonElement>(".cvs-export")!;
   const folder = await chooseFile({ title: "Export the app into", mode: "folder", start: state.path.replace(/[\\/][^\\/]*$/, "") });
   if (!folder) return;
-  await busyButton(go, async () => {
+  await gated("Exporting…", async () => {
     try {
       const done = await api<{ folder: string; files: string[] }>(`/streamlit/canvases/${state!.canvas}/export`, "POST", { folder });
       toast(`Exported: ${done.files.length} files in ${done.folder}`);
     } catch (e) {
-      errorHere(e, {}, go);
+      showError(notice, e);
     }
   });
 }
@@ -1190,7 +1363,7 @@ async function start(): Promise<void> {
   startNav();
   const path = params.get("path");
   if (!path) return void landing().catch((e) => errorHere(e, {}, root));
-  layout();
+  layoutPage();
   board.append(loadingBlock("Opening the canvas…"));
   try {
     const [listing, ctx] = await Promise.all([api<{ widgets: WidgetEntry[] }>("/streamlit/widgets"), api<Context>("/streamlit/widgets/context")]);

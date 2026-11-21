@@ -1,11 +1,13 @@
 """The Widgets window (the owner, 2026-11-21), with a Python that has Streamlit: a widget with a table and a
-colour property shows both in Properties with their masks; Run turns the editor into the running widget in
-place, Edit turns it back; the colour changed in Properties is written into the code; Name and Description go
-into the header. Screenshots when SWISSARMYBENCH_WIDGET_SHOTS names a folder. Made-up data."""
+colour property shows both in Properties with their masks; Code | Preview (F5, Esc) turns the editor into
+the running widget in place and back, remembered per widget for the session; a failing Preview shows the error
+panel with a link to its line in the Code; the colour changed in Properties is written into the code; Name and
+Description go into the header. Screenshots when SWISSARMYBENCH_WIDGET_SHOTS names a folder. Made-up data."""
 
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -75,7 +77,7 @@ def open_widgets(browser: Browser, server: dict[str, Any], name: str) -> Page:  
     page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
     page.wait_for_load_state("networkidle")
     page.goto(f"http://127.0.0.1:{server['port']}/streamlit/widget?name={name}#token={server['token']}")
-    expect(page.locator(".wg-editor .monaco-editor")).to_be_visible(timeout=30000)
+    expect(page.locator(".ide-editor .monaco-editor")).to_be_visible(timeout=30000)
     return page
 
 
@@ -102,11 +104,14 @@ def test_write_a_widget_run_it_in_place_and_change_its_colour(
     expect(props.locator(".wg-prop[data-property='table_name'] select")).to_have_value("orders")
     expect(props.locator(".wg-prop[data-property='colour'] .wg-prop-help")).to_have_text("The bars' colour")
     shot(page, "widgets-window-code")
-    # Run: the editor becomes the running widget, in place.
-    page.locator(".wg-run").click()
+    # Code | Preview: Preview (F5) runs the widget and shows it in the editor's place.
+    expect(page.locator(".wg-mode [data-mode='code']")).to_have_attribute("aria-pressed", "true")
+    page.locator(".ide-editor .monaco-editor").click()
+    page.keyboard.press("F5")
+    expect(page.locator(".wg-mode [data-mode='preview']")).to_have_attribute("aria-pressed", "true")
     frame = page.frame_locator(".wg-frame")
     expect(frame.get_by_text("Revenue by region")).to_be_visible(timeout=120000)
-    expect(page.locator(".wg-editor")).to_be_hidden()
+    expect(page.locator(".ide-editor")).to_be_hidden()
     expect(frame.locator("[data-testid='stVegaLiteChart'], .vega-embed").first).to_be_visible(timeout=60000)
     shot(page, "widgets-window-run")
     # The colour changed in Properties: written into the code's own characters (and run again).
@@ -122,10 +127,18 @@ def test_write_a_widget_run_it_in_place_and_change_its_colour(
         20,
     )
     expect(props.locator(".wg-prop[data-property='colour'] .wg-field-line")).to_be_hidden()
-    # Edit (Esc): the code again, with the new colour in it.
+    # Preview is remembered for the widget this session: another widget opens in Code, this one in Preview.
+    page.locator(".wg-item[data-widget='button']").click()
+    expect(page.locator(".wg-mode [data-mode='code']")).to_have_attribute("aria-pressed", "true")
+    page.locator(".wg-item[data-widget='region_chart']").click()
+    expect(page.locator(".wg-mode [data-mode='preview']")).to_have_attribute("aria-pressed", "true")
+    expect(page.frame_locator(".wg-frame").get_by_text("Revenue by region")).to_be_visible(timeout=120000)
+    # Code (Esc): the code again, with the new colour in it.
     page.keyboard.press("Escape")
-    expect(page.locator(".wg-editor")).to_be_visible()
-    expect(page.locator(".wg-editor .view-lines")).to_contain_text('colour = "#d62728"')
+    expect(page.locator(".wg-mode [data-mode='code']")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".ide-editor")).to_be_visible()
+    # (Monaco draws spaces as no-break spaces and a colour's swatch before it: never in the code)
+    expect(page.locator(".ide-editor .view-lines")).to_contain_text(re.compile(r'colour\s=\s"\s?#d62728"'))
     # Name and Description: the header only; the name checked as it is typed.
     name = props.locator(".wg-name")
     name.fill("button")
@@ -133,6 +146,7 @@ def test_write_a_widget_run_it_in_place_and_change_its_colour(
     name.fill("region_revenue")
     expect(props.locator(".wg-name-line")).to_have_text("region_revenue is available.")
     name.press("Enter")
+    expect(page.locator(".code-ide .ide-name")).to_have_text("region_revenue")
     props.locator(".wg-description").fill("Revenue for each region, as bars")
     props.locator(".wg-description").blur()
     until(
@@ -154,7 +168,27 @@ def test_a_prebuilt_widget_is_read_only_and_copied_as_your_own(
     expect(page.locator(".wg-saved")).to_have_text("Prebuilt: read-only")
     expect(page.locator(".wg-props .wg-name")).to_have_attribute("readonly", "")
     page.locator(".wg-copy").click()
-    expect(page.locator(".wg-title")).to_have_text("my_kpi_row_3")
+    expect(page.locator(".code-ide .ide-name")).to_have_text("my_kpi_row_3")
     expect(page.locator(".wg-item[data-widget='my_kpi_row_3']")).to_be_visible()
     call(server, "DELETE", "/streamlit/widgets/my_kpi_row_3")
+    page.context.close()
+
+
+@needs_streamlit
+def test_a_failing_preview_shows_its_error_with_a_link_to_its_line(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+    orders: None,
+) -> None:
+    broken = 'import streamlit as st\n\ntitle = "Sales"\n\nst.metric(title, 1 / 0)\n'
+    call(server, "POST", "/streamlit/widgets", {"name": "region_chart", "code": broken})
+    page = open_widgets(browser, server, "region_chart")
+    page.locator(".wg-mode [data-mode='preview']").click()
+    error = page.locator(".wg-preview-error")
+    expect(error).to_contain_text("division by zero", timeout=120000)
+    shot(page, "widgets-window-preview-error")
+    error.locator(".wg-goto-line").click()
+    expect(page.locator(".wg-mode [data-mode='code']")).to_have_attribute("aria-pressed", "true")
+    expect(page.locator(".ide-editor")).to_be_visible()
+    expect(page.locator(".ide-editor .squiggly-error").first).to_be_attached(timeout=20000)
     page.context.close()

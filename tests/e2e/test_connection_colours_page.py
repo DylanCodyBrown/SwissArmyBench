@@ -233,4 +233,3 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     window("file.open", path=str(script))
     page.wait_for_function("() => document.querySelector('[class*=sab-stripe-]') !== null", timeout=20000)
     shot(page, "5-script-stripe")
-

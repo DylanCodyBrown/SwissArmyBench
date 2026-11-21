@@ -1,7 +1,7 @@
 """A canvas as a Streamlit app: ONE page builder for Play, Launch, a widget run alone and Export (so what
 runs in the app is what an export runs on a hosted Streamlit app, unchanged).
 
-    app.py              st.set_page_config (the page's width), st.navigation over the pages
+    app.py              st.set_page_config (wide: the page fills the browser), st.navigation over the pages
     app_pages/<page>.py one Streamlit page per canvas page, reproducing the canvas's pixels: the page an
                         st.container keyed sab-page (CSS: position relative, the page's width and height);
                         each container and each widget an st.container keyed sab-<id>, its CSS placing it
@@ -26,7 +26,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from swissarmybench_streamlit.domain import canvas_model as model
+from swissarmybench_streamlit.domain import canvas_layouts as layouts
+from swissarmybench_streamlit.domain import canvas_layouts as model
 from swissarmybench_streamlit.domain import widget_properties as props_rules
 from swissarmybench_streamlit.domain.widget_properties import Property
 
@@ -64,8 +65,11 @@ def page_files(canvas: Mapping[str, Any]) -> dict[str, str]:
 
 
 class _Writer:
-    """The page as absolutely placed boxes: each container and each widget an st.container with a key, its
-    CSS placing it at its pixels inside its parent (the page's own keyed container, position: relative)."""
+    """The page as placed boxes in both layouts: each container and each widget an st.container with a key,
+    its CSS placing it inside its parent: left and width as fractions of the parent's width (so the page fits
+    any width), top and height in pixels; desktop's places by default, phone's below the breakpoint (a media
+    query: the browser switches layouts as it is resized, with no rerun). An item shown in one layout only is
+    hidden in the other."""
 
     def __init__(
         self, canvas: Mapping[str, Any], widgets: Mapping[str, Built], context: props_rules.Context | None
@@ -75,22 +79,35 @@ class _Writer:
         self.context = context
         self.lines: list[str] = []
         self.css: list[str] = []
+        self.phone: list[str] = []
 
     def emit(self, indent: int, text: str) -> None:
         self.lines.append("    " * indent + text)
 
-    def place(self, key: str, node: Mapping[str, Any], rules: list[str], inset: int) -> None:
-        """Its box at its pixels in its parent's: an absolute box is placed from inside the parent's border
-        (`inset`), so the border's width is taken off and the box lands where the canvas has it."""
-        box = (
-            f"position: absolute; left: {node['x'] - inset}px; top: {node['y'] - inset}px; "
-            f"width: {node['w']}px; "
-            "max-width: none; flex: none"
+    @staticmethod
+    def _box(place: Mapping[str, Any], inset: int) -> str:
+        """Left and width as the fractions they are: of the parent's padding box widened by its border, less
+        the border (an absolute box is placed from inside it), so the box lands where the canvas has it."""
+        grow = f" + {2 * inset}px" if inset else ""
+        less = f" - {inset}px" if inset else ""
+        return (
+            f"left: calc((100%{grow}) * {place['x']}{less}); top: {place['y'] - inset}px; "
+            f"width: calc((100%{grow}) * {place['w']})"
         )
-        self.css.append(f".st-key-{key} {{ {box}; box-sizing: border-box; gap: 0; {'; '.join(rules)}; }}")
+
+    def place(self, key: str, node: Mapping[str, Any], rules: dict[str, list[str]], inset: int) -> None:
+        base = "position: absolute; max-width: none; flex: none; box-sizing: border-box; gap: 0"
+        at = node["at"]
+        desktop = rules["desktop"] + ([] if layouts.shown(node, "desktop") else ["display: none"])
+        phone = rules["phone"] + (["display: flex"] if layouts.shown(node, "phone") else ["display: none"])
+        self.css.append(
+            f".st-key-{key} {{ {base}; {self._box(at['desktop'], inset)}; {'; '.join(desktop)}; }}"
+        )
+        self.phone.append(f".st-key-{key} {{ {self._box(at['phone'], inset)}; {'; '.join(phone)}; }}")
 
     def children(self, children: list[dict[str, Any]], indent: int, inset: int = 0) -> None:
-        for child in sorted(children, key=lambda c: (c["y"], c["x"])):
+        order = sorted(children, key=lambda c: (c["at"]["desktop"]["y"], c["at"]["desktop"]["x"]))
+        for child in order:
             if child["kind"] == "container":
                 self.container(child, indent, inset)
             else:
@@ -99,21 +116,21 @@ class _Writer:
     def container(self, node: dict[str, Any], indent: int, inset: int = 0) -> None:
         props = node["props"]
         key = f"sab-{node['id']}"
-        height = node["h"]
         args = [f"border={props['border']!r}", f"key={key!r}"]
-        if props["scrollable"]:
-            args.insert(1, f"height={height}")
         self.emit(indent, f"with st.container({', '.join(args)}):  # {node['id']}")
-        rules = [f"padding: {props['padding']}px", "margin: 0"]
-        rules.append(f"min-height: {height}px" if props["height"] == "fit" else f"height: {height}px")
-        if props["height"] == "fixed" and not props["scrollable"]:
-            rules.append("overflow: hidden")
-        if props["scrollable"]:
-            rules += [f"height: {height}px", "overflow: auto"]
+        shared = [f"padding: {props['padding']}px", "margin: 0"]
         if props["background"]:
-            rules += [f"background: {props['background']}", "border-radius: 0.5rem"]
-        if props["resizable"]:
-            rules += ["resize: both", "overflow: auto"]
+            shared += [f"background: {props['background']}", "border-radius: 0.5rem"]
+        rules: dict[str, list[str]] = {}
+        for layout in layouts.LAYOUTS:
+            height = node["at"][layout]["h"]
+            made = [f"min-height: {height}px" if props["height"] == "fit" else f"height: {height}px"]
+            if props["height"] == "fixed":
+                made.append("overflow: auto" if props["scrollable"] else "overflow: hidden")
+            if props["resizable"]:
+                made += ["resize: both", "overflow: auto"]
+            rules[layout] = made
+        rules["desktop"] = shared + rules["desktop"]
         self.place(key, node, rules, inset)
         inner = indent + 1
         if props["title"]:
@@ -126,7 +143,10 @@ class _Writer:
     def widget(self, node: dict[str, Any], indent: int, inset: int = 0) -> None:
         key = f"sab-{node['id']}"
         self.emit(indent, f"with st.container(key={key!r}):  # {node['id']}")
-        self.place(key, node, [f"height: {node['h']}px", "overflow: auto"], inset)
+        rules = {
+            layout: [f"height: {node['at'][layout]['h']}px", "overflow: auto"] for layout in layouts.LAYOUTS
+        }
+        self.place(key, node, rules, inset)
         built = self.widgets.get(node["widget"])
         if built is None:
             self.emit(indent + 1, f"sab.missing({node['widget']!r}, {node['id']!r})")
@@ -153,12 +173,18 @@ def page_code(
     writer.children(page["children"], 1)
     if not page["children"]:
         writer.emit(1, "sab.empty()")
-    bottom = max((c["y"] + c["h"] for c in page["children"]), default=40)
+
+    def bottom(layout: str) -> int:
+        shown = [c["at"][layout] for c in page["children"] if layouts.shown(c, layout)]
+        return max((p["y"] + p["h"] for p in shown), default=40)
+
     writer.css.insert(
         0,
-        f".st-key-sab-page {{ position: relative; width: {model.page_width(canvas)}px; height: {bottom}px; "
-        "gap: 0; flex-shrink: 0; }",
+        f".st-key-sab-page {{ position: relative; width: 100%; height: {bottom('desktop')}px; gap: 0; "
+        "flex: none; }",  # Streamlit's own flex: 1 1 0% would make the box 0 px high
     )
+    writer.phone.insert(0, f".st-key-sab-page {{ height: {bottom('phone')}px; }}")
+    writer.css.append(f"@media (max-width: {layouts.BREAKPOINT - 1}px) {{ {' '.join(writer.phone)} }}")
     head = [
         f"# {page['name']}: made from the canvas {canvas['name']} (Swiss Army Bench).",
         "# Edit the canvas, not this file.",
@@ -201,7 +227,7 @@ def _text(code: str) -> str:
 
 def app_code(canvas: Mapping[str, Any], first: str | None = None) -> str:
     files = page_files(canvas)
-    width = canvas["sizing"]["width"]
+    width = "wide"  # the page fills the browser's width; the canvas's places are fractions of it
     lines = [
         f"# {canvas['name']}: made from its canvas (Swiss Army Bench). Run: streamlit run app.py",
         "import streamlit as st",
@@ -247,32 +273,32 @@ def build(
 
 def one_widget(name: str, built: Built, values: Mapping[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     """A widget run alone (the Widgets window's Run, a preview): a canvas of one page, one container that
-    has no border, one instance at its size."""
+    has no border, one instance at its size (in both layouts)."""
+    from swissarmybench_streamlit.domain import canvas_model as engine
+
     canvas = model.new_canvas(name)
     canvas["pages"][0]["name"] = name
-    w, h = model.cells(canvas, *size)
-    w = min(w, model.page_width(canvas))
-    container = {**model.CONTAINER_DEFAULT, "border": False, "padding": 0}
-    instance = {
-        "id": "w1",
-        "kind": "widget",
-        "widget": name,
-        "x": 0,
-        "y": 0,
-        "w": w,
-        "h": h,
-        "values": dict(values),
-    }
+    w, h = engine.cells({"sizing": {**engine.SIZING_DEFAULT, "width": "desktop"}}, *size)
+    fraction = round(min(w, layouts.DESIGN["desktop"]) / layouts.DESIGN["desktop"], layouts.DIGITS)
+    container = {**engine.CONTAINER_DEFAULT, "border": False, "padding": 0}
+    full = {"x": 0.0, "y": 0, "w": 1.0, "h": h}
     canvas["pages"][0]["children"] = [
         {
             "id": "c1",
             "kind": "container",
-            "x": 0,
-            "y": 0,
-            "w": w,
-            "h": h,
+            "show": "both",
+            "at": {"desktop": {**full, "w": fraction}, "phone": full},
             "props": container,
-            "children": [instance],
+            "children": [
+                {
+                    "id": "w1",
+                    "kind": "widget",
+                    "widget": name,
+                    "show": "both",
+                    "at": {"desktop": full, "phone": full},
+                    "values": dict(values),
+                }
+            ],
         }
     ]
     return canvas

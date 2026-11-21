@@ -1,14 +1,14 @@
 """The Canvas (the owner, 2026-11-21): `<app>.canvas.json` files of the project, edited by commands that never
 lose work or leave a broken page.
 
-  open / listing   a canvas file read and validated (domain/canvas_model.py read): a newer format opens
-                   read-only; a file that does not read is reported with its line, a copy kept beside it, and
-                   never written over; an instance whose widget is gone stays as a placeholder (Replace or
-                   Remove); overrides of properties a widget's code no longer has are dropped and said once
-  command          one rule-checked change (add_container, insert_widget, move, set_container, set_values,
-                   replace_widget, delete, sizing, add_page, change_page, remove_page), kept for Undo and
-                   Redo, the file written atomically only when its bytes change (every change is saved: a
-                   crash or a closed window loses nothing)
+  open / listing   a canvas file read and validated (domain/canvas_layouts.py read: its two layouts): a newer
+                   format opens read-only; a file that does not read is reported with its line, a copy kept
+                   beside it, and never written over; an instance whose widget is gone stays as a placeholder
+                   (Replace or Remove); overrides of properties a widget's code no longer has are dropped and
+  said once command          one rule-checked change (add_container, insert_widget, move, set_container,
+                   set_values, replace_widget, delete, sizing, add_page, change_page, remove_page), kept for
+                   Undo and Redo, the file written atomically only when its bytes change (every change is
+                   saved: a crash or a closed window loses nothing)
   undo / redo      every change, back and forward
   versions         each change gives the canvas a new version; a command sent for an older one is refused
                    with the canvas as it is now (two windows never write over each other), and a file changed
@@ -30,8 +30,9 @@ from typing import Any
 
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
-from swissarmybench_streamlit.domain import canvas_model as model
+from swissarmybench_streamlit.domain import canvas_layouts as model
 from swissarmybench_streamlit.domain import widget_properties as props_rules
+from swissarmybench_streamlit.domain.canvas_model import WidgetFacts
 
 HISTORY = 200
 
@@ -97,8 +98,8 @@ class Canvases:
             "old": [{"name": n, "said": model.OLD_SAID} for n in old],
         }
 
-    def _facts(self) -> dict[str, model.WidgetFacts]:
-        facts: dict[str, model.WidgetFacts] = self._widgets.facts()
+    def _facts(self) -> dict[str, WidgetFacts]:
+        facts: dict[str, WidgetFacts] = self._widgets.facts()
         return facts
 
     def _read(self, path: str) -> Open:
@@ -192,6 +193,9 @@ class Canvases:
             "undo": len(opened.back),
             "redo": len(opened.forward),
             "pages": build_rules.page_files(opened.canvas),
+            # Each page's items in pixels at each layout's design width (what the Canvas page draws).
+            "views": model.views(opened.canvas) if not opened.read_only else {},
+            "design": model.DESIGN,
         }
 
     # ===== changes =====
@@ -320,9 +324,10 @@ class Canvases:
         files, names = self._app(opened, page_id)
         tables = await self._widgets.tables_for(names)
         started = time.monotonic()
-        slug = build_rules.page_files(opened.canvas)[page_id]
+        # The played page is the app's default (built so): its address is the app's own, never a page's
+        # path (a path Streamlit has not yet heard of says "Page not found" before the first run).
         answer: dict[str, Any] = await self._live.run(
-            f"canvas-{opened.id}", files, tables, self._widgets.python(body), slug
+            f"canvas-{opened.id}", files, tables, self._widgets.python(body)
         )
         self.ws.audit.write(who, "canvas_play", opened.path)
         return answer | {
@@ -331,8 +336,13 @@ class Canvases:
             "seconds": round(time.monotonic() - started, 2),
         }
 
-    async def stop(self, canvas: str) -> dict[str, Any]:
-        return {"ok": await self._live.stop(f"canvas-{self._get(canvas).id}")}
+    async def stop(self, canvas: str, body: Any = None) -> dict[str, Any]:
+        """Play stopped (run "play", the default), or the launched app (run "launch")."""
+        run = (body or {}).get("run") if isinstance(body, dict) else None
+        if run not in (None, "play", "launch"):
+            raise Refused("run is play or launch.")
+        prefix = "launch" if run == "launch" else "canvas"
+        return {"ok": await self._live.stop(f"{prefix}-{self._get(canvas).id}")}
 
     async def check(self, canvas: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         opened = self._get(canvas)

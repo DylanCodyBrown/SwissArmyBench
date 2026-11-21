@@ -64,7 +64,7 @@ def routes(canvases: Canvases, web_root: Path | None) -> list[BaseRoute]:
         return json_response(await canvases.play(name_of(request), await body_of(request), actor(request)))
 
     async def stop(request: Request) -> Response:
-        return json_response(await canvases.stop(name_of(request)))
+        return json_response(await canvases.stop(name_of(request), await body_of(request)))
 
     async def check(request: Request) -> Response:
         return json_response(await canvases.check(name_of(request), await body_of(request), actor(request)))

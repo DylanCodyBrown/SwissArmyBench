@@ -56,7 +56,9 @@ class Live:
     """One live run: its folder, its process, its own secret (in its address)."""
 
     key: str
-    secret: str = field(default_factory=lambda: secrets.token_urlsafe(12))
+    # Hex: never a "-", so <key>-<secret> splits at its last "-" (token_urlsafe's "-" sent a run to 404
+    # at random).
+    secret: str = field(default_factory=lambda: secrets.token_hex(12))
     folder: str | None = None
     process: Any = None
     python: str = ""

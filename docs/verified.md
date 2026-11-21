@@ -4243,6 +4243,23 @@ Not checked: Edge; the desktop app (Qt) window for the Canvas; the Copilot ghost
 sizing's "…" menu) and at 400 % zoom in a browser; a launched build's window in a browser (its HTTP route is
 tested); previews in the dark theme in a browser.
 
+Phone and Desktop layouts and Code | Preview (2026-11-21, the same branch): tests/test_canvas_layouts.py (every
+item in both layouts with its own place, a pixel round-tripped through the fractions at both design widths, an
+item made in one stacked full width in phone or given a free place on desktop, Show on in the built CSS, the
+built page's fractions and the 767 px media query, a format 1 file read as desktop with a phone layout made, a
+bad layout refused, and 30 random sequences of 50 commands across both layouts: every rule after each, no item
+lost from either, the file read back equal, the pages compiling). In Chromium (tests/e2e/test_canvas_page.py):
+a container drawn on Desktop stacked at 390 px on Phone, the Phone switch, the frame's handle dragged to 500 px
+with the items reflowing, Show on Desktop only faded on Phone, and the built page opened at 1280 px and at 375 px
+with every shown box within 1 px of its layout (1.5 px for a nested one: two roundings) and the hidden one
+`display: none` on the phone; the played page's boxes against the desktop layout scaled to the frame's width.
+The Widgets window (tests/e2e/test_widgets_page.py): F5 to Preview, Preview remembered per widget across
+switching widgets, Esc to Code, a failing Preview's error panel with Go to line taking you to the marked line.
+Found: Streamlit's own `flex: 1 1 0%` on the page root's st.container made it 0 px high once its width was a
+percentage (the page root is now `flex: none`); a Play address with the page's path showed Streamlit's "Page
+not found" before the first run (Play gives the app's own address: the played page is its default).
+Not checked: a phone's real browser; Edge.
+
 ## The blade IDE (2026-11-21, branch blade-ide)
 
 Checked: tests/test_blade_ide.py (HTTP): the code written after the header and read back as the same bytes, CRLF
