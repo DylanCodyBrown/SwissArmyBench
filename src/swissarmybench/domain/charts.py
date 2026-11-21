@@ -384,10 +384,9 @@ def altair_code(spec: dict[str, Any], columns: tuple[Column, ...], dataset: str,
 
 
 # ===== data-bound figures =====
-# A Plotly or ECharts card on a grid may carry a SELECT over the grid's view. The server runs it and puts
-# the result in the figure, so the data never passes through whoever wrote the figure (an agent, say):
-# ECharts takes it as `dataset.source` (its header row first), and a Plotly trace field that names a
-# column ("x": "region") gets that column's values.
+# A Plotly card on a grid may carry a SELECT over the grid's view. The server runs it and puts the result
+# in the figure, so the data never passes through whoever wrote the figure (an agent, say): a Plotly trace
+# field that names a column ("x": "region") gets that column's values.
 
 PLOTLY_COLUMN_FIELDS: tuple[str, ...] = (
     "x",
@@ -428,8 +427,6 @@ def fill_figure(
 ) -> dict[str, Any]:
     """The figure with the query's result in it. Raises ChartError when a Plotly trace names no column."""
     cells = [[_json_cell(v) for v in row] for row in rows]
-    if kind == "echarts":
-        return {**figure, "dataset": {"source": [columns, *cells]}}
     by_name = {name: [row[i] for row in cells] for i, name in enumerate(columns)}
     traces = figure.get("data")
     if not isinstance(traces, list):

@@ -24,8 +24,6 @@ const OTHERS = {
   "lazy/charts": "src/lazy/charts.ts",
   "lazy/diagram": "src/lazy/diagram.ts",
   "lazy/plotly": "src/lazy/plotly.ts",
-  "lazy/echarts": "src/lazy/echarts.ts",
-  "lazy/graphviz": "src/lazy/graphviz.ts",
   "editor.worker": "monaco-editor/editor/editor.worker.js",
   "ts.worker": "monaco-editor/language/typescript/ts.worker.js",
 };

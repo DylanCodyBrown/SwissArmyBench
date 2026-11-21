@@ -16,7 +16,7 @@ export function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
 }
 
 let diagrams: Promise<typeof import("./lazy/diagram")> | null = null;
-/** Mermaid and Graphviz (lazy/diagram.ts). */
+/** Mermaid (lazy/diagram.ts). */
 export function loadDiagrams(): Promise<typeof import("./lazy/diagram")> {
   return (diagrams ??= import(/* external */ "/static/build/lazy/diagram.js" as string) as Promise<typeof import("./lazy/diagram")>);
 }

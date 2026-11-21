@@ -898,7 +898,7 @@ _CARD_FIELDS = (
     opt("title", "Card title (up to 200 characters)."),
     opt(
         "body",
-        "note: markdown; diagram: Mermaid; graphviz: DOT; plotly/echarts: figure JSON; image: data URL.",
+        "note: markdown; diagram: Mermaid; plotly: figure JSON; image: data URL.",
     ),
     opt(
         "spec",
@@ -906,7 +906,7 @@ _CARD_FIELDS = (
         "y: {field?, aggregate: count|sum|mean|min|max}, color?: {field}, title?}.",
         "json",
     ),
-    opt("sql", "A SELECT over `grid`: a table card's rows, or what fills a plotly or echarts body."),
+    opt("sql", "A SELECT over `grid`: a table card's rows, or what fills a plotly body."),
     opt("size", '{"w": 2-12 columns, "h": 3-30 rows of 40px}.', "json"),
 )
 
@@ -929,22 +929,16 @@ _FORMATS: dict[str, Any] = {
             "body": "Markdown: headings, lists, tables, code, quotes. An Analyze note is resizable like a text box."
         },
         "diagram": {"body": "Mermaid text: flowchart LR\n  A --> B"},
-        "graphviz": {"body": "DOT text: digraph { a -> b }"},
         "plotly": {
             "body": '{"data": [{"type": "bar", "x": ["a"], "y": [1]}], "layout": {}}',
             "note": 'No map traces. Colours may be "theme:accent" to follow the theme.',
             "bound": 'With grid and sql, a trace field naming a column ("x": "region") gets its values.',
         },
-        "echarts": {
-            "body": '{"xAxis": {"data": ["a"]}, "yAxis": {}, "series": [{"type": "bar", "data": [1]}]}',
-            "note": "No images, links or graphic layer; tooltips as text.",
-            "bound": "With grid and sql, the query's result is its dataset.source (encode by column name).",
-        },
         "image": {"body": "data:image/png;base64,...", "or": "file: a PNG, JPEG, GIF, WebP or SVG you saved"},
         "vegalite": {"note": "From the user's own Python (Altair) only; the agent draws with chart."},
     },
     "data": "Read tables with the table tools (columns, profiles, steps_run_sql). A chart card, or a plotly "
-    "or echarts card with sql (FROM grid, or its table's name: the grid as shown), computes on the grid "
+    "card with sql (FROM grid, or its table's name: the grid as shown), computes on the grid "
     "itself (first 5,000 rows), follows its steps, and big "
     "data never passes through you. Use key to replace a card you made before.",
 }
@@ -962,9 +956,9 @@ def card_formats(a: dict[str, Any]) -> Any:
     "analyze_add",
     "Add a card to the Analyze board (analyze_formats lists the kinds). Without grid it belongs to no table.",
     opt("grid", "Grid id: needed for chart and for table sql."),
-    opt("kind", "chart, note, table, diagram, graphviz, plotly, echarts or image."),
+    opt("kind", "chart, note, table, diagram, plotly or image."),
     *_CARD_FIELDS,
-    opt("file", "A picture, .md, .mmd or .dot file on this computer."),
+    opt("file", "A picture, .md or .mmd file on this computer."),
     opt("columns", "A table card's own column names.", "json"),
     opt("rows", "A table card's own rows: lists, one value per column.", "json"),
     opt("key", "Names the card: adding the same key again replaces it in place."),

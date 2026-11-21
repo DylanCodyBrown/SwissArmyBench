@@ -1,7 +1,7 @@
 """Side-panel cards: charts, notes and small result tables (plan section 11).
 
   GET    /cards                            every card of every open grid: the one Visualizations
-  POST   /cards                            a card of no table: note, diagram, graphviz, plotly, echarts,
+  POST   /cards                            a card of no table: note, diagram, plotly,
                                             image, or a table of its own {"columns", "rows"}; "key"
                                             replaces the card sent with that key before
   GET    /grids/{id}/cards                 every card for the grid, charts computed on its view

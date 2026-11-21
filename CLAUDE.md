@@ -1015,8 +1015,8 @@ src/swissarmybench/
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
   mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (282 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
-web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
-                         Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
+web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid
+                         and Plotly (each loads when first needed; svgSafe cleans drawings);
                          lazyLoad.ts the one loader each for Monaco and the diagrams (loadEditors, loadDiagrams);
                          lazyPages.ts the rail's pages that load when first opened (APIs, Structures, Code App,
                          Source Control, Extensions: their names, whether a plug-in page is on, stand-in layers

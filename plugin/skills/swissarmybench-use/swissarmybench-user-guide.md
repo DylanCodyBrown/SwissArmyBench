@@ -388,7 +388,7 @@ The Compare row in the ribbon switches the mode.
 
 ## Analyze
 
-Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when grids close.
+Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, Mermaid diagrams, Plotly and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when grids close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
@@ -495,11 +495,10 @@ Anything that shows details can go to the Analyze board, as a readable note and,
 sab.analyze(fig)  # matplotlib or seaborn: a picture
 sab.analyze(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
 sab.analyze(chart)  # Altair: drawn as Vega-Lite
-sab.analyze(dot)  # a graphviz Digraph
 sab.analyze(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
 sab.analyze("## Findings\n- North leads")  # Markdown: a note
-sab.analyze("chart.png")  # a file: a picture, .md, .mmd, .dot
-sab.analyze(text, kind="mermaid")  # Mermaid, DOT or ECharts text
+sab.analyze("chart.png")  # a file: a picture, .md, .mmd
+sab.analyze(text, kind="mermaid")  # Mermaid or Plotly text
 sab.analyze(fig, key="monthly", size=(8, 10))
 ```
 

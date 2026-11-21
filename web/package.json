@@ -9,9 +9,7 @@
     "build:release": "node build.mjs --release"
   },
   "dependencies": {
-    "@viz-js/viz": "3.31.0",
     "ag-grid-community": "36.2.0",
-    "echarts": "6.1.0",
     "html-to-image": "1.11.13",
     "mermaid": "11.4.1",
     "monaco-editor": "0.57.0",

@@ -52,8 +52,8 @@ checker, so what you run is what the user would.
 - The chart's code is `analyze_chart_code` (`analyze_code` is an analysis's).
 - `analyze_formats` lists every card kind with an example: read it before drawing.
 - `analyze_add(kind, ...)`: `chart` (a spec on a grid; the server aggregates), `note` (markdown), `table`
-  (sql over a grid, or rows of its own), `diagram` (Mermaid), `graphviz`, `plotly`, `echarts`, `image`, or
-  a saved `file`. A plotly or echarts card with `grid` and `sql` follows the grid's steps. `key` names a
+  (sql over a grid, or rows of its own), `diagram` (Mermaid), `plotly`, `image`, or
+  a saved `file`. A plotly card with `grid` and `sql` follows the grid's steps. `key` names a
   card: the same key replaces it in place. `size` is {"w": 2-12, "h": 3-30}.
 - `analyze_update`, `analyze_delete`, `analyze_list`, `analyze_all`, `analyze_select` (a click on a chart's
   mark: adds the filter step), `analyze_chart_code` (a chart's Altair Python).

@@ -136,7 +136,7 @@ What a grid page does:
   the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
   lists every table: open, closed (each with Open) and in your Python sessions.
 - **Analyze** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
-  result tables, Mermaid and Graphviz diagrams, Plotly and ECharts figures, and images. Every card
+  result tables, Mermaid diagrams, Plotly figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
   wheel zoom, and clicking a bar filters the grid. The page loads nothing from the internet: figures
   that need outside maps or pictures say so instead.
@@ -567,7 +567,7 @@ Analyze can wear its own theme (the grid keeps the app's): twenty built in, high
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
-`sab.analyze(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
+`sab.analyze(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly or Altair
 figure, a picture, a DataFrame's first rows, Markdown text or a file on the Analyze board; the same `key`
 replaces the card in place when the cell runs again.
 
