@@ -726,6 +726,10 @@ that we built to read and write and the API can adapters stay exactly the same")
 - every extension has the same shape: its manifest (MODE, AREAS, RAIL, STARTERS, API_TARGETS), its commands,
   its routes, its scaffold; adding one never changes another or the base;
 - the test: a new extension is built without editing a single shared reader, writer or adapter.
+- what a new extension usually adds is three things: **blades** (its starters), **language support** (a cell type,
+  its completion, a runtime when it is not Python) and **a canvas** (how its project is laid out and played).
+  The owner: "the things we're adding are blades, language support and a new canvas; data and API underneath
+  always stay the same most of the time".
 
 ## 13b. Feedback from real use, and a clean release (the owner, 2026-11-15)
 
