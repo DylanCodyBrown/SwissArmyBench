@@ -1578,6 +1578,15 @@ def bootstrap(
             api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
     local_api.target_ids = api_export.registry.ids
     local_api.catalog = catalogs
+
+    def publish_api(values: dict[str, str]) -> None:
+        for name in ("SAB_API_URL", "SAB_API_KEY", "SAB_API_BASE"):
+            if name in values:
+                os.environ[name] = values[name]
+            else:
+                os.environ.pop(name, None)
+
+    local_api.publish = publish_api
     intellisense.sandbox_clients = sandbox.mock_names
     intellisense.sandbox_tables = sandbox.table_columns
 

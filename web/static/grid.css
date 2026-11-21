@@ -270,7 +270,8 @@ pre,
 .btn.run {
   border-color: var(--ok);
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
   font-weight: 600;
 }
 
@@ -3918,7 +3919,8 @@ body.agent-view .titlebar {
 .tour-choice.right {
   border-color: var(--ok);
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 
 .tour-choice.wrong {
@@ -12167,7 +12169,8 @@ g.follow-pulse > path:first-of-type {
 
 .structures-status.ok {
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 
 .structures-status.bad {
@@ -12719,7 +12722,8 @@ g.follow-pulse > path:first-of-type {
 
 .api-status.s2 {
   background: var(--ok);
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 
 .api-status.s4,
@@ -20551,7 +20555,8 @@ body.wb-full .wb-col-right {
   color: var(--muted);
 }
 .local-api-status.on {
-  color: var(--ok-fg);
+  color: var(--ok);
+  font-weight: 600;
 }
 .local-api-base {
   width: 9em;

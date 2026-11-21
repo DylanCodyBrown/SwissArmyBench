@@ -4194,6 +4194,7 @@ _API = {
     "export": ("POST", "/local-api/export"),
     "scaffold": ("POST", "/local-api/scaffold"),
     "check": ("POST", "/local-api/check"),
+    "shapes": ("GET", "/local-api/shapes"),
 }
 
 
@@ -4202,7 +4203,7 @@ _API = {
     "The project's local sandbox API, API.py (guide: sandbox); a write call waits for Allow",
     req(
         "action",
-        "state, new, settings, run, stop, call, log, address, openapi, targets, export, scaffold, check (guide).",
+        "state, new, settings, run, stop, call, log, address, openapi, targets, export, scaffold, check, shapes.",
     ),
     opt(
         "args",

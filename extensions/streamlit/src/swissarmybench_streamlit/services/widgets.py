@@ -121,12 +121,24 @@ class Widgets:
         except Exception:
             return None
 
+    # The project's local sandbox API's endpoints ("GET /orders": the base's services/local_api.py), for an
+    # endpoint property's picker and check (None: not known here).
+    endpoints: Callable[[], list[str]] | None = None
+
+    def _endpoints(self) -> list[str] | None:
+        try:
+            return list(self.endpoints()) if self.endpoints is not None else None
+        except Exception:  # API.py's own trouble: the picker shows what it can
+            return None
+
     def context(self, values: Mapping[str, Any] | None = None) -> props_rules.Context:
+        endpoints = self._endpoints()
         return props_rules.Context(
             tables=self._known_tables(),
             variables=self._variables(),
             values=dict(values or {}),
             connections=self._connection_names(),
+            endpoints=set(endpoints) if endpoints is not None else None,
         )
 
     def _properties(self, code: str) -> tuple[list[props_rules.Property], dict[str, Any] | None]:
@@ -202,6 +214,7 @@ class Widgets:
             "data_tables": [t for t in self._data_tables_safe() if t not in open_tables],
             "connection_tables": listing,
             "variables": names,
+            "endpoints": self._endpoints() or [],
             "project": self._project_folder(),
         }
 

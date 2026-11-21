@@ -116,9 +116,12 @@ export function localApisSection(): HTMLElement {
     const problemNotes = problems.map((p) => errorNote(p.message, { where: `API.py line ${p.line}`, fixes: [{ label: "Go to line", run: () => void openOnPage(got.file!, { line: p.line }) }] }));
     const endpoints = (got.endpoints ?? []).map((e) => endpointRow(e, got));
     const log = h("div", { class: "local-api-log" });
+    const shapes = h("div", { class: "local-api-shapes" });
+    void drawShapes(shapes);
     section.replaceChildren(
       head,
       ...problemNotes,
+      shapes,
       endpoints.length ? h("div", { class: "local-api-endpoints", role: "list" }, ...endpoints) : h("p", { class: "empty-note" }, "API.py has no endpoints yet: write one with @endpoint, or New endpoint from a table."),
       log,
     );
@@ -348,4 +351,30 @@ async function checkReal(b: HTMLElement, got: State): Promise<void> {
       : h("p", { class: "empty-note" }, "No endpoint sends SQL to check."),
   );
   foot.append(button("Close", () => close()));
+}
+
+/** Payload shapes: each canvas widget that uses an endpoint, what it expects beside what the endpoint answers,
+ *  each mismatch said before Play. Nothing shows while no widget uses one. */
+async function drawShapes(host: HTMLElement): Promise<void> {
+  let got: { uses: { canvas: string; page: string; widget: string; endpoint: string; expects: string; answers: { fields?: Record<string, string>; body?: Record<string, string> }; problems: string[] }[] };
+  try {
+    got = await api("/local-api/shapes");
+  } catch {
+    return;
+  }
+  if (!got.uses.length) return;
+  const fields = (f?: Record<string, string>): string => (f ? Object.entries(f).map(([k, t]) => `${k}: ${t}`).join(", ") : "");
+  host.replaceChildren(
+    h("h3", {}, "Payload shapes"),
+    h("table", { class: "sandbox-tables" },
+      h("thead", {}, h("tr", {}, ...["Widget", "Endpoint", "Expects", "Answers", ""].map((w) => h("th", {}, w)))),
+      h("tbody", {}, ...got.uses.map((u) => h("tr", {},
+        h("td", {}, `${u.widget} `, h("span", { class: "muted" }, `${u.canvas.replace(/\.canvas\.json$/, "")} › ${u.page}`)),
+        h("td", { class: "mono" }, u.endpoint),
+        h("td", {}, u.expects),
+        h("td", { class: "mono" }, fields(u.answers.body ?? u.answers.fields)),
+        h("td", { class: u.problems.length ? "bad" : "" }, u.problems.length ? u.problems.join(" ") : "Fits"),
+      ))),
+    ),
+  );
 }

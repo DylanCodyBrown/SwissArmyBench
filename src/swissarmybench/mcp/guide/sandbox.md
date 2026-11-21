@@ -61,3 +61,12 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   `offset`, get, create, update, delete by the key; a TypedDict of the columns), written in the source's own
   style: DuckDB SQL for `Sandbox`, T-SQL through SQL Server's cursor, the driver's SQL and marks for another
   database, OData reads for Dataverse (its writes go through the Write starters), list calls for SharePoint.
+
+## Widgets that use it, and their shapes
+- Prebuilt widgets `api_table` (a GET's rows, paged by `limit` and `offset`), `api_form` (a POST or PUT from its body
+  model's fields), `api_button`, `api_metric`. Their `endpoint` property is "GET /orders" (one of API.py's: the
+  endpoint mask); `path_values` fills the path's `{names}`. Play and Launch reach the API while it runs
+  (SAB_API_URL, SAB_API_KEY, SAB_API_BASE in the app's environment).
+- `shapes`: each canvas widget using an endpoint, what it expects beside what the endpoint answers, each mismatch.
+- `check` (Will this work for real?): each endpoint's SQL against its connection's catalog as loaded here, never a
+  query on the source; an unloaded catalog is said ("load it on the Connections page").

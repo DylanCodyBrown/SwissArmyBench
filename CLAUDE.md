@@ -1338,13 +1338,14 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
     server/routes_widgets.py, routes_canvases.py, routes_launch.py  /streamlit/widget (the window),
                          /streamlit/widgets/*, /streamlit/canvas (the page), /streamlit/canvases/* (…/launch,
                          …/builds…, …/perf…), /streamlit/perf (the analyzer's window)
-    widgets/             the 56 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py)
+    widgets/             the 60 prebuilt widgets (read-only; four, api_*, call the local sandbox API; each run with AppTest by tests/test_widgets_apptest.py)
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
 web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list, Monaco with the Workbench's
                          intelligence over a kernel of its own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code;
                          a failure's error panel with Go to line; remembered per widget this session), Properties
                          (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
-web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties); a table's
+web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties; endpoint:
+                         a picker of API.py's endpoints); a table's
                          picker grouped: sample, open tables, data.ipynb's, each connection's [Conn].table (typed
                          when its catalog is not listed yet)
 web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,

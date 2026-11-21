@@ -368,3 +368,67 @@ def test_new_endpoint_from_a_table_runs_its_crud_set_on_the_mocks(live: int, tmp
     log = _ask(port, "GET", "/sandbox")["log"]
     assert log["invoices"] == {"inserted": 1, "updated": 1, "deleted": 1}
     _ask(port, "POST", "/local-api/stop", {})
+
+
+def test_payload_shapes_flag_a_widget_whose_endpoint_answers_otherwise(tmp_path: Path) -> None:
+    from tests.conftest import AUTH, make_client
+
+    with make_client(tmp_path) as client:
+        folder = tmp_path / "shop"
+        assert client.post("/project/new", json={"path": str(folder)}, headers=AUTH).status_code == 200
+        (folder / "API.py").write_text(API_PY, encoding="utf-8")
+        canvas = {
+            "format": 2,
+            "pages": [
+                {
+                    "name": "Home",
+                    "children": [
+                        {
+                            "id": "w1",
+                            "kind": "widget",
+                            "widget": "api_table",
+                            "values": {"endpoint": "GET /orders/{region}", "path_values": {"region": "West"}},
+                        },
+                        {
+                            "id": "w2",
+                            "kind": "widget",
+                            "widget": "api_table",
+                            "values": {"endpoint": "GET /orders/one/{order_id}"},
+                        },
+                        {
+                            "id": "w3",
+                            "kind": "widget",
+                            "widget": "api_metric",
+                            "values": {
+                                "endpoint": "GET /orders/one/{order_id}",
+                                "field": "total",
+                                "path_values": {"order_id": 1},
+                            },
+                        },
+                        {
+                            "id": "w4",
+                            "kind": "widget",
+                            "widget": "api_form",
+                            "values": {"endpoint": "POST /orders", "fields": ["region", "colour"]},
+                        },
+                        {
+                            "id": "w5",
+                            "kind": "widget",
+                            "widget": "api_button",
+                            "values": {"endpoint": "GET /gone"},
+                        },
+                    ],
+                }
+            ],
+        }
+        (folder / "sales.canvas.json").write_text(json.dumps(canvas), encoding="utf-8")
+        found = client.get("/local-api/shapes", headers=AUTH).json()
+        by = {u["instance"]: u["problems"] for u in found["uses"]}
+        assert by["w1"] == ["orders_in takes no limit and offset: api_table shows its first page only."]
+        assert "answers Order" in by["w2"][0] and "gives no order_id" in by["w2"][-1]
+        assert by["w3"] == ["one_order's answer has no field total (it has order_id, region, amount)."]
+        assert by["w4"] == ["add_order's body has no field colour."]
+        assert by["w5"] == ["API.py has no endpoint GET /gone."]
+        assert not found["ok"]
+        first = next(u for u in found["uses"] if u["instance"] == "w1")
+        assert first["answers"]["fields"] == {"order_id": "int", "region": "str", "amount": "float"}

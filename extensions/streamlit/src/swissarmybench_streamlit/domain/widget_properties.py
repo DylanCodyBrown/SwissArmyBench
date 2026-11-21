@@ -16,7 +16,8 @@ DETECT (Python's own parser, never run): every top-level assignment of a plain v
 TYPES and their MASKS: bool (switch), int and float (number; a range), str (text), colour (colour picker),
 date, datetime, time (pickers), choice (dropdown: `Literal[...]` or `# choices:`), table (table picker),
 column (column picker: of the first table property, or `# column of <property>`), variable (the variables
-list), path (a path), list and dict (a small JSON editor). Names starting with _ are not properties.
+list), path (a path), list and dict (a small JSON editor), endpoint (`# endpoint`: one of API.py's, "GET
+/orders"; a picker of the local sandbox API's endpoints). Names starting with _ are not properties.
 
 WRITE: a property's value is written into ONLY its own characters (the value's expression; for a variable,
 the name inside os.environ[...]): every other byte stays as typed. CHECK: a value against its type and mask
@@ -51,6 +52,8 @@ TYPES: dict[str, str] = {
     "path": "path",
     "list": "json",
     "dict": "json",
+    # The project's local sandbox API: one of its endpoints, "GET /orders/{region}" (a picker of API.py's).
+    "endpoint": "endpoint",
 }
 _COLOUR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -61,7 +64,10 @@ _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 _RANGE = re.compile(r"#\s*(-?\d+(?:\.\d+)?)\s*\.\.\s*(-?\d+(?:\.\d+)?)(?:\s+step\s+(\d+(?:\.\d+)?))?")
 _CHOICES = re.compile(r"#\s*choices?\s*:\s*(.+)$", re.IGNORECASE)
 _COLUMN_OF = re.compile(r"#\s*column\s+of\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
-_KIND_WORD = re.compile(r"#\s*(table|column|colour|color|path|date|datetime|time|variable)\b", re.IGNORECASE)
+_KIND_WORD = re.compile(
+    r"#\s*(table|column|colour|color|path|date|datetime|time|variable|endpoint)\b", re.IGNORECASE
+)
+_ENDPOINT = re.compile(r"^(GET|POST|PUT|PATCH|DELETE) /\S*$")
 _PATHLIKE = re.compile(r"^([a-zA-Z]:[\\/]|[\\/]|~|\.{1,2}[\\/])|[\\/].*\.[a-zA-Z0-9]{1,8}$")
 _ANNOTATIONS: dict[str, str] = {
     "bool": "bool",
@@ -79,6 +85,7 @@ _ANNOTATIONS: dict[str, str] = {
     "Path": "path",
     "list": "list",
     "dict": "dict",
+    "Endpoint": "endpoint",
 }
 MAX_TEXT = 5_000
 MAX_JSON = 20_000
@@ -144,6 +151,8 @@ class Context:
     values: dict[str, Any] = field(default_factory=dict)
     # The saved connections' names (a `[Conn].table` value names one; None: not known here).
     connections: set[str] | None = None
+    # API.py's endpoints as "GET /orders/{region}" (an endpoint value names one; None: not known here).
+    endpoints: set[str] | None = None
 
 
 # A connection's table as DuckDB SQL names it (the connection-tables contract): [Finance Captive].Sales,
@@ -467,6 +476,15 @@ def check(prop: Property, value: Any, context: Context | None = None) -> None:
             raise PropertyError(f"{name} is {_n(prop.minimum)} at least.", f"Use {_n(prop.minimum)} or more.")
         if prop.maximum is not None and number > prop.maximum:
             raise PropertyError(f"{name} is {_n(prop.maximum)} at most.", f"Use {_n(prop.maximum)} or less.")
+    elif kind == "endpoint" and value and not _ENDPOINT.match(value):
+        raise PropertyError(
+            f"{name} is one of the local sandbox API's endpoints, like GET /orders: {value!r} is not.",
+            "Pick one of API.py's endpoints.",
+        )
+    elif kind == "endpoint" and value and context.endpoints is not None and value not in context.endpoints:
+        raise PropertyError(
+            f"API.py has no endpoint {value}.", "Pick one of its endpoints, or add it to API.py."
+        )
     elif kind == "colour" and value and not _COLOUR.match(value):
         raise PropertyError(f"{value[:40]} is not a colour.", "Pick a colour, as #1f77b4.")
     elif kind == "date" and value and not (_DATE.match(value) and _real_date(value)):
@@ -535,6 +553,7 @@ def _words(kind: str) -> str:
         "list": "a list",
         "dict": "a set of names and values",
         "choice": "one of its choices",
+        "endpoint": "an endpoint (GET /path)",
     }.get(kind, "text")
 
 

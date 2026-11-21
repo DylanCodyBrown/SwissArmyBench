@@ -133,8 +133,13 @@ def build(key: str, log: collections.deque[dict[str, Any]]) -> Any:
             return JSONResponse({"error": "unauthorized"}, 401)
         return JSONResponse({"log": list(log)})
 
+    async def described(request: Request) -> Response:
+        if not allowed(request):
+            return JSONResponse({"error": "unauthorized"}, 401)
+        return JSONResponse({"endpoints": sab_api.describe()})
+
     base = sab_api.BASE_PATH.rstrip("/")
-    routes = [Route("/__sab/log", logged)]
+    routes = [Route("/__sab/log", logged), Route("/__sab/endpoints", described)]
     by_path: dict[str, set[str]] = {}
     for e in sab_api.ENDPOINTS:
         by_path.setdefault(base + e.path, set()).add(e.method)

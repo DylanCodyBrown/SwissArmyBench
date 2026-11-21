@@ -211,6 +211,43 @@ def plain(value: Any) -> Any:
     return str(value)
 
 
+def describe() -> list[dict[str, Any]]:
+    """Each endpoint: its method, path, function, summary, its path's and query's parameters and its body's
+    fields (a TypedDict's or a dataclass's, with their types' names): an API form widget's fields."""
+    out = []
+    for e in ENDPOINTS:
+        hints = _hints(e.fn)
+        params: list[dict[str, Any]] = []
+        body: dict[str, str] = {}
+        for p in inspect.signature(e.fn).parameters.values():
+            kind = hints.get(p.name, p.annotation)
+            if p.name in e.names:
+                params.append({"name": p.name, "in": "path"})
+            elif _is_body(kind):
+                inner = typing.get_args(kind)[0] if typing.get_origin(kind) is list else kind
+                if typing.is_typeddict(inner) or dataclasses.is_dataclass(inner):
+                    body = {k: getattr(v, "__name__", str(v)) for k, v in _hints(inner).items()}
+            else:
+                params.append(
+                    {
+                        "name": p.name,
+                        "in": "query",
+                        "default": None if p.default is inspect.Parameter.empty else p.default,
+                    }
+                )
+        out.append(
+            {
+                "method": e.method,
+                "path": e.path,
+                "name": e.name,
+                "summary": e.summary,
+                "params": params,
+                "body": body,
+            }
+        )
+    return out
+
+
 # ===== one request =====
 
 

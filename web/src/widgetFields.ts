@@ -10,6 +10,7 @@
  *   column    the columns of the table its `of` property names
  *   variable  the variables (the Variables page's names)
  *   path      a text box                        json     a small JSON editor, checked as it is typed
+ *   endpoint  one of the project's local sandbox API's endpoints ("GET /orders": API.py's)
  *
  * A change is handed to `onValue` with `said`: the caller checks it (the server's check-value) and says what is
  * wrong under the box, with the fix, before anything is kept.
@@ -40,6 +41,8 @@ export interface FieldContext {
   data_tables?: string[];
   /** Each connection's tables as SQL names them; null: its catalog is not listed yet (the table is typed). */
   connection_tables?: Record<string, string[] | null>;
+  /** The project's local sandbox API's endpoints, "GET /orders/{region}" (API.py's). */
+  endpoints?: string[];
 }
 
 /** The table picker: Sample, Open tables, data.ipynb, then a group per connection. */
@@ -171,6 +174,14 @@ export function propertyField(prop: Prop, values: Record<string, unknown>, conte
       const table = text(prop.of ? values[prop.of] : "");
       const columns = (table ? context.tables[table] : SAMPLE_COLUMNS) ?? [];
       const box2 = select([{ value: "", label: "(none)" }, ...columns.map((c) => ({ value: c, label: c }))], text(value), readOnly);
+      box2.addEventListener("change", () => send(box2.value));
+      box = box2;
+      break;
+    }
+    case "endpoint": {
+      const listed = context.endpoints ?? [];
+      const known = listed.includes(text(value)) || !text(value) ? listed : [text(value), ...listed];
+      const box2 = select([{ value: "", label: listed.length ? "(pick an endpoint)" : "(API.py has no endpoints yet)" }, ...known.map((e) => ({ value: e, label: e }))], text(value), readOnly);
       box2.addEventListener("change", () => send(box2.value));
       box = box2;
       break;

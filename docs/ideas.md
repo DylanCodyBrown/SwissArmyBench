@@ -7175,3 +7175,23 @@ ever" / "So this project now needs a new file in the back called API.py".
   FROM/JOIN/INTO/UPDATE in an execute() string offers the sandbox's tables.
 - ARCHITECTURE.md lists API.py in the tree and, when it has endpoints, a Local sandbox API deliverable (what it
   mocks, each method and path); it is not counted as a script.
+
+### Part 5: the API widgets and the canvas (built)
+- Four new prebuilt widget files (extensions/streamlit/.../widgets/api_*.widget.py, no canvas code): api_table
+  (a GET's list, paged with limit and offset, Previous and Next), api_form (a POST or PUT: its fields from the
+  running API's body model, GET /__sab/endpoints on its host), api_button, api_metric (a field of an object, or a
+  list's count). Each reaches the API by SAB_API_URL, SAB_API_KEY and SAB_API_BASE with the standard library; with
+  none it says how to start it (so AppTest renders each without an error).
+- A new property mask, `endpoint` (widget_properties.py: `# endpoint` or `Endpoint`; a value "GET /path", checked
+  against API.py's endpoints when known; the Canvas's and the Widgets window's field a picker of them,
+  widgetFields.ts; the endpoints from GET /streamlit/widgets/context).
+- Play and Launch: the base puts SAB_API_URL, SAB_API_KEY and SAB_API_BASE in its own environment while the API
+  runs (services/local_api.py publish), so a Streamlit process started afterwards inherits them: no canvas code
+  changed. An app playing before Run is started again to see it.
+- Payload shapes (the owner's design change: "a Payload shapes panel shows the endpoint's answer schema beside
+  what the widgets using it expect"): GET /local-api/shapes, api(shapes), a table on the Local sandbox APIs
+  section: each canvas instance with an endpoint value (the extension's api_uses reads the project's
+  *.canvas.json), what its widget expects, the endpoint's model, each mismatch in one sentence.
+- Not done: the canvas Export writing SAB_API_URL as a variable to set (that is the canvas service's export, left
+  alone under the rule that this branch adds widget files and a mask only); the API export's README lists the
+  API's own variables, and the widgets name theirs in their code.

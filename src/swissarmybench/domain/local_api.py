@@ -545,3 +545,88 @@ def runner_env(server: Mapping[str, str], values: Mapping[str, str], home: str) 
         "PYTHONDONTWRITEBYTECODE": "1",
     }
     return env | {str(k): str(v) for k, v in values.items()}
+
+
+# ===== Payload shapes: what a widget using an endpoint expects, beside what the endpoint answers =====
+
+# Each API widget's expectation: the methods it calls, and what it needs of the answer or the body.
+WIDGET_NEEDS: dict[str, dict[str, Any]] = {
+    "api_table": {
+        "methods": ("GET",),
+        "answer": "list",
+        "words": "a list of rows (limit and offset pages it)",
+    },
+    "api_metric": {"methods": ("GET",), "answer": "field", "words": "an object (or rows) with its field"},
+    "api_form": {
+        "methods": ("POST", "PUT", "PATCH"),
+        "answer": "body",
+        "words": "a body of the form's fields",
+    },
+    "api_button": {"methods": METHODS, "answer": "any", "words": "any answer"},
+}
+
+
+def _model_of(kind: str, models: Mapping[str, Model]) -> Model | None:
+    bare = re.sub(r"^(?:list|List|Sequence|Optional)\[(.*)\]$", r"\1", kind.strip()).replace(" | None", "")
+    return models.get(bare)
+
+
+def shapes(api: Api, uses: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Each use (a canvas widget instance naming an endpoint): what its widget expects, what the endpoint
+    answers (its schema, its model's fields and types), and each mismatch in one sentence, before Play."""
+    by = {f"{e.method} {e.path}": e for e in api.endpoints}
+    out = []
+    for use in uses:
+        values = dict(use.get("values") or {})
+        wanted = str(values.get("endpoint") or "")
+        widget = str(use.get("widget") or "")
+        needs = WIDGET_NEEDS.get(widget, {"methods": METHODS, "answer": "any", "words": "an answer"})
+        found = by.get(wanted)
+        problems: list[str] = []
+        answers: dict[str, Any] = {}
+        if found is None:
+            problems.append(f"API.py has no endpoint {wanted}.")
+        else:
+            schema = schema_of(found.returns, api.models)
+            model = _model_of(found.returns, api.models)
+            answers = {
+                "schema": schema,
+                "fields": {k: v[0] for k, v in model.fields.items()} if model else {},
+            }
+            if found.method not in needs["methods"]:
+                problems.append(f"{widget} calls {'/'.join(needs['methods'])}; {wanted} is a {found.method}.")
+            if needs["answer"] == "list" and schema.get("type") != "array":
+                problems.append(
+                    f"{widget} shows a list of rows; {found.name} answers {found.returns or 'nothing typed'}."
+                )
+            if needs["answer"] == "list" and not {"limit", "offset"} <= {p.name for p in found.params}:
+                problems.append(
+                    f"{found.name} takes no limit and offset: {widget} shows its first page only."
+                )
+            field = str(values.get("field") or "")
+            if needs["answer"] == "field" and field and model is not None and field not in model.fields:
+                problems.append(
+                    f"{found.name}'s answer has no field {field} (it has {', '.join(model.fields)})."
+                )
+            if needs["answer"] == "body":
+                body = next((p for p in found.params if p.where == "body"), None)
+                body_model = _model_of(body.type, api.models) if body else None
+                asked = [str(f) for f in values.get("fields") or []]
+                if body is None:
+                    problems.append(f"{found.name} takes no body for {widget} to send.")
+                elif body_model is not None:
+                    answers["body"] = {k: v[0] for k, v in body_model.fields.items()}
+                    extra = [f for f in asked if f not in body_model.fields]
+                    if extra:
+                        problems.append(f"{found.name}'s body has no field {extra[0]}.")
+            missing = [
+                n for n in re.findall(r"\{(\w+)\}", wanted) if n not in (values.get("path_values") or {})
+            ]
+            if missing:
+                problems.append(f"{widget} gives no {missing[0]} for the path (path_values).")
+        out.append(
+            {"canvas": use.get("canvas"), "page": use.get("page"), "instance": use.get("instance"),
+             "widget": widget,
+             "endpoint": wanted, "expects": needs["words"], "answers": answers, "problems": problems}
+        )  # fmt: skip
+    return out

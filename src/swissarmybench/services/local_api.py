@@ -120,6 +120,11 @@ class LocalApi:
         self.target_ids: Callable[[], list[str]] = lambda: ["fastapi", "azure_functions", "aws_lambda"]
         # The loaded catalogs (services/catalogs.py): "Will this work for real?" reads them, never loads one.
         self.catalog: Any = None
+        # Where it runs, put in this server's environment while it runs (SAB_API_URL, SAB_API_KEY,
+        # SAB_API_BASE), so an app Play or Launch starts afterwards reaches it; {} when it stops.
+        self.publish: Callable[[dict[str, str]], None] = lambda values: None
+        # The canvases' widget instances that name an endpoint (the Streamlit extension's; none without it).
+        self.api_uses: Callable[[], list[dict[str, Any]]] = lambda: []
 
     # ===== the file =====
 
@@ -134,6 +139,14 @@ class LocalApi:
 
     def _text(self) -> str | None:
         return self._files.read(self.path())
+
+    def endpoint_names(self) -> list[str]:
+        """API.py's endpoints as a widget's endpoint property names them: "GET /orders/{region}" (no base
+        path: the app adds SAB_API_BASE)."""
+        if self._project() is None:
+            return []
+        text = self._text()
+        return [] if text is None else [f"{e.method} {e.path}" for e in rules.parse(text).endpoints]
 
     def data_keys(self) -> set[str]:
         """The keys the sandbox's data route takes: the running API's only."""
@@ -228,6 +241,17 @@ class LocalApi:
             self._files.write(self.path(), written)
             await self._told(who, "local_api_settings")
         return await self.state()
+
+    # ===== Payload shapes =====
+
+    async def shapes(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Each canvas widget that uses an endpoint: what it expects beside what the endpoint answers, and
+        each mismatch, before Play."""
+        text = self._text()
+        if text is None:
+            return {"uses": [], "ok": True}
+        found = rules.shapes(rules.parse(text), self.api_uses())
+        return {"uses": found, "ok": not any(u["problems"] for u in found)}
 
     # ===== "Will this work for real?" =====
 
@@ -376,6 +400,7 @@ class LocalApi:
             )
             self._running_for = path
             self._started_at = self._now()
+            self.publish(self.env_for_app() | {"SAB_API_BASE": settings.base_path})
         except StartFailed as failed:
             self._runner = None
             self._failed = {"error": failed.error, "line": failed.line}
@@ -383,6 +408,7 @@ class LocalApi:
     async def _stop_quietly(self) -> None:
         if self._runner is not None:
             await self._runner.stop()
+            self.publish({})
         self._runner = None
         self._running_for = None
         self._data_key = ""
@@ -454,7 +480,10 @@ class LocalApi:
     async def log(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         if not self.running() or self._runner is None:
             return {"log": [], "running": False}
-        return {"log": await self._runner.log(), "running": True}
+        try:
+            return {"log": await self._runner.log(), "running": True}
+        except OSError:  # it stopped as it was asked
+            return {"log": [], "running": False}
 
     async def address(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         """Where it runs and its key (for this computer's own callers: the app it serves)."""
