@@ -12,7 +12,7 @@
  * …/builds/{n}/restore (routes_launch.py; the agent's canvas_builds: list, files, compare, relaunch, restore).
  */
 import { api } from "./api";
-import { button, clear, h, openDialog } from "./dom";
+import { button, clear, dateTime, h, openDialog } from "./dom";
 import { errorHere } from "./errorNote";
 import { busyButton, loadingBlock } from "./loading";
 import { effectiveTheme } from "./theme";
@@ -63,10 +63,6 @@ export function openAnalyzer(canvas: string, saved?: { build: number; file: stri
   return window.open(address, `sab-perf-${canvas}${saved ? `-${saved.file}` : ""}`, "popup,width=1200,height=820");
 }
 
-const when = (iso: string): string => {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? iso : at.toLocaleString();
-};
 
 /** The Builds dialog. */
 export async function openBuilds(canvas: string, host: BuildsHost): Promise<void> {
@@ -97,7 +93,7 @@ export async function openBuilds(canvas: string, host: BuildsHost): Promise<void
               "div",
               { class: `bd-row bd-${b.result}`, role: "listitem", dataset: { build: String(b.number) } },
               tick,
-              h("div", { class: "bd-head" }, h("strong", {}, `Build ${b.number}`), h("span", { class: "hint" }, when(b.time)), h("span", { class: `bd-result bd-result-${b.result}` }, b.result === "started" ? (b.first_load_ms !== null ? `started · ${b.first_load_ms} ms` : "started") : b.result)),
+              h("div", { class: "bd-head" }, h("strong", {}, `Build ${b.number}`), h("span", { class: "hint" }, dateTime(b.time)), h("span", { class: `bd-result bd-result-${b.result}` }, b.result === "started" ? (b.first_load_ms !== null ? `started · ${b.first_load_ms} ms` : "started") : b.result)),
               h("ul", { class: "bd-changed" }, ...b.changed.map((c) => h("li", {}, c))),
               b.error ? h("div", { class: "bd-error", role: "alert" }, b.error) : null,
               h(

@@ -457,6 +457,18 @@ export const isBoolType = (type: string): boolean => type.toUpperCase() === "BOO
 const grouping = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
 export const formatCount = (n: number): string => grouping.format(n);
 
+/** A count with its word, the one way every page says it: "1 row", "1,204 rows" (`many` for a word whose
+ *  plural is not its word and an s). */
+export const plural = (n: number, word: string, many = `${word}s`): string => `${formatCount(n)} ${n === 1 ? word : many}`;
+
+/** A moment as every page shows it: "21 Nov 2026, 14:02" in the system's own words. An ISO text, epoch
+ *  milliseconds or a Date; text that is not a date is shown as it is, and nothing as "". */
+export function dateTime(at: string | number | Date | null | undefined): string {
+  if (at === null || at === undefined || at === "") return "";
+  const date = at instanceof Date ? at : new Date(at);
+  return Number.isNaN(date.getTime()) ? String(at) : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
 // ===== context menus (right-click) =====
 
 /** A menu entry: [icon, words, action], or "-" for a rule. A fourth part says why the entry cannot

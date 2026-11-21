@@ -16,7 +16,7 @@
  *          POST /projects/dictionary (routes_projects.py)
  */
 import { api } from "./api";
-import { button, clear, h, icon } from "./dom";
+import { button, clear, h, icon, plural } from "./dom";
 import { variableBox } from "./variableBox";
 import { errorHere, errorNote } from "./errorNote";
 
@@ -214,7 +214,6 @@ export function described(all: Descriptions, table: string, column: string | nul
   return next;
 }
 
-const plural = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
 
 export function drawDictionary(host: HTMLElement, tables: DictionaryTable[], chosen: { table: string | null }, change: (table: string, column: string | null, text: string) => void): void {
   if (!tables.length) return void clear(host, h("p", { class: "hint app-empty" }, "No tables in data.ipynb"));

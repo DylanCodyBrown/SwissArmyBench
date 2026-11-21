@@ -12,6 +12,7 @@
  *              nothing. Nothing runs by itself
  *   [USES]     the one line the app keeps at the top of a cell that names a table
  */
+import { plural } from "./dom";
 import { api } from "./api";
 
 /** An open table, as the server lists it. */
@@ -110,7 +111,7 @@ export function tableState(code: string, record: RunRecord | undefined): TableSt
   return { kind: "notRun", label: "Not run yet", short: "not run yet", runnable: true };
 }
 
-export const plural = (n: number, word: string): string => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+export { plural };
 
 /** A table's folded line: its name, its steps when it has some, and its state only when that needs
  *  the user to act: "orders · 3 steps", "orders · 3 steps · out of date", "customers". */
