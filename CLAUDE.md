@@ -25,8 +25,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
   (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
-  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (cli/commands.py OLD_NAMES: run, never
-  listed), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
+  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (until 2026-11-21, when the project's sandbox
+  took the word: GONE_NAMES says each is analyze_*), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
   `sandbox` key. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
 - **Renamed (the owner, 2026-11-19): Visualizations is Analyze, and the analyses live there** ("Let's move the
   analyze from the table bar to the visualizations pane and then rename the visualizations pane Analyze" /
@@ -164,7 +164,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
-  project's scaffold, `.sab/data/` only on the user's tick), the audit log and, in beta mode,
+  project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox:
+  the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored), the audit
+  log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
   **GitHub sync (the owner, 2026-11-18; the Git extension) sends the team library's and shared projects' files to
@@ -608,6 +610,9 @@ src/swissarmybench/
                          in plain words, a connection's access in one line; the Microsoft kinds it checks (Azure SQL,
                          Dataverse, SharePoint, OneLake, Data Lake: each one's scope, place, refusals in words) and a
                          connection's code made to sign in with a registration (signed_in_with: its place kept)
+    sandbox.py           the project's sandbox (2026-11-21): .sab/sandbox/ (sandbox.duckdb, baseline.duckdb,
+                         checkpoints/, sandbox.json: each table's source and the client its rows are mocked as, the
+                         baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values)
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -669,6 +674,10 @@ src/swissarmybench/
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
                          Structures' documents and paths and APIs' table-returning web calls registered from
                          theirs (register("structures"/"apis")); one failing source skipped
+    sandbox.py           the project's sandbox: add (an open grid's view, a connection's table read once, a file,
+                         columns), remove, Reset (the agent's on Allow), baseline, checkpoints, a mock client's
+                         reads and writes (counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias),
+                         the Catalog's Sandbox section
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
                          blade, a web call blade per operation, openapi.json, source.json), inline (the exporter)
     api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
@@ -799,6 +808,8 @@ src/swissarmybench/
                          Azure SQL by mssql-python with the token, Dataverse's WhoAmI and roles, Graph's site, lists
                          and libraries, a lake path's listing)
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
+    sandbox.py           a project's sandbox file: DuckDB with external access off, one lock, the baseline and the
+                         checkpoints as whole-file copies (Reset is one copy), sandbox.json
     tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
                          Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
                          (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)
@@ -852,7 +863,7 @@ src/swissarmybench/
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
-                         connection_swap, variables, connection_colours, connection_tables, connection_slots,
+                         connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox,
                          explorer, library,
                          shared_catalog, team, found_connections, script_ide, sharing). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
@@ -1153,6 +1164,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          connectionColours.ts each connection's colour worn by whatever names it
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
                          swatch and palette; panes.ts groups the home page's tabs by connection;
+                         dataSandbox.ts the project's sandbox (the grid's Add to sandbox; the APIs page's panel:
+                         tables and their mock clients, Open in Grids, Reset, Set as baseline, checkpoints, the log);
                          swapConnection.ts the Table row's Connection: <name> (a table read from another
                          connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
                          ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,

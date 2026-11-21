@@ -43,6 +43,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
+  routes_sandbox.py        the project's sandbox: tables, Reset, checkpoints, an API's data calls
   routes_sharing.py        Share a running app with your organization (Microsoft Dev Tunnels)
   routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
@@ -125,6 +126,7 @@ from swissarmybench.server import (
     routes_regression,
     routes_relationships,
     routes_sab_projects,
+    routes_sandbox,
     routes_script_export,
     routes_script_ide,
     routes_script_runs,
@@ -199,7 +201,10 @@ def create_app(
     session_secret = secrets.token_urlsafe(32)
     # Each extension that is on: its live pages' secret paths (the guard lets them through, the route checks
     # the secret) and its Session page words.
-    secret_paths = tuple(p for extension in ctx.switched_on for p in getattr(extension, "SECRET_PATHS", ()))
+    secret_paths = (
+        routes_sandbox.DATA_PREFIX,
+        *(p for extension in ctx.switched_on for p in getattr(extension, "SECRET_PATHS", ())),
+    )
     for extension in ctx.switched_on:
         session_log_rules.RULES.update(getattr(extension, "SESSION_RULES", None) or {})
     # The catalog's extensions that are not on: a call on their routes says which one it needs.
@@ -382,6 +387,7 @@ def create_app(
             *routes_library.routes(ctx.library, ctx.library_setup),
             *routes_team.routes(ctx.team),
             *routes_sharing.routes(ctx.sharing),
+            *routes_sandbox.routes(ctx.sandbox),
             *routes_app_registrations.routes(ctx.app_registrations),
             *routes_shared_catalog.routes(ctx.shared_catalog),
             *routes_connection_colours.routes(ctx.connection_colours),

@@ -38,7 +38,7 @@ from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
-from swissarmybench.adapters.database import PriorityWorkers, grammar_later, open_database
+from swissarmybench.adapters.database import PriorityWorkers, duckdb_grammar, grammar_later, open_database
 from swissarmybench.adapters.datasets import DatasetStore, file_stamp
 from swissarmybench.adapters.extensions import discover as discover_extensions
 from swissarmybench.adapters.folders import ensure_own as ensure_own_folder
@@ -53,6 +53,7 @@ from swissarmybench.adapters.packs import PackFolders
 from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSettings
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
+from swissarmybench.adapters.sandbox import SandboxFiles
 from swissarmybench.adapters.script_ide import ScriptCode
 from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
@@ -91,12 +92,15 @@ from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import lifecycle as lifecycle_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
+from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import variables as variable_rules
 from swissarmybench.domain.blades import Blade, env_settings
+from swissarmybench.domain.connection_swap import Place
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_explorer import local_only_words as explorer_rules_words
 from swissarmybench.domain.project_scope import APP_FOLDER
+from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.renamed import env
 from swissarmybench.server import blade_runner, dialog_runner, file_manager
@@ -167,6 +171,7 @@ from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
+from swissarmybench.services.sandbox import Sandbox, SandboxAlias, SourcesFrom
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
@@ -259,6 +264,7 @@ class Services:
     library_setup: LibrarySetup
     team: Team
     sharing: Sharing
+    sandbox: Sandbox
     shared_catalog: SharedCatalog
     app_registrations: AppRegistrations
     script_runs: ScriptRuns
@@ -852,7 +858,9 @@ def bootstrap(
         catalogs,
         catalog_loading,
         table_reader.table_to_arrow_stream,
-        aliases=lambda: hooks.dataset_aliases(),
+        aliases=lambda: (
+            hooks.dataset_aliases() | ({sandbox_rules.NAME: sandbox_alias} if sandbox.folder() else {})
+        ),
     )
     datasets.connection_sql = connection_tables
     connection_swap = ConnectionSwap(
@@ -1172,6 +1180,54 @@ def bootstrap(
         explorer_providers.structures_provider(structures.listing, lambda sid: structures.node(sid)),
     )
     explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
+
+    # The project's sandbox (domain/sandbox.py): the data a local sandbox API reads and writes, mocked as the
+    # client of the connection each table came from; [Sandbox].orders in DuckDB SQL; a section in the Catalog.
+    def sandbox_client(table: str | None, connection: str | None) -> dict[str, Any]:
+        name = connection
+        if name is None and table is not None:
+            name = datasets.origins.get(table).connection
+        if not name:
+            return {"kind": sandbox_rules.PLAIN}
+        try:
+            blade, _ = connections.blade(name)
+            saved, tables_kind = connection_tables.kind(name)
+        except Exception:
+            return {"kind": sandbox_rules.PLAIN, "connection": name}
+        return {
+            "kind": tables_kind,
+            "connection": saved,
+            "template": blade.template or "",
+            "dialect": blade.dialect or "",
+        }
+
+    async def sandbox_grid_view(name: str) -> Any:
+        body = await table_cells.view(name)
+        return table_reader.arrow_stream_to_table(body, settings.max_dataset_bytes)
+
+    async def sandbox_connection_table(name: str, place: Place) -> Any:
+        kept, _ = await connection_tables.read(name, place)
+        return kept.read.table
+
+    async def sandbox_show(name: str, table: Any, follow: bool) -> dict[str, Any]:
+        return await datasets.store_table(name, table, "sandbox", False, "user", follow=follow)
+
+    def sandbox_ignore(folder: str) -> None:
+        archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
+
+    sandbox = Sandbox(
+        ws,
+        lambda: sab_projects.current.folder if sab_projects.current is not None else None,
+        SandboxFiles,
+        SourcesFrom(
+            sandbox_grid_view, sandbox_connection_table, datasets.read_file, sandbox_show, sandbox_client
+        ),
+        approvals,
+        lambda sql: duckdb_grammar().parse(sql),
+        ignore=sandbox_ignore,
+    )
+    sandbox_alias = SandboxAlias(sandbox)
+    explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
 
     async def open_work() -> dict[str, Any]:
         """What is open and what an update would lose: the tables, the Workbench
@@ -1525,6 +1581,7 @@ def bootstrap(
         library_setup=library_setup,
         team=team,
         sharing=sharing,
+        sandbox=sandbox,
         shared_catalog=shared_catalog,
         app_registrations=app_registrations,
         keys=key_finder,

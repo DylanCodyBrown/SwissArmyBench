@@ -371,6 +371,7 @@ BROWSE_TABLES: int = 500  # a group's tables drawn at once (the search finds the
 # The sections after the connections, in order.
 SECTIONS: tuple[tuple[str, str], ...] = (
     ("open", "Open tables"),
+    ("sandbox", "Sandbox"),
     ("structures", "Structures"),
     ("apis", "APIs"),
     ("blades", "Blades"),
@@ -380,6 +381,7 @@ SECTIONS: tuple[tuple[str, str], ...] = (
 _SHOWN_BY: dict[str, frozenset[str]] = {
     "connections": frozenset({"connections", "tables", "columns"}),
     "open": frozenset({"tables", "columns"}),
+    "sandbox": frozenset({"tables", "columns"}),
     "structures": frozenset({"structures"}),
     "apis": frozenset({"apis", "columns"}),
     "blades": frozenset({"blades"}),
@@ -500,6 +502,8 @@ def browse_sections(results: Sequence[Result], query: Query) -> list[dict[str, A
         if query.connection is None or (r.connection and same_name(r.connection, query.connection))
     ]
     grids = [r for r in rs if r.kind == "tables" and r.more.get("source") == "grid"]
+    boxed = [r for r in rs if r.kind == "tables" and r.more.get("source") == "sandbox"]
+    boxed_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "sandbox"]
     grid_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "grid"]
     docs = [r for r in rs if r.kind == "structures" and r.more.get("pointer") == "$"]
     paths = [r for r in rs if r.kind == "structures" and r.more.get("pointer") != "$"]
@@ -510,6 +514,7 @@ def browse_sections(results: Sequence[Result], query: Query) -> list[dict[str, A
     shared_columns = [r for r in rs if r.kind == "columns" and r.more.get("source") == "shared"]
     items: dict[str, list[dict[str, Any]]] = {
         "open": _nested(sorted(grids, key=_by_name), grid_columns, lambda c: c.more.get("table")),
+        "sandbox": _nested(sorted(boxed, key=_by_name), boxed_columns, lambda c: c.more.get("table")),
         "structures": _nested(sorted(docs, key=_by_name), paths, lambda c: c.path[0] if c.path else ""),
         "apis": _nested(sorted(calls, key=_by_name), call_columns, lambda c: c.more.get("table")),
         "blades": [r.to_json() for r in sorted(blades, key=_by_name)],

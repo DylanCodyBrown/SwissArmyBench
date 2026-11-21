@@ -7010,3 +7010,40 @@ Decisions:
 
 Not done: the tenant's display name ("Your organization: <name>") — devtunnel's `user show` does not say it; Graph
 would need another sign-in, so "Your organization" stands alone until a source is found.
+
+## Local sandbox APIs over the project's sandbox (the owner, 2026-11-21; branch local-apis)
+
+The owner: "the goal is to be able to build a ready to go backend, front end app and API here. If we could build
+api's here that could host locally inside the app so the streamlit could use our API as a testing ground with our
+connections we would have the full stack. And a fully functional POC" / "We need to actually make apis just read and
+write our local data through the API. Not use the connectors that way we could transform scaffold create an app then
+test it out and then reset the data changes and try again. It makes for the ultimate sandbox" / "Instead of your API
+just call it local sandbox apis" / "The goal is to see how your app will behave with mock data ... Things that get
+built should always hand back to a client that mimics the connections client shape" / "No never run against live data
+ever" / "So this project now needs a new file in the back called API.py".
+
+### Part 1: the sandbox (built)
+- `.sab/sandbox/` in the project folder: `sandbox.duckdb` (opened by the server only, external access off, no
+  spill folder, one lock), `baseline.duckdb` and `checkpoints/<name>.duckdb` (whole-file copies taken after a
+  CHECKPOINT with the file closed: Reset is one copy and gives back exactly the baseline), `sandbox.json` (each
+  table's source and the client its rows are mocked as, the baseline's time, the checkpoints, the change log).
+  Git-ignored: `.sab/.gitignore` has `sandbox/` and the scaffold's `.gitignore` `.sab/sandbox/`; an older project's
+  `.sab/.gitignore` is written again when its sandbox is first made.
+- Tables come in only on the user's Add to sandbox (or the agent's `sandbox_add`): an open grid's view after its
+  steps (the grid's Table row: Add to sandbox), a connection's table read once through the connection (its query
+  row limit applies; never read again), a file, or an empty table by its columns (text, integer, number, decimal,
+  yes/no, date, timestamp; a key). Adding or removing a table makes the sandbox the baseline again.
+- Each table remembers its client: the connection it came from (directly, or an open grid's origin) with its
+  tables kind, template and dialect; a file or an empty table is `duckdb` (a plain DuckDB client).
+- The change log counts each mock client's inserted, updated and deleted rows per table since the baseline; a
+  checkpoint keeps the log it was saved with; Reset empties it.
+- Writes are statements of their own (domain/sandbox.py): every name checked against the table's columns, every
+  value bound, one transaction per call (all or none); a read is one SELECT by DuckDB's own parse.
+- A sandbox table shows in Grids as `sandbox_<table>` (Open in Grids), its grid given the rows again after each
+  write, where it is (store_table's follow); DuckDB SQL names it `[Sandbox].orders` (a dataset alias of the base's
+  hooks: its words carry the sandbox's version, so a read after a write is read again); the Catalog has a Sandbox
+  section after Open tables.
+- Decision: the word `sandbox` is the project's sandbox now. The Analyze board's old `sandbox_*` command names (one
+  release since 2026-11-16) went: GONE_NAMES says each is `analyze_*`; `visualizations_*` still run.
+- Agent: `sandbox_list`, `sandbox_add`, `sandbox_remove`, `sandbox_open`, `sandbox_reset` (waits for Allow),
+  `sandbox_checkpoint` (save, delete, baseline), `sandbox_restore`.

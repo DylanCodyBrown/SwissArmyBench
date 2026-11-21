@@ -527,11 +527,12 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       return made;
     };
     const others: Record<string, BrowseResult[]> = {};
-    for (const r of of("tables")) if (!at(r)) (others[r.source === "shared" ? "shared" : "open"] ??= []).push(r);
+    const home = (r: BrowseResult, other = "open"): string => (r.source === "shared" ? "shared" : r.source === "sandbox" ? "sandbox" : other);
+    for (const r of of("tables")) if (!at(r)) (others[home(r)] ??= []).push(r);
     for (const r of of("columns")) {
       const t = at(r);
       if (t) t.cols.push(r);
-      else (others[r.source === "api" ? "apis" : r.source === "shared" ? "shared" : "open"] ??= []).push(r);
+      else (others[r.source === "api" ? "apis" : home(r)] ??= []).push(r);
     }
     const names = new Set([...byConnection.keys(), ...of("connections").map((r) => r.name)]);
     const connectionRoots: Node[] = [];
@@ -549,6 +550,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     }
     const sections: [string, string, BrowseResult[]][] = [
       ["open", "Open tables", others.open ?? []],
+      ["sandbox", "Sandbox", others.sandbox ?? []],
       ["structures", "Structures", of("structures")],
       ["apis", "APIs", [...of("apis"), ...(others.apis ?? [])]],
       ["variables", "Variables", of("variables")],

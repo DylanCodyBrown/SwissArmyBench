@@ -147,6 +147,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python; key vaults, variables",
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
     "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
+    "sandbox": "Local sandbox APIs: the project's sandbox, API.py, mock clients, Run, Try it, Export",
     "blades": "Blades and starters: saved code, the starter pack, packs",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: live cells, the canvas, export, Save as, project folders",
@@ -4182,6 +4183,32 @@ def sharing_status(a: dict[str, Any]) -> Any:
     return api.call("GET", "/sharing" + query)
 
 
+_SANDBOX = {
+    "list": ("GET", "/sandbox"),
+    "add": ("POST", "/sandbox/tables"),
+    "remove": ("POST", "/sandbox/tables/remove"),
+    "open": ("POST", "/sandbox/tables/open"),
+    "reset": ("POST", "/sandbox/reset"),
+    "baseline": ("POST", "/sandbox/baseline"),
+    "checkpoint": ("POST", "/sandbox/checkpoints"),
+    "restore": ("POST", "/sandbox/checkpoints/restore"),
+}
+
+
+@command(
+    "sandbox",
+    "The project's sandbox (guide: sandbox); reset waits for Allow",
+    req("action", "list, add, remove, open, reset, baseline, checkpoint or restore."),
+    opt("args", 'add: {"from": grid|connection|file|columns, ...}; others: {"table"} or {"name"}.', "json"),
+)
+def sandbox(a: dict[str, Any]) -> Any:
+    action = str(a["action"])
+    if action not in _SANDBOX:
+        raise CommandError(f"action is one of: {', '.join(_SANDBOX)}.")
+    method, path = _SANDBOX[action]
+    return api.call(method, path, None if method == "GET" else dict(a.get("args") or {}), timeout=900)
+
+
 @command(
     "sharing_start",
     "Share a launched app with the organization (sign-in is the user's); waits for Allow",
@@ -5130,6 +5157,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ),
     ("team", "Settings' Team box: join, start or leave a team (one GitHub repository, its projects/)"),
     ("sharing", "Share a running app with your organization (Microsoft Dev Tunnels)"),
+    ("sandbox", "The project's sandbox: the tables a local sandbox API reads and writes, Reset, checkpoints"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),
@@ -5178,8 +5206,8 @@ _BOARD_NAMES = (
     "theme_remove",
 )  # fmt: skip
 OLD_NAMES: dict[str, str] = (
-    {f"{old}_{name}": f"analyze_{name}" for old in ("sandbox", "visualizations") for name in _BOARD_NAMES}
-    | {"sandbox_code": "analyze_chart_code", "visualizations_code": "analyze_chart_code"}
+    {f"visualizations_{name}": f"analyze_{name}" for name in _BOARD_NAMES}
+    | {"visualizations_code": "analyze_chart_code"}
     | {
         "relationships_save_tang": "relationships_save_set",
         "relationships_export_tang": "relationships_export_set",
@@ -5198,6 +5226,13 @@ OLD_ARGS: dict[tuple[str, str], str] = {
 
 # Commands that went, one release: an old call says why instead of "unknown".
 GONE_NAMES: dict[str, str] = {
+    # The project's sandbox took the word (2026-11-21): the board's old sandbox_* names are analyze_* now.
+    **{
+        f"sandbox_{name}": f"sandbox_{name} went (2026-11-21): the board is Analyze's, analyze_"
+        f"{'chart_code' if name == 'code' else name}; sandbox is the project's sandbox now."
+        for name in (*_BOARD_NAMES, "code")
+        if f"sandbox_{name}" != "sandbox"
+    },
     "analyze_shape": "analyze_shape went (2026-11-19): analyze_check(table, analysis) says whether a table suits "
     "an analysis, from its contract: what fits each slot, what is missing, the fixes.",
     "analyze_defaults": "analyze_defaults went (2026-11-19): analyze_plan(analysis, table) gives the columns a "

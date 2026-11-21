@@ -344,6 +344,50 @@ def shared_catalog_provider(
     return provide
 
 
+def sandbox_provider(
+    tables: Callable[[], Awaitable[list[tuple[str, int, list[tuple[str, str]]]]]],
+) -> Provider:
+    """The open project's sandbox: its tables ([Sandbox].orders in DuckDB SQL) and their columns."""
+
+    async def provide(query: Query) -> Found:
+        found = Found()
+        for name, rows, columns in await tables():
+            sql = f"[Sandbox].{name}"
+            more = {"source": "sandbox", "table": name, "rows": rows}
+            found.results.append(
+                Result(
+                    "tables",
+                    name,
+                    ["Sandbox"],
+                    connection="Sandbox",
+                    sql=sql,
+                    detail=f"{rows:,} rows",
+                    icon="rows",
+                    insert=rules.table_insert(sql),
+                    more=more,
+                )
+            )
+            if query.empty and not query.browse:
+                continue
+            for column, typed in columns:
+                found.results.append(
+                    Result(
+                        "columns",
+                        column,
+                        ["Sandbox", name],
+                        connection="Sandbox",
+                        sql=sql,
+                        type=typed,
+                        icon="columns",
+                        insert=rules.column_insert(column),
+                        more=more,
+                    )
+                )
+        return found
+
+    return provide
+
+
 def grids_provider(tables: Callable[[], list[OpenTable]]) -> Provider:
     """The open tables (grids) and their columns."""
 

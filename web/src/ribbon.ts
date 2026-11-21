@@ -23,6 +23,7 @@
 import { button, clear, h, isDateType, isNumericType, isTextType, openDialog, toast } from "./dom";
 import { changeCompare, currentCompare, onCompareChange, stopCompare, type CompareInfo } from "./compare";
 import { openCompareDialog } from "./compareDialog";
+import { addToSandbox } from "./dataSandbox";
 import { openExport } from "./exportDialog";
 import { openKeyFinderWindow } from "./keyFinder";
 import { autoSizeColumns, cellValue, focusedCell, selectedValues, selection, viewColumns } from "./gridView";
@@ -159,6 +160,8 @@ function render(): void {
       tool("Key Finder", "zoom", () => openKeyFinderWindow(), { title: "Key Finder: the likely join keys" }),
       tool("Relationships", "crown", () => openRelationships(), { title: "Relationships: keys and joins, found from the data" }),
       tool("Export", "export", () => openExport(), { title: "Export: CSV, Excel or Parquet" }),
+      // The project's sandbox (2026-11-21): this view, after its steps, as a table a local sandbox API reads.
+      state.info.dataset.startsWith("sandbox_") ? null : tool("Add to sandbox", "plus", () => addToSandbox(state.info!.dataset), { title: "Add to sandbox: this view as a table a local sandbox API reads and writes" }),
       // The table's connection, and another to read it from with the same steps (the owner, 2026-11-16).
       tool(connectionLabel(state.info.dataset), "plug", () => void openConnectionChooser(state.info!.dataset), { title: `${connectionLabel(state.info.dataset)}: read this table from another connection` }),
     ),
