@@ -1,6 +1,6 @@
 # One adapter: the simple architecture (the owner, 2026-11-21)
 
-Status: agreed in principle; build after the running `api-approved` branch merges. Nothing here is built yet.
+Status: agreed; being built (branch `adapter`).
 
 ## The owner's words
 
@@ -245,7 +245,10 @@ does.
 4. The export: the eight files; a test that an exported app and API run with only them.
 5. The endpoint wizard and its patterns on top (Plans: b/local-apis.md).
 
-## Open questions for the owner
+## The owner's answers (2026-11-21)
 
-- In a deployed app, when does a grid refresh: at start, on a timer, or when a page asks?
-- Should a grid ever be written to disk in an export (a Parquet snapshot for a quick start), or always read fresh?
+- **When a grid refreshes in a deployed app:** when a page asks. Read on first use, kept, read again only when a page
+  or the user asks (a Refresh, or a widget's event).
+- **A snapshot of a grid in an export:** only on a tick. Off by default; "Keep a snapshot" per grid writes it as
+  Parquet beside the export (Git-ignored, like `.sab/data/`); without the tick no row is ever written.
+- **When to build:** now, in parallel with other work; 0.0.32 is not released yet.
