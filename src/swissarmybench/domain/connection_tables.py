@@ -75,6 +75,12 @@ TABLE_KINDS: dict[str, tuple[str, str]] = {
         "the site's lists (Microsoft Graph)",
         "Graph's list items, paged, $select and $filter sent",
     ),
+    # The open project's sandbox (domain/sandbox.py): local test data, never live; never exported as a
+    # connection (an export names the real connection a table is Mocked as, or none).
+    "sandbox": (
+        "the project's sandbox's tables (its own DuckDB file, .sab/sandbox/)",
+        "the table whole, from the sandbox (following every write)",
+    ),
     "sharepoint_docs": (
         "each document library's file index, and its tabular documents (CSV, Parquet, JSON lines, a "
         "workbook's sheets and named tables)",

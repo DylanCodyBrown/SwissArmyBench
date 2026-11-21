@@ -344,16 +344,28 @@ def shared_catalog_provider(
     return provide
 
 
-def sandbox_provider(
-    tables: Callable[[], Awaitable[list[tuple[str, int, list[tuple[str, str]]]]]],
-) -> Provider:
-    """The open project's sandbox: its tables ([Sandbox].orders in DuckDB SQL) and their columns."""
+def sandbox_provider(tables: Callable[[], Awaitable[list[dict[str, Any]]]]) -> Provider:
+    """The open project's sandbox: its tables ([Sandbox].orders in DuckDB SQL; a variant with its designation
+    and its own icon) and their columns. Each carries what the Catalog's section sorts by (rows, source,
+    created, last changed)."""
 
     async def provide(query: Query) -> Found:
         found = Found()
-        for name, rows, columns in await tables():
+        for t in await tables():
+            name, rows = str(t["name"]), int(t["rows"])
             sql = f"[Sandbox].{name}"
-            more = {"source": "sandbox", "table": name, "rows": rows}
+            more = {
+                "source": "sandbox",
+                "table": name,
+                "rows": rows,
+                "title": t.get("title") or name,
+                "variant": bool(t.get("variant")),
+                "origin_words": t.get("origin_words") or "",
+                "source_words": t.get("source_words") or "",
+                "added_at": t.get("added_at") or "",
+                "changed_at": t.get("changed_at") or "",
+            }
+            title = str(t.get("title") or name)
             found.results.append(
                 Result(
                     "tables",
@@ -361,25 +373,25 @@ def sandbox_provider(
                     ["Sandbox"],
                     connection="Sandbox",
                     sql=sql,
-                    detail=f"{rows:,} rows",
-                    icon="rows",
+                    detail=f"{rows:,} rows" + (f" · {title}" if title != name else ""),
+                    icon="branch" if t.get("variant") else "sandbox",
                     insert=rules.table_insert(sql),
                     more=more,
                 )
             )
             if query.empty and not query.browse:
                 continue
-            for column, typed in columns:
+            for column in t.get("columns") or []:
                 found.results.append(
                     Result(
                         "columns",
-                        column,
+                        str(column["name"]),
                         ["Sandbox", name],
                         connection="Sandbox",
                         sql=sql,
-                        type=typed,
+                        type=str(column["type"]),
                         icon="columns",
-                        insert=rules.column_insert(column),
+                        insert=rules.column_insert(str(column["name"])),
                         more=more,
                     )
                 )

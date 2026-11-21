@@ -67,7 +67,8 @@ def test_every_starter_has_tables_or_says_why_not() -> None:
         assert connection_kind(str(blade["kind"]), blade.get("template")) is None, path.name
         assert ct.tables_kind(str(blade["kind"]), blade.get("template")) is None
     # Every kind of the contract has its stand-in here, and a key vault is not a connection.
-    assert set(ct.TABLE_KINDS) == set(STOOD_IN)
+    # (The Sandbox's kind is the open project's own: tests/test_sandbox_gaps.py lists and reads it.)
+    assert set(ct.TABLE_KINDS) - {"sandbox"} == set(STOOD_IN)
     assert (
         ct.no_tables_reason("vault", "azure_key_vault")
         == "not a connection: a source of secrets for variables"

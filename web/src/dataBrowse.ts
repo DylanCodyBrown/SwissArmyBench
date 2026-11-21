@@ -24,7 +24,7 @@
  */
 import { api, errorText } from "./api";
 import { connectionDot } from "./connectionColours";
-import { button, clear, h, icon, showMenu, toast, type MenuItem } from "./dom";
+import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { busyClick, loadingBlock } from "./loading";
 import { errorHere, errorMark, errorNote } from "./errorNote";
 
@@ -247,6 +247,30 @@ export function mountBrowse(ctx: BrowseContext): Browse {
   const sectionNode = (kind: string, label: string, items: Node[]): Node => ({ key: `section/${kind}`, label, icon: { open: "grids", structures: "structures", apis: "apis", blades: "blade", variables: "variables", connections: "plug", shared: "folder" }[kind] ?? "rows", kind: "section", note: String(items.length), children: items, open: true });
 
   // ----- drawing
+  /** The Sandbox section's tables in the order this browser chose (the sandbox list's own sort: name, rows,
+   *  source, created, last changed), its columns kept under each. */
+  const SANDBOX_SORTS: [string, string][] = [["name", "Name"], ["rows", "Rows"], ["source", "Source"], ["created", "Created"], ["changed", "Last changed"]];
+  function sandboxOrder<T extends { kind: string; name: string; [more: string]: unknown }>(items: T[]): T[] {
+    const [by, order] = (recall("sandbox.sort") ?? "name asc").split(" ");
+    const value = (r: T): string | number =>
+      by === "rows" ? Number(r.rows ?? 0) : by === "source" ? String(r.source_words ?? "").toLowerCase() : by === "created" ? String(r.added_at ?? "") : by === "changed" ? String(r.changed_at || r.added_at || "") : r.name.toLowerCase();
+    const tables = items.filter((r) => r.kind === "tables").sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    tables.sort((a, b) => {
+      const x = value(a), y = value(b);
+      const c = x < y ? -1 : x > y ? 1 : 0;
+      return order === "desc" ? -c : c;
+    });
+    return [...tables, ...items.filter((r) => r.kind !== "tables")];
+  }
+  function sortSandbox(x: number, y: number): void {
+    const [by, order] = (recall("sandbox.sort") ?? "name asc").split(" ");
+    showMenu(x, y, "Sort the sandbox's tables", SANDBOX_SORTS.map(([key, words]): MenuItem => [key === by ? (order === "desc" ? "sortdown" : "sortup") : "rows", words, () => {
+      remember("sandbox.sort", `${key} ${key === by && order === "asc" ? "desc" : "asc"}`);
+      resort();
+    }]));
+  }
+  let resort: () => void = () => undefined;
+
   function visible(): HTMLElement[] {
     return [...tree.querySelectorAll<HTMLElement>("[role=treeitem]")].filter((li) => !li.closest("[role=group][hidden]"));
   }
@@ -261,6 +285,12 @@ export function mountBrowse(ctx: BrowseContext): Browse {
       if (!c.loaded && c.state.state !== "loading" && c.state.state !== "waiting") own.push({ label: "Load", icon: "import", title: `Load ${c.name}'s tables`, run: () => ctx.loadCatalog(c.name) });
       own.push({ label: "Show only this", icon: "filter", run: () => ctx.only(c.name) });
       own.push({ label: "Copy name", icon: "copy", run: () => copy(c.name) });
+    }
+    if (node.kind === "section" && node.key === "section/sandbox") {
+      own.push({ label: "Sort", icon: "sortup", title: "Sort the sandbox's tables", run: () => {
+        const at = item.getBoundingClientRect();
+        sortSandbox(at.left + 24, at.top + 24);
+      } });
     }
     if (node.kind === "group" && c && node.group && c.relationships) {
       const g = node.group;
@@ -500,13 +530,15 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     searching = false;
     roots = [
       ...answer.connections.map((c) => connectionNode(c, groupsOf(c, c.groups, (g) => g.tables.map((t) => tableNode(t)), false), answer.connections.length === 1)),
-      ...answer.sections.map((s) => sectionNode(s.kind, s.label, s.items.map((r) => tableNode(r)))),
+      ...answer.sections.map((s) => sectionNode(s.kind, s.label, (s.kind === "sandbox" ? sandboxOrder(s.items) : s.items).map((r) => tableNode(r)))),
     ];
+    resort = () => showBrowse(answer);
     draw();
   }
 
   function showSearch(answer: SearchAnswer, browsed: BrowseAnswer | null): void {
     searching = true;
+    resort = () => showSearch(answer, browsed);
     const known = new Map((browsed?.connections ?? []).map((c) => [c.name.toLowerCase(), c]));
     const of = (kind: string): BrowseResult[] => answer.groups.find((g) => g.kind === kind)?.results ?? [];
     // A connection's tables and columns, under it by schema; a matched column under its table.
@@ -550,7 +582,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
     }
     const sections: [string, string, BrowseResult[]][] = [
       ["open", "Open tables", others.open ?? []],
-      ["sandbox", "Sandbox", others.sandbox ?? []],
+      ["sandbox", "Sandbox", sandboxOrder(others.sandbox ?? [])],
       ["structures", "Structures", of("structures")],
       ["apis", "APIs", [...of("apis"), ...(others.apis ?? [])]],
       ["variables", "Variables", of("variables")],

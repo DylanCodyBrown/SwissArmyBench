@@ -177,10 +177,12 @@ class LocalApi:
                         mocks[name.casefold()] = await self._mocks.client(name)
                     except Exception:
                         mocks[name.casefold()] = None
+        examples = self._examples()
         endpoints = []
         for e in api.endpoints:
             words = [data_words(n, mocks.get(n.casefold())) for n in e.connections]
-            endpoints.append(e.to_json() | {"data": words})
+            kept = examples.get(rules.endpoint_key(e.method, e.path))
+            endpoints.append(e.to_json() | {"data": words, "example": kept})
         return {
             "project": folder,
             "file": path,
@@ -189,7 +191,8 @@ class LocalApi:
             "endpoints": endpoints,
             "models": api.to_json()["models"],
             "problems": api.problems,
-            "openapi": rules.openapi(api),
+            "openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path),
+            "examples_file": rules.EXAMPLES_FILE,
             "running": self._running_json(),
             "failed": self._failed,
         }
@@ -241,6 +244,38 @@ class LocalApi:
             self._files.write(self.path(), written)
             await self._told(who, "local_api_settings")
         return await self.state()
+
+    # ===== an endpoint's kept example =====
+
+    def _examples_path(self) -> str:
+        folder = self._project()
+        if folder is None:
+            raise Conflict("Open a project first: its local sandbox API is its API.py.")
+        return self._files.join(folder, rules.EXAMPLES_FILE)
+
+    def _examples(self) -> dict[str, Any]:
+        return rules.read_examples(self._files.read(self._examples_path()))
+
+    async def keep_example(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Keep as its example: {"endpoint": "POST /orders", "body": {...}}: Try it's edited body kept as the
+        endpoint's example payload (Try it starts from it; the OpenAPI document shows it), in the project's
+        .sab/api_examples.json beside API.py (API.py itself is never written). {"body": null}: forgotten."""
+        given = body if isinstance(body, dict) else {}
+        key = str(given.get("endpoint") or "").strip()
+        text = self._text()
+        if text is None:
+            raise NotFound("The project has no API.py yet: New local sandbox API… makes it.")
+        method, _, path = key.partition(" ")
+        key = rules.endpoint_key(method, path)
+        examples = self._examples()
+        if given.get("body") is None:
+            if examples.pop(key, None) is None:
+                raise NotFound(f"{key} has no kept example.")
+        else:
+            examples[key] = rules.check_example(rules.parse(text), key, given["body"])
+        self._files.write(self._examples_path(), rules.examples_text(examples))
+        await self._told(who, "local_api_example")
+        return {"endpoint": key, "example": examples.get(key), "file": rules.EXAMPLES_FILE}
 
     # ===== Payload shapes =====
 

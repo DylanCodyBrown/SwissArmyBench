@@ -71,11 +71,12 @@ def test_sandbox_new_endpoint_run_try_a_post_and_reset(
     shop: Path,
 ) -> None:
     page = open_workspace(browser, server)
-    # The grid's Table row: Add to sandbox (its view, after its steps).
-    page.locator(".ribbon-tools button", has_text="Add to sandbox").click()
-    dialog = page.get_by_role("dialog", name="Add to sandbox")
-    expect(dialog.get_by_label("Its name in the sandbox")).to_have_value("orders")
-    dialog.get_by_role("button", name="Add").click()
+    # The grid's Table row: Make a sandbox variant (its view, after its steps), named by the user.
+    page.locator(".ribbon-tools button", has_text="Make a sandbox variant").click()
+    dialog = page.get_by_role("dialog", name="Make a sandbox variant")
+    expect(dialog.get_by_label("Its name")).to_have_attribute("placeholder", "orders · sandbox")
+    dialog.get_by_label("Its name").fill("orders")
+    dialog.get_by_role("button", name="Make").click()
     expect(page.locator(".toast", has_text="orders is in the sandbox")).to_be_visible(timeout=20000)
     # The APIs page: the sandbox, then Local sandbox APIs.
     page.locator(".nav-rail [data-area='apis']").click()

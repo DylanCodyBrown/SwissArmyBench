@@ -105,6 +105,7 @@ from swissarmybench.domain.project_explorer import local_only_words as explorer_
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
+from swissarmybench.domain.table_cells import Origin as TableOrigin
 from swissarmybench.renamed import env
 from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
 from swissarmybench.server.blade_templates import TEMPLATES
@@ -167,6 +168,7 @@ from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
 from swissarmybench.services.packs import Packs
 from swissarmybench.services.panels import Panels
+from swissarmybench.services.ports import INTERACTIVE as PRIORITY_INTERACTIVE
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
@@ -1218,8 +1220,40 @@ def bootstrap(
         kept, _ = await connection_tables.read(name, place)
         return kept.read.table
 
-    async def sandbox_show(name: str, table: Any, follow: bool) -> dict[str, Any]:
-        return await datasets.store_table(name, table, "sandbox", False, "user", follow=follow)
+    async def sandbox_show(name: str, table: Any, follow: bool, words: str) -> dict[str, Any]:
+        # Its origin: the sandbox table (its lineage and its read-only cell's load name [Sandbox].<table>).
+        table_name = name.removeprefix(sandbox_rules.GRID_PREFIX)
+        sql = f"SELECT * FROM [{sandbox_rules.NAME}].{table_name}"  # noqa: S608 (a checked table name)
+        origin = TableOrigin("sandbox", connection=sandbox_rules.NAME, sql=sql, filename=words)
+        return await datasets.store_table(name, table, "sandbox", False, "user", follow=follow, origin=origin)
+
+    async def sandbox_view_rows(name: str, places: list[int]) -> tuple[list[str], list[list[Any] | None]]:
+        """An open sandbox grid's view rows at these places (its steps applied): what an edit names."""
+        grid, info = ws.grids.first_for(name), ws.store.get(name)
+        if grid is None or info is None:
+            raise LookupError(f"{name} is not open in Grids.")
+
+        def read(cursor: Any) -> tuple[list[str], list[list[Any] | None]]:
+            shown: list[str] = []
+            out: list[list[Any] | None] = []
+            for place in places:
+                window = ws.views.window(cursor, info, grid.steps, grid.settings, place, place + 1, None)
+                shown = [c.name for c in window.columns]
+                out.append(list(window.rows[0]) if window.rows else None)
+            return shown, out
+
+        return await ws.grid_query(grid, None, PRIORITY_INTERACTIVE, read)
+
+    def sandbox_connections() -> list[str]:
+        """Mocked as's choices: the saved connections that have tables."""
+        out = []
+        for c in connections.listing()["connections"]:
+            try:
+                connection_tables.kind(str(c["name"]))
+            except Exception:  # noqa: S112 (no tables: not a connection to mock)
+                continue
+            out.append(str(c["name"]))
+        return sorted(out, key=str.casefold)
 
     def sandbox_ignore(folder: str) -> None:
         archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
@@ -1229,13 +1263,25 @@ def bootstrap(
         lambda: sab_projects.current.folder if sab_projects.current is not None else None,
         SandboxFiles,
         SourcesFrom(
-            sandbox_grid_view, sandbox_connection_table, datasets.read_file, sandbox_show, sandbox_client
+            sandbox_grid_view,
+            sandbox_connection_table,
+            datasets.read_file,
+            sandbox_show,
+            sandbox_client,
+            structure_fn=structures.records_table,
+            view_rows_fn=sandbox_view_rows,
+            connections_fn=sandbox_connections,
         ),
         approvals,
         lambda sql: duckdb_grammar().parse(sql),
         ignore=sandbox_ignore,
     )
     sandbox_alias = SandboxAlias(sandbox)
+    # The Sandbox as a connection (the owner, 2026-11-21): its card on the Connections page and its colour.
+    connection_usage.extra_cards = lambda: [c for c in [sandbox.card()] if c is not None]
+    connection_colours.fixed = lambda: (
+        [(sandbox_rules.NAME, sandbox_rules.COLOUR)] if sandbox.folder() else []
+    )
     # The project's local sandbox API (API.py): hosted in a process of its own that gets only the sandbox.
     local_api = LocalApi(
         ws,

@@ -417,6 +417,12 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
     return defs;
   }
 
+  /** A cell an editor takes (a sandbox table's: sandboxGrid.ts), else false: its value is viewed. */
+  function editInPlace(row: number, column: string, cell: HTMLElement): boolean {
+    const dataset = state.info?.dataset ?? "";
+    return cellEditors.some((edit) => edit(dataset, row, column, cell, () => cellValue(row, column)));
+  }
+
   // ===== the datasource =====
 
   const datasource: IDatasource = {
@@ -629,7 +635,10 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       },
       onCellDoubleClicked: (event) => {
         const column = event.column.getColId();
-        if (![MARKER, FILLER, ROWNUM].includes(column) && event.rowIndex != null) void showCellDetail(event.rowIndex, column);
+        if ([MARKER, FILLER, ROWNUM].includes(column) || event.rowIndex == null) return;
+        const cell = (event.event?.target as HTMLElement | null)?.closest<HTMLElement>(".ag-cell");
+        if (cell && editInPlace(event.rowIndex, column, cell)) return;
+        void showCellDetail(event.rowIndex, column);
       },
       onViewportChanged: () => state.emit("selection"),
       onGridSizeChanged: () => fitFiller(),
@@ -842,6 +851,7 @@ export function createGridView(host: HTMLElement, state: PageState): GridView {
       // Enter or F2 on a cell opens its value, as a double-click does (Excel's keys for "into the cell").
       event.preventDefault();
       event.stopPropagation();
+      if (editInPlace(row, column, (event.target as HTMLElement).closest<HTMLElement>(".ag-cell")!)) return;
       void showCellDetail(row, column);
     } else if (event.key === " " && event.shiftKey && row != null) {
       event.preventDefault();
@@ -1200,6 +1210,14 @@ export interface CellClick {
 
 let cellMenu: ((click: CellClick) => void) | null = null;
 let headerMenu: ((column: string, event: MouseEvent) => void) | null = null;
+
+/** Editors a grid's cell may be edited in (double-click, Enter, F2): the first that takes it. A sandbox table's
+ *  grid is editable (sandboxGrid.ts); every other grid's cell opens its value. */
+export type CellEditor = (dataset: string, row: number, column: string, cell: HTMLElement, current: () => Promise<unknown>) => boolean;
+const cellEditors: CellEditor[] = [];
+export function registerCellEditor(editor: CellEditor): void {
+  cellEditors.push(editor);
+}
 
 export function onCellMenu(listener: (click: CellClick) => void): void {
   cellMenu = listener;

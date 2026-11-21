@@ -1382,8 +1382,10 @@ async function exportApp(): Promise<void> {
   if (!folder) return;
   await gated("Exporting…", async () => {
     try {
-      const done = await api<{ folder: string; files: string[] }>(`/streamlit/canvases/${state!.canvas}/export`, "POST", { folder });
+      const done = await api<{ folder: string; files: string[]; warnings?: string[] }>(`/streamlit/canvases/${state!.canvas}/export`, "POST", { folder });
       toast(`Exported: ${done.files.length} files in ${done.folder}`);
+      // It calls the local sandbox API: the variables to set where it runs (its README lists them too).
+      if (done.warnings?.length) showError(notice, done.warnings.join(" "), { level: "warning", agent: false });
     } catch (e) {
       showError(notice, e);
     }

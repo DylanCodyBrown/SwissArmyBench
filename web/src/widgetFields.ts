@@ -11,6 +11,8 @@
  *   variable  the variables (the Variables page's names)
  *   path      a text box                        json     a small JSON editor, checked as it is typed
  *   endpoint  one of the project's local sandbox API's endpoints ("GET /orders": API.py's)
+ *   path_values  a box per {name} of its endpoint's path (following the endpoint picked): a value, a variable or
+ *             a page value each
  *
  * A change is handed to `onValue` with `said`: the caller checks it (the server's check-value) and says what is
  * wrong under the box, with the fix, before anything is kept.
@@ -184,6 +186,25 @@ export function propertyField(prop: Prop, values: Record<string, unknown>, conte
       const box2 = select([{ value: "", label: listed.length ? "(pick an endpoint)" : "(API.py has no endpoints yet)" }, ...known.map((e) => ({ value: e, label: e }))], text(value), readOnly);
       box2.addEventListener("change", () => send(box2.value));
       box = box2;
+      break;
+    }
+    case "path_values": {
+      // One box per {name} in its endpoint's path, following the endpoint picked: a value, ${NAME} or {{ name }}.
+      const endpoint = text(prop.of ? values[prop.of] : "");
+      const names = [...new Set([...endpoint.replace(/^\S+\s/, "").matchAll(/\{([A-Za-z_]\w*)\}/g)].map((m) => m[1]!))];
+      const given = (value && typeof value === "object" && !Array.isArray(value) ? value : {}) as Record<string, unknown>;
+      const boxes = h("div", { class: "wg-path-values" });
+      if (!names.length) boxes.append(h("span", { class: "wg-help" }, endpoint ? "Its path takes no values." : "Pick the endpoint first."));
+      for (const name of names) {
+        const input = h("input", { type: "text", class: "wg-input", value: text(given[name]), disabled: readOnly, spellcheck: "false", placeholder: "a value, ${NAME} or {{ page value }}", "aria-label": `${prop.name}: ${name}`, "data-path-name": name }) as HTMLInputElement;
+        input.addEventListener("change", () => {
+          const next: Record<string, unknown> = {};
+          for (const box3 of boxes.querySelectorAll<HTMLInputElement>("input[data-path-name]")) if (box3.value.trim()) next[box3.dataset.pathName!] = box3.value.trim();
+          send(next);
+        });
+        boxes.append(h("label", { class: "wg-path-value" }, h("span", { class: "mono" }, `{${name}}`), input));
+      }
+      box = boxes;
       break;
     }
     case "variable": {

@@ -197,9 +197,9 @@ def test_a_write_starter_is_the_call_only_and_its_function_lists_its_packages(pa
 
 def test_every_connection_kind_is_writable_or_read_only_with_its_reason() -> None:
     kinds = {t.id for t in TEMPLATES if connection_kind(t.kind, t.id) not in (None, "vault")}
-    assert kinds | {"api"} == set(write_capability.WRITABLE) | set(
+    assert kinds | {"api", "sandbox"} == set(write_capability.WRITABLE) | set(
         write_capability.READ_ONLY
-    )  # api: a tables kind
+    )  # api and sandbox: tables kinds
     assert not set(write_capability.WRITABLE) & set(write_capability.READ_ONLY)
     power_bi = write_capability.capability("powerbi", tables_kind="powerbi")
     assert power_bi["writable"] is False and "refresh it" in power_bi["reason"]  # refresh is its action
@@ -228,6 +228,7 @@ def test_every_kind_of_connection_tables_is_writable_read_only_or_decided_by_its
         "delta": "writable",
         "sharepoint": "writable",
         "sharepoint_docs": "read-only",
+        "sandbox": "read-only",  # written only by itself (its API's mock clients, its grid's edits)
     }
     api = write_capability.capability("python", tables_kind="api")
     assert api["words"] == "Read-only: an API writes through the APIs page's Write rows with this call"

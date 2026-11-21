@@ -43,6 +43,7 @@ import { renameInPlace } from "./renameTable";
 import { connectionColour, onConnectionColours } from "./connectionColours";
 import { PageState, activate } from "./state";
 import { errorHere } from "./errorNote";
+import { drawSandboxBar, onSandboxKnown, sandboxTitle } from "./sandboxGrid";
 
 export interface Context {
   id: string;
@@ -535,7 +536,9 @@ function label(id: string): string {
   const ctx = contexts.get(id)!;
   // Two grids on one dataset read "orders" and "orders · 2", in tab order.
   const same = order.filter((o) => contexts.get(o)?.dataset === ctx.dataset);
-  return same.length > 1 ? `${ctx.dataset} · ${same.indexOf(id) + 1}` : ctx.dataset;
+  // A sandbox table's tab says its designation ("orders · sandbox": sandboxGrid.ts).
+  const named = sandboxTitle(ctx.dataset);
+  return same.length > 1 ? `${named} · ${same.indexOf(id) + 1}` : named;
 }
 
 /** This grid's pane: its banner slot and its grid view, built the first time it is shown. */
@@ -557,7 +560,10 @@ function ensurePane(ctx: Context): HTMLElement {
   const slot = h("div", { class: "preview-slot" });
   // compare.ts draws the cross-compare banner ("Showing 2 rows with key 42 · Clear") here.
   const compareSlot = h("div", { class: "compare-slot" });
-  ctx.pane = h("section", { class: "pane", "data-grid": ctx.id, hidden: true }, head, diskSlot, querySlot, slot, compareSlot, host);
+  // sandboxGrid.ts: a sandbox table's designation, origin, Add row, Delete rows, Reset (its cells edit in place).
+  const sandboxSlot = h("div", { class: "sandbox-slot" });
+  drawSandboxBar(sandboxSlot, ctx.dataset);
+  ctx.pane = h("section", { class: "pane", "data-grid": ctx.id, hidden: true }, head, diskSlot, sandboxSlot, querySlot, slot, compareSlot, host);
   ctx.pane.addEventListener("pointerdown", () => { if (activeId !== ctx.id) void activateGrid(ctx.id); }, true);
   panesHost.append(ctx.pane);
   const view = createGridView(host, ctx.state);
@@ -773,6 +779,10 @@ function moveTab(from: string, before: string | null): void {
   render();
 }
 
+onSandboxKnown(() => {
+  if (order.length) render();
+});
+
 function render(): void {
   if (!tabRow) return;
   remember("workspace.order", JSON.stringify(order));
@@ -857,6 +867,7 @@ function tabFor(id: string): HTMLElement {
       },
     },
     inSplit ? h("span", { class: "split-mark", "aria-label": "side by side" }, "◫") : null,
+    contexts.get(id)!.dataset.startsWith("sandbox_") ? h("span", { class: "tab-sandbox", "aria-label": "Sandbox" }, icon("sandbox")) : null,
     h("span", { class: "tab-label", title: `${label(id)}: double-click to rename` }, label(id)),
     changedOnDisk(contexts.get(id)!.dataset) ? h("span", { class: "tab-changed", title: "Changed on disk", "aria-label": "Changed on disk" }) : null,
     closeButton(id, selected),

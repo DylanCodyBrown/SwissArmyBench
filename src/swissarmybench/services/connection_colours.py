@@ -45,6 +45,9 @@ class ConnectionColours:
         self._blades = blades
         self._kept = kept
         self._kinds = kinds  # the kind colours the user chose (services/kind_colours.py): the rail's
+        # Connections whose colour is fixed, not chosen (the open project's Sandbox: its own indigo, none of
+        # the palette's), set by bootstrap: [(name, colour)].
+        self.fixed: Callable[[], list[tuple[str, str]]] = lambda: []
 
     def _chosen(self) -> dict[str, str]:
         return rules.from_toml(self._kept.read())
@@ -76,7 +79,20 @@ class ConnectionColours:
     def get(self) -> dict[str, Any]:
         """Each connection's colour (its kept one, or the next free one in turn), each theme's, and the
         palette."""
-        return rules.listing(self._pairs(), self._kinds())
+        listed = rules.listing(self._pairs(), self._kinds())
+        taken = {c["name"].casefold() for c in listed["connections"]}
+        for name, colour in self.fixed():
+            if name.casefold() not in taken:
+                listed["connections"].append(
+                    {
+                        "name": name,
+                        "colour": colour,
+                        "chosen": None,
+                        "fixed": True,
+                        "themes": rules.themes(colour, self._kinds()),
+                    }
+                )
+        return listed
 
     def for_new(self) -> str:
         """The colour a new connection is given: the palette's next free one."""
@@ -113,6 +129,10 @@ class ConnectionColours:
         if not isinstance(body, dict) or "colour" not in body:
             raise ValueError('Send {"colour": "#0e7c7b"} (null: the next free one).')
         colour = self.check(body["colour"])
+        if any(n.casefold() == name.casefold() for n, _ in self.fixed()):
+            raise ValueError(
+                f"{name}'s colour is its own: the Sandbox always wears it, so it is never mistaken."
+            )
         found = next((b for b in self._connections() if b.name.casefold() == name.casefold()), None)
         if found is None:
             raise NotFound(f"There is no connection called {name}.")

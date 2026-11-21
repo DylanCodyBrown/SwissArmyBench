@@ -15,6 +15,8 @@ GET   /local-api/targets     the framework targets (the base's three, each exten
 POST  /local-api/scaffold    {table, key?}: New endpoint from a table (the CRUD set, appended)   api(scaffold)
 POST  /local-api/check       Will this work for real? each endpoint's SQL against its connection's loaded
                              catalog (never a query, never a load)                              api(check)
+POST  /local-api/example     {endpoint, body}: Try it's body kept as the endpoint's example, beside
+                             API.py in .sab/api_examples.json (body null: forgotten)      api(example)
 GET   /local-api/shapes      Payload shapes: each canvas widget using an endpoint, what it expects beside
                              what the endpoint answers, each mismatch                           api(shapes)
 POST  /local-api/export      {target?, folder?, rows?, replace?}: a ready-to-deploy folder        api(export)
@@ -59,5 +61,6 @@ def routes(api: LocalApi, export: ApiExport) -> list[BaseRoute]:
         Route("/local-api/export", with_body(export.export), methods=["POST"]),
         Route("/local-api/scaffold", with_body(api.scaffold), methods=["POST"]),
         Route("/local-api/check", with_body(api.check), methods=["POST"]),
+        Route("/local-api/example", with_body(api.keep_example), methods=["POST"]),
         Route("/local-api/shapes", with_actor(lambda who: api.shapes(None, who))),
     ]
