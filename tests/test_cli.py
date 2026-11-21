@@ -168,6 +168,7 @@ NOT_COMMANDS = {
     "/g/{}": "page shell",
     "/": "page shell: the bare address goes on to /workspace",
     "/workspace": "page shell",
+    "/scripts/files/delete": "Delete (to the trash) is the user's own: the agent cannot delete",
     "/catalog": "the old blades page: a redirect to the Scripts page's Blades",
     "/workbench": "the old address: redirects to the Notebooks or Scripts page",
     "/notebooks": "page shell: the Notebooks page (the agent works its files and kernels directly)",

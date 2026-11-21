@@ -1335,6 +1335,7 @@ def bootstrap(
             else (None, [])
         ),
         tables=table_cells.listing,
+        trash=file_manager.trash,  # Delete: the system's trash, the user's own
     )
     blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     context_md = ContextMd(

@@ -3390,6 +3390,24 @@ def workbench_rename(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "workbench_file",
+    "A project module: move (rename; imports follow, a plan until apply), package (new), duplicate",
+    req("action", "move, package or duplicate."),
+    opt("path", "The module or package (package: its parent folder)."),
+    opt("to", "move: the new name; package: its name."),
+    opt("apply", "move: do it.", "bool"),
+)
+def workbench_file(a: dict[str, Any]) -> Any:
+    act = a["action"]
+    if act == "package":
+        return api.call("POST", "/scripts/files/package", {"name": a.get("to"), "parent": a.get("path")})
+    body = {"path": a.get("path"), "to": a.get("to"), "apply": bool(a.get("apply"))}
+    if act == "move":
+        return api.call("POST", "/scripts/files/move", body)
+    return api.call("POST", "/scripts/files/duplicate", body)
+
+
+@command(
     "workbench_search",
     "Search across the project's scripts (regex, case, whole word); with to: replace's plan, or applied",
     req("query", "The text (or a regular expression with regex)."),

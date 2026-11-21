@@ -119,7 +119,9 @@ their own (the rail's Notebooks, Scripts and Apps open it; code never opens in t
 - The Scripts page is a Python IDE over the project's code and the library's: `project_tree` (its groups, each
   module's outline), `workbench_outline`, `workbench_definition`, `workbench_references`, `workbench_rename` (a
   plan; `apply` writes it, never a made file), `workbench_search` (with `to`: replace), `workbench_format`,
-  `workbench_fine_tune` (a table's transformations as a new script). The window's `view.fullScreen`,
+  `workbench_fine_tune` (a table's transformations as a new script), `workbench_file` (move: rename a module or
+  package, its imports in the project following, a plan until `apply`; package: a new one; duplicate). Delete
+  (to the trash) is the user's own. The window's `view.fullScreen`,
   `view.files`, `view.codeSize`, `search.scripts`.
 - Every code file changed anywhere is said with the `file_changed` notice; data.py edited by hand is kept
   (`project_export_data` with `replace` to write it again).

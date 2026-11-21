@@ -49,7 +49,7 @@
 import { inlineStatus } from "./inlineCompletion";
 import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
-import { ideMoves, searchScripts } from "./workbenchIde";
+import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile, searchScripts } from "./workbenchIde";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
@@ -2504,6 +2504,17 @@ async function fineTune(table: string): Promise<void> {
   }
 }
 
+/** The Scripts explorer's tree actions (2026-11-21): Rename (imports follow, previewed), Duplicate, Delete (to
+ *  the trash), a package's own. */
+function treeAction(file: TreeFile, action: string, path: string): void {
+  const refreshed = (): void => void codex.refresh();
+  if (action === "rename" || action === "rename-package") renameFile(path, refreshed);
+  else if (action === "duplicate") void duplicateFile(path).then((made) => (refreshed(), void open(made))).catch((e: Error) => errorHere(e));
+  else if (action === "delete" || action === "delete-package") deleteFile(path, refreshed);
+  else if (action === "new-package") newPackage(path, refreshed);
+  void file;
+}
+
 /** The page's New: a script here, a notebook on the Notebooks page (the creator's and the explorer's). */
 function newHere(): void {
   const k: Kind = PAGE === "scripts" ? "script" : "notebook";
@@ -2532,6 +2543,8 @@ const codex = mountCodeExplorer({
   },
   openAt: (file, line) => void openAt(file.full, line),
   newDocument: newHere,
+  newPackage: PAGE === "scripts" ? () => newPackage(null, () => void codex.refresh()) : undefined,
+  fileAction: PAGE === "scripts" ? treeAction : undefined,
   menu: topMenu, // the page's "…" (no top bar: the owner, 2026-11-21)
   lower: bladesPane ? { id: "blades", title: "Blades", element: bladesPane } : undefined,
   openNow: () => ({ paths: docs.map((d) => d.path ?? "").filter(Boolean), dirty: docs.filter((d) => d.dirty && d.path).map((d) => d.path!), front: current?.path ?? null }),
@@ -3811,6 +3824,19 @@ onNotice((notice) => {
   if (handedTo !== null && (handedTo === WINDOW_ID || (handedTo === "main" && isMainWindow()))) void takeDocument((notice as unknown as { id: string }).id).catch((e: Error) => {
       if (!(e instanceof ApiError && e.status === 409)) errorToast(e); // another main window took it
     });
+  if (notice.type === "code_file_moved") {
+    // A module or package renamed (the explorer's Rename, the agent's workbench_file): its tabs follow it.
+    const said = notice as unknown as { from: string; to: string | null };
+    if (said.to) {
+      for (const doc of docs.filter((d) => d.path && (d.path === said.from || d.path.startsWith(said.from + "/")))) {
+        doc.path = said.to + doc.path!.slice(said.from.length);
+        doc.title = baseName(doc.path);
+      }
+      drawTabs();
+      remember();
+    }
+    codexHooks.refresh();
+  }
   if (notice.type === "file_changed" && typeof (notice as unknown as { path?: unknown }).path === "string") {
     const said = notice as unknown as { path: string; hash: string | null };
     fileChanged(said.path, said.hash ?? null);

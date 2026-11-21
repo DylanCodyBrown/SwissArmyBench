@@ -127,3 +127,124 @@ def rename_plan(
 
 def valid_identifier(name: Any) -> bool:
     return isinstance(name, str) and name.isidentifier() and not keyword.iskeyword(name)
+
+
+# ===== the explorer's tree actions: New package, Rename, Duplicate (2026-11-21) =====
+# A module renamed (or a package) takes every import of it in the project's other modules with it, the same
+# plan and preview as F2's rename: `import etl.load`, `from etl.load import x`, `from etl import load` (then
+# `load` stays its name there: `from etl import loader as load`).
+
+
+def valid_file_name(name: Any) -> bool:
+    """A module's file name: an identifier then `.py` (`load_orders.py`), or a package's folder name."""
+    if not isinstance(name, str):
+        return False
+    stem = name[: -len(".py")] if name.endswith(".py") else name
+    return valid_identifier(stem)
+
+
+def _module_ref(old: str) -> re.Pattern[str]:
+    """`old` as a dotted module name standing alone or as a prefix (`etl.load`, `etl.load.helpers`)."""
+    return re.compile(rf"(?<![\w.]){re.escape(old)}(?=$|[^\w])")
+
+
+def import_rewrite(text: str, old: str, new: str) -> str:
+    """`text` with each import of the module `old` (or of a module under it) naming `new` instead. Only the
+    import statements' own lines change; code that does not parse is left as it is."""
+    import ast
+
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    lines = text.split("\n")
+    pattern = _module_ref(old)
+    old_parent, _, old_last = old.rpartition(".")
+    new_parent, _, new_last = new.rpartition(".")
+    edits: dict[int, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Import | ast.ImportFrom):
+            continue
+        first, last = node.lineno - 1, (node.end_lineno or node.lineno) - 1
+        segment = "\n".join(edits.get(i, lines[i]) for i in range(first, last + 1))
+        changed = segment
+        if isinstance(node, ast.Import):
+            if any(a.name == old or a.name.startswith(old + ".") for a in node.names):
+                changed = pattern.sub(new, segment)
+        elif node.level == 0 and node.module:
+            if node.module == old or node.module.startswith(old + "."):
+                head, sep, rest = segment.partition(" import ")
+                changed = pattern.sub(new, head) + sep + rest
+            elif node.module == old_parent and any(a.name == old_last for a in node.names):
+                # `from etl import load`: the module's own name in the list (kept as its old name there)
+                head, sep, rest = segment.partition(" import ")
+                own = next(a for a in node.names if a.name == old_last)
+                alias = (
+                    f" as {own.asname}" if own.asname else "" if new_last == old_last else f" as {old_last}"
+                )
+                name = rf"(?<![\w.]){re.escape(old_last)}(?![\w])(\s+as\s+\w+)?"
+                if new_parent != old_parent and len(node.names) > 1:
+                    # The others stay where they come from; the module gets an import line of its own.
+                    rest = (
+                        re.sub(name + r"\s*,\s*", "", rest, count=1)
+                        if re.search(name + r"\s*,", rest)
+                        else re.sub(r",\s*" + name, "", rest, count=1)
+                    )
+                    indent = re.match(r"\s*", lines[first]).group(0)  # type: ignore[union-attr]
+                    line = (
+                        f"{indent}from {new_parent} import {new_last}{alias}"
+                        if new_parent
+                        else f"{indent}import {new_last}{alias}"
+                    )
+                    changed = head + sep + rest + "\n" + line
+                else:
+                    if new_parent != old_parent:
+                        head = re.sub(
+                            rf"(?<![\w.]){re.escape(old_parent)}(?![\w.])", new_parent, head, count=1
+                        )
+                    rest = re.sub(name, new_last + alias, rest, count=1)
+                    changed = head + sep + rest
+                    if not new_parent:  # a module at the top: `import loader as load`
+                        indent = re.match(r"\s*", lines[first]).group(0)  # type: ignore[union-attr]
+                        changed = f"{indent}import {new_last}{alias}"
+        if changed != segment:
+            parts = changed.split("\n")
+            span = last - first + 1
+            if len(parts) > span:  # an added line goes with the statement's last line
+                parts = [*parts[: span - 1], "\n".join(parts[span - 1 :])]
+            for offset, i in enumerate(range(first, last + 1)):
+                edits[i] = parts[offset] if offset < len(parts) else ""
+    if not edits:
+        return text
+    return "\n".join(edits.get(i, line) for i, line in enumerate(lines))
+
+
+def move_plan(
+    texts: Mapping[str, str],
+    moved: str,
+    old_module: str,
+    new_module: str,
+    read_only: set[str] | frozenset[str] = frozenset(),
+) -> dict[str, Any]:
+    """A module's rename across the project: the other files' imports changed ({path: new text}, the moved
+    file's own imports too), previewed and skipped as rename_plan does."""
+    changed: dict[str, str] = {}
+    for path, text in texts.items():
+        after = import_rewrite(text, old_module, new_module)
+        if after != text:
+            changed[path] = after
+    plan = rename_plan(changed, texts, read_only)
+    return plan | {"moved": moved}
+
+
+def free_copy_name(relative: str, taken: set[str]) -> str:
+    """`scripts/load.py` -> `scripts/load_copy.py`, then `_copy_2`... the first not taken."""
+    folder, _, name = relative.rpartition("/")
+    stem = name[: -len(".py")] if name.endswith(".py") else name
+    n = 1
+    while True:
+        candidate = f"{stem}_copy{'' if n == 1 else f'_{n}'}.py"
+        full = f"{folder}/{candidate}" if folder else candidate
+        if full not in taken:
+            return full
+        n += 1

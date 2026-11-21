@@ -6887,3 +6887,18 @@ Decisions:
 - Elsewhere (the Session page's links, Analyze's "your analyses"): openBladeOnScripts tells the open Scripts
   window (POST /navigate) or opens one on the address.
 - In a blade's tab on the Scripts page, Ctrl+S, F5 and the code's zoom keys are the blade IDE's, not the page's.
+
+## The Scripts explorer's tree actions (built 2026-11-21, branch scripts-rest)
+
+- Right-click a module of the user's (or F2 / Delete on its row): Rename…, Duplicate, Delete; an `__init__.py`
+  adds Rename package…, New package here…, Delete package. New package at the explorer's head. Made, read-only,
+  library and generated files have none.
+- Rename (POST /scripts/files/move): the new name in the same folder (or a path inside the project); the plan
+  first: the module's imports across the project rewritten (domain/script_ide.py import_rewrite: `import a.b`,
+  `from a.b import x`, `from a import b` kept under its old name there, `b as` its alias; a module moving to
+  another package out of a `from a import b, c` gets an import line of its own), previewed and the made files
+  skipped as F2's rename is. Usages like `a.b.f()` after `import a.b` are not rewritten (said here). Apply moves
+  the file (or the package folder) and writes; `code_file_moved` {from, to} retargets every window's open tabs.
+- Duplicate: `<stem>_copy.py`, then `_copy_2`, opened. Delete: the system's trash (server/file_manager.py), the
+  user's own (403 for the agent; NOT_COMMANDS), a dialog first. A made file is refused with what it is made from.
+- The agent: workbench_file(action move | package | duplicate).
