@@ -2,7 +2,8 @@
 the Widgets window's Run (the widget alone, through the Streamlit proxy, in the project's Python) and the
 agent's widgets_* commands.
 
-  listing        every widget of a framework: the library's, then the prebuilt (read-only) ones
+  listing        every widget of a framework: the library's, then the prebuilt (read-only) ones, each starter
+                 pack's first (domain/widget_packs.py: in its order, with its description), then by group
   get            one widget: its header, its code, its properties (types and masks), where its file is
   new / save     a new widget from the template; its code written (the header kept)
   header         Name and Description (and group, tags, size) written into the header only; a new name
@@ -30,6 +31,7 @@ from typing import Any
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_model as model
+from swissarmybench_streamlit.domain import widget_packs as packs
 from swissarmybench_streamlit.domain import widget_properties as props_rules
 from swissarmybench_streamlit.domain import widgets as rules
 from swissarmybench_streamlit.domain.widgets import Widget, WidgetError
@@ -111,6 +113,7 @@ class Widgets:
             "properties": [p.to_json() for p in found],
             "problem": problem,
             "hash": _hash(text),
+            "pack_description": packs.PACKS.get(widget.pack, ""),
         }
 
     def listing(self, framework: str = FRAMEWORK, query: str = "") -> dict[str, Any]:
@@ -119,12 +122,14 @@ class Widgets:
         for widget, text in self._all().values():
             if widget.framework != framework:
                 continue
-            said = f"{widget.name} {widget.description} {widget.group} {' '.join(widget.tags)}".lower()
+            words_of = [widget.name, widget.description, widget.group, widget.pack, *widget.tags]
+            said = " ".join(words_of).lower()
             if all(w in said for w in words):
                 shown.append(self._entry(widget, text))
         shown.sort(
             key=lambda w: (
                 w["prebuilt"],
+                packs.order(w["pack"]) if w["prebuilt"] else 0,
                 rules.GROUPS.index(w["group"]) if w["group"] in rules.GROUPS else 99,
                 w["name"],
             )
@@ -133,6 +138,7 @@ class Widgets:
             "framework": framework,
             "widgets": shown,
             "groups": list(rules.GROUPS),
+            "packs": packs.listing(),
             "folder": str(self._files.folder() or ""),
         }
 

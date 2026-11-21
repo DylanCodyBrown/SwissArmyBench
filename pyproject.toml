@@ -178,6 +178,8 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 # The made-up business: its SQL is built from fixed table names and whole numbers, never a caller's text.
 "tools/testbed/large_company.py" = ["S608"]
 "tests/test_large_company.py" = ["S608"]
+# The packs' viewer cases are kept one per line as a viewer would do them.
+"tests/test_widget_packs.py" = ["E501"]
 # The starter pack: its Power BI blades reach the REST API at the address their workspace connection holds,
 # and a snippet's lines (DAX, HTML, a piece for a Python cell) are kept as the cell will hold them.
 "src/swissarmybench/starters/**" = ["S310", "E501"]

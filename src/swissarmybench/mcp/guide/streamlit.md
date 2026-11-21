@@ -23,8 +23,14 @@ says so in one line.
   `widgets_properties` (of a widget, or of code not saved yet), `widgets_set_property` (a default, written
   into only its own characters, checked first), `widgets_run` (headless with AppTest: each page's
   `failed` errors and what it drew; live=true also gives a live address), `widgets_copy` (a prebuilt one
-  as your own: 56 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
+  as your own: 109 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
   state: ready with its address, coming, failed with why).
+- Starter packs (a prebuilt widget's `pack` in its header; `widgets_list` gives `packs`): Sales dashboard,
+  Operations, Customer service, Data entry, Admin, User inputs, Excel, Form builder. A pack widget that
+  reads data takes a table property (empty: its own made-up rows); one that hands data on puts
+  `{"event": "save", "widget", "payload"}` in session state under its `save_event` key, and others pass
+  values by session state keys (`state_key`, `filter_key`, `selected_key`, `in_key`/`out_key`,
+  `definition_key`, `submissions_key`). Excel widgets need openpyxl in the project's Python (said in place).
 
 ## The Canvas (`<app>.canvas.json`, a project file; two layouts, Phone and Desktop)
 - `canvas_list`, `canvas_open` (path, or name: a new one), `canvas_state` (model, version, `missing`

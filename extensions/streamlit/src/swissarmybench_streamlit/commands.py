@@ -327,9 +327,9 @@ def app_launch(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_list",
-    "Every widget of the canvas's framework: the library's, then the prebuilt ones (read-only), with their "
-    "properties (name, type, mask, default)",
-    opt("q", "Words to search names, descriptions, groups and tags."),
+    "Every widget of the canvas's framework: the library's, then the prebuilt ones (read-only; each starter "
+    "pack's first, `packs` their names and descriptions), with their properties (name, type, mask, default)",
+    opt("q", "Words to search names, descriptions, groups, packs and tags."),
 )
 def widgets_list(a: dict[str, Any]) -> Any:
     return api.call("GET", "/streamlit/widgets" + (f"?q={_q(a['q'])}" if a.get("q") else ""))
