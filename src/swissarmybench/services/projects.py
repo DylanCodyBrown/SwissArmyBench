@@ -57,7 +57,7 @@ class Projects:
         ws: Workspace,
         files: Files,
         table_cells: Callable[[list[str] | None], Awaitable[tuple[list[notebooks.Cell], int]]],
-        export_data: Callable[[str, str], Awaitable[dict[str, Any]]],
+        export_data: Callable[[str, str, bool], Awaitable[dict[str, Any]]],
         remember: Callable[[str], None],
         approvals: Approvals,
         scaffold: Callable[[str], Scaffold | None] = lambda _type: None,
@@ -160,7 +160,7 @@ class Projects:
             self._files.write(
                 folder, rules.DATA_NOTEBOOK, notebooks.write_notebook(cells, next_number=following)
             )
-            exported = await self._export_data(folder, name)
+            exported = await self._export_data(folder, name, False)
             own = scaffold(name, list(exported["names"])) if scaffold is not None else {}
             with_app = body.get("app") is not False and own.get("app", True) is not False
             if kind != rules.BASE_TYPE:  # the base's type needs no file: a folder without one is the base's
@@ -228,7 +228,8 @@ class Projects:
             listed = self._listing(folder)
         except FileNotFoundError as error:
             raise NotFound(str(error)) from None
-        done = await self._export_data(folder, listed["name"])
+        replace = bool(body.get("replace")) if isinstance(body, dict) else False
+        done = await self._export_data(folder, listed["name"], replace)
         if done["path"] is None:
             raise NotFound(f"{listed['folder']} is not a project: it has no data.ipynb.")
         self.ws.audit.write(who, "export_data", done["path"])

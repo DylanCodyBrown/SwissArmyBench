@@ -606,7 +606,12 @@ def bootstrap(
     # What the extensions that are on hand back once they are built (services/hooks.py): the documents the
     # Workbench windows hold, what stops with a kernel or a window, a canvas, an app's file.
     hooks = Hooks()
-    data_export = DataExport(project_files, table_cells.arrange, lambda path: hooks.held(path))
+    data_export = DataExport(
+        project_files,
+        table_cells.arrange,
+        lambda path: hooks.held(path),
+        lambda folder: project_scope.edited_in(folder),  # data.py edited by hand: kept (Scripts IDE)
+    )
     workbench = Workbench(
         ws,
         documents,
@@ -905,6 +910,7 @@ def bootstrap(
         settings.file_watch_seconds,
     )
     project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
+    code_files.listeners.append(project_scope.saw)  # a made file saved by hand is marked so
     # The Variables page: this computer's variables (never a project's): the shareable file and the local
     # values; their values given to this server's environment, so what it runs and starts reads them.
     variables_file = VariableFiles(
@@ -1279,6 +1285,12 @@ def bootstrap(
         linters,
         tree=lambda: project_scope.tree("scripts"),
         touched=code_files.touched,
+        library=lambda: (
+            (str(library_folder.root), code_file_disk.code_files_in(str(library_folder.root)))
+            if audit_log
+            else (None, [])
+        ),
+        tables=table_cells.listing,
     )
     blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     context_md = ContextMd(

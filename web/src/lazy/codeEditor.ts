@@ -676,6 +676,20 @@ export interface CodeEditorOptions {
   /** Ghost text (inlineCompletion.ts's inlineSource): asked only where the mode declares a provider for
    *  the language, over the document this editor edits. */
   inline?: InlineSource;
+  /** The Scripts IDE's moves (workbenchIde.ts): F12 Go to definition, Shift+F12 Find all references, F2
+   *  Rename symbol, Shift+Alt+F Format document, each with the cursor's line and column (from 1). */
+  ide?: IdeMoves;
+  /** The minimap (the Scripts IDE's "…" turns it on; off by default). */
+  minimap?: boolean;
+}
+
+let ideKeysFreed = false;
+
+export interface IdeMoves {
+  definition: (line: number, column: number) => void;
+  references: (line: number, column: number) => void;
+  rename: (line: number, column: number, word: string) => void;
+  format: () => void;
 }
 
 // ===== ghost text: the declared provider's inline completions (inlineCompletion.ts) =====
@@ -857,7 +871,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
     ...(ownModel ? { model: ownModel } : { value: options.value, language: monacoId(options.language) }),
     theme: THEMES[options.theme] ?? "vs",
     automaticLayout: !options.grow,
-    minimap: { enabled: false },
+    minimap: { enabled: !!options.minimap },
     lineNumbers: options.grow ? "off" : "on",
     glyphMargin: false,
     folding: !options.grow,
@@ -959,6 +973,34 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   if (keys.enter) editor.addCommand(monaco.KeyCode.Enter, keys.enter, `${own} && !suggestWidgetVisible`);
   if (keys.up) editor.addCommand(monaco.KeyCode.UpArrow, () => { if (!keys.up!()) editor.trigger("keyboard", "cursorUp", null); }, `${own} && !suggestWidgetVisible`);
   if (keys.down) editor.addCommand(monaco.KeyCode.DownArrow, () => { if (!keys.down!()) editor.trigger("keyboard", "cursorDown", null); }, `${own} && !suggestWidgetVisible`);
+  // The Scripts IDE's moves (Monaco's own keys for them): in this editor only.
+  const ide = options.ide;
+  if (ide && !ideKeysFreed) {
+    // Monaco's own F12, Shift+F12, F2 and Shift+Alt+F (no Python provider answers them) give way to ours.
+    ideKeysFreed = true;
+    monaco.editor.addKeybindingRules([
+      { keybinding: monaco.KeyCode.F12, command: "-editor.action.revealDefinition" },
+      { keybinding: monaco.KeyMod.Shift | monaco.KeyCode.F12, command: "-editor.action.goToReferences" },
+      { keybinding: monaco.KeyCode.F2, command: "-editor.action.rename" },
+      { keybinding: monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, command: "-editor.action.formatDocument" },
+    ]);
+  }
+  if (ide) {
+    const at = (): [number, number] => [editor.getPosition()?.lineNumber ?? 1, editor.getPosition()?.column ?? 1];
+    const moves: [string, string, number, () => void][] = [
+      ["sab.definition", "Go to Definition", monaco.KeyCode.F12, () => ide.definition(...at())],
+      ["sab.references", "Find All References", monaco.KeyMod.Shift | monaco.KeyCode.F12, () => ide.references(...at())],
+      ["sab.rename", "Rename Symbol", monaco.KeyCode.F2, () => {
+        const [line, column] = at();
+        ide.rename(line, column, editor.getModel()?.getWordAtPosition({ lineNumber: line, column })?.word ?? "");
+      }],
+      ["sab.format", "Format Document", monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => ide.format()],
+    ];
+    for (const [id, label, key, run] of moves) {
+      editor.addCommand(key, run, own);
+      editor.addAction({ id, label, contextMenuGroupId: "navigation", contextMenuOrder: moves.findIndex((m) => m[0] === id), run });
+    }
+  }
   // Escape lets a suggestion go first (a member list, ghost text), then it is the cell's.
   if (keys.escape) editor.addCommand(monaco.KeyCode.Escape, keys.escape, `${own} && !suggestWidgetVisible && !inlineSuggestionVisible`);
 

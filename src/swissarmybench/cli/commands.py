@@ -3262,7 +3262,19 @@ def workbench_open(a: dict[str, Any]) -> Any:
     opt("page", "scripts (default) or notebooks."),
 )
 def project_tree(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/project/tree?" + urlencode({"page": a.get("page") or "scripts"}))
+    if (a.get("page") or "scripts") == "scripts":
+        return api.call("GET", "/scripts/tree")  # the project's code, the library's, what the app generates
+    return api.call("GET", f"/project/tree?{urlencode({'page': a['page']})}")
+
+
+@command(
+    "workbench_fine_tune",
+    "Fine-tune as a script: an open table's transformations (its load and its steps as one DuckDB query) as "
+    "a new script in the project's scripts/, opened on the Scripts page",
+    req("table", "The open table's name."),
+)
+def workbench_fine_tune(a: dict[str, Any]) -> Any:
+    return api.call("POST", "/scripts/fine-tune", {"table": a["table"]})
 
 
 @command(
@@ -4565,11 +4577,14 @@ def project_files(a: dict[str, Any]) -> Any:
 
 @command(
     "project_export_data",
-    "Export data.py again from the project's data.ipynb",
+    "Export data.py again from the project's data.ipynb (data.py edited by hand: refused unless replace)",
     req("folder", "The project's folder."),
+    opt("replace", "Replace a data.py edited by hand.", "bool"),
 )
 def project_export_data(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/projects/export-data", {"folder": a["folder"]})
+    return api.call(
+        "POST", "/projects/export-data", {"folder": a["folder"], "replace": bool(a.get("replace"))}
+    )
 
 
 @command(

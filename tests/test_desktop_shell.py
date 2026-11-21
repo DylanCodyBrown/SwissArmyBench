@@ -120,7 +120,7 @@ def test_the_shell_does_what_a_browser_did(tmp_path: Path) -> None:
     assert said["clipboard"] == "North,120.50" or "not focused" in said["clipboard"]
     assert said["devtools_window"]
     # The channel: what is open (no token in it); a page opened; another key refused.
-    assert said["status_windows"] == ["home", "workbench"] and said["status_has_no_token"]
+    assert said["status_windows"] == ["home", "notebooks"] and said["status_has_no_token"]
     assert said["channel_opened"] == "catalog" and "error" in said["bad_key"]
     # The Workbench's place remembered and used again (within the screen).
     assert said["remembered"] == {"x": 40, "y": 50, "w": 900, "h": 640, "maximized": False}
@@ -191,8 +191,8 @@ def test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows
         assert second.returncode == 0
         wait(lambda: "catalog" in {w["kind"] for w in launch.status(info)["windows"]})
         # The server's "open a page" (the launch, `swissarmybench open`, desktop_open) goes to the app.
-        assert launch.open_page(page_address(server, "/workbench"), info)
-        wait(lambda: "workbench" in {w["kind"] for w in launch.status(info)["windows"]})
+        assert launch.open_page(page_address(server, "/scripts"), info)  # the Scripts page (2026-11-21)
+        wait(lambda: "scripts" in {w["kind"] for w in launch.status(info)["windows"]})
         assert first.poll() is None
         # `swissarmybench stop`'s quit, over the channel: every window closed (each one's place kept), the
         # server told, the app ended; the server follows.
@@ -200,7 +200,7 @@ def test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows
         assert launch.tell({"quit": True}, info) == {"ok": True}
         assert first.wait(30) == 0
         places = json.loads((tmp_path / "state" / "desktop" / "windows.json").read_text(encoding="utf-8"))
-        assert {"home", "catalog", "workbench"} <= set(places)
+        assert {"home", "catalog", "scripts"} <= set(places)
         from swissarmybench.server.lifecycle import read_info as connection
 
         wait(lambda: connection(info) is None, 60)

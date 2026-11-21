@@ -48,7 +48,8 @@
  */
 import { inlineStatus } from "./inlineCompletion";
 import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
-import { mountCodeExplorer } from "./codeExplorer";
+import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
+import { ideMoves, searchScripts } from "./workbenchIde";
 import { handleAgentNotice, loadApprovals } from "./agentAccess";
 import { agentApi, api, ApiError, connect, onNotice, openedWith, requireSession, tellFocus, token } from "./api";
 import type { FilledSnippet } from "./starters";
@@ -733,11 +734,17 @@ function sabLayout(): { layout: Record<string, unknown>; unsaved: string[] } | n
   const open = projectState().project;
   if (!open) return null;
   const mine = docs.filter((d) => (d.notebook || d.script || d.canvas) && inFolder(d.path, open.folder));
+  // Each page's own (the Notebooks page's and the Scripts page's), beside the other's as it was kept.
+  const kept = (open.layout?.workbench ?? {}) as Record<string, unknown>;
+  const other: CodePage = PAGE === "scripts" ? "notebooks" : "scripts";
   return {
     layout: {
-      documents: mine.map((d) => relativeTo(d.path!, open.folder)),
-      groups: groups.save((d) => (mine.includes(d) ? mine.indexOf(d) : null)),
-      current: current && mine.includes(current) ? mine.indexOf(current) : null,
+      ...(kept[other] ? { [other]: kept[other] } : {}),
+      [PAGE]: {
+        documents: mine.map((d) => relativeTo(d.path!, open.folder)),
+        groups: groups.save((d) => (mine.includes(d) ? mine.indexOf(d) : null)),
+        current: current && mine.includes(current) ? mine.indexOf(current) : null,
+      },
     },
     unsaved: mine.filter((d) => d.dirty).map((d) => d.title),
   };
@@ -774,8 +781,12 @@ async function followProject(state: ProjectState): Promise<void> {
     listProject();
     void loadModeFiles(); // the mode's own files (a code app's), for this project
   }
-  const saved = opened.layout.workbench as { documents?: string[]; groups?: SavedLayout } | undefined;
-  const wanted = saved?.documents?.length ? saved.documents.map((relative) => joinPath(opened.folder, relative)) : (listed?.files ?? []);
+  // This page's documents as kept (a project from before the two pages: its list, this page's kind only).
+  type Kept = { documents?: string[]; groups?: SavedLayout };
+  const all = opened.layout.workbench as (Kept & Partial<Record<CodePage, Kept>>) | undefined;
+  const own = all?.[PAGE];
+  const saved: Kept | undefined = own ?? (all?.documents ? { documents: all.documents } : undefined);
+  const wanted = (saved?.documents?.length ? saved.documents.map((relative) => joinPath(opened.folder, relative)) : (listed?.files ?? [])).filter((p) => (pageOfPath(p) ?? PAGE) === PAGE);
   const byKey = new Map<number, Doc>();
   for (const [key, path] of wanted.entries()) {
     await open(path);
@@ -1353,7 +1364,11 @@ async function openGrid(doc: Doc, name: string): Promise<void> {
 async function openAt(path: string, line: number): Promise<void> {
   await open(path);
   const doc = docs.find((d) => d.path === path);
-  if (doc?.script) setTimeout(() => doc.script?.reveal(line), 300);
+  if (doc?.script)
+    setTimeout(() => {
+      doc.script?.reveal(line);
+      doc.script?.focus(); // the keyboard in the editor at that line (the explorer's outline, F12)
+    }, 300);
 }
 
 /** F5 and the group row's main Run: the file, or every cell. */
@@ -1437,6 +1452,11 @@ function openScript(path: string | null, text: string, modified: number | null):
       if (!doc.path) return;
       void recordRunFile(doc.path, ok, seconds).then(() => doc.modes?.redraw("runHistory"), () => undefined);
     },
+    // The Scripts IDE's moves (workbenchIde.ts): F12, Shift+F12, F2, Shift+Alt+F.
+    ide: ideMoves(
+      { path: () => doc.path, text: () => doc.script!.text(), python: () => doc.python, replaceText: (t) => doc.script!.replaceText(t), reveal: (line) => doc.script!.reveal(line) },
+      { openAt: (p, line) => void openAt(p, line) },
+    ),
   });
   attachStreamlit(doc);
   doc.element.append(doc.script.element);
@@ -2249,6 +2269,7 @@ function drawControls(): void {
   // A Streamlit app's canvas: Play, Edit, Export, Save as (its pages are tabs inside the canvas).
   // Its own Save in its row (no top bar: the owner, 2026-11-21); Save as… is its "…" or Ctrl+Shift+S.
   const saveHere = button("Save", () => void saveFront().catch((e: Error) => errorHere(e)), { icon: "save", iconOnly: true, class: "ghost wb-save", title: "Save (Ctrl+S)" });
+  const fullButton = button(full ? "Leave full screen" : "Full screen", () => void fullScreen(), { icon: full ? "restore" : "max", iconOnly: true, class: "ghost wb-full-toggle", title: full ? "Leave full screen (Escape)" : "Full screen (F11)", pressed: full });
   if (doc.canvas) return void host.replaceChildren(doc.canvas.tools, saveHere, more);
   if (doc.workbook) return void host.replaceChildren(doc.workbook.tools, saveHere, more);
   if (!doc.notebook && !doc.script) return void host.replaceChildren(more);
@@ -2263,7 +2284,7 @@ function drawControls(): void {
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, saveHere, more].filter((e): e is HTMLElement => e !== null));
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -2458,6 +2479,24 @@ const explorerPane = mountExplorerPane({
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(explorerPane.element);
 
+/** What the app generates, read-only (a table's transformations as one DuckDB query), with Fine-tune. */
+function showGenerated(file: TreeFile): void {
+  const { body, foot, close } = openDialog(`${file.name}: its transformations (read-only)`, true);
+  body.append(h("pre", { class: "mono wb-generated" }, file.text ?? ""));
+  foot.append(button("Fine-tune as a script", () => (close(), void fineTune(file.name)), { class: "primary" }), button("Close", () => close(), { class: "ghost" }));
+}
+
+/** Fine-tune as a script: the table's transformations as a new script in scripts/, opened here. */
+async function fineTune(table: string): Promise<void> {
+  try {
+    const made = await api<{ path: string }>("/scripts/fine-tune", "POST", { table });
+    await codex.refresh();
+    await open(made.path);
+  } catch (e) {
+    errorHere(e);
+  }
+}
+
 /** The page's New: a script here, a notebook on the Notebooks page (the creator's and the explorer's). */
 function newHere(): void {
   const k: Kind = PAGE === "scripts" ? "script" : "notebook";
@@ -2472,18 +2511,57 @@ function newHere(): void {
   start.run();
 }
 
+// The Scripts page's Blades, under the files (the owner, 2026-11-21: "navigation on top, blade on bottom"): the
+// blades list (catalogRail.ts) drawn here; a blade opens as a tab (bladeDoc). Elsewhere the Data Explorer's.
+const bladesPane = PAGE === "scripts" ? h("section", { class: "rail-section wb-blades-pane", id: "blades", "aria-labelledby": "blades-title" }) : null;
+
 // The page's own explorer on the left, always there (codeExplorer.ts): the project's scripts by module, or its
 // notebooks; a click opens the file as a tab here.
 const codex = mountCodeExplorer({
   page: PAGE,
-  open: (file) => void open(file.full),
+  open: (file) => (file.item ? showGenerated(file) : void open(file.full)),
+  action: (file, id) => {
+    if (id === "fine-tune") void fineTune(file.name);
+  },
   openAt: (file, line) => void openAt(file.full, line),
   newDocument: newHere,
   menu: topMenu, // the page's "…" (no top bar: the owner, 2026-11-21)
+  lower: bladesPane ? { id: "blades", title: "Blades", element: bladesPane } : undefined,
   openNow: () => ({ paths: docs.map((d) => d.path ?? "").filter(Boolean), dirty: docs.filter((d) => d.dirty && d.path).map((d) => d.path!), front: current?.path ?? null }),
 });
 (document.querySelector(".wb-layout") as HTMLElement).prepend(codex.element);
 codexHooks.mark = codex.mark;
+// The rail's Blades (rail.ts) on this page, and an address that names the pane: the Blades pane, focused.
+window.addEventListener("sab-blades", () => codex.showLower());
+if (new URLSearchParams(location.search).get("pane") === "blades") window.setTimeout(() => codex.showLower(), 0);
+
+// ===== full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable") =====
+const FULL_KEY = `wb-fullscreen:${PAGE}`;
+let full = false;
+/** The tabs and the editor fill the window (the rail, the explorer, the panels gone); remembered for the
+ *  session, per page. */
+function fullScreen(on?: boolean): boolean {
+  full = on ?? !full;
+  document.body.classList.toggle("wb-full", full);
+  try {
+    sessionStorage.setItem(FULL_KEY, full ? "1" : "0");
+  } catch {
+    /* storage refused: it lasts until a reload */
+  }
+  drawControls();
+  window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  return full;
+}
+try {
+  if (sessionStorage.getItem(FULL_KEY) === "1") fullScreen(true);
+} catch {
+  /* nothing kept */
+}
+document.addEventListener("keydown", (e) => {
+  // Escape leaves full screen when nothing else took it (a member list, a dialog, a menu).
+  if (e.key !== "Escape" || !full || e.defaultPrevented || document.querySelector("dialog[open], .wb-menu, .suggest-widget.visible")) return;
+  fullScreen(false);
+});
 codexHooks.label = codex.setNewLabel;
 codexHooks.typed = codex.typed;
 codexHooks.refresh = () => void codex.refresh();
@@ -2674,7 +2752,7 @@ function goToTable(name: string): void {
 }
 
 const rail = mountRail({
-  bladesHost: explorerPane.bladesHost,
+  bladesHost: bladesPane ?? explorerPane.bladesHost,
   catalogHost: explorerPane.catalogHost,
   editBlade: bladeDoc,
   isEditing: () => editingBlade,
@@ -3405,6 +3483,13 @@ const COMMANDS: Command[] = [
   { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
+  // Full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable"): the tabs and the editor fill
+  // the window; the rail, the explorer and the bottom panels go; Escape or the same button comes back.
+  { id: "view.fullScreen", group: "View", title: "Full screen", keys: "F11", args: "on: true or false (default: the other way)", run: (a) => ({ on: fullScreen(typeof a.on === "boolean" ? a.on : undefined) }) },
+  { id: "view.files", group: "View", title: "Show or hide the explorer", keys: "Ctrl+B", args: "show: true or false (default: the other way)", run: (a) => ({ open: codex.toggle(typeof a.show === "boolean" ? a.show : undefined) }) },
+  ...(PAGE === "scripts"
+    ? [{ id: "search.scripts", group: "Find", title: "Search in scripts…", keys: "Ctrl+Shift+F", run: () => (searchScripts({ openAt: (p: string, line: number) => void openAt(p, line) }, () => (current?.script ? { path: () => current!.path, text: () => current!.script!.text(), python: () => current!.python, replaceText: (t: string) => current!.script!.replaceText(t), reveal: (line: number) => current!.script!.reveal(line) } : null)), { opened: true }) }]
+    : []),
   { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: (a) => {
     const show = typeof a.show === "boolean" ? a.show : undefined;
     return { open: explorerPane.toggle(show), popped: false };
@@ -3555,6 +3640,9 @@ const WINDOW_KEYS: Record<string, string> = {
   "Ctrl+Shift+S": "file.saveAs",
   "Ctrl+O": "file.open",
   "Ctrl+Shift+E": "view.explorer",
+  F11: "view.fullScreen",
+  "Ctrl+B": "view.files",
+  ...(PAGE === "scripts" ? { "Ctrl+Shift+F": "search.scripts" } : {}),
   "Ctrl+1": "view.source",
   "Ctrl+2": "console.focus",
   "Ctrl+3": "view.variables",

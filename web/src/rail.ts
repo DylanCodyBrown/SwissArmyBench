@@ -121,6 +121,7 @@ function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
   if (isLayer(open)) return open;
   if (kind === "catalog") return "blades";
+  if (kind === "workbench" && url.searchParams.get("pane") === "blades") return "blades"; // the Scripts page's Blades
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind")) ?? (thisPage() === "scripts" ? "scripts" : "notebooks");
   const view = kind === "home" ? url.searchParams.get("view") : null;
   if (view === "analyze" || view === "visualizations" || view === "sandbox") return "analyze";
@@ -154,7 +155,8 @@ function newKindWindow(k: Kind): void {
 function pageUrl(area: Area): string {
   const k = kindOfArea(area);
   if (k) return `/${pageOfKind(k) ?? "notebooks"}?kind=${k}&view=list`; // that kind's page (workbenchPages.ts)
-  if (area === "blades") return "/catalog";
+  // Blades live on the Scripts page, under its files (the owner, 2026-11-21: "navigation on top, blade on bottom").
+  if (area === "blades") return "/scripts?kind=script&pane=blades";
   return arrivalUrl(area);
 }
 
@@ -171,6 +173,25 @@ export function goArea(area: Area, newWindow = false): void {
   if (newWindow) {
     if (k) newKindWindow(k);
     else if (!window.open(withToken(pageUrl(area)), "_blank")) errorHere("The browser blocked the new window: allow pop-ups for this address.");
+    return;
+  }
+  if (area === "blades" && kind === "workbench" && thisPage() === "scripts") {
+    // Here: the Blades pane unfolded and focused (workbenchPage.ts listens).
+    visit(withParams({ ...LAYER_OFF, pane: "blades" }));
+    window.dispatchEvent(new CustomEvent("sab-blades"));
+    return;
+  }
+  if (area === "blades" && kind === "workbench") {
+    const other = window.open("", PAGE_WINDOWS.scripts);
+    let fresh = true;
+    try {
+      fresh = !other || other.location.href === "about:blank";
+    } catch {
+      fresh = true;
+    }
+    if (other && !fresh) other.postMessage({ sab: "area", area }, location.origin);
+    else if (other) other.location.href = withToken(pageUrl(area));
+    other?.focus();
     return;
   }
   if (k && kind === "workbench") {

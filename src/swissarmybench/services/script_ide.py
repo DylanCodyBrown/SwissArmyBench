@@ -20,6 +20,7 @@ import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
+from swissarmybench.domain import code_tree
 from swissarmybench.domain import script_ide as rules
 from swissarmybench.services.workspace import Refused, Workspace
 
@@ -71,6 +72,8 @@ class ScriptIde:
         *,
         tree: Callable[[], dict[str, Any]],
         touched: Callable[[str, str], Awaitable[Any]],
+        library: Callable[[], tuple[str | None, list[str]]] = lambda: (None, []),
+        tables: Callable[[], Awaitable[dict[str, Any]]] | None = None,
     ) -> None:
         self.ws = ws
         self._code = code
@@ -78,6 +81,8 @@ class ScriptIde:
         self._ruff = ruff
         self._tree = tree  # the Scripts page's tree (services/project_scope.py tree("scripts"))
         self._touched = touched
+        self._library = library  # the library's folder and its code files
+        self._tables = tables  # the open tables as their read-only cells (services/table_cells.py listing)
 
     # ===== the project's scripts =====
 
@@ -107,6 +112,46 @@ class ScriptIde:
 
     async def _jedi(self, job: Callable[[], Any]) -> Any:
         return await asyncio.to_thread(job)
+
+    # ===== the tree: the project's code, the library's, what the app generates =====
+
+    async def tree(self) -> dict[str, Any]:
+        """The Scripts page's explorer (the owner, 2026-11-21: "expose the high level code of everything in
+        the
+        app for fine tuning"): Your scripts, Project code, the library's Connections, APIs, Key vaults (and
+        Widgets), and Generated (each open table's transformations, read-only, with Fine-tune as a script)."""
+        said = self._tree()
+        root, paths = await asyncio.to_thread(self._library)
+        groups = list(said.get("groups", [])) + code_tree.library_tree(root, paths)
+        if self._tables is not None:
+            listed = (await self._tables()).get("tables", [])
+            groups.append(code_tree.generated_group(listed))
+        return said | {"groups": groups, "library": root}
+
+    async def fine_tune(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{table}: a new script in the project's scripts/ doing what the table's transformations do (its load
+        and its steps as one DuckDB query), to fine-tune; its path (the page opens it)."""
+        table = body.get("table") if isinstance(body, dict) else None
+        if not isinstance(table, str) or not table:
+            raise ValueError('Send {"table": "an open table\'s name"}.')
+        if self._tables is None:
+            raise Refused("No tables here.")
+        listed = (await self._tables()).get("tables", [])
+        found = next((t for t in listed if str(t.get("name")).casefold() == table.casefold()), None)
+        if found is None:
+            raise Refused(f"{table} is not open in Grids.")
+        said = self._tree()
+        folder = said.get("folder")
+        if not folder:
+            raise Refused("Open a project first: the script goes in its scripts/ folder.")
+        taken = [f["path"] for g in said.get("groups", []) for f in g.get("files", [])]
+        relative = code_tree.fine_tune_name(str(found["name"]), taken)
+        full = f"{str(folder).rstrip('/')}/{relative}"
+        head = f"# {found['name']}: its transformations as a script to fine-tune (from its grid's steps).\n"
+        self._code.write(full, head + str(found.get("loaded") or found.get("code") or ""))
+        await self._touched(full, who)
+        self.ws.audit.write(who, "script_fine_tune", full, table=str(found["name"]))
+        return {"path": full, "table": found["name"]}
 
     # ===== go to definition, references =====
 

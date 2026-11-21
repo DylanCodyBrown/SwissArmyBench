@@ -143,3 +143,88 @@ def notebook_tree(paths: Iterable[str]) -> list[dict[str, Any]]:
         {"id": "data", "name": "Data notebook", "files": data},
         {"id": "notebooks", "name": "Notebooks", "files": rest},
     ]
+
+
+# The library's code (the owner, 2026-11-21: "this is meant to expose the high level code of everything in the
+# app for fine tuning"): its folders as groups of the Scripts page's tree; blades are the Blades pane's.
+LIBRARY_GROUPS: tuple[tuple[str, str], ...] = (
+    ("connections", "Connections"),
+    ("apis", "APIs"),
+    ("vaults", "Key vaults"),
+    ("widgets", "Widgets"),
+)
+
+
+def library_tree(root: str | None, paths: Iterable[str]) -> list[dict[str, Any]]:
+    """The library's .py files (whole paths under `root`) as groups: Connections, APIs, Key vaults, Widgets
+    (the last once the library has the folder). Each file editable in place; the app reads it on its next
+    use."""
+    if not root:
+        return []
+    base = root.replace("\\", "/").rstrip("/") + "/"
+    found: dict[str, list[dict[str, Any]]] = {key: [] for key, _ in LIBRARY_GROUPS}
+    for full in paths:
+        path = full.replace("\\", "/")
+        if not path.startswith(base) or not path.endswith(".py") or not listed(path[len(base) :]):
+            continue
+        relative = path[len(base) :]
+        top = relative.split("/", 1)[0]
+        if top not in found:
+            continue
+        name = posixpath.basename(relative)
+        found[top].append(
+            {
+                "path": relative,
+                "full": full,
+                "name": name,
+                "folder": posixpath.dirname(relative),
+                "module": name[: -len(".blade.py")] if name.endswith(".blade.py") else name[: -len(".py")],
+                "made_from": None,
+                "edited": False,
+                "read_only": False,
+                "library": True,
+                "outline": [],
+            }
+        )
+    return [
+        {
+            "id": f"library-{key}",
+            "name": words,
+            "files": sorted(found[key], key=lambda f: f["path"].casefold()),
+        }
+        for key, words in LIBRARY_GROUPS
+        if found[key] or key != "widgets"
+    ]
+
+
+def generated_group(tables: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    """What the app generates, read-only, shown so it can be seen: each open table's transformations as one
+    DuckDB query (its read-only cell's text), with Fine-tune as a script."""
+    files = [
+        {
+            "path": f"{t['name']} (transformations)",
+            "full": f"table:{t['name']}",
+            "name": str(t["name"]),
+            "folder": "",
+            "module": str(t["name"]),
+            "made_from": "its grid's steps",
+            "edited": False,
+            "read_only": True,
+            "item": f"table:{t['name']}",
+            "text": t.get("code") or "",
+            "actions": [{"id": "fine-tune", "label": "Fine-tune as a script"}],
+            "outline": [],
+        }
+        for t in tables
+    ]
+    return {"id": "generated", "name": "Generated (read-only)", "files": files}
+
+
+def fine_tune_name(table: str, taken: Iterable[str]) -> str:
+    """scripts/<table>_tuned.py, the first free name (a number after it when taken)."""
+    stem = "".join(c if c.isalnum() or c == "_" else "_" for c in table.lower()).strip("_") or "table"
+    used = {t.casefold() for t in taken}
+    name, n = f"scripts/{stem}_tuned.py", 2
+    while name.casefold() in used:
+        name, n = f"scripts/{stem}_tuned_{n}.py", n + 1
+    return name

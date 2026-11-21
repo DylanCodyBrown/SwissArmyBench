@@ -124,12 +124,12 @@ def main(folder: Path, shots: Path | None) -> int:
         shot(home, "desktop-home-window.png")
 
         # 3. window.open: a second app window (the Workbench); the same name again reuses it.
-        js(home, "window.open('/workbench', 'swissarmybench-workbench'); true")
-        wb = wait(lambda: next((w for w in shell.windows.values() if w.kind == "workbench"), None), 30, "wb")
+        js(home, "window.open('/notebooks', 'sab-notebooks'); true")
+        wb = wait(lambda: next((w for w in shell.windows.values() if w.kind == "notebooks"), None), 30, "wb")
         wait(lambda: loaded(wb), 60, "the Workbench page")
         results["window_open_made_window"] = len(shell.windows)
         results["workbench_title"] = wb.windowTitle()
-        js(home, "window.open('/workbench', 'swissarmybench-workbench'); true")
+        js(home, "window.open('/notebooks', 'sab-notebooks'); true")
         wait(lambda: True, 1.0)
         results["named_window_reused"] = len(shell.windows)
         # The Workbench brings the home window forward by its name (nav.ts: window.open("", "sab-home"))
@@ -252,19 +252,19 @@ def main(folder: Path, shots: Path | None) -> int:
         QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)  # app.exec() does this by itself
         wait(lambda: True, 1.5)  # Chromium lets go of the closed window's name a moment later
         places = json.loads((info_file.parent / "desktop" / "windows.json").read_text(encoding="utf-8"))
-        results["remembered"] = places.get("workbench")
+        results["remembered"] = places.get("notebooks")
         # On a busy machine Chromium can hold the name longer than that: the open is asked again, up to
         # three times, until the new window is there.
         again: Any = None
         for attempt in range(3):
             results["reopen_said"] = js(
                 home,
-                "(() => { const w = window.open('/workbench', 'swissarmybench-workbench');"
+                "(() => { const w = window.open('/notebooks', 'sab-notebooks');"
                 " return w === null ? 'null' : (w.closed ? 'closed' : 'open'); })()",
             )
             try:
                 again = wait(
-                    lambda: next((w for w in shell.windows.values() if w.kind == "workbench"), None),
+                    lambda: next((w for w in shell.windows.values() if w.kind == "notebooks"), None),
                     10 if attempt < 2 else 30,
                     "wb2",
                 )

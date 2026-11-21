@@ -140,9 +140,38 @@ class ProjectScope:
                 item["full"] = rules.inside(current.folder, item["path"])
         return {"project": current.name, "folder": current.folder, "page": page, "groups": groups}
 
+    HAND = ".sab/hand-edited.json"
+
+    def edited_in(self, folder: str) -> set[str]:
+        """A project's made files (data.py, pages/*.py) edited by hand: never overwritten silently."""
+        try:
+            found = json.loads(self._files.read_file(folder, self.HAND).decode("utf-8"))
+        except (OSError, ValueError):
+            return set()
+        return {str(p) for p in found if isinstance(p, str)} if isinstance(found, list) else set()
+
     def edited_by_hand(self) -> list[str]:
-        """The made files (data.py, pages/*.py) the user edited by hand (Part 2 keeps them)."""
-        return []
+        current = self._projects.current
+        return sorted(self.edited_in(current.folder)) if current is not None else []
+
+    def saw(self, path: str, who: str) -> None:
+        """A save of the user's or the agent's (code_files.touched): a made file of the open project is edited
+        by hand from now on (its tree's pencil; a regenerate asks)."""
+        current = self._projects.current
+        if current is None or who not in ("user", "agent"):
+            return
+        root = current.folder.replace("\\", "/").rstrip("/") + "/"
+        full = path.replace("\\", "/")
+        if not full.startswith(root):
+            return
+        relative = full[len(root) :]
+        if not code_tree.made_from(relative):
+            return
+        edited = self.edited_in(current.folder)
+        if relative in edited:
+            return
+        body = json.dumps(sorted(edited | {relative}), indent=1) + "\n"
+        self._files.write_into(current.folder, self.HAND, body.encode("utf-8"))
 
     @staticmethod
     def outline(body: Any) -> dict[str, Any]:

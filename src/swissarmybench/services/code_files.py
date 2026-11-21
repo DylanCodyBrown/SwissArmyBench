@@ -40,10 +40,14 @@ class CodeFiles:
         self._listing = listing
         self._resolve = resolve
         self._seen: dict[str, tuple[Stamp | None, str | None]] = {}
+        # Told of each write of the app's (a made file saved by hand: services/project_scope.py saw).
+        self.listeners: list[Callable[[str, str], None]] = []
 
     async def touched(self, path: str, who: str = "user") -> str | None:
         """The app wrote `path` (or took it away): said now, to every window. Its new hash."""
         full = self._resolve(path)
+        for listener in self.listeners:
+            listener(full, who)
         stamp, digest = await asyncio.to_thread(lambda: (self._stamp(full), self._hash_of(full)))
         before = self._seen.get(full)
         self._seen[full] = (stamp, digest)

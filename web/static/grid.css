@@ -19028,3 +19028,166 @@ body:has(.cat-main > .blade-host > .code-ide) .cat-top {
   display: grid;
   place-items: center;
 }
+/* The explorer folds to a strip (Ctrl+B) and resizes (its sash); full screen hides all but the tabs and code. */
+.wb-codex {
+  position: relative;
+}
+.wb-codex-strip {
+  display: none;
+}
+.wb-codex.closed {
+  width: 32px !important;
+}
+.wb-codex.closed > :not(.wb-codex-strip) {
+  display: none;
+}
+.wb-codex.closed .wb-codex-strip {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wb-codex-sash {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+.wb-codex-sash:hover,
+.wb-codex-sash:focus-visible {
+  background: var(--focus);
+  opacity: 0.4;
+}
+body.wb-full .nav-rail,
+body.wb-full .wb-codex,
+body.wb-full .wb-explorer,
+body.wb-full .wb-console-pane,
+body.wb-full .wb-env,
+body.wb-full .wb-status {
+  display: none !important;
+}
+body.wb-full.has-rail {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+/* The elsewhere bar over a document whose file changed (code_files.py's notice). */
+.wb-elsewhere {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--warn-soft);
+  color: var(--fg);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+/* The Scripts IDE's lists: references, search, a rename's preview. */
+.ide-results-file {
+  margin: 4px 0 10px;
+}
+.ide-results-file > strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ide-result,
+.ide-change {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ide-result:hover {
+  background: var(--row-hover);
+}
+.ide-result-line {
+  min-width: 3em;
+  color: var(--muted);
+  text-align: right;
+}
+.ide-change del {
+  color: var(--error);
+}
+.ide-change ins {
+  color: var(--ok);
+  text-decoration: none;
+}
+.ide-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.ide-search {
+  flex: 1;
+  padding: 4px 8px;
+  font: inherit;
+}
+.ide-skipped {
+  color: var(--warn);
+}
+/* The Scripts page's left side: Files above Blades, a splitter between, each folds. */
+.wb-codex.stacked {
+  display: flex;
+  flex-direction: column;
+}
+.wb-codex-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.wb-codex-pane.folded > :not(.wb-codex-head) {
+  display: none;
+}
+.wb-codex-pane-fold {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.wb-codex-pane-fold .icon-svg {
+  width: 12px;
+  height: 12px;
+}
+.wb-codex-lower {
+  border-top: 1px solid var(--border);
+}
+.wb-codex-lower-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.wb-codex-hsash {
+  flex: 0 0 5px;
+  cursor: row-resize;
+  background: transparent;
+}
+.wb-codex-hsash:hover,
+.wb-codex-hsash:focus-visible {
+  background: var(--focus);
+  opacity: 0.4;
+}
+.wb-blades-pane {
+  padding: 0 4px;
+}
+.wb-generated {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 8px;
+  background: var(--surface);
+}
