@@ -553,6 +553,11 @@ src/swissarmybench/
                          why), a table named in DuckDB SQL by its connection ([Finance Captive].Sales: brackets,
                          references in sqlglot's tree, resolved in any case, a shared Power BI name asking for its
                          dataset), the work sent to the source (columns, plain filters, a safe LIMIT), the limit's words
+    connection_slots.py  how many queries run at once on a connection (the owner, 2026-11-21): limits (8 at once,
+                         4 the agent's, a 2-minute wait; the file's [queries] table), a Board of lines (FIFO within
+                         a priority: the user's before background loads; the agent's share), places, leases, words
+    query_text.py        a query's SQL formatted for reading (sqlglot's pretty printer in its dialect; DAX and what
+                         does not parse as written; `${NAME}` as written): the Queries window's, the user's only
     file_dialogs.py      the system's own file dialog (the owner, 2026-11-17): a request checked, the tool per system
                          (Windows: Tk's IFileDialog, else PowerShell's Forms dialogs and IFileOpenDialog for a folder;
                          macOS: osascript, else Tk; Linux: kdialog on KDE, zenity, kdialog, else Tk; none without
@@ -617,6 +622,10 @@ src/swissarmybench/
     connection_tables.py the contract's list and read for every kind, DuckDB SQL naming a connection's table (each
                          read: every row the query needs, counted first, refused past the limit; kept for the
                          session by what was sent, Refresh), the Connections page's tree, Open all of a dataset
+    connection_slots.py  the one gate every connection run passes (bootstrap's run_blade): wait in line, Cancel
+                         (the child killed), the wait limit (Try again); who from the request (CURRENT: the agent,
+                         a page's X-Sab-Client, a kernel's X-Kernel); kernels' leased slots; the Queries window's
+                         list, finished (memory, last 50), SQL (the user's); the limits saved; `connection_slots`
     explorer.py          the Data Explorer's search: a provider per source (connections and their loaded catalogs,
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
                          Structures' documents and paths and APIs' table-returning web calls registered from
@@ -789,7 +798,8 @@ src/swissarmybench/
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
-                         connection_swap, variables, connection_colours, connection_tables, explorer, library,
+                         connection_swap, variables, connection_colours, connection_tables, connection_slots,
+                         explorer, library,
                          shared_catalog, team, found_connections). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
@@ -843,6 +853,8 @@ src/swissarmybench/
                          Standard library only; the statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box)
+  client/connection_slot.py a Workbench kernel's query in one of its connection's slots (acquire, wait with its
+                         place shown, renew, release); no gate outside a kernel or with no app
   client/connection_use.py a Workbench kernel's fire-and-forget count of a connection's call (a query, a read,
                          a connect) for the Connections page (nothing outside a Workbench kernel)
   client/structures_client.py sab.structure (a saved structure's value), sab.structure_table (its records as a
@@ -918,6 +930,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          with Cancel, the list: search, Select all, Already added, no connection yet, the amber mark;
                          Import); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls; no APIs);
+                         connectionSlots.ts a card's live "Running 3 of 8 · 1 waiting", the detail's limits and
+                         Queries in progress…; queriesWindow.ts the Queries window (?panel=queries&connection=:
+                         running and waiting queries, the SQL highlighted, Cancel, Finished); slotWait.ts a
+                         page's query waiting in a connection's line, for loading.ts's words and Cancel;
                          connectionAccess.ts a card's Access section (what its app registrations reach, when and
                          where checked, Check again);
                          connectionTree.ts a connection's tables as a tree in its detail (search, Open, Preview,

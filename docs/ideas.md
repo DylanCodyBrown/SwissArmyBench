@@ -6720,3 +6720,49 @@ runs it over every way (a driver not installed is skipped) and again in SWISSARM
 - Every ROPC way and SQL Server's Entra password (ActiveDirectoryPassword) says one line on the form (the way's
   `note`): it cannot do multi-factor sign-in, pick the new way. AADSTS50076 and AADSTS50079 name it (Entra's
   words in the lake and SharePoint code; SQL Server's error table, before its "login failed").
+
+## Each connection's slots and the Queries window (the owner, 2026-11-21: "we should probably throttle how many queries an agent can run in parallel per connection" / "we should probably add a robust standalone popout panel in the connection to show queries that are in progress" / "format the sql in a proper marked up box to make it easy to read with a proper code highlighter"; built, branch connection-throttle)
+
+His answers:
+- **Who it applies to:** everyone, with a lower share for the agent: one limit per connection covers every query
+  (the user, notebooks and scripts in Workbench kernels, background catalog loads, the agent), and the agent's
+  share is smaller, so it can never take all of a connection's slots.
+- **Over the limit:** the query waits in line, shows its place and a Cancel, and gives up with a plain message
+  after a time limit.
+- **Default:** 8 at once per connection, at most 4 of them the agent's; both changeable on each connection's card.
+
+Decisions as built:
+- The rule is domain/connection_slots.py (pure: a Board of lines, the clock given): FIFO within a priority (the
+  user's interactive work ahead of background catalog loads); an agent query waiting for the agent's share lets the
+  user's behind it go first. Words: "Waiting: 3rd in line for Warehouse (8 queries running)", "Running 3 of 8 · 1
+  waiting", the window's "· agent 2 of 4". The wait limit is 2 minutes by default (1 s to an hour); the refusal is
+  the one shape with Try again (408).
+- The limits live in the connection's library file header as a `[queries]` table (total, agent, wait), written
+  only when they differ from the defaults, so no existing file changes; a form's save keeps them; a bad hand edit
+  reads as the defaults. Validation: total 1 to 64, the agent's at most the total (0 allowed: the agent runs
+  nothing there); a total lowered under the agent's share takes the agent's down with it.
+- The one gate is bootstrap's run_blade (every connection run in the server: [Conn].table reads, the "+" draft's
+  connection query, catalog listing and loading, tests, blade runs, Analyze's and the agent's reads). The work is
+  its own task, so Cancel kills the child process (server/blade_runner.py now kills it on cancellation) and the
+  slot is always given back.
+- Who: a request's X-Actor (the agent), X-Sab-Client (the page's id, every page request carries it: its Cancel
+  finds its query), X-Kernel (a Workbench kernel). A kernel's caller is the first of its runs still going (the
+  Workbench now records who started each execute: the user or the agent); kernels run cells one at a time, so
+  this is reliable for one cell at a time; a user's cell queued behind the agent's in the same kernel is counted
+  as the agent's until the agent's ends (said here, not fixed).
+- Kernels lease a slot (POST /connections/slots/acquire, renew, release; 15 s lease, renewed every 5 s while the
+  query runs, polled every half second while it waits: the cell shows "Waiting for a slot on Warehouse (2nd in
+  line)" in place and can be interrupted). A dead kernel's slot expires; a stopped kernel's goes back at once.
+  Outside a Workbench kernel, or with no app answering: no gate, never a failure.
+- A catalog load whose slot timed out or was cancelled is not kept as a failed catalog.
+- The Queries window is /workspace?panel=queries[&connection=<name>], a named window per connection (or All
+  connections). Live through the `connection_slots` notice (names and counts only, never SQL; the window asks the
+  list again on each notice, never polls); the SQL is fetched for an opened row only, formatted on the server
+  (domain/query_text.py: sqlglot's pretty printer in the query's dialect; DAX and what does not parse as written;
+  `${NAME}` as written) and refused to the agent (403); Monaco's read-only SQL with line numbers, up to 45% of the
+  window. Finished: this session's last 50, memory only, Clear. A restart is said ("The app restarted: these
+  queries ended."). Past 200 rows only the visible ones are drawn (fixed row height); arrows, Enter, Delete.
+- The agent: connections_slots, connections_queries (clear), connections_cancel_query (its own freely, the user's
+  on the user's Allow), connections_set_limits; the guide's connections topic says to batch. A Session entry when
+  the agent waited more than 3 s.
+- Not gated (each named in the report): see docs/verified.md.

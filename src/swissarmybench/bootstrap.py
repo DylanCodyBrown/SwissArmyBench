@@ -615,7 +615,9 @@ def bootstrap(
 
     def kernel_caller(kernel: str) -> Caller:
         role, words = workbench.runner_of(kernel)
-        return Caller(role, "The agent" if role == "agent" else words, kernel=kernel)
+        document = workbench.document_of(kernel)  # Open its source: the document in the Workbench
+        source = {"document": document} if document else {}
+        return Caller(role, "The agent" if role == "agent" else words, kernel=kernel, source=source)
 
     async def kernel_ended(kernel: str) -> None:
         slots.kernel_stopped(kernel)  # its slots go back at once
