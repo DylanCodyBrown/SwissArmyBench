@@ -161,6 +161,8 @@ def test_the_small_patterns() -> None:
         for p in rules.lint('x = None\nif x == None:\n    print(f"none")\ntry:\n    pass\nexcept:\n    pass')
     ]
     assert codes == ["E711", "F541", "E722"]
+    # A placeholder's format part is no f-string of its own (12 prebuilt widgets were flagged).
+    assert rules.lint('x = 0.5\nprint(f"{x:.1%} and {x:>{8}}")') == []
     fix = rules.lint("x = 1\ny = x != None")[0].fixes[0]
     assert fix.edits[0].text == "x is not None"
 

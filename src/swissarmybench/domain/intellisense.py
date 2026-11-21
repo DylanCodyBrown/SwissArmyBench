@@ -659,9 +659,13 @@ def _annotation_names(tree: ast.AST) -> set[str]:
 def _patterns(tree: ast.Module) -> list[Problem]:
     """An f-string without placeholders, == None, a bare except."""
     out: list[Problem] = []
+    # A placeholder's format part ({x:.1%}) is parsed as an f-string of its own: never a finding.
+    specs = {id(n.format_spec) for n in ast.walk(tree) if isinstance(n, ast.FormattedValue) and n.format_spec}
     for node in ast.walk(tree):
-        if isinstance(node, ast.JoinedStr) and not any(
-            isinstance(v, ast.FormattedValue) for v in node.values
+        if (
+            isinstance(node, ast.JoinedStr)
+            and id(node) not in specs
+            and not any(isinstance(v, ast.FormattedValue) for v in node.values)
         ):
             line, col, end_line, end_col = _pos(node)
             words = "An f-string without placeholders: the f does nothing"
