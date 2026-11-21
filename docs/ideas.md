@@ -7828,3 +7828,7 @@ Plans/folder-extensions.plan.md.
 ## The simplicity pass: decided (the owner, 2026-11-21)
 The owner's answers to the critic's list: Plans/simplify-decisions.plan.md (four cleanups, eleven removals, six merges,
 what stays, and the connection colour as the card's highlight, not a dot).
+
+## One way to make Excel: decided (the owner, 2026-11-21)
+One module, sab_excel, behind the adapter; openpyxl only (xlsxwriter goes; large plain exports get slower: accepted);
+the twelve cell-level starters removed (three remain); any project type may deliver a workbook. Plan: Plans/excel.plan.md.

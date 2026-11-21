@@ -32,7 +32,7 @@ the statistics; app registrations.
 - One `sab.write(connection, table, rows, mode)` through the adapter (after the adapter).
 - One project picture: context.md, ARCHITECTURE.md and Launch Claude's folder from one live outline.
 - One log with filters (audit and Session; the beta log stays).
-- One way to make Excel (which one: to be designed with the owner first).
+- One way to make Excel: decided, Plans/excel.plan.md (after the adapter).
 - Accounting's and the Power Apps notebook's DuckDB onto the shared one through the adapter (after the adapter).
 - Not merged: Add API and the local sandbox API stay two tools.
 
