@@ -16,17 +16,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-import pandas as pd
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmybench.client import push_client
 from swissarmybench.domain import notebooks
 from swissarmybench.renamed import env
-from swissarmybench_streamlit.domain import streamlit_cells as canvas_rules
 from tests.e2e.test_table_cells_page import close_tables, kernel_of, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
-from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
 SHOTS = env("SWISSARMYBENCH_SHOTS") or None
 LONG = 60000  # Streamlit's first start, in milliseconds
@@ -157,71 +153,6 @@ def test_a_cells_lineage_shows_the_flow_and_its_values_and_follows_the_kernel(
     expect(overlay).to_be_visible()
     workbench.keyboard.press("Escape")
     expect(overlay).to_be_hidden()
-    workbench.context.close()
-
-
-@needs_streamlit
-def test_a_blocks_lineage_shows_the_playing_pages_values_and_follows_its_filter(
-    browser: Browser, server: dict[str, Any], tmp_path: Path
-) -> None:
-    assert STREAMLIT_PYTHON is not None
-    close_tables(server)
-    orders = pd.DataFrame(
-        {"region": ["East", "West", "East", "North", "West", "East"], "amount": [100, 250, 40, 75, 10, 5]}
-    )
-    push_client.push(orders, name="orders", new_grid=True)
-    book = tmp_path / "sales.ipynb"
-    notebook(book, [FILTER, TOTAL], STREAMLIT_PYTHON, server)
-    app = tmp_path / "sales.stapp.json"
-    pages = [
-        canvas_rules.Page(
-            "p1",
-            "Sales",
-            [
-                canvas_rules.Block("b1", str(book), 2, 1, 1, 12),
-                canvas_rules.Block("b2", str(book), 1, 2, 1, 4),
-            ],
-        )
-    ]
-    app.write_text(
-        canvas_rules.write_app(pages, lambda d: canvas_rules.relative_link(str(app), d)), encoding="utf-8"
-    )
-    workbench = open_window(browser, server, app)
-    blocks = workbench.locator(".cv-block")
-    expect(blocks).to_have_count(2, timeout=20000)
-
-    # ----- Play: the page runs, and notes each block's values as it runs
-    workbench.get_by_role("button", name="Play", exact=True).click()
-    page = workbench.frame_locator(".cv-frame")
-    expect(page.locator('[data-testid="stMetricValue"]')).to_have_text("145", timeout=LONG)
-    workbench.get_by_role("button", name="Edit", exact=True).click()
-
-    # ----- right-click a block: Lineage
-    blocks.nth(0).click(button="right")
-    workbench.get_by_role("menuitem", name="Lineage").click()
-    overlay = workbench.get_by_role("dialog", name="Lineage")
-    expect(overlay.locator(".wb-lin-chart svg g.node")).to_have_count(3, timeout=20000)
-    expect(overlay.locator(".wb-lin-card .wb-lin-label")).to_have_text(["orders", "Region filter", "Total"])
-    expect(card(workbench, "orders")).to_contain_text("6 rows × 2 columns")
-    expect(card(workbench, "Region filter").locator(".wb-lin-value")).to_have_text("East", timeout=15000)
-    expect(card(workbench, "Region filter").locator(".wb-lin-page")).to_have_text("page")
-    shot(workbench, "lineage-from-a-canvas-block")
-
-    # ----- the filter changed on the page (the same page in another tab): the cards follow
-    state = call(server, "GET", "/streamlit/apps")["apps"]
-    canvas = next(a for a in state if a["kind"] == "canvas")
-    address = call(server, "GET", f"/streamlit/apps/{canvas['app']}")["pages"][0]["address"]
-    other = workbench.context.new_page()
-    other.goto(f"http://127.0.0.1:{server['port']}{address}?embed=true")
-    other.locator('[data-testid="stSelectbox"] input').click(timeout=LONG)
-    other.get_by_role("option", name="West").click()
-    expect(other.locator('[data-testid="stMetricValue"]')).to_have_text("260", timeout=LONG)
-    expect(card(workbench, "Region filter").locator(".wb-lin-value")).to_have_text("West", timeout=15000)
-    other.close()
-    workbench.keyboard.press("Escape")
-    for listed in call(server, "GET", "/streamlit/apps")["apps"]:
-        call(server, "DELETE", f"/streamlit/apps/{listed['app']}")
-    close_tables(server)
     workbench.context.close()
 
 

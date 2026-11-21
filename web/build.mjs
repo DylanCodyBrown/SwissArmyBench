@@ -17,7 +17,7 @@ import * as esbuild from "esbuild";
 const release = process.argv.includes("--release");
 const watch = process.argv.includes("--watch");
 
-const PAGES = { main: "src/main.ts", workbench: "src/workbenchPage.ts", perf: "src/perfPage.ts" };
+const PAGES = { main: "src/main.ts", workbench: "src/workbenchPage.ts", perf: "src/perfPage.ts", widget: "src/widgetPage.ts", canvas: "src/canvasPage.ts" };
 const OTHERS = {
   grid: "static/grid.css",
   "lazy/codeEditor": "src/lazy/codeEditor.ts",

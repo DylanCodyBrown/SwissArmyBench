@@ -170,14 +170,11 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     scripts_landing.get_by_role("button", name="New script").click()
     expect(scripts.locator(".wb-tab", has_text="Untitled script")).to_be_visible(timeout=20000)
     scripts.close()
-    # Apps: on the Notebooks page, its menu's New makes one.
-    area(page, "apps").click()
-    expect(landing).to_be_visible()
-    no_box(page)
-    page.get_by_role("button", name="Workbench menu", exact=True).click()
-    page.get_by_role("menuitem", name="New Streamlit app", exact=True).click()
-    expect(page.locator(".cv-board")).to_be_visible(timeout=20000)
-    expect(landing).to_be_hidden()
+    # Canvas: its own page (the Streamlit extension's).
+    area(page, "canvas").click()
+    expect(page).to_have_url(re.compile(r"/streamlit/canvas"), timeout=20000)
+    page.go_back()
+    expect(landing).to_be_visible(timeout=20000)
     # Settings and Connections are pages in the Workbench too.
     area(page, "settings").click()
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible()

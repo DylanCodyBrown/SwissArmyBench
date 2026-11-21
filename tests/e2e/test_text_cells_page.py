@@ -17,10 +17,9 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from tests.e2e.test_streamlit_page import LONG, open_window, orders, shot  # noqa: F401
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
-from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
+from tests.e2e.workbench_helpers import LONG, open_window, orders, shot  # noqa: F401
 
 FIGURES = 'total = 480\nnote = "</script><b>*x*</b>"'
 SUMMARY = "## Orders\nTotal for all regions: **{{ total }}**\n\nA made-up note: {{ note }}"
@@ -30,85 +29,6 @@ CARD = (
     '<div style="font-size:12px;text-transform:uppercase;opacity:.75">Total sales</div>'
     '<div class="kpi-value" style="font-size:28px;font-weight:650">{{ total }}</div></div>'
 )
-
-
-@needs_streamlit
-def test_a_markdown_cell_fills_its_names_and_goes_on_a_canvas_with_an_html_cell(
-    browser: Browser, server: dict[str, Any], orders: str, tmp_path: Path
-) -> None:
-    assert STREAMLIT_PYTHON is not None
-    book = tmp_path / "story.ipynb"
-    cells = [
-        {"kind": "code", "source": FIGURES, "name": "Figures"},
-        {"kind": "markdown", "source": SUMMARY},
-        {"kind": "html", "source": CARD, "name": "KPI card"},
-    ]
-    call(server, "POST", "/workbench/save", {"path": str(book), "cells": cells})
-    call(server, "POST", "/workbench/environment", {"path": str(book), "python": STREAMLIT_PYTHON})
-    workbench = open_window(browser, server, book)
-    shown = workbench.locator(".wb-cell")
-    summary = shown.nth(1)
-
-    # ----- the Markdown cell shows as text: its names as written until it runs
-    expect(summary).to_have_class(re.compile("rendered"))
-    expect(summary.locator(".wb-text-bar .wb-design-state")).to_have_text("Not run yet")
-    expect(summary.locator(".wb-markdown-view")).to_contain_text("{{ total }}")
-    window(server, "run.primary")
-    view = summary.locator(".wb-markdown-view")
-    expect(view.locator("strong")).to_have_text("480", timeout=LONG)
-    # The value is text: its markup and Markdown marks show as typed, nothing is made of them.
-    expect(view).to_contain_text("A made-up note: </script><b>*x*</b>")
-    expect(view.locator("b, em, script")).to_have_count(0)
-    expect(summary.locator(".wb-text-bar")).to_be_hidden()  # current: nothing is said
-    # The HTML cell's design is filled the same way.
-    expect(shown.nth(2).frame_locator(".wb-design-frame").locator(".kpi-value")).to_have_text("480")
-    # A variable it names changes: out of date, by the HTML cells' own marks.
-    window(server, "console.run", code="total = 512")
-    expect(summary.locator(".wb-text-bar .wb-design-state")).to_have_text(
-        re.compile(r"^Out of date · total changed"), timeout=20000
-    )
-    summary.locator(".wb-text-bar").get_by_role("button", name="Run").click()
-    expect(view.locator("strong")).to_have_text("512", timeout=20000)
-
-    # ----- onto a canvas: the text from the pane, side by side; the figures cell by its number (onto
-    # the app's tab), below them
-    window(server, "file.newApp")
-    tabs = workbench.locator(".wb-tab")
-    expect(tabs).to_have_count(2)
-    # ----- the Streamlit cells pane (the canvas's own panel) lists both under Text, each marked T
-    pane = workbench.locator(".wb-st")
-    expect(pane.locator(".wb-st-text-head")).to_have_text(["Text"], timeout=20000)
-    texts = pane.locator(".wb-st-cell.text")
-    expect(texts.locator(".wb-data-label")).to_have_text(["Orders", "KPI card"])
-    expect(texts.locator(".wb-st-t")).to_have_count(2)
-    expect(texts.nth(0).locator(".wb-data-meta")).to_have_text("@cell2reads total, note")
-    board = workbench.locator(".cv-board")
-    box = board.bounding_box()
-    assert box is not None
-    texts.nth(0).drag_to(board, target_position={"x": 30, "y": 30})
-    expect(workbench.locator(".cv-block")).to_have_count(1)
-    texts.nth(1).drag_to(board, target_position={"x": box["width"] * 0.8, "y": 30})
-    tabs.nth(0).click()
-    shown.nth(0).locator(".wb-number").drag_to(tabs.nth(1))
-    tabs.nth(1).click()
-    blocks = workbench.locator(".cv-block")
-    expect(blocks).to_have_count(3)
-    expect(blocks.locator(".cv-block-name")).to_have_text(["Orders", "KPI card", "Figures"])
-    expect(blocks.nth(0).locator(".wb-st-t")).to_have_text("T")
-    expect(blocks.nth(0).locator(".cv-block-parts")).to_have_text("reads total, note")
-    expect(blocks.nth(2).locator(".wb-st-t")).to_have_count(0)
-    assert [b.get_attribute("data-row") for b in blocks.all()] == ["1", "1", "2"]
-    shot(workbench, "text-1-a-canvas-with-markdown-and-html-blocks")
-
-    # ----- Play: the live page shows both, their names filled on the page by the same rules
-    workbench.get_by_role("button", name="Play", exact=True).click()
-    page = workbench.frame_locator(".cv-frame")
-    expect(page.get_by_text("Total for all regions:")).to_be_visible(timeout=LONG)
-    expect(page.locator('[data-testid="stMarkdown"] strong')).to_have_text("480")
-    expect(page.get_by_text("A made-up note: </script><b>*x*</b>")).to_be_visible()
-    expect(page.locator(".kpi-value")).to_have_text("480")
-    shot(workbench, "text-2-the-page-after-play")
-    workbench.close()
 
 
 def test_a_markdown_starter_goes_into_a_markdown_cell_from_its_menu(

@@ -20,7 +20,6 @@ from swissarmybench.client import html_cells, sql_cell, table_cells
 from swissarmybench.domain import blades as blade_rules
 from swissarmybench.domain import notebooks, relationships
 from swissarmybench.server import launcher
-from swissarmybench_streamlit.domain import streamlit_cells
 from tests.conftest import AUTH, make_client
 from tests.fake_keyring import MemoryKeyring, memory_keyring
 
@@ -272,20 +271,6 @@ def test_an_old_tang_is_read_and_a_new_one_written_under_the_new_mark() -> None:
     assert relationships.set_file_name("Made-up store") == "made-up_store.relationships.json"
     with pytest.raises(relationships.RelationshipSetError):
         relationships.read_set(json.dumps({"someone": "tang", "format": 1}))
-
-
-def test_an_old_streamlit_app_and_its_old_saved_pages_are_still_its_own() -> None:
-    old = '{"swissarmygrid": "streamlit-app", "version": 1, "pages": [{"name": "Overview", "blocks": []}]}'
-    pages = streamlit_cells.read_app(old)
-    assert [p.name for p in pages] == ["Overview"]
-    assert '"swissarmybench": "streamlit-app"' in streamlit_cells.write_app(pages)
-    old_page = (
-        '"""Overview"""\n'
-        "# Written from sales.stapp.json by SwissArmyGrid: change the canvas, not this file.\n"
-    )
-    assert streamlit_cells.is_saved_page(old_page, "sales.stapp.json")
-    assert not streamlit_cells.is_saved_page(old_page, "other.stapp.json")
-    assert "Swiss Army Bench" in streamlit_cells.page_mark("sales.stapp.json")
 
 
 # ===== the magics =====

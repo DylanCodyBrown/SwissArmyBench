@@ -16,9 +16,8 @@ from starlette.testclient import TestClient
 
 from swissarmybench.domain import html_cells, snippets
 from swissarmybench.domain.blades import FAMILIES, STARTERS, parse_blade, read_blade, write_blade
+from swissarmybench.domain.cell_facts import facts
 from swissarmybench.domain.snippets import SnippetError, fill, placeholders
-from swissarmybench_streamlit.domain import controllers
-from swissarmybench_streamlit.domain.streamlit_cells import facts, text_code
 from tests.conftest import AUTH, push
 
 FOLDER = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "starters"
@@ -252,19 +251,14 @@ def test_a_markdown_snippet_says_the_names_it_reads_and_fills_as_text(blade: dic
     assert html_cells.names(text) == listed
     # Markdown only: nothing from outside, and no HTML (a Streamlit page's st.markdown shows it as text).
     assert not re.search(r"https?://|<[a-z!/]", text, re.IGNORECASE)
-    # On a page it is st.markdown, its names the reads the run order counts.
-    page = text_code("markdown", text, 3)
-    assert facts(page).reads == ("st", *listed) and "unsafe" not in page
 
 
 def _header(text: str, word: str) -> list[str]:
     found = re.search(rf"^# {word}: (.*)$", text, re.MULTILINE)
     assert found, f"no '# {word}:' line"
-    if word == "Makes":
-        # The Makes line is the cell's contract (domain/controllers.py): its names, by Python's parser.
-        contract = controllers.describe(text)
-        assert contract.problems == (), contract.problems
-        return [m.name for m in contract.makes if m.declared]
+    if word == "Makes" and ":" in found.group(1) and not found.group(1).startswith("nothing"):
+        # A typed Makes line: each name before its ":" type (`region: str = "All"; by_region: table`).
+        return [part.split(":")[0].strip() for part in found.group(1).split(";") if part.strip()]
     words = found.group(1).split(" (")[0]
     return [] if words.strip() == "nothing" else [w.strip() for w in words.split(",")]
 

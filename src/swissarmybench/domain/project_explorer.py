@@ -157,7 +157,9 @@ def counts(documents: Iterable[Mapping[str, Any]], tables: int) -> dict[str, int
 
 def kind_of(project_type: str, documents: Iterable[Mapping[str, Any]]) -> str:
     """The card's kind: the project's type, a base project with an app's canvas shown as a Streamlit app."""
-    if project_type == "bi" and any(str(d.get("path", "")).endswith(".stapp.json") for d in documents):
+    if project_type == "bi" and any(
+        str(d.get("path", "")).endswith((".canvas.json", ".stapp.json")) for d in documents
+    ):
         return STREAMLIT
     return project_type
 

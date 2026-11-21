@@ -60,7 +60,7 @@ def orchard(server: dict[str, Any], tmp_path: Path) -> Path:
         "version": 1,
         "pages": [{"id": "p1", "name": "Page 1", "blocks": [block]}],
     }
-    (folder / "shop.stapp.json").write_text(json.dumps(app), encoding="utf-8")
+    del app  # (app canvases were replaced by widgets, 2026-11-21: none is written)
     return folder
 
 
@@ -115,7 +115,6 @@ def test_the_data_explorer_is_beside_every_document(
     window(server, "project.open", folder=str(orchard))
     panel = page.locator(".wb-explorer")
     expect(tab(page, "data.ipynb")).to_be_visible(timeout=30000)
-    expect(tab(page, "shop.stapp.json").or_(tab(page, "shop"))).to_have_count(1, timeout=20000)
     tab(page, "data.ipynb").click()
     expect(panel).to_be_hidden()  # off until opened
     assert window(server, "documents")["panes"]["data_explorer"] == "closed"
@@ -124,9 +123,6 @@ def test_the_data_explorer_is_beside_every_document(
     shot(page, "data-notebook-data-explorer")
     tab(page, "pickers.ipynb").click()
     expect(panel).to_be_visible()
-    tab(page, "shop.stapp.json").or_(tab(page, "shop")).click()
-    expect(panel).to_be_visible()
-    expect(page.locator(".wb-mode-left .wb-st")).to_be_visible()
     assert window(server, "documents")["panes"]["data_explorer"] == "open"
 
 

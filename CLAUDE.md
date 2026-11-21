@@ -142,14 +142,13 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   completion, per-notebook environments), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
-  `{{ name }}` filled from the kernel), the Streamlit canvas (a Streamlit app is a Workbench document of
-  its own, `.stapp.json`: pages of blocks, each a link to a Python cell, on a 12-column grid; Play shows
-  the page live in place; a Python cell that calls Streamlit is live in its cell; Export; Save as;
-  controllers: a cell's `# Makes:` contract with types and defaults, Test this page with AppTest, thin
-  cells moved to data.ipynb),
-  projects (a folder: data.ipynb and its export data.py, the canvas and its export pages/*.py), named
+  `{{ name }}` filled from the kernel), widgets and the Canvas (2026-11-21: a widget is the library's `widgets/<name>.widget.py`, its top-level
+  values its properties with masks; the Widgets window writes and runs one; the Canvas lays pages out from
+  containers and widget instances in pixels, rule-checked and undoable; Play, Launch, Export from one builder;
+  app notebooks, `.stapp.json` canvases, live cells, controllers and the Performance Analyzer went),
+  projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
-  window or the grid page's Ctrl+K), App mode's Streamlit cells panel, tabs that pop out into windows of their own (and move
+  window or the grid page's Ctrl+K), tabs that pop out into windows of their own (and move
   back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
   Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
@@ -170,7 +169,19 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
   **GitHub sync (the owner, 2026-11-18; the Git extension) sends the team library's and shared projects' files to
   GitHub on the user's Clone, Pull, Push and Commit only (`sync.json` in the state folder: links, never a file's
-  content or the token); see the library bullet.** **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
+  content or the token); see the library bullet.** **Sharing a running app (the owner, 2026-11-21: "I just wanted a place
+  for a user to host a POC so others can connect to it like an app"; Plans none, docs/ideas.md "Share a running app")
+  sends that app's own traffic through Microsoft Dev Tunnels on the user's Share… only** (the agent's `sharing_start`
+  on Allow): organization only ("People open the link after signing in with their Microsoft work account... There are
+  no public links at all": the tunnel's access is the signed-in user's Entra tenant, never anonymous, the access read
+  back before hosting; a policy that blocks it is said with what to ask IT, never worked round), until you stop it
+  ("A link always ends with its app": Stop sharing, the app's stop, Swiss Army Bench closing), and only the app's own
+  127.0.0.1 port (a Streamlit launch's shared run), never this server's port, token, routes or pages. Microsoft's
+  devtunnel command line is downloaded on the first share only, into the state folder's `devtunnel/`, from Microsoft's
+  download store, checked against the Content-MD5 it publishes and, on Windows and macOS, its Microsoft signature;
+  sign-in (`devtunnel user login --entra`, its token in the system's key chain by devtunnel) is the user's own. The
+  Session log says which app was shared and stopped, never the link or a token.
+  **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; its on/off is a hidden setting (`update.json`, the agent's `app_update_check on`), and Settings shows only
   **Click here to update**, only while an update is available (the owner, 2026-11-19). The desktop app's and updates' small state
@@ -428,6 +439,10 @@ src/swissarmybench/
     library_setup.py     Set up this computer: each vault (readable, its sign-in, the variables it gives), the
                          values to type once, each connection's status (works, needs, only works here), shared
                          projects not set up here, the count's words, the notice
+    sharing.py           Share a running app with your organization (Microsoft Dev Tunnels, 2026-11-21): devtunnel's
+                         download (Microsoft's store, Content-MD5, Windows' and macOS' signatures), each command line
+                         (values checked; never anonymous; never the server's port), its output read (--json, host's
+                         address, the device code), a policy's words (what to ask IT), the states and the words
     team.py              a team (one GitHub repository: the library at its top, projects/): the layout (README.md,
                          .gitignore, projects/), the local copy's place (team/<owner>-<repo>), the steps and the one
                          kept over Install's restart, the repositories newest first, what a new team takes, Leave's
@@ -740,6 +755,9 @@ src/swissarmybench/
                          folders (the agent's on Allow), Share (on Allow) and Make a local copy, rename,
                          remove from the list, locate; Show in folder and Delete (to the trash, on its typed
                          name) the user's only
+    sharing.py           Share…: status, install, sign in (the user's only), start (the target's port, a tunnel with the
+                         tenant's access read back, the port, host, the link), stop; ends with the app (app_stopped)
+                         and the server (stop_all); share_start and share_stop audited (the app, never the link)
     team.py              Settings' Team box: status, join, start, leave (the folders pointed and put back,
                          team.json), pull, push, show; the GitHub work is hooks.team's (the Git extension's TeamPort)
     library.py           the library: info, Settings' Library folder (the agent's on Allow), the notices said
@@ -791,6 +809,9 @@ src/swissarmybench/
                          Azure SQL by mssql-python with the token, Dataverse's WhoAmI and roles, Graph's site, lists
                          and libraries, a lake path's listing)
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
+    tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
+                         Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
+                         (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)
     library.py           the library folder: where (library.json), README.md and .gitignore on first write,
                          counts, the one-time move of this computer's older stores (a dated backup), an older
                          project's .sab/blades read and dropped from its working folder
@@ -843,7 +864,7 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots,
                          explorer, library,
-                         shared_catalog, team, found_connections, script_ide, debugger). Every route serves
+                         shared_catalog, team, found_connections, script_ide, debugger, sharing). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -869,6 +890,8 @@ src/swissarmybench/
     routes_lifecycle.py  GET /lifecycle (app_lifecycle), POST /lifecycle/closed (the app's)
     routes_desktop.py    GET /desktop, POST /desktop/open (desktop_status, desktop_open)
     routes_claude.py     Launch Claude (GET for the agent too; PUT and the launch the user's only)
+    tunnels.py           devtunnel run: Windows' Authenticode and macOS' codesign checks, a command's words, `host` and
+                         `user login` as running processes (their lines as they come)
     dialog_runner.py     the system's file dialog in a short-lived child process: one at a time, ten minutes at
                          most, the start folder the nearest that is there; GET /dialogs says whether one opens
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
@@ -952,7 +975,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          fit, 2026-11-18; 2026-11-21: Home first, a house, "just call it home instead of projects";
                          Structures beside APIs; Scripts beside Blades; Catalog; Git): Home, Connections, APIs,
                          Structures, Variables, Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
-                         Scripts, Notebooks, Apps, Analyze, Session, Settings at the
+                         Scripts, Notebooks, Canvas, Widgets, Analyze, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
                          there (no switch), and the top tabs and the Application row no longer repeat its
@@ -1036,7 +1059,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          `[data-no-variables]` left alone) and `globalThis.sabVariables` for SQL editors;
                          fileChooser.ts picks real paths: the system's own dialog first (GET /dialogs, POST
                          /dialogs/choose; nothing of the page's shows), else the page's own picker (places,
-                         recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys). missingPackages.ts is the one missing-package
+                         recent folders per kind, breadcrumb, filter, New folder, hidden files, the keys).
+                         shareApp.ts Share… for any running app (openShareDialog(app), shareMark(app);
+                         globalThis.sabShare): the sentence, Install now, Sign in with your work account (or a code),
+                         Share, the link with Copy and Open, Your organization, the amber note, Stop sharing; the
+                         Shared mark beside an app's Launch / Stop. missingPackages.ts is the one missing-package
                          prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
                          Not now, no nagging this session), used by every place that finds one;
                          emptyState.ts an empty page that leads somewhere (one sentence, the primary button, Try
@@ -1187,7 +1214,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          made-up SQLite file), test_sql_server_real.py (a real SQL Server when
                          SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
-                         orders service, every sign-in it takes stood in for), github_standin.py (GitHub's REST
+                         orders service, every sign-in it takes stood in for), devtunnel_standin.py (Microsoft's
+                         devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
                          and Git Data APIs and the device flow over in-memory repositories of made-up files)
 tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
@@ -1214,60 +1242,77 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          swissarmybench_streamlit.extension; project type streamlit), PREINSTALLED: the installers
                          and each update install it beside the base (an update from a built-in version brings it
                          back once at its first start, extensions.json: never against the user's Remove). Without
-                         it the app is the BI base: no Apps area, no Streamlit canvas, its tools and its door say
-                         which extension they need. tests/conftest.py puts its src on the path and switches it on
+                         it the app is the BI base: no Canvas, no Widgets, its tools and its door say which
+                         extension they need. tests/conftest.py puts its src on the path and switches it on.
+                         Widgets and the Canvas (the owner, 2026-11-21) replaced app notebooks, .stapp.json
+                         canvases, live Streamlit cells, controllers, the designer and the Performance Analyzer
   src/swissarmybench_streamlit/
-    extension.py         ID, NAME, ADDS, MODE (the Streamlit project: canvas, families, tools), BASE_MODE_ADDS (its
-                         canvas in a BI project too, as before), STARTERS, SECRET_PATHS; routes(services) its
-                         composition root (fills the base's services/hooks.py); stop; scaffold (app.ipynb, the
-                         canvas); project_app (a BI project's canvas)
-    commands.py          the agent's streamlit_* tools and the Workbench's canvas and live-cell commands
-    domain/streamlit_cells.py  a Streamlit app: its file (sales.stapp.json: pages, blocks, links; no code), a link
-                         against the app's file, the 12-column grid (rows, settle), the run order (a cycle said), a
-                         page as ONE Streamlit page (slots first, blocks in name order, widget keys of their own),
-                         the tables' preamble, the export, the saved pages (pages/*.py), a canvas's references
-    domain/controllers.py  a cell as a controller: its contract (the header's `# Makes: region: str = "All";
-                         by_region: table = orders`, read with ast), role, widgets, query parameters; a page's
-                         defaults for a maker not on it, its check; Test this page's plan, its AppTest runner
-    domain/thin_cells.py a view cell's model work and its move to a named cell of data.ipynb
-    domain/app_settings.py  App mode: a Streamlit app's page settings (st.set_page_config, st.logo,
-                         .streamlit/config.toml); the live page's session state for the State panel
-    services/streamlit.py  Streamlit apps: a canvas (pages, blocks: place, move, resize; its linked cells read
-                         from the open documents, saved or not, else from the files), a document's live cells;
-                         run (the tables as Parquet in a temporary folder), state, install, export, Save as
-    services/streamlit_ports.py, streamlit_documents.py  the ports; a document's cells as an app reads them,
-                         and an app's own file for the Workbench (AppFile)
-    services/controllers.py  a canvas page's controllers: the check, Test this page, a thin cell's move plan
-    adapters/streamlit_files.py  a Streamlit app's temporary folder (removed when it stops), and an export's
-    server/streamlit_apps.py  a notebook's Streamlit process: `streamlit run` in the notebook's own Python,
-                         127.0.0.1 only, ended with the server (Streamlit is never the app's dependency); Test
-                         this page's runner, in that Python (`python -I`), in a temporary folder
-    server/routes_streamlit.py, routes_controllers.py  /streamlit/* (and the live pages, /streamlit/live/<key>/)
+    extension.py         ID, NAME, ADDS, MODE (the Streamlit project: its canvas, widget_framework, its tools),
+                         STARTERS, SECRET_PATHS (/streamlit/run/); routes(services) its composition root (widgets,
+                         canvases, live runs, previews; the base's hooks: an old app file said, a new project's
+                         canvas, the outline's canvas pages); scaffold (data.ipynb and an empty canvas)
+    commands.py          the agent's widgets_* and canvas_* tools and app_launch; GONE: the old app canvas's
+                         commands, each said gone (cli/commands.py gone_commands)
+    domain/widgets.py    a widget's file (library/widgets/<name>.widget.py: a swissarmybench-widget TOML header,
+                         its Streamlit code), the header rewritten alone, names checked (available, taken, invalid)
+    domain/widget_properties.py  a widget's properties: its top-level plain values (ast), each typed with a mask
+                         (switch, number with a range, text, colour, date, datetime, time, dropdown, table, column,
+                         variable, path, JSON); an annotation wins; a value checked before it is kept and written
+                         into only its own characters; the assignments made `pass` for the page to give the values
+    domain/canvas_model.py  the canvas file (<app>.canvas.json, byte-stable; pages of containers holding containers
+                         and widget instances; the pixel engine at one layout's design width; sizing: columns, row
+                         height, gap, snap, step) validated on read (its line; newer: read-only; a missing widget a placeholder), the
+                         layout's rules (problems: no overlap, nothing leaves its box, minimum sizes), the commands
+                         (add_container, insert_widget, move, set_container, set_values, replace_widget, delete,
+                         sizing: columns re-flow, pages), prune, rename
+    domain/canvas_layouts.py  the two layouts (Phone, Desktop; format 2): each item's place per layout as fractions of
+                         its parent's width (x, w) and pixels (y, h), show (both, desktop, phone); a layout viewed in
+                         pixels for the engine and written back; an item new to one placed in the other (phone:
+                         stacked full width); format 1 read as desktop; problems in both
+    domain/canvas_build.py  the ONE page builder (Play, Launch, a widget run alone, a preview, Export): app.py,
+                         app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
+                         of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
+                         place, its failure there; table, sample, var, key); the kernel's setup
+    domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, the canvas, build.json)
+    adapters/widget_files.py  the library's widgets/ and the prebuilt ones; a canvas file read with a stamp, written
+                         atomically only when it changes, a broken one's copy; the previews' cache (by hash, theme)
+    adapters/streamlit_files.py, build_files.py  a run's temporary folder and an export's; a build's folder
+    services/widgets.py  Widgets: list, get, new, save, header (a rename follows every canvas), properties live,
+                         set a default, check a value, copy, delete (the agent's on Allow), Run in place, the
+                         headless check, previews' state
+    services/canvas.py   Canvases: open (validated), command (versioned: another window's change refused with the
+                         canvas as it is now; a file changed on disk read first), undo, redo, state (missing, marks,
+                         notes said once), play, check, launch, export (the agent's on Allow), rename_widget
+    services/open_tables.py  the open tables' names and columns (the pickers, a value's check) and Parquet
+    server/live_runs.py  LiveRuns: a widget run alone and a canvas's Play, each a Streamlit process passed through
+                         at /streamlit/run/<key>-<secret>/; check: the pages headless with AppTest (CHECK_RUNNER);
+                         `ended` (a run stopped or written again: a share of a launch ends), `launched` (its folder)
+    services/sharing_target.py  Share… for a launched canvas app (the base's ShareTarget): a shared run of the
+                         launch's folder on its own port at the root (SHARED_FLAGS), closed when the launch ends
+    server/previews.py   each widget rendered once off screen (Play's builder and run, Qt WebEngine photographing its
+                         box), one at a time in the background, kept by its file's hash and the theme
+    server/streamlit_apps.py  a Streamlit process: `streamlit run` in the project's Python, 127.0.0.1 only, ended
+                         with the server (Streamlit is never the app's dependency); install
+    server/routes_widgets.py, routes_canvases.py  /streamlit/widget (the window), /streamlit/widgets/*,
+                         /streamlit/canvas (the page), /streamlit/canvases/*
+    widgets/             the 56 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py)
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
-    domain/widget_code.py  the canvas's property pane (the owner, 2026-11-19): a cell's Streamlit code read with ast
-                         (widgets, keys, the keys the page gives, each argument as a plain value, a name, a session
-                         state key, a variable or code; cache decorators) and written back into ONLY its own
-                         characters (set_argument, reset_argument, bind, add_handler, set_cache); NotPlain refuses
-    domain/toolbox.py    the designer's Toolbox: every Streamlit element (its positional parameters, its properties
-                         with types, defaults and one line each, its default and event, the minimal cell a drop
-                         makes) and the layout containers (columns, tabs, expander, container, form, sidebar, popover)
-    domain/designer.py   arrange (align, same size, distribute, in the grid's units), Reset layout, the Document Outline
-    services/canvas_pane.py  inspect (a block, a page, the app: properties, uses, used by, state, cache, code), a
-                         table beside the canvas, a change to a cell's code as a plan, a Toolbox element's cell;
-                         Now (the running app's session state and caches) is services/streamlit.py's `now`
-    domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top, shared in Git): build.json (sorted),
-                         cells.json, what changed in words, compare, Restore's plans, the run's title
-    domain/perf.py       the Performance Analyzer: a protobuf wire reader (a ForwardMsg's kind, element and path, a
-                         BackMsg's rerun and widgets: never content), the socket per rerun, the page's records
-                         joined, the caches, the hints in plain words
-    services/launch.py   Launch (a build, then a run folder of its own, timed; /streamlit/launch/<key>/), Stop,
-                         builds (list, files, compare, relaunch, restore), the analyzer (attach, tap, session, save)
-    server/sab_perf.py   copied beside a launch's pages: each rerun's trigger, blocks' times, calls, caches; one
-                         JSON line a rerun, only while sab_perf.on is there (the analyzer attached)
-    server/routes_launch.py  /streamlit/apps/{app}/launch, …/builds…, …/perf…, /streamlit/perf (the window)
-    adapters/build_files.py  a build's folder (written only when bytes change), the run folder's analyzer files
-    server/routes_canvas.py  /streamlit/toolbox, …/inspect, /streamlit/tables/{name}, …/blocks/{block}/code, …/now,
-                         …/containers, …/arrange, …/outline (the agent's canvas_* commands)
+web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list, Monaco with the Workbench's
+                         intelligence over a kernel of its own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code;
+                         a failure's error panel with Go to line; remembered per widget this session), Properties
+                         (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
+web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties)
+web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,
+                         nest, snap with guides, nudge, zoom); right-click Insert widget; the Properties and Widgets
+                         panes (hideable, resizable, a card's hover preview; Show on); the top row's Play (its ▾:
+                         Launch; Stop while running) and Export, also every right-click menu's last group; the
+                         bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the
+                         panes' toggles, zoom); the frame's right-edge width
+                         handle (px shown); versions and notices
+web/src/canvasGrid.ts    the Canvas's placement maths: the step, the grid's lines, edges and centres, nudges, dots
+                         (old app canvas modules still in web/src, unreachable: workbenchCanvas.ts, canvasPane.ts,
+                         canvasLaunch.ts, canvasToolbox.ts, workbenchStreamlit.ts, workbenchCellsPane.ts,
+                         workbenchApp.ts, workbenchStarters.ts, perfPage.ts: their removal is its own change)
 extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
                          project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
                          page, through GitHub's web API (no Git on the computer)
@@ -1413,14 +1458,6 @@ extensions/copilot/      the GitHub Copilot extension (swissarmybench-copilot; e
     services/copilot.py  one server per app: start, sign in (device flow), the On switch, private projects,
                          complete, cancel, shown/accepted/partial, the panel as data
     server/routes.py     /copilot/*
-web/src/canvasPane.ts    (the Streamlit extension's) App mode's property pane: the grid (categorized, A to Z, search, a
-                         property's line), Uses (a table beside the canvas, Open as grid), Streamlit (State: key, Now,
-                         Default; Bindings; Cache), Events, Code; a container's own properties; several blocks' shared
-web/src/canvasLaunch.ts  the canvas's Launch (Ctrl+F5; F5 with the analyzer), Stop, the analyzer's window, Builds
-                         (Visual Studio's history: Compare in Monaco's diff editor, Open, Relaunch, Restore)
-web/src/perfPage.ts      the Performance Analyzer's window (static/perf.html): Timeline, Calls, Cache, Web socket,
-                         Hints; Pause, Clear, Save into the build; a saved session read-only
-web/src/canvasToolbox.ts the Toolbox (drag or click: an element's cell and block, a container) and the Document Outline
 web/src/canvasSnap.ts    snapline maths over rectangles (guides, snapped, equalGaps, sameSize, inBand): pure,
                          tested as the page runs it (tests/test_canvas_snap.py: esbuild and Node)
 web/src/inlineCompletion.ts ghost text from the provider the mode declares (`inline_completion`: its routes): the

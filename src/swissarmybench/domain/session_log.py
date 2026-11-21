@@ -67,7 +67,7 @@ def _file(value: Any) -> str:
 
 def _area_of_document(path: Any) -> str:
     text = str(path or "").lower()
-    if text.endswith(".stapp.json"):
+    if text.endswith((".canvas.json", ".stapp.json")):
         return "apps"
     if text.endswith(".ipynb"):
         return "notebooks"
@@ -443,6 +443,16 @@ RULES: dict[str, Rule] = {
     "team_join": lambda d, x: ("Joined a team", "project", None),
     "team_start": lambda d, x: (f"Started a team ({x.get('files')} files pushed)", "project", None),
     "team_leave": lambda d, x: ("Left the team", "project", None),
+    # Share a running app with the organization (Microsoft Dev Tunnels): which app, never its link.
+    "share_install": lambda d, x: ("Installed devtunnel (for sharing apps)", "apps", None),
+    "share_sign_in": lambda d, x: ("Signed in to share apps with the organization", "apps", None),
+    "share_start": lambda d, x: (f"Shared {d} with the organization", "apps", None),
+    "share_stop": lambda d, x: (
+        f"Stopped sharing {d}"
+        + (f" ({_name(x.get('why'))})" if x.get("why") not in (None, "stopped") else ""),
+        "apps",
+        None,
+    ),
 }
 
 

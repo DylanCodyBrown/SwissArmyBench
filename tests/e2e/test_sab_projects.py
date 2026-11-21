@@ -212,7 +212,7 @@ def test_the_empty_state_and_new_project_from_a_beginners_type_card(
     expect(group.get_by_role("switch", name="Autosave")).to_be_checked()  # on by default
     folder = projects_folder() / "Planning"
     assert (folder / ".sab" / "project.json").is_file() and (folder / ".gitignore").is_file()
-    assert list(folder.glob("*.stapp.json"))  # a Streamlit app's canvas
+    assert list(folder.glob("*.canvas.json"))  # a Streamlit app's canvas
     # A table arrives; Autosave keeps .sab/ current by itself.
     call(server, "POST", "/datasets/orders/load", {"path": str(fresh / "orders.csv")})
     expect(workspace).to_have_attribute("data-view", "grid", timeout=20000)

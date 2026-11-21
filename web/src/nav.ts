@@ -54,7 +54,7 @@ export interface Layer {
 }
 
 export type Move = "push" | "replace" | "auto";
-export type PageKind = "home" | "catalog" | "workbench" | "steps" | "keys";
+export type PageKind = "home" | "catalog" | "workbench" | "steps" | "keys" | "canvas";
 
 /** A layer's words in the address (open=connections&at=form&type=postgres): a page's own view keeps them. */
 export const LAYER_PARAMS = ["open", "at", "type", "name"];

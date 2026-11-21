@@ -11,8 +11,6 @@ With SWISSARMYBENCH_MODES_SHOTS set to a folder, the tests also save screenshots
 from __future__ import annotations
 
 import json
-import re
-import urllib.error
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -26,7 +24,6 @@ from swissarmybench.client import push_client
 from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
-from tests.test_streamlit_apps import STREAMLIT_PYTHON, needs_streamlit
 
 SHOTS = env("SWISSARMYBENCH_MODES_SHOTS") or None
 ORDERS = pd.DataFrame(
@@ -73,8 +70,6 @@ def orders(server: dict[str, Any]) -> Iterator[None]:
     close_tables(server)
     push_client.push(ORDERS, name="orders", new_grid=True)
     yield
-    for app in call(server, "GET", "/streamlit/apps")["apps"]:
-        call(server, "DELETE", f"/streamlit/apps/{app['app']}")
     close_tables(server)
 
 
@@ -91,187 +86,6 @@ def token(page: Page, name: str) -> str:
 def rgb(hex_colour: str) -> str:
     r, g, b = (int(hex_colour[i : i + 2], 16) for i in (1, 3, 5))
     return f"rgb({r}, {g}, {b})"
-
-
-def app_files(server: dict[str, Any], folder: Path) -> Path:
-    """A saved notebook of three Streamlit cells, and a saved app linking them (two rows)."""
-    folder.mkdir(parents=True, exist_ok=True)
-    notebook = folder / "app mockups.ipynb"
-    cells = [
-        {"kind": "code", "source": FILTER, "name": "Region filter"},
-        {"kind": "code", "source": TOTAL, "name": "Total sales"},
-        {"kind": "code", "source": LARGEST, "name": "Largest orders"},
-    ]
-    call(server, "POST", "/workbench/save", {"path": str(notebook), "cells": cells})
-    if STREAMLIT_PYTHON:
-        call(server, "POST", "/workbench/environment", {"path": str(notebook), "python": STREAMLIT_PYTHON})
-    page = {
-        "name": "Overview",
-        "blocks": [
-            {"document": str(notebook), "cell": 1, "row": 1, "column": 1, "w": 4, "h": None},
-            {"document": str(notebook), "cell": 2, "row": 1, "column": 5, "w": 4, "h": None},
-            {"document": str(notebook), "cell": 3, "row": 2, "column": 1, "w": 12, "h": None},
-        ],
-    }
-    app = folder / "sales app.stapp.json"
-    call(
-        server,
-        "POST",
-        "/workbench/save",
-        {"path": str(app), "pages": [page, {"name": "Products", "blocks": []}]},
-    )
-    return app
-
-
-def test_kind_colours_on_tabs_menus_and_settings(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    script = tmp_path / "sales" / "daily_sales.py"
-    script.write_text("import os\nprint(os.getenv('REPORT_FOLDER', 'reports'))\n", encoding="utf-8")
-    page = open_window(browser, server, app)
-    window(server, "file.open", path=str(tmp_path / "sales" / "app mockups.ipynb"))
-    tabs = page.locator(".wb-tab")
-    expect(tabs).to_have_count(2, timeout=20000)
-    marks = {t.inner_text().strip("●× \n"): t.get_attribute("class") or "" for t in tabs.all()}
-    assert "mark-app" in marks["sales app.stapp.json"]
-    assert "mark-notebook" in marks["app mockups.ipynb"]
-    # Violet, blue, green: the tokens, on the tab's icon; the group wears its front document's. A script is
-    # the Scripts page's (2026-11-21): green there.
-    assert colour(page, ".wb-tab.mark-app .wb-tab-icon") == rgb(token(page, "app"))
-    scripts = open_window(browser, server, script)
-    expect(scripts.locator(".wb-tab.mark-script")).to_be_visible()
-    assert colour(scripts, ".wb-tab.mark-script .wb-tab-icon") == rgb(token(scripts, "script"))
-    scripts.context.close()
-    expect(page.locator(".wb-group").first).to_have_attribute("data-mark", "notebook")
-    # The Streamlit cells panel (the canvas's own, on its left): each cell by its source document's colour.
-    page.locator(".wb-tab.mark-app").click()
-    expect(page.locator(".wb-st-doc.km-notebook .wb-st-cell")).to_have_count(3, timeout=20000)
-    # Settings' Kind colours, shared by every window: the agent chooses one, every window follows.
-    window(server, "palette")  # (the palette opens and closes: a smoke of the window's commands)
-    page.keyboard.press("Escape")
-    chosen = call(server, "PUT", "/kind-colours", {"script": "#227744"})["kinds"][2]
-    shown = chosen["themes"]["light"]  # made readable on the light theme (a little darker)
-    until(lambda: token(page, "script") == shown)  # the notice reaches the page
-    assert token(page, "script") == shown
-    menu_button = page.get_by_role("button", name="Workbench menu", exact=True)
-    menu_button.click()
-    page.get_by_role("menuitem", name="Settings…", exact=True).click()
-    section = page.locator(".kind-colours-fieldset")
-    expect(section).to_be_visible()
-    expect(section.locator(".kind-colour")).to_have_count(3)
-    expect(section.get_by_role("button", name="Default")).to_have_count(1)
-    shot(page, "kind-colours-settings")
-    section.get_by_role("button", name="Default").click()
-    until(lambda: token(page, "script") != shown)
-    assert token(page, "script") == "" or token(page, "script") != shown
-    page.keyboard.press("Escape")
-    page.context.close()
-
-
-def test_app_mode_properties_wiring_tools_and_page_settings(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    canvas = page.locator(".cv")
-    blocks = canvas.locator(".cv-block")
-    expect(blocks).to_have_count(3, timeout=20000)
-    # The status bar: State and Properties in place of the console and Variables.
-    bar = page.locator(".wb-status")
-    expect(bar.get_by_role("button", name="Properties", exact=True)).to_be_visible()
-    expect(bar.get_by_role("button", name="State", exact=True)).to_be_visible()
-    expect(bar.get_by_role("button", name="Console", exact=True)).to_be_hidden()
-    bar.get_by_role("button", name="Properties", exact=True).click()
-    props = page.locator(".wb-mode-properties")
-    expect(props).to_be_visible()
-    # No block selected: the page settings.
-    expect(props.get_by_role("heading", name="Theme colours")).to_be_visible()
-    title = props.locator("input[data-field=title]")
-    title.fill("Sales")
-    title.press("Enter")
-    assert until(lambda: window(server, "canvas.settings")["title"] == "Sales")
-    props.get_by_role("button", name="Centred").click()
-    assert until(lambda: window(server, "canvas.settings")["layout"] == "centered")
-    # A block selected: its name, size, source cell (blue: a notebook's), makes, reads, feeds.
-    blocks.nth(0).click()
-    expect(blocks.nth(0)).to_have_class(re.compile(r"\bselected\b"))
-    expect(props.locator("input[data-field=name]")).to_have_value("Region filter")
-    expect(props.locator("input[data-field=width]")).to_have_value("4")
-    expect(props.locator(".app-source")).to_contain_text("app mockups.ipynb @cell1")
-    assert colour(page, ".app-source") == rgb(token(page, "notebook"))
-    expect(props.locator(".app-chip").first).to_have_text("region")
-    expect(props.locator(".app-feeds li")).to_have_count(2)
-    # Its controller (domain/controllers.py): a filter that makes region; and Lineage… opens the overlay.
-    expect(props.locator(".app-role")).to_have_text("Filter")
-    expect(props.locator('.app-make[data-name="region"]')).to_be_visible()
-    props.get_by_role("button", name="Lineage…").click()
-    overlay = page.get_by_role("dialog", name="Lineage")
-    expect(overlay.locator(".wb-lin-card.target")).to_contain_text("Region filter", timeout=20000)
-    page.keyboard.press("Escape")
-    expect(overlay).to_have_count(0)
-    # The wiring: a violet arrow to each block it feeds, the name it makes under it.
-    expect(canvas.locator(".cv-wires path[data-to]")).to_have_count(2)
-    expect(canvas.locator(".cv-wire-name")).to_have_text("region")
-    shot(page, "app-properties-wiring")
-    # Width from Properties; undo and redo.
-    props.locator("input[data-field=width]").fill("5")
-    props.locator("input[data-field=width]").press("Enter")
-    expect(props.locator("input[data-field=width]")).to_have_value("5", timeout=10000)
-    expect(blocks.nth(0)).to_have_attribute("data-w", "5", timeout=10000)
-    window(server, "canvas.undo")
-    expect(props.locator("input[data-field=width]")).to_have_value("4", timeout=10000)
-    window(server, "canvas.redo")
-    expect(props.locator("input[data-field=width]")).to_have_value("5", timeout=10000)
-    # Duplicate, align, zoom.
-    canvas.page.get_by_role("button", name="Duplicate", exact=True).click()
-    expect(blocks).to_have_count(4, timeout=10000)
-    window(server, "canvas.align", how="right")
-    state = window(server, "canvas.state")
-    front = next(p for p in state["pages"] if p["id"] == state["page"])
-    selected = window(server, "canvas.properties")["block"]
-    placed = next(b for b in front["blocks"] if b["id"] == selected["id"])
-    assert placed["column"] + placed["w"] == 13
-    assert window(server, "canvas.zoom", percent=80) == {"percent": 80}
-    expect(page.locator(".cv-zoom-level")).to_have_text("80%")
-    window(server, "canvas.zoom", percent=100)
-    # The agent reads Properties too; Escape puts the selection away.
-    blocks.nth(0).click()
-    page.keyboard.press("Escape")
-    expect(props.get_by_role("heading", name="Theme colours")).to_be_visible()
-    # Saved: the settings are in the app's file.
-    window(server, "file.save")
-    held = json.loads(app.read_text(encoding="utf-8"))
-    assert held["settings"] == {"title": "Sales", "layout": "centered"}
-    page.context.close()
-
-
-def test_the_starter_gallery_writes_a_named_cell_and_places_it(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    # Starters is the canvas's other left panel (the status bar's Starters, or data.starters).
-    page.locator(".wb-status").get_by_role("button", name="Starters", exact=True).click()
-    gallery = page.locator(".wb-starters-panel")
-    expect(gallery.locator(".wb-starter-family")).to_have_count(5, timeout=20000)
-    listed = window(server, "data.starterList")
-    assert [f["family"] for f in listed] == ["Filters", "Displays", "Layout", "Interaction", "Feedback"]
-    assert sum(len(f["starters"]) for f in listed) == 29
-    assert "pieces" not in page.locator(".wb-mode-left").inner_text().lower()
-    shot(page, "app-starters")
-    done = window(
-        server,
-        "canvas.addStarter",
-        name="Streamlit metric with change",
-        values={"table": "orders", "column": "amount", "label": "Total"},
-    )
-    assert done["document"].endswith("app mockups.ipynb")
-    expect(page.locator(".cv-block")).to_have_count(4, timeout=20000)
-    saved = json.loads((tmp_path / "sales" / "app mockups.ipynb").read_text(encoding="utf-8"))
-    assert len(saved["cells"]) == 4
-    page.context.close()
 
 
 def test_notebook_mode_run_order_outline_run_up_to_here_and_present(
@@ -464,81 +278,4 @@ def test_data_mode_cells_lineage_and_the_dictionary(
     window(server, "data.view", view="cells")
     expect(page.locator(".wb-cells").first).to_be_visible()
     expect(view).to_be_hidden()
-    page.context.close()
-
-
-def test_a_panel_turned_off_in_settings_is_gone(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    bar = page.locator(".wb-status")
-    expect(bar.get_by_role("button", name="Properties", exact=True)).to_be_visible()
-    call(server, "PUT", "/panels", {"workbench.properties": False})
-    try:
-        expect(bar.get_by_role("button", name="Properties", exact=True)).to_have_count(0, timeout=10000)
-        try:
-            window(server, "mode.panel", panel="properties")
-            raise AssertionError("the panel opened")
-        except urllib.error.HTTPError as error:
-            assert "turned off" in error.read().decode() or "none" in str(error)
-    finally:
-        call(server, "PUT", "/panels", {"workbench.properties": True})
-    page.context.close()
-
-
-@needs_streamlit
-def test_play_preview_phone_dark_and_the_state_panel(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    page = open_window(browser, server, app)
-    expect(page.locator(".cv-block")).to_have_count(3, timeout=20000)
-    window(server, "canvas.play")
-    frame = page.frame_locator(".cv-frame")
-    expect(frame.locator('[data-testid="stMetricValue"]')).to_be_visible(timeout=60000)
-    window(server, "canvas.preview", device="phone", theme="dark")
-    expect(page.locator(".cv-device.cv-phone")).to_be_visible()
-    assert "dark_theme" in str(page.locator(".cv-frame").get_attribute("src"))
-    page.locator(".wb-status").get_by_role("button", name="State", exact=True).click()
-    state = page.locator(".wb-mode-state")
-    expect(state.locator('tr[data-key="region_pick"]')).to_be_visible(timeout=30000)
-    expect(state.locator('tr[data-key="region_pick"] td').nth(2)).to_have_text("Region filter")
-    rows = window(server, "canvas.session")
-    assert any(r["key"] == "region_pick" and r["block"] == "Region filter" for r in rows)
-    shot(page, "app-state-preview")
-    window(server, "canvas.resetState")
-    page.context.close()
-
-
-def test_two_groups_keep_their_own_panels(
-    browser: Browser, server: dict[str, Any], orders: None, tmp_path: Path
-) -> None:
-    app = app_files(server, tmp_path / "sales")
-    notebook = tmp_path / "sales" / "analysis.ipynb"
-    call(
-        server,
-        "POST",
-        "/workbench/save",
-        {
-            "path": str(notebook),
-            "cells": [
-                {"kind": "markdown", "source": "# Monthly sales"},
-                {"kind": "code", "source": "x = 1", "name": "x"},
-            ],
-        },
-    )
-    page = open_window(browser, server, notebook)
-    window(server, "file.open", path=str(app))
-    expect(page.locator(".wb-tab")).to_have_count(2, timeout=20000)
-    window(server, "group.splitRight")
-    expect(page.locator(".wb-group")).to_have_count(2)
-    window(server, "mode.panel", panel="properties", show=True)
-    window(server, "canvas.select", block=window(server, "canvas.state")["pages"][0]["blocks"][0]["id"])
-    window(server, "group.focus", group=0)
-    window(server, "mode.panel", panel="outline", show=True)
-    expect(page.locator(".wb-group").nth(0).locator(".wb-mode-outline")).to_be_visible()
-    expect(page.locator(".wb-group").nth(1).locator(".wb-mode-properties")).to_be_visible()
-    shot(page, "side-by-side")
     page.context.close()

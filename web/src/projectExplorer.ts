@@ -239,7 +239,7 @@ function counts(c: ProjectCard): string {
   };
   add(c.counts.notebooks, "notebook", "notebooks");
   add(c.counts.scripts, "script", "scripts");
-  add(c.counts.apps, "app", "apps");
+  add(c.counts.apps, "canvas", "canvases");
   add(c.counts.tables, "table", "tables");
   return said.join(" · ") || "Empty";
 }

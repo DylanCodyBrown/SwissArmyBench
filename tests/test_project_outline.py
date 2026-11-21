@@ -24,7 +24,7 @@ from starlette.testclient import TestClient
 from swissarmybench.domain import notebooks
 from swissarmybench.domain import project_outline as rules
 from swissarmybench.domain.context_md import RelationshipFacts
-from swissarmybench_streamlit.domain import streamlit_cells
+from swissarmybench_streamlit.domain import canvas_model
 from tests.conftest import AUTH, TOKEN, make_client
 from tests.fake_keyring import memory_keyring
 from tests.test_cli import Live, live  # noqa: F401 (the running server)
@@ -157,10 +157,11 @@ def build(client: TestClient, tmp_path: Path) -> Path:
             headers=AUTH,
         )
     )
-    page = streamlit_cells.Page("p1", "Overview", [streamlit_cells.Block("b1", "app.ipynb", 1)])
-    apps = list(folder.glob("*.stapp.json"))
-    app = apps[0] if apps else folder / "app.stapp.json"
-    app.write_text(streamlit_cells.write_app([page]), encoding="utf-8")
+    canvas = canvas_model.new_canvas("App")
+    canvas["pages"][0]["name"] = "Overview"
+    apps = list(folder.glob("*.canvas.json"))
+    app = apps[0] if apps else folder / "app.canvas.json"
+    app.write_text(canvas_model.write(canvas), encoding="utf-8")
     return folder
 
 

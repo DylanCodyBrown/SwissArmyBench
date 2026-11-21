@@ -77,7 +77,8 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "blades",
         "scripts",  # beside Blades (2026-11-21)
         "notebooks",
-        "apps",
+        "canvas",  # the Apps area renamed (2026-11-21)
+        "widgets",  # the Widgets window (2026-11-21)
         "analyze",
         "session",
         "extensions",
@@ -92,12 +93,13 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
             assert rules.place(window, area) == {"window": window, "to": area}
         assert rules.place(window, " grids ") == {"window": window, "to": "grids"}
         assert rules.place(window, "home") == {"window": window, "to": "home"}
-        # Notebooks, Scripts and Apps open in a Workbench window of their own too (the "external tab").
-        for code in ("notebooks", "scripts", "apps"):
+        # Notebooks and Scripts open in a Workbench window of their own too (the "external tab").
+        for code in ("notebooks", "scripts"):
             assert rules.place(window, code, True) == {"window": window, "to": code, "new_window": True}
             assert rules.place(window, code, False) == {"window": window, "to": code}
-    assert rules.said(rules.place("home", "apps", True)) == "home window to apps, in a new window"
-    with pytest.raises(rules.NavigationError, match="Only notebooks, scripts, apps open in a new window"):
+    assert rules.said(rules.place("home", "scripts", True)) == "home window to scripts, in a new window"
+    assert rules.place("home", "apps") == {"window": "home", "to": "canvas"}  # the old word, one release
+    with pytest.raises(rules.NavigationError, match="Only notebooks, scripts open in a new window"):
         rules.place("home", "analyze", True)
     with pytest.raises(rules.NavigationError, match="new_window is true or false"):
         rules.place("home", "apps", "yes")

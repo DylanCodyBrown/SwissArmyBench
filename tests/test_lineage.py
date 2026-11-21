@@ -1,4 +1,3 @@
-# ruff: noqa: F811
 """Lineage (docs/ideas.md, lineage with values and approved outputs, 2026-11-15): from a canvas block or
 any cell, back through every cell to the data: what cells make and read, @cell links, the tables'
 origins and their grid steps, a project's data.ipynb and the controllers; its Mermaid text; each step's
@@ -7,18 +6,39 @@ value, summarised. Made-up data only."""
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pyarrow as pa
 import pytest
+from starlette.testclient import TestClient
 
 from swissarmybench.cli.commands import REGISTRY
 from swissarmybench.client import lineage_values as values
 from swissarmybench.domain import lineage as rules
 from swissarmybench.domain import notebooks
-from tests.conftest import AGENT, AUTH
-from tests.test_streamlit_apps import _notebook, served  # noqa: F401 (the server, a stand-in Streamlit)
+from tests.conftest import AGENT, AUTH, make_client, push
+
+SERVED_ORDERS = pa.table(
+    {
+        "order_id": [1, 2, 3, 4, 5, 6],
+        "region": ["East", "West", "East", "North", "West", "East"],
+        "amount": [100, 250, 40, 75, 10, 5],
+    }
+)
+CUSTOMERS = pa.table({"customer": ["Acme", "Globex"], "region": ["East", "West"]})
+
+
+@pytest.fixture
+def served(tmp_path: Path) -> Iterator[tuple[TestClient, None]]:
+    """The server with made-up orders and customers open."""
+    with make_client(tmp_path) as client:
+        assert push(client, "orders", SERVED_ORDERS).status_code == 200
+        assert push(client, "customers", CUSTOMERS).status_code == 200
+        yield client, None
+
 
 BOOK = "/work/sales/analysis.ipynb"
 DATA = "/work/sales/data.ipynb"
@@ -358,57 +378,6 @@ def test_a_cells_error_in_its_window_is_where_the_flow_broke(served: Any) -> Non
     assert said["values"][last]["error"].startswith("NameError") and "error" in said["mermaid"]
 
 
-def test_a_canvas_blocks_lineage_and_a_playing_pages_values(served: Any, tmp_path: Path) -> None:
-    client, _ = served
-    path = str(_notebook(tmp_path))
-    app = _ok(
-        client.post(
-            "/streamlit/apps",
-            headers=AUTH,
-            json={"canvas": True, "title": "sales", "window": "w1", "pages": []},
-        )
-    )["app"]
-    base = f"/streamlit/apps/{app}"
-    page = _ok(client.post(f"{base}/pages", headers=AUTH, json={"name": "Sales"}))["page"]
-    _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 4}))
-    _ok(client.post(f"{base}/pages/{page}/blocks", headers=AUTH, json={"document": path, "cell": 3}))
-    said = _ok(
-        client.post("/workbench/lineage", headers=AUTH, json={"app": app, "page": page, "block": "b1"})
-    )
-    kinds = [(n["kind"], n["label"]) for n in said["nodes"]]
-    assert kinds == [("table", "orders"), ("controller", "Region filter"), ("cell", "Total")]
-    assert all(n["on_page"] for n in said["nodes"][1:]) and said["nodes"][0]["where"] == "the grid"
-    assert said["playing"] is False
-    # Play (a stand-in Streamlit): the page notes each block's values as it runs.
-    ran = _ok(client.post(f"{base}/run", headers=AUTH, json={}))
-    folder = Path(ran["folder"])
-    written = next(folder.glob(f"page_{page}_*.py")).read_text(encoding="utf-8")
-    assert "import sab_lineage as _sab_lineage" in written
-    assert "_sab_lineage.note(__file__, 'p1', 'b2', {'region': lambda: region}" in written
-    assert (folder / "sab_lineage.py").read_text(encoding="utf-8") == Path(values.__file__).read_text(
-        encoding="utf-8"
-    )
-    page_file = str(folder / f"page_{page}_1.py")
-    values.start(page_file, page)
-    values.note(page_file, page, "b2", {"region": lambda: "West"})
-    values.note(page_file, page, "b1", {}, error=KeyError("amount"))
-    live = _ok(
-        client.post("/workbench/lineage", headers=AUTH, json={"app": app, "page": page, "block": "b1"})
-    )
-    by_label = {n["label"]: n["id"] for n in live["nodes"]}
-    assert live["playing"] is True
-    assert live["values"][by_label["Region filter"]]["items"][0]["text"] == "West"
-    assert live["values"][by_label["Total"]]["error"] == "KeyError: 'amount'"
-    assert live["mark"] != said["mark"]
-    # A block that is not there.
-    assert (
-        client.post(
-            "/workbench/lineage", headers=AUTH, json={"app": app, "page": page, "block": "b9"}
-        ).status_code
-        == 404
-    )
-
-
 def test_a_project_cell_goes_back_into_data_ipynb(served: Any, tmp_path: Path) -> None:
     client, _ = served
     data = [
@@ -432,6 +401,20 @@ def test_a_project_cell_goes_back_into_data_ipynb(served: Any, tmp_path: Path) -
         by_label["By region"]["doc_kind"] == "data" and by_label["By region"]["where"] == "data.ipynb @cell2"
     )
     assert by_label["orders"]["document"].endswith("data.ipynb")
+
+
+def _notebook(folder: Path) -> Path:
+    """A saved notebook: imports (1), a note, the filter (3), the total (4), plain Python (5)."""
+    cells = [
+        notebooks.Cell("code", "import pandas as pd"),
+        notebooks.Cell("markdown", "# Sales"),
+        notebooks.Cell("code", '# Region filter\nregion = "East"'),
+        notebooks.Cell("code", '# Total\nprint(int(orders[orders["region"] == region]["amount"].sum()))'),
+        notebooks.Cell("code", "threshold = 50"),
+    ]
+    path = folder / "sales.ipynb"
+    path.write_text(notebooks.write_notebook(cells), encoding="utf-8")
+    return path
 
 
 def test_the_agent_reads_a_lineage_as_data(served: Any, tmp_path: Path) -> None:

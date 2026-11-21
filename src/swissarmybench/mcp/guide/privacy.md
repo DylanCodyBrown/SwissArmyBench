@@ -6,12 +6,15 @@ audit log and, in beta mode, the beta log. You can do whatever the user can, wit
 password.
 
 ## What waits for the user's Allow
-- `table_export` (a grid to the export folder), `streamlit_export` (an app with the tables' rows),
-  `streamlit_save_as` when data.ipynb would hold a pasted table's rows, and
+- `table_export` (a grid to the export folder), `canvas_export` (an app with the tables' rows), and
   `project_save` when it keeps a table's rows in .sab/data/ (keep_rows), `project_copy` with data.
 - The user sees what, where and which tables; Deny, closing the prompt or no answer in 3 minutes
   writes nothing. `agent_approvals` lists what is waiting; `agent_events` reports approval_resolved.
   Only the user answers. Say what you asked for and why.
+
+## Sharing an app (the third way anything leaves the computer)
+- `sharing_start` (Allow) tunnels a launched app's own port through Microsoft Dev Tunnels to people of the user's
+  organization who sign in with their work account; never anonymous, never this server. It ends with the app.
 
 ## Passwords
 - No answer ever holds a password's value: blades and connections say only whether one is saved.

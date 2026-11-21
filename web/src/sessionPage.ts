@@ -64,7 +64,7 @@ const AREA_NAMES: Record<string, string> = {
   erd: "ERD",
   notebooks: "Notebooks",
   scripts: "Scripts",
-  apps: "Apps",
+  apps: "Canvas",
   blades: "Blades",
   connections: "Connections",
   apis: "APIs",

@@ -4220,6 +4220,46 @@ keys, the Projects landing) pass. Quick suite 4826 passed, 49 skipped; e2e suite
 Not checked: a search past 8 connections and the "needs a password" mark in a browser (no test makes them), and
 Edge.
 
+## Widgets and the Canvas (2026-11-21, branch widgets-canvas)
+
+Checked: property detection, masks, write-back into only a value's characters and every value check
+(tests/test_widgets.py); the widget routes, the library's files written only when they change, a prebuilt one
+read-only and copied, the header written alone, the agent's delete on Allow (tests/test_widgets_routes.py); all 56
+prebuilt widgets run with Streamlit 1.67's AppTest through the page builder, a failing widget's own error with its
+line while the rest runs, a missing table and a deleted widget said in place (tests/test_widgets_apptest.py); the
+canvas model's rules, the file read back byte for byte, a broken file's line, a newer one read-only, a missing
+widget, pruned overrides, the page's pixels, and 40 random sequences of 60 commands keeping every rule with pages
+that compile (tests/test_canvas_model.py); the canvases over HTTP: saved at once and undoable, another window's
+version refused, a file changed on disk read first, a broken file never written over, a rename followed, marks,
+Play, Launch's build (no rows) and Export the same files, the agent's export on Allow (tests/test_canvas_routes.py).
+In Chromium: the Widgets window (Run in place, Edit, a colour refused then kept, Name checked live, Description
+written; a prebuilt one copied) and the Canvas (the gallery's previews rendered by Qt WebEngine off screen, two
+containers drawn and snapped to 8 px, Scrollable by right-click, Insert widget from the menu, a property set, a
+card dragged into a container, a double-click into the selected one, another window's change said, Undo and Redo,
+the panes hidden and shown, Play with every box within 1 px of the canvas, the exported app's check, a hover
+preview, a description changed in the Widgets window shown on its card).
+Not checked: Edge; the desktop app (Qt) window for the Canvas; the Copilot ghost text in the Widgets window; a
+`[Conn].table` value for a table property (the open tables and data.py only); the Canvas at a narrow width (the
+sizing's "…" menu) and at 400 % zoom in a browser; a launched build's window in a browser (its HTTP route is
+tested); previews in the dark theme in a browser.
+
+Phone and Desktop layouts and Code | Preview (2026-11-21, the same branch): tests/test_canvas_layouts.py (every
+item in both layouts with its own place, a pixel round-tripped through the fractions at both design widths, an
+item made in one stacked full width in phone or given a free place on desktop, Show on in the built CSS, the
+built page's fractions and the 767 px media query, a format 1 file read as desktop with a phone layout made, a
+bad layout refused, and 30 random sequences of 50 commands across both layouts: every rule after each, no item
+lost from either, the file read back equal, the pages compiling). In Chromium (tests/e2e/test_canvas_page.py):
+a container drawn on Desktop stacked at 390 px on Phone, the Phone switch, the frame's handle dragged to 500 px
+with the items reflowing, Show on Desktop only faded on Phone, and the built page opened at 1280 px and at 375 px
+with every shown box within 1 px of its layout (1.5 px for a nested one: two roundings) and the hidden one
+`display: none` on the phone; the played page's boxes against the desktop layout scaled to the frame's width.
+The Widgets window (tests/e2e/test_widgets_page.py): F5 to Preview, Preview remembered per widget across
+switching widgets, Esc to Code, a failing Preview's error panel with Go to line taking you to the marked line.
+Found: Streamlit's own `flex: 1 1 0%` on the page root's st.container made it 0 px high once its width was a
+percentage (the page root is now `flex: none`); a Play address with the page's path showed Streamlit's "Page
+not found" before the first run (Play gives the app's own address: the played page is its default).
+Not checked: a phone's real browser; Edge.
+
 ## The blade IDE (2026-11-21, branch blade-ide)
 
 Checked: tests/test_blade_ide.py (HTTP): the code written after the header and read back as the same bytes, CRLF
@@ -4293,3 +4333,37 @@ point's words, variables, evaluate, step over, continue to the end, stop while p
 Not checked: Windows and macOS trash for a module (the same file_manager.trash the Project Explorer uses); a
 script's own environment without debugpy (ipykernel requires it; an older ipykernel without the debugger would
 say "The debugger could not start"); debugging a notebook (Scripts only); `__file__` inside a debugged script.
+
+## Share a running app (2026-11-21, branch share-app)
+
+Checked here:
+- Microsoft Learn read for the commands (cited): Dev tunnels command-line reference
+  (https://learn.microsoft.com/azure/developer/dev-tunnels/cli-commands: `user login -d`, `create`, `access create
+  --tenant`, `port create -p --protocol`, `host`, `delete`, "allowing anonymous access means anyone on the internet");
+  Security (https://learn.microsoft.com/azure/developer/dev-tunnels/security: private by default, `--tenant` extends to
+  the current Entra tenant, header rewriting after TLS termination); Get started
+  (https://learn.microsoft.com/azure/developer/dev-tunnels/get-started: the download links, host's output lines);
+  Policies (https://learn.microsoft.com/azure/developer/dev-tunnels/policies: Disable anonymous tunnel access, Disable
+  Dev Tunnels, Allow only selected Microsoft Entra tenant IDs).
+- devtunnel 1.0.2115 (linux-x64, downloaded once for reading only, never by a test): its help for `create`,
+  `access create` (`--tenant`), `port create`, `host`, `user login` (`--entra`, `--use-device-code-auth`), `user show
+  --json` ("Not logged in"), `delete --force`; `--json` on all but host. The store's Content-MD5 matched the bytes
+  (linux-x64); Windows' devtunnel.exe carries an Authenticode certificate table naming Microsoft Corporation, and
+  osx-arm64-devtunnel names Developer ID Application: Microsoft Corporation (UBF8T346G9).
+- Streamlit 1.67's web socket origin check (server_util is_url_from_allowed_origins, starlette_websocket
+  _is_origin_allowed): same origin, or a localhost origin, passes; so devtunnel's default Host and Origin rewrite to
+  localhost passes it with CORS and XSRF on.
+- tests/test_sharing.py (the command lines, recorded made-up outputs, never anonymous, never the server's port, the
+  checksum refusal, the whole share through the stand-in, a policy, an anonymous tunnel and a personal account
+  refused, the share ending with its app and with the server, the agent's Allow and the user's own sign-in, HTTP);
+  tests/test_sharing_streamlit.py (the shared run's flags, its own port, a launch's end ending its share);
+  tests/e2e/test_share_app_page.py (Chromium: Share, Install now, a device code, Share, the link, Copy, the mark,
+  Stop; and on the new Canvas with Streamlit 1.67: Launch, Play's ▾ Share…, the link's port a real shared run that
+  answers /_stcore/health at its root (never the server's port), the Shared mark beside Play, the launch's Stop
+  ending the share).
+
+Not checked (needs the owner's computer): a real tenant and a real devtunnel: the signed-in `user show --json`'s
+fields (read loosely: status, username, provider, tenantId), `access list --json`'s entry shape for `--tenant` (read
+loosely: type Organizations or Tenant, provider microsoft), a colleague opening the link after their work sign-in, a
+real Streamlit shared run behind the tunnel (web socket, an upload with XSRF on), the Windows and macOS signature
+checks on those systems, and a tenant whose policy blocks Dev Tunnels (the words are matched on "policy" and AADSTS530xx).

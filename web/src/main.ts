@@ -27,6 +27,7 @@
  * Finder; both follow the same server state through the WebSocket, so edits show in every window.
  */
 import { touring } from "./tourButton";
+import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
 import { mountContextMenus } from "./cellMenu";
 import { watchConnectionColours } from "./connectionColours";
 import { libraryNotices } from "./library";

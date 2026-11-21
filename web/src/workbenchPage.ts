@@ -47,6 +47,7 @@
  * ROUTING: /workbench/home, /open, /save, /pythons (routes_workbench.py); kernels in workbenchKernel.ts.
  */
 import { inlineStatus } from "./inlineCompletion";
+import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
 import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
 import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile, searchScripts } from "./workbenchIde";
@@ -112,7 +113,7 @@ import { closeProject, copyProject, exportOutline, loadProject, mountProject, ne
 import { starterGallery } from "./workbenchStarters";
 import { importFile, openImport } from "./projectImport";
 import { modeFrame, type ModeFrame } from "./workbenchModes";
-import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc, type StreamlitHost } from "./workbenchStreamlit";
+import { type AppSettings, CELL_DRAG, draggedLink, type MovePlan, problemText, type PaneDocument, type SavedPage, StreamlitDoc } from "./workbenchStreamlit";
 import { installVariableAnywhere } from "./variableAnywhere";
 import { errorHere, errorNote, errorToast } from "./errorNote";
 
@@ -355,25 +356,9 @@ let paneTimer: number | null = null;
 let paneReady = false;
 const isData = (doc: Doc): boolean => !!doc.notebook && !!doc.path && baseName(doc.path).toLowerCase() === DATA_NOTEBOOK;
 
-/** A notebook's or script's own app: the server hears its Python cells as they are typed, says which
- *  call Streamlit (they show live), and gives them to the canvases that link to them. */
-function attachStreamlit(doc: Doc): void {
-  doc.streamlit = new StreamlitDoc(
-    {
-      title: () => doc.title,
-      path: () => doc.path,
-      python: () => doc.python,
-      kernel: () => doc.kernel?.id ?? null,
-      window: WINDOW_ID,
-      cells: () => viewOf(doc)?.pieces() ?? [],
-      unsaved: () => doc.dirty,
-      // A project's data.ipynb is exported as data.py: the server needs every cell of it.
-      every: () => (isData(doc) ? doc.notebook!.everyCells() : null),
-      dictionary: () => (isData(doc) ? (dataViews.get(doc)?.dictionary ?? null) : null),
-    },
-    () => viewOf(doc)?.drawPieces(),
-  );
-}
+/** A notebook's or script's own app: gone (2026-11-21: app notebooks and live Streamlit cells were replaced by
+ *  widgets). Nothing is sent to the server for a notebook's cells any more. */
+function attachStreamlit(_doc: Doc): void {}
 
 /** Every open notebook and script has told the server its cells as they stand (before Play). */
 const settleDocuments = async (): Promise<void> => {
@@ -397,29 +382,7 @@ const streamlitInstall = (doc: Doc): PromptOptions => ({
   },
 });
 
-/** A live cell's Install: the prompt again, asked for (after Not now). */
-async function installStreamlit(doc: Doc): Promise<void> {
-  const problem = doc.streamlit?.state?.problem;
-  if (problem?.kind === "missing") void promptInstall(problem, { ...streamlitInstall(doc), force: true });
-}
 
-const streamlitHost = (doc: Doc): StreamlitHost => ({
-  state: () => doc.streamlit?.state ?? null,
-  changed: () => doc.streamlit?.syncSoon(),
-  isLive: (cell) => doc.streamlit?.isLive(cell) ?? Promise.resolve(false),
-  run: () => runApp(doc),
-  install: () => void installStreamlit(doc),
-  link: () => ({ document: doc.path, title: doc.title }),
-  addToApp: async (cell) => {
-    // The cell's document is saved (a block links to a file), then placed on the app in front (else the
-    // first open one, else a new one).
-    if (!(await save(doc))) throw new Error(`${doc.title} could not be saved.`);
-    await doc.streamlit?.sync().catch(() => null);
-    const app = (current?.canvas ? current : null) ?? docs.find((d) => d.canvas) ?? openApp(null, [], null);
-    show(app);
-    await app.canvas!.place({ document: doc.path, cell, title: doc.title });
-  },
-});
 
 /** A Streamlit app: its canvas as a document of its own. */
 function openApp(path: string | null, pages: SavedPage[], modified: number | null, settings?: AppSettings): Doc {
@@ -506,7 +469,7 @@ const workbookInFront = (): ExcelView => {
 /** The canvases' "New" entries follow the open project's mode (modes.ts): each is offered only where the
  *  mode names it (the base's: the Streamlit canvas; an Accounting project's: the Excel canvas). */
 function registerCanvasKinds(): void {
-  registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", ...(offersCanvas("streamlit") ? { start: { label: "New Streamlit app", run: () => void openApp(null, [], null) } } : {}) });
+  registerTabKind({ id: "page", label: "App page", icon: "page", mark: "app", ...(offersCanvas("streamlit") ? { start: { label: "New canvas", run: () => window.open("/streamlit/canvas", "_blank") } } : {}) });
   registerTabKind({ id: "workbook", label: "Workbook", icon: "excel", mark: "app", ...(offersCanvas("excel") ? { start: { label: "New Excel workbook", run: () => void openWorkbook(null) } } : {}) });
 }
 
@@ -1417,7 +1380,7 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
   notebookModes(doc);
   if (isData(doc)) dataMode(doc, dictionary ?? {});
   show(doc);
-  doc.streamlit!.syncSoon(); // the server knows its cells: the live ones say their state
+  doc.streamlit?.syncSoon(); // the server knows its cells: the live ones say their state
   // A new notebook is for typing: the cursor waits in its first cell.
   if (!path && !cells.length) doc.notebook.select(0, true);
   return doc;
@@ -1437,7 +1400,7 @@ function notebookOf(doc: Doc, cells: CellData[], nextCell?: number): NotebookVie
     opened: cells.length > 0, // from a file or a reload: its tables' cells have not run since
     restoreSteps,
     tablesChanged: () => doc === current && drawTablesTool(),
-    streamlit: streamlitHost(doc),
+    // No live Streamlit cells (2026-11-21: app notebooks were replaced by widgets): no streamlit host.
     datasets: () => datasetNames,
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
     ran: () => flowSoon(doc),
@@ -1472,7 +1435,7 @@ function openScript(path: string | null, text: string, modified: number | null):
     openGrid: (name) => void openGrid(doc, name),
     openResult: (n, name) => void openResult(doc, n, name),
     tablesChanged: () => doc === current && drawTablesTool(),
-    streamlit: streamlitHost(doc),
+    // No live Streamlit cells (2026-11-21): no streamlit host.
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
     // Script mode: Run file takes the run settings' arguments, and is kept in the run history.
     arguments: () => scriptArguments.get(doc) ?? "",
@@ -1497,7 +1460,7 @@ function openScript(path: string | null, text: string, modified: number | null):
   scriptModes(doc);
   if (path) void readArguments(doc);
   show(doc);
-  doc.streamlit!.syncSoon();
+  doc.streamlit?.syncSoon();
   return doc;
 }
 
@@ -1815,6 +1778,8 @@ layout.source.append(groups.element, empty, landing.element);
 
 /** The landing page for `k` in place of the groups (the address says ?kind=k&view=list). */
 function showLanding(k: Kind): void {
+  // Apps is the Canvas, a page of its own (2026-11-21): the old address goes there.
+  if (k === "app") return void location.replace("/streamlit/canvas");
   // The other page's kind: that page's window, brought forward (never its tabs here).
   const page = pageOfKind(k);
   if (page && page !== PAGE) {
@@ -1822,7 +1787,7 @@ function showLanding(k: Kind): void {
     return;
   }
   // The creator shows only while none of the kind is open (the owner, 2026-11-21): else its tab comes forward.
-  const mine = k !== "app" ? [...docs].reverse().find((d) => docKindOf(d) === k) : undefined;
+  const mine = [...docs].reverse().find((d) => docKindOf(d) === k);
   if (mine) {
     void go(withParams({ view: null, kind: k }), "replace");
     show(mine);
@@ -3214,7 +3179,7 @@ const NO_LIVE = "the document in front has no cell that calls Streamlit";
  *  now: for the agent. */
 async function pieceReport(): Promise<unknown> {
   const doc = current!;
-  const state = await doc.streamlit!.sync();
+  const state = (await doc.streamlit?.sync()) ?? null;
   return {
     document: doc.title,
     path: doc.path,
