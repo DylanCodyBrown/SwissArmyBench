@@ -354,11 +354,6 @@ def _app_folder_name(name: str) -> str:
     return re.sub(r'[<>:"/\\|?*]', "", name).strip()
 
 
-def official_config(platform: str, home: str, env: Mapping[str, str]) -> str:
-    """The official Claude Desktop's config file."""
-    return config_places(Install(DESKTOP, "", "Claude", "", True), platform, home, env)[-1]
-
-
 def mcp_entry(command: str) -> dict[str, Any]:
     """The `swissarmybench` server as an MCP client starts it. No token: the server reads the connection
     file the running app writes."""

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import zipfile
-from collections.abc import Callable
 from pathlib import Path
 
 from swissarmybench.adapters.atomic_files import replacing, write_atomic
@@ -79,31 +78,6 @@ class ProjectFiles:
             raise PermissionError(f"{file} is read-only.")
         write_atomic(file, text.encode("utf-8"))
         return str(file)
-
-    def replace_pages(self, folder: str, files: dict[str, str], own: Callable[[str], bool]) -> list[str]:
-        """The project's pages/*.py as the canvas has them now: each written, and a page the canvas
-        no longer has taken away; but only a page `own` says is the app's (by its text). Another file
-        there is left as it is: the names of those that were not written over."""
-        pages = self._folder(folder) / "pages"
-
-        def mine(file: Path) -> bool:
-            try:
-                return own(file.read_bytes()[:4096].decode("utf-8-sig", "replace"))
-            except OSError:
-                return False
-
-        left: list[str] = []
-        for name, text in files.items():
-            file = self._folder(folder) / name
-            if file.is_file() and not mine(file):
-                left.append(name)
-                continue
-            self.write(folder, name, text)
-        written = {Path(name).name for name in files}
-        for old in pages.glob("*.py") if pages.is_dir() else []:
-            if old.name not in written and mine(old):
-                old.unlink(missing_ok=True)
-        return left
 
     def relative(self, folder: str, path: str) -> str | None:
         """A file's path inside the project, with forward slashes (None: it is outside)."""

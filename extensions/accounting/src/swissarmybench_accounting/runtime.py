@@ -38,7 +38,6 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import absolute_coordinate, get_column_letter, quote_sheetname, range_boundaries
 from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
 
-EXCEL_ROWS = 1_048_576
 MAX_ROWS = 1_000_000  # one block's rows (a sheet holds 1,048,576)
 
 # The number formats offered by name (any other text is an Excel format code, used as written).

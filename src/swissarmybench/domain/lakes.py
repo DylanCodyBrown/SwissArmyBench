@@ -60,9 +60,6 @@ LABELS: dict[str, str] = {
 # its rows (Arrow) and how many there are, the columns and filters the query sends.
 READ: str = "conn.rows(table, schema=schema, limit=limit, columns=columns, filters=filters, frame=frame)"
 CATALOG: str = "catalog = conn.catalog()"
-# The kinds whose read takes filters as DuckDB applies them (the lake kinds), or as OData (SharePoint).
-FILTER_DIALECTS: dict[str, str] = {ONELAKE: "lake", DATALAKE: "lake", DELTA: "lake", SHAREPOINT: "odata",
-                                   SHAREPOINT_DOCS: "odata"}  # fmt: skip
 # A Delta table's version or time, after its name: orders@v12, orders@2026-11-01, orders@2026-11-01T09:30.
 AT = re.compile(r"@(?:[vV]\d+|\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?)?)$")
 
@@ -389,8 +386,6 @@ def _delta(way: str) -> str:
     return _HEAD + place + _BODY + _KINDS + f"\n\nconn = DeltaLake({made}, depth)\n"
 
 
-ONELAKE_YOU: str = _onelake("you")
-DATALAKE_YOU: str = _datalake("you")
 DELTA_LOCAL: str = _delta("local")
 
 # The app registration first: it runs here and on an Azure Function App or a hosted Streamlit app alike; as

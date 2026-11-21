@@ -46,7 +46,6 @@ DATA_FILE: str = "data.py"
 # The Streamlit pages' text helper beside data.py (the Streamlit extension writes it): never opened.
 TEXT_FILE: str = "sab_text.py"
 REQUIREMENTS_FILE: str = "requirements.txt"
-PAGES_FOLDER: str = "pages"
 # The project's type (Plans/editions.plan.md: "a project folder's .sab/project.json records its type"):
 # the base's "bi", or an installed extension's (accounting). It sets the project's mode.
 TYPE_FILE: str = ".sab/project.json"
@@ -291,20 +290,6 @@ def without_rows(cells: Sequence[DataCell]) -> list[DataCell]:
         else:
             out.append(cell)
     return out
-
-
-def script_without_rows(text: str) -> str:
-    """A script for a zip: each pasted table's read-only cell (its rows written out) a stub, on the
-    lines it held; everything else as it is."""
-    lines = text.split("\n")
-    for cell in reversed(table_cells.outline(text)["cells"]):
-        body = "\n".join(lines[cell["line"] : cell["end"]])
-        if cell["role"] == "transformations" and cell["table"] and _PASTED.search(body):
-            stub = _stub(
-                cell["table"], variable_name(cell["table"]), f"{cell['table']} was pasted into the grid."
-            )
-            lines[cell["line"] : cell["end"]] = [*stub.split("\n"), ""]
-    return "\n".join(lines)
 
 
 def data_requirements(text: str) -> list[str]:

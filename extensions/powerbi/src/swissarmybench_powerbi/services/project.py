@@ -881,10 +881,6 @@ class PowerBIProject:
             return []
         return [{"text": f"{action} is not an action here.", "tone": "error"}]
 
-    def check_conflict(self) -> None:
-        if self.base.sab_projects.current is None:
-            raise Conflict("Open a project first.")
-
 
 class DatasetAlias:
     """The project's dataset connection name, as the base's connection tables take it (services/hooks.py)."""

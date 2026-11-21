@@ -195,10 +195,6 @@ def assign(vaults: Sequence[VaultIn], taken_first: Mapping[str, str]) -> dict[st
     return out
 
 
-def note_words(env: str, plain: str, by: str) -> str:
-    return f"named {env}: {plain} was taken by {by}"
-
-
 def taken_words(name: str, by: str) -> str:
     """The one refusal (9.5) for a name given twice."""
     return f"{name} is already a variable (from {by}). Pick another name."

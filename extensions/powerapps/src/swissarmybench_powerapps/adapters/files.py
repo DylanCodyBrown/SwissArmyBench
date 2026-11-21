@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -77,9 +76,6 @@ class ProjectFiles:
         return path
 
     # ----- a temporary folder (a dry run's files before the user said where) -----
-
-    def temporary_folder(self) -> str:
-        return tempfile.mkdtemp(prefix="sab-connector-")
 
     # ----- the extension's state -----
 

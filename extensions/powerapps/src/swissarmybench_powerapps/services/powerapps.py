@@ -46,14 +46,6 @@ class RanLike(Protocol):
     timed_out: bool
 
 
-class StartedLike(Protocol):
-    argv: list[str]
-    lines: list[str]
-
-    @property
-    def running(self) -> bool: ...
-
-
 Line = Callable[[str], Awaitable[None] | None]
 
 

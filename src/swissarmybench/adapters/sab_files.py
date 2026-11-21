@@ -211,13 +211,6 @@ class SabArchive:
             return True
         return False
 
-    def state_names(self, folder: str, sub: str) -> list[str]:
-        """The files directly in one of .sab/'s folders (data, visualizations), as paths in the project."""
-        place = self._inside(folder, sub)
-        if not place.is_dir() or place.is_symlink():
-            return []
-        return sorted(f"{sub}/{p.name}" for p in place.iterdir() if p.is_file() and not p.is_symlink())
-
     @staticmethod
     def rows_bytes(table: pa.Table) -> bytes:
         """A table's rows as Parquet (the same rows, the same bytes)."""

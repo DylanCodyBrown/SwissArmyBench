@@ -480,21 +480,6 @@ def diff(old: Mapping[str, Any], new: Mapping[str, Any]) -> dict[str, Any]:
 
 # ===== Try it =====
 
-CALL_CODE: str = """import json as _json
-import time as _time
-_call = _json.loads(table)
-_url = conn._url(_call["path"], _call.get("params"), _call.get("query"))
-_start = _time.monotonic()
-try:
-    _status, _headers, _raw = conn._send(
-        _call["method"], _url, _call.get("headers"), _call.get("body"), False, _call.get("cookies")
-    )
-except conn.Error as _error:
-    _status, _headers, _raw = _error.status, {}, _error.text.encode("utf-8")
-_ms = round((_time.monotonic() - _start) * 1000)
-_body = _raw.decode("utf-8", "replace") if isinstance(_raw, (bytes, bytearray)) else str(_raw)
-[{"status": _status, "ms": _ms, "headers": _json.dumps(dict(_headers)), "body": _body}]"""
-
 
 def _typed(value: Any, kind: str, name: str) -> Any:
     if value is None or value == "":

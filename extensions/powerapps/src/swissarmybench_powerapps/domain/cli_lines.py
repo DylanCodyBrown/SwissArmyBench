@@ -221,10 +221,6 @@ def dev_server(port: int, base: str) -> list[str]:
 # ===== the Power Platform CLI (pac) =====
 
 
-def pac_version() -> list[str]:
-    return ["pac"]
-
-
 def pac_auth_token() -> list[str]:
     """A Power Platform API token for the selected profile: read in memory only, never shown or logged."""
     return ["pac", "auth", "token"]

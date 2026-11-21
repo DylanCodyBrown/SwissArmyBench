@@ -30,7 +30,7 @@ import sys
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from swissarmybench_powerbi.domain import live_link as rules
 
@@ -49,14 +49,6 @@ DLLS = (
     "Microsoft.AnalysisServices.Tabular.dll",
     "Microsoft.AnalysisServices.AdomdClient.dll",
 )
-
-
-class LiveModel(Protocol):
-    def metadata(self) -> rules.OpenModel: ...
-
-    def evaluate(self, dax: str) -> Any: ...  # an Arrow table
-
-    def apply(self, change: rules.Change) -> None: ...
 
 
 def windows() -> bool:

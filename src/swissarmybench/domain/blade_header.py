@@ -322,14 +322,6 @@ def required_part(
 # ===== New blade: a name and a kind, and the blank blade it starts as =====
 
 SCAFFOLD_KINDS: tuple[str, ...] = ("table", "code", "analysis", "connection", "snippet", "secret")
-SCAFFOLD_LABELS: dict[str, str] = {
-    "table": "Table: a function that returns a DataFrame",
-    "code": "Code: any Python, what it makes last is handed back",
-    "analysis": "Analysis: a function of a table's rows, for the Analyze page",
-    "connection": "Connection: a database that lists and reads its tables",
-    "snippet": "Snippet: text for a cell, with <<placeholders>>",
-    "secret": "Secret: variables typed each session, never kept",
-}
 
 _TABLE = '''"""What this table holds, in a sentence."""
 
