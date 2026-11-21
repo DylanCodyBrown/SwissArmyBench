@@ -149,7 +149,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
   window or the grid page's Ctrl+K), tabs that pop out into windows of their own (and move
-  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's four modes (App, Notebook, Script, Data: each document's own panels), the
+  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
   Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
@@ -1063,8 +1063,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          grid page's Find data dialog (Ctrl+K, gridCommands.ts): one search, chips, a
                          connection picker, recent searches, each result's actions, its drag
                          (EXPLORER_DRAG: lazy/codeEditor.ts drops the cell's language's code)),
-                         workbenchCellsPane.ts (App mode's Streamlit cells panel: every cell that calls
-                         Streamlit, by name: dragged onto a canvas), workbenchMenu.ts (its drop-
+                         workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
                          workbenchPages.ts (Notebooks and Scripts, two pages: the page of a file or a kind, this
                          window's, openOnPage and bringPage by the windows' names, the old session split once);
@@ -1093,15 +1092,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchNotebook.ts, its completion in workbenchCompletion.ts;
                          workbenchLineage.ts (the Lineage overlay: Mermaid flow, a value card per step;
                          window.openLineage), workbenchApprovals.ts (Approve the output, the amber note);
-                         workbenchStreamlit.ts (a document's live cells: the Python cells that call
-                         Streamlit, their state; a cell's link, dragged or copied); workbenchCanvas.ts
-                         is a Streamlit app's canvas, a document tab (pages as tabs, blocks on a
-                         12-column grid, Play showing the page live in place, Edit, Export, Save as;
-                         Test this page, a default said quietly, a thin-cell hint and Move to data.ipynb);
+                         cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
+                         pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
                          kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
-                         notebook's kind (in a project data.ipynb the data notebook, any other an app notebook;
-                         outside one plain: notebookRole, kindIcon);
+                         notebook's kind (in a project data.ipynb the data notebook; every other plain:
+                         notebookRole, kindIcon);
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
                          (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
                          for the types explained, where; save, Keep its rows asked once; Copy project to…;
@@ -1137,11 +1133,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          claudeLaunch.ts the status bars' Launch Claude (one found: straight to it; both: a
                          menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
-                         in its group, the status bar's toggles), workbenchApp.ts (App: Properties, page
-                         settings, State), workbenchStarters.ts (App mode's Starters panel: the gallery),
-                         workbenchDocModes.ts (Notebook's Outline, Script's Run settings and Run history,
-                         Data's Dictionary and Lineage's place); the canvas's selection, wiring, undo,
-                         align, duplicate, zoom and Play's preview are in workbenchCanvas.ts
+                         in its group, the status bar's toggles), workbenchDocModes.ts (Notebook's Outline,
+                         Script's Run settings and Run history, Data's Dictionary and Lineage's place)
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, catalog,
@@ -1264,9 +1257,6 @@ web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): pa
                          panes' toggles, zoom); the frame's right-edge width
                          handle (px shown); versions and notices
 web/src/canvasGrid.ts    the Canvas's placement maths: the step, the grid's lines, edges and centres, nudges, dots
-                         (old app canvas modules still in web/src, unreachable: workbenchCanvas.ts, canvasPane.ts,
-                         canvasLaunch.ts, canvasToolbox.ts, workbenchStreamlit.ts, workbenchCellsPane.ts,
-                         workbenchApp.ts, workbenchStarters.ts, perfPage.ts: their removal is its own change)
 extensions/git/          the Git extension (swissarmybench-git; entry point git = swissarmybench_git.extension; no
                          project type: a rail area, RAIL, and the footer's mark): GitHub sync and the Source Control
                          page, through GitHub's web API (no Git on the computer)

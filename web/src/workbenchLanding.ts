@@ -178,7 +178,7 @@ export function mountLanding(host: LandingHost): Landing {
     }
     const kinds = (k as Kind) === "notebook" ? KINDS.map(([role, title]) => [role, title, all.filter(([d]) => (notebookRole(d.path) === "data" ? "data" : "") === role)] as const) : [];
     if (kinds.some(([role, , docs]) => role && docs.length)) {
-      // In a project: the data notebook, then the app notebooks (and any notebook from outside it).
+      // In a project: the data notebook, then the other notebooks (and any notebook from outside it).
       list.replaceWith(
         ...kinds.flatMap(([role, title, docs]) =>
           docs.length || role === "data"

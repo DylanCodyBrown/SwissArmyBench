@@ -42,15 +42,15 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         dialog = workbench.locator(".area-page[data-page='settings']")  # a page (2026-11-16)
         panels = dialog.locator("fieldset", has_text="Panels")
         expect(panels.locator("input[type=checkbox]")).to_have_count(
-            14
-        )  # the modes (2026-11-15) added six; the Data Explorer (2026-11-17) took the Data panel's three
-        panels.get_by_label("Streamlit cells").uncheck()
+            10
+        )  # the modes (2026-11-15) added six; the Data Explorer (2026-11-17) took the Data panel's three;
+        # App mode's four went with app notebooks (2026-11-21)
+        panels.get_by_label("Outline").uncheck()
         panels.get_by_label("Console").uncheck()
         panels.locator(".panel-page", has_text="Grid page").get_by_label("Ribbon").uncheck()
         workbench.go_back()  # the page goes; Back is how it is left (no Close)
         expect(dialog).to_have_count(0)
         # Gone at once, here and in the grid page: not folded, gone.
-        expect(workbench.locator(".wb-st")).to_be_hidden()
         expect(workbench.locator(".wb-console-toggle")).to_be_hidden()
         expect(workbench.locator(".wb-explorer")).to_be_visible()
         expect(grid.locator(".ribbon")).to_be_hidden()
@@ -62,7 +62,6 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         workbench.reload()
         expect(workbench.locator(".wb-tab")).to_have_count(1, timeout=20000)
         expect(workbench.locator(".wb-console-toggle")).to_be_hidden()
-        expect(workbench.locator(".wb-st")).to_be_hidden()
         grid.reload()
         expect(grid.locator(".statusbar")).to_be_visible(timeout=20000)
         expect(grid.locator(".ribbon")).to_be_hidden()
@@ -71,7 +70,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
         grid_panels = grid.locator(".area-page[data-page='settings'] fieldset", has_text="Panels")
         expect(grid_panels.get_by_label("Console")).not_to_be_checked()
         grid_panels.get_by_label("Console").check()
-        grid_panels.get_by_label("Streamlit cells").check()
+        grid_panels.get_by_label("Outline").check()
         grid_panels.locator(".panel-page", has_text="Grid page").get_by_label("Ribbon").check()
         expect(grid.locator(".ribbon")).to_be_visible()
         expect(workbench.locator(".wb-console-toggle")).to_be_visible()
@@ -100,7 +99,7 @@ def test_a_panel_switched_off_is_gone_from_every_window_until_switched_on(
             server,
             "PUT",
             "/panels",
-            {"workbench.console": True, "workbench.streamlit": True, "grid.ribbon": True},
+            {"workbench.console": True, "workbench.outline": True, "grid.ribbon": True},
         )
         workbench.close()
         grid.close()

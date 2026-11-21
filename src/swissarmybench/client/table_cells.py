@@ -26,7 +26,6 @@ from importlib import import_module
 from typing import Any
 
 from swissarmybench.client.kernel_values import namespace as _namespace
-from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 _MISSING: Any = object()
 # What the user's own code made under each name, as last sent to the grid.
@@ -154,52 +153,17 @@ _CELL = re.compile(r"^# ?%%(?!\S)")
 _GROUP = re.compile(r"^# ?%%(?: \[\d+\])? \[(?:table|transformations|html)\]")
 
 
-def _live_cells(lines: list[str]) -> set[int]:
-    """The marker lines (0-based) of the script's cells that call Streamlit: such a cell is shown live
-    in a Streamlit page and does not run in the kernel (domain/streamlit_use.py has the rule). The
-    Tables group's cells and HTML cells are never one."""
-    spans: list[tuple[int, str]] = []
-    grouped = False
-    index = 0
-    while index < len(lines):
-        line = lines[index]
-        if re.match(r"^# ?region Tables\s*$", line):
-            grouped = True
-        elif re.match(r"^# ?endregion\b", line):
-            grouped = False
-        start = index
-        index += 1
-        if not _CELL.match(line) or grouped or _GROUP.match(line):
-            continue
-        body: list[str] = []
-        while index < len(lines) and not _CELL_END.match(lines[index]):
-            body.append(lines[index])
-            index += 1
-        spans.append((start, "\n".join(b for b in body if not b.startswith("# uses "))))
-    # Whether `st` means Streamlit is the whole file's to say (its main code too).
-    usual = usual_name(("\n".join(lines), *(code for _, code in spans)))
-    return {start for start, code in spans if code.strip() and uses_streamlit(code, usual)}
-
-
 def safe_source(text: str) -> str:
     """A script's text with each table's cell (`# %% [n] [transformations] name`) run through `run`,
-    on the same lines (so an error still names the right line), and the lines of each cell that calls
-    Streamlit left out (blank lines in their place: it runs in a Streamlit page). Everything else is
-    as written."""
+    on the same lines (so an error still names the right line). Everything else is as written (a cell that
+    calls Streamlit runs in the kernel like any other: live cells went, 2026-11-21)."""
     lines = text.split("\n")
-    live = _live_cells(lines)
     out: list[str] = []
     index = 0
     while index < len(lines):
         found = _TABLE_CELL.match(lines[index])
-        piece = index in live
         out.append(lines[index])
         index += 1
-        if piece:
-            while index < len(lines) and not _CELL_END.match(lines[index]):
-                out.append("")
-                index += 1
-            continue
         if found is None:
             continue
         body: list[str] = []

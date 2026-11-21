@@ -47,7 +47,7 @@ MAX_PURPOSE: int = 600
 # Files that are the app's or Git's, not the project's layout (ARCHITECTURE.md itself: an export that
 # listed itself would change on its second write).
 _NOT_LAYOUT: frozenset[str] = frozenset({FILE_NAME.casefold(), ".gitignore"})
-_ROLE_WORDS: dict[str, str] = {"data": "the data notebook: it makes the tables", "app": "an app notebook"}
+_ROLE_WORDS: dict[str, str] = {"data": "the data notebook: it makes the tables"}
 _NAME_WORDS: dict[str, str] = {"readme.md": "what the project is for", "requirements.txt": "what to install"}
 _WORDS: dict[str, str] = {
     "notebook": "a notebook",

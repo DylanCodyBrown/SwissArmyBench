@@ -189,11 +189,7 @@ class Workbench:
         python = self._documents.environment(full) or self._kernels.beside(self._folder_of(full))
         if kind == "notebook":
             read, next_cell = rules.read_document(text)
-            # A Python cell that calls Streamlit is shown live in its cell (and never runs in the kernel).
-            live = set(self._hooks.live_cells([(c.number or 0, c.source) for c in read if c.kind == "code"]))
-            cells = [
-                c.to_json() | ({"live": True} if c.kind == "code" and c.number in live else {}) for c in read
-            ]
+            cells = [c.to_json() for c in read]
             return {
                 "path": full,
                 "kind": kind,

@@ -38,7 +38,7 @@ def test_switches_are_the_servers_shared_and_on_again_at_each_start(tmp_path: Pa
     with make_client(tmp_path) as client:
         listed = client.get("/panels", headers=AUTH).json()["panels"]
         assert [p["id"] for p in listed] == list(rules.IDS) and all(p["on"] for p in listed)
-        assert listed[2] == {"id": "workbench.console", "page": "Workbench", "name": "Console", "on": True}
+        assert listed[1] == {"id": "workbench.console", "page": "Workbench", "name": "Console", "on": True}
         off = client.put("/panels", json={"workbench.console": False, "grid.ribbon": False}, headers=AUTH)
         assert off.status_code == 200, off.text
         state = {p["id"]: p["on"] for p in client.get("/panels", headers=AGENT).json()["panels"]}
@@ -54,6 +54,6 @@ def test_switches_are_the_servers_shared_and_on_again_at_each_start(tmp_path: Pa
 
 def test_the_agent_reads_and_sets_the_switches(live: Live) -> None:  # noqa: F811
     assert all(p["on"] for p in command("app_panels")["panels"])
-    done = command("app_panels", set={"workbench.streamlit": False})
-    assert {p["id"]: p["on"] for p in done["panels"]}["workbench.streamlit"] is False
-    assert {p["id"]: p["on"] for p in live.user("GET", "/panels")["panels"]}["workbench.streamlit"] is False
+    done = command("app_panels", set={"workbench.outline": False})
+    assert {p["id"]: p["on"] for p in done["panels"]}["workbench.outline"] is False
+    assert {p["id"]: p["on"] for p in live.user("GET", "/panels")["panels"]}["workbench.outline"] is False

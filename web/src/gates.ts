@@ -112,7 +112,7 @@ export function gated(area: string | null | undefined): boolean {
 // workbenchPage.ts names them; an extension's own commands name theirs with Command.area).
 const COMMAND_AREAS: [RegExp, string][] = [
   [/^(file\.newScript|file\.exportScript|script(\.|$)|runSettings|runHistory)/, "scripts"],
-  [/^(file\.newApp|canvas\.|streamlit\.|data\.streamlitCells|appNotebook|toolbox|page$)/, "canvas"],
+  [/^(file\.newApp|page$)/, "canvas"],
   [/^(data\.blades|data\.starters|data\.starterList|blade$|starters$|snippet\.)/, "blades"],
   [/^data\.addApi/, "apis"],
   [/^(analyze|visualizations)/, "analyze"],
