@@ -15,8 +15,7 @@ has (so the numbers are the window's). On a DataFrame it runs here, in this Pyth
 its cards land on the Analyze board too (`board=False` keeps them off). A table that does not fit raises
 ValueError with what is missing and how to make it fit. The result is a plain dictionary.
 
-`sab.visualizations` is the old name of the card call (Visualizations became Analyze, 2026-11-19): it warns
-once and goes with renamed.py. Importing this module needs only the standard library; an analysis on a
+Importing this module needs only the standard library; an analysis on a
 DataFrame needs the app's install (duckdb), as `swissarmybench.stats` does.
 """
 

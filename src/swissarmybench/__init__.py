@@ -36,10 +36,6 @@ if TYPE_CHECKING:
     from swissarmybench.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
     from swissarmybench.client.sql_cell import dax, sql
     from swissarmybench.client.structures_client import show_structure, structure, structure_table
-    from swissarmybench.client.visualizations_client import sandbox as sandbox  # the old name, one release
-    from swissarmybench.client.visualizations_client import (
-        visualizations as visualizations,  # the old name, one release
-    )
     from swissarmybench.client.watcher import start as watch
     from swissarmybench.client.watcher import stop as unwatch
 
@@ -83,9 +79,6 @@ _LAZY: dict[str, tuple[str, str]] = {
     # The Analyze page from Python: sab.analyze.benford(df), sab.analyze.contract("odds"), and anything
     # visual as a card on its board: sab.analyze(fig).
     "analyze": ("swissarmybench.client.analyze_client", "analyze"),
-    # The old names, one release (renamed.py): a DeprecationWarning, then the same card call.
-    "visualizations": ("swissarmybench.client.visualizations_client", "visualizations"),
-    "sandbox": ("swissarmybench.client.visualizations_client", "sandbox"),
     "complete": ("swissarmybench.client.completion", "complete"),
     # Structures (JSON, YAML, XML, TOML): a saved one's value, its records as a table, a value shown.
     "structure": ("swissarmybench.client.structures_client", "structure"),

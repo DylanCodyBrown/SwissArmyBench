@@ -910,7 +910,7 @@ _CARD_FIELDS = (
     opt("size", '{"w": 2-12 columns, "h": 3-30 rows of 40px}.', "json"),
 )
 
-# What each card kind takes (visualizations_formats): the agent's whole drawing vocabulary in one answer.
+# What each card kind takes (analyze_formats): the agent's whole drawing vocabulary in one answer.
 _FORMATS: dict[str, Any] = {
     "board": "12 columns wide, rows of 40px; size {w: 2-12, h: 3-30}. Cards go in order; analyze_update "
     "moves (before) and resizes them. Page view prints them as letter or landscape pages.",
@@ -5313,25 +5313,15 @@ def _arrange() -> None:
 
 _arrange()
 
-# The old names, one release (as renamed.py keeps SwissArmyGrid's): the Sandbox became Visualizations (the
-# owner, 2026-11-16) and Visualizations became Analyze (the owner, 2026-11-19), so each sandbox_* and
-# visualizations_* command is its analyze_* one (the chart's code is analyze_chart_code); a tang became a relationship
-# set (the owner, 2026-11-17), so relationships_*_tang is relationships_*_set. Accepted by the dispatcher
-# (the `sab` command and an MCP call by name) but not listed: the tool list carries the new names only.
-_BOARD_NAMES = (
-    "all", "list", "formats", "add", "update", "dashboards", "theme", "delete", "select", "dashboard",
-    "theme_remove",
-)  # fmt: skip
-OLD_NAMES: dict[str, str] = (
-    {f"visualizations_{name}": f"analyze_{name}" for name in _BOARD_NAMES}
-    | {"visualizations_code": "analyze_chart_code"}
-    | {
-        "relationships_save_tang": "relationships_save_set",
-        "relationships_export_tang": "relationships_export_set",
-        "relationships_import_tang": "relationships_import_set",
-        "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
-    }
-)
+# The old names, one release: a tang became a relationship set (the owner, 2026-11-17), so
+# relationships_*_tang is relationships_*_set. Accepted by the dispatcher (the `sab` command and an MCP call by
+# name) but not listed: the tool list carries the new names only.
+OLD_NAMES: dict[str, str] = {
+    "relationships_save_tang": "relationships_save_set",
+    "relationships_export_tang": "relationships_export_set",
+    "relationships_import_tang": "relationships_import_set",
+    "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
+}
 
 
 # An old argument's name, one release: (command, old) -> new. A tang became a relationship set.
@@ -5343,13 +5333,6 @@ OLD_ARGS: dict[tuple[str, str], str] = {
 
 # Commands that went, one release: an old call says why instead of "unknown".
 GONE_NAMES: dict[str, str] = {
-    # The project's sandbox took the word (2026-11-21): the board's old sandbox_* names are analyze_* now.
-    **{
-        f"sandbox_{name}": f"sandbox_{name} went (2026-11-21): the board is Analyze's, analyze_"
-        f"{'chart_code' if name == 'code' else name}; sandbox is the project's sandbox now."
-        for name in (*_BOARD_NAMES, "code")
-        if f"sandbox_{name}" != "sandbox"
-    },
     "analyze_shape": "analyze_shape went (2026-11-19): analyze_check(table, analysis) says whether a table suits "
     "an analysis, from its contract: what fits each slot, what is missing, the fixes.",
     "analyze_defaults": "analyze_defaults went (2026-11-19): analyze_plan(analysis, table) gives the columns a "
@@ -5360,7 +5343,7 @@ GONE_NAMES: dict[str, str] = {
 
 
 def current_name(name: str) -> str:
-    """A command's name as it is now: an old one (visualizations_add) is its new one (analyze_add)."""
+    """A command's name as it is now: an old one (relationships_save_tang) is its new one."""
     return OLD_NAMES.get(name, name)
 
 

@@ -418,69 +418,33 @@ def test_grids_datasets_and_files(live: Live, clients: str, tmp_path: Path) -> N
     assert code["verified"] is True and "code" in code
 
 
-# ===== Visualizations, Key Finder, relationships, compare =====
+# ===== Analyze, Key Finder, relationships, compare =====
 
 
 def test_cards_including_a_saved_query(live: Live, clients: str) -> None:
     table = run(
-        "visualizations_add",
+        "analyze_add",
         grid=clients,
         kind="table",
         title="Top",
         sql="SELECT client FROM grid ORDER BY balance DESC LIMIT 2",
     )
     chart = run(
-        "visualizations_add",
+        "analyze_add",
         grid=clients,
         kind="chart",
         spec={"mark": "bar", "x": {"field": "region"}, "y": {"aggregate": "count"}},
     )
-    note = run("visualizations_add", grid=clients, kind="note", title="n", body="**hi**")
-    cards = run("visualizations_list", grid=clients)["cards"]
+    note = run("analyze_add", grid=clients, kind="note", title="n", body="**hi**")
+    cards = run("analyze_list", grid=clients)["cards"]
     assert {c["id"] for c in cards} == {table["card"], chart["card"], note["card"]}
     assert next(c for c in cards if c["id"] == table["card"])["rows"] == [["Globex"], ["Acme"]]
-    assert len(run("visualizations_all")["cards"]) == 3
-    assert run("visualizations_update", card=note["card"], pinned=True, body="edited")["card"] == note["card"]
-    assert "alt" in run("visualizations_code", card=chart["card"])["code"].lower()
-    assert run("visualizations_select", card=chart["card"], value="east")["steps"] == 1
+    assert len(run("analyze_all")["cards"]) == 3
+    assert run("analyze_update", card=note["card"], pinned=True, body="edited")["card"] == note["card"]
+    assert "alt" in run("analyze_chart_code", card=chart["card"])["code"].lower()
+    assert run("analyze_select", card=chart["card"], value="east")["steps"] == 1
     assert run("tabs_get", grid=clients)["steps"][0]["params"]["value"] == "east"
-    assert run("visualizations_delete", card=note["card"])["removed"] == note["card"]
-
-
-BOARD = (
-    "all", "list", "formats", "add", "update", "dashboards", "theme", "delete", "select", "dashboard",
-    "theme_remove", "code",
-)  # fmt: skip
-
-
-def test_the_old_sandbox_board_names_say_where_they_went() -> None:
-    """The project's sandbox took the word (2026-11-21): a board's old sandbox_* name says it is analyze_*."""
-    from swissarmybench.cli.commands import GONE_NAMES
-
-    assert "analyze_delete" in GONE_NAMES["sandbox_delete"] and "sandbox" in REGISTRY
-    assert "analyze_chart_code" in GONE_NAMES["sandbox_code"]
-
-
-@pytest.mark.parametrize("old", ["visualizations"])
-def test_the_old_board_names_still_run_their_analyze_commands(live: Live, clients: str, old: str) -> None:
-    """Visualizations became Analyze (2026-11-19): every visualizations_* name runs its analyze_* command for
-    one release, by `sab` and by an MCP call, but is never listed. (sandbox_* went: the project's sandbox.)"""
-    from swissarmybench.cli import main as cli_main
-    from swissarmybench.cli.commands import OLD_NAMES
-
-    mine = {k: v for k, v in OLD_NAMES.items() if k.startswith(f"{old}_")}
-    assert set(mine) == {f"{old}_{name}" for name in BOARD}
-    assert mine[f"{old}_code"] == "analyze_chart_code"  # analyze_code is an analysis's code
-    assert all(new == f"analyze_{k.split('_', 1)[1]}" for k, new in mine.items() if not k.endswith("_code"))
-    assert set(mine.values()) <= set(REGISTRY) and not any(n.startswith(f"{old}_") for n in REGISTRY)
-    note = run(f"{old}_add", grid=clients, kind="note", title="old name", body="still here")
-    assert note["card"] in {c["id"] for c in run("analyze_list", grid=clients)["cards"]}
-    assert cli_main.parse([f"{old}_delete", note["card"]]) == (f"{old}_delete", {"card": note["card"]})
-    assert cli_main.main([f"{old}_delete", note["card"]]) == 0
-    tools = {t.name for t in asyncio.run(mcp_server.server.list_tools())}
-    assert "analyze_formats" in tools and f"{old}_formats" not in tools
-    result = asyncio.run(mcp_server.server.call_tool(f"{old}_formats", {}))
-    assert "kinds" in "".join(getattr(part, "text", "") for part in getattr(result, "content", result))
+    assert run("analyze_delete", card=note["card"])["removed"] == note["card"]
 
 
 def test_the_agent_reaches_every_analysis_through_its_contract(live: Live) -> None:

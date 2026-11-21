@@ -75,11 +75,7 @@ def test_the_agent_gets_the_picture_the_page_draws(client: TestClient) -> None:
 @pytest.mark.parametrize(
     ("asked", "area"),
     [
-        # The Sandbox became Visualizations (2026-11-16) and Visualizations Analyze (2026-11-19): the old
-        # areas work for one release.
         ("analyze", "analyze"),
-        ("sandbox", "analyze"),
-        ("visualizations", "analyze"),
         # The Projects page, the rail's mark (2026-11-18); the Start view's word for one release.
         ("projects", "projects"),
         ("start", "projects"),

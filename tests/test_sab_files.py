@@ -87,21 +87,6 @@ def test_fields_this_version_does_not_know_are_kept_when_saved_again() -> None:
     assert again.tables[0].grids[0].to_json()["frozen_columns"] == 2
 
 
-@pytest.mark.parametrize("old_key", ["sandbox", "visualizations"])
-def test_a_file_saved_before_the_board_was_renamed_reads_its_cards(old_key: str) -> None:
-    """The Sandbox became Visualizations (2026-11-16) and Visualizations Analyze (2026-11-19): an older
-    project.json's "sandbox" or "visualizations" key is read for one release, written again as "analyze"."""
-    old = "sandbox/sandbox.json"
-    raw = json.loads(rules.write_manifest(_manifest()))
-    assert raw["analyze"] == rules.VISUALIZATIONS_PATH  # the file on disk keeps its name
-    del raw["analyze"]
-    raw[old_key] = old
-    read, _ = rules.read_manifest(json.dumps(raw))
-    assert read.visualizations == old
-    written = json.loads(rules.write_manifest(read))
-    assert old_key not in written and written["analyze"] == old
-
-
 def test_a_newer_format_opens_read_only_with_a_plain_message() -> None:
     raw = json.loads(rules.write_manifest(_manifest())) | {"format": rules.FORMAT + 1, "app_version": "9.0"}
     manifest, read_only = rules.read_manifest(json.dumps(raw))

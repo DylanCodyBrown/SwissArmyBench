@@ -42,8 +42,6 @@
  *
  * Another window's area reaches the window that shows it as a message from this origin ({sab: "area"});
  * a window opened for it is given the area in its address (?view=analyze, ?open=settings, ?kind=script).
- * The Sandbox is Analyze and the Diagram the ERD (the owner, 2026-11-16): the old ?view=sandbox
- * and ?view=diagram still land there (panes.ts), and the address is replaced with the new word.
  */
 import { api, onNotice, token } from "./api";
 import { h, icon } from "./dom";
@@ -129,8 +127,8 @@ function currentArea(url: URL): Area | null {
   if (kind === "workbench" && url.searchParams.get("pane") === "blades") return "blades"; // the Scripts page's Blades
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind")) ?? (thisPage() === "scripts" ? "scripts" : "notebooks");
   const view = kind === "home" ? url.searchParams.get("view") : null;
-  if (view === "analyze" || view === "visualizations" || view === "sandbox") return "analyze";
-  if (view === "erd" || view === "diagram") return "erd"; // the old words, one release
+  if (view === "analyze") return "analyze";
+  if (view === "erd") return "erd";
   if (view === "start") return "projects"; // the old Start view's address (one release): Projects
   return "grids"; // the grids (and the steps and Key Finder windows, which are a grid's)
 }

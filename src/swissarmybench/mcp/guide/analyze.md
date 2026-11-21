@@ -49,9 +49,7 @@ checker, so what you run is what the user would.
   `analyze_proof`. They answer you only: nothing lands on the board.
 
 ## The board (cards, dashboards, themes)
-- Called the Sandbox until 2026-11-16 and Visualizations until 2026-11-19: a `sandbox_*` or
-  `visualizations_*` name still runs its `analyze_*` tool for one release (not listed; the chart's code is
-  `analyze_chart_code`); `sab.visualizations` is `sab.analyze` with a warning.
+- The chart's code is `analyze_chart_code` (`analyze_code` is an analysis's).
 - `analyze_formats` lists every card kind with an example: read it before drawing.
 - `analyze_add(kind, ...)`: `chart` (a spec on a grid; the server aggregates), `note` (markdown), `table`
   (sql over a grid, or rows of its own), `diagram` (Mermaid), `graphviz`, `plotly`, `echarts`, `image`, or

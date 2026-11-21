@@ -193,15 +193,6 @@ def test_the_grid_page_has_no_analysis_left_on_it(browser: Browser, orders_url: 
     expect(page.locator(".toast")).to_contain_text("On the Analyze board", timeout=20000)
 
 
-@pytest.mark.parametrize("old", ["visualizations", "sandbox"])
-def test_the_old_addresses_land_on_analyze(browser: Browser, orders_url: str, old: str) -> None:
-    page = open_grid(browser, orders_url, width=1600, height=1000)
-    page.goto(orders_url.split("/g/")[0] + f"/workspace?view={old}#" + orders_url.split("#")[1])
-    expect(page.locator("#ai-panel .analyze-toolbar .analyze-btn").first).to_be_visible(timeout=20000)
-    expect(page.locator(".nav-rail [data-area='analyze']")).to_have_attribute("aria-current", "page")
-    expect(page).to_have_title("Analyze")
-
-
 def almost() -> pd.DataFrame:
     n = 120
     return pd.DataFrame(

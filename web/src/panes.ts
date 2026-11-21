@@ -145,8 +145,8 @@ function syncSoon(how: Move): void {
 /** Show what `url` names (Back, Forward, a reload, the agent): the history is not written again. */
 export async function showPlace(url: URL): Promise<void> {
   const named = url.searchParams.get("view");
-  if (named === "analyze" || named === "visualizations" || named === "sandbox") setView("agent", "replace");
-  else if (named === "erd" || named === "diagram") setView("erd", "replace");
+  if (named === "analyze") setView("agent", "replace");
+  else if (named === "erd") setView("erd", "replace");
   else if (named === "query") await openQueryDraft(url.searchParams.get("from"), "replace");
   else if (named === "start") {
     // The old Start view (one release): the Projects page (projectsPage.ts), in this entry's place.

@@ -504,7 +504,7 @@ sab.analyze(text, kind="mermaid")  # Mermaid, DOT or ECharts text
 sab.analyze(fig, key="monthly", size=(8, 10))
 ```
 
-`key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing. `sab.sandbox(...)`, its old name, still works for this release (with a warning).
+`key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing.
 
 `sab.analyze` also runs every analysis, by the same contracts and the same checker as the page:
 
@@ -518,7 +518,7 @@ sab.analyze.contract("benford")  # the analysis's data contract
 sab.analyze.sample("benford")  # its made-up sample, as a DataFrame
 ```
 
-On a DataFrame the analysis runs in your own Python (the function `swissarmybench.stats` has, so the numbers are the page's) and returns a plain dictionary; when the app is running its cards land on the board too (`board=False` keeps them off). A table that does not fit raises `ValueError` with what is missing and how to make it fit. `sab.visualizations` is the old name of the card call: it works for one release, with a warning.
+On a DataFrame the analysis runs in your own Python (the function `swissarmybench.stats` has, so the numbers are the page's) and returns a plain dictionary; when the app is running its cards land on the board too (`board=False` keeps them off). A table that does not fit raises `ValueError` with what is missing and how to make it fit.
 
 ### How an agent sees the grids
 

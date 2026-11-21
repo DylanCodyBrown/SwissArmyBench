@@ -191,15 +191,12 @@ The installers remove the old `swissarmygrid` uv tool before installing the new 
 **Visualizations is now Analyze, and the analyses live there** (the owner, 2026-11-19): the rail's Analyze page has a
 toolbar of every analysis and one guided form beside the board; every result lands on the board by itself, and
 the grid page has no analysis on it. Each analysis has a data contract the form, the agent (`analyze_contracts`,
-`analyze_check`, `analyze_run`) and Python (`sab.analyze.benford(df)`) share. The old names work for one
-release: `?view=visualizations`, `visualizations_*` and `sandbox_*` tools, `sab.visualizations` (a warning).
+`analyze_check`, `analyze_run`) and Python (`sab.analyze.benford(df)`) share. The old names
+(`?view=visualizations`, `visualizations_*` and `sandbox_*` tools, `sab.visualizations`) went in 0.0.32.
 
 **The Sandbox is now Visualizations, and the Diagram is the ERD** (the owner, 2026-11-16): the rail, the
-pages' titles, the menus (Send to Analyze) and the help. The old names work for one release too:
-`sab.sandbox(...)` (a DeprecationWarning; write `sab.visualizations(...)`), the agent's `sandbox_*` commands
-(each runs its `visualizations_*` one, by `sab` and by an MCP call; only the new names are listed),
-`app_navigate` to `sandbox` or `diagram`, `app_snapshot` of `sandbox`, the addresses `?view=sandbox` and
-`?view=diagram` (each replaced by the new word), and a `.sab/project.json` saved with a `sandbox` key.
+pages' titles, the menus (Send to Analyze) and the help. The old names (`sab.sandbox`, `app_navigate` to
+`sandbox` or `diagram`, `?view=sandbox`, `?view=diagram`, a project.json's `sandbox` key) went in 0.0.32.
 
 **A tang is now a relationship set** (the owner, 2026-11-17: "drop tang its cheesy"): a saved, shared set of
 relationships, a `.relationships.json` file in the library's `relationship-sets/` folder, and the dialog
@@ -572,7 +569,7 @@ Analyze can wear its own theme (the grid keeps the app's): twenty built in, high
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
-`sab.visualizations(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
+`sab.analyze(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
 figure, a picture, a DataFrame's first rows, Markdown text or a file on the Analyze board; the same `key`
 replaces the card in place when the cell runs again.
 

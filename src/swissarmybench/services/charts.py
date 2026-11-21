@@ -10,7 +10,7 @@ because charts are computed on request from the grid's current steps. Agent-made
 so the page can mark them.
 
 A card may also belong to no table (`add_free`): a note, a figure, a picture or a table of rows sent
-from Python (`sab.visualizations`), the agent or Visualizations' own Add note. It stays when grids close. A
+from Python (`sab.analyze`), the agent or Visualizations' own Add note. It stays when grids close. A
 `key` names a card, so sending the same key again replaces that card's content in its place.
 
 Saved dashboards (the `Dashboards` port): Save freezes every card as drawn, a chart's points and a
@@ -680,7 +680,7 @@ class Cards:
 
     async def add_free(self, body: Any, who: str) -> dict[str, Any]:
         """A card that belongs to no table: any kind but a chart or a table's query, which need a
-        grid's view. `"origin": "python"` marks one sent by sab.visualizations."""
+        grid's view. `"origin": "python"` marks one sent by sab.analyze."""
         card = check_card(body)
         _not_the_agents(card, who)
         if card["kind"] == "chart" or "sql" in card:
@@ -870,7 +870,7 @@ def _click_filter(field: str, family: str, value: Any, time_unit: str | None) ->
 
 
 def _as_family(value: Any, family: str) -> Any:
-    """A value an agent gave as text (`sab visualizations_select --value 3`) as its column's type; any
+    """A value an agent gave as text (`sab analyze_select --value 3`) as its column's type; any
     other value as it came (the filter step says what is wrong with it)."""
     if not isinstance(value, str):
         return value

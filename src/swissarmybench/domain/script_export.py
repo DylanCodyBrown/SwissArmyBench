@@ -59,9 +59,7 @@ REQUIRES_PYTHON: str = ">=3.10"
 # What a cell's `sab.<name>(...)` becomes, or that it only shows something in the app.
 _CALLS: dict[str, str] = {"sql": "run_sql", "dax": "run_dax", "read": "read_table"}
 _MADE: frozenset[str] = frozenset({"blade", "connection"})
-_SHOWS: frozenset[str] = frozenset(
-    {"push", "visualizations", "sandbox", "watch", "unwatch", "load", "complete"}  # sandbox: the old name
-)
+_SHOWS: frozenset[str] = frozenset({"push", "watch", "unwatch", "load", "complete"})
 _PACKAGE_NAMES: frozenset[str] = frozenset({"swissarmybench"})
 # A cell's last bare expression that only shows a value (its methods), or display() anywhere.
 _SHOWING_METHODS: frozenset[str] = frozenset(

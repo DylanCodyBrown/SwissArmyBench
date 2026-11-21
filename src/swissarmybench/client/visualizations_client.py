@@ -15,10 +15,7 @@ id. It duck-types what it is given, so nothing here imports matplotlib, Plotly o
 library only, like the rest of the client.
 
 `sab.analyze` itself (the analyses, the contracts, the samples) is client/analyze_client.py; this
-module keeps its name and holds the card's making. `sab.visualizations` and `sab.sandbox` are the old
-names (the Sandbox became Visualizations, the owner, 2026-11-16; Visualizations became Analyze,
-2026-11-19): each works for one release, with a DeprecationWarning (sab.visualizations' once a session),
-and goes with renamed.py.
+module keeps its name and holds the card's making.
 """
 
 from __future__ import annotations
@@ -30,7 +27,6 @@ import io
 import json
 import math
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -71,30 +67,6 @@ _TEXT_FILES: dict[str, str] = {
 }
 
 
-_warned: list[bool] = [False]
-
-
-def visualizations(
-    thing: object,
-    title: str | None = None,
-    *,
-    key: str | None = None,
-    size: tuple[int, int] | None = None,
-    kind: str | None = None,
-) -> str:
-    """The old name of `sab.analyze(thing)`, for one release (Visualizations is Analyze now): it warns
-    once a session, then adds the card as before."""
-    if not _warned[0]:
-        _warned[0] = True
-        warnings.warn(
-            "sab.visualizations is now sab.analyze: Visualizations is called Analyze. "
-            "The old name goes in the next release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    return add_card(thing, title, key=key, size=size, kind=kind)
-
-
 def add_card(
     thing: object,
     title: str | None = None,
@@ -116,24 +88,6 @@ def add_card(
     card["origin"] = "python"
     answer = _call("POST", "/cards", json.dumps(card).encode("utf-8"))
     return str(answer["card"])
-
-
-def sandbox(
-    thing: object,
-    title: str | None = None,
-    *,
-    key: str | None = None,
-    size: tuple[int, int] | None = None,
-    kind: str | None = None,
-) -> str:
-    """The oldest name of `sab.analyze(thing)`, for one release (the Sandbox is Analyze now)."""
-    warnings.warn(
-        "sab.sandbox is now sab.analyze: the Sandbox is called Analyze. "
-        "The old name goes in the next release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return add_card(thing, title, key=key, size=size, kind=kind)
 
 
 def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:

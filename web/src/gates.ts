@@ -115,7 +115,7 @@ const COMMAND_AREAS: [RegExp, string][] = [
   [/^(file\.newApp|page$)/, "canvas"],
   [/^(data\.blades|data\.starters|data\.starterList|blade$|starters$|snippet\.)/, "blades"],
   [/^data\.addApi/, "apis"],
-  [/^(analyze|visualizations)/, "analyze"],
+  [/^analyze/, "analyze"],
   [/^structures?/, "structures"],
 ];
 const KIND_AREAS: Record<string, string> = { script: "scripts", page: "canvas", notebook: "notebooks" };

@@ -93,16 +93,6 @@ def test_the_home_pages_tabs_are_in_the_address_and_back_moves_between_them(
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
     expect(page).to_have_title("ERD")
     assert "token" not in page.url
-    # The old addresses (the Sandbox is Analyze, the Diagram the ERD, 2026-11-16) still land, and the
-    # address takes the new word.
-    page.goto(f"{base}/workspace?view=sandbox")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
-    expect(page).to_have_url(f"{base}/workspace?view=analyze")
-    expect(page.locator(".nav-rail [data-area='analyze']")).to_have_attribute("aria-current", "page")
-    page.goto(f"{base}/workspace?view=diagram")
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
-    expect(page).to_have_url(f"{base}/workspace?view=erd")
-    expect(page).to_have_title("ERD")
 
     # The mark goes home: the Projects page (2026-11-18), the grids under it; Back returns; Alt+Home too.
     projects = page.locator('.area-page[data-page="projects"]')
@@ -314,17 +304,12 @@ def test_the_agent_moves_the_home_window(
     browser: Browser, server: dict[str, Any], two_tables: tuple[str, str]
 ) -> None:
     page = home_page(browser, two_tables[0])
-    # The old names (sandbox, diagram) still move it, to the new places (2026-11-16).
-    call(server, "POST", "/navigate", {"to": "diagram"}, agent=True)
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
-    expect(page).to_have_url(re.compile(r"view=erd"))
-    call(server, "POST", "/navigate", {"to": "sandbox"}, agent=True)
-    expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
-    expect(page).to_have_url(re.compile(r"view=analyze"))
     call(server, "POST", "/navigate", {"to": "erd"}, agent=True)
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd")
+    expect(page).to_have_url(re.compile(r"view=erd"))
     call(server, "POST", "/navigate", {"to": "analyze"}, agent=True)
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent")
+    expect(page).to_have_url(re.compile(r"view=analyze"))
     call(server, "POST", "/navigate", {"to": "add_connection"}, agent=True)
     expect(page.locator(".area-page .connection-type").first).to_be_visible()
     call(server, "POST", "/navigate", {"to": "back"}, agent=True)

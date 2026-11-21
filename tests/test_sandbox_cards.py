@@ -1,11 +1,10 @@
-"""Cards of no table: what sab.visualizations makes of each kind of thing (stand-ins of the right shape, since
+"""Cards of no table: what sab.analyze makes of each kind of thing (stand-ins of the right shape, since
 duck typing is all it uses), keys that replace a card in place, and what the agent may not send."""
 
 from __future__ import annotations
 
 import base64
 import json
-import warnings
 from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
@@ -106,33 +105,6 @@ def test_sab_analyze_adds_a_card_of_no_table_and_a_key_replaces_it(
     assert replaced["kind"] == "plotly" and replaced["title"] == "Sales again" and "body" in replaced
     assert replaced["size"] == {"w": 8, "h": 12}  # the size it was given first stays
     assert [c["id"] for c in cards(client)] == [first, note]  # and so does its place
-
-
-def test_the_old_name_sab_sandbox_still_adds_a_card_with_a_warning(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The Sandbox became Visualizations (the owner, 2026-11-16) and Visualizations Analyze (2026-11-19):
-    sab.sandbox and sab.visualizations work for one release (sab.visualizations warns once a session)."""
-    import swissarmybench as sab
-
-    def call(method: str, path: str, body: bytes | None = None, content_type: str = "") -> Any:
-        response = client.request(
-            method, path, content=body, headers=AUTH | {"Content-Type": "application/json"}
-        )
-        assert response.status_code == 200, response.text
-        return response.json()
-
-    monkeypatch.setattr(visualizations_client, "_call", call)
-    with pytest.warns(DeprecationWarning, match="sab.sandbox is now sab.analyze"):
-        card = sab.sandbox("An old note", key="old-name")
-    assert [c["id"] for c in cards(client)] == [card]
-    monkeypatch.setattr(visualizations_client, "_warned", [False])
-    with pytest.warns(DeprecationWarning, match="sab.visualizations is now sab.analyze"):
-        assert sab.visualizations("The same note", key="old-name") == card
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")  # once a session: the second call says nothing
-        assert sab.visualizations("Again", key="old-name") == card
-    assert "sandbox" not in sab.__all__ and "visualizations" not in sab.__all__ and "analyze" in sab.__all__
 
 
 def test_cards_of_no_table_stay_when_grids_close_and_refuse_what_needs_a_grid(client: TestClient) -> None:

@@ -24,10 +24,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   Write only the new names; the old ones are no longer read (removed 2026-11-21, the simplicity pass; README
   "Renamed from SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
-  (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
-  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (until 2026-11-21, when the project's sandbox
-  took the word: GONE_NAMES says each is analyze_*), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
-  `sandbox` key. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
+  (`?view=erd`); both old names were removed 2026-11-21 (the simplicity pass). Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
 - **Renamed (the owner, 2026-11-19): Visualizations is Analyze, and the analyses live there** ("Let's move the
   analyze from the table bar to the visualizations pane and then rename the visualizations pane Analyze" /
   "Every analysis should automatically push to the analysis visualization area" / "make it stupid simple";
@@ -38,10 +35,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the column picking, the made-up sample, the fixes ("Make it fit": grid steps, never applied by itself), the
   ranking (Check this table), the agent (`analyze_contracts`, `analyze_check`, `analyze_plan`, `analyze_run`)
   and Python (`sab.analyze.<analysis>(df)`) all read through one checker (domain/analyze.py). Write `analyze_*`,
-  `sab.analyze`, `?view=analyze`. The old names answer for one release: `visualizations_*` and `sandbox_*`
-  (OLD_NAMES; the chart's code is `analyze_chart_code`), `sab.visualizations` (warns once) and `sab.sandbox`,
-  app_navigate's and app_snapshot's `visualizations`/`sandbox`, `?view=visualizations`, a project.json's
-  `visualizations` key (written as `analyze`). Files on disk and internal names kept the old word
+  `sab.analyze`, `?view=analyze` (the chart's code is `analyze_chart_code`). The old names (`visualizations_*`,
+  `sandbox_*`, `sab.visualizations`, `sab.sandbox`, their addresses and project.json keys) were removed
+  2026-11-21 (the simplicity pass). Files on disk and internal names kept the old word
   (`.sab/visualizations.json`, client/visualizations_client.py, aiPanel.ts, sandbox*.ts).
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
