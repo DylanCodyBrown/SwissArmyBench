@@ -60,7 +60,15 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, query_int, read_json, safely
+from swissarmybench.server.http import (
+    actor,
+    json_response,
+    query_int,
+    read_json,
+    safely,
+    with_actor,
+    with_body,
+)
 from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 
@@ -74,9 +82,6 @@ def routes(
 
     async def get_current(request: Request) -> Response:
         return json_response(models.current())
-
-    async def set_current(request: Request) -> Response:
-        return json_response(await models.set_current(await read_json(request), actor(request)))
 
     async def library(request: Request) -> Response:
         return json_response(models.library())
@@ -107,9 +112,6 @@ def routes(
         return json_response(await keys.sample(source, await read_json(request)))
 
     # ===== compare =====
-
-    async def create(request: Request) -> Response:
-        return json_response(await compares.create(await read_json(request), actor(request)))
 
     async def running(request: Request) -> Response:
         return json_response(await compares.running())
@@ -150,15 +152,6 @@ def routes(
 
     # ===== the joins in use =====
 
-    async def delete_joins(request: Request) -> Response:
-        return json_response(await models.delete_joins(await read_json(request), actor(request)))
-
-    async def update_joins(request: Request) -> Response:
-        return json_response(await models.update_joins(await read_json(request), actor(request)))
-
-    async def undo(request: Request) -> Response:
-        return json_response(await models.undo(actor(request)))
-
     # ===== relationship sets and the finder =====
 
     def download(text: str, name: str) -> Response:
@@ -167,9 +160,6 @@ def routes(
             media_type="application/json; charset=utf-8",
             headers={"Content-Disposition": f'attachment; filename="{name}"'},
         )
-
-    async def save_set(request: Request) -> Response:
-        return json_response(await models.save_set(await read_json(request), actor(request)))
 
     async def export_set(request: Request) -> Response:
         return download(*models.export_set())
@@ -190,12 +180,6 @@ def routes(
             return json_response(await models.import_set(body, actor(request)))
         return json_response(models.review(body.get("text") if isinstance(body, dict) else None))
 
-    async def check(request: Request) -> Response:
-        return json_response(await models.check(await read_json(request), actor(request)))
-
-    async def find_relationships(request: Request) -> Response:
-        return json_response(await finder.find(await read_json(request), actor(request)))
-
     async def reject(request: Request) -> Response:
         return json_response(finder.reject(await read_json(request)))
 
@@ -207,32 +191,32 @@ def routes(
 
     return [
         Route("/relationships", get_current),
-        Route("/relationships", safely(set_current), methods=["POST"]),
+        Route("/relationships", with_body(models.set_current), methods=["POST"]),
         Route("/relationships/library", library),
         Route("/relationships/library/{name}", safely(apply_library), methods=["POST"]),
         Route("/relationships/erd", safely(erd)),
         Route("/relationships/scope", safely(scope)),
-        Route("/relationships/delete", safely(delete_joins), methods=["POST"]),
-        Route("/relationships/update", safely(update_joins), methods=["POST"]),
-        Route("/relationships/undo", safely(undo), methods=["POST"]),
-        Route("/relationships/sets", safely(save_set), methods=["POST"]),
+        Route("/relationships/delete", with_body(models.delete_joins), methods=["POST"]),
+        Route("/relationships/update", with_body(models.update_joins), methods=["POST"]),
+        Route("/relationships/undo", with_actor(models.undo), methods=["POST"]),
+        Route("/relationships/sets", with_body(models.save_set), methods=["POST"]),
         Route("/relationships/set", safely(export_set)),
         Route("/relationships/sets/{name}", safely(export_saved)),
         Route("/relationships/sets/{name}", safely(rename_set), methods=["PATCH"]),
         Route("/relationships/sets/{name}", safely(delete_set), methods=["DELETE"]),
         # The old names (a tang, until 2026-11-17), one release.
-        Route("/relationships/tangs", safely(save_set), methods=["POST"]),
+        Route("/relationships/tangs", with_body(models.save_set), methods=["POST"]),
         Route("/relationships/tang", safely(export_set)),
         Route("/relationships/import", safely(import_set), methods=["POST"]),
-        Route("/relationships/check", safely(check), methods=["POST"]),
-        Route("/relationships/find", safely(find_relationships), methods=["POST"]),
+        Route("/relationships/check", with_body(models.check), methods=["POST"]),
+        Route("/relationships/find", with_body(finder.find), methods=["POST"]),
         Route("/relationships/reject", safely(reject), methods=["POST"]),
         Route("/relationships/path", path),
         Route("/grids/{grid_id}/key-finder", safely(candidates)),
         Route("/grids/{grid_id}/key-finder", safely(find), methods=["POST"]),
         Route("/grids/{grid_id}/key-finder/sample", safely(sample), methods=["POST"]),
         Route("/compares", safely(running)),
-        Route("/compares", safely(create), methods=["POST"]),
+        Route("/compares", with_body(compares.create), methods=["POST"]),
         Route("/compares/{compare_id}", safely(read)),
         Route("/compares/{compare_id}", safely(change), methods=["PATCH"]),
         Route("/compares/{compare_id}", safely(remove), methods=["DELETE"]),

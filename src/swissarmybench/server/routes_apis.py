@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
 from swissarmybench.services.apis import Apis
 
 
@@ -30,9 +30,6 @@ def routes(apis: Apis) -> list[BaseRoute]:
     async def try_it(request: Request) -> Response:
         return json_response(await apis.try_it(await read_json(request)))
 
-    async def add(request: Request) -> Response:
-        return json_response(await apis.add(await read_json(request), actor(request)))
-
     async def make_into_blades(request: Request) -> Response:
         body = await read_json(request)
         name = request.path_params["name"]
@@ -42,6 +39,6 @@ def routes(apis: Apis) -> list[BaseRoute]:
         Route("/apis/choices", safely(choices), methods=["GET"]),
         Route("/apis/preview", safely(preview), methods=["POST"]),
         Route("/apis/try", safely(try_it), methods=["POST"]),
-        Route("/apis", safely(add), methods=["POST"]),
+        Route("/apis", with_body(apis.add), methods=["POST"]),
         Route("/apis/{name}/make-into-blades", safely(make_into_blades), methods=["POST"]),
     ]

@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import json_response, safely, with_body
 from swissarmybench.services.session_log import SessionLog
 
 
@@ -18,10 +18,7 @@ def routes(log: SessionLog) -> list[BaseRoute]:
     async def listing(request: Request) -> Response:
         return json_response(log.listing(request.query_params.get("who"), request.query_params.get("limit")))
 
-    async def follow(request: Request) -> Response:
-        return json_response(await log.set_follow(await read_json(request), actor(request)))
-
     return [
         Route("/session-log", safely(listing)),
-        Route("/session-log/follow", safely(follow), methods=["PUT"]),
+        Route("/session-log/follow", with_body(log.set_follow), methods=["PUT"]),
     ]

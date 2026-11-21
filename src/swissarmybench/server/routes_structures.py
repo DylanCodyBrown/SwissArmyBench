@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
 from swissarmybench.services.structures import Structures
 
 
@@ -35,15 +35,6 @@ def routes(structures: Structures) -> list[BaseRoute]:
 
     async def listing(request: Request) -> Response:
         return json_response(structures.listing())
-
-    async def new(request: Request) -> Response:
-        return json_response(await structures.new(await read_json(request), actor(request)))
-
-    async def open_file(request: Request) -> Response:
-        return json_response(await structures.open_file(await read_json(request), actor(request)))
-
-    async def paste(request: Request) -> Response:
-        return json_response(await structures.paste(await read_json(request), actor(request)))
 
     async def saved(request: Request) -> Response:
         q = request.query_params
@@ -103,9 +94,9 @@ def routes(structures: Structures) -> list[BaseRoute]:
 
     return [
         Route("/structures", safely(listing), methods=["GET"]),
-        Route("/structures", safely(new), methods=["POST"]),
-        Route("/structures/open", safely(open_file), methods=["POST"]),
-        Route("/structures/paste", safely(paste), methods=["POST"]),
+        Route("/structures", with_body(structures.new), methods=["POST"]),
+        Route("/structures/open", with_body(structures.open_file), methods=["POST"]),
+        Route("/structures/paste", with_body(structures.paste), methods=["POST"]),
         Route("/structures/saved", safely(saved), methods=["GET"]),
         Route("/structures/references", safely(references), methods=["GET"]),
         Route("/structures/{sid}", safely(show), methods=["GET"]),

@@ -22,33 +22,15 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json, safely, with_actor, with_body
 from swissarmybench_copilot.services.copilot import Copilot
 
 
 def routes(copilot: Copilot) -> list[BaseRoute]:
-    async def status(request: Request) -> Response:
-        return json_response(await copilot.state(actor(request)))
-
-    async def toggle(request: Request) -> Response:
-        return json_response(await copilot.toggle(await read_json(request), actor(request)))
-
-    async def install(request: Request) -> Response:
-        return json_response(await copilot.install(actor(request)))
-
     async def panel(request: Request) -> Response:
         if request.method == "GET":
             return json_response(await copilot.panel_now(actor(request)))
         return json_response(await copilot.act(await read_json(request), actor(request)))
-
-    async def sign_in(request: Request) -> Response:
-        return json_response(await copilot.sign_in(actor(request)))
-
-    async def finish(request: Request) -> Response:
-        return json_response(await copilot.finish(actor(request)))
-
-    async def sign_out(request: Request) -> Response:
-        return json_response(await copilot.sign_out(actor(request)))
 
     async def inline(request: Request) -> Response:
         return json_response(await copilot.inline_status())
@@ -63,13 +45,13 @@ def routes(copilot: Copilot) -> list[BaseRoute]:
         return json_response(await copilot.event(await read_json(request)))
 
     return [
-        Route("/copilot", safely(status)),
-        Route("/copilot/toggle", safely(toggle), methods=["POST"]),
-        Route("/copilot/install", safely(install), methods=["POST"]),
+        Route("/copilot", with_actor(copilot.state)),
+        Route("/copilot/toggle", with_body(copilot.toggle), methods=["POST"]),
+        Route("/copilot/install", with_actor(copilot.install), methods=["POST"]),
         Route("/copilot/panel", safely(panel), methods=["GET", "POST"]),
-        Route("/copilot/sign-in", safely(sign_in), methods=["POST"]),
-        Route("/copilot/sign-in/finish", safely(finish), methods=["POST"]),
-        Route("/copilot/sign-out", safely(sign_out), methods=["POST"]),
+        Route("/copilot/sign-in", with_actor(copilot.sign_in), methods=["POST"]),
+        Route("/copilot/sign-in/finish", with_actor(copilot.finish), methods=["POST"]),
+        Route("/copilot/sign-out", with_actor(copilot.sign_out), methods=["POST"]),
         Route("/copilot/inline", safely(inline)),
         Route("/copilot/complete", safely(complete), methods=["POST"]),
         Route("/copilot/cancel", safely(cancel), methods=["POST"]),

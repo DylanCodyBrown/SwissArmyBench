@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import json_response, read_json, safely, with_body
 from swissarmybench.services.project_scope import ProjectScope
 
 
@@ -31,13 +31,10 @@ def routes(scope: ProjectScope) -> list[BaseRoute]:
     async def sources(request: Request) -> Response:
         return json_response(await scope.sources(await read_json(request)))
 
-    async def import_(request: Request) -> Response:
-        return json_response(await scope.import_(await read_json(request), actor(request)))
-
     return [
         Route("/project/documents", safely(documents), methods=["GET"]),
         Route("/project/tree", safely(tree), methods=["GET"]),
         Route("/project/module-outline", safely(outline), methods=["POST"]),
         Route("/project/import/sources", safely(sources), methods=["POST"]),
-        Route("/project/import", safely(import_), methods=["POST"]),
+        Route("/project/import", with_body(scope.import_), methods=["POST"]),
     ]

@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import json_response, with_body
 from swissarmybench.services.kind_colours import KindColours
 
 
@@ -18,7 +18,4 @@ def routes(colours: KindColours) -> list[BaseRoute]:
     async def get(request: Request) -> Response:
         return json_response(colours.get())
 
-    async def put(request: Request) -> Response:
-        return json_response(await colours.set(await read_json(request), actor(request)))
-
-    return [Route("/kind-colours", get), Route("/kind-colours", safely(put), methods=["PUT"])]
+    return [Route("/kind-colours", get), Route("/kind-colours", with_body(colours.set), methods=["PUT"])]

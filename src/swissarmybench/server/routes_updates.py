@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
 from swissarmybench.services.updates import Updates
 
 # The app's name in the status bar (the owner, 2026-11-17: "It's not an edition now it's the streamlit
@@ -32,9 +32,6 @@ def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list
     async def state(request: Request) -> Response:
         return json_response(updates.state() | named())
 
-    async def switch(request: Request) -> Response:
-        return json_response(await updates.set(await read_json(request), actor(request)))
-
     async def check(request: Request) -> Response:
         # {"asked": true}: the user's button (or the agent's now) checks even with the switch off.
         body = await read_json(request) if await request.body() else {}
@@ -47,7 +44,7 @@ def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list
 
     return [
         Route("/updates", state),
-        Route("/updates", safely(switch), methods=["PUT"]),
+        Route("/updates", with_body(updates.set), methods=["PUT"]),
         Route("/updates/check", check, methods=["POST"]),
         Route("/updates/install", safely(install), methods=["POST"]),
     ]

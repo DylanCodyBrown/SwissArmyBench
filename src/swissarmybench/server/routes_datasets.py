@@ -39,6 +39,7 @@ from swissarmybench.server.http import (
     read_body,
     read_json,
     safely,
+    with_actor,
 )
 from swissarmybench.services.datasets import DatasetService
 
@@ -154,16 +155,10 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
         text = (await read_body(request, settings.max_push_body_bytes)).decode("utf-8", "replace")
         return json_response(await datasets.paste(name, text, actor(request)))
 
-    async def sample(request: Request) -> Response:
-        return json_response(await datasets.open_sample(actor(request)))
-
     async def reload(request: Request) -> Response:
         body = await read_json(request) if (await request.body()) else {}
         not_now = isinstance(body, dict) and body.get("not_now") is True
         return json_response(await datasets.reload(request.path_params["name"], actor(request), not_now))
-
-    async def reopen(request: Request) -> Response:
-        return json_response(await datasets.reopen(actor(request)))
 
     async def rename(request: Request) -> Response:
         body = await read_json(request)
@@ -191,9 +186,9 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
         Route("/datasets/{name}", delete_dataset, methods=["DELETE"]),
         Route("/datasets/{name}/load", safely(load), methods=["POST"]),
         Route("/datasets/{name}/paste", safely(paste), methods=["POST"]),
-        Route("/samples/store", safely(sample), methods=["POST"]),
+        Route("/samples/store", with_actor(datasets.open_sample), methods=["POST"]),
         Route("/datasets/{name}/rename", safely(rename), methods=["POST"]),
-        Route("/grids/reopen", safely(reopen), methods=["POST"]),
+        Route("/grids/reopen", with_actor(datasets.reopen), methods=["POST"]),
         Route("/datasets/{name}/reload", safely(reload), methods=["POST"]),
         Route("/datasets/{name}/query", safely(build_from_query), methods=["POST"]),
         Route("/files/sheets", safely(sheets), methods=["POST"]),

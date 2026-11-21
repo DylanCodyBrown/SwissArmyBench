@@ -21,37 +21,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import json_response, read_json, safely, with_body
 from swissarmybench.services.sab_projects import SabProjects
 
 
 def routes(projects: SabProjects) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
         return json_response(projects.state())
-
-    async def new(request: Request) -> Response:
-        return json_response(await projects.new(await read_json(request), actor(request)))
-
-    async def open_project(request: Request) -> Response:
-        return json_response(await projects.open(await read_json(request), actor(request)))
-
-    async def save(request: Request) -> Response:
-        return json_response(await projects.save(await read_json(request), actor(request)))
-
-    async def copy(request: Request) -> Response:
-        return json_response(await projects.copy(await read_json(request), actor(request)))
-
-    async def close(request: Request) -> Response:
-        return json_response(await projects.close(await read_json(request), actor(request)))
-
-    async def autosave(request: Request) -> Response:
-        return json_response(await projects.set_autosave(await read_json(request), actor(request)))
-
-    async def private(request: Request) -> Response:
-        return json_response(await projects.set_private(await read_json(request), actor(request)))
-
-    async def fix(request: Request) -> Response:
-        return json_response(await projects.fix(await read_json(request), actor(request)))
 
     async def layout(request: Request) -> Response:
         return json_response(await projects.layout(await read_json(request)))
@@ -61,14 +37,14 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
 
     return [
         Route("/project", safely(state), methods=["GET"]),
-        Route("/project/new", safely(new), methods=["POST"]),
-        Route("/project/open", safely(open_project), methods=["POST"]),
-        Route("/project/save", safely(save), methods=["POST"]),
-        Route("/project/close", safely(close), methods=["POST"]),
-        Route("/project/copy", safely(copy), methods=["POST"]),
-        Route("/project/fix", safely(fix), methods=["POST"]),
-        Route("/project/autosave", safely(autosave), methods=["POST"]),
-        Route("/project/private", safely(private), methods=["POST"]),
+        Route("/project/new", with_body(projects.new), methods=["POST"]),
+        Route("/project/open", with_body(projects.open), methods=["POST"]),
+        Route("/project/save", with_body(projects.save), methods=["POST"]),
+        Route("/project/close", with_body(projects.close), methods=["POST"]),
+        Route("/project/copy", with_body(projects.copy), methods=["POST"]),
+        Route("/project/fix", with_body(projects.fix), methods=["POST"]),
+        Route("/project/autosave", with_body(projects.set_autosave), methods=["POST"]),
+        Route("/project/private", with_body(projects.set_private), methods=["POST"]),
         Route("/project/layout", safely(layout), methods=["POST"]),
         Route("/project/recent/remove", safely(forget), methods=["POST"]),
     ]

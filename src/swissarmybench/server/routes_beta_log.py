@@ -16,16 +16,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, query_int, read_json, safely
+from swissarmybench.server.http import actor, json_response, query_int, read_json, safely, with_body
 from swissarmybench.services.beta_log import BetaLog
 
 
 def routes(beta: BetaLog) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
         return json_response(await beta.state())
-
-    async def set_mode(request: Request) -> Response:
-        return json_response(await beta.set(await read_json(request), actor(request)))
 
     async def events(request: Request) -> Response:
         q = request.query_params
@@ -36,25 +33,19 @@ def routes(beta: BetaLog) -> list[BaseRoute]:
     async def notes(request: Request) -> Response:
         return json_response(await beta.notes())
 
-    async def leave_note(request: Request) -> Response:
-        return json_response(await beta.note(await read_json(request), actor(request)))
-
     async def page_error(request: Request) -> Response:
         return json_response(beta.page_error(await read_json(request)))
 
     async def clear(request: Request) -> Response:
         return json_response(await beta.clear(actor(request)))
 
-    async def export(request: Request) -> Response:
-        return json_response(await beta.export(await read_json(request), actor(request)))
-
     return [
         Route("/beta", state),
-        Route("/beta", safely(set_mode), methods=["PUT"]),
+        Route("/beta", with_body(beta.set), methods=["PUT"]),
         Route("/beta/log", safely(events)),
         Route("/beta/log", clear, methods=["DELETE"]),
         Route("/beta/notes", notes),
-        Route("/beta/notes", safely(leave_note), methods=["POST"]),
+        Route("/beta/notes", with_body(beta.note), methods=["POST"]),
         Route("/beta/page-errors", safely(page_error), methods=["POST"]),
-        Route("/beta/export", safely(export), methods=["POST"]),
+        Route("/beta/export", with_body(beta.export), methods=["POST"]),
     ]

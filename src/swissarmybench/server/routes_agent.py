@@ -26,7 +26,15 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json, refusal, safely
+from swissarmybench.server.http import (
+    actor,
+    error_response,
+    json_response,
+    read_json,
+    refusal,
+    safely,
+    with_body,
+)
 from swissarmybench.services.agent import AgentService
 from swissarmybench.services.inbox import Inbox
 
@@ -86,9 +94,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         except Exception as error:
             return error_response(error)
 
-    async def send_to_agent(request: Request) -> Response:
-        return json_response(await inbox.send(await read_json(request), actor(request)))
-
     async def read_inbox(request: Request) -> Response:
         take = request.query_params.get("take") in ("1", "true")
         return json_response(inbox.read(take, request.query_params.get("all") in ("1", "true")))
@@ -112,6 +117,6 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
         Route("/agent/export-approval/{grid_id}", safely(approve_export), methods=["POST"]),
         Route("/workspace/active", set_active, methods=["POST"]),
         Route("/agent/context", safely(current)),
-        Route("/agent/inbox", safely(send_to_agent), methods=["POST"]),
+        Route("/agent/inbox", with_body(inbox.send), methods=["POST"]),
         Route("/agent/inbox", read_inbox),
     ]
