@@ -7880,3 +7880,12 @@ what stays, and the connection colour as the card's highlight, not a dot).
 ## One way to make Excel: decided (the owner, 2026-11-21)
 One module, sab_excel, behind the adapter; openpyxl only (xlsxwriter goes; large plain exports get slower: accepted);
 the twelve cell-level starters removed (three remain); any project type may deliver a workbook. Plan: Plans/excel.plan.md.
+
+## The Environment (the owner, 2026-11-21): being designed
+"One shared space for all tables at the env level ... each project should have its own env ... a simple trigger and
+watcher for any tables, vars, structures ... easy to browse on one screen ... RStudio handles this concept
+beautifully." Answers: one environment per project replaces per-notebook environments; "variables" means the Python
+values code makes (the library's ${NAME} settings page stays its own); the screen is called Environment. A Fable agent
+is designing it from RStudio's Environment pane, Positron's Variables pane, Spyder and VS Code (a mockup and questions
+to follow). Today: the watcher (client/watcher.py) finds tables in a kernel by class; the Workbench's Variables pane
+shows the front kernel's values; neither browses, deletes or manages the project's tables.
