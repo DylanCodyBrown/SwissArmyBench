@@ -21,7 +21,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, query_int, read_body
+from swissarmybench.server.http import actor, json_response, query_int, read_body, safely
 from swissarmybench.services.catalogs import CatalogService
 
 _ARROW_STREAM: str = "application/vnd.apache.arrow.stream"
@@ -38,71 +38,53 @@ def routes(catalogs: CatalogService) -> list[BaseRoute]:
         return json_response(catalogs.listing())
 
     async def load_catalog(request: Request) -> Response:
-        try:
-            name = request.path_params["name"]
-            body = await read_body(request, ws.settings.max_push_body_bytes)
-            arrow = request.headers.get("content-type", "").startswith(_ARROW_STREAM)
-            payload = None
-            if not arrow:
-                try:
-                    payload = json.loads(body)
-                except ValueError:
-                    return Response("The request body is not valid JSON.", status_code=400)
-            dialect = request.query_params.get("dialect") or None
-            info = await catalogs.load(name, body if arrow else None, payload, dialect, actor(request))
-            return json_response({"catalog": info.to_json(), "url": catalog_url(info.name)})
-        except Exception as error:
-            return error_response(error)
+        name = request.path_params["name"]
+        body = await read_body(request, ws.settings.max_push_body_bytes)
+        arrow = request.headers.get("content-type", "").startswith(_ARROW_STREAM)
+        payload = None
+        if not arrow:
+            try:
+                payload = json.loads(body)
+            except ValueError:
+                return Response("The request body is not valid JSON.", status_code=400)
+        dialect = request.query_params.get("dialect") or None
+        info = await catalogs.load(name, body if arrow else None, payload, dialect, actor(request))
+        return json_response({"catalog": info.to_json(), "url": catalog_url(info.name)})
 
     async def remove_catalog(request: Request) -> Response:
-        try:
-            return json_response(await catalogs.remove(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await catalogs.remove(request.path_params["name"], actor(request)))
 
     def _database(request: Request) -> str | None:
         return request.query_params.get("database") if "database" in request.query_params else None
 
     async def schemas(request: Request) -> Response:
-        try:
-            return json_response(await catalogs.schemas(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await catalogs.schemas(request.path_params["name"]))
 
     async def tables(request: Request) -> Response:
-        try:
-            name = request.path_params["name"]
-            schema = request.query_params.get("schema", "")
-            offset = query_int(request, "offset", 0) or 0
-            limit = query_int(request, "limit", 1000) or 1000
-            return json_response(await catalogs.tables(name, schema, _database(request), offset, limit))
-        except Exception as error:
-            return error_response(error)
+        name = request.path_params["name"]
+        schema = request.query_params.get("schema", "")
+        offset = query_int(request, "offset", 0) or 0
+        limit = query_int(request, "limit", 1000) or 1000
+        return json_response(await catalogs.tables(name, schema, _database(request), offset, limit))
 
     async def columns(request: Request) -> Response:
-        try:
-            name = request.path_params["name"]
-            schema = request.query_params.get("schema", "")
-            table = request.query_params.get("table")
-            return json_response(await catalogs.columns(name, schema, table, _database(request)))
-        except Exception as error:
-            return error_response(error)
+        name = request.path_params["name"]
+        schema = request.query_params.get("schema", "")
+        table = request.query_params.get("table")
+        return json_response(await catalogs.columns(name, schema, table, _database(request)))
 
     async def search(request: Request) -> Response:
-        try:
-            name = request.path_params["name"]
-            text = request.query_params.get("q", "")[:200]
-            limit = query_int(request, "limit", 50) or 50
-            return json_response(await catalogs.search(name, text, limit))
-        except Exception as error:
-            return error_response(error)
+        name = request.path_params["name"]
+        text = request.query_params.get("q", "")[:200]
+        limit = query_int(request, "limit", 50) or 50
+        return json_response(await catalogs.search(name, text, limit))
 
     return [
         Route("/catalogs", list_catalogs),
-        Route("/catalogs/{name}", load_catalog, methods=["PUT"]),
-        Route("/catalogs/{name}", remove_catalog, methods=["DELETE"]),
-        Route("/catalogs/{name}/schemas", schemas),
-        Route("/catalogs/{name}/tables", tables),
-        Route("/catalogs/{name}/columns", columns),
-        Route("/catalogs/{name}/search", search),
+        Route("/catalogs/{name}", safely(load_catalog), methods=["PUT"]),
+        Route("/catalogs/{name}", safely(remove_catalog), methods=["DELETE"]),
+        Route("/catalogs/{name}/schemas", safely(schemas)),
+        Route("/catalogs/{name}/tables", safely(tables)),
+        Route("/catalogs/{name}/columns", safely(columns)),
+        Route("/catalogs/{name}/search", safely(search)),
     ]

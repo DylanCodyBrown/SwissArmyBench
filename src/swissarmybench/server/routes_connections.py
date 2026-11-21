@@ -45,7 +45,7 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.blades import VaultUnavailableError
 from swissarmybench.server.blade_runner import RefreshError
-from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json, safely
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.connection_usage import ConnectionUsage
@@ -56,46 +56,25 @@ def routes(
     connections: ConnectionService, blades: BladeService, loading: CatalogLoading, usage: ConnectionUsage
 ) -> list[BaseRoute]:
     async def update_driver(request: Request) -> Response:
-        try:
-            return json_response(await connections.update_driver(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await connections.update_driver(request.path_params["name"], actor(request)))
 
     async def overview(request: Request) -> Response:
-        try:
-            return json_response(usage.overview())
-        except Exception as error:
-            return error_response(error)
+        return json_response(usage.overview())
 
     async def used_by(request: Request) -> Response:
-        try:
-            return json_response(usage.usage(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(usage.usage(request.path_params["name"]))
 
     async def report(request: Request) -> Response:
-        try:
-            return json_response(usage.report(request.path_params["name"], await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(usage.report(request.path_params["name"], await read_json(request)))
 
     async def listing(request: Request) -> Response:
-        try:
-            return json_response(connections.listing())
-        except Exception as error:
-            return error_response(error)
+        return json_response(connections.listing())
 
     async def types(request: Request) -> Response:
-        try:
-            return json_response(connections.types())
-        except Exception as error:
-            return error_response(error)
+        return json_response(connections.types())
 
     async def details(request: Request) -> Response:
-        try:
-            return json_response(connections.details(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(connections.details(request.path_params["name"]))
 
     async def save(request: Request) -> Response:
         try:
@@ -107,10 +86,7 @@ def routes(
             return error_response(error)
 
     async def vaults(request: Request) -> Response:
-        try:
-            return json_response(connections.vaults())
-        except Exception as error:
-            return error_response(error)
+        return json_response(connections.vaults())
 
     async def vault_names(request: Request) -> Response:
         try:
@@ -124,10 +100,7 @@ def routes(
             return error_response(error)
 
     async def load_catalog(request: Request) -> Response:
-        try:
-            return json_response(loading.load(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(loading.load(request.path_params["name"], actor(request)))
 
     async def open_table(request: Request) -> Response:
         try:
@@ -183,10 +156,7 @@ def routes(
             return error_response(error)
 
     async def variables(request: Request) -> Response:
-        try:
-            return json_response(connections.variables(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(connections.variables(await read_json(request)))
 
     async def tables(request: Request) -> Response:
         try:
@@ -201,10 +171,7 @@ def routes(
             return error_response(error)
 
     async def source(request: Request) -> Response:
-        try:
-            return json_response(await connections.source(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await connections.source(await read_json(request)))
 
     async def test(request: Request) -> Response:
         body: Any = None
@@ -222,24 +189,24 @@ def routes(
             return error_response(error)
 
     return [
-        Route("/connections", listing),
+        Route("/connections", safely(listing)),
         Route("/connections", save, methods=["POST"]),
-        Route("/connections/types", types),
-        Route("/connections/usage", overview),
-        Route("/connections/{name}/usage", used_by),
-        Route("/connections/{name}/used", report, methods=["POST"]),
-        Route("/connections/{name}/update-driver", update_driver, methods=["POST"]),
+        Route("/connections/types", safely(types)),
+        Route("/connections/usage", safely(overview)),
+        Route("/connections/{name}/usage", safely(used_by)),
+        Route("/connections/{name}/used", safely(report), methods=["POST"]),
+        Route("/connections/{name}/update-driver", safely(update_driver), methods=["POST"]),
         Route("/connections/test", test, methods=["POST"]),
-        Route("/connections/vaults", vaults),
+        Route("/connections/vaults", safely(vaults)),
         Route("/connections/vaults/secrets", vault_names, methods=["POST"]),
-        Route("/connections/source", source, methods=["POST"]),
-        Route("/connections/variables", variables, methods=["POST"]),
+        Route("/connections/source", safely(source), methods=["POST"]),
+        Route("/connections/variables", safely(variables), methods=["POST"]),
         Route("/connections/{name}/tables", tables, methods=["POST"]),
-        Route("/connections/{name}/catalog", load_catalog, methods=["POST"]),
+        Route("/connections/{name}/catalog", safely(load_catalog), methods=["POST"]),
         Route("/connections/{name}/open", open_table, methods=["POST"]),
         Route("/connections/{name}/preview", preview, methods=["POST"]),
         Route("/connections/{name}/relationships", import_relationships, methods=["POST"]),
         Route("/connections/{name}/datasets", datasets),
-        Route("/connections/{name}", details),
+        Route("/connections/{name}", safely(details)),
         Route("/connections/{name}", save, methods=["PUT"]),
     ]

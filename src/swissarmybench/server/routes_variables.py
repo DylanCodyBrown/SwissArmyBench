@@ -15,56 +15,38 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.variables import Variables
 
 
 def routes(variables: Variables) -> list[BaseRoute]:
     async def listing(request: Request) -> Response:
-        try:
-            if request.method == "PUT":
-                return json_response(await variables.put(await read_json(request), actor(request)))
-            query = request.query_params
-            return json_response(variables.listing(query.get("search"), query.get("source")))
-        except Exception as error:
-            return error_response(error)
+        if request.method == "PUT":
+            return json_response(await variables.put(await read_json(request), actor(request)))
+        query = request.query_params
+        return json_response(variables.listing(query.get("search"), query.get("source")))
 
     async def rename(request: Request) -> Response:
-        try:
-            return json_response(await variables.rename(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await variables.rename(await read_json(request), actor(request)))
 
     async def remove(request: Request) -> Response:
-        try:
-            name = request.path_params["name"]
-            return json_response(await variables.remove({"name": name}, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        name = request.path_params["name"]
+        return json_response(await variables.remove({"name": name}, actor(request)))
 
     async def reveal(request: Request) -> Response:
-        try:
-            return json_response(variables.reveal(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(variables.reveal(await read_json(request), actor(request)))
 
     async def resolve(request: Request) -> Response:
-        try:
-            return json_response(variables.preview(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(variables.preview(await read_json(request)))
 
     async def uses(request: Request) -> Response:
-        try:
-            return json_response(variables.uses(request.query_params.get("name")))
-        except Exception as error:
-            return error_response(error)
+        return json_response(variables.uses(request.query_params.get("name")))
 
     return [
-        Route("/variables", listing, methods=["GET", "PUT"]),
-        Route("/variables/resolve", resolve, methods=["POST"]),
-        Route("/variables/uses", uses, methods=["GET"]),
-        Route("/variables/rename", rename, methods=["POST"]),
-        Route("/variables/reveal", reveal, methods=["POST"]),
-        Route("/variables/{name}", remove, methods=["DELETE"]),
+        Route("/variables", safely(listing), methods=["GET", "PUT"]),
+        Route("/variables/resolve", safely(resolve), methods=["POST"]),
+        Route("/variables/uses", safely(uses), methods=["GET"]),
+        Route("/variables/rename", safely(rename), methods=["POST"]),
+        Route("/variables/reveal", safely(reveal), methods=["POST"]),
+        Route("/variables/{name}", safely(remove), methods=["DELETE"]),
     ]

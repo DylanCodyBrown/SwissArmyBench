@@ -61,6 +61,7 @@ from swissarmybench.server.http import (
     read_json,
     read_json_object,
     refusal,
+    safely,
 )
 from swissarmybench.services.blades import BladeService, ChangedOnDisk, IncompleteBlade, NeedsValues
 
@@ -75,19 +76,13 @@ def _agent_refused() -> Response:
 
 def routes(blades: BladeService) -> list[BaseRoute]:
     async def list_blades(request: Request) -> Response:
-        try:
-            return json_response(blades.listing())
-        except Exception as error:
-            return error_response(error)
+        return json_response(blades.listing())
 
     async def templates(request: Request) -> Response:
         return json_response(blades.templates())
 
     async def get_blade(request: Request) -> Response:
-        try:
-            return json_response(blades.details(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(blades.details(request.path_params["name"]))
 
     async def save_blade(request: Request) -> Response:
         try:
@@ -183,80 +178,56 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         return json_response(blades.cancel(request.path_params["run"]))
 
     async def open_result(request: Request) -> Response:
-        try:
-            return json_response(await blades.open_result(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await blades.open_result(request.path_params["name"], actor(request)))
 
     async def problems(request: Request) -> Response:
-        try:
-            body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
-            code_text = body.get("code") if isinstance(body, dict) else None
-            return json_response(await blades.problems(request.path_params["name"], code_text))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
+        code_text = body.get("code") if isinstance(body, dict) else None
+        return json_response(await blades.problems(request.path_params["name"], code_text))
 
     async def name_check(request: Request) -> Response:
         return json_response(blades.name_check(request.query_params.get("name", "")))
 
     async def new_blade(request: Request) -> Response:
-        try:
-            if request.method == "GET":
-                return json_response(blades.new_blades())
-            return json_response(await blades.new(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        if request.method == "GET":
+            return json_response(blades.new_blades())
+        return json_response(await blades.new(await read_json(request), actor(request)))
 
     async def table_name(request: Request) -> Response:
-        try:
-            name = request.query_params.get("name", "")
-            return json_response(blades.table_name_check(name, request.query_params.get("blade") or None))
-        except Exception as error:
-            return error_response(error)
+        name = request.query_params.get("name", "")
+        return json_response(blades.table_name_check(name, request.query_params.get("blade") or None))
 
     async def show_file(request: Request) -> Response:
-        try:
-            return json_response(await blades.show_file(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await blades.show_file(request.path_params["name"], actor(request)))
 
     async def remove_blade(request: Request) -> Response:
-        try:
-            return json_response(await blades.remove(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await blades.remove(request.path_params["name"], actor(request)))
 
     async def inspect_code(request: Request) -> Response:
+        body = await read_json_object(request, '{"code": "..."}')
+        code = body.get("code")
+        if not isinstance(code, str):
+            raise ValueError('Send {"code": "..."}.')
+        template, name = body.get("template"), body.get("name")
         try:
-            body = await read_json_object(request, '{"code": "..."}')
-            code = body.get("code")
-            if not isinstance(code, str):
-                raise ValueError('Send {"code": "..."}.')
-            template, name = body.get("template"), body.get("name")
-            try:
-                return json_response(
-                    blades.inspect(
-                        code,
-                        template if isinstance(template, str) else None,
-                        name if isinstance(name, str) else None,
-                    )
+            return json_response(
+                blades.inspect(
+                    code,
+                    template if isinstance(template, str) else None,
+                    name if isinstance(name, str) else None,
                 )
-            except BladeCodeError as error:
-                return json_response({"error": str(error)})
-        except Exception as error:
-            return error_response(error)
+            )
+        except BladeCodeError as error:
+            return json_response({"error": str(error)})
 
     async def fill_settings(request: Request) -> Response:
         """Write new values into a blade's code at its settings (by the ids `settings` gave for this
         same code). Returns the new code and its settings, read again."""
-        try:
-            body = await read_json_object(request, '{"code": "...", "values": {"<id>": "..."}}')
-            code, values = body.get("code"), body.get("values")
-            if not isinstance(code, str) or not isinstance(values, dict):
-                raise ValueError('Send {"code": "...", "values": {"<setting id>": "new value"}}.')
-            return json_response(blades.fill(code, values, body.get("template"), body.get("name")))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json_object(request, '{"code": "...", "values": {"<id>": "..."}}')
+        code, values = body.get("code"), body.get("values")
+        if not isinstance(code, str) or not isinstance(values, dict):
+            raise ValueError('Send {"code": "...", "values": {"<setting id>": "new value"}}.')
+        return json_response(blades.fill(code, values, body.get("template"), body.get("name")))
 
     async def set_secrets(request: Request) -> Response:
         try:
@@ -330,124 +301,95 @@ def routes(blades: BladeService) -> list[BaseRoute]:
     # ===== favourites, blade folders, export and import (portable blades) =====
 
     async def pin(request: Request) -> Response:
-        try:
-            body = await read_json_object(request, '{"pinned": true}')
-            return json_response(await blades.pin(request.path_params["name"], bool(body.get("pinned"))))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json_object(request, '{"pinned": true}')
+        return json_response(await blades.pin(request.path_params["name"], bool(body.get("pinned"))))
 
     async def folders(request: Request) -> Response:
-        try:
-            if request.method == "PUT":
-                body = await read_json_object(request, '{"folders": ["..."]}')
-                await blades.set_folders(body.get("folders"))
-            return json_response(blades.folders())
-        except Exception as error:
-            return error_response(error)
+        if request.method == "PUT":
+            body = await read_json_object(request, '{"folders": ["..."]}')
+            await blades.set_folders(body.get("folders"))
+        return json_response(blades.folders())
 
     async def export_one(request: Request) -> Response:
-        try:
-            text, file_name = blades.export_one(request.path_params["name"])
-            return Response(
-                text,
-                media_type="text/x-python; charset=utf-8",
-                headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
-            )
-        except Exception as error:
-            return error_response(error)
+        text, file_name = blades.export_one(request.path_params["name"])
+        return Response(
+            text,
+            media_type="text/x-python; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
+        )
 
     async def export_all(request: Request) -> Response:
-        try:
-            wanted = {
-                n.strip().casefold() for n in request.query_params.get("names", "").split(",") if n.strip()
-            }
-            return Response(
-                blades.export_zip(wanted),
-                media_type="application/zip",
-                headers={"Content-Disposition": 'attachment; filename="blades.zip"'},
-            )
-        except Exception as error:
-            return error_response(error)
+        wanted = {n.strip().casefold() for n in request.query_params.get("names", "").split(",") if n.strip()}
+        return Response(
+            blades.export_zip(wanted),
+            media_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="blades.zip"'},
+        )
 
     async def import_blades(request: Request) -> Response:
         """Import portable blades in two steps: review what each file holds (nothing saved, nothing
         run), then apply the choice for each."""
-        try:
-            body = await read_json_object(request, '{"files": [{"name": "...", "data": "<base64>"}]}')
-            return json_response(await blades.import_blades(body))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json_object(request, '{"files": [{"name": "...", "data": "<base64>"}]}')
+        return json_response(await blades.import_blades(body))
 
     # ===== the starter pack, copies, snippets =====
 
     async def starters(request: Request) -> Response:
-        try:
-            return json_response(blades.starters())
-        except Exception as error:
-            return error_response(error)
+        return json_response(blades.starters())
 
     async def copy(request: Request) -> Response:
-        try:
-            body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
-            new_name = body.get("name") if isinstance(body, dict) else None
-            code_text = body.get("code") if isinstance(body, dict) else None  # Save as: the editor's code
-            return json_response(
-                await blades.copy(request.path_params["name"], new_name, actor(request), code_text)
-            )
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
+        new_name = body.get("name") if isinstance(body, dict) else None
+        code_text = body.get("code") if isinstance(body, dict) else None  # Save as: the editor's code
+        return json_response(
+            await blades.copy(request.path_params["name"], new_name, actor(request), code_text)
+        )
 
     async def snippet(request: Request) -> Response:
-        try:
-            name = request.path_params["name"]
-            if request.method == "POST":
-                body = await read_json_object(request, '{"values": {"measure": "Total Sales"}}')
-                return json_response(blades.fill_snippet(name, body.get("values", {})))
-            return json_response(await blades.snippet(name, request.query_params.get("dataset")))
-        except Exception as error:
-            return error_response(error)
+        name = request.path_params["name"]
+        if request.method == "POST":
+            body = await read_json_object(request, '{"values": {"measure": "Total Sales"}}')
+            return json_response(blades.fill_snippet(name, body.get("values", {})))
+        return json_response(await blades.snippet(name, request.query_params.get("dataset")))
 
     async def install(request: Request) -> Response:
         """Install packages into Swiss Army Bench's own Python, where Refresh runs, on the user's click."""
-        try:
-            body = await read_json_object(request, '{"packages": ["pyodbc"]}')
-            worked, shown = await blades.install(body.get("packages"))
-            return json_response(shown, status_code=200 if worked else 422)
-        except Exception as error:
-            return error_response(error)
+        body = await read_json_object(request, '{"packages": ["pyodbc"]}')
+        worked, shown = await blades.install(body.get("packages"))
+        return json_response(shown, status_code=200 if worked else 422)
 
     return [
-        Route("/blades", list_blades),
+        Route("/blades", safely(list_blades)),
         Route("/blades", save_blade, methods=["POST"]),
         Route("/blades/templates", templates),
-        Route("/blades/new", new_blade, methods=["GET", "POST"]),
-        Route("/blades/table-name", table_name),
+        Route("/blades/new", safely(new_blade), methods=["GET", "POST"]),
+        Route("/blades/table-name", safely(table_name)),
         Route("/blades/name-check", name_check),
         Route("/blades/runs/{run}/cancel", cancel_run, methods=["POST"]),
-        Route("/blades/folders", folders, methods=["GET", "PUT"]),
-        Route("/blades/export", export_all),
-        Route("/blades/import", import_blades, methods=["POST"]),
-        Route("/blades/inspect", inspect_code, methods=["POST"]),
-        Route("/blades/fill", fill_settings, methods=["POST"]),
-        Route("/blades/install", install, methods=["POST"]),
+        Route("/blades/folders", safely(folders), methods=["GET", "PUT"]),
+        Route("/blades/export", safely(export_all)),
+        Route("/blades/import", safely(import_blades), methods=["POST"]),
+        Route("/blades/inspect", safely(inspect_code), methods=["POST"]),
+        Route("/blades/fill", safely(fill_settings), methods=["POST"]),
+        Route("/blades/install", safely(install), methods=["POST"]),
         Route("/blades/analyses", analyses),
-        Route("/blades/starters", starters),
+        Route("/blades/starters", safely(starters)),
         Route("/grids/{grid_id}/blade-analysis", analyze, methods=["POST"]),
-        Route("/blades/{name}", get_blade),
+        Route("/blades/{name}", safely(get_blade)),
         Route("/blades/{name}", save_blade, methods=["PUT"]),
-        Route("/blades/{name}", remove_blade, methods=["DELETE"]),
+        Route("/blades/{name}", safely(remove_blade), methods=["DELETE"]),
         Route("/blades/{name}/secrets", set_secrets, methods=["PUT"]),
         Route("/blades/{name}/code", code),
         Route("/blades/{name}/header", header, methods=["GET", "PUT"]),
         Route("/blades/{name}/run", run_blade, methods=["GET", "POST"]),
-        Route("/blades/{name}/result/open", open_result, methods=["POST"]),
-        Route("/blades/{name}/problems", problems, methods=["POST"]),
+        Route("/blades/{name}/result/open", safely(open_result), methods=["POST"]),
+        Route("/blades/{name}/problems", safely(problems), methods=["POST"]),
         Route("/blades/{name}/refresh", refresh, methods=["POST"]),
         Route("/blades/{name}/test", test, methods=["POST"]),
         Route("/blades/{name}/python", python),
-        Route("/blades/{name}/pin", pin, methods=["PUT"]),
-        Route("/blades/{name}/show", show_file, methods=["POST"]),
-        Route("/blades/{name}/export", export_one),
-        Route("/blades/{name}/copy", copy, methods=["POST"]),
-        Route("/blades/{name}/snippet", snippet, methods=["GET", "POST"]),
+        Route("/blades/{name}/pin", safely(pin), methods=["PUT"]),
+        Route("/blades/{name}/show", safely(show_file), methods=["POST"]),
+        Route("/blades/{name}/export", safely(export_one)),
+        Route("/blades/{name}/copy", safely(copy), methods=["POST"]),
+        Route("/blades/{name}/snippet", safely(snippet), methods=["GET", "POST"]),
     ]

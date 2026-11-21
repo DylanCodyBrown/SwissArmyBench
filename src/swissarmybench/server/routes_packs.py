@@ -14,31 +14,22 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.packs import Packs
 
 
 def routes(packs: Packs) -> list[BaseRoute]:
     async def listing(request: Request) -> Response:
-        try:
-            return json_response(packs.list())
-        except Exception as error:
-            return error_response(error)
+        return json_response(packs.list())
 
     async def new(request: Request) -> Response:
-        try:
-            return json_response(packs.create(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(packs.create(await read_json(request), actor(request)))
 
     async def add(request: Request) -> Response:
-        try:
-            return json_response(packs.add(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(packs.add(await read_json(request), actor(request)))
 
     return [
-        Route("/packs", listing),
-        Route("/packs/new", new, methods=["POST"]),
-        Route("/packs/add", add, methods=["POST"]),
+        Route("/packs", safely(listing)),
+        Route("/packs/new", safely(new), methods=["POST"]),
+        Route("/packs/add", safely(add), methods=["POST"]),
     ]

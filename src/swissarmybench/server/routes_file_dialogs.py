@@ -13,31 +13,22 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.file_dialogs import FileDialogs
 
 
 def routes(dialogs: FileDialogs) -> list[BaseRoute]:
     async def status(request: Request) -> Response:
-        try:
-            return json_response(await dialogs.status())
-        except Exception as error:
-            return error_response(error)
+        return json_response(await dialogs.status())
 
     async def choose(request: Request) -> Response:
-        try:
-            return json_response(await dialogs.choose(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await dialogs.choose(await read_json(request), actor(request)))
 
     async def recent(request: Request) -> Response:
-        try:
-            return json_response(dialogs.remember(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(dialogs.remember(await read_json(request), actor(request)))
 
     return [
-        Route("/dialogs", status, methods=["GET"]),
-        Route("/dialogs/choose", choose, methods=["POST"]),
-        Route("/dialogs/recent", recent, methods=["POST"]),
+        Route("/dialogs", safely(status), methods=["GET"]),
+        Route("/dialogs/choose", safely(choose), methods=["POST"]),
+        Route("/dialogs/recent", safely(recent), methods=["POST"]),
     ]

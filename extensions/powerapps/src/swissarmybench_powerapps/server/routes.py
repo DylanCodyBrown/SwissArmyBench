@@ -65,7 +65,7 @@ from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server import streamlit_proxy
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_response, json_response, read_json, safely
 from swissarmybench_powerapps.domain import ts_notebook as ts_rules
 from swissarmybench_powerapps.services.notebook import TsNotebooks
 from swissarmybench_powerapps.services.powerapps import PowerApps
@@ -87,12 +87,9 @@ async def _body(request: Request) -> Any:
 def routes(service: PowerApps, notebook: TsNotebooks | None = None) -> list[BaseRoute]:
     def door(work: Callable[[Request], Awaitable[Any]]) -> Callable[[Request], Awaitable[Response]]:
         async def answer(request: Request) -> Response:
-            try:
-                return json_response(await work(request))
-            except Exception as error:
-                return error_response(error)
+            return json_response(await work(request))
 
-        return answer
+        return safely(answer)
 
     async def state(r: Request) -> Any:
         return await service.state()

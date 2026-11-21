@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.updates import Updates
 
 # The app's name in the status bar (the owner, 2026-11-17: "It's not an edition now it's the streamlit
@@ -33,10 +33,7 @@ def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list
         return json_response(updates.state() | named())
 
     async def switch(request: Request) -> Response:
-        try:
-            return json_response(await updates.set(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await updates.set(await read_json(request), actor(request)))
 
     async def check(request: Request) -> Response:
         # {"asked": true}: the user's button (or the agent's now) checks even with the switch off.
@@ -45,15 +42,12 @@ def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list
         return json_response(await updates.check(asked=asked) | named())
 
     async def install(request: Request) -> Response:
-        try:
-            body = await read_json(request) if await request.body() else {}
-            return json_response(await updates.install(body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request) if await request.body() else {}
+        return json_response(await updates.install(body, actor(request)))
 
     return [
         Route("/updates", state),
-        Route("/updates", switch, methods=["PUT"]),
+        Route("/updates", safely(switch), methods=["PUT"]),
         Route("/updates/check", check, methods=["POST"]),
-        Route("/updates/install", install, methods=["POST"]),
+        Route("/updates/install", safely(install), methods=["POST"]),
     ]

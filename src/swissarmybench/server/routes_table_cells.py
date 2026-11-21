@@ -15,32 +15,23 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import error_response, json_response, read_json
+from swissarmybench.server.http import json_response, read_json, safely
 from swissarmybench.services.table_cells import TableCells
 
 
 def routes(tables: TableCells) -> list[BaseRoute]:
     async def listing(request: Request) -> Response:
-        try:
-            return json_response(await tables.listing())
-        except Exception as error:
-            return error_response(error)
+        return json_response(await tables.listing())
 
     async def arrange(request: Request) -> Response:
-        try:
-            return json_response(await tables.arrange(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await tables.arrange(await read_json(request)))
 
     async def view(request: Request) -> Response:
-        try:
-            data = await tables.view(request.path_params["name"])
-            return Response(data, media_type="application/vnd.apache.arrow.stream")
-        except Exception as error:
-            return error_response(error)
+        data = await tables.view(request.path_params["name"])
+        return Response(data, media_type="application/vnd.apache.arrow.stream")
 
     return [
-        Route("/workbench/tables", listing),
-        Route("/workbench/tables/{name}/arrow", view),
-        Route("/workbench/tables/arrange", arrange, methods=["POST"]),
+        Route("/workbench/tables", safely(listing)),
+        Route("/workbench/tables/{name}/arrow", safely(view)),
+        Route("/workbench/tables/arrange", safely(arrange), methods=["POST"]),
     ]

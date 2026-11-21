@@ -31,7 +31,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.blade_runner import RefreshError
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_response, json_response, read_json, safely
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.connection_tables import ConnectionTables
 from swissarmybench.services.connections import ConnectionService
@@ -62,12 +62,7 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
             return failed(error, name)
 
     async def sql_endpoint(request: Request) -> Response:
-        try:
-            return json_response(
-                await connections.use_sql_endpoint(request.path_params["name"], actor(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        return json_response(await connections.use_sql_endpoint(request.path_params["name"], actor(request)))
 
     async def prepare(request: Request) -> Response:
         try:
@@ -84,11 +79,8 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
         return json_response(tables.reads())
 
     async def read(request: Request) -> Response:
-        try:
-            data = await tables.arrow(request.path_params["id"])
-            return Response(data, media_type="application/vnd.apache.arrow.stream")
-        except Exception as error:
-            return error_response(error)
+        data = await tables.arrow(request.path_params["id"])
+        return Response(data, media_type="application/vnd.apache.arrow.stream")
 
     async def alias(request: Request) -> Response:
         name = request.query_params.get("name", "")
@@ -118,21 +110,18 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
             return failed(error, None)
 
     async def refresh(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            name = body.get("connection") if isinstance(body, dict) else None
-            return json_response(await tables.refresh(str(name) if name else None))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        name = body.get("connection") if isinstance(body, dict) else None
+        return json_response(await tables.refresh(str(name) if name else None))
 
     return [
         Route("/connections/sql/prepare", prepare, methods=["POST"]),
         Route("/connections/sql/reads", reads),
-        Route("/connections/sql/reads/{id}", read),
-        Route("/connections/sql/refresh", refresh, methods=["POST"]),
+        Route("/connections/sql/reads/{id}", safely(read)),
+        Route("/connections/sql/refresh", safely(refresh), methods=["POST"]),
         Route("/connections/sql/alias", alias),
         Route("/connections/sql/alias/dax", alias_dax, methods=["POST"]),
         Route("/connections/{name}/tree", tree),
         Route("/connections/{name}/open-dataset", open_dataset, methods=["POST"]),
-        Route("/connections/{name}/sql-endpoint", sql_endpoint, methods=["POST"]),
+        Route("/connections/{name}/sql-endpoint", safely(sql_endpoint), methods=["POST"]),
     ]

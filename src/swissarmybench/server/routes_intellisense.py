@@ -15,44 +15,33 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.intellisense import Intellisense
 
 
 def routes(intel: Intellisense) -> list[BaseRoute]:
     async def ask(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            who = actor(request)
-            kind = request.path_params["kind"]
-            if kind == "complete":
-                return json_response(await intel.complete(body, who))
-            if kind == "signature":
-                return json_response(await intel.signature(body, who))
-            if kind == "hover":
-                return json_response(await intel.hover(body, who))
-            if kind == "lint":
-                return json_response(await intel.lint(body, who))
-            return json_response({"error": "Ask complete, signature, hover or lint."}, status_code=404)
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        who = actor(request)
+        kind = request.path_params["kind"]
+        if kind == "complete":
+            return json_response(await intel.complete(body, who))
+        if kind == "signature":
+            return json_response(await intel.signature(body, who))
+        if kind == "hover":
+            return json_response(await intel.hover(body, who))
+        if kind == "lint":
+            return json_response(await intel.lint(body, who))
+        return json_response({"error": "Ask complete, signature, hover or lint."}, status_code=404)
 
     async def report(request: Request) -> Response:
-        try:
-            return json_response(intel.report(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(intel.report(await read_json(request)))
 
     async def problems(request: Request) -> Response:
-        try:
-            return json_response(
-                await intel.problems(request.query_params.get("path") or None, actor(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        return json_response(await intel.problems(request.query_params.get("path") or None, actor(request)))
 
     return [
-        Route("/workbench/intel/problems", problems),
-        Route("/workbench/intel/problems", report, methods=["PUT"]),
-        Route("/workbench/intel/{kind}", ask, methods=["POST"]),
+        Route("/workbench/intel/problems", safely(problems)),
+        Route("/workbench/intel/problems", safely(report), methods=["PUT"]),
+        Route("/workbench/intel/{kind}", safely(ask), methods=["POST"]),
     ]

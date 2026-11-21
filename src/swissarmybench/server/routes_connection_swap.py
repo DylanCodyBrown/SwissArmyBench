@@ -19,70 +19,46 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.connection_swap import ConnectionSwap
 
 
 def routes(swap: ConnectionSwap) -> list[BaseRoute]:
     async def state(request: Request) -> Response:
-        try:
-            return json_response(swap.state(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(swap.state(request.path_params["name"]))
 
     async def change(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            return json_response(await swap.swap(request.path_params["name"], body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        return json_response(await swap.swap(request.path_params["name"], body, actor(request)))
 
     async def undo(request: Request) -> Response:
-        try:
-            return json_response(await swap.undo(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await swap.undo(request.path_params["name"], actor(request)))
 
     async def move(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            return json_response(await swap.move(request.path_params["name"], body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        return json_response(await swap.move(request.path_params["name"], body, actor(request)))
 
     async def references(request: Request) -> Response:
-        try:
-            return json_response(swap.references(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(swap.references(request.path_params["name"]))
 
     async def repoint(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            return json_response(await swap.repoint(request.path_params["name"], body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        return json_response(await swap.repoint(request.path_params["name"], body, actor(request)))
 
     async def new_query(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            return json_response(await swap.new_query(request.path_params["name"], body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        return json_response(await swap.new_query(request.path_params["name"], body, actor(request)))
 
     async def rewrite(request: Request) -> Response:
-        try:
-            return json_response(swap.rewrite(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(swap.rewrite(await read_json(request)))
 
     return [
-        Route("/tables/{name}/connection", state),
-        Route("/tables/{name}/connection", change, methods=["POST"]),
-        Route("/tables/{name}/connection/undo", undo, methods=["POST"]),
-        Route("/connections/rewrite", rewrite, methods=["POST"]),
-        Route("/datasets/{name}/connection-query", new_query, methods=["POST"]),
-        Route("/connections/{name}/move", move, methods=["POST"]),
-        Route("/connections/{name}/references", references),
-        Route("/connections/{name}/repoint", repoint, methods=["POST"]),
+        Route("/tables/{name}/connection", safely(state)),
+        Route("/tables/{name}/connection", safely(change), methods=["POST"]),
+        Route("/tables/{name}/connection/undo", safely(undo), methods=["POST"]),
+        Route("/connections/rewrite", safely(rewrite), methods=["POST"]),
+        Route("/datasets/{name}/connection-query", safely(new_query), methods=["POST"]),
+        Route("/connections/{name}/move", safely(move), methods=["POST"]),
+        Route("/connections/{name}/references", safely(references)),
+        Route("/connections/{name}/repoint", safely(repoint), methods=["POST"]),
     ]

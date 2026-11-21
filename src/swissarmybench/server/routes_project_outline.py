@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response
+from swissarmybench.server.http import actor, error_response, json_response, safely
 from swissarmybench.services.project_outline import ProjectOutline
 
 
@@ -25,12 +25,9 @@ def routes(outline: ProjectOutline) -> list[BaseRoute]:
         return Response(text, media_type="text/markdown; charset=utf-8")
 
     async def write(request: Request) -> Response:
-        try:
-            return json_response(await outline.write(actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await outline.write(actor(request)))
 
     return [
         Route("/project/outline", read, methods=["GET"]),
-        Route("/project/outline", write, methods=["POST"]),
+        Route("/project/outline", safely(write), methods=["POST"]),
     ]

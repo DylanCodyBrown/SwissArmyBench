@@ -26,7 +26,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json, refusal
+from swissarmybench.server.http import actor, error_response, json_response, read_json, refusal, safely
 from swissarmybench.services.agent import AgentService
 from swissarmybench.services.inbox import Inbox
 
@@ -55,34 +55,25 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
 
     async def describe(request: Request) -> Response:
         """Schema, counts and the profile of every column."""
-        try:
-            return json_response(await agent.describe(request.path_params["dataset"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await agent.describe(request.path_params["dataset"]))
 
     async def profile(request: Request) -> Response:
-        try:
-            return json_response(
-                await agent.profile(request.path_params["dataset"], request.query_params.get("column"))
-            )
-        except Exception as error:
-            return error_response(error)
+        return json_response(
+            await agent.profile(request.path_params["dataset"], request.query_params.get("column"))
+        )
 
     async def read_grid(request: Request) -> Response:
         """A window of the grid's view as the user sees it, always with the view's row count."""
+        grid, info = ws.grid_and_info(request.path_params["grid_id"])
+        offset = max(0, int(request.query_params.get("offset", "0")))
+        limit = max(0, int(request.query_params.get("limit", "100")))
         try:
-            grid, info = ws.grid_and_info(request.path_params["grid_id"])
-            offset = max(0, int(request.query_params.get("offset", "0")))
-            limit = max(0, int(request.query_params.get("limit", "100")))
-            try:
-                answer = await agent.read_grid(grid, info, offset, limit)
-            except duckdb.Error as error:
-                return refusal(f"DuckDB: {error}", 400)
-            if "capped" not in answer:  # nothing to read at that offset: the counts alone
-                return json_response(answer)
-            return json_response(answer, max_bytes=ws.settings.max_sql_response_bytes)
-        except Exception as error:
-            return error_response(error)
+            answer = await agent.read_grid(grid, info, offset, limit)
+        except duckdb.Error as error:
+            return refusal(f"DuckDB: {error}", 400)
+        if "capped" not in answer:  # nothing to read at that offset: the counts alone
+            return json_response(answer)
+        return json_response(answer, max_bytes=ws.settings.max_sql_response_bytes)
 
     # ===== the current table =====
 
@@ -96,40 +87,31 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
             return error_response(error)
 
     async def send_to_agent(request: Request) -> Response:
-        try:
-            return json_response(await inbox.send(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await inbox.send(await read_json(request), actor(request)))
 
     async def read_inbox(request: Request) -> Response:
         take = request.query_params.get("take") in ("1", "true")
         return json_response(inbox.read(take, request.query_params.get("all") in ("1", "true")))
 
     async def current(request: Request) -> Response:
-        try:
-            return json_response(await agent.current())
-        except Exception as error:
-            return error_response(error)
+        return json_response(await agent.current())
 
     async def approve_export(request: Request) -> Response:
         """An agent export: always waits for the user's click (plan section 10a)."""
-        try:
-            grid, info = ws.grid_and_info(request.path_params["grid_id"])
-            return json_response(
-                await agent.approve_export(grid, info, request.query_params.get("format", "csv"))
-            )
-        except Exception as error:
-            return error_response(error)
+        grid, info = ws.grid_and_info(request.path_params["grid_id"])
+        return json_response(
+            await agent.approve_export(grid, info, request.query_params.get("format", "csv"))
+        )
 
     return [
         Route("/agent/approvals", list_approvals),
         Route("/agent/approvals/{approval_id}", resolve_approval, methods=["POST"]),
-        Route("/agent/describe/{dataset}", describe),
-        Route("/agent/profile/{dataset}", profile),
-        Route("/agent/read/{grid_id}", read_grid),
-        Route("/agent/export-approval/{grid_id}", approve_export, methods=["POST"]),
+        Route("/agent/describe/{dataset}", safely(describe)),
+        Route("/agent/profile/{dataset}", safely(profile)),
+        Route("/agent/read/{grid_id}", safely(read_grid)),
+        Route("/agent/export-approval/{grid_id}", safely(approve_export), methods=["POST"]),
         Route("/workspace/active", set_active, methods=["POST"]),
-        Route("/agent/context", current),
-        Route("/agent/inbox", send_to_agent, methods=["POST"]),
+        Route("/agent/context", safely(current)),
+        Route("/agent/inbox", safely(send_to_agent), methods=["POST"]),
         Route("/agent/inbox", read_inbox),
     ]

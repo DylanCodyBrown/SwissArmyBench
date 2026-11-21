@@ -11,7 +11,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.extensions import Extensions
 
 
@@ -20,19 +20,13 @@ def routes(extensions: Extensions) -> list[BaseRoute]:
         return json_response(extensions.state())
 
     async def install(request: Request) -> Response:
-        try:
-            return json_response(await extensions.install(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await extensions.install(await read_json(request), actor(request)))
 
     async def remove(request: Request) -> Response:
-        try:
-            return json_response(await extensions.remove(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await extensions.remove(await read_json(request), actor(request)))
 
     return [
         Route("/extensions", listing),
-        Route("/extensions/install", install, methods=["POST"]),
-        Route("/extensions/remove", remove, methods=["POST"]),
+        Route("/extensions/install", safely(install), methods=["POST"]),
+        Route("/extensions/remove", safely(remove), methods=["POST"]),
     ]

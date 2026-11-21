@@ -18,7 +18,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.timeseries import TimeSeries
 
@@ -26,16 +26,13 @@ from swissarmybench.services.timeseries import TimeSeries
 def routes(grids: GridService, series: TimeSeries) -> list[BaseRoute]:
     def one(name: str) -> Callable[[Request], Awaitable[Response]]:
         async def handle(request: Request) -> Response:
-            try:
-                grid, info = grids.find(request.path_params["grid_id"])
-                body = await read_json(request)
-                if not isinstance(body, dict):
-                    raise ValueError('Send {"date": name, "metric": name, "period": "month"}.')
-                return json_response(await series.run(name, grid, info, body, actor(request)))
-            except Exception as error:
-                return error_response(error)
+            grid, info = grids.find(request.path_params["grid_id"])
+            body = await read_json(request)
+            if not isinstance(body, dict):
+                raise ValueError('Send {"date": name, "metric": name, "period": "month"}.')
+            return json_response(await series.run(name, grid, info, body, actor(request)))
 
-        return handle
+        return safely(handle)
 
     return [
         Route("/grids/{grid_id}/time-series", one("time_series"), methods=["POST"]),

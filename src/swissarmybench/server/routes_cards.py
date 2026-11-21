@@ -38,7 +38,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.charts import ChartError
-from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json, safely
 from swissarmybench.services.charts import Cards
 
 
@@ -46,18 +46,12 @@ def routes(cards: Cards) -> list[BaseRoute]:
     ws = cards.ws
 
     async def list_cards(request: Request) -> Response:
-        try:
-            grid, _ = ws.grid_and_info(request.path_params["grid_id"])
-            return json_response(await cards.for_grid(grid))
-        except Exception as error:
-            return error_response(error)
+        grid, _ = ws.grid_and_info(request.path_params["grid_id"])
+        return json_response(await cards.for_grid(grid))
 
     async def all_cards(request: Request) -> Response:
         """Visualizations: one list for every table."""
-        try:
-            return json_response(await cards.everything())
-        except Exception as error:
-            return error_response(error)
+        return json_response(await cards.everything())
 
     async def add_card(request: Request) -> Response:
         try:
@@ -69,10 +63,7 @@ def routes(cards: Cards) -> list[BaseRoute]:
             return error_response(error)
 
     async def add_free(request: Request) -> Response:
-        try:
-            return json_response(await cards.add_free(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await cards.add_free(await read_json(request), actor(request)))
 
     async def update_card(request: Request) -> Response:
         try:
@@ -91,102 +82,70 @@ def routes(cards: Cards) -> list[BaseRoute]:
 
     async def select(request: Request) -> Response:
         """Cross-filtering: a click on a chart adds a filter step for what was clicked."""
-        try:
-            card, grid, info = cards.chart(request.path_params["card_id"])
-            return json_response(
-                await cards.select(card, grid, info, await read_json(request), actor(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        card, grid, info = cards.chart(request.path_params["card_id"])
+        return json_response(await cards.select(card, grid, info, await read_json(request), actor(request)))
 
     async def code(request: Request) -> Response:
-        try:
-            card, grid, info = cards.chart(request.path_params["card_id"])
-            return json_response(await cards.code(card, grid, info))
-        except Exception as error:
-            return error_response(error)
+        card, grid, info = cards.chart(request.path_params["card_id"])
+        return json_response(await cards.code(card, grid, info))
 
     def users_only(request: Request) -> None:
         """The golden rule (2026-11-14): the agent saves, opens and deletes dashboards as the user does."""
 
     async def saved(request: Request) -> Response:
-        try:
-            return json_response(cards.saved())
-        except Exception as error:
-            return error_response(error)
+        return json_response(cards.saved())
 
     async def save(request: Request) -> Response:
-        try:
-            users_only(request)
-            body = await read_json(request)
-            return json_response(
-                await cards.save(body.get("name") if isinstance(body, dict) else None, actor(request))
-            )
-        except Exception as error:
-            return error_response(error)
+        users_only(request)
+        body = await read_json(request)
+        return json_response(
+            await cards.save(body.get("name") if isinstance(body, dict) else None, actor(request))
+        )
 
     async def versions(request: Request) -> Response:
-        try:
-            return json_response(cards.versions(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(cards.versions(request.path_params["name"]))
 
     async def open_saved(request: Request) -> Response:
-        try:
-            users_only(request)
-            body = await read_json(request)
-            version = body.get("version") if isinstance(body, dict) else None
-            return json_response(await cards.open(request.path_params["name"], version, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        users_only(request)
+        body = await read_json(request)
+        version = body.get("version") if isinstance(body, dict) else None
+        return json_response(await cards.open(request.path_params["name"], version, actor(request)))
 
     async def delete_saved(request: Request) -> Response:
-        try:
-            users_only(request)
-            return json_response(cards.delete_saved(request.path_params["name"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        users_only(request)
+        return json_response(cards.delete_saved(request.path_params["name"], actor(request)))
 
     async def list_themes(request: Request) -> Response:
         return json_response(cards.themes())
 
     async def set_theme(request: Request) -> Response:
-        try:
-            body = await read_json(request)
-            theme = body.get("theme") if isinstance(body, dict) else None
-            return json_response(await cards.set_theme(theme, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        theme = body.get("theme") if isinstance(body, dict) else None
+        return json_response(await cards.set_theme(theme, actor(request)))
 
     async def add_theme(request: Request) -> Response:
-        try:
-            return json_response(await cards.add_theme(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await cards.add_theme(await read_json(request), actor(request)))
 
     async def remove_theme(request: Request) -> Response:
-        try:
-            return json_response(await cards.remove_theme(request.path_params["theme_id"], actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await cards.remove_theme(request.path_params["theme_id"], actor(request)))
 
     return [
         Route("/analyze/themes", list_themes),
-        Route("/analyze/theme", set_theme, methods=["PUT"]),
-        Route("/analyze/themes", add_theme, methods=["POST"]),
-        Route("/analyze/themes/{theme_id}", remove_theme, methods=["DELETE"]),
+        Route("/analyze/theme", safely(set_theme), methods=["PUT"]),
+        Route("/analyze/themes", safely(add_theme), methods=["POST"]),
+        Route("/analyze/themes/{theme_id}", safely(remove_theme), methods=["DELETE"]),
         # The old addresses, one release (Visualizations is the Analyze page, 2026-11-19).
-        Route("/dashboards", saved),
-        Route("/dashboards", save, methods=["POST"]),
-        Route("/dashboards/{name}", versions),
-        Route("/dashboards/{name}/open", open_saved, methods=["POST"]),
-        Route("/dashboards/{name}", delete_saved, methods=["DELETE"]),
-        Route("/cards", all_cards),
-        Route("/cards", add_free, methods=["POST"]),
-        Route("/grids/{grid_id}/cards", list_cards),
+        Route("/dashboards", safely(saved)),
+        Route("/dashboards", safely(save), methods=["POST"]),
+        Route("/dashboards/{name}", safely(versions)),
+        Route("/dashboards/{name}/open", safely(open_saved), methods=["POST"]),
+        Route("/dashboards/{name}", safely(delete_saved), methods=["DELETE"]),
+        Route("/cards", safely(all_cards)),
+        Route("/cards", safely(add_free), methods=["POST"]),
+        Route("/grids/{grid_id}/cards", safely(list_cards)),
         Route("/grids/{grid_id}/cards", add_card, methods=["POST"]),
         Route("/cards/{card_id}", update_card, methods=["PATCH"]),
         Route("/cards/{card_id}", delete_card, methods=["DELETE"]),
-        Route("/cards/{card_id}/select", select, methods=["POST"]),
-        Route("/cards/{card_id}/code", code),
+        Route("/cards/{card_id}/select", safely(select), methods=["POST"]),
+        Route("/cards/{card_id}/code", safely(code)),
     ]

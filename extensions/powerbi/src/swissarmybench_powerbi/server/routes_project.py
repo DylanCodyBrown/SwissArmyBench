@@ -26,19 +26,16 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json
+from swissarmybench.server.http import actor, json_response, read_json, safely
 from swissarmybench_powerbi.services.live_link import LiveLink
 from swissarmybench_powerbi.services.project import PowerBIProject
 
 
 def door(work: Callable[[Request], Awaitable[Any]]) -> Callable[[Request], Awaitable[Response]]:
     async def answer(request: Request) -> Response:
-        try:
-            return json_response(await work(request))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await work(request))
 
-    return answer
+    return safely(answer)
 
 
 def routes(project: PowerBIProject) -> list[BaseRoute]:
