@@ -208,6 +208,9 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         "server/desktop.py",
         "server/desktop_shell.py",
         "server/blade_runner.py",
+        # A local sandbox API's own process (2026-11-21, Plans/adapter.plan.md): sab_adapter, its one door.
+        "server/api_host.py",
+        "server/sandbox_clients.py",
         "client/blades_client.py",
         "client/standalone.py",
     }
