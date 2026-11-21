@@ -7457,3 +7457,78 @@ ARE the Outs.
 - Gaps (not built, to approve): an In wired from an Out of another canvas page (refused: a page's own Outs
   only); an Out's columns for a column property wired from it (typed instead); the Wiring view's lines go
   between boxes' centres, not ports.
+
+## The forms and reconciliation test app and the local API's stress test (the owner, 2026-11-21; branch test-app)
+
+The owner: "create a local API using the local API builder and scripts. Build some widget starter packs. Build a
+large dataset. Build three app pages and stress test the API against the data" / "Make your mock something like
+it" (his POC: forms people design and fill, a column store, a reconciliation run the same way every month).
+
+### Built
+- examples/forms_recon: a project made by the app through the agent's commands only (project_new, datasets_load,
+  tabs_new_query for the Trino copy, sandbox add from a grid and by columns, workbench_save for API.py,
+  workbench_format, widgets_new and widgets_save for api_bridge, canvas_page/add_container/insert_widget/move for the
+  pages, canvas_play check, app_launch). API.py: forms and their fields with versions; batches (typed, Excel, a
+  source table) and entries stored long (form, batch, row, field, a value in its field's type); the column store
+  per form by DuckDB PIVOT; reconciliation definitions (source table, keys, compares with tolerances, totals) and
+  runs per month (or "all"), results kept and paged by status, sign-off. Three pages: Form designer, Fill and load,
+  Reconcile, in Desktop and Phone layouts.
+- Decisions: the sandbox's data is Git-ignored, so the example holds no rows: its test adds Larkfield Goods' small
+  scale itself. A new number is taken inside its INSERT (`max + 1` in one statement) since the mock has no
+  sequences. The project's widget api_bridge lives in the library; its file is kept in the example (widgets/),
+  copied from the library (gap 6).
+- The stress test (tests/stress/, SWISSARMYBENCH_STRESS=1) and its numbers: docs/verified.md.
+
+### Performance fixes in the local sandbox API builder (fixes, not features)
+1. `executemany` was one HTTP request and one DuckDB execute a row (100k rows: hours); now one call per 50,000 sets,
+   the statement translated once, and a plain `INSERT ... VALUES (?, ...)` goes in as one columnar insert (Arrow),
+   all in one transaction (services/sandbox.py `sql_many`, adapters/sandbox.py `insert_columns`, `change_many`).
+2. `connection("Sandbox")` is one MockDuckDB for the process, and its execute() kept its answer on the object: two
+   requests at once fetched each other's rows. Its answer is now per thread.
+3. Every mock call listed every table and counted each one's rows (`files.tables()`), and read sandbox.json from
+   disk: the names are now read once until a table is added, dropped or put back, and sandbox.json read again only
+   when it changes.
+4. sqlglot parsed each statement on every call: the translation is kept by its words (an LRU of 512).
+5. One lock held every read: reads and writes now share the file (DuckDB's own transactions), and only a reset,
+   baseline, checkpoint or a table added or dropped holds it alone.
+6. The hosting process's socket did not say TCP, so asyncio never set TCP_NODELAY: every request after a kept-open
+   connection's first waited about 40 ms (Nagle and delayed ACK). The mock's door to the app keeps its connection
+   open too (it opened one per call).
+
+### Gaps to approve (none built; the test app works round each)
+1. **A widget's event cannot call an endpoint.** Form designer's Save, Fill a form's Submit and Validate rows' valid
+   rows land in session state; nothing sends them to API.py. Worked round with api_bridge (a widget made in the
+   Widgets window: a trigger key, path values and body from page values). Add: an "on <event>, call <endpoint>"
+   wiring on the canvas. M. (The widget-gaps branch: canvas events wired to API endpoints.)
+2. **An API's answer cannot feed another widget.** Form picker's forms, the batches list and the results table come
+   from the API; prebuilt widgets read tables by name or their own lists. Worked round with api_bridge's result_key
+   and its own table and metrics view. Add: page values as tables. M. (widget-gaps.)
+3. **api_table, api_button and api_form take fixed path values and bodies**: the picked form and month cannot go
+   in. Add: a path value or body field from a page value. S. (widget-gaps: default_from_key.)
+4. **Choices are fixed lists**: the months, the source tables, the fields Map columns asks for (they should be the
+   picked form's). Add: choices from a table or a page value. S-M. (widget-gaps: table-fed choices.)
+5. **Map columns keeps the guesses it made for its made-up sample** after a real upload (its selectboxes keep their
+   state), so line_id and amount had to be picked by hand. Add: key its pickers by the uploaded columns. S (a fix
+   to a prebuilt widget).
+6. **A project cannot carry its own widgets**: they live in the library, so the example's api_bridge was copied out
+   of it by hand to keep the example whole. Add: a project's widgets/ folder read beside the library, or widget
+   Export and Import. M.
+7. **A file's table cannot say which connection it stands in for**: Add to sandbox from a file is always the plain
+   DuckDB mock, so the "Trino" and "Dynamics 365" copies are mocked as DuckDB, not as Trino's or Dataverse's
+   clients. Add: "mocked as" a connection (or kind and dialect) on a file's or grid's Add to sandbox. S-M.
+8. **The mock refuses CREATE**: no view or table, so the column store is a PIVOT run again on every page (64 ms for
+   a month of 42k entries; 0.33 s for 1M), and no sequence, so numbers are `max + 1`. Add: CREATE VIEW, CREATE
+   TABLE AS and sequences on the sandbox, undone by Reset. M.
+9. **An endpoint cannot list the sandbox's tables or columns** (system views refused): it cannot check a source
+   table's name or offer its columns. Add: the mock's own tables() and columns() for connection("Sandbox"). S.
+10. **A read past 10,000 rows is cut without a word** (MAX_ROWS_ANSWERED): the mock's fetchall() returns the first
+    10,000 and the endpoint cannot tell. Add: say it (an error naming the limit) or page underneath. S.
+11. **Every agent write through `api call` waits for Allow**, so the agent cannot build test data in the sandbox
+    without the user clicking each one; the writes here went through the played pages. Add: "Allow the agent's
+    writes to this sandbox for this session" (Reset undoes them). S.
+12. **A widget that only moves data still takes a place** (api_bridge's fetch: a 60 px blank row on the page).
+    Add: a hidden instance (no box) on the canvas. S.
+13. **Who is using the app**: sign-off and "loaded by" are typed names; a played, launched or shared app gives
+    widgets no viewer identity. Add: the viewer's name (a shared app's Entra user) as a page value. M.
+14. **A long container title wraps over its first widget** in a narrow played page (Reconcile's title did). Add:
+    the title's height follows its lines. S.

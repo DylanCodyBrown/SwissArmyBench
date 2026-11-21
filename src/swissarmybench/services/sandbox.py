@@ -50,6 +50,12 @@ class Files(Protocol):
 
     def table_name(self, wanted: str) -> str | None: ...
 
+    def table_names(self) -> list[str]: ...
+
+    def insert_columns(self, table: str, columns: Any, rows: Any) -> int: ...
+
+    def change_many(self, sql: str, sets: Any) -> int: ...
+
     def put_table(self, name: str, table: Any, replace: bool) -> int: ...
 
     def create_empty(self, name: str, columns: Any, replace: bool) -> None: ...
@@ -666,6 +672,8 @@ class Sandbox:
             return await self.client(given.get("connection"))
         if op == "sql":
             return await self._sql(files, given)
+        if op == "sql_many":
+            return await self._sql_many(files, given)
         if op in ("odata", "fetchxml", "list"):
             return await self._shaped(files, op, given)
         ops = given.get("ops") if op == "batch" else [given]
@@ -833,7 +841,7 @@ class Sandbox:
         sandbox's tables read from it (a plain DuckDB client: every table, for "Sandbox" or none)."""
         files = self._files()
         meta = files.read_meta()
-        tables = [t["name"] for t in await self._run(files.tables)]
+        tables = await self._run(files.table_names)
         name = str(connection or "").strip()
         if not name or name.casefold() == rules.NAME.casefold():
             return {"kind": rules.PLAIN, "connection": rules.NAME, "dialect": "duckdb", "tables": tables}
@@ -879,6 +887,40 @@ class Sandbox:
             "types": types if returned else [],
             "rows": [[_plain(v) for v in r] for r in rows] if returned else [],
         }
+
+    async def _sql_many(self, files: Files, given: dict[str, Any]) -> dict[str, Any]:
+        """A mock cursor's executemany: the statement made DuckDB SQL once; a plain INSERT ... VALUES of its
+        marks goes in as one columnar insert, anything else one statement a set; all in one transaction."""
+        client = await self.client(given.get("connection"))
+        dialect = str(given.get("dialect") or client.get("dialect") or "duckdb")
+        sets = given.get("params")
+        if not isinstance(sets, list) or not sets:
+            raise SandboxError("executemany takes a list of parameter sets.")
+        made, values = dialects.to_duckdb_many(given.get("sql"), dialect, sets, client["tables"])
+        if made.kind == "select":
+            raise SandboxError("executemany runs INSERT, UPDATE or DELETE, not a SELECT.")
+        plain = dialects.plain_insert(made.sql)
+        async with self._lock:
+            try:
+                if plain is not None:
+                    table, columns, _ = plain
+                    named = (
+                        list(columns)
+                        if columns
+                        else [c["name"] for c in await self._run(files.columns, table)]
+                    )
+                    count = await self._run(files.insert_columns, table, named, values)
+                else:
+                    count = await self._run(files.change_many, made.sql, values)
+            except Exception as error:  # DuckDB's own words: nothing was written
+                raise SandboxError(str(error).split("\n")[0]) from error
+            meta = files.read_meta()
+            rules.noted(meta.log, made.table or "", made.kind, count)
+            files.write_meta(meta)
+        touched = [made.table] if made.table else []
+        await self._told(touched, "", "")
+        self.ws.audit.write("api", "sandbox_write", ", ".join(touched), rows=count)
+        return {"kind": made.kind, "rowcount": count, "columns": [], "types": [], "rows": []}
 
     async def _shaped(self, files: Files, op: str, given: dict[str, Any]) -> dict[str, Any]:
         client = await self.client(given.get("connection"))

@@ -1,0 +1,1534 @@
+{
+  "format": 2,
+  "name": "forms_recon",
+  "pages": [
+    {
+      "children": [
+        {
+          "at": {
+            "desktop": {
+              "h": 226,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            },
+            "phone": {
+              "h": 226,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w1",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "auto": true,
+                "endpoint": "GET /forms",
+                "query": {
+                  "full": true
+                },
+                "result_key": "forms_list",
+                "show_answer": false
+              },
+              "widget": "api_bridge"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 110,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 108
+                },
+                "phone": {
+                  "h": 110,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 108
+                }
+              },
+              "id": "w2",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "definition_key": "form_definition",
+                "forms": [
+                  {
+                    "fields": [
+                      {
+                        "label": "Line",
+                        "name": "line_id",
+                        "required": true,
+                        "type": "number"
+                      },
+                      {
+                        "label": "Month",
+                        "name": "period",
+                        "required": true,
+                        "type": "text"
+                      },
+                      {
+                        "label": "Store",
+                        "name": "store_id",
+                        "type": "number"
+                      },
+                      {
+                        "label": "Amount",
+                        "name": "amount",
+                        "required": true,
+                        "type": "money"
+                      }
+                    ],
+                    "name": "sales_ledger",
+                    "title": "Sales ledger"
+                  },
+                  {
+                    "fields": [
+                      {
+                        "label": "Store",
+                        "name": "store_id",
+                        "required": true,
+                        "type": "number"
+                      },
+                      {
+                        "label": "Counted on",
+                        "name": "counted_on",
+                        "required": true,
+                        "type": "date"
+                      },
+                      {
+                        "label": "Cash in the tills",
+                        "name": "till_cash",
+                        "required": true,
+                        "type": "money"
+                      },
+                      {
+                        "label": "Counted by",
+                        "name": "counted_by",
+                        "type": "text"
+                      }
+                    ],
+                    "name": "store_cash_count",
+                    "title": "Store cash count"
+                  }
+                ],
+                "forms_key": "forms_list",
+                "label": "Form"
+              },
+              "widget": "form_picker"
+            }
+          ],
+          "id": "c1",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Pick a form"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 628,
+              "w": 0.65,
+              "x": 0.0,
+              "y": 238
+            },
+            "phone": {
+              "h": 628,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 238
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 580,
+                  "w": 0.979487,
+                  "x": 0.010256,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 580,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w3",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "button": "Save form",
+                "definition_key": "form_definition",
+                "save_event": "form_saved"
+              },
+              "widget": "form_designer"
+            }
+          ],
+          "id": "c2",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Design it"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 616,
+              "w": 0.341667,
+              "x": 0.658333,
+              "y": 238
+            },
+            "phone": {
+              "h": 616,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 878
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.960976,
+                  "x": 0.019512,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w4",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_key": "form_saved.payload",
+                "endpoint": "PUT /forms/{form_id}",
+                "path_values": {
+                  "form_id": "@form_saved.payload.name"
+                },
+                "result_key": "saved_form",
+                "show_answer": false,
+                "trigger_key": "form_saved"
+              },
+              "widget": "api_bridge"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 500,
+                  "w": 0.960976,
+                  "x": 0.019512,
+                  "y": 108
+                },
+                "phone": {
+                  "h": 500,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 108
+                }
+              },
+              "id": "w5",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "endpoint": "GET /forms",
+                "page_size": 10
+              },
+              "widget": "api_table"
+            }
+          ],
+          "id": "c3",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Saved forms"
+          },
+          "show": "both"
+        }
+      ],
+      "id": "p1",
+      "name": "Form designer"
+    },
+    {
+      "children": [
+        {
+          "at": {
+            "desktop": {
+              "h": 226,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            },
+            "phone": {
+              "h": 226,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w6",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "auto": true,
+                "endpoint": "GET /forms",
+                "query": {
+                  "full": true
+                },
+                "result_key": "forms_list",
+                "show_answer": false
+              },
+              "widget": "api_bridge"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 110,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 108
+                },
+                "phone": {
+                  "h": 110,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 108
+                }
+              },
+              "id": "w7",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "definition_key": "form_definition",
+                "forms_key": "forms_list",
+                "label": "Form"
+              },
+              "widget": "form_picker"
+            }
+          ],
+          "id": "c4",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Form and month"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 128,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 238
+            },
+            "phone": {
+              "h": 128,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 238
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w8",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "2026-10",
+                "label": "Month",
+                "options": [
+                  "2026-01",
+                  "2026-02",
+                  "2026-03",
+                  "2026-04",
+                  "2026-05",
+                  "2026-06",
+                  "2026-07",
+                  "2026-08",
+                  "2026-09",
+                  "2026-10",
+                  "2026-11",
+                  "2026-12",
+                  "2025-11",
+                  "2025-12"
+                ],
+                "placeholder": "Choose a month",
+                "state_key": "period"
+              },
+              "widget": "input_select"
+            }
+          ],
+          "id": "c5",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Who and when"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 634,
+              "w": 0.491667,
+              "x": 0.0,
+              "y": 378
+            },
+            "phone": {
+              "h": 634,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 378
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w9",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "Ada Ashdown",
+                "label": "Your name",
+                "state_key": "loaded_by"
+              },
+              "widget": "input_text"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 430,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 128
+                },
+                "phone": {
+                  "h": 430,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 128
+                }
+              },
+              "id": "w10",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "button": "Add it",
+                "definition_key": "form_definition",
+                "save_event": "form_submitted"
+              },
+              "widget": "form_fill"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 566
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 566
+                }
+              },
+              "id": "w11",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_extra": {
+                  "loaded_by": "@loaded_by",
+                  "period": "@period",
+                  "rows": [
+                    "@form_submitted.payload.values"
+                  ],
+                  "source": "typed"
+                },
+                "endpoint": "POST /forms/{form_id}/batches",
+                "path_values": {
+                  "form_id": "@form_definition.name"
+                },
+                "show_answer": false,
+                "trigger_key": "form_submitted"
+              },
+              "widget": "api_bridge"
+            }
+          ],
+          "id": "c6",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Type a record"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 1202,
+              "w": 0.5,
+              "x": 0.5,
+              "y": 378
+            },
+            "phone": {
+              "h": 1202,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1024
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 380,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 380,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w12",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "label": "Upload the month's workbook",
+                "out_key": "uploaded"
+              },
+              "widget": "excel_upload"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 380,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 428
+                },
+                "phone": {
+                  "h": 380,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 428
+                }
+              },
+              "id": "w13",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "fields": [
+                  "line_id",
+                  "period",
+                  "store_id",
+                  "amount"
+                ],
+                "in_key": "uploaded",
+                "out_key": "mapped",
+                "required_fields": [
+                  "line_id",
+                  "amount"
+                ]
+              },
+              "widget": "excel_map_columns"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 260,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 816
+                },
+                "phone": {
+                  "h": 260,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 816
+                }
+              },
+              "id": "w14",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "in_key": "mapped",
+                "out_key": "valid",
+                "rules": [
+                  {
+                    "column": "line_id",
+                    "required": true,
+                    "type": "whole"
+                  },
+                  {
+                    "column": "amount",
+                    "required": true,
+                    "type": "number"
+                  },
+                  {
+                    "column": "store_id",
+                    "type": "whole"
+                  }
+                ]
+              },
+              "widget": "excel_validate_rows"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 110,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 1084
+                },
+                "phone": {
+                  "h": 110,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 1084
+                }
+              },
+              "id": "w15",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_extra": {
+                  "loaded_by": "@loaded_by",
+                  "period": "@period",
+                  "rows": "@valid",
+                  "source": "excel"
+                },
+                "button": "Load the valid rows",
+                "endpoint": "POST /forms/{form_id}/batches",
+                "part_rows": 5000,
+                "path_values": {
+                  "form_id": "@form_definition.name"
+                },
+                "rest_endpoint": "POST /batches/{batch_id}/rows",
+                "show_as": "metrics",
+                "show_fields": [
+                  "batch_id",
+                  "rows"
+                ]
+              },
+              "widget": "api_bridge"
+            }
+          ],
+          "id": "c7",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Upload Excel"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 188,
+              "w": 0.491667,
+              "x": 0.0,
+              "y": 1024
+            },
+            "phone": {
+              "h": 188,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 2238
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 140,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 140,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w16",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_extra": {
+                  "loaded_by": "@loaded_by",
+                  "mapping": {
+                    "amount": "amount",
+                    "line_id": "order_line_id",
+                    "period": "period",
+                    "store_id": "store_id"
+                  },
+                  "period": "@period",
+                  "period_column": "period",
+                  "table": "trino_sales_lines"
+                },
+                "button": "Load the month from Trino's copy",
+                "endpoint": "POST /forms/{form_id}/batches/from-table",
+                "path_values": {
+                  "form_id": "@form_definition.name"
+                },
+                "show_as": "metrics",
+                "show_fields": [
+                  "batch_id",
+                  "rows"
+                ]
+              },
+              "widget": "api_bridge"
+            }
+          ],
+          "id": "c8",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "From a source table"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 318,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1592
+            },
+            "phone": {
+              "h": 318,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 2438
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 270,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 270,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w17",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "auto": true,
+                "endpoint": "GET /forms/{form_id}/batches",
+                "path_values": {
+                  "form_id": "@form_definition.name"
+                },
+                "query": {
+                  "period": "@period"
+                },
+                "show_as": "table",
+                "show_fields": [
+                  "batch_id",
+                  "period",
+                  "source",
+                  "loaded_by",
+                  "loaded_at",
+                  "rows"
+                ]
+              },
+              "widget": "api_bridge"
+            }
+          ],
+          "id": "c9",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "This month's batches"
+          },
+          "show": "both"
+        }
+      ],
+      "id": "p2",
+      "name": "Fill and load"
+    },
+    {
+      "children": [
+        {
+          "at": {
+            "desktop": {
+              "h": 226,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            },
+            "phone": {
+              "h": 226,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 0
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 60,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 60,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w18",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "auto": true,
+                "endpoint": "GET /forms",
+                "query": {
+                  "full": true
+                },
+                "result_key": "forms_list",
+                "show_answer": false
+              },
+              "widget": "api_bridge"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 110,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 108
+                },
+                "phone": {
+                  "h": 110,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 108
+                }
+              },
+              "id": "w19",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "definition_key": "form_definition",
+                "forms_key": "forms_list",
+                "label": "Form"
+              },
+              "widget": "form_picker"
+            }
+          ],
+          "id": "c10",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Form and month"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 128,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 238
+            },
+            "phone": {
+              "h": 128,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 238
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w20",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "2026-10",
+                "label": "Month",
+                "options": [
+                  "2026-01",
+                  "2026-02",
+                  "2026-03",
+                  "2026-04",
+                  "2026-05",
+                  "2026-06",
+                  "2026-07",
+                  "2026-08",
+                  "2026-09",
+                  "2026-10",
+                  "2026-11",
+                  "2026-12",
+                  "2025-11",
+                  "2025-12"
+                ],
+                "placeholder": "Choose a month",
+                "state_key": "period"
+              },
+              "widget": "input_select"
+            }
+          ],
+          "id": "c11",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "The month"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 646,
+              "w": 0.491667,
+              "x": 0.0,
+              "y": 378
+            },
+            "phone": {
+              "h": 646,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 378
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w21",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "trino_sales_lines",
+                "label": "Source table",
+                "options": [
+                  "trino_sales_lines",
+                  "d365_accounts"
+                ],
+                "state_key": "recon_source"
+              },
+              "widget": "input_select"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 128
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 128
+                }
+              },
+              "id": "w22",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "line_id",
+                "label": "Key field (the form's)",
+                "state_key": "recon_key_field"
+              },
+              "widget": "input_text"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 216
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 216
+                }
+              },
+              "id": "w23",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "order_line_id",
+                "label": "Key column (the source's)",
+                "state_key": "recon_key_column"
+              },
+              "widget": "input_text"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 304
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 304
+                }
+              },
+              "id": "w24",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "amount",
+                "label": "Compare field",
+                "state_key": "recon_compare_field"
+              },
+              "widget": "input_text"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 392
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 392
+                }
+              },
+              "id": "w25",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "amount",
+                "label": "Compare column",
+                "state_key": "recon_compare_column"
+              },
+              "widget": "input_text"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 480
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 480
+                }
+              },
+              "id": "w26",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": 0.01,
+                "label": "Tolerance",
+                "maximum": 1000,
+                "minimum": 0,
+                "number_format": "%.2f",
+                "state_key": "recon_tolerance",
+                "step": 0.01
+              },
+              "widget": "input_number"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 70,
+                  "w": 0.972881,
+                  "x": 0.013559,
+                  "y": 568
+                },
+                "phone": {
+                  "h": 70,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 568
+                }
+              },
+              "id": "w27",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_extra": {
+                  "compares": [
+                    {
+                      "column": "@recon_compare_column",
+                      "field": "@recon_compare_field",
+                      "tolerance": "@recon_tolerance"
+                    }
+                  ],
+                  "form_id": "@form_definition.name",
+                  "keys": [
+                    {
+                      "column": "@recon_key_column",
+                      "field": "@recon_key_field"
+                    }
+                  ],
+                  "source_period": "period",
+                  "source_table": "@recon_source",
+                  "title": "@form_definition.title",
+                  "totals": [
+                    {
+                      "column": "@recon_compare_column",
+                      "field": "@recon_compare_field"
+                    }
+                  ]
+                },
+                "button": "Save the reconciliation",
+                "endpoint": "PUT /recons/{recon_id}",
+                "path_values": {
+                  "recon_id": "@form_definition.name"
+                },
+                "show_answer": false
+              },
+              "widget": "api_bridge"
+            }
+          ],
+          "id": "c12",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Reconciliation"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 712,
+              "w": 0.5,
+              "x": 0.5,
+              "y": 378
+            },
+            "phone": {
+              "h": 712,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1036
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 170,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 170,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w28",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_extra": {
+                  "period": "@period"
+                },
+                "button": "Run the reconciliation",
+                "endpoint": "POST /recons/{recon_id}/runs",
+                "path_values": {
+                  "recon_id": "@form_definition.name"
+                },
+                "result_key": "run",
+                "show_as": "metrics",
+                "show_fields": [
+                  "matched",
+                  "differences",
+                  "only_entries",
+                  "only_source",
+                  "duplicates"
+                ]
+              },
+              "widget": "api_bridge"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 218
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 218
+                }
+              },
+              "id": "w29",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "difference",
+                "label": "Show",
+                "options": [
+                  "difference",
+                  "only_entries",
+                  "only_source",
+                  "duplicate",
+                  "matched"
+                ],
+                "state_key": "result_status"
+              },
+              "widget": "input_select"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 320,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 306
+                },
+                "phone": {
+                  "h": 320,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 306
+                }
+              },
+              "id": "w30",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "auto": true,
+                "endpoint": "GET /runs/{run_id}/results",
+                "path_values": {
+                  "run_id": "@run.run_id"
+                },
+                "query": {
+                  "limit": 100,
+                  "status": "@result_status"
+                },
+                "show_as": "table",
+                "show_fields": [
+                  "record_key",
+                  "difference",
+                  "fields_off",
+                  "entry_values",
+                  "source_values"
+                ]
+              },
+              "widget": "api_bridge"
+            },
+            {
+              "at": {
+                "desktop": {
+                  "h": 70,
+                  "w": 0.973333,
+                  "x": 0.013333,
+                  "y": 634
+                },
+                "phone": {
+                  "h": 70,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 634
+                }
+              },
+              "id": "w31",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "body_extra": {
+                  "by": "@loaded_by"
+                },
+                "button": "Sign it off",
+                "endpoint": "POST /runs/{run_id}/signoff",
+                "path_values": {
+                  "run_id": "@run.run_id"
+                },
+                "show_answer": false
+              },
+              "widget": "api_bridge"
+            }
+          ],
+          "id": "c13",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Run it for the month"
+          },
+          "show": "both"
+        },
+        {
+          "at": {
+            "desktop": {
+              "h": 128,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1102
+            },
+            "phone": {
+              "h": 128,
+              "w": 1.0,
+              "x": 0.0,
+              "y": 1760
+            }
+          },
+          "children": [
+            {
+              "at": {
+                "desktop": {
+                  "h": 80,
+                  "w": 0.986667,
+                  "x": 0.006667,
+                  "y": 40
+                },
+                "phone": {
+                  "h": 80,
+                  "w": 0.958974,
+                  "x": 0.020513,
+                  "y": 40
+                }
+              },
+              "id": "w32",
+              "kind": "widget",
+              "show": "both",
+              "values": {
+                "default": "Ada Ashdown",
+                "label": "Your name",
+                "state_key": "loaded_by"
+              },
+              "widget": "input_text"
+            }
+          ],
+          "id": "c14",
+          "kind": "container",
+          "props": {
+            "background": "",
+            "border": true,
+            "columns": 12,
+            "height": "fit",
+            "padding": 8,
+            "resizable": false,
+            "scrollable": false,
+            "title": "Signed off by"
+          },
+          "show": "both"
+        }
+      ],
+      "id": "p3",
+      "name": "Reconcile"
+    }
+  ],
+  "sizing": {
+    "columns": 12,
+    "gap": 8,
+    "row_height": 60,
+    "snap": true,
+    "step": 1
+  }
+}

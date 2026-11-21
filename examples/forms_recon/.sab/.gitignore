@@ -1,0 +1,4 @@
+# Swiss Army Bench: a table's rows kept on a tick, and the sandbox's, stay out of Git
+# (data is sensitive).
+data/
+sandbox/

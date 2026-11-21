@@ -1283,6 +1283,11 @@ plugin/                  the swissarmybench plugin: skills/swissarmybench-use (S
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
 .claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
+examples/forms_recon/    the owner's first app POC as a test app, made by the app through the agent's commands: API.py
+                         (forms with versions, entries stored long, a PIVOT column store, monthly reconciliations),
+                         three canvas pages, widgets/api_bridge.widget.py (its library widget, kept beside it);
+                         tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
+                         (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
 examples/packs/          sample-store: an example pack (a made-up blade, the store's relationship set)
 build.py                 build the page (release) and the one wheel; --vsix also packages the extension
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version

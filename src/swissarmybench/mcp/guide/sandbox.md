@@ -59,6 +59,8 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   SqlServer, Dataverse's Dataverse, SharePoint lists, any DB-API database, `connection("Sandbox")` a plain
   DuckDB client). Its SQL is the source's own dialect and marks; what the mock cannot emulate (MERGE, EXEC,
   temporary tables, system views, a Web API call) is refused with its line. It never reaches the real one.
+- `executemany(sql, rows)` is one call to the sandbox (a plain INSERT ... VALUES goes in as one columnar insert):
+  load rows with it, not a loop of execute(). A read answers at most 10,000 rows: page with LIMIT and OFFSET.
 - `state`: settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems with their
   lines, the OpenAPI document, whether it runs. `settings` `{name, description, target, base_path}`.
 - `run` (127.0.0.1, a key of its own; started again when API.py changes), `stop`, `log` (method, path, status,

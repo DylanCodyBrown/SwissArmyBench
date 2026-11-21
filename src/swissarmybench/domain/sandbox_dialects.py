@@ -20,6 +20,7 @@ Pure rules: standard library and sqlglot.
 
 from __future__ import annotations
 
+import functools
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Mapping, Sequence
@@ -256,6 +257,17 @@ def to_duckdb(sql: Any, dialect: str | None, params: Any, tables: Iterable[str])
     if style == "qmark" and isinstance(params, Mapping):
         style = "named"
     marked_sql, values = marked(text, params if params is not None else [], style, quoting)
+    out, kind, target, used = _translate(text, marked_sql, reads, language, tuple(tables))
+    return Translated(out, values, kind, target, list(used))
+
+
+@functools.lru_cache(maxsize=512)
+def _translate(
+    text: str, marked_sql: str, reads: str, language: str, tables: tuple[str, ...]
+) -> tuple[str, str, str | None, tuple[str, ...]]:
+    """A statement whose marks are numbered made DuckDB SQL: (its text, kind, a write's table, the tables it
+    uses). Kept by its words: an API sends the same few statements again and again with other values, and
+    parsing each with sqlglot was most of a small call's time."""
     try:
         statements = [s for s in sqlglot.parse(marked_sql, read=reads) if s is not None]
     except sqlglot.errors.ParseError as error:
@@ -338,7 +350,71 @@ def to_duckdb(sql: Any, dialect: str | None, params: Any, tables: Iterable[str])
         out = tree.sql("duckdb")
     except sqlglot.errors.UnsupportedError as error:
         raise SandboxError(f"Line 1: the sandbox's mock cannot run this {language}: {error}.") from None
-    return Translated(out, values, kind, target, list(dict.fromkeys(used)))
+    return out, kind, target, tuple(dict.fromkeys(used))
+
+
+def to_duckdb_many(
+    sql: Any, dialect: str | None, sets: Sequence[Any], tables: Iterable[str]
+) -> tuple[Translated, list[list[Any]]]:
+    """An executemany's statement made DuckDB SQL once, and each parameter set's values in its marks' order
+    (the order is read once, from the marks: a set is never scanned again)."""
+    if not isinstance(sets, Sequence) or not sets:
+        raise SandboxError("executemany takes at least one set of parameters.")
+    first = sets[0]
+    made = to_duckdb(sql, dialect, first, tables)
+    if isinstance(first, Mapping):
+        probe: Any = {k: k for k in first}
+    else:
+        probe = list(range(len(first)))
+    word = dialect_of(dialect)
+    reads = SQLGLOT[word]
+    quoting = "tsql" if reads == "tsql" else "mysql" if reads == "mysql" else "ansi"
+    style = PARAMSTYLE[word]
+    if style == "qmark" and isinstance(first, Mapping):
+        style = "named"
+    _, order = marked(str(sql).strip(), probe, style, quoting)
+    out: list[list[Any]] = []
+    for at, one in enumerate(sets):
+        try:
+            out.append([one[k] for k in order])
+        except (KeyError, IndexError, TypeError):
+            raise SandboxError(f"Parameter set {at + 1} does not match the first one's marks.") from None
+    return made, out
+
+
+@functools.lru_cache(maxsize=256)
+def plain_insert(sql: str) -> tuple[str, tuple[str, ...] | None, int] | None:
+    """A DuckDB INSERT INTO t [(columns)] VALUES ($1, ..., $n), one row of its marks in order: its table, its
+    columns (None: every column, in order) and n; else None (any other statement)."""
+    try:
+        tree = sqlglot.parse_one(sql, read="duckdb")
+    except sqlglot.errors.SqlglotError:
+        return None
+    if not isinstance(tree, exp.Insert) or tree.args.get("returning") or tree.args.get("conflict"):
+        return None
+    values = tree.expression
+    if not isinstance(values, exp.Values) or len(values.expressions) != 1:
+        return None
+    row = values.expressions[0]
+    marks = row.expressions if isinstance(row, exp.Tuple) else []
+    numbers = []
+    for mark in marks:
+        if not isinstance(mark, (exp.Parameter, exp.Placeholder)):
+            return None
+        try:
+            numbers.append(int(str(mark.this.name if isinstance(mark.this, exp.Expression) else mark.this)))
+        except (TypeError, ValueError):
+            return None
+    if not numbers or numbers != list(range(1, len(numbers) + 1)):
+        return None
+    target = tree.this
+    columns: tuple[str, ...] | None = None
+    if isinstance(target, exp.Schema):
+        columns = tuple(c.name for c in target.expressions)
+        target = target.this
+    if not isinstance(target, exp.Table) or (columns is not None and len(columns) != len(numbers)):
+        return None
+    return target.name, columns, len(numbers)
 
 
 # ===== Dataverse: OData $filter and $orderby, FetchXML =====
