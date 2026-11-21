@@ -91,3 +91,38 @@ def test_go_to_definition_into_a_library_opens_it_read_only(
     page.keyboard.type("x")
     expect(body.locator(".monaco-editor")).not_to_contain_text("xdef")
     page.context.close()
+
+
+def notebook(source: str) -> str:
+    import json
+
+    cell = {"cell_type": "code", "metadata": {}, "source": source, "outputs": [], "execution_count": None}
+    return json.dumps({"cells": [cell], "metadata": {}, "nbformat": 4, "nbformat_minor": 5})
+
+
+def test_a_notebook_changed_elsewhere_reloads_in_place_unless_it_has_unsaved_edits(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+    shop: Path,  # noqa: F811
+) -> None:
+    book = shop / "bakery.ipynb"
+    book.write_text(notebook("loaves = 12"), encoding="utf-8")
+    page = page_of(browser, server, "notebooks")
+    page.locator(".wb-codex-file", has_text="bakery.ipynb").click()
+    tab = page.locator(".wb-tab", has_text="bakery.ipynb")
+    expect(tab).to_be_visible(timeout=20000)
+    cells = page.locator(".wb-cell:visible")
+    expect(cells.first).to_contain_text("loaves = 12", timeout=20000)
+    # Changed elsewhere with nothing unsaved here: the same tab follows, no question.
+    book.write_text(notebook("loaves = 13"), encoding="utf-8")
+    expect(cells.first).to_contain_text("loaves = 13", timeout=20000)
+    expect(page.locator(".wb-elsewhere")).to_have_count(0)
+    expect(page.locator(".wb-tab", has_text="bakery.ipynb")).to_have_count(1)
+    # With an unsaved edit here: it asks.
+    cells.first.locator(".view-lines").click()
+    page.keyboard.press("End")
+    page.keyboard.type("0")
+    book.write_text(notebook("loaves = 14"), encoding="utf-8")
+    expect(page.locator(".wb-elsewhere:visible")).to_contain_text("Changed elsewhere.", timeout=20000)
+    expect(cells.first).to_contain_text("loaves = 130")
+    page.context.close()

@@ -6911,3 +6911,10 @@ Decisions:
 - POST /scripts/library-file reads only a .py or .pyi of Python's own folders (the app's stdlib, purelib,
   platlib) or any site-packages, dist-packages or typeshed folder (a script's own environment): never another
   file of the computer's (domain/script_ide.py library_file). The agent: workbench_definition(source=true).
+
+## Notebooks reload in place (built 2026-11-21, branch scripts-rest)
+
+- A notebook changed elsewhere with nothing unsaved here takes the file's cells in the same tab, as a script does:
+  its view made again from the file (notebookOf) in place of the old, the kernel and its names kept, the selected
+  cell kept where it can be. Only a notebook with unsaved edits shows Changed elsewhere (Reload / Keep mine /
+  Compare); a gone file says so.

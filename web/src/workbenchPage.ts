@@ -1408,7 +1408,20 @@ const markChanged = (doc: Doc) => (): void => {
 function openNotebook(path: string | null, cells: CellData[], modified: number | null, nextCell?: number, dictionary?: Descriptions): Doc {
   const doc = makeDoc("notebook", path ? baseName(path) : `Untitled notebook ${counter + 1}`, path, modified);
   attachStreamlit(doc);
-  doc.notebook = notebookView(cells, doc.kernel!, () => connectionNames, () => effectiveTheme(), markChanged(doc), () => bladeNames, () => codeNames, {
+  doc.notebook = notebookOf(doc, cells, nextCell);
+  doc.element.append(doc.notebook.element);
+  notebookModes(doc);
+  if (isData(doc)) dataMode(doc, dictionary ?? {});
+  show(doc);
+  doc.streamlit!.syncSoon(); // the server knows its cells: the live ones say their state
+  // A new notebook is for typing: the cursor waits in its first cell.
+  if (!path && !cells.length) doc.notebook.select(0, true);
+  return doc;
+}
+
+/** A notebook document's view of its cells (its kernel the document's: a reload in place keeps its names). */
+function notebookOf(doc: Doc, cells: CellData[], nextCell?: number): NotebookView {
+  return notebookView(cells, doc.kernel!, () => connectionNames, () => effectiveTheme(), markChanged(doc), () => bladeNames, () => codeNames, {
     ...hooks,
     fix: pageFix(doc),
     openGrid: (name) => void openGrid(doc, name),
@@ -1422,14 +1435,6 @@ function openNotebook(path: string | null, cells: CellData[], modified: number |
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
     ran: () => flowSoon(doc),
   });
-  doc.element.append(doc.notebook.element);
-  notebookModes(doc);
-  if (isData(doc)) dataMode(doc, dictionary ?? {});
-  show(doc);
-  doc.streamlit!.syncSoon(); // the server knows its cells: the live ones say their state
-  // A new notebook is for typing: the cursor waits in its first cell.
-  if (!path && !cells.length) doc.notebook.select(0, true);
-  return doc;
 }
 
 function openScript(path: string | null, text: string, modified: number | null): Doc {
@@ -1901,13 +1906,16 @@ async function reloadDoc(doc: Doc): Promise<void> {
   const found = await api<Reread>("/workbench/open", "POST", { path: doc.path });
   if (doc.script) doc.script.replaceText(found.text ?? "");
   else if (doc.notebook) {
-    const open = docs.indexOf(doc) >= 0;
-    if (open) {
-      close(doc, true);
-      void openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell);
-      if (current) current.hash = found.hash ?? null;
-      return;
-    }
+    // In place (the owner, 2026-11-21: notebooks follow a change as scripts do): the same tab, the same kernel
+    // and its names, the selected cell kept where it can be; only the cells are the file's now.
+    const at = doc.notebook.selected();
+    const old = doc.notebook;
+    const fresh = notebookOf(doc, found.cells ?? [], found.next_cell);
+    old.element.replaceWith(fresh.element);
+    old.dispose();
+    doc.notebook = fresh;
+    if (at >= 0 && at < (found.cells ?? []).length) fresh.select(at);
+    if (doc === current) drawTablesTool();
   }
   doc.modified = found.modified;
   doc.hash = found.hash ?? null;
@@ -1965,7 +1973,7 @@ function elsewhereBar(doc: Doc, hash: string | null): void {
 function fileChanged(path: string, hash: string | null): void {
   for (const doc of docs.filter((d) => d.path === path)) {
     if (hash !== null && hash === doc.hash) continue; // this window's own save, or the same text
-    if (hash === null || doc.dirty || !doc.script) elsewhereBar(doc, hash);
+    if (hash === null || doc.dirty || !(doc.script || doc.notebook)) elsewhereBar(doc, hash);
     else void reloadDoc(doc).catch((e: Error) => errorToast(e));
   }
   codexHooks.refresh();
