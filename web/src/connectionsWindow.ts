@@ -651,8 +651,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       h(
         "li",
         { class: "connection-card-item" },
-        // Its colour (connectionColours.ts): the card's edge, and the swatch that chooses it.
-        c.connection === "vault" ? null : colourPicker(c.name),
+        // Its colour (connectionColours.ts) is the card's own highlight: its border and a tint of its box (the
+        // owner, 2026-11-21: "the highlighting for the box of the connection itself"); chosen on its detail.
         h(
           "a",
           {

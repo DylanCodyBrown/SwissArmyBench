@@ -23,7 +23,6 @@
  * ROUTING: GET /explorer/browse  GET /explorer/table  POST /connections/{name}/relationships {dataset}
  */
 import { api, errorText } from "./api";
-import { connectionDot } from "./connectionColours";
 import { button, clear, h, icon, recall, remember, showMenu, toast, type MenuItem } from "./dom";
 import { busyClick, loadingBlock } from "./loading";
 import { errorHere, errorMark, errorNote } from "./errorNote";
@@ -302,9 +301,8 @@ export function mountBrowse(ctx: BrowseContext): Browse {
         : h("span", { class: "db-caret", "aria-hidden": "true" });
     const line = h(
       "div",
-      { class: "db-line", style: `--depth:${depth}` },
+      { class: "db-line", style: `--depth:${depth}`, ...(node.kind === "connection" && c ? { "data-connections": c.name } : {}) },
       caret,
-      node.kind === "connection" && c ? connectionDot(c.name) : null,
       h("span", { class: "db-icon", "aria-hidden": "true" }, icon(node.icon)),
       h("span", { class: "db-name" }, node.label),
       node.type ? h("span", { class: "db-type" }, node.type) : null,

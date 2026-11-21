@@ -494,6 +494,7 @@ function arrange(tabs: Map<string, HTMLElement>): HTMLElement[] {
       {
         type: "button",
         class: "tab-group-head",
+        ...(connection ? { "data-connections": connection } : {}), // its box wears the colour
         draggable: "true",
         "aria-expanded": String(!collapsed),
         title: collapsed ? `Show ${name}'s tables` : `Fold ${name}'s tables`,
@@ -507,7 +508,6 @@ function arrange(tabs: Map<string, HTMLElement>): HTMLElement[] {
           else if (dragging) moveTab(dragging, members[0]!);
         },
       },
-      connection ? h("span", { class: "conn-dot", "data-connections": connection, "aria-hidden": "true" }) : null,
       h("span", { class: "tab-group-name" }, name),
       collapsed ? h("span", { class: "tab-group-count" }, String(members.length)) : null,
     );

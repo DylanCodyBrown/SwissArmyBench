@@ -129,26 +129,43 @@ def test_tabs_are_grouped_by_connection_and_wear_its_colour_live(
     expect(row.locator(".tab-group.collapsed")).to_have_count(0)
 
 
-def test_the_card_and_the_detail_choose_a_colour_the_rails_are_refused(
+def rgb(colour: str) -> str:
+    """#rrggbb as getComputedStyle says it: rgb(r, g, b)."""
+    r, g, b = (int(colour[i : i + 2], 16) for i in (1, 3, 5))
+    return f"rgb({r}, {g}, {b})"
+
+
+def test_the_card_is_the_connections_box_in_its_colour_and_the_detail_chooses_it(
     browser: Browser, server: dict[str, Any], two: dict[str, Any]
 ) -> None:
+    """The owner (2026-11-21): "it doesn't need to be a little dot it needs to be the highlighting for the
+    box of the connection itself": the card's border is its colour and its box is tinted with it; no swatch
+    sits on the card; the colour is chosen on its detail."""
     page = browser.new_context(viewport={"width": 1400, "height": 900}, device_scale_factor=2).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workspace?open=connections#token={server['token']}")
     card = page.locator(".connection-card[data-connection='Depot']")
     expect(card).to_be_visible(timeout=20000)
     wait_worn(page, ".connection-card[data-connection='Depot']", shown(page, server, "Depot"))
-    swatch = page.get_by_role("button", name="Depot's colour").first
+    assert card.evaluate("e => getComputedStyle(e).borderTopColor") == rgb(shown(page, server, "Depot"))
+    background = card.evaluate("e => getComputedStyle(e).backgroundColor")
+    raised = page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--raised').trim()")
+    assert background not in (rgb(raised), "rgba(0, 0, 0, 0)")  # tinted, not the plain card
+    expect(page.locator(".connection-card-item .conn-swatch")).to_have_count(0)
+    expect(page.locator(".conn-dot")).to_have_count(0)
+    shot(page, "2-coloured-boxes")
+    # Its detail: the swatch beside the tools chooses it.
+    card.click()
+    swatch = page.locator(".connection-colour .conn-swatch")
+    expect(swatch).to_be_visible(timeout=15000)
     swatch.click()
     palette = page.get_by_role("menu", name="Depot's colour")
     expect(palette.locator(".conn-palette-swatch")).to_have_count(8)
-    shot(page, "2-card-palette")
     palette.get_by_role("menuitemradio", name="Magenta").click()
     assert until(lambda: listed(server)["Depot"]["chosen"] == MAGENTA)  # saved first, then worn
-    wait_worn(page, ".connection-card[data-connection='Depot']", shown(page, server, "Depot"))
-    # Its detail: the swatch beside the tools.
-    card.click()
-    expect(page.locator(".connection-colour .conn-swatch")).to_be_visible(timeout=15000)
     shot(page, "3-detail")
+    page.go_back()
+    wait_worn(page, ".connection-card[data-connection='Depot']", shown(page, server, "Depot"))
+    assert card.evaluate("e => getComputedStyle(e).borderTopColor") == rgb(shown(page, server, "Depot"))
     # A rail colour (the notebooks' blue) is refused, with the reason.
     refused = page.evaluate(
         """async () => {

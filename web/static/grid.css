@@ -11002,17 +11002,11 @@ g.follow-pulse > path:first-of-type {
   color: var(--accent);
 }
 
-/* ===== CONNECTION COLOURS (connectionColours.ts): a stripe, an edge or a dot, never a background ===== */
+/* ===== CONNECTION COLOURS (connectionColours.ts): a connection's own box wears its colour as its highlight
+   (a border and a light tint, the owner 2026-11-21); what only names a connection wears a stripe ===== */
 /* --conn-a is the first connection's colour as this theme shows it (made readable by the server), --conn-b
-   the second's (a cell that uses two wears two marks). The rail's colours are never offered. */
-.conn-dot {
-  display: inline-block;
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--conn-a, var(--border-strong));
-}
+   the second's (a cell that uses two wears two marks). The rail's colours are never offered. The tint is
+   light enough that the theme's text stays readable on it. */
 
 .conn-swatch {
   flex: none;
@@ -11078,21 +11072,36 @@ g.follow-pulse > path:first-of-type {
   background: none;
 }
 
-/* The Connections page: the card's edge is its colour; the swatch sits in its corner. */
+/* The Connections page: the card is the connection's box, its border and tint its colour. */
 .connection-card-item {
   position: relative;
 }
 
-.connection-card-item > .conn-swatch {
-  position: absolute;
-  z-index: 1;
-  top: 10px;
-  right: 10px;
+.connection-card.conn-worn {
+  border: 2px solid var(--conn-a);
+  background: color-mix(in srgb, var(--conn-a) 9%, var(--raised));
 }
 
-.connection-card.conn-worn,
 .connection-card.conn-worn:hover {
-  border-left: 4px solid var(--conn-a);
+  border-color: var(--conn-a);
+  background: color-mix(in srgb, var(--conn-a) 16%, var(--raised));
+}
+
+/* The Data Catalog's connection row and a tab group's head: the connection's box, tinted in its colour. */
+.db-line.conn-worn {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--conn-a) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+
+.tab-group-head.conn-worn {
+  background: color-mix(in srgb, var(--conn-a) 12%, transparent);
+  box-shadow: inset 0 0 0 1px var(--conn-a);
+  color: var(--fg);
+}
+
+.tab-group-head.conn-worn:hover {
+  background: color-mix(in srgb, var(--conn-a) 20%, transparent);
 }
 
 .connection-colour {
@@ -11176,7 +11185,6 @@ g.follow-pulse > path:first-of-type {
 }
 
 @media (forced-colors: active) {
-  .conn-dot,
   .conn-swatch,
   .conn-palette-swatch {
     forced-color-adjust: none;
