@@ -15,9 +15,13 @@ domain/widget_properties.py); together they are the widget's contract.
     saved: Event[dict] = None         <- an action it fires: `saved(payload)` (`= None` may be left out);
                                          the Canvas wires what it does (call an API.py endpoint with the
                                          payload mapped, set a page value, rerun)
+    saved: Event[Order] = None        <- a typed payload: Order a TypedDict or a dataclass of the widget's
+    rows: Out[Table[Row]] = None         own (the body mapping offers its fields; a column property wired
+                                         from the Out offers a Table[Row]'s columns)
+    file: Out[File] = None            <- a file (name, size, type, bytes: sab_canvas.File)
 
-TYPES: Table, str, int, float, bool, date, datetime, list (list[...] of one of these), dict. A declaration
-whose marker or type is not one of these is still listed, with its problem in one sentence.
+TYPES: Table, str, int, float, bool, date, datetime, File, list (list[...] of one of these), dict. A
+declaration whose marker or type is not one of these is still listed, with its problem in one sentence.
 
 Pure rules: no I/O, standard library only.
 """
@@ -27,13 +31,14 @@ from __future__ import annotations
 import ast
 import datetime
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
 from swissarmybench_streamlit.domain import widget_properties as props_rules
 
 MARKERS: dict[str, str] = {"In": "in", "Out": "out", "Event": "event"}
-SCALARS: tuple[str, ...] = ("Table", "str", "int", "float", "bool", "date", "datetime", "dict")
+SCALARS: tuple[str, ...] = ("Table", "str", "int", "float", "bool", "date", "datetime", "File", "dict")
 TYPE_WORDS: dict[str, str] = {
     "Table": "a table",
     "str": "text",
@@ -42,6 +47,7 @@ TYPE_WORDS: dict[str, str] = {
     "bool": "yes or no",
     "date": "a date",
     "datetime": "a date and time",
+    "File": "a file",
     "dict": "a set of names and values",
     "list": "a list",
 }
@@ -70,9 +76,14 @@ class Port:
     help: str = ""
     line: int = 0
     problem: str | None = None
+    # A typed payload's or a Table[Row]'s fields, (name, type) in order, and the record's name ("": none).
+    fields: tuple[tuple[str, str], ...] = ()
+    schema: str = ""
 
     def to_json(self) -> dict[str, Any]:
         return {
+            "fields": [{"name": n, "type": t} for n, t in self.fields],
+            "schema": self.schema,
             "name": self.name,
             "direction": self.direction,
             "type": self.type,
@@ -92,6 +103,7 @@ PLURALS: dict[str, str] = {
     "bool": "yes or no values",
     "date": "dates",
     "datetime": "dates and times",
+    "File": "files",
     "dict": "sets of names and values",
 }
 
@@ -165,6 +177,47 @@ def is_declaration(statement: ast.stmt) -> bool:
     return _declaration(statement) is not None
 
 
+_FIELD_TYPES = {"str", "int", "float", "bool", "date", "datetime", "dict", "list", "File", "Table"}
+
+
+def _decorated_dataclass(node: ast.ClassDef) -> bool:
+    for one in node.decorator_list:
+        target = one.func if isinstance(one, ast.Call) else one
+        if _head(target) == "dataclass":
+            return True
+    return False
+
+
+def records(module: ast.Module) -> dict[str, tuple[tuple[str, str], ...]]:
+    """The widget's own record types, a TypedDict or a dataclass at the top level: name -> its fields
+    (name, type in words of the TYPES where it is one), in order."""
+    found: dict[str, tuple[tuple[str, str], ...]] = {}
+    for node in module.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        typed = any(_head(b) == "TypedDict" for b in node.bases)
+        if not typed and not _decorated_dataclass(node):
+            continue
+        fields: list[tuple[str, str]] = []
+        for item in node.body:
+            if isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name):
+                text = ast.unparse(item.annotation)
+                head = text.split("[", 1)[0].rsplit(".", 1)[-1]
+                fields.append((item.target.id, text if head not in _FIELD_TYPES else text.rsplit(".", 1)[-1]))
+        found[node.name] = tuple(fields)
+    return found
+
+
+def _record_of(node: ast.expr | None, known: Mapping[str, tuple[tuple[str, str], ...]]) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        try:
+            node = ast.parse(node.value, mode="eval").body
+        except SyntaxError:
+            return None
+    name = _head(node) if isinstance(node, (ast.Name, ast.Attribute)) else ""
+    return name if name in known else None
+
+
 def detect(code: str) -> list[Port]:
     """The widget's Ins, Outs and Events, in the order written. Code that does not parse raises
     PropertyError (its line, the properties' own)."""
@@ -172,13 +225,27 @@ def detect(code: str) -> list[Port]:
     lines = code.split("\n")
     found: list[Port] = []
     seen: set[str] = set()
+    known = records(module)
     for one in module.body:
         found_one = _declaration(one)
         if found_one is None:
             continue
         statement, name, direction, type_node = found_one
         problem: str | None = None
-        if type_node is None and direction == "event":
+        fields: tuple[tuple[str, str], ...] = ()
+        schema = ""
+        record = _record_of(type_node, known)
+        table_of = (
+            _record_of(type_node.slice, known)
+            if isinstance(type_node, ast.Subscript)
+            and _ALIASES.get(_head(type_node.value), _head(type_node.value)) == "Table"
+            else None
+        )
+        if record is not None and direction in ("event", "out", "in"):
+            kind, schema, fields = "dict", record, known[record]  # a typed payload: a dict of its fields
+        elif table_of is not None:
+            kind, schema, fields = "Table", table_of, known[table_of]  # a table of those columns
+        elif type_node is None and direction == "event":
             kind = "dict"  # an Event's payload is a dict unless it says otherwise
         elif type_node is None:
             kind, problem = "?", f"{name}'s {direction.title()} needs a type: {direction.title()}[str]."
@@ -210,6 +277,8 @@ def detect(code: str) -> list[Port]:
                 help=_help(lines, statement.lineno),
                 line=statement.lineno,
                 problem=problem,
+                fields=fields,
+                schema=schema,
             )
         )
     return found
@@ -284,6 +353,8 @@ def fits_value(kind: str, value: Any) -> bool:
         return isinstance(value, str) and bool(_DATETIME.match(value))
     if kind == "dict":
         return isinstance(value, dict)
+    if kind == "File":
+        return False  # a file comes from an upload, never typed
     if kind == "list":
         return isinstance(value, list)
     if kind.startswith("list[") and kind.endswith("]"):

@@ -41,6 +41,9 @@ from swissarmybench_streamlit.domain.widget_properties import Property
 # The pages' folder: not "pages/", which Streamlit would also list as pages of its own beside st.navigation's.
 PAGES: str = "app_pages"
 BORDER: int = 1  # the width of Streamlit's container border, in pixels
+# A container's title takes this one line on the played page (its children placed below it as on the canvas);
+# a title that wraps on a narrow page pushes them down by its extra lines, never over the first widget.
+TITLE_PX: int = 28
 REQUIREMENTS: tuple[str, ...] = ("streamlit>=1.43", "pandas", "pyarrow")
 
 
@@ -118,35 +121,45 @@ class _Writer:
         self.lines.append("    " * indent + text)
 
     @staticmethod
-    def _box(place: Mapping[str, Any], inset: int) -> str:
+    def _box(place: Mapping[str, Any], inset: int, top: int = 0) -> str:
         """Left and width as the fractions they are: of the parent's padding box widened by its border, less
-        the border (an absolute box is placed from inside it), so the box lands where the canvas has it."""
+        the border (an absolute box is placed from inside it), so the box lands where the canvas has it.
+        `top`: what its parent's own box starts below (a titled container's padding and title line)."""
         grow = f" + {2 * inset}px" if inset else ""
         less = f" - {inset}px" if inset else ""
+        # Under a title, never above the box below it: a widget drawn in the title's line sits under it.
+        down = max(0, place["y"] - inset - top) if top else place["y"] - inset
         return (
-            f"left: calc((100%{grow}) * {place['x']}{less}); top: {place['y'] - inset}px; "
+            f"left: calc((100%{grow}) * {place['x']}{less}); top: {down}px; "
             f"width: calc((100%{grow}) * {place['w']})"
         )
 
-    def place(self, key: str, node: Mapping[str, Any], rules: dict[str, list[str]], inset: int) -> None:
+    def place(
+        self, key: str, node: Mapping[str, Any], rules: dict[str, list[str]], inset: int, top: int = 0
+    ) -> None:
         base = "position: absolute; max-width: none; flex: none; box-sizing: border-box; gap: 0"
         at = node["at"]
-        desktop = rules["desktop"] + ([] if layouts.shown(node, "desktop") else ["display: none"])
-        phone = rules["phone"] + (["display: flex"] if layouts.shown(node, "phone") else ["display: none"])
-        self.css.append(
-            f".st-key-{key} {{ {base}; {self._box(at['desktop'], inset)}; {'; '.join(desktop)}; }}"
+        hidden = takes_no_space(node)  # Hidden in the app: it runs, it takes no space
+        desktop = rules["desktop"] + (
+            [] if layouts.shown(node, "desktop") and not hidden else ["display: none"]
         )
-        self.phone.append(f".st-key-{key} {{ {self._box(at['phone'], inset)}; {'; '.join(phone)}; }}")
+        phone = rules["phone"] + (
+            ["display: flex"] if layouts.shown(node, "phone") and not hidden else ["display: none"]
+        )
+        self.css.append(
+            f".st-key-{key} {{ {base}; {self._box(at['desktop'], inset, top)}; {'; '.join(desktop)}; }}"
+        )
+        self.phone.append(f".st-key-{key} {{ {self._box(at['phone'], inset, top)}; {'; '.join(phone)}; }}")
 
-    def children(self, children: list[dict[str, Any]], indent: int, inset: int = 0) -> None:
+    def children(self, children: list[dict[str, Any]], indent: int, inset: int = 0, top: int = 0) -> None:
         # Each placed by its key's CSS, so they run in the wiring's order: a reader after what it reads.
         for child in wiring.order(children, self.needs):
             if child["kind"] == "container":
-                self.container(child, indent, inset)
+                self.container(child, indent, inset, top)
             else:
-                self.widget(child, indent, inset)
+                self.widget(child, indent, inset, top)
 
-    def container(self, node: dict[str, Any], indent: int, inset: int = 0) -> None:
+    def container(self, node: dict[str, Any], indent: int, inset: int = 0, top: int = 0) -> None:
         props = node["props"]
         key = f"sab-{node['id']}"
         args = [f"border={props['border']!r}", f"key={key!r}"]
@@ -164,22 +177,39 @@ class _Writer:
                 made += ["resize: both", "overflow: auto"]
             rules[layout] = made
         rules["desktop"] = shared + rules["desktop"]
-        self.place(key, node, rules, inset)
+        self.place(key, node, rules, inset, top)
         inner = indent + 1
+        border = BORDER if props["border"] else 0
         if props["title"]:
+            # The title in the flow, the children in a box below it: a title that wraps pushes them down.
             self.emit(inner, f"sab.heading({json.dumps(props['title'], ensure_ascii=False)})")
+            body = f"{key}-body"
+            self.emit(inner, f"with st.container(key={body!r}):")
+            pad = int(props["padding"])
+            for layout in layouts.LAYOUTS:
+                h = max(0, node["at"][layout]["h"] - 2 * border - 2 * pad - TITLE_PX)
+                rule = (
+                    f".st-key-{body} {{ position: relative; width: calc(100% + {2 * pad}px); "
+                    f"margin-left: -{pad}px; flex: none; gap: 0; height: {h}px; }}"
+                )
+                (self.css if layout == "desktop" else self.phone).append(rule)
+            if node["children"]:
+                self.children(node["children"], inner + 1, border, pad + TITLE_PX)
+            else:
+                self.emit(inner + 1, "pass")
+            return
         if node["children"]:
-            self.children(node["children"], inner, BORDER if props["border"] else 0)
-        elif not props["title"]:
+            self.children(node["children"], inner, border)
+        else:
             self.emit(inner, "pass")
 
-    def widget(self, node: dict[str, Any], indent: int, inset: int = 0) -> None:
+    def widget(self, node: dict[str, Any], indent: int, inset: int = 0, top: int = 0) -> None:
         key = f"sab-{node['id']}"
         self.emit(indent, f"with st.container(key={key!r}):  # {node['id']}")
         rules = {
             layout: [f"height: {node['at'][layout]['h']}px", "overflow: auto"] for layout in layouts.LAYOUTS
         }
-        self.place(key, node, rules, inset)
+        self.place(key, node, rules, inset, top)
         built = self.widgets.get(node["widget"])
         if built is None:
             self.emit(indent + 1, f"sab.missing({node['widget']!r}, {node['id']!r})")
@@ -188,6 +218,15 @@ class _Writer:
         wires = self.sources.get(node["id"]) or {}
         tail = f", {_py(wires)}" if wires else ""
         self.emit(indent + 1, f"sab.render({node['widget']!r}, {_py(values)}, {node['id']!r}{tail})")
+
+
+def takes_no_space(node: Mapping[str, Any]) -> bool:
+    """A widget Hidden in the app, or a container with no title holding only such widgets (a box that only
+    moves data): it runs, its Outs flow, the page gives it no space."""
+    if node["kind"] == "widget":
+        return bool(node.get("hidden"))
+    children = node.get("children") or []
+    return bool(children) and not node["props"].get("title") and all(takes_no_space(c) for c in children)
 
 
 def _py(value: Any) -> str:
@@ -210,9 +249,14 @@ def page_code(
         writer.emit(1, "sab.empty()")
 
     def bottom(layout: str) -> int:
-        shown = [c["at"][layout] for c in page["children"] if layouts.shown(c, layout)]
+        shown = [
+            c["at"][layout] for c in page["children"] if layouts.shown(c, layout) and not takes_no_space(c)
+        ]
         return max((p["y"] + p["h"] for p in shown), default=40)
 
+    # A container's title takes its whole line in the flow (Streamlit pulls a markdown block's foot up by
+    # its own margin): its box's height is the title's, so the box below it starts under its last line.
+    writer.css.insert(0, '[data-testid="stMarkdownContainer"]:has(> .sab-title) { margin-bottom: 0; }')
     writer.css.insert(
         0,
         f".st-key-sab-page {{ position: relative; width: 100%; height: {bottom('desktop')}px; gap: 0; "
@@ -752,7 +796,73 @@ class _Marker:
 In = _Marker("In")
 Out = _Marker("Out")
 Event = _Marker("Event")
-Table = Any  # a table: a pandas DataFrame
+Table = _Marker("Table")  # a table: a pandas DataFrame (Table[Row]: its columns are Row's fields)
+
+
+class File:
+    """A file a viewer gave (an upload, a picture, a recording): its name, size in bytes, type (as
+    text/csv) and its bytes. An input widget's `file: Out[File]`; a reader's `file: In[File]`."""
+
+    def __init__(self, name: str, data: bytes, type: str = "") -> None:
+        self.name, self.bytes, self.type = str(name), bytes(data), str(type or "")
+        self.size = len(self.bytes)
+
+    def getvalue(self) -> bytes:  # read like Streamlit's own UploadedFile
+        return self.bytes
+
+    def __repr__(self) -> str:
+        return f"File({self.name!r}, {self.size} bytes)"
+
+
+def as_file(found: Any) -> Any:
+    """An upload (Streamlit's UploadedFile), a picture or a recording as a File; a list: its first; None
+    stays None."""
+    if isinstance(found, list):
+        found = found[0] if found else None
+    if found is None or isinstance(found, File):
+        return found
+    if isinstance(found, dict) and "bytes" in found:
+        return File(found.get("name") or "file", found["bytes"], found.get("type") or "")
+    data = found.getvalue() if hasattr(found, "getvalue") else bytes(found)
+    return File(getattr(found, "name", "") or "file", data, getattr(found, "type", "") or "")
+
+
+# ===== who is viewing =====
+
+UNKNOWN = "unknown"
+
+
+def viewer_info() -> dict[str, str]:
+    """Who is viewing, and how it is known, never invented: a sign-in the host vouches for (Azure App
+    Service's authentication headers, only on App Service; Streamlit's own st.user when the app signs people
+    in), else this computer's user name in Swiss Army Bench's Play and Launch (SAB_LOCAL_VIEWER), else
+    "unknown" (a shared app through Dev Tunnels passes no viewer's name to the app)."""
+    try:
+        headers = st.context.headers
+    except Exception:
+        headers = {}
+    if os.environ.get("WEBSITE_SITE_NAME"):  # App Service sets these headers; outside it anyone could
+        for name in ("X-MS-CLIENT-PRINCIPAL-NAME", "X-Ms-Client-Principal-Name"):
+            found = headers.get(name) if headers else None
+            if found:
+                return {"name": str(found), "via": "app service"}
+    try:
+        user = st.user
+        if getattr(user, "is_logged_in", False):
+            found = user.get("email") or user.get("name") or user.get("preferred_username")
+            if found:
+                return {"name": str(found), "via": "streamlit"}
+    except Exception:
+        pass
+    local = os.environ.get("SAB_LOCAL_VIEWER", "")
+    if local:
+        return {"name": local, "via": "this computer"}
+    return {"name": UNKNOWN, "via": UNKNOWN}
+
+
+def viewer() -> str:
+    """Who is viewing, by name ("unknown" when it is not known)."""
+    return viewer_info()["name"]
 
 
 def _out_key(ref: str) -> str:
@@ -769,6 +879,8 @@ def _coerce(value: Any, kind: str, name: str) -> Any:
     try:
         if kind == "Table":
             return as_table(value, name)
+        if kind == "File":
+            return as_file(value)
         if kind in ("int", "float") and isinstance(value, str):
             return int(value) if kind == "int" else float(value)
         if kind == "bool" and isinstance(value, str):
@@ -878,7 +990,12 @@ def var(name: str) -> str:
 
 
 def begin(page: str) -> None:
-    """A page's run begins (the Performance Analyzer's clock, when it is beside the app; else nothing)."""
+    """A page's run begins: the app's own Out app.viewer set (who is viewing), the Performance Analyzer's
+    clock started when it is beside the app."""
+    try:
+        st.session_state[_out_key("app.viewer")] = viewer()
+    except Exception:
+        pass
     if _perf is not None:
         try:
             _perf.start(str(_HERE), page)
@@ -900,8 +1017,11 @@ def style(css: str) -> None:
 
 
 def heading(text: str) -> None:
+    """A container's title: one line of 28 px on the canvas's design (a longer one wraps, pushing the
+    container's widgets down by its extra lines)."""
     st.markdown(
-        f"<div style='font-weight:600;margin-bottom:0.25rem'>{html.escape(text)}</div>",
+        f"<div class='sab-title' style='font-weight:600;line-height:20px;padding:4px 0;margin:0'>"
+        f"{html.escape(text)}</div>",
         unsafe_allow_html=True,
     )
 
@@ -930,6 +1050,30 @@ def _widgets() -> Any:
         sab_widgets = importlib.reload(sab_widgets)
         sab_widgets._sab_stamp = stamp
     return sab_widgets
+
+
+_SEEN: dict[str, list[str]] = {}
+
+
+def _seen(ref: str, value: Any) -> None:
+    """An Out[Table]'s columns as it last ran, written beside the app for the Canvas's column pickers: only in
+    Swiss Army Bench's Play (SAB_RECORD_COLUMNS), only when they change; never rows."""
+    if os.environ.get("SAB_RECORD_COLUMNS") != "1" or value is None or not hasattr(value, "columns"):
+        return
+    columns = [str(c) for c in list(value.columns)[:500]]
+    if _SEEN.get(ref) == columns:
+        return
+    _SEEN[ref] = columns
+    try:
+        import json
+        import tempfile
+
+        made = tempfile.NamedTemporaryFile("w", dir=_HERE, suffix=".tmp", delete=False, encoding="utf-8")
+        with made:
+            json.dump(_SEEN, made)
+        os.replace(made.name, _HERE / ".sab_columns.json")
+    except OSError:
+        pass
 
 
 def _code(name: str) -> Any:
@@ -976,9 +1120,14 @@ def render(name: str, values: dict[str, Any], instance: str, wires: dict[str, An
         with st.expander("Details"):
             st.code(traceback.format_exc(), language="text")
     finally:
-        for port in ports.get("outs", {}):  # each Out kept for the page (a rerun keeps the last one)
+        for port, (kind, _default) in ports.get("outs", {}).items():  # kept for the app (every page reads it)
             if port in namespace:
-                st.session_state[_out_key(f"{instance}.{port}")] = namespace[port]
+                value = namespace[port]
+                if kind == "File":
+                    value = as_file(value)
+                st.session_state[_out_key(f"{instance}.{port}")] = value
+                if kind == "Table":
+                    _seen(f"{instance}.{port}", value)
         _INSTANCE.reset(token)
         if _perf is not None:
             _perf.mark(instance)

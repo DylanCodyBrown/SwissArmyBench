@@ -168,6 +168,12 @@ def routes(services: Any) -> list[Any]:
             return out
         for name in connection_tables.names():
             try:
+                saved, kind = connection_tables.kind(name)
+                if (
+                    kind == "sandbox"
+                ):  # the project's sandbox: its made-up copies, listed now (never live data)
+                    out[saved] = sorted(f"[{saved}].{p.table}" for p in await connection_tables.places(saved))
+                    continue
                 out[name] = await connection_tables.listed(name)
             except Exception:  # noqa: S112 (a key vault, a kind with no tables: not offered)
                 continue
@@ -183,7 +189,9 @@ def routes(services: Any) -> list[Any]:
     widgets = Widgets(
         services.ws,
         WidgetFiles(
-            library.folder if library is not None else None, made=library.made if library else lambda: None
+            library.folder if library is not None else None,
+            made=library.made if library else lambda: None,
+            project=project_folder,
         ),
         live_runs,
         services.agent.approvals,

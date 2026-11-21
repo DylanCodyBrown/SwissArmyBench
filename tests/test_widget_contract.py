@@ -134,7 +134,7 @@ def test_a_wire_is_refused_in_place_with_the_reason() -> None:
     )
     for port, wire, said in [
         (count, {"out": "w1.uploaded"}, "count takes a whole number: w1.uploaded gives a table."),
-        (orders, {"out": "w9.gone"}, "No widget on this page has an Out w9.gone."),
+        (orders, {"out": "w9.gone"}, "No widget of this app has an Out w9.gone."),
         (orders, {"table": "nope"}, "There is no table called nope here."),
         (count, {"endpoint": "GET /orders"}, "count takes a whole number: an endpoint answers JSON."),
         (orders, {"endpoint": "POST /orders"}, "orders reads a GET endpoint's answer, as GET /orders."),

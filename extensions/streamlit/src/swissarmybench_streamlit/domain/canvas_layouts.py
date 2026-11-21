@@ -16,7 +16,8 @@ Every page holds the same containers and widget instances in both layouts; each 
 A place's x and w are FRACTIONS of its parent's width (the page's, or its container's), so the built page fits
 any width; y and h are pixels. Six decimals round-trip to the same pixel at the design width (desktop 1200 px,
 phone 390 px), so a 1 px placement stays. `show` is both, desktop or phone (an item hidden in one layout
-only).
+only). A widget instance's `"hidden": true` is Hidden in the app: it runs and its Outs flow, but the played,
+launched or exported page gives it no space (the canvas draws it faded, with an eye-off mark).
 
 The rules (domain/canvas_model.py, in pixels) hold in each layout: a layout is VIEWED as a canvas of pixels at
 its design width, a command runs on that view, and the result is folded back. An item made, or moved into
@@ -286,6 +287,8 @@ def _normal(data: dict[str, Any]) -> dict[str, Any]:
             raise CanvasError(f"Containers go {engine.MAX_DEPTH} deep at most.")
         if item.get("show", "both") not in SHOWS:
             raise CanvasError(f"{item.get('id')}'s show is both, desktop or phone.")
+        if "hidden" in item and (item["kind"] != "widget" or item["hidden"] is not True):
+            raise CanvasError(f"{item.get('id')}'s hidden is true, on a widget only.")
         item.setdefault("show", "both")
         at = item.get("at")
         if not isinstance(at, dict) or not at:
@@ -395,6 +398,18 @@ def apply(
         if show not in SHOWS:
             raise CanvasError("Show on is both, desktop or phone.")
         node["show"] = show
+        return after, None
+    if kind == "hide":  # Hidden in the app: it still runs and its Outs flow; it takes no space on the page
+        after = copy.deepcopy(canvas)
+        _, _, node = find(after, str(body.get("id")))
+        if node["kind"] != "widget":
+            raise CanvasError(f"{node['id']} is a container: only a widget is hidden in the app.")
+        if not isinstance(body.get("hidden"), bool):
+            raise CanvasError("Hidden in the app is true or false.")
+        if body["hidden"]:
+            node["hidden"] = True
+        else:
+            node.pop("hidden", None)
         return after, None
     before = set(problems(canvas, facts))
     if kind == "sizing":

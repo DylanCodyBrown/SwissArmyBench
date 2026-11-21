@@ -174,6 +174,16 @@ SHARED_FLAGS: tuple[str, ...] = (
 )
 
 
+def local_user() -> str:
+    """This computer's user name ("" when the system does not say)."""
+    import getpass
+
+    try:
+        return getpass.getuser()
+    except (OSError, KeyError, ImportError):
+        return ""
+
+
 async def start(
     python: str, folder: str, base: str, report: Report = _no_report, shared: bool = False
 ) -> Process:
@@ -207,6 +217,13 @@ async def start(
         ]
         command += list(SHARED_FLAGS)
     environ = dict(os.environ)
+    environ.pop("SAB_LOCAL_VIEWER", None)
+    environ.pop("SAB_RECORD_COLUMNS", None)
+    if not shared:
+        # Played or launched here, only this computer's user views it: the app's viewer is that name. A
+        # shared run's viewers are others (Dev Tunnels passes the app no viewer's name): "unknown" there.
+        environ["SAB_LOCAL_VIEWER"] = local_user()
+        environ["SAB_RECORD_COLUMNS"] = "1"  # each Out[Table]'s columns, for the Canvas's column pickers
     try:
         process = await asyncio.create_subprocess_exec(
             *command,

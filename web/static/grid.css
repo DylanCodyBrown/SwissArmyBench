@@ -18594,6 +18594,11 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   font-size: 0.8rem;
   color: var(--muted);
 }
+.wg-item-hides {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-style: italic;
+}
 .wg-main {
   display: flex;
   flex-direction: column;
@@ -18937,6 +18942,50 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
 }
 .cvs-wire.auto {
   stroke-dasharray: 5 4;
+}
+.cvs-wire-stub.broken {
+  stroke: var(--error);
+  stroke-dasharray: 3 3;
+}
+.cvs-wire-label {
+  font: 600 10px/1 var(--font, system-ui), sans-serif;
+  fill: var(--agent);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+}
+.cvs-wire-label.broken {
+  fill: var(--error);
+}
+.cvs-port-dot {
+  fill: var(--bg);
+  stroke: var(--agent);
+  stroke-width: 1.5;
+}
+.cvs-port-dot.out {
+  fill: var(--agent);
+}
+/* Hidden in the app: it runs and its Outs flow, the page gives it no space. */
+.cvs-widget.app-hidden {
+  opacity: 0.45;
+  outline: 1px dashed var(--muted);
+}
+.cvs-hidden-mark {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  color: var(--muted);
+  pointer-events: auto;
+}
+.cvs-hidden-mark svg {
+  width: 16px;
+  height: 16px;
+}
+.cvs-payload {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin: 2px 0 6px;
 }
 .cvs-wire-row {
   display: flex;

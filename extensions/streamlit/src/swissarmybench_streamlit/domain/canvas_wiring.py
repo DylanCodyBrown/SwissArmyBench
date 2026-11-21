@@ -1,8 +1,14 @@
 """The canvas's wiring (the owner, 2026-11-21): each widget instance's Ins given a source, its Events given
 actions, kept in the canvas file beside its values (`"wires": {port: wire}`, byte-stable with the rest).
 
-    an In's wire        {"table": "orders"}            an open, data.ipynb or connection table ([Conn].t)
-                        {"out": "w3.filtered"}         another instance's Out (or an Event's last payload)
+    an In's wire        {"table": "orders"}            an open, data.ipynb or connection table ([Conn].t;
+                                                       the project's sandbox: [Sandbox].orders)
+                        {"out": "w3.filtered"}         another instance's Out (or an Event's last payload),
+                                                       on its page or another one (an app-wide value: the
+                                                       Out's last value is kept across pages)
+                        {"out": "app.viewer"}          who is viewing (the app's own Out: their sign-in
+                                                       name, this computer's user name in Play, else
+                                                       "unknown")
                         {"page": "last_visit"}         a page value an Event's action set (or an older widget)
                         {"endpoint": "GET /orders"}    the local sandbox API's answer
                         {"variable": "REGION"}         a variable of this computer
@@ -13,7 +19,8 @@ actions, kept in the canvas file beside its values (`"wires": {port: wire}`, byt
                          {"do": "set", "key": "last_visit", "value": "values"}, {"do": "rerun"}]}
 
 An In with no wire takes the one Out of the same name and a fitting type on its page, when there is exactly
-one (an automatic wire, said as such); else its own starting value. A wire that no longer holds (its widget or
+one (an automatic wire, said as such; an In[str] called viewer takes app.viewer); else its own starting
+value. A wire that no longer holds (its widget or
 Out deleted, a type changed) is broken: marked on both ends, listed before Play, and said in its place on the
 page while the In takes its starting value.
 
@@ -34,12 +41,23 @@ from swissarmybench_streamlit.domain.widget_contract import ContractError, Port
 KINDS: tuple[str, ...] = ("table", "out", "page", "endpoint", "variable", "value", "tables")
 ACTIONS: tuple[str, ...] = ("call", "set", "rerun")
 _KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,80}$")
-_REF = re.compile(r"^([a-z][0-9]+)\.([A-Za-z_][A-Za-z0-9_]{0,80})$")
+_REF = re.compile(r"^([a-z][0-9]+|app)\.([A-Za-z_][A-Za-z0-9_]{0,80})$")
 _PATH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]{0,80}(?:\.[A-Za-z_][A-Za-z0-9_]{0,80}){0,8})?$")
 _ENDPOINT = re.compile(r"^(GET|POST|PUT|PATCH|DELETE) /\S*$")
 _ENV = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 MAX_ACTIONS = 8
 OUT_KEY = "sab:"  # an Out's session state key: sab:<instance>.<port>
+VIEWER = "app.viewer"  # the app's own Out: who is viewing (the runtime's viewer())
+APP_OUTS: dict[str, dict[str, Any]] = {
+    VIEWER: {
+        "type": "str",
+        "instance": "app",
+        "widget": "app",
+        "port": "viewer",
+        "direction": "out",
+        "page": "",
+    }
+}
 
 
 @dataclass(frozen=True)
@@ -95,8 +113,8 @@ def check_in(port: Port, wire: Any, context: Context) -> None:
             raise ContractError(f"{port.name} reads an Out as <widget id>.<name>, as w3.filtered.")
         if value not in context.outs:
             raise ContractError(
-                f"No widget on this page has an Out {value}.",
-                "Pick one of the page's Outs, or wire it again.",
+                f"No widget of this app has an Out {value}.",
+                "Pick one of the app's Outs, or wire it again.",
             )
     elif kind == "page":
         if not isinstance(value, str) or not _KEY.match(value):
@@ -205,8 +223,18 @@ def page_outs(
                     "widget": node["widget"],
                     "port": port.name,
                     "direction": port.direction,
+                    "page": page,
                 }
     return found
+
+
+def every_out(canvas: Mapping[str, Any], contracts: Mapping[str, list[Port]]) -> dict[str, dict[str, Any]]:
+    """Every Out of the app (each page's instances', and the app's own app.viewer): an In reads one from any
+    page."""
+    found: dict[str, dict[str, Any]] = {}
+    for page in canvas["pages"]:
+        found |= page_outs(canvas, page["id"], contracts)
+    return found | APP_OUTS
 
 
 def analyse(
@@ -215,20 +243,28 @@ def analyse(
     endpoints: set[str] | None = None,
     variables: set[str] | None = None,
     tables: set[str] | None = None,
+    seen: Mapping[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     """The whole wiring: each instance's sources (its wires, automatic ones, broken ones), each Out's readers,
-    the wires to draw, the broken list (both ends), in the canvas's order."""
+    the wires to draw (a wire from another page marked `cross`, with its page), the broken list (both ends),
+    each Out[Table]'s columns (declared as Table[Row], else as its last run had them: `seen`), in the
+    canvas's order."""
     sources: dict[str, dict[str, Any]] = {}
     readers: dict[str, list[str]] = {}
     wires: list[dict[str, Any]] = []
     broken: list[dict[str, Any]] = []
     outs_by_page = {page["id"]: page_outs(canvas, page["id"], contracts) for page in canvas["pages"]}
-    every_out = {k: v for outs in outs_by_page.values() for k, v in outs.items()}
+    every = every_out(canvas, contracts)
     for page_id, node in _instances(canvas):
         ports = {p.name: p for p in contracts.get(node["widget"], [])}
         mine: dict[str, Any] = {}
-        outs = outs_by_page[page_id]
-        context = Context({k: v["type"] for k, v in outs.items()}, endpoints, variables, tables)
+        outs = outs_by_page[page_id] | APP_OUTS
+        context = Context(
+            {k: v["type"] for k, v in every.items() if v["instance"] != node["id"]},
+            endpoints,
+            variables,
+            tables,
+        )
         given = node.get("wires") or {}
         for name, wire in sorted(given.items()):
             port = ports.get(name)
@@ -242,14 +278,14 @@ def analyse(
                 else:
                     check_in(port, wire, context)
             except ContractError as error:
-                reason = _gone(wire, every_out, outs) or str(error)
+                reason = _gone(wire, every) or str(error)
                 broken.append({"instance": node["id"], "port": name, "reason": reason, "source": _ref(wire)})
                 mine[name] = {"broken": reason}
                 continue
             mine[name] = wire
             for ref in _refs(wire):
                 readers.setdefault(ref, []).append(f"{node['id']}.{name}")
-                wires.append({"from": ref, "to": f"{node['id']}.{name}", "auto": False})
+                wires.append(_line(ref, f"{node['id']}.{name}", False, every, page_id))
         for port in ports.values():
             if port.direction != "in" or port.name in given or port.problem:
                 continue
@@ -263,15 +299,42 @@ def analyse(
             if len(same) == 1:
                 mine[port.name] = {"out": same[0]}
                 readers.setdefault(same[0], []).append(f"{node['id']}.{port.name}")
-                wires.append({"from": same[0], "to": f"{node['id']}.{port.name}", "auto": True})
+                wires.append(_line(same[0], f"{node['id']}.{port.name}", True, every, page_id))
         sources[node["id"]] = mine
     return {
         "sources": sources,
         "readers": readers,
         "wires": wires,
         "broken": broken,
-        "outs": every_out,
+        "outs": every,
+        "columns": out_columns(every, contracts, seen),
     }
+
+
+def _line(ref: str, to: str, auto: bool, every: Mapping[str, Any], page_id: str) -> dict[str, Any]:
+    """A wire to draw: from an Out to an In; one from another page (or the app's own) said as `cross`."""
+    source_page = str((every.get(ref) or {}).get("page", ""))
+    made: dict[str, Any] = {"from": ref, "to": to, "auto": auto}
+    if source_page != page_id:
+        made |= {"cross": True, "page": source_page}
+    return made
+
+
+def out_columns(
+    every: Mapping[str, Any], contracts: Mapping[str, list[Port]], seen: Mapping[str, list[str]] | None = None
+) -> dict[str, list[str]]:
+    """Each Out holding a table's columns: declared (Out[Table[Row]]: Row's fields), else the last run's
+    (seen); an Out whose columns are not known yet is left out (its column properties are typed)."""
+    found: dict[str, list[str]] = {}
+    for ref, out in every.items():
+        if out["type"] != "Table":
+            continue
+        port = next((p for p in contracts.get(out["widget"], []) if p.name == out["port"]), None)
+        if port is not None and port.fields:
+            found[ref] = [name for name, _type in port.fields]
+        elif seen and isinstance(seen.get(ref), list):
+            found[ref] = [str(c) for c in seen[ref]][:500]
+    return found
 
 
 def _refs(wire: Mapping[str, Any]) -> list[str]:
@@ -287,14 +350,12 @@ def _ref(wire: Any) -> str | None:
     return refs[0] if refs else None
 
 
-def _gone(wire: Any, every_out: Mapping[str, Any], outs: Mapping[str, Any]) -> str | None:
+def _gone(wire: Any, every_out: Mapping[str, Any]) -> str | None:
     """Why an Out a wire reads is gone, in words (None: it is there)."""
     for ref in _refs(wire) if isinstance(wire, dict) else []:
-        if ref in outs:
+        if ref in every_out:
             continue
         instance = ref.split(".", 1)[0]
-        if ref in every_out:
-            return f"{ref} is on another page."
         if any(k.split(".", 1)[0] == instance for k in every_out):
             return f"{instance} has no Out {ref.split('.', 1)[1]} any more."
         return f"The widget {instance} it read from was deleted."

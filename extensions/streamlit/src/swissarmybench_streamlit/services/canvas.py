@@ -52,6 +52,8 @@ class Open:
     read_only: str | None = None
     broken: dict[str, Any] | None = None
     notes: list[str] = field(default_factory=list)
+    # Each Out[Table]'s columns as Play last ran them (the column pickers of a property wired from it).
+    seen: dict[str, list[str]] = field(default_factory=dict)
 
 
 def canvas_id(path: str) -> str:
@@ -209,12 +211,24 @@ class Canvases:
             # Each page's items in pixels at each layout's design width (what the Canvas page draws).
             "views": model.views(opened.canvas) if not opened.read_only else {},
             "design": model.DESIGN,
-            "wiring": self.wiring(opened.canvas, built),
+            "wiring": self.wiring(opened.canvas, built, self._seen(opened)),
         }
 
-    def wiring(self, canvas: dict[str, Any], built: dict[str, Any] | None = None) -> dict[str, Any]:
+    def _seen(self, opened: Open) -> dict[str, list[str]]:
+        """The columns Play last saw for each Out[Table] (kept after it stops)."""
+        seen = getattr(self._live, "seen_columns", None)
+        found = seen(f"canvas-{opened.id}") if seen is not None else {}
+        opened.seen |= found
+        return opened.seen
+
+    def wiring(
+        self,
+        canvas: dict[str, Any],
+        built: dict[str, Any] | None = None,
+        seen: dict[str, list[str]] | None = None,
+    ) -> dict[str, Any]:
         """The canvas's wiring: each instance's contract, sources, each Out's readers, the wires to draw and
-        the broken ones (both ends)."""
+        the broken ones (both ends), each Out[Table]'s columns."""
         built = built if built is not None else self._widgets.built()
         contracts = build_rules.contracts(built)
         context = self._widgets.context()
@@ -224,6 +238,7 @@ class Canvases:
             context.endpoints,
             context.variables,
             set(context.tables) if context.tables is not None else None,
+            seen,
         )
         found["ports"] = {
             node["id"]: {
@@ -249,7 +264,7 @@ class Canvases:
         sent = body.pop("version", None)
         if sent is not None and sent != opened.version:
             raise Conflict("The canvas changed in another window: it is shown as it is now. Do it again.")
-        page, _parent, node = model.find(opened.canvas, str(body.get("id")))
+        _page, _parent, node = model.find(opened.canvas, str(body.get("id")))
         built = self._widgets.built()
         ports = {p.name: p for p in build_rules.contracts(built).get(node.get("widget", ""), [])}
         name = str(body.get("port") or "")
@@ -259,8 +274,8 @@ class Canvases:
         wire = body.get("wire")
         if wire is not None:
             context = self._widgets.context()
-            outs = wiring.page_outs(opened.canvas, page["id"], build_rules.contracts(built))
-            outs.pop(f"{node['id']}.{name}", None)
+            # Any page's Outs (an app-wide value) and the app's own (app.viewer), never its own instance's.
+            outs = wiring.every_out(opened.canvas, build_rules.contracts(built))
             check = wiring.Context(
                 {k: v["type"] for k, v in outs.items() if v["instance"] != node["id"]},
                 context.endpoints,
@@ -490,17 +505,18 @@ class Canvases:
             if not await self._approvals.ask(opened.path, "export_canvas", detail):
                 raise Refused("The user declined (or did not answer): nothing was written.")
         # An app that calls the local sandbox API reads its address from these where it is deployed.
-        # (Its widgets' or pages' code calls it, or an Event or In is wired to an endpoint: the runtime's own
-        # api_call, in every app's sab_canvas.py, does not count.)
-        calls = "README.md" in files or any(
-            "SAB_API_URL" in text or "api_call(" in text
-            for name, text in files.items()
-            if name != "sab_canvas.py"
+        # (sab_canvas.py always holds api_call: only a widget's, a page's or the wiring's use counts)
+        calls = (
+            "README.md" in files
+            or wiring.api_calls(opened.canvas)
+            or any("SAB_API_URL" in t or "api_call(" in t for n, t in files.items() if n != "sab_canvas.py")
         )
         variables = list(API_VARIABLES) if calls else []
         warnings = [f"Set {v} where it runs: {API_VARIABLES[v]}." for v in variables]
         if variables:
             files["README.md"] = API_README + "".join(f"- `{v}`: {API_VARIABLES[v]}\n" for v in variables)
+        # The project's own widgets the canvas uses go with it, as their files (widgets/<name>.widget.py).
+        files |= self._widgets.project_widgets(build_rules.used(opened.canvas))
         where, written = self._app_files.export(chosen, files, tables)
         self.ws.audit.write(who, "export_canvas", f"{opened.path} -> {where}")
         return {"folder": where, "files": written, "variables": variables, "warnings": warnings}

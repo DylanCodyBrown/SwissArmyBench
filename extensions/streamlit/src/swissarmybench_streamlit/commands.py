@@ -160,7 +160,8 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_move",
-    "Move or resize an item (px), put it in another container (parent; empty: the page), or show it in one layout",
+    "Move or resize an item (px), put it in another container (parent; empty: the page), show it in one layout, "
+    "or hide a widget in the app",
     req("canvas", "The canvas's id."),
     req("id", "The container's or widget's id."),
     opt("x", "Left, px.", "int"),
@@ -170,12 +171,17 @@ def canvas_insert_widget(a: dict[str, Any]) -> Any:
     opt("parent", "A container's id; empty for the page."),
     opt("layout", "desktop (default) or phone: whose places these are."),
     opt("show", "both, desktop or phone: the layouts it shows in."),
+    opt("hidden", "A widget: true is Hidden in the app (it runs, its Outs flow, it takes no space).", "bool"),
 )
 def canvas_move(a: dict[str, Any]) -> Any:
-    if a.get("show") and not any(a.get(k) is not None for k in ("x", "y", "w", "h", "parent")):
-        return _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
+    placed = any(a.get(k) is not None for k in ("x", "y", "w", "h", "parent"))
+    said: Any = None
+    if a.get("hidden") is not None:
+        said = _command(a["canvas"], "hide", {"id": a["id"], "hidden": bool(a["hidden"])})
     if a.get("show"):
-        _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
+        said = _command(a["canvas"], "show", {"id": a["id"], "show": a["show"]})
+    if said is not None and not placed:
+        return said
     body = _given(a, "id", "x", "y", "w", "h", "layout")
     if "parent" in a and a["parent"] is not None:
         body["parent"] = a["parent"]
@@ -213,8 +219,8 @@ def canvas_set_values(a: dict[str, Any]) -> Any:
     req("port", "The In's or Event's name."),
     opt(
         "wire",
-        'An In: {"table"}, {"out": "w3.name"}, {"page"}, {"endpoint": "GET /x"}, {"variable"}, {"value"}, '
-        '{"tables": [...]}. An Event: {"actions": [{"do": "call", "endpoint", "body"}, {"do": "set", "key"}, '
+        'An In: {"table"} ([Sandbox].t too), {"out": "w3.name"} (any page; "app.viewer": who views), {"page"}, '
+        '{"endpoint": "GET /x"}, {"variable"}, {"value"}, {"tables": [...]}. An Event: {"actions": [{"do": "call", "endpoint", "body"}, {"do": "set", "key"}, '
         '{"do": "rerun"}]}. None: unwired.',
         "json",
     ),
@@ -393,8 +399,8 @@ def canvas_perf(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_list",
-    "Every widget of the canvas's framework: the library's, then the prebuilt ones (read-only; each starter "
-    "pack's first, `packs` their names and descriptions), with their properties (name, type, mask, default)",
+    "Every widget of the canvas's framework: the project's, the library's, then the prebuilt ones (read-only; "
+    "each starter pack's first, `packs` their names and descriptions), with their properties (name, type, mask, default)",
     opt("q", "Words to search names, descriptions, groups, packs and tags."),
 )
 def widgets_list(a: dict[str, Any]) -> Any:
@@ -416,10 +422,11 @@ def widgets_get(a: dict[str, Any]) -> Any:
     opt("name", "Small letters, digits and _ (default: a free one)."),
     opt("description", "One line."),
     opt("code", "Its Streamlit code (default: a starting template)."),
+    opt("where", "library (default) or project (the open project's widgets/ folder)."),
 )
 def widgets_new(a: dict[str, Any]) -> Any:
     return api.call(
-        "POST", "/streamlit/widgets", {k: a[k] for k in ("name", "description", "code") if a.get(k)}
+        "POST", "/streamlit/widgets", {k: a[k] for k in ("name", "description", "code", "where") if a.get(k)}
     )
 
 
@@ -494,15 +501,17 @@ def widgets_run(a: dict[str, Any]) -> Any:
 
 @command(
     "widgets_copy",
-    "Copy a widget (a prebuilt one) into the library as your own",
+    "Copy a widget as your own (a prebuilt one: my_<name>), or Copy to project / Copy to library (to: the same "
+    "name in the project's widgets/ or the library)",
     req("name", "The widget to copy."),
-    opt("new_name", "The copy's name (default: my_<name>)."),
+    opt("new_name", "The copy's name."),
+    opt("to", "library (default) or project."),
 )
 def widgets_copy(a: dict[str, Any]) -> Any:
     return api.call(
         "POST",
         f"/streamlit/widgets/{_q(a['name'])}/copy",
-        {"name": a["new_name"]} if a.get("new_name") else {},
+        _given(a, "to") | ({"name": a["new_name"]} if a.get("new_name") else {}),
     )
 
 

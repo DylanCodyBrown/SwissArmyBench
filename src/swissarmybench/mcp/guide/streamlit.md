@@ -25,16 +25,23 @@ says so in one line.
   `orders: In[Table] = None` (data coming in at run time; the value is its own when nothing is wired),
   `region: In[str] = "All"`, `picked: Out[int] = None` (data going out: the code assigns it), `saved:
   Event[dict] = None` (an action it fires: `saved(payload)`). Types: Table, str, int, float, bool, date,
-  datetime, list[...], dict. Plain values stay properties (the design-time settings). `widgets_get` and
+  datetime, File (`sab_canvas.File`: name, size, type, bytes; input_file, input_camera and input_audio give
+  `file: Out[File]`, excel_upload takes `file: In[File]`), list[...], dict. A typed payload `saved:
+  Event[Order]` and `rows: Out[Table[Row]]` name a TypedDict or dataclass of the widget's own: the port
+  gives `schema` and `fields` (the Events' body mapping offers them; a column property wired from the Out
+  offers its columns). Plain values stay properties (the design-time settings). `widgets_get` and
   `widgets_properties` give `contract` {ins, outs, events}; a declaration that does not read has its
   `problem`. `widgets_upgrade` (apply=true saves; else the preview's diff) rewrites a widget's session state
   keys as Ins and Outs.
-- `widgets_list` (q), `widgets_get`, `widgets_new` (name, description, code), `widgets_save` (code, the
+- Where a widget lives (`where`): the open project's `widgets/` folder (shared in Git with it) first, then
+  the library's, then the prebuilt ones; a name in the project wins over the library's (`hides`). An export
+  carries the project's widgets the canvas uses as `widgets/<name>.widget.py`.
+- `widgets_list` (q), `widgets_get`, `widgets_new` (name, description, code; where=project), `widgets_save` (code, the
   header kept), `widgets_header` (new_name: checked, and every canvas instance renamed; description),
   `widgets_properties` (of a widget, or of code not saved yet), `widgets_set_property` (a default, written
   into only its own characters, checked first), `widgets_run` (headless with AppTest: each page's
   `failed` errors and what it drew; live=true also gives a live address), `widgets_copy` (a prebuilt one
-  as your own: 113 ship read-only), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
+  as your own: 113 ship read-only; to=project or to=library: Copy to project / Copy to library, the same name), `widgets_delete` (the user's Allow), `widgets_preview` (its picture's
   state: ready with its address, coming, failed with why).
 - Starter packs (a prebuilt widget's `pack` in its header; `widgets_list` gives `packs`): Sales dashboard,
   Operations, Customer service, Data entry, Admin, User inputs, Excel, Form builder. Every prebuilt widget
@@ -56,7 +63,9 @@ says so in one line.
   design width (`design`); the file keeps x and w as fractions of the parent's width, so the built page fits
   any width (desktop at 768 px and wider, phone below: a media query, no rerun). Every placing command takes
   `layout` (default desktop); an item made in one layout is placed in the other by itself (phone: stacked at
-  full width in reading order). `canvas_move` with show (both, desktop or phone) hides an item in one layout.
+  full width in reading order). `canvas_move` with show (both, desktop or phone) hides an item in one layout;
+  `canvas_move hidden=true` makes a widget **Hidden in the app**: it runs and its Outs flow, the played,
+  launched and exported page give it no space (nor a container with no title holding only such widgets).
 - `canvas_add_container` (page, parent, x, y, w, h, props: title, border, padding, height fit or fixed,
   scrollable, resizable, background, columns), `canvas_insert_widget` (widget, parent: no container makes
   one around it; x, y; values), `canvas_move` (x, y, w, h; parent: into another container, empty for the
@@ -79,14 +88,20 @@ says so in one line.
   session (each rerun's trigger and each widget instance's time, calls, caches, the web socket's kinds
   and sizes: never content), hints, save (into the build), saved (build, file).
 - Wiring (`canvas_wire` id, port, wire; null unwires; one undoable change): an In's source is a table
-  (`{"table": "orders"}`), another instance's Out on the page (`{"out": "w3.filtered"}`, its type fitting:
-  a mismatch is refused with the reason), a page value (`{"page": "k"}`), a GET endpoint's answer
+  (`{"table": "orders"}`; the project's sandbox: `{"table": "[Sandbox].orders"}`, its made-up copy, never
+  live data), another instance's Out on any page (`{"out": "w3.filtered"}`, its type fitting: a mismatch is
+  refused with the reason; from another page an app-wide value kept in the session, said "<page> ·
+  <widget>.<port>", its `wires` entry `cross` with its `page`), who is viewing (`{"out": "app.viewer"}`, a
+  str: a sign-in the host vouches for, Azure App Service's headers on App Service or Streamlit's st.user,
+  else this computer's user name in Play and Launch, else "unknown"; Dev Tunnels passes no viewer's name, so
+  a shared app says "unknown"; an In[str] called viewer takes it by itself), a page value (`{"page": "k"}`), a GET endpoint's answer
   (`{"endpoint": "GET /orders"}`), a variable, a typed value, or for a list[Table] `{"tables": [...]}`. An
   unwired In takes the page's one Out of its name and a fitting type by itself (`auto`). An Event's wire is
   `{"actions": [...]}`, its actions in order: `{"do": "call", "endpoint": "POST /visits", "body": "values" or {field: "values.x"},
   "params": {name: path}}` (the local sandbox API; an export reads SAB_API_URL, SAB_API_KEY, SAB_API_BASE,
   listed in its README.md), `{"do": "set", "key", "value": path}`, `{"do": "rerun"}`. `canvas_state`'s
-  `wiring`: each instance's ports, `sources`, `readers` of each Out, `wires`, and `broken` (a deleted widget
+  `wiring`: each instance's ports, `sources`, `readers` of each Out, `wires`, `columns` (each Out[Table]'s
+  columns: declared Table[Row], else as Play last ran it), and `broken` (a deleted widget
   or Out, a type changed: both ends; `canvas_play` lists them too). The page runs each widget after what it
   reads. `canvas_set_values` with an In's name and a table's name wires it (an older canvas's table value is
   wired so as it opens).

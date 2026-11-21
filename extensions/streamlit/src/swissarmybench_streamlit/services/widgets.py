@@ -2,15 +2,18 @@
 the Widgets window's Run (the widget alone, through the Streamlit proxy, in the project's Python) and the
 agent's widgets_* commands.
 
-  listing        every widget of a framework: the library's, then the prebuilt (read-only) ones, each starter
-                 pack's first (domain/widget_packs.py: in its order, with its description), then by group
+  listing        every widget of a framework: the open project's own (its widgets/ folder, shared in Git with
+                 it), the library's, then the prebuilt (read-only) ones, each starter pack's first (domain/
+                 widget_packs.py: in its order, with its description), then by group; a project's widget of a
+                 library's name wins, and says so (`hides`)
   get            one widget: its header, its code, its properties (types and masks), where its file is
   new / save     a new widget from the template; its code written (the header kept)
   header         Name and Description (and group, tags, size) written into the header only; a new name
                  checked (available, taken, invalid) and every canvas's instances renamed (`renamed` hook)
   properties     the properties of a widget, or of code as the editor holds it now (live)
   set_property   a property's default written into ONLY its own characters, checked first
-  copy           a prebuilt widget as your own (in the library, a free name)
+  copy           a widget as your own: a prebuilt one into the library (a free name), Copy to project or Copy
+                 to library (the same name, in the other place)
   delete         a library widget (the agent's waits for the user's Allow)
   run / stop     the widget alone as a live Streamlit page (Run in place); `check` the same headless
                  (AppTest): its errors, for the agent's widgets_run
@@ -40,6 +43,7 @@ from swissarmybench_streamlit.domain import widgets as rules
 from swissarmybench_streamlit.domain.widgets import Widget, WidgetError
 
 FRAMEWORK = "streamlit"
+PLACES: tuple[str, ...] = ("project", "library", "prebuilt")
 
 Renamed = Callable[[str, str], Awaitable[int]]
 
@@ -84,15 +88,21 @@ class Widgets:
     # ===== reading =====
 
     def _all(self) -> dict[str, tuple[Widget, str]]:
-        """Every widget by name (the library's first: a library widget of a prebuilt one's name hides it)."""
+        """Every widget by name (the project's first, then the library's: a widget hides another of its name
+        further down)."""
         found: dict[str, tuple[Widget, str]] = {}
-        for _file, text, prebuilt in self._files.all():
+        self._places: dict[str, list[str]] = {}
+        for _file, text, place in self._files.all():
             try:
-                widget = rules.read_widget(text, prebuilt=prebuilt)
+                widget = rules.read_widget(text, prebuilt=place == "prebuilt")
             except WidgetError:
                 continue
+            self._places.setdefault(widget.name, []).append(place)
             found.setdefault(widget.name, (widget, text))
         return found
+
+    def _place(self, name: str) -> str:
+        return str(self._files.place_of(name) or "library")
 
     def names(self) -> set[str]:
         return set(self._all())
@@ -101,9 +111,9 @@ class Widgets:
         found = self._files.read(name) if isinstance(name, str) and rules.NAME.match(name) else None
         if found is None:
             raise NotFound(f"There is no widget called {str(name)[:60]}.")
-        text, prebuilt = found
+        text, place = found
         try:
-            return rules.read_widget(text, prebuilt=prebuilt), text
+            return rules.read_widget(text, prebuilt=place == "prebuilt"), text
         except WidgetError as error:
             raise ValueError(f"{name}'s file does not read: {error}") from None
 
@@ -167,9 +177,13 @@ class Widgets:
             for kind, direction in (("ins", "in"), ("outs", "out"), ("events", "event"))
         }
 
-    def _entry(self, widget: Widget, text: str) -> dict[str, Any]:
+    def _entry(self, widget: Widget, text: str, place: str | None = None) -> dict[str, Any]:
         found, problem = self._properties(widget.code)
+        places = getattr(self, "_places", {}).get(widget.name) or [place or self._place(widget.name)]
         return widget.to_json() | {
+            "where": places[0],
+            # the places further down that hold a widget of this name (it wins over them)
+            "hides": [p for p in places[1:] if p != places[0]],
             "properties": [p.to_json() for p in found],
             "contract": self._contract(widget.code),
             "problem": problem,
@@ -189,7 +203,7 @@ class Widgets:
                 shown.append(self._entry(widget, text))
         shown.sort(
             key=lambda w: (
-                w["prebuilt"],
+                PLACES.index(w["where"]) if w["where"] in PLACES else 9,
                 packs.order(w["pack"]) if w["prebuilt"] else 0,
                 rules.GROUPS.index(w["group"]) if w["group"] in rules.GROUPS else 99,
                 w["name"],
@@ -201,16 +215,19 @@ class Widgets:
             "groups": list(rules.GROUPS),
             "packs": packs.listing(),
             "folder": str(self._files.folder() or ""),
+            "project_folder": str(self._files.folder("project") or ""),
         }
 
     def get(self, name: str) -> dict[str, Any]:
         widget, text = self._one(name)
-        file = self._files.where(name) if not widget.prebuilt else ""
+        place = self._place(name)
+        file = self._files.where(name, place) if not widget.prebuilt else ""
         folder = self._project_folder()
         # The editor's kernel runs in the open project's folder (its scripts import, its data.py too), else
         # beside the widget's file.
         kernel_path = f"{folder}/{rules.file_name(name)}" if folder else file or None
-        return self._entry(widget, text) | {
+        self._all()  # its places (what it hides)
+        return self._entry(widget, text, place) | {
             "code": widget.code,
             "file": file,
             "text": text,
@@ -354,6 +371,12 @@ class Widgets:
             )
         return widget, text
 
+    def _write(self, name: str, text: str, place: str) -> None:
+        try:
+            self._files.write(name, text, place)
+        except PermissionError as error:
+            raise Refused(str(error)) from None
+
     async def new(self, body: Any, who: str = "user") -> dict[str, Any]:
         body = body if isinstance(body, dict) else {}
         taken = frozenset(self.names())
@@ -366,7 +389,10 @@ class Widgets:
         )
         if isinstance(body.get("code"), str) and body["code"].strip():
             widget = Widget(**{**widget.__dict__, "code": body["code"]})
-        self._files.write(name, rules.write_widget(widget))
+        place = str(body.get("where") or "library")
+        if place not in ("project", "library"):
+            raise ValueError("A new widget goes in the project or the library.")
+        self._write(name, rules.write_widget(widget), place)
         self.ws.audit.write(who, "new_widget", name)
         await self._changed(name)
         return self.get(name)
@@ -379,7 +405,7 @@ class Widgets:
         widget, text = self._mine(name)
         if code != widget.code:
             head, _, _ = text.partition("\n" + rules._CLOSE + "\n")
-            self._files.write(name, head + "\n" + rules._CLOSE + "\n" + code)
+            self._write(name, head + "\n" + rules._CLOSE + "\n" + code, self._place(name))
             self.ws.audit.write(who, "save_widget", name)
             await self._changed(name)
         return self.get(name)
@@ -405,14 +431,15 @@ class Widgets:
         except WidgetError as error:
             raise ValueError(str(error)) from None
         renamed = 0
+        place = self._place(name)
         if new_name != name:
-            self._files.write(new_name, after)
-            self._files.remove(name)
+            self._write(new_name, after, place)
+            self._files.remove(name, place)
             if self.renamed is not None:
                 renamed = await self.renamed(name, new_name)
             self.ws.audit.write(who, "rename_widget", f"{name} -> {new_name}")
         elif after != text:
-            self._files.write(name, after)
+            self._write(name, after, place)
             self.ws.audit.write(who, "change_widget", name)
         await self._changed(new_name, old=name if new_name != name else None)
         return self.get(new_name) | {"instances_renamed": renamed}
@@ -432,7 +459,7 @@ class Widgets:
         except props_rules.PropertyError as error:
             raise _said(error) from None
         head, _, _ = text.partition("\n" + rules._CLOSE + "\n")
-        self._files.write(name, head + "\n" + rules._CLOSE + "\n" + after)
+        self._write(name, head + "\n" + rules._CLOSE + "\n" + after, self._place(name))
         self.ws.audit.write(who, "set_widget_property", f"{name}.{prop}")
         await self._changed(name)
         return self.get(name)
@@ -463,25 +490,46 @@ class Widgets:
         return found | {"widget": name, "applied": True, "saved": saved}
 
     async def copy(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """A copy of a widget: a prebuilt one into the library as your own (my_<name>), or Copy to project /
+        Copy to library (`to`: the same name in the other place; the project's wins on its canvases)."""
+        body = body if isinstance(body, dict) else {}
         widget, text = self._one(name)
-        wanted = (body or {}).get("name") if isinstance(body, dict) else None
+        source = self._place(name)
+        to = str(body.get("to") or "library")
+        if to not in ("project", "library"):
+            raise ValueError("A copy goes to the project or the library.")
+        wanted = body.get("name")
         taken = frozenset(self.names())
-        new_name = wanted or rules.free_name(f"my_{widget.name}", taken)
-        said = rules.check_name(new_name, taken)
+        here = {n for f, _t, p in self._files.all() if p == to for n in [f[: -len(rules.SUFFIX)]]}
+        if not wanted:
+            wanted = name if source != "prebuilt" and source != to and name not in here else None
+        new_name = wanted or rules.free_name(f"my_{widget.name}", taken | here)
+        said = rules.check_name(new_name, frozenset(here) | (taken - {name}))
         if not said["ok"]:
             raise Conflict(said["said"]) if said["state"] == "taken" else ValueError(said["said"])
-        self._files.write(new_name, rules.with_header(text, name=new_name))
-        self.ws.audit.write(who, "copy_widget", f"{name} -> {new_name}")
+        self._write(new_name, rules.with_header(text, name=new_name), to)
+        self.ws.audit.write(who, "copy_widget", f"{name} -> {new_name} ({to})")
         await self._changed(new_name)
-        return self.get(new_name)
+        return self.get(new_name) | {"to": to}
+
+    def project_widgets(self, names: set[str]) -> dict[str, str]:
+        """The project's own widgets among `names`, as their files (an export carries them in widgets/)."""
+        out: dict[str, str] = {}
+        for name in sorted(names):
+            found = self._files.read(name, "project") if self._place(name) == "project" else None
+            if found is not None:
+                out[f"{rules.FOLDER}/{rules.file_name(name)}"] = found[0]
+        return out
 
     async def delete(self, name: str, who: str = "user") -> dict[str, Any]:
         self._mine(name)
         if who == "agent" and not await self._approvals.ask(
-            name, "delete_widget", f"Delete the widget {name} from the library"
+            name,
+            "delete_widget",
+            f"Delete the widget {name} from the {'project' if self._place(name) == 'project' else 'library'}",
         ):
             raise Refused(f"The user declined (or did not answer): {name} was not deleted.")
-        self._files.remove(name)
+        self._files.remove(name, self._place(name))
         self.ws.audit.write(who, "delete_widget", name)
         await self._changed(name)
         return {"ok": True, "deleted": name}

@@ -68,7 +68,7 @@ function tablePicker(context: FieldContext, value: string, readOnly: boolean, se
     group("data.ipynb", context.data_tables ?? []);
   } else group("Tables", Object.keys(context.tables).sort());
   const TYPE = "sab-type:";
-  for (const [connection, tables] of Object.entries(context.connection_tables ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [connection, tables] of Object.entries(context.connection_tables ?? {}).sort(([a], [b]) => (a === "Sandbox" ? -1 : b === "Sandbox" ? 1 : a.localeCompare(b)))) {
     const g = h("optgroup", { label: connection, "data-connection": connection });
     for (const t of tables ?? []) add(g, t, t);
     g.append(h("option", { value: `${TYPE}${connection}` }, tables === null ? `Type a table of ${connection}…` : `Another table of ${connection}…`));
@@ -175,6 +175,14 @@ export function propertyField(prop: Prop, values: Record<string, unknown>, conte
     case "column": {
       const table = text(prop.of ? values[prop.of] : "");
       const columns = (table ? context.tables[table] : SAMPLE_COLUMNS) ?? [];
+      if (table.startsWith("out:") && columns.length) {
+        // Wired from another widget's Out: its columns offered, still typed (a table can change its columns).
+        const id = `wg-cols-${prop.name}-${Math.random().toString(36).slice(2, 8)}`;
+        const input = h("input", { type: "text", class: "wg-input wg-column-typed", value: text(value), disabled: readOnly, spellcheck: "false", "data-no-variables": "", list: id });
+        input.addEventListener("change", () => send(input.value.trim()));
+        box = h("span", { class: "wg-column-field" }, input, h("datalist", { id }, ...columns.map((c) => h("option", { value: c }))));
+        break;
+      }
       if (table && !columns.length) {
         // Its table comes from another widget or a connection not listed yet: the column typed.
         const input = h("input", { type: "text", class: "wg-input", value: text(value), disabled: readOnly, spellcheck: "false", "data-no-variables": "" });

@@ -8,15 +8,12 @@
 # size = [6, 4]
 # min_size = [3, 2]
 # ///
-import json
 import os
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 
 import streamlit as st
-from sab_canvas import Out, Table, key
+from sab_canvas import Out, Table, api_call, key
 
 # The endpoint whose rows it shows (a GET that answers a list)
 endpoint = ""  # endpoint
@@ -29,35 +26,6 @@ rows: Out[Table] = None
 # The query's names for the page (its limit and offset parameters)
 limit_name = "limit"
 offset_name = "offset"
-
-
-def _call(method, path, body=None, query=None, root=False):
-    """One request to the project's local sandbox API (its address and key from Play, Launch or a deploy)."""
-    base = os.environ.get("SAB_API_URL", "")
-    if not base:
-        return None, "Run the local sandbox API (the APIs page), then Play again."
-    url = base.rstrip("/") + ("" if root else os.environ.get("SAB_API_BASE", "")) + path
-    if query:
-        url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
-    data = None if body is None else json.dumps(body, default=str).encode("utf-8")
-    headers = {
-        "Authorization": "Bearer " + os.environ.get("SAB_API_KEY", ""),
-        "Content-Type": "application/json",
-    }
-    try:
-        with urllib.request.urlopen(
-            urllib.request.Request(url, data, headers, method=method), timeout=30
-        ) as r:
-            raw = r.read()
-            return (json.loads(raw) if raw else None), None
-    except urllib.error.HTTPError as failed:
-        try:
-            said = json.loads(failed.read() or b"{}").get("error") or failed.reason
-        except ValueError:
-            said = failed.reason
-        return None, f"{failed.code}: {said}"
-    except OSError as failed:
-        return None, f"The local sandbox API could not be reached ({getattr(failed, 'reason', failed)})."
 
 
 def _given(value):
@@ -93,7 +61,7 @@ else:
     if missing:
         st.warning(f"Give {missing} in Properties (its path box).")
     else:
-        rows, problem = _call(method, path, query={limit_name: page_size, offset_name: page * page_size})
+        rows, problem = api_call(method, path, query={limit_name: page_size, offset_name: page * page_size})
         if problem:
             st.info(problem)
         else:
