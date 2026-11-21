@@ -59,6 +59,12 @@ from swissarmybench.services.profile import Profiles
 from swissarmybench.services.sql import SqlBox
 
 
+async def _pieces(data: bytes) -> AsyncIterator[bytes]:
+    """A download's bytes, a megabyte at a time."""
+    for i in range(0, len(data), 1 << 20):
+        yield data[i : i + (1 << 20)]
+
+
 def routes(
     grids: GridService, profiles: Profiles, sql: SqlBox, exports: Exports, codes: CodeService
 ) -> list[BaseRoute]:
@@ -236,14 +242,8 @@ def routes(
         made = await exports.export(grid, info, dict(request.query_params), actor(request))
         if made.saved is not None:
             return json_response({"saved": made.saved, "message": made.message})
-        data = made.data
-
-        async def stream() -> AsyncIterator[bytes]:
-            for i in range(0, len(data), 1 << 20):
-                yield data[i : i + (1 << 20)]
-
         return StreamingResponse(
-            stream(),
+            _pieces(made.data),
             media_type=made.media_type,
             headers={
                 "Content-Disposition": f'attachment; filename="{made.file_name}"',

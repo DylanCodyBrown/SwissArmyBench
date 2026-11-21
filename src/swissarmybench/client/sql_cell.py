@@ -64,6 +64,7 @@ pandas are imported when a cell needs them, from this Python.
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
@@ -303,18 +304,15 @@ def _open_python(label: str) -> Connection:
         raise SqlCellError(f"{error} A cell reads its tables through them.") from None
     con = _duckdb().connect()
 
-    def reader(schema: str, table: str) -> Any:
-        def load() -> None:
-            con.register(table, _as_frame(read(schema, table)))
-            if schema and schema.lower() not in _RESERVED_SCHEMAS:
-                con.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(schema)}")
-                con.execute(f"CREATE OR REPLACE VIEW {quote(schema)}.{quote(table)} AS FROM {quote(table)}")
-
-        return load
+    def load(schema: str, table: str) -> None:
+        con.register(table, _as_frame(read(schema, table)))
+        if schema and schema.lower() not in _RESERVED_SCHEMAS:
+            con.execute(f"CREATE SCHEMA IF NOT EXISTS {quote(schema)}")
+            con.execute(f"CREATE OR REPLACE VIEW {quote(schema)}.{quote(table)} AS FROM {quote(table)}")
 
     pending: dict[str, Any] = {}
     for schema, table in listed:
-        pending.setdefault(table, reader(schema, table))
+        pending.setdefault(table, functools.partial(load, schema, table))
     made = f"{label}'s tables, each read by its Read a table, in DuckDB here"
     return Connection(label, "tables", con, made, pending=pending)
 

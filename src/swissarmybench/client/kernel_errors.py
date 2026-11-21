@@ -272,6 +272,29 @@ def _syntax(error: SyntaxError, cells: dict[str, int]) -> dict[str, Any]:
     }
 
 
+def _source_line(filename: str, lineno: int | None, fallback: str) -> str:
+    """A file's line as it is on disk (`fallback`: it cannot be read)."""
+    try:
+        import linecache
+
+        return linecache.getline(filename, lineno or 0).rstrip("\n")
+    except Exception:
+        return fallback
+
+
+def _add_locals(frame: types.FrameType, out: list[dict[str, Any]]) -> None:
+    """A function's own variables, added to `out` as far as they can be read."""
+    try:
+        for name, value in list(frame.f_locals.items())[:_MAX_LOCALS]:
+            if name.startswith("__") or isinstance(value, types.ModuleType | types.FunctionType | type):
+                continue
+            out.append(
+                {"name": name, "repr": _preview(value), "type": type_name(value), "table": is_table(value)}
+            )
+    except Exception:  # noqa: S110 (a frame without readable locals)
+        pass
+
+
 def _frames(
     error: BaseException, cells: dict[str, int], started: float
 ) -> tuple[list[dict[str, Any]], list[types.FrameType]]:
@@ -298,23 +321,10 @@ def _frames(
             continue
         where = _where(filename, cells)
         code = summary.line or ""
-        full_line = code
-        try:
-            import linecache
-
-            full_line = linecache.getline(filename, summary.lineno or 0).rstrip("\n") or code
-        except Exception:  # noqa: S110 (the line as the traceback has it)
-            pass
+        full_line = _source_line(filename, summary.lineno, code) or code
         col = _utf16_column(full_line, getattr(summary, "colno", None))
         end_line = getattr(summary, "end_lineno", None) or summary.lineno
-        end_text = full_line
-        if end_line != summary.lineno:
-            try:
-                import linecache
-
-                end_text = linecache.getline(filename, end_line or 0).rstrip("\n")
-            except Exception:
-                end_text = ""
+        end_text = full_line if end_line == summary.lineno else _source_line(filename, end_line, "")
         end_col = _utf16_column(end_text, getattr(summary, "end_colno", None))
         row: dict[str, Any] = {
             "where": where,
@@ -334,22 +344,7 @@ def _frames(
             user.append(frame)
             # A function's own variables (a cell's or a module's are the Variables pane's).
             if frame.f_code.co_name != "<module>" and time.monotonic() - started < _BUDGET_SECONDS:
-                try:
-                    for name, value in list(frame.f_locals.items())[:_MAX_LOCALS]:
-                        if name.startswith("__") or isinstance(
-                            value, types.ModuleType | types.FunctionType | type
-                        ):
-                            continue
-                        row["locals"].append(
-                            {
-                                "name": name,
-                                "repr": _preview(value),
-                                "type": type_name(value),
-                                "table": is_table(value),
-                            }
-                        )
-                except Exception:  # noqa: S110 (a frame without readable locals)
-                    pass
+                _add_locals(frame, row["locals"])
         frames.append(row)
     return frames, user
 

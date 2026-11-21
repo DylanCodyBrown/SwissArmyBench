@@ -23,18 +23,19 @@ from swissarmybench.services.grids import GridService
 from swissarmybench.services.timeseries import TimeSeries
 
 
+def _one(grids: GridService, series: TimeSeries, name: str) -> Callable[[Request], Awaitable[Response]]:
+    async def handle(request: Request) -> Response:
+        grid, info = grids.find(request.path_params["grid_id"])
+        body = await read_json(request)
+        if not isinstance(body, dict):
+            raise ValueError('Send {"date": name, "metric": name, "period": "month"}.')
+        return json_response(await series.run(name, grid, info, body, actor(request)))
+
+    return safely(handle)
+
+
 def routes(grids: GridService, series: TimeSeries) -> list[BaseRoute]:
-    def one(name: str) -> Callable[[Request], Awaitable[Response]]:
-        async def handle(request: Request) -> Response:
-            grid, info = grids.find(request.path_params["grid_id"])
-            body = await read_json(request)
-            if not isinstance(body, dict):
-                raise ValueError('Send {"date": name, "metric": name, "period": "month"}.')
-            return json_response(await series.run(name, grid, info, body, actor(request)))
-
-        return safely(handle)
-
     return [
-        Route("/grids/{grid_id}/time-series", one("time_series"), methods=["POST"]),
-        Route("/grids/{grid_id}/forecast", one("forecast"), methods=["POST"]),
+        Route("/grids/{grid_id}/time-series", _one(grids, series, "time_series"), methods=["POST"]),
+        Route("/grids/{grid_id}/forecast", _one(grids, series, "forecast"), methods=["POST"]),
     ]

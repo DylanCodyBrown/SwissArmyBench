@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import contextlib
 import glob
+import itertools
 import json
 import os
 import plistlib
@@ -68,6 +69,54 @@ def own_command(name: str) -> str:
         if candidate.is_file():
             return str(candidate)
     return shutil.which(name) or name
+
+
+# Where Windows lists its programs, and the values of a program's key that say what it is.
+_REGISTRY_PLACES = (
+    r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths",
+    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+)
+_REGISTRY_VALUES = ("DisplayName", "DisplayIcon", "InstallLocation", "Publisher", "")
+
+
+def _registry_programs(hive: int, base: str, view: int) -> list[dict[str, Any]]:
+    """Every program's key under one of the registry's places (Windows only)."""
+    if sys.platform != "win32":
+        return []
+    import winreg
+
+    try:
+        parent = winreg.OpenKey(hive, base, 0, winreg.KEY_READ | view)
+    except OSError:
+        return []
+    out: list[dict[str, Any]] = []
+    with parent:
+        for n in itertools.count():
+            try:
+                name = winreg.EnumKey(parent, n)
+            except OSError:
+                break
+            entry = _registry_program(parent, name)
+            if entry is not None:
+                out.append(entry)
+    return out
+
+
+def _registry_program(parent: Any, name: str) -> dict[str, Any] | None:
+    """One program's key as {key, DisplayName, ...} (None: it cannot be opened)."""
+    if sys.platform != "win32":
+        return None
+    import winreg
+
+    entry = {"key": name}
+    try:
+        with winreg.OpenKey(parent, name) as key:
+            for value in _REGISTRY_VALUES:
+                with contextlib.suppress(OSError):
+                    entry[value or "Default"] = str(winreg.QueryValueEx(key, value)[0])
+    except OSError:
+        return None
+    return entry
 
 
 class Finder:
@@ -165,42 +214,10 @@ class Finder:
         import winreg
 
         out: list[dict[str, Any]] = []
-        bases = (
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths",
-            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-        )
         for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
             for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
-                for base in bases:
-                    try:
-                        parent = winreg.OpenKey(hive, base, 0, winreg.KEY_READ | view)
-                    except OSError:
-                        continue
-                    with parent:
-                        n = 0
-                        while True:
-                            try:
-                                name = winreg.EnumKey(parent, n)
-                            except OSError:
-                                break
-                            n += 1
-                            entry = {"key": name}
-                            try:
-                                with winreg.OpenKey(parent, name) as key:
-                                    for value in (
-                                        "DisplayName",
-                                        "DisplayIcon",
-                                        "InstallLocation",
-                                        "Publisher",
-                                        "",
-                                    ):
-                                        with contextlib.suppress(OSError):
-                                            entry[value or "Default"] = str(
-                                                winreg.QueryValueEx(key, value)[0]
-                                            )
-                            except OSError:
-                                continue
-                            out.append(entry)
+                for base in _REGISTRY_PLACES:
+                    out += _registry_programs(hive, base, view)
         return out
 
     def _powershell(self) -> dict[str, Any]:

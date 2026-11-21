@@ -14,7 +14,7 @@ import sqlite3
 import sys
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -311,48 +311,55 @@ class ConnectionFinder:
             root = roots.get(key)
             if root is None or not root.is_dir():
                 continue
-            pending: list[tuple[Path, tuple[str, ...]]] = [(root, ())]
-            while pending:
-                if stop():
+            for path, parts in _hint_files(root, skipped, stop):
+                if path in read:
+                    continue
+                if out.files >= rules.MAX_FILES:
+                    out.stopped = "files"
                     return
-                folder, parts = pending.pop()
-                if _real(folder) in skipped:
+                text = _text(path, rules.MAX_FILE_BYTES)
+                out.files += 1
+                if text is None:
                     continue
-                try:
-                    entries = sorted(os.scandir(folder), key=lambda e: e.name)
-                except OSError:
+                source = Source(parts[0], rules.where_words(key, parts[:1], self.system), searched=True)
+                found = rules.stamped(rules.hints(text, path.name), source)
+                out.found += found[: rules.MAX_FOUND - kept]
+                kept += len(found)
+                if kept >= rules.MAX_FOUND:
+                    out.stopped = "files"
+                    return
+
+
+def _hint_files(
+    root: Path, skipped: set[Path], stop: Callable[[], bool]
+) -> Iterator[tuple[Path, tuple[str, ...]]]:
+    """Each file below `root`'s own folders whose name and size say it may hold a connection, with the
+    folders it is under; nothing more once `stop` says so."""
+    pending: list[tuple[Path, tuple[str, ...]]] = [(root, ())]
+    while pending and not stop():
+        folder, parts = pending.pop()
+        if _real(folder) in skipped:
+            continue
+        try:
+            entries = sorted(os.scandir(folder), key=lambda e: e.name)
+        except OSError:
+            continue
+        for entry in entries:
+            if stop():
+                return
+            try:
+                if entry.is_symlink():
                     continue
-                for entry in entries:
-                    if stop():
-                        return
-                    try:
-                        if entry.is_symlink():
-                            continue
-                        if entry.is_dir():
-                            below = (*parts, entry.name)
-                            if len(below) <= rules.MAX_DEPTH and not rules.skip_folder(below):
-                                pending.append((Path(entry.path), below))
-                            continue
-                        size = entry.stat().st_size
-                    except OSError:
-                        continue
-                    path = Path(entry.path)
-                    if not parts or path in read or not rules.hint_file(entry.name, size):
-                        continue
-                    if out.files >= rules.MAX_FILES:
-                        out.stopped = "files"
-                        return
-                    text = _text(path, rules.MAX_FILE_BYTES)
-                    out.files += 1
-                    if text is None:
-                        continue
-                    source = Source(parts[0], rules.where_words(key, parts[:1], self.system), searched=True)
-                    found = rules.stamped(rules.hints(text, entry.name), source)
-                    out.found += found[: rules.MAX_FOUND - kept]
-                    kept += len(found)
-                    if kept >= rules.MAX_FOUND:
-                        out.stopped = "files"
-                        return
+                if entry.is_dir():
+                    below = (*parts, entry.name)
+                    if len(below) <= rules.MAX_DEPTH and not rules.skip_folder(below):
+                        pending.append((Path(entry.path), below))
+                    continue
+                size = entry.stat().st_size
+            except OSError:
+                continue
+            if parts and rules.hint_file(entry.name, size):
+                yield Path(entry.path), parts
 
 
 def _real(path: Path) -> Path:
