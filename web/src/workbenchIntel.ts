@@ -75,7 +75,7 @@ export function chosen(label: string): void {
 const KIND: Record<string, string> = { instance: "variable", statement: "variable", param: "variable", struct: "table" };
 
 /** One editor's intelligence: a completer, parameter info, the hover and the lint. */
-export function pythonIntel(kernel: Kernel, context: IntelContext) {
+export function pythonIntel(kernel: Pick<Kernel, "intel">, context: IntelContext) {
   const editor = `e${++editors}`;
   let seq = 0;
   const latest: Record<string, number> = {};

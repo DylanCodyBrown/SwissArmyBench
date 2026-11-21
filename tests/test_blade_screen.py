@@ -1,5 +1,5 @@
-"""The blade screen (the owner, 2026-11-17): a blade's code is edited in its file, never in the app ("the
-code box is read only though blades can only be edited in the folder not from the app"); a table blade has
+"""The blade screen (the owner, 2026-11-17; its code editable since 2026-11-21's blade IDE,
+tests/test_blade_ide.py): the header written, the code's bytes as they were; a table blade has
 a table name of its own, checked as it is typed ("Shouldnt the table it makes be namable by me with a
 realtime check for available names"); the catalog checkbox went ("all blades should be in the catalog
 already"): a connection's tables are always listed. Made-up data only."""
@@ -223,19 +223,16 @@ def test_the_header_changes_and_the_codes_bytes_do_not(client: TestClient) -> No
     assert ok(client.get("/blades/Sales%20by%20month", headers=AUTH))["table"] == "sales_by_month"
 
 
-def test_no_route_edits_a_blades_code(client: TestClient) -> None:
+def test_only_its_code_and_header_are_changed_never_its_kind(client: TestClient) -> None:
+    """The blade IDE (the owner, 2026-11-21) saves code (tests/test_blade_ide.py); its kind and variable
+    follow from the code, never set by hand."""
     file = Path(made_table_blade(client)["file"])
     before = file.read_bytes()
     whole = ok(client.get("/blades/Monthly%20sales", headers=AUTH))
     for who in (AUTH, AGENT):
-        for change in (
-            {"code": "x = 1\n"},
-            {"kind": "analysis"},
-            {"variable": "other"},
-            whole | {"code": "y = 2\n"},
-        ):
+        for change in ({"kind": "analysis"}, {"variable": "other"}):
             refused = client.put("/blades/Monthly%20sales", json=change, headers=who)
-            assert refused.status_code == 400 and "edited in its file" in refused.text, change
+            assert refused.status_code == 400 and "follows from its code" in refused.text, change
     # The whole blade as blades_get gave it, unchanged but for its words: taken (its code as it was).
     ok(client.put("/blades/Monthly%20sales", json=whole | {"description": "Still made-up"}, headers=AUTH))
     assert file.read_bytes().endswith(before[before.index(b"# ///\n", 10) :])

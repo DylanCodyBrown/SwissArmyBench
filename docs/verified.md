@@ -4219,3 +4219,21 @@ app_navigate new_query and query:<connection> do the same. The updated e2e tests
 keys, the Projects landing) pass. Quick suite 4826 passed, 49 skipped; e2e suite (-n 2) 396 passed, 15 skipped.
 Not checked: a search past 8 connections and the "needs a password" mark in a browser (no test makes them), and
 Edge.
+
+## The blade IDE (2026-11-21, branch blade-ide)
+
+Checked: tests/test_blade_ide.py (HTTP): the code written after the header and read back as the same bytes, CRLF
+kept; the variable following a renamed function; a save that changes nothing writes no byte; code that does not
+parse refused, the file untouched; an edit made outside refused with 409 (`changed_on_disk`, the new stamp) and
+saved over only with `force`; a starter's code refused for the user and the agent, Save as copying the editor's
+code; the name check; Run's output (stdout, stderr), a table result (columns, first rows, count) opened as a grid,
+a value's text, a ZeroDivisionError's frame as "your file" at the code's own line 2, a syntax error's line, the
+lint with secret() known; a streamed run's NDJSON lines then its answer; a saved secret printed by the blade
+scrubbed to ****. In Chromium (tests/e2e/test_catalog_page.py): New blade, Properties closed and the panel
+folded (8.14), a lint squiggle as it is typed and its Problems entry, fixed, Run, Output and Result (3 rows, 2
+columns), the table name checked live, Ctrl+S writing the file (code and header), Cancel asking then reverting,
+an outside edit taken at once; a starter's Save refused with Copy as your own; a pack's copy through "…".
+Quick suite 4840 passed, 49 skipped; e2e suite (-n 2, Chromium) 387 passed, 24 skipped. Screenshot:
+the IDE after a Run with a table result. Not checked: Copilot's ghost text in the blade editor (no extension on
+in the tests), Run's Stop mid-run in a browser (the cancel route is tested only by its wiring), the Reload /
+Keep mine note in a browser (its route is tested), the Workbench's blade tab, Edge, Windows.

@@ -202,6 +202,93 @@ async def run(job: dict[str, Any], timeout: float, report: Report = _no_report) 
     return answer
 
 
+async def run_streaming(
+    job: dict[str, Any],
+    timeout: float,
+    on_output: Callable[[str, str], None],
+    started: Callable[[Callable[[], None]], None] | None = None,
+    report: Report = _no_report,
+) -> dict[str, Any]:
+    """The blade IDE's Run (job mode "run") in a child process: each print and warning to `on_output` as it
+    comes ("stdout" or "stderr", its text), then the answer. `started` is handed the child's stop (Cancel).
+    A run that hangs is stopped at `timeout`; a stopped run answers {"ok": False, "cancelled": True}."""
+    began = time.monotonic()
+    report("start", None, None, "")
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-I",
+        "-m",
+        "swissarmybench.server.blade_runner",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        limit=_MAX_ANSWER_BYTES,
+    )
+    stopped = False
+
+    def stop() -> None:
+        nonlocal stopped
+        stopped = True
+        with contextlib.suppress(ProcessLookupError):
+            process.kill()
+
+    if started is not None:
+        started(stop)
+    if process.stdin is None or process.stdout is None or process.stderr is None:
+        raise RefreshError(f"{job['label']} could not be started.")
+    process.stdin.write(json.dumps(job).encode())
+    with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+        await process.stdin.drain()
+    process.stdin.close()
+    err_stream = process.stderr
+    out_stream = process.stdout
+
+    async def read_err() -> None:
+        async for raw in err_stream:
+            line = raw.decode("utf-8", "replace")
+            try:
+                item = json.loads(line)
+            except ValueError:
+                item = None
+            if isinstance(item, dict) and ("o" in item or "e" in item):
+                on_output("stdout" if "o" in item else "stderr", str(item.get("o", item.get("e", ""))))
+            elif line.strip():
+                on_output("stderr", line)  # written past Python (a driver's C library)
+
+    try:
+        out, _ = await asyncio.wait_for(asyncio.gather(out_stream.read(), read_err()), timeout)
+        await process.wait()
+    except TimeoutError:
+        stop()
+        await process.wait()
+        report("timeout", process.returncode, time.monotonic() - began, "")
+        return {
+            "ok": False,
+            "failed": f"{job['label']} did not finish within {timeout:.0f} seconds and was stopped.",
+        }
+    if stopped:
+        report("cancelled", process.returncode, time.monotonic() - began, "")
+        return {"ok": False, "cancelled": True, "failed": "Stopped."}
+    try:
+        answer: Any = json.loads(out.decode("utf-8") or "null")
+    except ValueError:
+        answer = None
+    if not isinstance(answer, dict):
+        report("crash", process.returncode, time.monotonic() - began, "no answer")
+        return {
+            "ok": False,
+            "failed": f"{job['label']} stopped unexpectedly (exit code {process.returncode}).",
+        }
+    if "error" in answer:  # a vault or a password before the code ran: the plain words
+        answer = {"ok": False, "failed": str(answer["error"]), "missing_module": answer.get("missing_module")}
+    report("end" if answer.get("ok") else "failed", process.returncode, time.monotonic() - began, "")
+    result = answer.get("result")
+    if isinstance(result, dict) and "arrow" in result:
+        result["table"] = ipc.open_stream(io.BytesIO(base64.b64decode(result.pop("arrow")))).read_all()
+    ran: dict[str, Any] = answer
+    return ran
+
+
 # ===== installing packages =====
 
 _INSTALL_TIMEOUT_SECONDS: float = 600.0
@@ -271,6 +358,8 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
             catalog_code = (job.get("catalog") or {}).get("command")
             reads = python_connections.env_reads(job["code"], catalog_code, python.get("read"))
             set_variables(reads, python["set"], python["keyring"], secrets, job["label"])
+        if job["mode"] == "run":
+            return _ide_run(job, secrets, hidden)
         if job["mode"] == "read":
             return _read(job, hidden)
         if job["mode"] == "names":
@@ -669,9 +758,169 @@ def _analysis(function: Any, job: dict[str, Any]) -> dict[str, Any]:
     return {"title": title, "cards": cards}
 
 
+# ===== the blade IDE's Run (the owner, 2026-11-21: "a play button to execute") =====
+
+# Values never sent back: each secret the run holds, put in by _child (an answer, a printed line or a value's
+# preview with one in it says **** instead).
+_HIDDEN: list[str] = []
+_RESULT_ROWS = 200
+_TEXT_CHARS = 20_000
+
+
+def _scrub(text: str) -> str:
+    for secret in _HIDDEN:
+        if secret and len(secret) >= 3:
+            text = text.replace(secret, "****")
+    return text
+
+
+class _Stream(io.TextIOBase):
+    """A blade's print() and its warnings, each write one JSON line on the real stderr: {"o": text} or
+    {"e": text}. The server streams them to the IDE's Output as they come."""
+
+    def __init__(self, key: str, sink: Any) -> None:
+        self._key = key
+        self._sink = sink
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, text: str) -> int:
+        if text:
+            self._sink.write(json.dumps({self._key: _scrub(text)}) + "\n")
+            self._sink.flush()
+        return len(text)
+
+
+def _ide_run(job: dict[str, Any], secrets: dict[str, str], hidden: dict[str, str]) -> dict[str, Any]:
+    """Run a blade's code (the editor's, saved or not) as Test does, and answer what it makes: a table's
+    columns, types, first rows and count (the whole table as Arrow, for Open as grid), or a value's text. A
+    failure answers the error panel's detail (client/kernel_errors.py), the code's own lines marked: the code
+    is compiled under `filename`, an absolute name the error panel reads as your file."""
+    import ast
+    import inspect
+    import linecache
+
+    from swissarmybench.adapters.blade_run import _secret_function, close_quietly, run_vault
+    from swissarmybench.client import kernel_errors
+
+    __tracebackhide__ = True  # the error panel's frames start at the blade's own code
+    _HIDDEN[:] = [v for v in hidden.values() if v]
+    code, label, filename = job["code"], job["label"], str(job.get("filename") or "<blade>")
+    linecache.cache[filename] = (len(code), None, code.splitlines(keepends=True), filename)
+
+    def failed(error: BaseException) -> dict[str, Any]:
+        sys.last_exc = error
+        sys.last_value = error
+        try:
+            detail = json.loads(kernel_errors.detail())
+        except Exception:
+            detail = {}
+        missing = error.name if isinstance(error, ModuleNotFoundError) else None
+        return {
+            "ok": False,
+            "failed": f"{type(error).__name__}: {error}",
+            "detail": detail,
+            "missing_module": missing,
+        }
+
+    if job["kind"] == "vault":
+        values = run_vault(
+            code, job["variable"], job["vault_mapping"], secrets, label, bool(job.get("vault_all"))
+        )
+        listed = ", ".join(sorted(values)) or "nothing"
+        return {"ok": True, "result": {"kind": "value", "type": "vault", "text": f"It sets {listed}."}}
+    names: dict[str, Any] = {"__name__": "__blade__", "secret": _secret_function(secrets, label)}
+    value: Any = None
+    try:
+        tree = ast.parse(code, filename)
+        last: ast.expr | None = None
+        if tree.body and isinstance(tree.body[-1], ast.Expr):
+            last = tree.body.pop().value
+        exec(compile(tree, filename, "exec"), names)  # noqa: S102 (the user's own code, on their Run)
+        if last is not None:
+            value = eval(compile(ast.Expression(last), filename, "eval"), names)  # noqa: S307 (as above)
+        variable = job.get("variable") or ""
+        if variable in names:
+            value = names[variable]
+        elif last is None:
+            made = [n for n in names if not n.startswith("_") and n != "secret"]
+            listed = ", ".join(made) or "nothing"
+            return {
+                "ok": False,
+                "failed": f"It ran but made no variable named {variable!r}. It made: {listed}.",
+            }
+        made_by = None
+        if callable(value) and job["kind"] != "analysis" and not isinstance(value, type):
+            try:
+                needed = any(
+                    p.default is p.empty and p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+                    for p in inspect.signature(value).parameters.values()
+                )
+            except (TypeError, ValueError):
+                needed = True
+            if not needed:  # a table blade's function: what it returns is what it makes
+                made_by = getattr(value, "__name__", "it")
+                value = value()
+    except BaseException as error:
+        if isinstance(error, KeyboardInterrupt):
+            raise
+        return failed(error)
+    try:
+        return {"ok": True, "result": _ide_result(value, made_by)}
+    except BaseException as error:
+        if isinstance(error, KeyboardInterrupt):
+            raise
+        return failed(error)
+    finally:
+        close_quietly(value)
+
+
+def _ide_result(value: Any, made_by: str | None) -> dict[str, Any]:
+    """What a run made, for the Result tab: a table, or a value as text."""
+    from swissarmybench.client.kernel_values import is_table, type_name
+
+    if (
+        is_table(value)
+        or type(value).__module__.split(".")[0] == "duckdb"
+        or (isinstance(value, list) and value and all(isinstance(r, dict) for r in value[:50]))
+    ):
+        from swissarmybench.client.push_client import _to_arrow
+
+        table = _to_arrow(value)
+        head = table.slice(0, _RESULT_ROWS)
+        return {
+            "kind": "table",
+            "type": type_name(value),
+            "made_by": made_by,
+            "columns": [str(c) for c in table.column_names],
+            "types": [str(t) for t in table.schema.types],
+            "rows": [[_plain(v) for v in row.values()] for row in head.to_pylist()],
+            "total": table.num_rows,
+            "arrow": _arrow_text(table),
+        }
+    if callable(value) and not isinstance(value, type):
+        import inspect
+
+        try:
+            shown = f"{getattr(value, '__name__', 'function')}{inspect.signature(value)}"
+        except (TypeError, ValueError):
+            shown = repr(value)
+        return {"kind": "value", "type": "function", "made_by": made_by, "text": shown}
+    text = value if isinstance(value, str) else repr(value)
+    return {"kind": "value", "type": type_name(value), "made_by": made_by, "text": _scrub(text[:_TEXT_CHARS])}
+
+
 def main() -> None:
     job = json.loads(sys.stdin.buffer.read())
     real_stdout = sys.stdout
+    if job.get("mode") == "run":  # the IDE's Run: its prints and warnings streamed, one JSON line each
+        sink = sys.stderr
+        with contextlib.redirect_stdout(_Stream("o", sink)), contextlib.redirect_stderr(_Stream("e", sink)):
+            answer = _child(job)
+        real_stdout.write(_scrub(json.dumps(answer, default=str)))
+        real_stdout.flush()
+        return
     with contextlib.redirect_stdout(sys.stderr):  # a blade's prints must not break the answer
         answer = _child(job)
     json.dump(answer, real_stdout, default=str)

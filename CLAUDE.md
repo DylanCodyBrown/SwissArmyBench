@@ -83,15 +83,22 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   Bench, with the Streamlit extension preinstalled** (its name in the status bar: Swiss Army Bench); the rail's
   Extensions page lists the extensions (Streamlit preinstalled; Accounting, Power Apps, Power BI and GitHub Copilot available, one click: Install). Until the manifest boundary is built (Plans/powerapps-spinoff.plan.md section 8a), front-end work
   continues as before; from then on, the rule holds.
-- **A blade's code is edited in its file, never in the app (the owner, 2026-11-17: "the code box is read
-  only though blades can only be edited in the folder not from the app").** The blade screen shows the code
-  read-only (Monaco, as tall as the code) with **Show its file** (the user's click; 403 for the agent); New
-  blade makes a `.blade.py` in the library's `blades/` from a template; the app writes only a file's header
-  (name, description, tags, `table`), the code's bytes untouched (PUT /blades/{name}, `blades_update`). A
-  table blade has a table name of its own ("Shouldnt the table it makes be namable by me with a realtime
-  check for available names"), checked live (GET /blades/table-name). The catalog checkbox and the blades
-  page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its just
-  tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
+- **A blade's screen is an IDE (the owner, 2026-11-21: "this entire panel should be an ide, with small save,
+  saves, cancel buttons at the top and a play button to execute with a realtime linter and output at the bottom
+  to see the results. This is an IDE not a save form"; it reverses 2026-11-17's read-only code).** One slim bar
+  (Back, the name, the dirty dot, Save Ctrl+S, Save as…, Cancel, ▶ Run F5, Properties, "…": Show its file,
+  Export, Remove, Copy as your own), Monaco with the Workbench's intelligence, Properties (name, description,
+  tags, `table` checked live: GET /blades/table-name) closed until asked for, Output | Result | Problems folded
+  until something runs (design principle 8.14; web/src/codeIde.ts). **The code's bytes are the file's:** Save
+  writes the code after the file's header (PUT /blades/{name} {code, stamp}; only when the bytes change; the
+  header's variable follows a renamed function); an edit made outside is noticed (the stamp, looked at every
+  2 s: taken at once with nothing unsaved, else Reload / Keep mine; a Save over it is 409), never silently
+  overwritten. A starter's or a pack's Save is refused: Copy as your own. Run is Test's child process with the
+  output streamed (POST /blades/{name}/run), the result a table (Open as grid) or a value, a failure the error
+  panel with the line marked. The agent: `blades_update(code, stamp)`, `blades_run`, `blades_problems`,
+  `blades_copy(code)`; Show its file stays the user's click (403 for the agent). The catalog checkbox and the
+  blades page's catalog panel went ("what the heck does add to catalog do" / "we dont even need catalog if its
+  just tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.
@@ -309,7 +316,8 @@ src/swissarmybench/
                          a table's name as a grid (the dataset's too when two share it), a dataset's own
                          relationships as the app's model (the INFO functions' rows, named or numbered)
     blade_templates.py   Template: a starter connection's or blade's code and listing query (re-exported by blades.py)
-    blade_tables.py      a table blade's own table name (names_table; the live check's answers: available, a table,
+    blade_tables.py      the blade IDE's file rules (with_code: the code after the header, the file's line ends;
+                         follow_variable; stamp; SECRET_STUB for the lint); a table blade's own table name (names_table; the live check's answers: available, a table,
                          a connection, another blade's table, not a valid name), a connection's listing query from
                          its starter (listing_for), New blade's choices, a file's header rewritten (with_header:
                          the code's bytes untouched)
@@ -820,7 +828,8 @@ src/swissarmybench/
                          most, the start folder the nearest that is there; GET /dialogs says whether one opens
     claude_finder.py     finding Claude on each system (registry, PowerShell, mdfind, .desktop files) and
                          starting it detached; SWISSARMYBENCH_CLAUDE_STANDIN's stand-in for tests
-    blade_runner.py      Refresh/Test in a child process; installing packages
+    blade_runner.py      Refresh/Test in a child process; the blade IDE's Run (run_streaming: prints streamed,
+                         the result a table or a value, a failure as the error panel's detail); installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
     streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
@@ -948,8 +957,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          catalogRail.ts (the blades list; the catalog tree only where a page gives it a
                          place: the Workbench's "+ Table") is the blades page's (catalogPage.ts,
                          static/catalog.html: no catalog panel since 2026-11-17); bladeEditor.ts is the
-                         blade screen (the code read-only, Show its file, Its table is called, a
-                         connection's How its tables are listed) and New blade;
+                         blade screen, an IDE on codeIde.ts, and New blade; its pieces mount on their own in
+                         another page's tab (bladeProperties: the header and the live table-name check;
+                         runBladeCode into codeIde.ts's runPanel; watchOutsideEdits: Reload / Keep mine;
+                         bladeEditorIntel; saveBladeAs); codeIde.ts a page that is an IDE for one piece of
+                         code (the slim bar, Monaco with the host's intelligence, Properties, runPanel: Output
+                         | Result | Problems, resizable, folded until something runs; design principle 8.14);
                          bladeLibrary.ts is import (review first), export and the blade folders dialog.
                          connectionsWindow.ts's forms (a form per type) open in the Connections page;
                          addApi.ts is Add API (an OpenAPI document or endpoints, the sign-in, the preview), on the

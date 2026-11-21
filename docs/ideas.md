@@ -6720,3 +6720,18 @@ runs it over every way (a driver not installed is skipped) and again in SWISSARM
 - Every ROPC way and SQL Server's Entra password (ActiveDirectoryPassword) says one line on the form (the way's
   `note`): it cannot do multi-factor sign-in, pick the new way. AADSTS50076 and AADSTS50079 name it (Entra's
   words in the lake and SharePoint code; SQL Server's error table, before its "login failed").
+
+## The blade IDE (built 2026-11-21, branch blade-ide)
+
+The owner (2026-11-21), on the blade screen: "this entire panel should be an ide, with small save, saves, cancel
+buttons at the top and a play button to execute with a realtime linter and output at the bottom to see the
+results. This is an IDE not a save form". It reverses 2026-11-17's "blades can only be edited in the folder".
+Decisions: the editor shows the code after the header (its lines are the code's; the header is Properties');
+Save refuses code that does not parse (the file would stop being a blade); the header's variable follows a
+renamed function; the outside-edit check is the file's stamp (sha256, 16 hex), polled every 2 s while shown;
+Run is Test's child process (never a kernel: a blade runs where sab.blade runs it), its prints streamed as NDJSON,
+secrets scrubbed from every line and answer; a function with no required arguments is called (a table blade);
+the error panel is client/kernel_errors.py's, the code compiled under a temporary-folder name so its frames are
+"your file". codeIde.ts and its runPanel are shared pieces for the Scripts page's blade tab (the owner: blades move
+into the Scripts page) and the Widgets window. Design principle 8.14 holds it: Properties closed and the panel
+folded until wanted.

@@ -3,9 +3,17 @@ the agent can too, so every route serves the agent but one: /blades/{name}/pytho
 carries the saved password values (they never reach the agent):
 
   GET    /blades, /blades/templates, /blades/{name}
-  POST   /blades                     save a new one        PUT /blades/{name}   its name, description, tags,
-                                     table name: its file's header only (a blade's code is edited in its
-                                     file, never in the app: the owner, 2026-11-17)
+  POST   /blades                     save a new one        PUT /blades/{name}   its code (the blade IDE's
+                                     Save: {code, stamp, force?}; 409 when the file changed on disk since)
+                                     and its header's name, description, tags, table name
+  GET    /blades/{name}/code         the open editor's look at its file: the code and its stamp
+  POST   /blades/{name}/run          the IDE's Run: {code?, env?, run?, stream?}; stream: NDJSON lines of
+                                     {"output": {stream, text}}, then {"done": the answer}
+  GET    /blades/{name}/run          its last run this session (output, result, problems)
+  POST   /blades/runs/{run}/cancel   stop a run going now
+  POST   /blades/{name}/result/open  the last run's table opened as a grid
+  POST   /blades/{name}/problems     {code?}: the lint's problems in its code (the editor's)
+  GET    /blades/name-check?name=    Save as's live check of a new blade's name
   GET    /blades/new  POST ...       New blade: the choices; a new .blade.py in the library's blades/ folder
   GET    /blades/table-name?name=&blade=   the live check of a table name ("available", or why not)
   POST   /blades/{name}/show         Show its file: the system's file manager (the user's click only)
@@ -34,10 +42,13 @@ The use cases are services/blades.py.
 
 from __future__ import annotations
 
+import asyncio
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.blades import BladeCodeError, VaultUnavailableError
@@ -51,7 +62,7 @@ from swissarmybench.server.http import (
     read_json_object,
     refusal,
 )
-from swissarmybench.services.blades import BladeService, NeedsValues
+from swissarmybench.services.blades import BladeService, ChangedOnDisk, NeedsValues
 
 
 def _agent_refused() -> Response:
@@ -81,13 +92,93 @@ def routes(blades: BladeService) -> list[BaseRoute]:
     async def save_blade(request: Request) -> Response:
         try:
             previous = request.path_params.get("name")
-            if previous is not None:  # a saved blade: its header only, never its code
+            if previous is not None:  # a saved blade: its code and its header (the blade IDE's Save)
                 return json_response(await blades.update(previous, await read_json(request), actor(request)))
             return json_response(await blades.save(await read_json(request), None, actor(request)))
+        except ChangedOnDisk as error:
+            return json_response(
+                {"error": str(error), "changed_on_disk": True, "stamp": error.stamp}, status_code=409
+            )
         except VaultUnavailableError as error:
             return error_as(error, 409)
         except Exception as error:
             return error_response(error)
+
+    # ===== the blade IDE (the owner, 2026-11-21) =====
+
+    async def code(request: Request) -> Response:
+        try:
+            return json_response(blades.code(request.path_params["name"]))
+        except Exception as error:
+            return error_response(error)
+
+    async def run_blade(request: Request) -> Response:
+        name = request.path_params["name"]
+        try:
+            if request.method == "GET":
+                return json_response(blades.last_run(name))
+            body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
+            body = body if isinstance(body, dict) else {}
+            who = actor(request)
+            if not body.get("stream"):
+                return json_response(await blades.run(name, body, who))
+            blades.runnable_now(name)  # refused before the stream starts (a snippet, a secret blade)
+        except NeedsValues as error:
+            return _needs(error)
+        except Exception as error:
+            return error_response(error)
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+        async def work() -> None:
+            try:
+                done = await blades.run(
+                    name,
+                    body,
+                    who,
+                    lambda stream, text: queue.put_nowait({"output": {"stream": stream, "text": text}}),
+                )
+                queue.put_nowait({"done": done})
+            except NeedsValues as error:
+                queue.put_nowait({"done": {"ok": False, "needs": error.missing, "error": str(error)}})
+            except Exception as error:
+                queue.put_nowait({"done": {"ok": False, "error": str(error)}})
+
+        async def lines() -> AsyncIterator[bytes]:
+            task = asyncio.create_task(work())
+            try:
+                while True:
+                    item = await queue.get()
+                    yield (json.dumps(item, default=str) + "\n").encode()
+                    if "done" in item:
+                        break
+            finally:
+                if not task.done():
+                    blades.cancel(str(body.get("run") or ""))
+                await asyncio.gather(task, return_exceptions=True)
+
+        return StreamingResponse(
+            lines(), media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
+        )
+
+    async def cancel_run(request: Request) -> Response:
+        return json_response(blades.cancel(request.path_params["run"]))
+
+    async def open_result(request: Request) -> Response:
+        try:
+            return json_response(await blades.open_result(request.path_params["name"], actor(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def problems(request: Request) -> Response:
+        try:
+            body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
+            code_text = body.get("code") if isinstance(body, dict) else None
+            return json_response(await blades.problems(request.path_params["name"], code_text))
+        except Exception as error:
+            return error_response(error)
+
+    async def name_check(request: Request) -> Response:
+        return json_response(blades.name_check(request.query_params.get("name", "")))
 
     async def new_blade(request: Request) -> Response:
         try:
@@ -280,7 +371,10 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         try:
             body = await read_json(request) if int(request.headers.get("content-length") or 0) else {}
             new_name = body.get("name") if isinstance(body, dict) else None
-            return json_response(await blades.copy(request.path_params["name"], new_name, actor(request)))
+            code_text = body.get("code") if isinstance(body, dict) else None  # Save as: the editor's code
+            return json_response(
+                await blades.copy(request.path_params["name"], new_name, actor(request), code_text)
+            )
         except Exception as error:
             return error_response(error)
 
@@ -309,6 +403,8 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades/templates", templates),
         Route("/blades/new", new_blade, methods=["GET", "POST"]),
         Route("/blades/table-name", table_name),
+        Route("/blades/name-check", name_check),
+        Route("/blades/runs/{run}/cancel", cancel_run, methods=["POST"]),
         Route("/blades/folders", folders, methods=["GET", "PUT"]),
         Route("/blades/export", export_all),
         Route("/blades/import", import_blades, methods=["POST"]),
@@ -322,6 +418,10 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         Route("/blades/{name}", save_blade, methods=["PUT"]),
         Route("/blades/{name}", remove_blade, methods=["DELETE"]),
         Route("/blades/{name}/secrets", set_secrets, methods=["PUT"]),
+        Route("/blades/{name}/code", code),
+        Route("/blades/{name}/run", run_blade, methods=["GET", "POST"]),
+        Route("/blades/{name}/result/open", open_result, methods=["POST"]),
+        Route("/blades/{name}/problems", problems, methods=["POST"]),
         Route("/blades/{name}/refresh", refresh, methods=["POST"]),
         Route("/blades/{name}/test", test, methods=["POST"]),
         Route("/blades/{name}/python", python),

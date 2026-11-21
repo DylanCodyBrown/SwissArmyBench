@@ -157,12 +157,13 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
     # A starter opens read-only; Copy as your own makes the user's copy and opens it.
     listed.locator(".starter-item", has_text="Power BI refresh dataset").locator(".blade-name").click()
     detail = page.locator("#detail")
-    expect(detail.get_by_text("Power BI starter: read-only")).to_be_visible()
-    expect(detail.locator(".blade-code .monaco-editor")).to_be_visible(timeout=20000)  # read-only
+    expect(detail.locator(".ide-readonly")).to_have_text("read-only")
+    expect(detail.locator(".code-ide .monaco-editor")).to_be_visible(timeout=20000)
     shot(page, "2-a-power-bi-action")
-    detail.get_by_role("button", name="Copy as your own").click()
-    expect(detail.locator("h2")).to_have_text("Blade: Power BI refresh dataset copy")
-    expect(detail.get_by_text("starter: read-only")).to_have_count(0)
+    detail.get_by_role("button", name="More").click()
+    page.get_by_role("menuitem", name="Copy as your own").click()
+    expect(detail.locator(".ide-name")).to_have_text("Power BI refresh dataset copy")
+    expect(detail.locator(".ide-readonly")).to_have_count(0)
     expect(detail.get_by_role("button", name="Save", exact=True)).to_be_visible()
     mine = [b["name"] for b in call(server, "GET", "/blades")["blades"]]
     assert "Power BI refresh dataset copy" in mine
