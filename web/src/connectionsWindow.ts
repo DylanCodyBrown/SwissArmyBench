@@ -172,6 +172,19 @@ interface Form {
   choices?: Record<string, string[]>;
 }
 
+/** The part of the form a setting belongs to (where, who, security, options), and its rank there. */
+const fieldPart = (form: Form, f: Field): string => (form.options?.includes(f.name.toLowerCase()) ? "options" : (form.field_places?.[f.name.toLowerCase()]?.part ?? "where"));
+const fieldPlace = (form: Form, f: Field): number => form.field_places?.[f.name.toLowerCase()]?.rank ?? 9;
+
+/** One part's boxes, in the form's order (a setting the form does not rank keeps the code's order). */
+function partBoxes(form: Form, fields: Field[], boxes: HTMLElement[], wanted: string): HTMLElement[] {
+  return fields
+    .map((f, i) => ({ f, i }))
+    .filter(({ f }) => fieldPart(form, f) === wanted)
+    .sort((a, b) => fieldPlace(form, a.f) - fieldPlace(form, b.f) || a.i - b.i)
+    .map(({ i }) => boxes[i]!);
+}
+
 interface Mapping {
   env: string;
   secret: string;
@@ -1137,18 +1150,10 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       // The same order on every form: where, who, security (a setting the rule does not name stays
       // with "where", after the ones it does, in the code's order).
       // SQL Server's options (encryption, the driver, timeouts...) fold under Options.
-      const part = (f: Field): string => (form.options?.includes(f.name.toLowerCase()) ? "options" : (form.field_places?.[f.name.toLowerCase()]?.part ?? "where"));
-      const place = (f: Field): number => form.field_places?.[f.name.toLowerCase()]?.rank ?? 9;
-      const of = (wanted: string): HTMLElement[] =>
-        fields
-          .map((f, i) => ({ f, i }))
-          .filter(({ f }) => part(f) === wanted)
-          .sort((a, b) => place(a.f) - place(b.f) || a.i - b.i)
-          .map(({ i }) => boxes[i]!);
-      clear(fieldsHost, ...of("where"));
-      clear(whoHost, ...of("who"));
-      clear(securityHost, ...of("security"));
-      const folded = of("options");
+      clear(fieldsHost, ...partBoxes(form, fields, boxes, "where"));
+      clear(whoHost, ...partBoxes(form, fields, boxes, "who"));
+      clear(securityHost, ...partBoxes(form, fields, boxes, "security"));
+      const folded = partBoxes(form, fields, boxes, "options");
       clear(optionsHost, ...folded);
       optionsBox.hidden = folded.length === 0;
     };
