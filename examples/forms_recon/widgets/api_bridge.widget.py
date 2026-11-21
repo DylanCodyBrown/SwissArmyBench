@@ -1,7 +1,7 @@
 # /// swissarmybench-widget
 # format = 1
 # name = "api_bridge"
-# description = "Send a page value to a local sandbox API endpoint, or fetch one into a page value"
+# description = "Call a local sandbox API endpoint with the values its Ins are wired to; hand its answer on"
 # framework = "streamlit"
 # group = "Forms"
 # tags = []
@@ -17,25 +17,19 @@ import urllib.parse
 import urllib.request
 
 import streamlit as st
-from sab_canvas import key
+from sab_canvas import In, Out, Table, key
 
 # The endpoint it calls
 endpoint = ""  # endpoint
-# The path's {names}: a page value ("@form_saved.payload.name": a session state key, dotted for a part) or as written
+# The path's {names}: "@form.name" is an In's value (dotted for a part), anything else as written
 path_values = {}
-# The query: each "@key" a page value, anything else as written
+# The query: each "@name" an In's value, anything else as written
 query = {}
-# The body: a page value's key, dotted for a part (empty: none)
-body_key = ""
-# More of the body: each "@key" a page value, anything else as written
+# The body: each "@name" an In's value (dotted for a part; "@trigger" the whole event), anything else as written
 body_extra = {}
-# Send when this page value changes (an event another widget hands over); empty: on the button
-trigger_key = ""
 button = "Send"
 # Call it on every run, with no button (a GET whose answer other widgets read)
 auto = False
-# The page value the answer is kept under (other widgets read it)
-result_key = ""
 # Rows sent in parts of this many (0: one call); the rest go to rest_endpoint, its {names} from the first answer
 part_rows: int = 0  # 0..100000
 rest_endpoint = ""  # endpoint
@@ -44,6 +38,41 @@ show_answer = True
 show_as = "json"  # json, table, metrics
 # Only these fields of the answer (empty: every one)
 show_fields = []
+
+# Send when this changes (another widget's Event, as form_fill's saved); not wired: on the button
+trigger: In[dict] = None
+# The values the templates above read by name
+form: In[dict] = None
+period: In[str] = None
+loaded_by: In[str] = None
+records: In[Table] = None
+run: In[dict] = None
+status: In[str] = None
+source_table: In[str] = None
+key_field: In[str] = None
+key_column: In[str] = None
+compare_field: In[str] = None
+compare_column: In[str] = None
+tolerance: In[float] = None
+# The answer, for other widgets: an object's, or a list's
+answer: Out[dict] = None
+listed: Out[list] = None
+
+_INS = {
+    "trigger": trigger,
+    "form": form,
+    "period": period,
+    "loaded_by": loaded_by,
+    "records": records,
+    "run": run,
+    "status": status,
+    "source_table": source_table,
+    "key_field": key_field,
+    "key_column": key_column,
+    "compare_field": compare_field,
+    "compare_column": compare_column,
+    "tolerance": tolerance,
+}
 
 
 def _call(method, path, body=None):
@@ -76,9 +105,9 @@ def _call(method, path, body=None):
 
 
 def _value(path):
-    """A page value by its dotted key; a table as its rows."""
+    """An In's value by its dotted name; a table as its rows."""
     head, *rest = str(path).split(".")
-    found = st.session_state.get(head)
+    found = _INS.get(head)
     for part in rest:
         found = found.get(part) if isinstance(found, dict) else None
     to_dict = getattr(found, "to_dict", None)
@@ -116,10 +145,7 @@ def _send():
     method, path, missing = _path(endpoint, path_values)
     if missing:
         return None, f"{missing} has no value yet."
-    body = _value(body_key) if body_key else None
-    extra = _filled(body_extra)
-    if extra:
-        body = {**(body if isinstance(body, dict) else {}), **extra}
+    body = _filled(body_extra) or None
     rows = body.get("rows") if isinstance(body, dict) else None
     if not (
         part_rows and rest_endpoint and isinstance(rows, list) and len(rows) > part_rows
@@ -163,37 +189,32 @@ def _show(answer):
 if not endpoint:
     st.info("Pick the endpoint in Properties.")
 else:
-    answer, problem, sent = None, None, False
+    got, problem, sent = None, None, False
     if auto:
         _, _, waiting = _path(endpoint, path_values)
         if waiting:
             st.caption(f"Waiting for {waiting}.")
         else:
-            answer, problem = _send()
+            got, problem = _send()
             sent = True
-    elif trigger_key:
-        event = st.session_state.get(trigger_key)
-        mark = (
-            hashlib.sha1(
-                json.dumps(event, sort_keys=True, default=str).encode()
-            ).hexdigest()
-            if event
-            else ""
-        )
-        if event and st.session_state.get(key("sent")) != mark:
+    elif trigger is not None:
+        mark = hashlib.sha1(json.dumps(trigger, sort_keys=True, default=str).encode()).hexdigest()
+        if st.session_state.get(key("sent")) != mark:
             st.session_state[key("sent")] = mark
-            answer, problem = _send()
+            got, problem = _send()
             sent = True
     elif st.button(button, key=key("button")):
-        answer, problem = _send()
+        got, problem = _send()
         sent = True
     if sent:
         if problem:
             st.error(problem)
         else:
-            if result_key:
-                st.session_state[result_key] = answer
+            if isinstance(got, dict):
+                answer = got
+            elif isinstance(got, list):
+                listed = got
             if not auto:
                 st.success(f"{endpoint}: done.")
             if show_answer:
-                _show(answer)
+                _show(got)

@@ -13,7 +13,7 @@ import re
 
 import pandas as pd
 import streamlit as st
-from sab_canvas import Event, Out, key
+from sab_canvas import Event, In, Out, key
 
 _TYPES = ["text", "number", "money", "date", "choice", "yes/no", "file"]
 # The form to start from (data in): a name, a title and its fields
@@ -37,6 +37,8 @@ definition = {
         {"name": "notes", "label": "Notes", "type": "text", "format": "long"},
     ],
 }
+# A form to start from instead (another widget's, as the form picker's; not wired: the one above)
+start_from: In[dict] = None
 # The form's definition once saved, for the page's form_fill (it reads it by itself); it starts from it
 form_definition: Out[dict] = None
 button = "Save form"
@@ -44,8 +46,10 @@ button = "Save form"
 saved: Event[dict] = None
 
 
-start = form_definition
-form = start if isinstance(start, dict) and start.get("fields") is not None else definition
+form = next(
+    (f for f in (start_from, form_definition) if isinstance(f, dict) and f.get("fields") is not None),
+    definition,
+)
 left, right = st.columns(2)
 title = left.text_input("Title :red[\\*]", form.get("title", ""), key=key("title"))
 name = right.text_input(

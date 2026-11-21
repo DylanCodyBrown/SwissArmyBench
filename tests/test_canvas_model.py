@@ -154,6 +154,17 @@ def test_overrides_of_properties_that_went_are_pruned_and_said() -> None:
     assert said == ["w1 (metric): gone went with the widget's code."]
 
 
+def test_a_value_the_widget_no_longer_has_can_be_taken_away_but_not_set() -> None:
+    """The agent tidies a canvas made before a widget's upgrade (forms_recon's definition_key): None takes
+    the old value away; a value for a property that is not there is still refused."""
+    canvas, made = run(model.new_canvas("S"), "insert_widget", widget="metric", values={"label": "Sales"})
+    model.find(canvas, str(made))[2]["values"]["definition_key"] = "form_definition"
+    canvas, _ = run(canvas, "set_values", id=made, values={"definition_key": None})
+    assert model.find(canvas, str(made))[2]["values"] == {"label": "Sales"}
+    with pytest.raises(CanvasError, match="no property definition_key"):
+        run(canvas, "set_values", id=made, values={"definition_key": "x"})
+
+
 @pytest.mark.parametrize("seed", range(40))
 def test_random_commands_keep_every_rule_and_the_page_compiles(seed: int) -> None:
     """Random sequences of the commands (add, move, resize, nest, insert, delete, undo, redo, columns, width):

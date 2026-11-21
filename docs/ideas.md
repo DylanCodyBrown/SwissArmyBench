@@ -7513,7 +7513,12 @@ object id, roles from X-MS-CLIENT-PRINCIPAL); an Out's columns from a run that L
 found, not built: examples/forms_recon's canvas predates the widget contract (its form_picker, form_designer and
 api_bridge instances still name session keys the contract replaced), so its browser test fails on the base too:
 rewire it to the contract (form_definition Out into an In, the designer's `saved` Event calling PUT /forms/{id}
-in place of the second api_bridge).
+in place of the second api_bridge). BUILT (2026-11-21, branch api-approved): form_designer took `start_from:
+In[dict]` (what its definition_key did: the picker's form to start from), the designer's `saved` Event calls PUT
+/forms/{form_id} (the second api_bridge went), the project's api_bridge declares named Ins (trigger, form, period,
+loaded_by, records, run, status and the reconciliation's fields) that its `@name` templates read and Outs `answer`
+(an object) and `listed` (a list); every instance wired through the agent's canvas_set_values, canvas_wire and
+canvas_delete; canvas_set_values with null now takes away a value the widget no longer has.
 
 ## The forms and reconciliation test app and the local API's stress test (the owner, 2026-11-21; branch test-app)
 
