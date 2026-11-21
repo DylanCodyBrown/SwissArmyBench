@@ -163,6 +163,7 @@ const top = document.getElementById("wb-top") as HTMLElement;
 // same page they are seperate things"): this window is one of them (its path says which, workbenchPages.ts).
 const PAGE: CodePage = thisPage();
 document.body.dataset.page = PAGE;
+document.title = PAGE_WORDS[PAGE]; // "Notebooks" or "Scripts" until a document says more
 // An address that names the other page's file (an old /workbench#open=load.py): this tab goes to that page,
 // the address's words with it, before anything is drawn.
 {

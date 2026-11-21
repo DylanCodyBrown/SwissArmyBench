@@ -230,9 +230,14 @@ def test_cells_scripts_blocks_and_the_data_panel_wear_the_colour(
     call(server, "PUT", "/connection-colours/Ledger", {"colour": RUST})
     wait_worn(page, ".wb-cell", shown(page, server, "Ledger"))
 
+    # A script is the Scripts page's (2026-11-21): its stripe there, then back to the Notebooks page.
+    page.goto(f"http://127.0.0.1:{server['port']}/scripts")
+    expect(page.locator(".wb-codex.page-scripts")).to_be_visible(timeout=20000)
     window("file.open", path=str(script))
     page.wait_for_function("() => document.querySelector('[class*=sab-stripe-]') !== null", timeout=20000)
     shot(page, "5-script-stripe")
+    page.goto(f"http://127.0.0.1:{server['port']}/notebooks")
+    expect(page.locator(".wb-codex.page-notebooks")).to_be_visible(timeout=20000)
 
     window("file.open", path=str(tmp_path / "ledger.stapp.json"))
     block_el = page.locator(".cv-block[data-block='b1']")

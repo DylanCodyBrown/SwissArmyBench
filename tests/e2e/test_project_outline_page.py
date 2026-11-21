@@ -140,7 +140,7 @@ def test_export_outline_writes_architecture_md_offers_it_and_its_diagrams_draw(
     work = browser.new_context(viewport={"width": 1400, "height": 900}, device_scale_factor=2)
     wb = work.new_page()
     wb.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
-    expect(wb.locator(".wb-top")).to_be_visible(timeout=20000)
+    expect(wb.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (no top bar, 2026-11-21)
     for _ in range(50):  # the window's socket joins a moment after its page draws
         try:
             call(server, "POST", "/workbench/window", {"command": "project.outline", "args": {}}, agent=True)
