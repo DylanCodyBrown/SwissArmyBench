@@ -313,12 +313,28 @@ export function codeIde(options: IdeOptions): CodeIde {
         showMenu(rect.left, rect.bottom + 2, "More", options.menu!().map((m) => [m.icon, m.label, m.run] as [string, string, () => void]));
       }, "more", { iconOnly: true, title: "More" })
     : null;
+  // ----- the code's own zoom (the owner, 2026-11-21: "Can the blade ide be zoomable"): Ctrl + wheel and
+  // Ctrl+= / Ctrl+- / Ctrl+0 over the code size the code alone (8 to 40 px), remembered per host; the bar shows
+  // the size only while it is not 100% (design principle 8.14), a click puts it back. -----
+  const BASE = 13;
+  let fontPx = Math.min(40, Math.max(8, Number(remembered(options.remember, "font")) || BASE));
+  const zoomBadge = h("button", { type: "button", class: "ide-btn ghost ide-zoom", title: "Code size: click for 100% (Ctrl+0)", hidden: true, onclick: () => setFont(BASE) });
+  function setFont(px: number): void {
+    fontPx = Math.min(40, Math.max(8, Math.round(px)));
+    editor?.setFontSize(fontPx);
+    zoomBadge.textContent = `${Math.round((fontPx / BASE) * 100)}%`;
+    zoomBadge.hidden = fontPx === BASE;
+    keep(options.remember, "font", String(fontPx));
+  }
+  const stepFont = (direction: number): void => setFont(fontPx + direction * (fontPx >= 20 ? 2 : 1));
+
   const bar = h(
     "div",
     { class: "ide-bar", role: "toolbar", "aria-label": `${options.name} toolbar` },
     options.back ? small(options.back.label, options.back.run, "back", { class: "ghost back-btn" }) : null,
     h("span", { class: "ide-title" }, nameEl, dot, options.badge ?? null),
     h("span", { class: "ide-bar-gap" }),
+    zoomBadge,
     saveBtn,
     saveAsBtn,
     cancelBtn,
@@ -328,8 +344,9 @@ export function codeIde(options: IdeOptions): CodeIde {
   );
   const noteHost = h("div", { class: "ide-note", hidden: true });
 
+
   // ----- the middle: the editor and Properties -----
-  const editorHost = h("div", { class: "ide-editor", "aria-label": `${options.name} code` }, h("pre", { class: "code-box ide-plain" }, options.value));
+  const editorHost = h("div", { class: "ide-editor", "data-own-zoom": "", "aria-label": `${options.name} code` }, h("pre", { class: "code-box ide-plain" }, options.value));
   const props = options.properties ? h("aside", { class: "ide-props", "aria-label": "Properties" }, h("h3", { class: "ide-props-title" }, "Properties"), options.properties) : null;
   // Design principle 8.14 ("Never crowd the place where code is written"): closed until asked for.
   let propsShown = remembered(options.remember, "props") === "on";
@@ -357,12 +374,29 @@ export function codeIde(options: IdeOptions): CodeIde {
         e.preventDefault();
         e.stopPropagation();
         void doSave();
+      } else if ((e.ctrlKey || e.metaKey) && !e.altKey && ["=", "+", "-", "0"].includes(e.key) && editorHost.contains(e.target as Node)) {
+        // Over the code, the code's own size (the page's zoom stays where it is).
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.key === "0") setFont(BASE);
+        else stepFont(e.key === "-" ? -1 : 1);
       } else if (e.key === "F5" && options.run) {
         e.preventDefault();
         void doRun();
       }
     },
     true,
+  );
+
+  editorHost.addEventListener(
+    "wheel",
+    (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      stepFont(e.deltaY < 0 ? 1 : -1);
+    },
+    { capture: true, passive: false },
   );
 
   // ----- state -----
@@ -463,6 +497,7 @@ export function codeIde(options: IdeOptions): CodeIde {
           }
         : undefined,
     });
+    setFont(fontPx);
     editor.onChange(() => {
       pending = editor!.value();
       drawDirty();
