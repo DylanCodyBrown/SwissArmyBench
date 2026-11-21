@@ -66,3 +66,20 @@ The cloud services are stand-ins on 127.0.0.1, started by the tests themselves:
   rows as PostgreSQL but refreshed a day early (`standins.py`), so a tie-out finds the month that is off.
 - **Azure Key Vault**: `standins.py`'s `KeyVault`, the Key Vault REST shape (list the secrets, get one)
   behind a made-up bearer token.
+
+## A large made-up business: Larkfield Goods
+
+`large_company.py` makes a retail and wholesale business of 14 tables (regions, stores, categories, suppliers,
+products, customers, employees, orders, order_lines, returns, inventory_snapshots, shipments, support_tickets and
+data_quality_issues, which lists its deliberate problems) with DuckDB SQL alone, the same rows for the same seed:
+
+```bash
+python -m tools.testbed.large_company --scale small  --out /tmp/larkfield   # about 10k order lines, under a second
+python -m tools.testbed.large_company --scale medium --out /tmp/larkfield   # about 1M, a few seconds
+python -m tools.testbed.large_company --scale large  --out /tmp/larkfield --duckdb   # about 10M, about 30 s
+```
+
+From Python: `build(out, scale, seed, duckdb_file)` writes the Parquet files and returns the row counts and the
+time; `generate(connection, scale, seed)` makes the tables in a DuckDB connection of your own. It refuses a folder
+inside the repository. Tests: `tests/test_large_company.py` (medium with `SWISSARMYBENCH_TEST_MEDIUM=1`, large's
+timing with `SWISSARMYBENCH_TEST_SLOW=1`).

@@ -4391,3 +4391,20 @@ alone.
 Not checked: a real connection catalog's picker list in the browser (the listing is checked over HTTP only); the
 analyzer's "needless rerun" hint on the Canvas (it cannot fire: the canvas does not know which widget makes a
 value); the desktop app's own windows for Launch with the analyzer (Chromium's popups only).
+
+## Widget starter packs and Larkfield Goods (2026-11-21, branch data-and-packs)
+
+- Every prebuilt widget (109) runs headless with AppTest through the page builder without an error, in the shared
+  Streamlit 1.67 Python (no openpyxl: the Excel widgets say so in place) and in one with openpyxl 3.1.5.
+- tests/test_widget_packs.py drives a required text left blank and filled, the form filled empty, in range and out
+  of it, the designer's Save, the settings form, the filter bar, the upload's sample (12 rows, and A1:C5 of sheet
+  1), the column matching (all seven fields from an export's own headers), the row rules and the round trip with
+  AppTest (the Excel half with openpyxl only).
+- The Canvas's Widgets pane and the Widgets window head the eight packs in order with their descriptions (Chromium,
+  tests/e2e/test_widget_packs_page.py); the older widget and canvas e2e tests pass.
+- Larkfield Goods: small 0.3 s, medium 4 s, large 28 to 34 s on this 4-core machine (10.0M order lines, 3.3M orders,
+  Parquet zstd, 187 MB); every foreign key joins, keys are unique but the documented duplicate orders, the same seed
+  gives the same rows. Medium's key check and large's timing ran by their switches.
+- Not checked: camera, audio and file inputs with a real device or file (AppTest cannot give one); the map's tiles
+  (no network here); the packs on a phone width; Excel's own opening of the made workbooks (openpyxl wrote them and
+  read them back).

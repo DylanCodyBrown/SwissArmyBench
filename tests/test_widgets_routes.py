@@ -57,6 +57,28 @@ def test_the_listing_has_the_prebuilt_widgets_by_group_with_their_properties(
     assert [w["name"] for w in found["widgets"]] == ["donut_chart"]
 
 
+def test_the_listing_puts_each_starter_pack_first_in_its_order_with_its_description(
+    served: tuple[TestClient, FakeRunner],
+) -> None:
+    from swissarmybench_streamlit.domain import widget_packs as packs
+
+    client, _ = served
+    listing = ok(client.get("/streamlit/widgets", headers=AUTH))
+    assert [p["name"] for p in listing["packs"]] == list(packs.PACKS)
+    seen: list[str] = []
+    for widget in listing["widgets"]:
+        heading = widget["pack"] or widget["group"]
+        if not seen or seen[-1] != heading:
+            assert heading not in seen, heading  # each heading's widgets together
+            seen.append(heading)
+    assert seen[: len(packs.PACKS)] == list(packs.PACKS)
+    kpi = next(w for w in listing["widgets"] if w["name"] == "sales_kpi_row")
+    assert kpi["pack"] == "Sales dashboard" and kpi["pack_description"] == packs.PACKS["Sales dashboard"]
+    assert next(w for w in listing["widgets"] if w["name"] == "line_chart")["pack"] == ""
+    found = ok(client.get("/streamlit/widgets?q=customer+service", headers=AUTH))
+    assert {w["pack"] for w in found["widgets"]} == {"Customer service"}
+
+
 def test_a_new_widget_is_one_file_in_the_library_written_only_when_it_changes(
     served: tuple[TestClient, FakeRunner],
 ) -> None:

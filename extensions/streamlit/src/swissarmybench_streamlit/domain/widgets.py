@@ -10,6 +10,7 @@ THE FILE
     # description = "One number with its change"
     # framework = "streamlit"
     # group = "Data"
+    # pack = "Sales dashboard"       <- optional: the starter pack it belongs to (domain/widget_packs.py)
     # tags = ["kpi"]
     # size = [3, 2]
     # min_size = [2, 1]
@@ -67,6 +68,7 @@ class Widget:
     description: str = ""
     framework: str = "streamlit"
     group: str = "Other"
+    pack: str = ""  # the starter pack a prebuilt widget belongs to ("": none); shown as its own group
     tags: tuple[str, ...] = ()
     size: tuple[int, int] = DEFAULT_SIZE
     min_size: tuple[int, int] = DEFAULT_MIN
@@ -79,6 +81,7 @@ class Widget:
             "description": self.description,
             "framework": self.framework,
             "group": self.group,
+            "pack": self.pack,
             "tags": list(self.tags),
             "size": list(self.size),
             "min_size": list(self.min_size),
@@ -136,6 +139,7 @@ def header_lines(widget: Widget) -> list[str]:
         f"description = {_toml(widget.description)}",
         f"framework = {_toml(widget.framework)}",
         f"group = {_toml(widget.group)}",
+        *([f"pack = {_toml(widget.pack)}"] if widget.pack else []),
         f"tags = {_toml(list(widget.tags))}",
         f"size = {_toml(list(widget.size))}",
         f"min_size = {_toml(list(widget.min_size))}",
@@ -207,13 +211,14 @@ def read_widget(text: str, prebuilt: bool = False) -> Widget:
     if least[0] > size[0] or least[1] > size[1]:
         least = (min(least[0], size[0]), min(least[1], size[1]))
     tags = data.get("tags") or []
-    known = {"format", "name", "description", "framework", "group", "tags", "size", "min_size"}
+    known = {"format", "name", "description", "framework", "group", "pack", "tags", "size", "min_size"}
     return Widget(
         name=name,
         code="\n".join(lines[end + 1 :]),
         description=str(data.get("description") or "")[:_DESCRIPTION_MAX],
         framework=str(data.get("framework") or "streamlit"),
         group=str(data.get("group") or "Other"),
+        pack=str(data.get("pack") or "")[:60],
         tags=tuple(str(t) for t in tags if isinstance(t, (str, int)))[:20],
         size=size,
         min_size=least,
@@ -238,7 +243,7 @@ def with_header(text: str, **changes: Any) -> str:
     """The file with its header changed (name, description, group, tags, size, min_size): the lines below
     the header, the code, are the same bytes."""
     widget = read_widget(text)
-    allowed = {"name", "description", "group", "tags", "size", "min_size", "framework"}
+    allowed = {"name", "description", "group", "pack", "tags", "size", "min_size", "framework"}
     unknown = set(changes) - allowed
     if unknown:
         raise WidgetError(f"A widget's header has no {', '.join(sorted(unknown))}.")

@@ -1424,12 +1424,26 @@ team like blades). Its top-level plain values are its **properties**: `title = "
 `show = True` a switch, `count = 5  # 1..20` a number with a range, `colour = "#1f77b4"` a colour picker,
 `start = "2026-01-01"` a date, `kind: Literal["line", "bar"] = "line"` a dropdown, `table_name = ""  # table`
 a table picker (empty: made-up sample data), `x = "month"  # column of table_name` a column picker,
-`key = os.environ["ORDERS_KEY"]` a variable. The comment lines above one are its help. 56 prebuilt widgets
+`key = os.environ["ORDERS_KEY"]` a variable. The comment lines above one are its help. 109 prebuilt widgets
 come with the app (buttons, inputs, tables, metrics, KPI rows, charts, text, callouts, filters, forms): they
 are read-only; **Copy as your own** to change one.
 
+**Starter packs** group prebuilt widgets by the page they make, each listed first under its name and a line
+saying what it is for: **Sales dashboard** (KPI row, revenue trend, top products, region map, the filter bar
+that drives them), **Operations** (inventory status, low stock, shipments timeline, late shipments),
+**Customer service** (ticket queue, ticket detail, status pie, SLA met, reply form), **Data entry** (a form from
+a table, an edit grid, approve or reject, validation messages), **Admin** (users, audit log, settings),
+**User inputs** (every Streamlit input, each with a label, help, default, required with a red star and the
+same red line under it when missing, disabled and its session state key), **Excel** (upload a workbook and pick
+its sheet, header row and range; match its columns to your fields; check its rows; download tables or a
+template as formatted Excel; the round trip) and **Form builder** (design a form, pick one, fill it in, see
+the submissions). Each draws made-up rows until you pick a table. The widgets of a page talk through session
+state keys (a filter bar's picks, a picked ticket, an upload's table); one that saves something puts it under
+its **save_event** key for the page to keep. The Excel widgets need openpyxl in the project's Python and say
+so in their place when it is missing.
+
 **The Widgets window** (Widgets on the rail; a window of its own, no rail): the list on the left (yours, then
-the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,
+the starter packs, then the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,
 signatures, help and lint over a kernel of its own, and **Properties** on the right: **Name** (checked as you
 type: available, taken, not a valid name; a rename follows every canvas that uses it), **Description**, then
 each property with its mask. A value is checked before it is kept and written into its own characters in

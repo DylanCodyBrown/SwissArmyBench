@@ -46,6 +46,7 @@ import { mountNav, startNav } from "./nav";
 import { mountNavRail, openWidgets } from "./rail";
 import { effectiveTheme } from "./theme";
 import { type Prop, propertyField } from "./widgetFields";
+import { headingElement, headingOf } from "./widgetPacks";
 import type { Context, WidgetEntry } from "./widgetPage";
 
 interface Node {
@@ -975,11 +976,11 @@ function widgetMenu(x: number, y: number, pick: (name: string) => void, keep = f
     const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
     clear(list);
     let group = "";
-    for (const w of grouped().filter((x2) => words.every((word) => `${x2.name} ${x2.description} ${x2.group}`.toLowerCase().includes(word)))) {
-      const heading = w.prebuilt ? w.group : "Your widgets";
+    for (const w of grouped().filter((x2) => words.every((word) => `${x2.name} ${x2.description} ${x2.group} ${x2.pack}`.toLowerCase().includes(word)))) {
+      const heading = headingOf(w);
       if (heading !== group) {
         group = heading;
-        list.append(h("div", { class: "cvs-menu-group" }, heading));
+        list.append(headingElement("cvs-menu-group", w, false));
       }
       list.append(
         h(
@@ -1019,7 +1020,7 @@ let galleryFocus: string | null = null;
 let galleryQuery = "";
 const previews = new Map<string, { state: string; url?: string; said?: string }>();
 
-/** Yours first, then the prebuilt ones by group in the server's order (Buttons, Inputs, Data, Charts...). */
+/** Yours first, then the prebuilt ones in the server's order: the starter packs, then by group (Buttons, Inputs...). */
 const grouped = (): WidgetEntry[] => [...widgets].sort((a, b) => Number(a.prebuilt) - Number(b.prebuilt));
 
 /** A widget's rendered preview: the picture when it is made, a placeholder until then, its mark when it failed. */
@@ -1081,11 +1082,11 @@ function drawGallery(): void {
     const words = galleryQuery.toLowerCase().split(/\s+/).filter(Boolean);
     clear(cards);
     let group = "";
-    for (const w of grouped().filter((x) => words.every((word) => `${x.name} ${x.description} ${x.group} ${x.tags.join(" ")}`.toLowerCase().includes(word)))) {
-      const heading = w.prebuilt ? w.group : "Your widgets";
+    for (const w of grouped().filter((x) => words.every((word) => `${x.name} ${x.description} ${x.group} ${x.pack} ${x.tags.join(" ")}`.toLowerCase().includes(word)))) {
+      const heading = headingOf(w);
       if (heading !== group) {
         group = heading;
-        cards.append(h("div", { class: "cvs-gallery-group" }, heading));
+        cards.append(headingElement("cvs-gallery-group", w));
       }
       const card = h(
         "div",

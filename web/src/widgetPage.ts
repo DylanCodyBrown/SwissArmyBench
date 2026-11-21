@@ -38,12 +38,16 @@ import { pythonCompleter } from "./workbenchCompletion";
 import { pythonIntel, showProblems } from "./workbenchIntel";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type Prop, propertyField } from "./widgetFields";
+import { headingElement, headingOf } from "./widgetPacks";
 
 export interface WidgetEntry {
   name: string;
   description: string;
   framework: string;
   group: string;
+  /** The starter pack a prebuilt widget belongs to ("": none) and the pack's description. */
+  pack: string;
+  pack_description: string;
   tags: string[];
   size: [number, number];
   min_size: [number, number];
@@ -153,18 +157,18 @@ function layout(): void {
 
 function drawList(): void {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = widgets.filter((w) => words.every((word) => `${w.name} ${w.description} ${w.group} ${w.tags.join(" ")}`.toLowerCase().includes(word)));
+  const shown = widgets.filter((w) => words.every((word) => `${w.name} ${w.description} ${w.group} ${w.pack} ${w.tags.join(" ")}`.toLowerCase().includes(word)));
   clear(listItems);
   const mine = shown.filter((w) => !w.prebuilt);
   const groups: [string, WidgetEntry[]][] = [["Your widgets", mine]];
   for (const w of shown.filter((x) => x.prebuilt)) {
-    const group = groups.find(([g]) => g === w.group);
+    const group = groups.find(([g]) => g === headingOf(w));
     if (group) group[1].push(w);
-    else groups.push([w.group, [w]]);
+    else groups.push([headingOf(w), [w]]);
   }
   for (const [group, items] of groups) {
     if (!items.length && group !== "Your widgets") continue;
-    listItems.append(h("div", { class: "wg-group" }, group));
+    listItems.append(items[0] ? headingElement("wg-group", items[0]) : h("div", { class: "wg-group" }, group));
     if (!items.length) listItems.append(h("div", { class: "wg-empty" }, query ? "None match." : "None yet: New widget, or Copy as your own."));
     for (const w of items) {
       const item = h(

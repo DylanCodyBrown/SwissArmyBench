@@ -1203,7 +1203,12 @@ tools/                   screenshots.py, vscode_check.py; testbed/: the real-wor
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
                          tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity; 11: a widget on
-                         a canvas in both layouts, played, exported)
+                         a canvas in both layouts, played, exported);
+                         large_company.py, Larkfield Goods: a made-up retail business of 14 tables at three scales
+                         (small 10k order lines, medium 1M, large 10M in about 30 s), DuckDB SQL over range() with
+                         hash-based randomness, deterministic by seed, its deliberate problems in
+                         data_quality_issues; Parquet (and --duckdb) to a folder outside the repository
+                         (`python -m tools.testbed.large_company --scale large --out <folder>`)
 plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
 .claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
@@ -1293,12 +1298,16 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
     server/routes_widgets.py, routes_canvases.py, routes_launch.py  /streamlit/widget (the window),
                          /streamlit/widgets/*, /streamlit/canvas (the page), /streamlit/canvases/* (…/launch,
                          …/builds…, …/perf…), /streamlit/perf (the analyzer's window)
-    widgets/             the 56 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py)
+    domain/widget_packs.py  the widget starter packs (2026-11-21): their order and descriptions; a prebuilt widget
+                         names its pack in its header (`pack = "..."`); listed first, each under its heading
+    widgets/             the 109 prebuilt widgets (read-only; each run with AppTest by tests/test_widgets_apptest.py),
+                         53 of them in eight starter packs (sales_, ops_, cs_, de_, admin_, input_, excel_, form_)
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
 web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list, Monaco with the Workbench's
                          intelligence over a kernel of its own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code;
                          a failure's error panel with Go to line; remembered per widget this session), Properties
                          (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
+web/src/widgetPacks.ts   a widget's heading in the lists (its pack, else its group) and a pack's description line
 web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties); a table's
                          picker grouped: sample, open tables, data.ipynb's, each connection's [Conn].table (typed
                          when its catalog is not listed yet)
