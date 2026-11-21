@@ -11,10 +11,6 @@
  *          [THEME CHOICE]         -> setTheme(choice)  (every open tab and window follows)
  *          (Column profiles in the headers are switched in the grid's own top-left corner, beside
  *           what they change: gridView.ts CornerHeader. The zoom is the Application row's.)
- *          [PANELS]               a switch for each panel of the Workbench and the grid page -> panels.ts
- *                                 (the server's, for every window; all on again at each start)
- *          [KIND COLOURS]         app pages, notebooks, scripts: a colour each -> kindColours.ts (the
- *                                 server's, for every window; kept across restarts)
  *          [SESSION]              Follow the agent (kept across restarts; the user's switch) -> sessionPage.ts
  *          [TEAM]                 the Team box (first after Theme): Join a team…, Start a team…, the Joined row
  *                                 (Pull, Push, …), Advanced (the two folders), the local projects folder
@@ -32,42 +28,11 @@ import { teamSection } from "./library";
 import { claudeSection } from "./claudeLaunch";
 import { openAreaPage, type PageElement } from "./areaPage";
 import { button, h, icon, toast } from "./dom";
-import { type Kind, kindColours, kindIcon, loadKindColours, setKindColour } from "./kindColours";
 import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDialog } from "./nav";
 import { followSwitch } from "./sessionPage";
 import { THEME_LABELS, setTheme, themeChoice, type ThemeChoice } from "./theme";
 import { errorHere } from "./errorNote";
 import { gatesSetting } from "./gates";
-
-/** The colour of each kind of Workbench document: app pages, notebooks, scripts. The server's (every
- *  window follows, kept across restarts); Default puts the theme's own back. */
-function kindColoursSection(): HTMLElement {
-  const grid = h("div", { class: "kind-colours" });
-  const draw = (): void => {
-    grid.replaceChildren(
-      ...kindColours().map((k) => {
-        const shown = k.chosen ?? getComputedStyle(document.documentElement).getPropertyValue(`--kind-${k.kind}`).trim();
-        const picker = h("input", {
-          type: "color",
-          value: /^#[0-9a-f]{6}$/i.test(shown) ? shown : "#000000",
-          "aria-label": `${k.name} colour`,
-          dataset: { kind: k.kind },
-          onchange: (e: Event) => void setKindColour(k.kind, (e.target as HTMLInputElement).value).then(draw, (error: Error) => errorHere(error)),
-        });
-        return h(
-          "div",
-          { class: `kind-colour km-${k.kind}`, role: "group", "aria-label": k.name },
-          h("span", { class: "kind-colour-icon" }, icon(kindIcon(k.kind as Kind))),
-          h("span", { class: "kind-colour-name" }, k.name),
-          picker,
-          k.chosen ? button("Default", () => void setKindColour(k.kind, null).then(draw, (error: Error) => errorHere(error)), { class: "ghost", title: `${k.name}: the theme's own colour` }) : null,
-        );
-      }),
-    );
-  };
-  void loadKindColours().then(draw);
-  return h("fieldset", { class: "fieldset kind-colours-fieldset" }, h("legend", {}, icon("tag"), "Kind colours"), grid);
-}
 
 /** What an agent needs to connect: paste it into Claude Code (or any agent that has a shell). The
  * command is the one the installers put on PATH (uv tool install of the wheel). */
@@ -131,7 +96,6 @@ function drawSettings(): void {
     ),
     teamSection(),
     gatesSetting(), // a project type's gates: Open every feature in this project
-    kindColoursSection(),
     // Follow the agent (the Session page has the same switch): its actions' areas come to the front.
     h("fieldset", { class: "fieldset follow-fieldset" }, h("legend", {}, icon("session"), "Session"), followSwitch()),
     updatesSection(),

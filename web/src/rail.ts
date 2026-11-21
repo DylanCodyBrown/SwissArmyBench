@@ -45,7 +45,7 @@
  */
 import { api, onNotice, token } from "./api";
 import { h, icon } from "./dom";
-import { type Kind, loadKindColours } from "./kindColours";
+import type { Kind } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
 import { onUnseen } from "./sessionPage";
 // The APIs, Structures, Code App (a plug-in: shown while it is on), Source Control (a plug-in: shown while the
@@ -443,7 +443,6 @@ export function mountNavRail(page: PageKind): void {
     goArea(area, newWindow);
     return true;
   });
-  void loadKindColours(); // the code areas wear the kind colours chosen in Settings
   // Another window's rail: the area it asked this window for (a message from this origin only).
   window.addEventListener("message", (e: MessageEvent) => {
     const said = e.data as { sab?: unknown; area?: unknown } | null;

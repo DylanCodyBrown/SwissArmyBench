@@ -247,7 +247,7 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser) and the setup prompt for connecting an agent.
 
 
-**Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
+Each kind of Workbench document has its colour: app pages violet, notebooks blue, scripts green (each theme has its own readable shade).
 
 ![The Settings window: the theme, the setup prompt with its copy button.](images/02-preferences.png)
 

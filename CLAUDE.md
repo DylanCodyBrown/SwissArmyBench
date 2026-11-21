@@ -146,7 +146,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
   window or the grid page's Ctrl+K), tabs that pop out into windows of their own (and move
-  back) with their unsaved text and kernel, Kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
+  back) with their unsaved text and kernel, fixed kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
   Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
@@ -519,8 +519,8 @@ src/swissarmybench/
                          table's grid steps and origin, data.ipynb, controllers; nodes, edges, Mermaid
     approvals.py         approved outputs: a cell's outputs as a snapshot, the comparison, its lines, no
                          rows in a zip. Standard library only and standalone (an export can inline it)
-    kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's default, a
-                         chosen colour made readable in every theme, never amber
+    kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's fixed one,
+                         never amber; the readability rule the connection colours use (fitted)
     notebook_flow.py     Notebook mode: each cell's state from the run order (notRun, edited, outOfDate
                          with the names made again) and the Outline (headings, named cells)
     intellisense.py      the editors' intelligence around Jedi: docstrings (Google, NumPy, reST) for each
@@ -742,8 +742,6 @@ src/swissarmybench/
     navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself);
                          the rail's names switch (GET/PUT /rail, rail.json, rail_changed; app_rail)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
-    kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
-                         restarts (kind_colours.json)
     script_ide.py        the Scripts IDE: its tree (the project's code, the library's, Generated), go to definition,
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
@@ -910,7 +908,7 @@ src/swissarmybench/
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
                          processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
-                         projects, project_scope, project_outline, navigation, kind_colours, script_runs, session_log,
+                         projects, project_scope, project_outline, navigation, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
                          explorer, library,

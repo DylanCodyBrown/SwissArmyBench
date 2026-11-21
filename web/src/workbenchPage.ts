@@ -80,7 +80,7 @@ import { back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, 
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
-import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, setProjectFolder } from "./kindColours";
+import { type Kind, kindIcon, kindOfPath, notebookRole, notebookWord, onProjectFolder, setProjectFolder } from "./kindColours";
 import { areaOfKind, gatedRun } from "./gates";
 import { busyClick, markBusy } from "./loading";
 import { type Missing, promptInstall } from "./missingPackages";
@@ -394,7 +394,7 @@ let project: ProjectFiles | null = null;
 
 // A project opened or closed: the notebooks' kinds (data, app, plain) follow: their tabs, the Data
 // Explorer's files and the landing.
-onKindColours(() => {
+onProjectFolder(() => {
   drawTabs();
   if (project) listProject();
   landing.redraw();
@@ -3434,7 +3434,6 @@ window.addEventListener("message", (e: MessageEvent) => {
   if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => errorToast(err));
 });
 void Promise.all([
-  loadKindColours(),
   refreshHome(),
   loadConnections(),
   whenMode(),

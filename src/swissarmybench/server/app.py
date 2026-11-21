@@ -38,7 +38,6 @@ and does nothing but read the request, call the use case and shape the answer:
   (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
-  routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
@@ -111,7 +110,6 @@ from swissarmybench.server import (
     routes_found_connections,
     routes_grids,
     routes_intellisense,
-    routes_kind_colours,
     routes_library,
     routes_lifecycle,
     routes_lineage,
@@ -385,7 +383,6 @@ def create_app(
             *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
             *routes_explorer.routes(ctx.explorer),
             *routes_navigation.routes(ctx.navigation),
-            *routes_kind_colours.routes(ctx.kind_colours),
             *routes_library.routes(ctx.library, ctx.library_setup),
             *routes_team.routes(ctx.team),
             *routes_sharing.routes(ctx.sharing),

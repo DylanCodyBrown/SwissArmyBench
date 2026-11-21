@@ -100,7 +100,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   or code, and their question).
 
 ## The modes (each document's own panels, beside it in its group)
-- Kind colours: app pages violet, notebooks blue, scripts green; `app_kind_colours` reads or sets them.
+- Kind colours: app pages violet, notebooks blue, scripts green (fixed, per theme).
 - Notebook: `workbench_window` "notebook.runOrder" (each cell notRun, edited, outOfDate with the names
   made again), "notebook.outline", "run.upToHere", "notebook.present"; "mode.panel" opens a panel.
 - Script: `workbench_script_settings` (arguments; each variable's source: env, value or vault, never a

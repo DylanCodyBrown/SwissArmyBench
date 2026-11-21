@@ -1,24 +1,16 @@
-"""Kind colours (the owner, 2026-11-15: "App violet, notebook blue, script green"): the colour of each
-kind of Workbench document, shown as a thin edge or a small mark beside the kind's icon, never as a
-background and never amber (amber means out of date).
-
-Three kinds: an app's page (a Streamlit app's canvas), a notebook (data.ipynb too: its own icon tells it
-apart), a script. Each theme has its own default (grid.css holds the same values as tokens:
-`--kind-app`, `--kind-notebook`, `--kind-script`). The user may choose any colour for a kind in Settings;
-it is then made readable for each theme (moved toward black or white just far enough, its hue kept):
-4.5 to 1 against the page and the panels, 7 to 1 in the high contrast themes, since a cell's `@cell7`
-is written in it. Pure rules, no I/O.
+"""Kind colours (the owner, 2026-11-15: "App violet, notebook blue, script green"): the fixed colour of
+each kind of Workbench document, shown as a thin edge or a small mark beside the kind's icon, never as a
+background and never amber (amber means out of date). Each theme has its own (grid.css holds the same
+values as tokens: `--kind-app`, `--kind-notebook`, `--kind-script`); they are not a setting (the owner's
+simplicity pass, 2026-11-21). The connection colours keep clear of them and use the readability rule here
+(`fitted`): 4.5 to 1 against the page and the panels, 7 to 1 in the high contrast themes. Pure rules, no I/O.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
-
-from swissarmybench.domain.themes import HEX, contrast, readable
+from swissarmybench.domain.themes import readable
 
 KINDS: tuple[str, ...] = ("app", "notebook", "script")
-LABELS: dict[str, str] = {"app": "App pages", "notebook": "Notebooks", "script": "Scripts"}
 THEMES: tuple[str, ...] = ("light", "dark", "hc-light", "hc-dark")
 
 # Each theme's default for each kind (the same as grid.css's tokens; a test holds them together).
@@ -39,10 +31,6 @@ BACKGROUNDS: dict[str, tuple[str, ...]] = {
 RATIO: dict[str, float] = {"light": 4.5, "dark": 4.5, "hc-light": 7.0, "hc-dark": 7.0}
 # Amber is out of date's colour: a kind may not look like it (hues from 30 to 60 degrees, saturated).
 _AMBER = (30.0, 60.0)
-
-
-class KindColourError(ValueError):
-    """A colour that cannot be a kind's (the message says why)."""
 
 
 def _hue_saturation(colour: str) -> tuple[float, float]:
@@ -66,40 +54,6 @@ def looks_amber(colour: str) -> bool:
     return _AMBER[0] <= hue <= _AMBER[1] and saturation >= 0.45
 
 
-def check(sent: Any) -> dict[str, str | None]:
-    """Colours as sent: {"app": "#7b3fc4", "script": null, ...}: a known kind each, a #rrggbb colour or
-    null (the theme's own again)."""
-    if not isinstance(sent, dict) or not sent:
-        raise KindColourError('Send the colours: {"app": "#7b3fc4"} (null puts a kind\'s own back).')
-    unknown = [key for key in sent if key not in KINDS]
-    if unknown:
-        raise KindColourError(f"No kind is called {unknown[0]!r}. The kinds: {', '.join(KINDS)}.")
-    out: dict[str, str | None] = {}
-    for kind, value in sent.items():
-        if value is None:
-            out[kind] = None
-            continue
-        if not isinstance(value, str) or not HEX.match(value):
-            raise KindColourError(f"{LABELS[kind]}' colour is #rrggbb, like #7b3fc4.")
-        if looks_amber(value):
-            raise KindColourError(f"{value} reads as amber, which means out of date: choose another colour.")
-        out[kind] = value.lower()
-    return out
-
-
-def read_saved(raw: Any) -> dict[str, str]:
-    """The colours kept in the state folder (a file written by hand or by an older version: anything
-    that is not a kind's good colour is left out)."""
-    if not isinstance(raw, dict):
-        return {}
-    kept: dict[str, str] = {}
-    for kind in KINDS:
-        value = raw.get(kind)
-        if isinstance(value, str) and HEX.match(value) and not looks_amber(value):
-            kept[kind] = value.lower()
-    return kept
-
-
 def fitted(colour: str, theme: str) -> str:
     """`colour` made readable in `theme`: far enough from each of its backgrounds."""
     out = colour
@@ -107,41 +61,3 @@ def fitted(colour: str, theme: str) -> str:
         for background in BACKGROUNDS[theme]:
             out = readable(out, background, RATIO[theme])
     return out
-
-
-def tokens(chosen: Mapping[str, str]) -> dict[str, dict[str, str]]:
-    """Each theme's colour for each kind: the user's choice made readable there, else the default."""
-    return {
-        theme: {
-            kind: fitted(chosen[kind], theme) if kind in chosen else DEFAULTS[theme][kind] for kind in KINDS
-        }
-        for theme in THEMES
-    }
-
-
-def listing(chosen: Mapping[str, str]) -> dict[str, Any]:
-    """What Settings and the agent see: each kind with its chosen colour (null: the theme's own) and the
-    colour each theme shows."""
-    shown = tokens(chosen)
-    return {
-        "kinds": [
-            {
-                "kind": kind,
-                "name": LABELS[kind],
-                "chosen": chosen.get(kind),
-                "themes": {theme: shown[theme][kind] for theme in THEMES},
-            }
-            for kind in KINDS
-        ]
-    }
-
-
-def readable_everywhere(chosen: Mapping[str, str]) -> bool:
-    """Every kind's colour stands far enough from every background of every theme (a test's check)."""
-    shown = tokens(chosen)
-    return all(
-        contrast(shown[theme][kind], background) >= RATIO[theme] - 0.01
-        for theme in THEMES
-        for kind in KINDS
-        for background in BACKGROUNDS[theme]
-    )

@@ -155,7 +155,6 @@ from swissarmybench.services.grids import GridService
 from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
-from swissarmybench.services.kind_colours import KindColours
 from swissarmybench.services.library import Library
 from swissarmybench.services.library_setup import LibrarySetup
 from swissarmybench.services.lifecycle import Lifecycle
@@ -262,7 +261,6 @@ class Services:
     explorer: Explorer
     connection_swap: ConnectionSwap
     navigation: Navigation
-    kind_colours: KindColours
     connection_colours: ConnectionColours
     library: Library
     library_setup: LibrarySetup
@@ -682,7 +680,6 @@ def bootstrap(
     slots.kernel_caller = kernel_caller
     slots.interrupt_kernel = workbench.interrupt
     workbench.set_kernel_stopped(kernel_ended)
-    kind_colours = KindColours(ws, JsonFile(state_dir / "kind_colours.json" if audit_log else None))
     # Each connection's colour: the library's colours.toml, the same in every project; never one of the
     # rail's (the kind colours, the accent).
     connection_colours = ConnectionColours(
@@ -692,7 +689,6 @@ def bootstrap(
             (lambda: library_folder.root / library_rules.COLOURS_FILE) if audit_log else None,
             library_folder.ensure,
         ),
-        kind_colours.chosen,
     )
     connections = ConnectionService(
         blades,
@@ -1726,7 +1722,6 @@ def bootstrap(
         connection_swap=connection_swap,
         navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if audit_log else None)),
         script_runs=script_runs,
-        kind_colours=kind_colours,
         connection_colours=connection_colours,
         beta=beta,
         updates=updates,

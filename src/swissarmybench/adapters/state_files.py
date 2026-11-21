@@ -7,7 +7,7 @@ written: the audit log, saved dashboards, the connection file and the model libr
   the connection file  where the running server is, and its token (owner-only)
   the model library    relationship sets and models: the shipped ones, the user's, SWISSARMYBENCH_MODELS
   preferences          small JSON files the user's own choices are kept in: the kind colours
-                       (kind_colours.json), a script's run settings (run_settings.json: arguments and
+                       a script's run settings (run_settings.json: arguments and
                        where each variable comes from; a plain value only, never a secret's)
 
 (Blades and their folders are adapters/blades.py; exports are adapters/export.py.)

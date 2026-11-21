@@ -273,6 +273,6 @@ export function watchConnectionColours(): void {
 
 onNotice((notice) => {
   if (notice.type === "connection_colours_changed") take(notice as unknown as Listing);
-  else if (notice.type === "blades_changed" || notice.type === "kind_colours_changed" || notice.type === "project_changed") void loadConnectionColours();
+  else if (notice.type === "blades_changed" || notice.type === "project_changed") void loadConnectionColours();
 });
 onThemeChange(() => paint(document));

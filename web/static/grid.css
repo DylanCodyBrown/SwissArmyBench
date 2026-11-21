@@ -5910,37 +5910,6 @@ dialog.file-chooser {
   box-shadow: inset 2px 0 0 var(--kc);
 }
 
-.kind-colours {
-  display: grid;
-  gap: 6px;
-}
-
-.kind-colour {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 8px;
-  border-left: 3px solid var(--kc);
-}
-
-.kind-colour-icon {
-  display: flex;
-  color: var(--kc);
-}
-
-.kind-colour-name {
-  min-width: 8em;
-}
-
-.kind-colour input[type="color"] {
-  width: 44px;
-  height: 26px;
-  padding: 0 2px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--raised);
-}
-
 .wb-tab {
   position: relative;
   top: 1px;
