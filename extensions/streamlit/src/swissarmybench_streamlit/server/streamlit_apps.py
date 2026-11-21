@@ -24,7 +24,7 @@ _START_SECONDS: float = 60.0
 _INSTALL_SECONDS: float = 900.0
 PACKAGES: tuple[str, ...] = ("streamlit", "pandas", "pyarrow")
 # Installed with them when a Python is set up for Streamlit (the owner, 2026-11-21): the Excel widgets'
-# readers and writer (openpyxl; xlrd for old .xls). Not needed to start: a widget that lacks one says so in its place.
+# readers and writer (openpyxl; xlrd for old .xls). Not needed to start: a widget that lacks one says so.
 EXTRAS: tuple[str, ...] = ("openpyxl", "xlrd")
 
 # Run in the notebook's Python: end with the server that started it, then be `streamlit run`.
