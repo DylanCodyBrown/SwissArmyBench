@@ -53,8 +53,10 @@ export const pageUrl = (page: CodePage): string => `/${page}`;
 
 const hashOf = (words: Record<string, string>): string => new URLSearchParams({ ...(token ? { token } : {}), ...words }).toString();
 
-/** That page's window brought forward (opened at `address` when there is none yet); false when blocked. */
-export function bringPage(page: CodePage, address = pageUrl(page), words: Record<string, string> = {}): boolean {
+/** That page's window brought forward (opened at `address` when there is none yet); false when blocked.
+ *  `known`: a window of that page answered already (it may be one this window cannot reach by its name): a
+ *  blank one is not opened for it. */
+export function bringPage(page: CodePage, address = pageUrl(page), words: Record<string, string> = {}, known = false): boolean {
   if (window.name === PAGE_WINDOW[page]) return true;
   const win = window.open("", PAGE_WINDOW[page]);
   if (!win) {
@@ -66,6 +68,10 @@ export function bringPage(page: CodePage, address = pageUrl(page), words: Record
     fresh = win.location.href === "about:blank";
   } catch {
     fresh = true;
+  }
+  if (fresh && known) {
+    win.close();
+    return true;
   }
   if (fresh) win.location.href = `${address}#${hashOf(words)}`;
   win.focus();
@@ -79,7 +85,7 @@ export async function openOnPage(path: string, at: { cell?: number | null; line?
   const args = { path, ...(at.cell ? { cell: at.cell } : {}), ...(at.line ? { line: at.line } : {}) };
   try {
     await api("/workbench/window", "POST", { command, args, page });
-    bringPage(page);
+    bringPage(page, pageUrl(page), {}, true);
   } catch {
     // No window of that page yet: one, opened on the file.
     bringPage(page, pageUrl(page), { open: path, ...(at.cell ? { cell: String(at.cell) } : {}), ...(at.line ? { line: String(at.line) } : {}) });

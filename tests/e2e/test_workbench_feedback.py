@@ -257,6 +257,9 @@ def test_the_landing_pages_have_no_transformations_and_no_data_panel(
         expect(landing.locator(".wb-landing-table")).to_have_count(0)
         expect(landing.get_by_role("heading", name="Transformations")).to_have_count(0)
         expect(page.locator(".wb-explorer")).to_be_hidden()  # the Data Explorer is off until opened
+    expect(page.locator(".wb-tab", has_text="data.ipynb")).to_be_visible(
+        timeout=20000
+    )  # the project's, again
     shot(page, "notebooks-landing-no-data-panel")
     # The agent still opens a table's transformations: its read-only cell in data.ipynb.
     shown = window(server, "tables.transformations", table=TABLE)

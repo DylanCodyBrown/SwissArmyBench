@@ -58,7 +58,7 @@ export async function queryInNotebook(sql: string): Promise<void> {
   const source = cellQuery(sql);
   try {
     await api("/workbench/window", "POST", { command: "cell.insertBelow", args: { kind: "sql", source }, page: "notebooks" });
-    bringPage("notebooks"); // a cell is a notebook's: the Notebooks page (workbenchPages.ts)
+    bringPage("notebooks", "/notebooks", {}, true); // a cell is a notebook's: the Notebooks page (workbenchPages.ts)
     toast("A SQL cell is in the notebook.");
   } catch {
     await navigator.clipboard.writeText(`%%sql\n${source}`).catch(() => undefined);
