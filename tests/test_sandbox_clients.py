@@ -16,6 +16,7 @@ through the mock over the sandbox holding the same rows: the same answer. The so
 from __future__ import annotations
 
 import inspect
+import io
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
@@ -25,6 +26,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.domain import dataverse, sharepoint, sql_server
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.sandbox import SandboxError
@@ -201,6 +203,34 @@ class TestLink(mocks.Link):
         if answer.status_code != 200:
             raise self.error(answer.json()["error"])
         return dict(answer.json())
+
+    def source(self, connection: str) -> sab_adapter.Source:
+        return TestRemote(self.client, connection)
+
+
+class _Answer(io.BytesIO):
+    """A test client's answer read as Remote reads http.client's."""
+
+    def __init__(self, answer: Any) -> None:
+        super().__init__(answer.content)
+        self.headers = answer.headers
+
+    def getheader(self, name: str, default: str = "") -> str:
+        return str(self.headers.get(name, default))
+
+
+class TestRemote(sab_adapter.Remote):
+    """The adapter's sandbox source, through the test's client (the token's path) instead of HTTP."""
+
+    def __init__(self, client: TestClient, connection: str) -> None:
+        super().__init__("", connection)
+        self.client = client
+
+    def _post(self, path: str, body: bytes) -> Any:
+        answer = self.client.post("/sandbox/adapter" + path, content=body, headers=AUTH)
+        if answer.status_code >= 400:
+            raise sab_adapter.AdapterError(answer.json()["error"])
+        return _Answer(answer)
 
 
 @pytest.fixture

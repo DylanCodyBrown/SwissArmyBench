@@ -16,15 +16,23 @@ POST  /sandbox/checkpoints/restore   {"name"}                                   
 POST  /sandbox/data                  a mock client's data call (the token)
 POST  /sandbox/data/{key}            a running local sandbox API's data call: its own key in the path
                                      instead of the token (server/security.py's secret paths)
+POST  /sandbox/adapter/{tables|read|write}  the three below with the token (an in-app caller, a test)
+POST  /sandbox/data/{key}/tables     sab_adapter.Remote's tables(source): {"connection"}
+POST  /sandbox/data/{key}/read       its read: {"connection", "table", "plan"}; an Arrow IPC stream
+                                     (X-Sab-Folded: the plan's parts folded)
+POST  /sandbox/data/{key}/write      its write: an Arrow IPC stream; ?connection&table&key&mode; the counts
 """
 
 from __future__ import annotations
 
+import io
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from typing import Any
 
+import pyarrow.ipc as ipc
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import (
@@ -37,6 +45,8 @@ from swissarmybench.server.http import (
 from swissarmybench.services.sandbox import Sandbox
 
 DATA_PREFIX = "/sandbox/data/"
+ARROW_STREAM = "application/vnd.apache.arrow.stream"
+ADAPTER = "/sandbox/adapter"  # the adapter's calls with the token (the key'd ones: DATA_PREFIX + key)
 
 
 def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRoute]:
@@ -46,6 +56,41 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
         try:
             return json_response(await sandbox.data(await read_json(request), "api"))
+        except Exception as error:
+            return error_response(error)
+
+    def allowed(request: Request) -> bool:
+        """A key'd path: a running local sandbox API's own key; the token's path: the guard checked it."""
+        key = request.path_params.get("key")
+        return key is None or any(secrets.compare_digest(str(key), k) for k in keys())
+
+    async def adapter_tables(request: Request) -> Response:
+        if not allowed(request):
+            return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
+        try:
+            return json_response(await sandbox.source_tables(await read_json(request)))
+        except Exception as error:
+            return error_response(error)
+
+    async def adapter_read(request: Request) -> Response:
+        """sab_adapter.Remote's read: the batches streamed as an Arrow IPC stream, as DuckDB makes them."""
+        if not allowed(request):
+            return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
+        try:
+            reader, folded = await sandbox.read_arrow(await read_json(request))
+        except Exception as error:
+            return error_response(error)
+        return StreamingResponse(
+            _ipc(reader), media_type=ARROW_STREAM, headers={"X-Sab-Folded": ",".join(folded)}
+        )
+
+    async def adapter_write(request: Request) -> Response:
+        """sab_adapter.Remote's write: an Arrow IPC stream's rows; the names in the query string."""
+        if not allowed(request):
+            return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
+        try:
+            given = {k: str(v) for k, v in request.query_params.items()}
+            return json_response(await sandbox.write_arrow(given, await request.body(), "api"))
         except Exception as error:
             return error_response(error)
 
@@ -70,4 +115,32 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         Route("/sandbox/checkpoints/restore", with_body(sandbox.restore), methods=["POST"]),
         Route("/sandbox/data", with_body(sandbox.data), methods=["POST"]),
         Route(DATA_PREFIX + "{key}", by_key, methods=["POST"]),
+        Route(ADAPTER + "/tables", adapter_tables, methods=["POST"]),
+        Route(ADAPTER + "/read", adapter_read, methods=["POST"]),
+        Route(ADAPTER + "/write", adapter_write, methods=["POST"]),
+        Route(DATA_PREFIX + "{key}/tables", adapter_tables, methods=["POST"]),
+        Route(DATA_PREFIX + "{key}/read", adapter_read, methods=["POST"]),
+        Route(DATA_PREFIX + "{key}/write", adapter_write, methods=["POST"]),
     ]
+
+
+def _ipc(reader: Any) -> Iterator[bytes]:
+    """A reader's batches as one Arrow IPC stream, a piece a batch (Starlette reads it in its thread pool)."""
+    sink = io.BytesIO()
+
+    def taken() -> bytes:
+        data = sink.getvalue()
+        sink.seek(0)
+        sink.truncate()
+        return data
+
+    writer = ipc.new_stream(sink, reader.schema)
+    yield taken()
+    try:
+        for batch in reader:
+            writer.write_batch(batch)
+            yield taken()
+    finally:
+        writer.close()
+        reader.close()
+    yield taken()

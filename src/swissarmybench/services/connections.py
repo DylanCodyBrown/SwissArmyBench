@@ -409,7 +409,8 @@ class ConnectionService:
         dax = blade.dialect == powerbi.DIALECT
         within = place["schema"] if dax else ""  # a Power BI workspace: the table's dataset
         try:
-            answer = await self._blades.rows(blade, sql, count, body, within)
+            read = _adapter_read(blade, place, limit, count is not None)
+            answer = await self._blades.rows(blade, sql, count, body, within, read)
         except Exception as error:
             if not dax or within or "name the one to read" not in str(error):
                 raise
@@ -805,6 +806,21 @@ class Tables(Protocol):
 
 class CodeCheck(Protocol):
     def check_code(self, code: str, where: str) -> None: ...
+
+
+ADAPTER_DIALECTS = ("duckdb",)  # the connections the adapter reads itself so far (Plans/adapter.plan.md)
+
+
+def _adapter_read(
+    blade: Blade, place: dict[str, str], limit: int | None, counted: bool
+) -> dict[str, Any] | None:
+    """What the adapter reads for Open as grid ({"table", "plan", "count"}), for a connection whose dialect it
+    reads; None for the others, which send their SQL."""
+    if blade.dialect not in ADAPTER_DIALECTS:
+        return None
+    schema = place["schema"]
+    table = place["table"] if schema in ("", "main") else f"{schema}.{place['table']}"
+    return {"table": table, "plan": {"limit": limit}, "count": counted}
 
 
 def _web_api(blade: Blade) -> bool:

@@ -31,6 +31,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.server import api_runtime as sab_api
 from swissarmybench.server import sandbox_clients
 
@@ -72,6 +73,7 @@ def _guard(connection: Any) -> None:
 
 def _load(path: Path) -> None:
     sys.modules["sab_api"] = sab_api
+    sys.modules["sab_adapter"] = sab_adapter  # `from sab_adapter import read, Plan`: the sandbox, by name
     sys.path.insert(0, str(path.parent))
     spec = importlib.util.spec_from_file_location("API", path)
     if spec is None or spec.loader is None:
@@ -172,8 +174,11 @@ def main() -> int:
     path = Path(os.environ["SAB_API_FILE"])
     key = os.environ["SAB_API_KEY"]
     sab_api.BASE_PATH = os.environ.get("SAB_API_BASE", "")
-    connection = sandbox_clients.clients(os.environ[sandbox_clients.URL_VARIABLE])
+    door = os.environ[sandbox_clients.URL_VARIABLE]
+    connection = sandbox_clients.clients(door)
     sab_api.use_clients(connection)
+    # The adapter's one backend here: every name is the sandbox's tables mocked as that connection.
+    sab_adapter.use(lambda name: sab_adapter.Remote(door, name))
     _guard(connection)
     try:
         _load(path)

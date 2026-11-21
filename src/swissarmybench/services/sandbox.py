@@ -73,6 +73,11 @@ class Files(Protocol):
 
     def arrow(self, name: str) -> Any: ...
 
+    # the adapter's read (a reader and the parts folded) and write (an Arrow IPC stream's rows: the counts)
+    def read(self, name: str, plan: Any) -> tuple[Any, tuple[str, ...]]: ...
+
+    def write_arrow(self, name: str, data: bytes, key: Any, mode: str) -> dict[str, int]: ...
+
     def query(
         self, statement: rules.Statement, limit: int
     ) -> tuple[list[str], list[str], list[list[Any]], bool]: ...
@@ -822,6 +827,67 @@ class Sandbox:
         await self._told(touched, "", "")
         self.ws.audit.write(who, "sandbox_write", ", ".join(touched), rows=sum(counts))
         return {"counts": counts, "rows": sum(counts)}
+
+    # ===== the adapter's door: a local sandbox API's sab_adapter.Remote (Plans/adapter.plan.md) =====
+
+    async def _one_of(self, connection: Any, wanted: Any) -> str:
+        """The sandbox table `wanted` (any case) among those `connection` is mocked over."""
+        client = await self.client(connection)
+        listed: list[str] = list(client["tables"])
+        table = {t.casefold(): t for t in listed}.get(str(wanted or "").casefold())
+        if table is None:
+            has = ", ".join(client["tables"][:12]) or "none"
+            raise NotFound(
+                f"The sandbox has no table {wanted} from {client.get('connection')} (it has: {has})."
+            )
+        return table
+
+    async def source_tables(self, body: Any) -> dict[str, Any]:
+        """The adapter's tables(source) for one connection: each table's columns, types and key."""
+        given = body if isinstance(body, dict) else {}
+        client = await self.client(given.get("connection"))
+        files = self._files()
+        return {
+            "tables": [{"name": t, "columns": await self._run(files.columns, t)} for t in client["tables"]]
+        }
+
+    async def read_arrow(self, body: Any) -> tuple[Any, tuple[str, ...]]:
+        """The adapter's read: {"connection", "table", "plan"}; the batches as DuckDB makes them (a reader the
+        route streams), and the plan's parts folded."""
+        given = body if isinstance(body, dict) else {}
+        table = await self._one_of(given.get("connection"), given.get("table"))
+        files = self._files()
+        try:
+            found: tuple[Any, tuple[str, ...]] = await self._run(files.read, table, given.get("plan"))
+        except ValueError:
+            raise
+        except Exception as error:  # DuckDB's own words (a type a filter's value does not cast to)
+            raise SandboxError(rules.db_words(error)) from error
+        return found
+
+    async def write_arrow(self, given: dict[str, str], data: bytes, who: str = "api") -> dict[str, int]:
+        """The adapter's write: an Arrow IPC stream's rows into one table ({"connection", "table", "key",
+        "mode"}), counted in the change log as any API write is (Reset undoes it)."""
+        table = await self._one_of(given.get("connection"), given.get("table"))
+        key = [k for k in str(given.get("key") or "").split(",") if k]
+        mode = str(given.get("mode") or "insert")
+        files = self._files()
+        async with self._lock:
+            try:
+                counts: dict[str, int] = await self._run(files.write_arrow, table, data, key, mode)
+            except ValueError:
+                raise
+            except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
+                raise SandboxError(rules.db_words(error)) from error
+            meta = files.read_meta()
+            for op, counted in (("insert", "inserted"), ("update", "updated"), ("delete", "deleted")):
+                rules.noted(meta.log, table, op, counts[counted])
+            rows = sum(counts.values())
+            rules.touched(meta, [table] if rows else [], _stamp(self._now()))
+            files.write_meta(meta)
+        await self._told([table], "", "")
+        self.ws.audit.write(who, "sandbox_write", table, rows=rows)
+        return counts
 
     # ===== edited in its grid (the owner approved "Edit sandbox rows in a grid", 2026-11-21) =====
 

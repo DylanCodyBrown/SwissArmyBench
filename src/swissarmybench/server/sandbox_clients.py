@@ -25,6 +25,12 @@ variable and no secret.
 
 The SQL mocks also answer tables() and columns(table): the sandbox's own listing (no system views).
 
+Through the adapter (Plans/adapter.plan.md): every mock's tables() and columns(), and the SharePoint mock's
+reads (a plan: columns, filters, limit, its count a total) and writes (insert, update and delete by key, the
+rows typed by their list's columns) are sab_adapter's, its source the same door as Arrow (Link.source). What
+stays here: SQL in the source's dialect (cursor().execute, read_arrow), Dataverse's OData and FetchXML text
+and MockDuckDB's SQL, which the app turns into DuckDB SQL (domain/sandbox_dialects.py).
+
 A refusal says the API.py line it came from. Standard library (pyarrow and pandas where a real one answers
 them).
 """
@@ -41,8 +47,10 @@ import re
 import threading
 import time
 import urllib.parse
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any
+
+from swissarmybench.adapters import sab_adapter
 
 URL_VARIABLE = "SAB_SANDBOX_DATA"  # the app's /sandbox/data/<key> address, this process's only door
 MANY_AT_ONCE = 50_000  # an executemany's parameter sets sent in one call
@@ -100,6 +108,10 @@ class Link:
             found = http.client.HTTPConnection(self._host, self._port, timeout=600)
             self._local.connection = found
         return found
+
+    def source(self, connection: str) -> sab_adapter.Source:
+        """The adapter's source for `connection`'s sandbox tables, through the same door (as Arrow)."""
+        return sab_adapter.Remote(self.url, connection)
 
     def _drop(self) -> None:
         found = getattr(self._local, "connection", None)
@@ -206,25 +218,35 @@ def _arrow(columns: list[str], rows: list[tuple[Any, ...]]) -> Any:
 # ===== what every SQL mock answers of its own tables (the test app's gap 9) =====
 
 
+def _adapted(call: Callable[[], Any], error: type[MockError] = SharePointError) -> Any:
+    """An adapter call; its refusal said with the API.py line it came from, as the mock's own error."""
+    try:
+        return call()
+    except sab_adapter.AdapterError as refused:
+        raise error(f"{_where_in_api()}{_sql_line(str(refused))}") from None
+
+
 class _Listing:
     """tables() and columns(table): the sandbox's tables this mock reads (its connection's; "Sandbox": every
     one, the views an API made among them) and a table's columns, so an endpoint can check a name or offer
-    the columns without the system views the mock refuses."""
+    the columns without the system views the mock refuses. The adapter's tables(source)."""
 
     _name: str
     _link: Link
 
+    def _listed(self) -> list[sab_adapter.Table]:
+        return list(_adapted(lambda: sab_adapter.tables(self._link.source(self._name)), self._link.error))
+
     def tables(self) -> list[str]:
-        return [str(t) for t in self._link.ask("client", connection=self._name)["tables"]]
+        return [t.name for t in self._listed()]
 
     def columns(self, table: str) -> list[dict[str, Any]]:
         """Each column: {"name", "type" (DuckDB's), "key" (part of its primary key)}."""
         wanted = str(table).strip().casefold()
-        found = next((t for t in self.tables() if t.casefold() == wanted), None)
+        found = next((t for t in self._listed() if t.name.casefold() == wanted), None)
         if found is None:
             raise self._link.error(f"{_where_in_api()}The sandbox has no table {table!r} from {self._name}.")
-        answer = self._link.ask("columns", table=found)
-        return [{"name": c["name"], "type": c["type"], "key": bool(c.get("key"))} for c in answer["columns"]]
+        return [{"name": c.name, "type": c.type, "key": c.key} for c in found.columns]
 
 
 # ===== a DB-API database =====
@@ -591,8 +613,8 @@ class MockSharePoint:
         raise self._refused("finish_arrow()")
 
     def tables(self) -> list[dict[str, Any]]:
-        names = self._ask("client")["tables"]
-        return [{"schema": "", "table": n, "id": n, "web": ""} for n in names]
+        listed = _adapted(lambda: self._source().tables())
+        return [{"schema": "", "table": t.name, "id": t.name, "web": ""} for t in listed]
 
     def table(self, name: str, schema: str = "") -> dict[str, Any]:
         wanted = str(name).strip().casefold()
@@ -627,6 +649,37 @@ class MockSharePoint:
             ]
         return rows
 
+    # Its reads and writes are the adapter's (Plans/adapter.plan.md): a plan read, rows written by key.
+
+    def _source(self) -> sab_adapter.Source:
+        return self._link.source(self._name)
+
+    def _write(
+        self, table: str, rows: Sequence[dict[str, Any]], key: tuple[str, ...], mode: str
+    ) -> dict[str, int]:
+        """Rows written through the adapter in their list's types: {"done": the rows written}."""
+        name = self.table(table)["table"]
+        if not rows:
+            return {"done": 0}
+        typed = self._typed(name, rows)
+        done = _adapted(lambda: sab_adapter.write(self._source(), name, typed, key, mode))
+        return {"done": done.rows}
+
+    def _typed(self, table: str, rows: Sequence[dict[str, Any]]) -> Any:
+        """The rows as Arrow in their list's types (only the fields they give, each one a column it has)."""
+        listed = _adapted(lambda: self._source().tables())
+        columns = next((t.columns for t in listed if t.name == table), ())
+        kinds = {c.name.casefold(): c for c in columns}
+        given: dict[str, str] = {}
+        for row in rows:
+            for field in row:
+                column = kinds.get(str(field).casefold())
+                if column is None:
+                    raise SharePointError(f"{_where_in_api()}{table} has no column {field!r}.")
+                given[column.name] = column.type
+        renamed = [{kinds[str(k).casefold()].name: v for k, v in r.items()} for r in rows]
+        return _adapted(lambda: sab_adapter.from_json([renamed], given, strict=True).read_all())
+
     def rows(
         self,
         table: str,
@@ -636,21 +689,23 @@ class MockSharePoint:
         filters: Any = None,
         frame: bool = False,
     ) -> tuple[Any, int]:
-        answer = self._ask(
-            "list",
-            table=self.table(table)["table"],
-            columns=list(columns or []),
-            filters=filters,
-            limit=limit,
+        name = self.table(table)["table"]
+        plan = _adapted(
+            lambda: sab_adapter.plan_from(
+                {"columns": list(columns or []), "filters": list(filters or []), "limit": limit}
+            )
         )
-        names, _, rows = _rows(answer)
-        table_out = _arrow(names, rows)
+        source = self._source()
+        found = _adapted(lambda: sab_adapter.read(source, name, plan)[0].read_all())
+        counting = sab_adapter.Plan(filters=plan.filters, totals=(sab_adapter.Total("count"),))
+        counted = _adapted(lambda: sab_adapter.read(source, name, counting)[0].read_all())
+        total = int(counted.column(0)[0].as_py() or 0)
         if frame:
             try:
-                return table_out.to_pandas(), int(answer.get("total") or 0)
+                return found.to_pandas(), total
             except ImportError:
-                return table_out, int(answer.get("total") or 0)
-        return table_out, int(answer.get("total") or 0)
+                return found, total
+        return found, total
 
     def read(
         self,
@@ -663,28 +718,13 @@ class MockSharePoint:
         return self.rows(table, schema, limit, columns, filters, frame=True)[0]
 
     def create(self, table: str, rows: Any) -> dict[str, int]:
-        t = self.table(table)["table"]
-        done = self._link.ask("insert", table=t, rows=[{k: v for k, v in r.items()} for r in rows])
-        return {"done": int(done.get("rows") or 0)}
+        return self._write(table, list(rows), (), "insert")
 
     def update(self, table: str, rows: Any, key: str = "id") -> dict[str, int]:
-        t = self.table(table)["table"]
-        ops = [
-            {
-                "op": "update",
-                "table": t,
-                "values": {k: v for k, v in r.items() if k != key},
-                "where": {key: r[key]},
-            }
-            for r in rows
-        ]
-        done = self._link.ask("batch", ops=ops)
-        return {"done": len(done.get("counts") or [])}
+        return self._write(table, list(rows), (key,), "update")
 
     def delete(self, table: str, ids: Any) -> dict[str, int]:
-        t = self.table(table)["table"]
-        done = self._link.ask("batch", ops=[{"op": "delete", "table": t, "where": {"id": i}} for i in ids])
-        return {"done": len(done.get("counts") or [])}
+        return self._write(table, [{"id": i} for i in ids], ("id",), "delete")
 
     def ids(self, table: str, values: Any, key: str = "id") -> dict[Any, Any]:
         if key == "id":

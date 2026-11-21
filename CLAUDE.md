@@ -839,6 +839,13 @@ src/swissarmybench/
     packs.py             list packs, make a marketplace, add saved blades and relationship sets to an editable pack
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
+    sab_adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `sab_adapter`)
+                         and an export share, standard library + duckdb + pyarrow only: tables(source),
+                         read(source, table, plan) -> (Arrow batches, Folded), write(source, table, batches, key,
+                         mode) -> Counts, grid(name) and refresh(name); the Plan (columns, filters, sort, limit,
+                         offset, group, totals; what a source cannot fold done by DuckDB over the stream);
+                         from_json (pages to Arrow with given types); sources DuckDB (a file, a connection, the
+                         sandbox's gated cursor) and Remote (the sandbox through /sandbox/data/<key>/read|write)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -865,7 +872,7 @@ src/swissarmybench/
                          checkpoints as whole-file copies (Reset is one copy; one table from the baseline read
                          alone), sandbox.json; a read's rest as Arrow (query_paged), keys (set_key: the file and
                          its baseline), definitions (define, kind_of); API.py's file (LocalApiFiles); an export's
-                         folder (ExportFolder)
+                         folder (ExportFolder); the adapter's source (source(), arrow, read, write_arrow)
     tunnels.py           devtunnel's file: the download (HTTPS from Microsoft's store only, 200 MB at most), its
                          Content-MD5 checked, the signature check handed in, kept by one replace; the stand-in
                          (SWISSARMYBENCH_DEVTUNNEL_STANDIN: tests/devtunnel_standin.py)

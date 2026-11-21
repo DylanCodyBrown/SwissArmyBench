@@ -4725,3 +4725,21 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   22 / 85 / 335; POST 10 typed rows 39 / 220 / 900. The slowest: a page of 100 entries from the PIVOT column store
   171 / 977 / 3,939 ms; one API process serves one request at a time, so latency grows with callers (a note for
   the adapter plan: reads that fold into the source scale; the column store's page is computed whole each time).
+
+## The adapter's first phase (2026-11-21, branch adapter; DuckDB 2.0.0, pyarrow 26.0.1)
+- DuckDB 2.0 warns that `execute(...).to_arrow_table()` copies the rows ("Arrow output on a DB-API result makes an
+  extra copy"); `con.sql(sql, params=[...]).to_arrow_reader(n)` streams without it (batches of n rows). Relations
+  have no fetchone() any more. `json_transform(?::JSON, '<structure>')` takes a constant structure only;
+  `json_transform_strict` refuses a value not of its type ("Failed to cast value to numerical"); a registered
+  RecordBatchReader is scanned once (a merge stages it in a temp table). Registering Arrow works on the sandbox's
+  connection with external access off.
+- pyarrow's memory pool does not see DuckDB's Arrow batches (DuckDB allocates them): memory is measured as the
+  process's RSS (tests/test_sab_adapter.py, in a process of its own, Linux only).
+- Larkfield Goods large (10,001,903 order lines, generated straight into a 274 MB DuckDB file in 14.7 s), read
+  through the adapter on this container (4 cores), RSS growth over the read: a filter and a limit folded (1,000
+  rows) 0.06 s, 39 MB; one product range (639,667 rows) 0.11 s, 135 MB; totals by product (12,000 rows) 0.10 s,
+  61 MB; every row streamed 0.25 s, 173 MB (DuckDB's buffers); the same rows held as one Arrow table 0.38 s, 544 MB
+  of Arrow, 619 MB RSS. The grid made from the folded read: 1,000 rows, 56 KB. The file was deleted after.
+- Not checked: Windows (the RSS test skips there), a real host's read past one Arrow stream of more than a few
+  thousand rows (the tests' are small), the child process's memory on a DuckDB file's Open (its answer is still one
+  base64 Arrow IPC in a JSON line).

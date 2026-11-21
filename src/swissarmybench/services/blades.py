@@ -957,13 +957,20 @@ class BladeService:
         return await self._run_blade(tried, "read", typed, {"place": {"table": table}, "limit": 1})
 
     async def rows(
-        self, blade: Blade, sql: str | None, count: str | None, body: Any, dataset: str = ""
+        self,
+        blade: Blade,
+        sql: str | None,
+        count: str | None,
+        body: Any,
+        dataset: str = "",
+        read: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """A connection's table rows (a SELECT and its COUNT in its own SQL), or with no SQL the file a
         file connection reaches, run in a child process as Refresh is: {"table", "total"} or {"path"}.
-        `dataset`: the one of a Power BI workspace's the statements are sent to."""
+        `dataset`: the one of a Power BI workspace's the statements are sent to. `read` ({"table", "plan",
+        "count"}): a connection the adapter reads (a DuckDB file) is read through it instead of the SQL."""
         typed = self._typed_values(blade, body)
-        more = {"sql": sql, "count_sql": count, "dataset": dataset or None}
+        more = {"sql": sql, "count_sql": count, "dataset": dataset or None, "read": read}
         return await self._run_blade(blade, "rows", typed, more)
 
     async def queries(
