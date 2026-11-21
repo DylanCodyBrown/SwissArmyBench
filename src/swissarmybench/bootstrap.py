@@ -13,6 +13,7 @@ import asyncio
 import os
 import platform
 import sys
+import tempfile
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -383,6 +384,31 @@ def bootstrap(
         connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
         return answer
 
+    async def stream_blade(
+        blade: Blade,
+        typed: dict[str, str],
+        filename: str,
+        on_output: Callable[[str, str], None],
+        started: Callable[[Callable[[], None]], None],
+    ) -> dict[str, Any]:
+        """The blade IDE's Run: the blade (its code the editor's) in a child process, its output streamed."""
+        job = blade_runner.payload(blade_store, blade, "run", typed)
+        given_out(job)
+        # The code's own lines under a name the error panel reads as your file (never the .blade.py itself,
+        # whose lines start after its header).
+        job["filename"] = os.path.join(tempfile.gettempdir(), "swissarmybench-blades", filename)
+        answer = await blade_runner.run_streaming(
+            job,
+            settings.blade_timeout_seconds,
+            on_output,
+            started,
+            report=lambda *e: process_event("blade", *e),
+        )
+        connection_usage.record(
+            blade.name, "test", ok=bool(answer.get("ok")), error=str(answer.get("failed") or "")
+        )
+        return answer
+
     def given_out(job: dict[str, Any]) -> None:
         """A vault that loads every secret: its names as given out here (no variable twice, a taken one
         prefixed), the ones it lists now given out the same way (`yours`, `kept`: a kernel's load)."""
@@ -525,6 +551,11 @@ def bootstrap(
         environ=os.environ,
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
         kept_names=kept_vault_names,
+        stream_blade=stream_blade,
+    )
+    # The blade IDE's Open as grid: a run's table in a tab of its own.
+    blades.open_table = lambda name, table, who: datasets.store_table(
+        datasets.free_name(name), table, "blade", True, who
     )
     catalog_loading = CatalogLoading(
         ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, live.windows
@@ -1249,6 +1280,7 @@ def bootstrap(
         tree=lambda: project_scope.tree("scripts"),
         touched=code_files.touched,
     )
+    blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
     context_md = ContextMd(
         ws,
         claude_files,

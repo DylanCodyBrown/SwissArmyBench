@@ -1,25 +1,34 @@
 /**
  * bladeEditor.ts: the blade screen, New blade, and running a blade (Refresh, Test). [VIEW]
  *
- * A blade is saved Python that reaches outside Python to load something (plan decisions 14-16). Its code
- * is edited in its file (the library's or a blade folder's .blade.py), never in the app (the owner,
- * 2026-11-17: "blades can only be edited in the folder not from the app"): the screen shows it read-only
- * (Monaco, as tall as the code), with Show its file (a starter's: Copy as your own). What the screen
- * changes is the file's header: the name, description, tags, and a table blade's own table name ("Its
- * table is called", checked as it is typed). It shows what the code makes, the secrets it asks for
- * (typed here into the operating system's vault, never shown again), missing packages, and a
- * connection's "How its tables are listed" (read-only, folded). New blade makes a file from a template.
+ * A blade is saved Python that reaches outside Python to load something (plan decisions 14-16). Its screen
+ * is an IDE (the owner, 2026-11-21: "This is an IDE not a save form"; codeIde.ts): the code editable with the
+ * Workbench's intelligence, ▶ Run with its output, result and problems below, Properties at the right (the
+ * file's header: name, description, tags, a table blade's table name checked as it is typed; the secrets it
+ * asks for, typed into the system's vault; missing packages; a connection's listing query). Save writes the
+ * file (only when its bytes change); an edit made outside is noticed (Reload / Keep mine). A starter's Save
+ * is refused: Copy as your own. New blade makes a file from a template.
+ *
+ * The pieces a page's tab mounts on its own (the Scripts page's blade tab): bladeProperties, runBladeCode
+ * (into codeIde.ts's runPanel), watchOutsideEdits, bladeEditorIntel, bladeLanguage, saveBladeAs; editBlade
+ * composes them into the standalone screen.
  */
-import { api, ApiError } from "./api";
-import { append, button, clear, h, openDialog, toast } from "./dom";
-import type { EditorLanguage } from "./lazy/codeEditor";
+import { api, ApiError, headers } from "./api";
+import { button, clear, formatCount, h, icon, openDialog, toast } from "./dom";
+import type { CodeEditor, CodeEditorOptions, EditorLanguage, Problem } from "./lazy/codeEditor";
 import { busyClick, loadingBlock } from "./loading";
 import { effectiveTheme } from "./theme";
 import { exportBlades } from "./bladeLibrary";
 import { copyAsOwn } from "./starters";
 import { installError, type Missing, promptInstall, reminder } from "./missingPackages";
 import { variableBox } from "./variableBox";
-import { errorHere } from "./errorNote";
+import { errorHere, errorNote } from "./errorNote";
+import { type CodeIde, codeIde, type IdeOutput, loadEditors } from "./codeIde";
+import { inlineSource } from "./inlineCompletion";
+import { whenMode } from "./modes";
+import { sendToAgent } from "./workbenchAgent";
+import { type ErrorDetail, errorPanel, type Frame, problemsFor, yourFrame } from "./workbenchErrors";
+import { pythonIntel, showProblems } from "./workbenchIntel";
 
 // ===== shapes the server sends (server/routes_catalog.py) =====
 
@@ -67,7 +76,11 @@ interface CatalogCommand {
   command: string;
 }
 
-interface BladeDetail extends BladeSummary {
+export interface BladeDetail extends BladeSummary {
+  /** The file's stamp: a Save is refused (409) when the file changed on disk since (domain/blade_tables.py). */
+  stamp?: string;
+  /** A starter's or a pack's: Save is refused (Copy as your own). */
+  read_only?: boolean;
   code: string;
   catalog: CatalogCommand | null;
   vault_mapping: { env: string; secret: string }[];
@@ -307,7 +320,7 @@ export async function install(packages: string[]): Promise<boolean> {
 }
 
 
-// ===== New blade: a file from a template, then edited in the user's own editor =====
+// ===== New blade: a file from a template, then opened in the IDE =====
 
 interface NewChoice {
   id: string;
@@ -325,8 +338,8 @@ export async function showFile(name: string): Promise<void> {
   }
 }
 
-/** "New blade": the templates by group. A pick makes a new .blade.py in the library's blades/ folder and
- *  shows it in its folder; `onMade` gets its name (the page opens its screen). */
+/** "New blade": the templates by group. A pick makes a new .blade.py in the library's blades/ folder;
+ *  `onMade` gets its name (the page opens its IDE). */
 export async function showTemplatePicker(host: HTMLElement, onMade: (name: string) => void): Promise<void> {
   clear(host, h("h2", {}, "New blade"), loadingBlock("Loading the templates…"));
   let all: NewChoice[];
@@ -342,7 +355,6 @@ export async function showTemplatePicker(host: HTMLElement, onMade: (name: strin
     try {
       const made = await api<BladeSummary>("/blades/new", "POST", { template: choice.id });
       onMade(made.name);
-      void showFile(made.name);
     } catch (error) {
       errorHere(error);
     }
@@ -360,27 +372,17 @@ export async function showTemplatePicker(host: HTMLElement, onMade: (name: strin
   );
 }
 
-// ===== the blade screen: its code read-only (edited in its file), its name, words and table name =====
-
-/** Monaco, loaded when a blade screen first opens; its styles with it. */
-let editors: Promise<typeof import("./lazy/codeEditor")> | null = null;
-function loadEditors(): Promise<typeof import("./lazy/codeEditor")> {
-  if (!document.querySelector('link[href="/static/build/lazy/codeEditor.css"]')) {
-    document.head.append(h("link", { rel: "stylesheet", href: "/static/build/lazy/codeEditor.css" }));
-  }
-  return (editors ??= import(/* external */ "/static/build/lazy/codeEditor.js" as string) as Promise<typeof import("./lazy/codeEditor")>);
-}
+// ===== the blade screen: an IDE (the owner, 2026-11-21: "This is an IDE not a save form") =====
 
 const LANGUAGES: Record<string, EditorLanguage> = { dax: "dax", html: "html", markdown: "markdown", python: "python", streamlit: "python", sql: "sql", typescript: "typescript", tsx: "tsx" };
 
-/** Code shown read-only: its language's colours, line numbers, as tall as the code (a few lines at least,
- *  about 70% of the window at most, then it scrolls; wide lines scroll sideways). A plain box until Monaco
+/** Code shown read-only (a connection's listing query): its language's colours, line numbers, as tall as the
+ *  code (a few lines at least, about 70% of the window at most, then it scrolls). A plain box until Monaco
  *  has loaded. */
 export function codeViewer(code: string, language: string, label: string): HTMLElement {
   const host = h("div", { class: "blade-code", "aria-label": label, "data-lines": String(code.split("\n").length) }, h("pre", { class: "code-box blade-code-plain" }, code));
   void loadEditors().then(
     (m) => {
-      // Drawn once it is on the page (the screen appends it after this returns).
       const whenShown = (left: number): void => {
         if (host.isConnected) mount(m);
         else if (left > 0) requestAnimationFrame(() => whenShown(left - 1));
@@ -395,62 +397,124 @@ export function codeViewer(code: string, language: string, label: string): HTMLE
     mounted = true;
     const box = h("div", { class: "blade-code-monaco" });
     host.replaceChildren(box);
-    m.createCodeEditor(box, {
-      language: LANGUAGES[language] ?? "python",
-      value: code,
-      theme: effectiveTheme(),
-      readOnly: true,
-      readOnlyMessage: "A blade's code is edited in its file.",
-      fit: { min: 4, maxShare: 0.7 },
-    });
+    m.createCodeEditor(box, { language: LANGUAGES[language] ?? "python", value: code, theme: effectiveTheme(), readOnly: true, readOnlyMessage: "Read-only here.", fit: { min: 4, maxShare: 0.7 } });
   }
   return host;
 }
 
-/** Open the screen of a blade (`name`). `onSaved` gets the name it was saved under; `onClosed` runs when
- *  the user leaves. The arguments after `name` are the old editor's and ignored. */
-export async function editBlade(
-  host: HTMLElement,
-  name: string | null,
-  _template: Template | null,
-  _kind: BladeKind,
-  onSaved: (name: string) => void,
-  onClosed: () => void,
-): Promise<void> {
-  if (name === null) {
-    await showTemplatePicker(host, (made) => {
-      onSaved(made);
-      void editBlade(host, made, null, "other", onSaved, onClosed);
-    });
-    return;
-  }
-  let detail: BladeDetail;
-  try {
-    detail = await api<BladeDetail>(path(name));
-  } catch (error) {
-    errorHere(error);
-    return;
-  }
-  const starter = detail.source === "starter";
-  const pack = Boolean(detail.pack) && !starter;
-  const readOnly = starter || pack;
-  let savedName = detail.name;
-  const typedSecrets = new Map<string, string>();
-  const status = h("div", { class: "status-line", role: "status", "aria-live": "polite" });
-  const say = (text: string, kindOf: "" | "error" | "ok" = ""): void => {
-    status.textContent = text;
-    status.className = `status-line ${kindOf}`;
-  };
+/** What secret() is to the lint and the completion (the run gives it): domain/blade_tables.py SECRET_STUB. */
+const SECRET_STUB = "def secret(name: str) -> str: ...\n";
 
-  // ----- what the app changes: its file's header (name, description, tags, table name) -----
+/** A run's answer (services/blades.py run). */
+interface RunAnswer {
+  run: string;
+  ok: boolean;
+  seconds?: number;
+  output: { stream: "stdout" | "stderr"; text: string }[];
+  result: RunResult | null;
+  error?: string;
+  refusal?: Record<string, unknown> & { missing?: Missing };
+  error_detail?: ErrorDetail;
+  cancelled?: boolean;
+  needs?: Record<string, string>;
+}
+
+type RunResult =
+  | { kind: "table"; type: string; made_by: string | null; columns: string[]; types: string[]; rows: unknown[][]; total: number }
+  | { kind: "value"; type: string; made_by: string | null; text: string };
+
+/** A run streamed from the server: each line of output as it comes, then the answer. */
+async function streamRun(name: string, body: Record<string, unknown>, onOutput: (stream: "stdout" | "stderr", text: string) => void): Promise<RunAnswer> {
+  const response = await fetch(`${path(name)}/run`, { method: "POST", headers: headers(true), body: JSON.stringify({ ...body, stream: true }) });
+  if (!response.ok || !response.body) throw new ApiError(response.status, await response.text());
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let done: RunAnswer | null = null;
+  for (;;) {
+    const { value, done: finished } = await reader.read();
+    if (value) pending += decoder.decode(value, { stream: true });
+    let at: number;
+    while ((at = pending.indexOf("\n")) >= 0) {
+      const line = pending.slice(0, at).trim();
+      pending = pending.slice(at + 1);
+      if (!line) continue;
+      const item = JSON.parse(line) as { output?: { stream: "stdout" | "stderr"; text: string }; done?: RunAnswer };
+      if (item.output) onOutput(item.output.stream, item.output.text);
+      if (item.done) done = item.done;
+    }
+    if (finished) break;
+  }
+  if (!done) throw new Error("The run ended without an answer.");
+  return done;
+}
+
+function cell(value: unknown): string {
+  return value === null || value === undefined ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+/** The Result tab: a table as a grid (its count, Open as grid), a value as its text. */
+function resultView(name: string, result: RunResult): HTMLElement {
+  const by = result.made_by ? h("code", {}, `${result.made_by}()`) : null;
+  if (result.kind === "value") {
+    return h("div", { class: "ide-result-value" }, h("p", { class: "hint" }, by, by ? " returned " : "It made ", `a ${result.type}`), h("pre", { class: "code-box" }, result.text));
+  }
+  const open = button("Open as grid", busyClick("Opening…", async () => {
+    try {
+      await api(`${path(name)}/result/open`, "POST");
+    } catch (error) {
+      errorHere(error);
+    }
+  }), { icon: "export", class: "ide-btn" });
+  const shown = result.rows.length;
+  const count = `${formatCount(result.total)} row${result.total === 1 ? "" : "s"}, ${result.columns.length} column${result.columns.length === 1 ? "" : "s"}`;
+  return h(
+    "div",
+    { class: "ide-result-table" },
+    h("div", { class: "ide-result-head" }, h("span", {}, by, by ? " made a table: " : "A table: ", h("strong", { class: "ide-row-count" }, count)), shown < result.total ? h("span", { class: "hint" }, ` (the first ${formatCount(shown)} shown)`) : null, open),
+    h(
+      "div",
+      { class: "ide-grid-wrap" },
+      h(
+        "table",
+        { class: "ide-grid", "aria-label": "Result rows" },
+        h("thead", {}, h("tr", {}, ...result.columns.map((c, i) => h("th", { scope: "col", title: result.types[i] ?? "" }, c)))),
+        h("tbody", {}, ...result.rows.map((row) => h("tr", {}, ...row.map((v) => h("td", { class: typeof v === "number" ? "num" : undefined }, cell(v)))))),
+      ),
+    ),
+  );
+}
+
+// ===== the pieces a page's tab mounts (the Scripts page's blade tab), each on its own =====
+
+/** A blade's Properties: its file's header (name, description, tags, a table blade's table name checked as
+ *  it is typed), its secrets (typed into the system's vault), missing packages, a vault's entries, a
+ *  connection's listing query, the file's path. The host's Save sends `header()` with the code. */
+export interface BladeProperties {
+  element: HTMLElement;
+  /** The header's fields as PUT /blades/{name} takes them (and typed secrets, when any). */
+  header(): Record<string, unknown>;
+  /** Unsaved changes in it. */
+  dirty(): boolean;
+  /** Before a Save: the table name checked; false (its words shown, the field focused) when it is taken. */
+  check(): Promise<boolean>;
+  /** The table name's refusal, for the host's note. */
+  refusal(): string;
+  /** Saved: what it holds now is the saved state. */
+  markSaved(table: string): void;
+  /** Cancel: back to the blade as read. */
+  reset(): void;
+}
+
+export function bladeProperties(detail: BladeDetail, options: { readOnly: boolean; name: () => string; changed: () => void; reopen: () => void }): BladeProperties {
+  const readOnly = options.readOnly;
   const nameInput = h("input", { type: "text", value: detail.name, maxlength: "64", "aria-label": "Blade name", spellcheck: "false", readonly: readOnly });
-  const descriptionInput = h("textarea", { rows: "2", maxlength: "2000", "aria-label": "Description", readonly: readOnly }) as HTMLTextAreaElement;
+  const descriptionInput = h("textarea", { rows: "3", maxlength: "2000", "aria-label": "Description", readonly: readOnly }) as HTMLTextAreaElement;
   descriptionInput.value = detail.description ?? "";
   const tagsInput = h("input", { type: "text", value: (detail.tags ?? []).join(", "), "aria-label": "Tags", spellcheck: "false", readonly: readOnly });
-
-  // Its table's own name, checked as it is typed (debounced): "available", or why not.
   const tableInput = h("input", { type: "text", value: detail.table ?? "", maxlength: "64", "aria-label": "Its table is called", spellcheck: "false", placeholder: detail.variable ?? "", readonly: readOnly });
   const tableSaid = h("div", { class: "table-name-check", role: "status", "aria-live": "polite" });
+  const typedSecrets = new Map<string, string>();
   let tableOk = true;
   let checkTimer = 0;
   let asked = 0;
@@ -464,7 +528,7 @@ export async function editBlade(
       return;
     }
     try {
-      const answer = await api<{ available: boolean; said: string }>(`/blades/table-name?name=${encodeURIComponent(wanted)}&blade=${encodeURIComponent(savedName)}`);
+      const answer = await api<{ available: boolean; said: string }>(`/blades/table-name?name=${encodeURIComponent(wanted)}&blade=${encodeURIComponent(options.name())}`);
       if (mine !== asked) return; // a newer check is on its way
       tableOk = answer.available;
       tableSaid.textContent = answer.said;
@@ -477,41 +541,26 @@ export async function editBlade(
     window.clearTimeout(checkTimer);
     checkTimer = window.setTimeout(() => void checkTable(), 250);
   });
+  const now = (): string => JSON.stringify([nameInput.value.trim(), descriptionInput.value.trim(), splitTags(tagsInput.value), tableInput.value.trim(), typedSecrets.size]);
+  let saved = now();
+  for (const input of [nameInput, descriptionInput, tagsInput, tableInput]) input.addEventListener("input", options.changed);
 
-  // ----- the code: read-only, edited in its file -----
-  const language = detail.kind === "snippet" ? detail.language || "python" : "python";
-  const code = codeViewer(detail.kind === "secret" ? detail.env_names.join("\n") : detail.code, detail.kind === "secret" ? "plaintext" : language, "Blade code");
-  const fileLine = detail.file ? h("p", { class: "hint blade-file-path" }, h("code", {}, detail.file)) : null;
-  const codeActions = h(
-    "div",
-    { class: "row-actions" },
-    readOnly
-      ? button("Copy as your own", () => void copyStarter(detail.name), { class: "primary", icon: "copy" })
-      : button("Show its file", () => void showFile(savedName), { icon: "folder" }),
-  );
-  async function copyStarter(of: string): Promise<void> {
-    const made = await copyAsOwn(of);
-    if (!made) return;
-    onSaved(made);
-    await editBlade(host, made, null, "other", onSaved, onClosed);
-  }
-
-  // What the code makes, its secrets (kept in the operating system's vault) and missing packages.
   const inspection = detail.inspect ?? null;
-  const madeLine = detail.kind === "snippet" || detail.kind === "secret" || !detail.variable ? null : h("p", { class: "hint" }, `${detail.kind === "vault" ? "The function that reads a secret" : "It makes"} `, h("code", {}, detail.variable));
-  const secretsHost = h("div", {});
+  const secretsHost = h("div", { class: "ide-secrets" });
   for (const secret of inspection?.secrets ?? []) {
-    const saved = detail.secrets[secret] === true;
-    const input = h("input", { type: "password", autocomplete: "new-password", placeholder: saved ? "Saved" : "Not saved", "aria-label": `secret ${secret}` });
-    input.addEventListener("input", () => typedSecrets.set(secret, input.value));
-    const forget = saved
+    const isSaved = detail.secrets[secret] === true;
+    const input = h("input", { type: "password", autocomplete: "new-password", placeholder: isSaved ? "Saved" : "Not saved", "aria-label": `secret ${secret}` });
+    input.addEventListener("input", () => {
+      typedSecrets.set(secret, input.value);
+      options.changed();
+    });
+    const forget = isSaved
       ? button("Forget", () => {
-          void api(`${path(savedName)}/secrets`, "PUT", { [secret]: null }).then(() => {
+          void api(`${path(options.name())}/secrets`, "PUT", { [secret]: null }).then(() => {
             detail.secrets[secret] = false;
             input.placeholder = "Not saved";
             forget?.remove();
-            say(`Forgot ${secret}.`, "ok");
-          }, (error: Error) => say(error.message, "error"));
+          }, (error: Error) => errorHere(error));
         }, { class: "ghost" })
       : null;
     secretsHost.append(h("label", {}, h("span", {}, `secret("${secret}")`), h("div", { class: "row-actions" }, input, forget)));
@@ -522,50 +571,329 @@ export async function editBlade(
         "div",
         { class: "row-actions" },
         h("div", { class: "chips" }, ...missing.map((p) => h("span", { class: "chip missing", title: p.guessed ? "Guessed name" : p.module }, `${p.pip} missing`))),
-        inspection?.missing ? reminder(inspection.missing, { then: () => void editBlade(host, savedName, null, "other", onSaved, onClosed) }) : null,
+        inspection?.missing ? reminder(inspection.missing, { then: options.reopen }) : null,
       )
     : null;
   const vaultRows = detail.kind === "vault" && detail.vault_mapping.length
     ? h("table", { class: "columns-table" }, h("tbody", {}, ...detail.vault_mapping.map((m) => h("tr", {}, h("td", {}, h("code", {}, m.env)), h("td", { class: "hint" }, "←"), h("td", {}, m.secret)))))
     : null;
-
-  // A connection's tables are always listed; the query that lists them is its file's, shown read-only.
   const listing = detail.connection && detail.connection !== "vault" && detail.catalog
-    ? h(
-        "details",
-        { class: "blade-listing" },
-        h("summary", {}, "How its tables are listed"),
-        codeViewer(detail.catalog.command, detail.catalog.language, "How its tables are listed"),
-      )
+    ? h("details", { class: "blade-listing" }, h("summary", {}, "How its tables are listed"), codeViewer(detail.catalog.command, detail.catalog.language, "How its tables are listed"))
     : null;
-  // Opened: the viewer measures itself again (it was folded away when drawn).
   listing?.addEventListener("toggle", () => window.dispatchEvent(new Event("resize")));
+  const madeLine = detail.kind === "snippet" || detail.kind === "secret" || !detail.variable ? null : h("p", { class: "hint ide-made" }, `${detail.kind === "vault" ? "The function that reads a secret" : "It makes"} `, h("code", {}, detail.variable));
+  const starter = detail.source === "starter";
+  const element = h(
+    "div",
+    { class: "editor ide-props-form" },
+    h("div", { class: "blade-kind-line" }, h("span", { class: `blade-kind ${detail.kind}` }, kindLabel(detail.kind)), starter ? h("span", { class: "warning-text" }, `${detail.family ?? ""} starter: read-only`.trim()) : detail.pack ? h("span", { class: "warning-text" }, `From the pack ${detail.pack}: read-only`) : null),
+    h("label", {}, h("span", {}, "Name"), nameInput),
+    h("label", {}, h("span", {}, "Description"), descriptionInput),
+    h("label", {}, h("span", {}, "Tags"), tagsInput),
+    detail.names_table ? h("div", { class: "table-name-field" }, h("label", {}, h("span", {}, "Its table is called"), tableInput), tableSaid) : null,
+    madeLine,
+    secretsHost,
+    packagesHost,
+    vaultRows,
+    listing,
+    detail.file ? h("p", { class: "hint blade-file-path" }, h("code", {}, detail.file)) : null,
+  );
+  return {
+    element,
+    header: () => {
+      const out: Record<string, unknown> = { name: nameInput.value.trim(), description: descriptionInput.value.trim(), tags: splitTags(tagsInput.value) };
+      if (detail.names_table) out.table = tableInput.value.trim();
+      const secrets = Object.fromEntries([...typedSecrets].filter(([, value]) => value));
+      if (Object.keys(secrets).length) out.secrets = secrets;
+      return out;
+    },
+    dirty: () => now() !== saved,
+    check: async () => {
+      if (detail.names_table) await checkTable();
+      if (!tableOk) tableInput.focus();
+      return tableOk;
+    },
+    refusal: () => tableSaid.textContent ?? "",
+    markSaved: (table) => {
+      detail.table = table;
+      typedSecrets.clear();
+      for (const input of secretsHost.querySelectorAll("input")) input.value = "";
+      saved = now();
+    },
+    reset: () => {
+      nameInput.value = options.name();
+      descriptionInput.value = detail.description ?? "";
+      tagsInput.value = (detail.tags ?? []).join(", ");
+      tableInput.value = detail.table ?? "";
+      typedSecrets.clear();
+      for (const input of secretsHost.querySelectorAll("input")) input.value = "";
+      saved = now();
+    },
+  };
+}
 
-  function body(): Record<string, unknown> {
-    const out: Record<string, unknown> = { name: nameInput.value.trim(), description: descriptionInput.value.trim(), tags: splitTags(tagsInput.value) };
-    if (detail.names_table) out.table = tableInput.value.trim();
-    const secrets = Object.fromEntries([...typedSecrets].filter(([, value]) => value));
-    if (Object.keys(secrets).length) out.secrets = secrets;
-    return out;
-  }
+/** Where a blade's run shows: the panel's Result and tabs, and the editor (squiggles, fixes, its lines). */
+export interface RunView {
+  showResult(content: HTMLElement | null): void;
+  showTab(tab: "output" | "result" | "problems"): void;
+  setRunProblems(list: Problem[]): void;
+  editor: Promise<CodeEditor>;
+  /** Run again (a package installed). */
+  again: () => void;
+}
 
-  async function save(): Promise<void> {
-    if (detail.names_table) await checkTable();
-    if (!tableOk) {
-      say(tableSaid.textContent ?? "", "error");
-      tableInput.focus();
+/** Run a blade's code (the editor's, saved or not) as the IDE's ▶ does: streamed into `output`, then its
+ *  result (a table as a grid with its count and Open as grid, a value as its text) or the error panel with
+ *  the line marked; a secret blade's values asked for this run; `abort` stops it on the server. */
+export async function runBladeCode(name: string, code: string, abort: AbortController, output: IdeOutput, view: RunView): Promise<void> {
+  const runId = Math.random().toString(36).slice(2, 12);
+  abort.signal.addEventListener("abort", () => void api(`/blades/runs/${runId}/cancel`, "POST").catch(() => undefined), { once: true });
+  let env: Record<string, string> = {};
+  let answer: RunAnswer;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      answer = await streamRun(name, { code, env, run: runId }, (stream, words) => output.write(stream, words));
+    } catch (error) {
+      view.showResult(errorNote(error));
+      view.showTab("result");
       return;
     }
-    try {
-      const saved = await api<BladeSummary>(path(savedName), "PUT", body());
-      savedName = saved.name;
-      detail.table = saved.table ?? "";
-      typedSecrets.clear();
-      say(`Saved ${saved.name}.`, "ok");
-      onSaved(saved.name);
-    } catch (error) {
-      say((error as Error).message, "error");
+    if (answer.needs && attempt < 2) {
+      const typed = await askTyped(answer.needs, "run");
+      if (!typed) return;
+      env = { ...env, ...typed };
+      continue;
     }
+    break;
+  }
+  if (answer.ok && answer.result) {
+    output.write("note", `\nRan in ${answer.seconds ?? 0} s.\n`);
+    view.showResult(resultView(name, answer.result));
+    view.showTab("result");
+    return;
+  }
+  if (answer.cancelled) {
+    output.write("note", "\nStopped.\n");
+    return;
+  }
+  const detailOf = answer.error_detail;
+  if (detailOf?.chain?.length) {
+    const editor = await view.editor;
+    const yours = (f: Frame): { line: number; colShift: number } | null => (f.where === "file" || f.where === "cell" ? { line: f.line, colShift: 0 } : null);
+    view.setRunProblems(problemsFor(detailOf, yours));
+    view.showResult(
+      errorPanel(detailOf, null, {
+        fix: (fix) => {
+          const wanted = fix.missing ?? detailOf.missing;
+          if (fix.kind === "install" && wanted) void promptInstall(wanted, { then: view.again });
+          else if (fix.kind === "replace" || fix.kind === "import") editor.applyFix(fix, yourFrame(detailOf.chain[detailOf.chain.length - 1])?.line ?? 1);
+        },
+        goTo: (frame) => {
+          if (frame.where !== "file" && frame.where !== "cell") return false;
+          editor.reveal(frame.line, frame.col ?? 1);
+          return true;
+        },
+      }),
+    );
+    if (detailOf.missing) void promptInstall(detailOf.missing, { then: view.again });
+  } else {
+    view.showResult(errorNote(answer.refusal ?? answer.error ?? "It did not run."));
+    if (answer.refusal?.missing) void promptInstall(answer.refusal.missing, { then: view.again });
+  }
+  view.showTab("result");
+}
+
+/** An edit made outside to an open blade's file (the user's own editor), looked for every 2 s while
+ *  `alive()`: with no unsaved changes the editor takes it at once; with some, a note asks Reload or Keep
+ *  mine (never saved over by itself). A Save refused with 409 shows the same note (`changed`). */
+export interface OutsideEdits {
+  /** The stamp a Save sends (the file as the editor last read it, or Keep mine's). */
+  stamp(): string;
+  /** The file as saved or read now: its stamp. */
+  setStamp(stamp: string): void;
+  /** The file changed on disk: the note. */
+  changed(stamp: string): void;
+  stop(): void;
+}
+
+export function watchOutsideEdits(options: {
+  name: () => string;
+  file: string;
+  stamp: string;
+  alive: () => boolean;
+  dirty: () => boolean;
+  /** The file's code put in the editor as its saved text. */
+  load: (code: string) => void;
+  note: (content: HTMLElement | null) => void;
+}): OutsideEdits {
+  let stamp = options.stamp;
+  let seen = options.stamp;
+  const changed = (now: string): void => {
+    seen = now;
+    const file = (options.file || options.name()).split(/[\\/]/).pop();
+    options.note(
+      h(
+        "div",
+        { class: "ide-note-row warn", role: "alert" },
+        icon("warning"),
+        h("span", {}, `${file} changed on disk.`),
+        button("Reload", () => void reload(), { class: "primary ide-btn" }),
+        button("Keep mine", () => {
+          stamp = now; // the next Save goes over it, on this word
+          options.note(null);
+        }, { class: "ghost ide-btn" }),
+      ),
+    );
+  };
+  async function reload(): Promise<void> {
+    const found = await api<{ code: string; stamp: string }>(`${path(options.name())}/code`);
+    stamp = seen = found.stamp;
+    options.load(found.code);
+    options.note(null);
+  }
+  const timer = window.setInterval(() => {
+    if (!options.alive()) return window.clearInterval(timer);
+    if (window.document.hidden || !options.file) return;
+    void api<{ code: string; stamp: string }>(`${path(options.name())}/code`).then((found) => {
+      if (!found.stamp || found.stamp === seen) return;
+      if (!options.dirty()) {
+        stamp = seen = found.stamp;
+        options.load(found.code);
+        return;
+      }
+      changed(found.stamp);
+    }, () => undefined);
+  }, 2000);
+  return {
+    stamp: () => stamp,
+    setStamp: (now) => {
+      stamp = seen = now;
+    },
+    changed,
+    stop: () => window.clearInterval(timer),
+  };
+}
+
+/** The Workbench's intelligence for a blade's Python editor (Jedi with secret() known, signatures, hovers,
+ *  the lint reported for workbench_problems, Copilot's ghost text where declared): an editor's options. */
+export function bladeEditorIntel(options: { name: () => string; file: string; value: () => string; alive: () => boolean; reveal: (line: number, column: number) => void }): Partial<CodeEditorOptions> {
+  const document = (): string => options.file || `blade:${options.name()}`;
+  const intel = pythonIntel({ intel: () => ({ kernel: null, path: options.file || null, python: null }) }, { notebook: false, document, before: () => [SECRET_STUB] });
+  const key = `${document()}\u0000${Math.random()}`;
+  return {
+    complete: (text, offset) => intel.complete(text, offset).then((found) => found ?? []),
+    intel: {
+      signature: intel.signature,
+      hover: intel.hover,
+      lint: intel.lint,
+      onLint: (problems) => showProblems(key, options.alive() ? { document: document(), place: "", problems, reveal: options.reveal } : null),
+    },
+    inline: inlineSource(() => ({ key: `blade:${options.name()}`, name: `${options.name()}.py`, kind: "script", language: "python", text: options.value() })),
+    sendToAgent: (what, ask) => sendToAgent({ kind: "code", title: `${options.name()}, ${what.startLine === what.endLine ? `line ${what.startLine}` : `lines ${what.startLine} to ${what.endLine}`}`, text: what.text }, ask),
+  };
+}
+
+/** A blade's whole file as its editor's language: Python, a snippet's own, a secret blade's names as text. */
+export function bladeLanguage(detail: BladeDetail): EditorLanguage {
+  return detail.kind === "secret" ? "plaintext" : detail.kind === "snippet" ? (LANGUAGES[detail.language || "python"] ?? "plaintext") : "python";
+}
+
+// ===== the standalone blade screen: the pieces composed in one IDE (codeIde.ts) =====
+
+/** Open the screen of a blade (`name`; null: New blade's templates). `onSaved` gets the name it was saved
+ *  under; `onClosed` runs when the user leaves. `back` is the IDE's Back (the page's way out). The arguments
+ *  after `name` are the old editor's and ignored. */
+export async function editBlade(
+  host: HTMLElement,
+  name: string | null,
+  _template: Template | null,
+  _kind: BladeKind,
+  onSaved: (name: string) => void,
+  onClosed: () => void,
+  back?: { label: string; run: () => void },
+): Promise<void> {
+  if (name === null) {
+    await showTemplatePicker(host, (made) => {
+      onSaved(made);
+      void editBlade(host, made, null, "other", onSaved, onClosed, back);
+    });
+    return;
+  }
+  clear(host, loadingBlock(`Opening ${name}…`));
+  let detail: BladeDetail;
+  try {
+    detail = await api<BladeDetail>(path(name));
+  } catch (error) {
+    clear(host);
+    errorHere(error);
+    return;
+  }
+  void whenMode(); // the open project's mode: Copilot's ghost text where an extension declares it
+  const readOnly = Boolean(detail.pack);
+  const secretKind = detail.kind === "secret";
+  let savedName = detail.name;
+  const reopen = (): void => void editBlade(host, savedName, null, "other", onSaved, onClosed, back);
+  const alive = (): boolean => ide.element.isConnected;
+  const props = bladeProperties(detail, { readOnly, name: () => savedName, changed: () => ide.setExtraDirty(props.dirty()), reopen });
+  const language = bladeLanguage(detail);
+  const code = secretKind ? detail.env_names.join("\n") : detail.code;
+  const closeNote = (): HTMLButtonElement => button("Close", () => ide.note(null), { class: "ghost ide-btn", icon: "close", iconOnly: true });
+
+  async function save(text: string): Promise<boolean> {
+    if (!(await props.check())) {
+      ide.note(h("div", { class: "ide-note-row", role: "alert" }, errorNote(props.refusal()), closeNote()));
+      return false;
+    }
+    const body: Record<string, unknown> = { ...props.header(), stamp: edits.stamp() };
+    if (!secretKind) body.code = text;
+    try {
+      const saved = await api<BladeSummary & { stamp: string }>(path(savedName), "PUT", body);
+      savedName = saved.name;
+      edits.setStamp(saved.stamp);
+      props.markSaved(saved.table ?? "");
+      ide.setExtraDirty(false);
+      ide.setName(saved.name);
+      ide.note(null);
+      toast(`Saved ${saved.name}.`);
+      onSaved(saved.name);
+      return true;
+    } catch (error) {
+      const said = error instanceof ApiError ? (error.said as { changed_on_disk?: boolean; stamp?: string } | null) : null;
+      if (readOnly) {
+        ide.note(h("div", { class: "ide-note-row", role: "alert" }, errorNote(error), button("Copy as your own", () => void copyStarter(ide.value() === code ? undefined : ide.value()), { class: "primary ide-btn", icon: "copy" }), closeNote()));
+      } else if (said?.changed_on_disk) edits.changed(String(said.stamp ?? ""));
+      else ide.note(h("div", { class: "ide-note-row", role: "alert" }, errorNote(error), closeNote()));
+      return false;
+    }
+  }
+
+  async function copyStarter(withCode?: string): Promise<void> {
+    let made: string | null;
+    if (withCode === undefined) made = await copyAsOwn(detail.name);
+    else {
+      try {
+        made = (await api<{ name: string }>(`${path(detail.name)}/copy`, "POST", { code: withCode })).name;
+      } catch (error) {
+        errorHere(error);
+        made = null;
+      }
+    }
+    if (!made) return;
+    onSaved(made);
+    await editBlade(host, made, null, "other", onSaved, onClosed, back);
+  }
+
+  async function revert(): Promise<string | null> {
+    const found = await api<{ code: string; stamp: string }>(`${path(savedName)}/code`).catch((error: unknown) => {
+      errorHere(error);
+      return null;
+    });
+    if (!found) return null;
+    edits.setStamp(found.stamp);
+    props.reset();
+    ide.setExtraDirty(false);
+    ide.note(null);
+    return secretKind ? code : found.code;
   }
 
   async function remove(): Promise<void> {
@@ -581,33 +909,92 @@ export async function editBlade(
     );
   }
 
-  const runnable = detail.kind !== "snippet" && detail.kind !== "secret";
-  clear(host, h("h2", {}, `Blade: ${detail.name}`));
-  append(
-    host,
-    h(
-      "div",
-      { class: "editor blade-screen" },
-      h("div", { class: "blade-kind-line" }, h("span", { class: `blade-kind ${detail.kind}` }, kindLabel(detail.kind)), starter ? h("span", { class: "warning-text" }, `${detail.family ?? ""} starter: read-only`.trim()) : pack ? h("span", { class: "warning-text" }, `From the pack ${detail.pack}: read-only`) : null),
-      h("label", {}, h("span", {}, "Name"), nameInput),
-      h("label", {}, h("span", {}, "Description"), descriptionInput),
-      h("label", {}, h("span", {}, "Tags"), tagsInput),
-      detail.names_table ? h("div", { class: "table-name-field" }, h("label", {}, h("span", {}, "Its table is called"), tableInput), tableSaid) : null,
-      h("fieldset", { class: "blade-code-field" }, h("legend", {}, "Code"), code, fileLine, codeActions, madeLine, secretsHost, packagesHost, vaultRows),
-      listing,
-      h(
-        "div",
-        { class: "row-actions" },
-        readOnly ? null : button("Save", busyClick("Saving…", save), { class: "primary", icon: "save" }),
-        runnable ? button("Test", busyClick("Testing…", () => runBlade<{ type?: string; variables?: string[] }>(savedName, "test").then((a) => a && say(a.variables ? `It works: it sets ${a.variables.join(", ")}.` : a.type ? `It works: it makes a ${a.type}.` : "It works.", "ok"))), { icon: "check" }) : null,
-        button("Cancel", onClosed, { class: "ghost" }),
-        button("Export", () => void exportBlades(savedName), { icon: "export", class: "ghost", title: "Download as .blade.py" }),
-        detail.removable ? button("Remove", () => void remove(), { class: "danger", icon: "trash" }) : null,
-      ),
-      status,
-    ),
-  );
-  nameInput.focus();
+  const runnable = detail.kind !== "snippet" && !secretKind;
+  const ide: CodeIde = codeIde({
+    name: detail.name,
+    badge: readOnly ? h("span", { class: "chip ide-readonly" }, "read-only") : null,
+    language,
+    value: code,
+    theme: effectiveTheme,
+    back,
+    save,
+    saveAs: (text) => saveBladeAs(savedName, secretKind ? undefined : text, (made) => {
+      onSaved(made);
+      void editBlade(host, made, null, "other", onSaved, onClosed, back);
+    }),
+    revert,
+    run: runnable
+      ? (text, abort, output) => runBladeCode(savedName, text, abort, output, { showResult: ide.showResult, showTab: ide.showTab, setRunProblems: ide.setRunProblems, editor: ide.ready, again: () => void ide.run() })
+      : undefined,
+    runWords: `Running ${detail.name}…`,
+    properties: props.element,
+    remember: "blade",
+    menu: () => [
+      ...(readOnly ? [{ label: "Copy as your own", icon: "copy", run: () => void copyStarter() }] : [{ label: "Show its file", icon: "folder", run: () => void showFile(savedName) }]),
+      { label: "Export", icon: "export", run: () => void exportBlades(savedName) },
+      ...(detail.removable ? [{ label: "Remove", icon: "trash", run: () => void remove() }] : []),
+    ],
+    editor: {
+      readOnly: secretKind,
+      readOnlyMessage: "A secret blade holds its variables' names, in its file.",
+      ...(language === "python" ? bladeEditorIntel({ name: () => savedName, file: detail.file ?? "", value: () => ide.value(), alive, reveal: (line, column) => void ide.ready.then((e) => e.reveal(line, column)) }) : {}),
+    },
+  });
+  const edits = watchOutsideEdits({ name: () => savedName, file: detail.file ?? "", stamp: detail.stamp ?? "", alive, dirty: () => ide.dirty(), load: (text) => ide.setValue(text, true), note: ide.note });
+  clear(host, ide.element);
+  const gone = window.setInterval(() => {
+    if (alive()) return;
+    window.clearInterval(gone);
+    edits.stop();
+    ide.dispose();
+  }, 2000);
+  // The editor takes the keyboard once it has loaded, unless the user is typing somewhere else by then.
+  void ide.ready.then((e) => {
+    const at = window.document.activeElement;
+    if (!at || at === window.document.body || at.closest(".ide-editor")) e.focus();
+  });
   // Opened with packages missing: the prompt in the user's face.
-  if (inspection?.missing) void promptInstall(inspection.missing, { then: () => void editBlade(host, savedName, null, "other", onSaved, onClosed) });
+  if (detail.inspect?.missing) void promptInstall(detail.inspect.missing, { then: reopen });
+}
+
+/** Save as…: a new name, checked as it is typed (GET /blades/name-check); `code` under it (none: its own).
+ *  `made` gets the new blade's name. */
+export function saveBladeAs(name: string, code: string | undefined, made: (name: string) => void): void {
+  const { body, foot, close } = openDialog("Save as");
+  const input = h("input", { type: "text", maxlength: "64", value: `${name} copy`, "aria-label": "New name", spellcheck: "false" }) as HTMLInputElement;
+  const said = h("div", { class: "table-name-check", role: "status", "aria-live": "polite" });
+  let free = false;
+  let timer = 0;
+  let mine = 0;
+  const check = async (): Promise<void> => {
+    const asking = ++mine;
+    const answer = await api<{ available: boolean; said: string }>(`/blades/name-check?name=${encodeURIComponent(input.value)}`).catch(() => ({ available: false, said: "" }));
+    if (asking !== mine) return;
+    free = answer.available;
+    said.textContent = answer.said;
+    said.className = `table-name-check ${answer.available ? "ok" : "error"}`;
+  };
+  input.addEventListener("input", () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void check(), 200);
+  });
+  body.append(h("label", { class: "field" }, h("span", {}, "Name"), input), said);
+  const go = async (): Promise<void> => {
+    await check();
+    if (!free) return input.focus();
+    try {
+      const copied = await api<{ name: string }>(`${path(name)}/copy`, "POST", { name: input.value.trim(), code });
+      close();
+      toast(`Saved as ${copied.name}.`);
+      made(copied.name);
+    } catch (error) {
+      errorHere(error);
+    }
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") void go();
+  });
+  foot.append(button("Cancel", close, { class: "ghost" }), button("Save", busyClick("Saving…", go), { class: "primary" }));
+  void check();
+  input.select();
 }
