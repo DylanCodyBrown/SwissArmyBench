@@ -10,6 +10,17 @@ section 15 is the checklist to run against every new screen.
 
 ## 1. Purpose first
 
+**1.0 A Swiss Army knife: a few universal tools, each simple, that handle most things.** The name is the
+design. Build tools that work just about anywhere (any connection, any table, any project) and are actually
+useful, rather than many special-purpose features; a tool earns its place by how many jobs it covers, and
+keeps it by staying simple.
+- Example: one create, read, update and delete endpoint set pointed at any table, not an endpoint kind per
+  source; one widget input contract, not a property scheme per widget.
+- The owner (2026-11-21): "the name of the app is Swiss Army bench that means we should be developing universal
+  tools that are actually useful ... a universal set of tools that can be used just about anywhere that are not
+  over complicated because a Swiss army knife is probably the most simplistic design for enough yet can handle
+  the most things at once"
+
 **1.1 One job, one screen's worth of work.** Every feature should cut the switching between tools the
 user would otherwise pan across.
 - Example: the grid, the code (the Workbench) and the dashboard (Analyze) each sit on their own
