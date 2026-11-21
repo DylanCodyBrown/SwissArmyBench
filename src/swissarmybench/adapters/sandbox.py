@@ -270,6 +270,45 @@ class SandboxFiles:
         )
         return str(found[0][0]) if found else None
 
+    def keys(self, name: str) -> list[str]:
+        """The table's primary key's columns ([]: none)."""
+        if not self.exists():
+            return []
+        with self._gate.shared():
+            return [c["name"] for c in self._columns(name) if c["key"]]
+
+    def set_key(self, name: str, key: Sequence[str]) -> None:
+        """The table's primary key made `key`, in the sandbox and in its baseline (Reset keeps it): DuckDB's
+        refusal when a row repeats or blanks it. A table with a key already is left as it is."""
+        add = (
+            f"ALTER TABLE {rules.quote(name)} ADD PRIMARY KEY ("
+            + ", ".join(rules.quote(k) for k in key)
+            + ")"
+        )
+        with self._gate.exclusive():
+            if not self._key_of(self._open(), name):
+                self._all(add)
+            if self.baseline.exists():
+                other = _connect(self.baseline)
+                try:
+                    there = other.execute(
+                        "SELECT count(*) FROM duckdb_tables() WHERE schema_name = 'main' AND table_name = ?",
+                        [name],
+                    ).fetchall()[0][0]
+                    if there and not self._key_of(other, name):
+                        other.execute(add)
+                finally:
+                    other.close()
+
+    @staticmethod
+    def _key_of(con: duckdb.DuckDBPyConnection, name: str) -> bool:
+        found = con.execute(
+            "SELECT count(*) FROM duckdb_constraints() WHERE table_name = ? "
+            "AND constraint_type = 'PRIMARY KEY'",
+            [name],
+        ).fetchall()
+        return bool(found and found[0][0])
+
     def kind_of(self, name: str) -> str | None:
         """What `name` is in the sandbox's file: "table", "view", "sequence" or None (not there)."""
         if not self.exists():

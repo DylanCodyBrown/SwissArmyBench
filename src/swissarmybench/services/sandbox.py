@@ -29,7 +29,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain import sandbox_dialects as dialects
-from swissarmybench.domain.connection_swap import Place
+from swissarmybench.domain.connection_swap import Place, place_of
 from swissarmybench.domain.sandbox import SandboxError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -64,6 +64,10 @@ class Files(Protocol):
     def drop(self, name: str) -> None: ...
 
     def kind_of(self, name: str) -> str | None: ...
+
+    def keys(self, name: str) -> list[str]: ...
+
+    def set_key(self, name: str, key: Any) -> None: ...
 
     def define(self, sql: str, params: Any = ()) -> None: ...
 
@@ -118,6 +122,8 @@ class Sources(Protocol):
 
     def connections(self) -> list[str]: ...  # the saved connections with tables (Mocked as's choices)
 
+    def key_of(self, connection: str, place: Place) -> list[str]: ...  # its primary key in the shared catalog
+
 
 async def _no_structure(structure: str, path: str) -> tuple[Any, str, str]:
     raise LookupError("Structures are not here.")
@@ -142,9 +148,13 @@ class SourcesFrom:
     structure_fn: Callable[[str, str], Awaitable[tuple[Any, str, str]]] = _no_structure
     view_rows_fn: Callable[[str, list[int]], Awaitable[tuple[list[str], list[list[Any] | None]]]] = _no_rows
     connections_fn: Callable[[], list[str]] = field(default=lambda: [])
+    key_fn: Callable[[str, Place], list[str]] = field(default=lambda connection, place: [])
 
     async def grid_view(self, name: str) -> Any:
         return await self.grid_view_fn(name)
+
+    def key_of(self, connection: str, place: Place) -> list[str]:
+        return self.key_fn(connection, place)
 
     async def connection_table(self, connection: str, place: Place) -> Any:
         return await self.connection_fn(connection, place)
@@ -212,6 +222,7 @@ class Sandbox:
         self._lock = asyncio.Lock()
         self.version = 0  # every change: [Sandbox]'s reads in DuckDB SQL are read again
         self.changed: list[Callable[[list[str]], Awaitable[None]]] = []  # tables a write touched
+        self._key_note = ""  # why a table came in without its key (add's answer)
         # a mock's read past MAX_ROWS_ANSWERED: the rest of it, handed out a page at a time (op "more")
         self._rests: dict[str, _Rest] = {}
 
@@ -337,6 +348,25 @@ class Sandbox:
             return []
         return [(str(t["name"]), [str(c["name"]) for c in t["columns"]]) for t in files.tables()]
 
+    def mock_dialects(self) -> dict[str, tuple[str, list[str]]]:
+        """Each name connection("…") takes in API.py, with its mock's dialect and the sandbox tables it reads
+        (API.py's squiggles: the SQL the mock would refuse). From sandbox.json and the file's names."""
+        if self._project() is None:
+            return {}
+        files = self._files()
+        if not files.exists():
+            return {}
+        meta = files.read_meta()
+        names = files.table_names()
+        out: dict[str, tuple[str, list[str]]] = {rules.NAME: ("duckdb", names)}
+        for table, info in meta.tables.items():
+            client = info.get("client") or {}
+            connection = str(client.get("connection") or "")
+            if connection and not rules.is_sandbox(connection):
+                dialect, mine = out.get(connection, (str(client.get("dialect") or "duckdb"), []))
+                out[connection] = (dialect, [*mine, table])
+        return out
+
     def mock_names(self) -> list[tuple[str, str]]:
         """The names connection("…") takes in API.py: Sandbox, and each connection a sandbox table came
         from, with the client it is mocked as (read from sandbox.json: no query)."""
@@ -442,13 +472,84 @@ class Sandbox:
             }
             if kind in rules.VARIANT_SOURCES:
                 meta.tables[name]["variant"] = rules.variant_record(source, title, at)
+            key = await self._first_key(files, name, given, columns if kind == "columns" else None, source)
+            if key:
+                meta.tables[name]["key"] = key
             meta.log.pop(name, None)
             # A table added is part of the baseline: Reset gives it back as it came in.
             await self._run(files.set_baseline)
             meta.baseline_at = _stamp(self._now())
             files.write_meta(meta)
         await self._told([name], who, "sandbox_add", rows=rows, source=kind)
-        return {"added": name, "rows": rows, "sql": f"[{rules.NAME}].{name}"}
+        added: dict[str, Any] = {"added": name, "rows": rows, "sql": f"[{rules.NAME}].{name}"}
+        if meta.tables[name].get("key"):
+            added["key"] = meta.tables[name]["key"]
+        if self._key_note:
+            added["note"], self._key_note = self._key_note, ""
+        return added
+
+    async def _first_key(
+        self, files: Files, name: str, given: dict[str, Any], columns: Any, source: dict[str, Any]
+    ) -> list[str]:
+        """A table's primary key as it comes in: the one asked for, a column list's, else its connection's in
+        the shared catalog. Rows that repeat or blank it: no key, and why in `note`."""
+        named = [c["name"] for c in await self._run(files.columns, name)]
+        if given.get("key"):
+            key = rules.check_key(given["key"], named)
+        elif columns is not None:
+            key = [c.name for c in columns if c.key]
+        elif source.get("kind") == "connection":
+            place = place_of(source.get("place")) or Place("", "", name)
+            try:
+                key = rules.check_key(self._sources.key_of(str(source["connection"]), place), named)
+            except SandboxError:
+                key = []
+        else:
+            key = []
+        if key and not await self._run(files.keys, name):
+            try:
+                await self._run(files.set_key, name, key)
+            except Exception as error:  # rows that repeat or blank it
+                self._key_note = f"{name} came in without its key ({', '.join(key)}): {rules.db_words(error)}"
+                return []
+        return key
+
+    async def set_key(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"table", "key"}: the table's primary key (a column or a list of them), kept by Reset; a write that
+        repeats or blanks it is refused from then on, as the real database would."""
+        given = body if isinstance(body, dict) else {}
+        async with self._lock:
+            files = self._files()
+            table, columns = await self._table(files, given.get("table"))
+            key = rules.check_key(given.get("key"), columns)
+            have = await self._run(files.keys, table)
+            if have and [k.casefold() for k in have] != [k.casefold() for k in key]:
+                raise Conflict(f"{table}'s key is {', '.join(have)} already.")
+            try:
+                await self._run(files.set_key, table, key)
+            except Exception as error:
+                raise SandboxError(rules.db_words(error)) from error
+            meta = files.read_meta()
+            if table in meta.tables:
+                meta.tables[table]["key"] = key
+                files.write_meta(meta)
+        await self._told([table], who, "sandbox_key", key=", ".join(key))
+        return {"table": table, "key": key}
+
+    async def _keys_back(self, files: Files, meta: rules.Meta) -> None:
+        """After Reset or Restore: each kept key put back where the file put back has none (an older
+        checkpoint's copy)."""
+        for table, record in meta.tables.items():
+            key = record.get("key")
+            if (
+                key
+                and await self._run(files.kind_of, table) == "table"
+                and not await self._run(files.keys, table)
+            ):
+                try:
+                    await self._run(files.set_key, table, list(key))
+                except Exception:  # noqa: S112 (rows the checkpoint holds repeat it: it stays without)
+                    continue
 
     async def variant(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Make a sandbox variant: {"from": "grid" (default) | "structure", "table" | "structure", "path"?,
@@ -540,6 +641,7 @@ class Sandbox:
             if not await self._run(files.reset):
                 raise Conflict("The sandbox has no baseline yet: add a table first.")
             rules.unmade(meta, await self._run(files.table_names))
+            await self._keys_back(files, meta)
             undone = rules.log_json(meta.log)
             rules.touched(meta, [t for t in meta.log if meta.log[t].any], _stamp(self._now()))
             meta.log = {}
@@ -617,6 +719,7 @@ class Sandbox:
             if found is None or not await self._run(files.restore_checkpoint, found.name):
                 raise NotFound(f"No checkpoint is named {name}.")
             rules.unmade(meta, await self._run(files.table_names))
+            await self._keys_back(files, meta)
             meta.log = rules.copied_log(found.log)
             files.write_meta(meta)
         await self._told(sorted(meta.tables), who, "sandbox_restore")
@@ -707,7 +810,7 @@ class Sandbox:
             try:
                 counts = await self._run(files.write, [p[2] for p in planned])
             except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             meta = files.read_meta()
             for (kind, table, _), n in zip(planned, counts, strict=True):
                 rules.noted(meta.log, table, kind, n)
@@ -762,7 +865,7 @@ class Sandbox:
             try:
                 [changed] = await self._run(files.write, [statements])
             except Exception as error:  # DuckDB's own words (a key taken, a blank key): nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             if op == "insert":
                 changed = max(changed, 1)
             meta = files.read_meta()
@@ -896,7 +999,7 @@ class Sandbox:
             try:
                 columns, types, rows = await self._run(files.change, statement)
             except Exception as error:  # DuckDB's own words: nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             count = len(rows) if columns and columns[0].lower() != "count" else int(rows[0][0]) if rows else 0
             meta = files.read_meta()
             rules.noted(meta.log, made.table or "", made.kind, count)
@@ -933,7 +1036,7 @@ class Sandbox:
             try:
                 await self._run(files.define, made.sql, made.params)
             except Exception as error:  # DuckDB's own words (it is there already, or not there)
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             if mine is not None and (verb == "drop" or mine != name):
                 meta.tables.pop(mine, None)
                 meta.log.pop(mine, None)
@@ -970,7 +1073,7 @@ class Sandbox:
                 else:
                     count = await self._run(files.change_many, made.sql, values)
             except Exception as error:  # DuckDB's own words: nothing was written
-                raise SandboxError(str(error).split("\n")[0]) from error
+                raise SandboxError(rules.db_words(error)) from error
             meta = files.read_meta()
             rules.noted(meta.log, made.table or "", made.kind, count)
             files.write_meta(meta)
@@ -1067,7 +1170,7 @@ class Sandbox:
         except SandboxError:
             raise
         except Exception as error:  # DuckDB's own words (a missing column, a type)
-            raise SandboxError(str(error).split("\n")[0]) from error
+            raise SandboxError(rules.db_words(error)) from error
         answer = {
             "columns": columns,
             "types": types,

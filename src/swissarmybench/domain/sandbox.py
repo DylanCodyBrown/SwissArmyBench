@@ -677,6 +677,46 @@ def unmade(meta: Meta, there: Iterable[str]) -> list[str]:
     return gone
 
 
+# ===== the sandbox keeps its keys (the owner approved, 2026-11-21): a duplicate refused as a database
+# would =====
+
+
+def check_key(key: Any, columns: Iterable[str]) -> list[str]:
+    """A primary key asked for: its columns' own names (any case), or SandboxError."""
+    wanted = [key] if isinstance(key, str) else list(key) if isinstance(key, (list, tuple)) else []
+    if not wanted or not all(isinstance(k, str) and k.strip() for k in wanted):
+        raise SandboxError("A key is one column's name, or a list of them.")
+    by_case = {c.casefold(): c for c in columns}
+    out = []
+    for k in wanted:
+        found = by_case.get(k.strip().casefold())
+        if found is None:
+            raise SandboxError(f"There is no column named {k} to be the key.")
+        out.append(found)
+    return list(dict.fromkeys(out))
+
+
+_DUPLICATE = re.compile(r'Duplicate key "(.+?)" violates (?:primary key|unique) constraint', re.S)
+_BLANK = re.compile(r'NOT NULL constraint failed: "?([^".]+)\.?([^"]*)"?', re.S)
+
+
+def db_words(error: BaseException | str) -> str:
+    """DuckDB's refusal of a write in one sentence, a key's as a database says it (its key and value)."""
+    text = str(error).split("\n")[0]
+    found = _DUPLICATE.search(text)
+    if found:
+        return f"Duplicate key: a row with {found.group(1)} is there already (its primary key)."
+    if "Data contains duplicates on indexed column" in text:
+        return "Duplicate key: two rows have the same key, so it cannot be the table's primary key."
+    blank = _BLANK.search(text)
+    if blank and "PRIMARY" in text.upper():
+        return "A key column cannot be blank: every row needs its primary key."
+    if blank:
+        column = blank.group(2) or blank.group(1)
+        return f"{column} cannot be blank."
+    return text
+
+
 def touched(meta: Meta, tables: Iterable[str], at: str) -> None:
     """A write's time on each table it changed (Last changed)."""
     for table in tables:

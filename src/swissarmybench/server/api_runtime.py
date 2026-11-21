@@ -21,6 +21,9 @@
                           export: the connection's own portable code (its variables set where it runs)
   records(cursor)         a DB-API cursor's rows as dicts by its description
   ApiError(status, msg)   an answer with that status and {"error": msg}
+  The body is checked against its model before the endpoint runs (a TypedDict's or a dataclass's fields,
+  nested ones and lists of them): a wrong type, a missing required field or an unknown one is a 422 naming
+  the field ({"error": "order.amount is a number, not '12'.", "field": "order.amount"}).
   handle(method, path, query, body)  one request: (status, headers, body bytes): what every target calls
 
 Standard library only: this file is copied as sab_api.py into each exported project.
@@ -57,12 +60,14 @@ _KINDS = {
 
 
 class ApiError(Exception):
-    """Raise ApiError(404, "No order 7.") for an answer with that status."""
+    """Raise ApiError(404, "No order 7.") for an answer with that status (`field`: the body's field it is
+    about, as order.lines[0].quantity)."""
 
-    def __init__(self, status: int, message: str) -> None:
+    def __init__(self, status: int, message: str, field: str | None = None) -> None:
         super().__init__(message)
         self.status = int(status)
         self.message = message
+        self.field = field
 
 
 @dataclasses.dataclass
@@ -178,17 +183,127 @@ def _convert(value: Any, kind: Any, name: str) -> Any:
             return datetime.date.fromisoformat(str(value)[:10])
         if kind is datetime.datetime:
             return datetime.datetime.fromisoformat(str(value))
-        if dataclasses.is_dataclass(kind) and isinstance(value, Mapping):
-            fields = {f.name for f in dataclasses.fields(kind)}
-            extra = [k for k in value if k not in fields]
-            if extra:
-                raise ApiError(422, f"{name} has no field {extra[0]!r}.")
-            return kind(**value)  # type: ignore[operator]
     except ApiError:
         raise
     except (TypeError, ValueError, ArithmeticError):
         wanted = getattr(kind, "__name__", str(kind))
         raise ApiError(422, f"{name} is not {_KINDS.get(wanted, 'a ' + wanted)}: {value!r}.") from None
+    return value
+
+
+# ===== the body checked against its model (the owner approved, 2026-11-21) =====
+
+_JSON_WORDS = {
+    "str": "text",
+    "int": "a whole number",
+    "float": "a number",
+    "Decimal": "a number",
+    "bool": "true or false",
+    "date": "a date (2026-01-15)",
+    "datetime": "a date and time (2026-01-15T09:30:00)",
+}
+
+
+def _wrong(at: str, kind: Any, value: Any) -> ApiError:
+    words = _JSON_WORDS.get(getattr(kind, "__name__", ""), getattr(kind, "__name__", str(kind)))
+    return ApiError(422, f"{at} is {words}, not {value!r}.", at)
+
+
+def _model_fields(kind: Any) -> tuple[dict[str, Any], set[str]]:
+    """A TypedDict's or a dataclass's fields (name -> type) and the required ones."""
+    if typing.is_typeddict(kind):
+        try:  # with the extras: NotRequired and Required are read even from postponed annotations
+            marked = typing.get_type_hints(kind, include_extras=True)
+        except Exception:
+            marked = dict(getattr(kind, "__annotations__", {}))
+        total = bool(getattr(kind, "__total__", True))
+        fields: dict[str, Any] = {}
+        required: set[str] = set()
+        for name, kind_of in marked.items():
+            origin = typing.get_origin(kind_of)
+            if origin is typing.Annotated:
+                kind_of = typing.get_args(kind_of)[0]
+                origin = typing.get_origin(kind_of)
+            if origin in (typing.Required, typing.NotRequired):
+                if origin is typing.Required:
+                    required.add(name)
+                kind_of = typing.get_args(kind_of)[0]
+            elif total:
+                required.add(name)
+            fields[name] = kind_of
+        return fields, required
+    hints = _hints(kind)
+    required = {
+        f.name
+        for f in dataclasses.fields(kind)
+        if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
+    }
+    return {f.name: hints.get(f.name, f.type) for f in dataclasses.fields(kind)}, required
+
+
+def checked(value: Any, kind: Any, at: str) -> Any:
+    """`value` (as JSON gave it) checked against `kind`: as sent, a dataclass made from it; ApiError(422)
+    naming the field where it does not fit."""
+    if kind in (inspect.Parameter.empty, Any, object) or isinstance(kind, (str, typing.TypeVar)):
+        return value
+    origin = typing.get_origin(kind)
+    if origin is typing.Union or str(origin) == "types.UnionType":
+        args = [a for a in typing.get_args(kind) if a is not type(None)]
+        if value is None and len(args) < len(typing.get_args(kind)):
+            return None
+        return checked(value, args[0], at) if args else value
+    if origin in (typing.Required, typing.NotRequired):  # an annotation get_type_hints kept
+        return checked(value, typing.get_args(kind)[0], at)
+    if origin is list or kind is list:
+        if not isinstance(value, list):
+            raise ApiError(422, f"{at} is a list (JSON [...]), not {value!r:.40}.", at)
+        inner = typing.get_args(kind)
+        return [checked(v, inner[0], f"{at}[{i}]") for i, v in enumerate(value)] if inner else value
+    if origin is dict or kind is dict:
+        if not isinstance(value, Mapping):
+            raise ApiError(422, f"{at} is a JSON object, not {value!r:.40}.", at)
+        return value
+    if typing.is_typeddict(kind) or dataclasses.is_dataclass(kind):
+        fields, required = _model_fields(kind)
+        if not isinstance(value, Mapping):
+            names = ", ".join(fields)
+            raise ApiError(422, f"{at} is a JSON object of {names}, not {value!r:.40}.", at)
+        extra = [k for k in value if k not in fields]
+        if extra:
+            raise ApiError(
+                422, f"{at} has no field {extra[0]!r} (it has: {', '.join(fields)}).", f"{at}.{extra[0]}"
+            )
+        missing = [k for k in fields if k in required and k not in value]
+        if missing:
+            raise ApiError(422, f"{at}.{missing[0]} is required.", f"{at}.{missing[0]}")
+        given = {k: checked(v, fields[k], f"{at}.{k}") for k, v in value.items()}
+        if dataclasses.is_dataclass(kind):
+            return kind(**given)  # type: ignore[operator]
+        return dict(value)
+    if kind is bool:
+        if not isinstance(value, bool):
+            raise _wrong(at, kind, value)
+        return value
+    if kind is int:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise _wrong(at, kind, value)
+        return value
+    if kind in (float, decimal.Decimal):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise _wrong(at, kind, value)
+        return value
+    if kind is str:
+        if not isinstance(value, str):
+            raise _wrong(at, kind, value)
+        return value
+    if kind in (datetime.date, datetime.datetime):
+        try:
+            if not isinstance(value, str):
+                raise ValueError(value)
+            kind.fromisoformat(value)
+        except ValueError:
+            raise _wrong(at, kind, value) from None
+        return value
     return value
 
 
@@ -292,7 +407,7 @@ def call(e: Endpoint, path_values: Mapping[str, str], query: Mapping[str, Any], 
                 if p.default is inspect.Parameter.empty:
                     raise ApiError(422, f"{p.name} is the request's JSON body: send one.")
                 continue
-            given[p.name] = _convert(body, kind, p.name)
+            given[p.name] = checked(body, kind, p.name)
         elif p.name in query:
             given[p.name] = _convert(query[p.name], kind, p.name)
         elif p.default is inspect.Parameter.empty:
@@ -319,7 +434,10 @@ def handle(
     try:
         result = call(e, values, dict(query or {}), parsed)
     except ApiError as error:
-        return error.status, headers, json.dumps({"error": error.message}).encode()
+        refused: dict[str, Any] = {"error": error.message}
+        if error.field:
+            refused["field"] = error.field
+        return error.status, headers, json.dumps(refused).encode()
     except Exception as error:  # the endpoint's own failure, in its words
         if on_failure is not None:
             on_failure(error)

@@ -4298,6 +4298,7 @@ _SANDBOX = {
     "restore": ("POST", "/sandbox/checkpoints/restore"),
     "variant": ("POST", "/sandbox/tables/variant"),
     "mock": ("POST", "/sandbox/tables/mock"),
+    "key": ("POST", "/sandbox/tables/key"),
     "edit": ("POST", "/sandbox/edit"),
 }
 
@@ -4309,8 +4310,8 @@ _SANDBOX = {
     opt(
         "args",
         'list: {"sort": name|rows|source|created|changed, "order"}; add: {"from", ...}; variant: {"from": '
-        'grid|structure, "table"|"structure", "name"?}; mock: {"table", "connection"}; edit: {"table", "op", '
-        '...}; others: {"table"} or {"name"}.',
+        'grid|structure, "table"|"structure", "name"?}; mock: {"table", "connection"}; key: {"table", "key": '
+        'column or [columns]}; edit: {"table", "op", ...}; others: {"table"} or {"name"}.',
         "json",
     ),
 )

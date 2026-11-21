@@ -1255,6 +1255,15 @@ def bootstrap(
             out.append(str(c["name"]))
         return sorted(out, key=str.casefold)
 
+    def sandbox_key(connection: str, place: Place) -> list[str]:
+        """A connection's table's primary key as the shared catalog knows it ([]: not known)."""
+        for name in (".".join(p for p in (place.schema, place.table) if p), place.table):
+            try:
+                return [str(c) for c in shared_catalog.table(connection, name).get("primary_key") or []]
+            except (LookupError, ValueError):
+                continue
+        return []
+
     def sandbox_ignore(folder: str) -> None:
         archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
 
@@ -1271,6 +1280,7 @@ def bootstrap(
             structure_fn=structures.records_table,
             view_rows_fn=sandbox_view_rows,
             connections_fn=sandbox_connections,
+            key_fn=sandbox_key,
         ),
         approvals,
         lambda sql: duckdb_grammar().parse(sql),
@@ -1647,6 +1657,7 @@ def bootstrap(
     local_api.publish = publish_api
     intellisense.sandbox_clients = sandbox.mock_names
     intellisense.sandbox_tables = sandbox.table_columns
+    intellisense.sandbox_mocks = sandbox.mock_dialects
 
     return Services(
         settings=settings,

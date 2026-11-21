@@ -312,6 +312,7 @@ class Quoted:
     typed: str
     start: int
     table: str | None = None
+    tables: tuple[str, ...] = ()  # a sandbox column's: the tables its statement names
 
 
 _QUOTED = (
@@ -336,8 +337,41 @@ _QUOTED = (
 )
 
 
+# API.py: an SQL string a mock sends (one line or three quotes over several): the statement so far.
+_SQL_OPEN = re.compile(r"\.(?:execute|executemany|read_arrow)\(\s*[rRfF]?(\"\"\"|\'\'\'|\"|\')")
+_SQL_TABLE_AT = re.compile(r"\b(?:FROM|JOIN|INTO|UPDATE)\s+(?:\w+\.)?(\w*)$", re.I)
+_SQL_NAMED = re.compile(r"\b(?:FROM|JOIN|INTO|UPDATE)\s+(?:\w+\.)?(\w+)", re.I)
+
+
+def sql_context(text: str, offset: int) -> Quoted | None:
+    """Inside an SQL string API.py sends through a mock: a table after FROM, JOIN, INTO or UPDATE
+    (sandbox_table), else a column (sandbox_column, with the tables the whole statement names)."""
+    before = text[max(0, offset - 4000) : offset]
+    opened = None
+    for found in _SQL_OPEN.finditer(before):
+        opened = found
+    if opened is None:
+        return None
+    quote = opened.group(1)
+    sql = before[opened.end() :]
+    if quote in sql or (len(quote) == 1 and "\n" in sql):
+        return None  # that string closed: the cursor is not in it
+    word = re.search(r"(\w*)$", sql)
+    typed = word.group(1) if word else ""
+    table = _SQL_TABLE_AT.search(sql)
+    if table:
+        return Quoted("sandbox_table", table.group(1), offset - len(table.group(1)))
+    end = text.find(quote, offset)
+    whole = sql + (text[offset:end] if end >= 0 else "")
+    named = tuple(dict.fromkeys(m.group(1) for m in _SQL_NAMED.finditer(whole)))
+    return Quoted("sandbox_column", typed, offset - len(typed), None, named)
+
+
 def quoted_context(text: str, offset: int) -> Quoted | None:
     """The app's names the cursor's string wants, or None (a plain string, or code)."""
+    sql = sql_context(text, offset)
+    if sql is not None:
+        return sql
     before = text[max(0, offset - 300) : offset]
     line = before[before.rfind("\n") + 1 :]
     for pattern, kind in _QUOTED:
@@ -971,3 +1005,66 @@ def markdown_doc(signature: str, doc: str, origin: str = "") -> str:
 def _escape(text: str) -> str:
     """Words for markdown: no HTML (the page renders markdown without it)."""
     return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
+# ===== sab_api, what API.py imports (server/api_runtime.py, copied as sab_api.py into each export) =====
+
+SAB_API_IMPORT = re.compile(r"^\s*from\s+sab_api\s+import\s+(?:\(?\s*)?(?:\w+\s*,\s*)*(\w*)$", re.M)
+SAB_API_MODULE = "swissarmybench.server.api_runtime"
+_SAB_API: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "endpoint",
+        "function",
+        'endpoint(method, path, *, summary="", status=200)',
+        "Registers the function as an endpoint: a path's {names} are its parameters; a TypedDict or "
+        "dataclass "
+        "parameter is the JSON body (checked against it: 422 naming the field); the rest are the query's.",
+    ),
+    (
+        "connection",
+        "function",
+        "connection(name)",
+        "The connection's client: here a mock with the real client's shape over the project's sandbox; in an "
+        "export, the connection's own portable code.",
+    ),
+    (
+        "records",
+        "function",
+        "records(cursor)",
+        "A DB-API cursor's rows as dicts, by its description's names.",
+    ),
+    (
+        "ApiError",
+        "class",
+        "ApiError(status, message, field=None)",
+        'Raise it for an answer with that status and {"error": message}.',
+    ),
+)
+
+
+def sab_api_names() -> list[dict[str, Any]]:
+    """The completions after `from sab_api import`: sab_api's own names, with their words."""
+    return [
+        {
+            "label": n,
+            "kind": k,
+            "detail": sig,
+            "documentation": markdown_doc(sig, doc, "sab_api"),
+            "group": "app",
+        }
+        for n, k, sig, doc in _SAB_API
+    ]
+
+
+def sab_api_for_jedi(code: str, cursor_line: int) -> str:
+    """API.py as Jedi reads it: `sab_api` (a copy of the app's runtime) imported from where it lives, so its
+    names complete and hover. The cursor's line (0-based) is left as typed, so the positions hold."""
+    lines = code.split("\n")
+    for at, line in enumerate(lines):
+        if at == cursor_line:
+            continue
+        lines[at] = re.sub(r"^(\s*from\s+)sab_api(\s+import\b)", rf"\g<1>{SAB_API_MODULE}\g<2>", line)
+        lines[at] = re.sub(
+            r"^(\s*)import\s+sab_api\s*$", rf"\g<1>import {SAB_API_MODULE} as sab_api", lines[at]
+        )
+    return "\n".join(lines)

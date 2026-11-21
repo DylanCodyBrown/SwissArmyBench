@@ -80,6 +80,8 @@ class Mocks(Protocol):
 
     async def listing(self) -> dict[str, Any]: ...
 
+    async def set_key(self, body: Any, who: str = "user") -> dict[str, Any]: ...
+
 
 def data_words(name: str, client: dict[str, Any] | None) -> str:
     """An endpoint's data in words: "Mock of Warehouse (sqlserver)", or why there is none yet."""
@@ -440,13 +442,21 @@ class LocalApi:
         written = text.rstrip("\n") + "\n" + ("\n" + needs if needs else "") + block
         self._files.write(self.path(), written)
         await self._told(who, "local_api_scaffold", table=table["name"])
+        note = ""
+        if not any(c.get("key") for c in table["columns"]):  # the endpoint's key: the sandbox keeps it too
+            key = scaffold_rules.chosen_key(table["columns"], given.get("key") or None)
+            try:
+                await self._mocks.set_key({"table": table["name"], "key": [key]}, who)
+            except (ValueError, LookupError, Conflict) as error:
+                note = f"{table['name']} has no primary key in the sandbox: {error}"
         state = await self.state()
         made = [
             e
             for e in state.get("endpoints") or []
             if e["name"].endswith("_" + scaffold_rules.stem(table["name"]))
         ]
-        return state | {"added": [e["name"] for e in made], "line": text.count("\n") + 2}
+        done = state | {"added": [e["name"] for e in made], "line": text.count("\n") + 2}
+        return done | ({"note": note} if note else {})
 
     # ===== run, stop =====
 

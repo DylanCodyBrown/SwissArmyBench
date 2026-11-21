@@ -193,7 +193,10 @@
                 "saved": {
                   "actions": [
                     {
-                      "body": "",
+                      "body": {
+                        "fields": "fields",
+                        "title": "title"
+                      },
                       "do": "call",
                       "endpoint": "PUT /forms/{form_id}",
                       "params": {

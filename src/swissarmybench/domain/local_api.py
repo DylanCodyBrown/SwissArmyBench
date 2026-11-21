@@ -817,3 +817,66 @@ def with_examples(document: dict[str, Any], examples: Mapping[str, Any], base: s
             if key in examples and isinstance(content, dict):
                 content["example"] = examples[key]
     return document
+
+
+# ===== API.py's own problems in its editor (the owner approved the critic's proposal 8, 2026-11-21) =====
+
+
+def is_api_file(path: Any) -> bool:
+    """A document is a project's API.py (its name, any folder)."""
+    return isinstance(path, str) and re.split(r"[\\/]", path)[-1] == FILE
+
+
+def editor_problems(
+    text: str, mocks: Mapping[str, tuple[str, list[str]]] | None = None
+) -> list[dict[str, Any]]:
+    """What the APIs page says of API.py, as the editor's squiggles: {line, message}. Its own rules (a path
+    with no parameter, two endpoints on one path, ...); with the sandbox's mocks ({name: (dialect, tables)}):
+    a connection with no table in the sandbox yet, and each SQL string the mock would refuse (checked by the
+    mock's own rule, never run). Python's own syntax errors are the editor's lint's, not repeated here."""
+    from swissarmybench.domain import sandbox_dialects as dialects  # the mock's rule, imported when asked
+    from swissarmybench.domain.sandbox import SandboxError
+
+    api = parse(text)
+    if not api.endpoints and any(p["message"].startswith("Python could not read it") for p in api.problems):
+        return []
+    out = [{"line": int(p.get("line") or 1), "message": str(p["message"])} for p in api.problems]
+    if mocks is None:
+        return out
+    known = {k.casefold(): v for k, v in mocks.items()}
+    lines = text.splitlines()
+    for e in api.endpoints:
+        for name in e.connections:
+            if name.casefold() in known:
+                continue
+            at = next(
+                (
+                    i + 1
+                    for i in range(e.line - 1, min(e.end, len(lines)))
+                    if f"connection({name!r}" in lines[i].replace('"', "'")
+                ),
+                e.line,
+            )
+            out.append(
+                {
+                    "line": at,
+                    "message": f"The sandbox has no table read from {name} yet: Add to sandbox one of its "
+                    "tables.",
+                }
+            )
+        mine = [known[n.casefold()] for n in e.connections if n.casefold() in known]
+        if len(mine) != 1:
+            continue  # which mock sends it is not known here
+        dialect, tables = mine[0]
+        for sql in e.sql:
+            try:
+                dialects.to_duckdb(sql.get("text"), dialect, None, tables)
+            except SandboxError as error:
+                said = str(error)
+                if "has no value" in said:
+                    continue  # its values come at run time
+                found = re.match(r"Line (\d+): (.*)$", said, re.S)
+                line = int(sql.get("line") or e.line) + (int(found.group(1)) - 1 if found else 0)
+                words = found.group(2) if found else said
+                out.append({"line": line, "message": words[:1].upper() + words[1:]})
+    return sorted(out, key=lambda p: p["line"])

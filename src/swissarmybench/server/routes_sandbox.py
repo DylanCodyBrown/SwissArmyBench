@@ -62,6 +62,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         Route("/sandbox/tables/open", with_body(sandbox.open_grid), methods=["POST"]),
         Route("/sandbox/tables/variant", with_body(sandbox.variant), methods=["POST"]),
         Route("/sandbox/tables/mock", with_body(sandbox.mock), methods=["POST"]),
+        Route("/sandbox/tables/key", with_body(sandbox.set_key), methods=["POST"]),
         Route("/sandbox/edit", with_body(sandbox.edit), methods=["POST"]),
         Route("/sandbox/reset", with_body(sandbox.reset), methods=["POST"]),
         Route("/sandbox/baseline", with_body(sandbox.set_baseline), methods=["POST"]),
