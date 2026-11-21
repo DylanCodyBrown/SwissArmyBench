@@ -1247,8 +1247,8 @@ def blades_list(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_get",
-    "One blade whole: its code (read-only: edited in its file), settings, table name, how a connection's "
-    "tables are listed, packages",
+    "One blade whole: its code and the file's stamp, settings, table name, how a connection's tables are "
+    "listed, packages",
     req("name", "The blade's name."),
 )
 def blades_get(a: dict[str, Any]) -> Any:
@@ -1269,8 +1269,8 @@ def blades_templates(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_new",
-    "New blade: a .blade.py file in the library's blades/ folder from a template (no template: the choices). "
-    "Its code is then edited in the file, never through the app",
+    "New blade: a .blade.py file in the library's blades/ folder from a template (no template: the choices); "
+    "its code is then changed with blades_update",
     opt("template", "table, code, secret, snippet, or an analysis starter's id (none: the list)."),
     opt("name", "Its name (default: the template's)."),
     opt("table", "Its table's name, for a table blade (blades_table_name_check first)."),
@@ -1284,16 +1284,18 @@ def blades_new(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_update",
-    "Change a blade's name, description, tags or table name (its file's header; its code is edited in the "
-    "file, never here)",
+    "Change a blade's code (written into its file; a starter's refused: blades_copy) or its name, "
+    "description, tags, table name",
     req("name", "Its name now."),
+    opt("code", "Its new code (the Python after the file's header)."),
+    opt("stamp", "The stamp blades_get gave: refused (409) if the file changed on disk since."),
     opt("new_name", "A new name (renames it)."),
     opt("description", "What it loads, and for which app."),
     opt("tags", "Words to find it by.", "list"),
     opt("table", 'The name its result gets as a table ("": the name its code makes).'),
 )
 def blades_update(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("description", "tags", "table") if a.get(k) is not None}
+    body = {k: a[k] for k in ("code", "stamp", "description", "tags", "table") if a.get(k) is not None}
     if a.get("new_name"):
         body["name"] = a["new_name"]
     return api.call("PUT", f"/blades/{_q(a['name'])}", body)
@@ -1373,6 +1375,37 @@ def blades_refresh(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "blades_run",
+    "Run a blade as the IDE's Run does (its code, or `code` unsaved): its output, result (a table's first "
+    "rows and count, or a value), error and lint problems",
+    req("name", "The blade."),
+    opt("code", "Code to run instead of its saved code (nothing saved)."),
+    opt("env", '{"VAR": "value"}: values a secret blade asks for, for this run only.', "json"),
+    opt("open", "Then open its table result as a grid.", "bool"),
+    opt("cancel", "A run id going now: stop it."),
+)
+def blades_run(a: dict[str, Any]) -> Any:
+    name = _q(a["name"])
+    if a.get("cancel"):
+        return api.call("POST", f"/blades/runs/{_q(a['cancel'])}/cancel")
+    body = {k: a[k] for k in ("code", "env") if a.get(k) is not None}
+    ran = api.call("POST", f"/blades/{name}/run", body, timeout=900.0)
+    if a.get("open") and isinstance(ran, dict) and (ran.get("result") or {}).get("kind") == "table":
+        ran["opened"] = api.call("POST", f"/blades/{name}/result/open")
+    return ran
+
+
+@command(
+    "blades_problems",
+    "The lint's problems in a blade's code (or `code`): line, column, message, severity, fixes",
+    req("name", "The blade."),
+    opt("code", "Code to check instead of its saved code."),
+)
+def blades_problems(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/blades/{_q(a['name'])}/problems", {"code": a.get("code")})
+
+
+@command(
     "blades_install",
     "Install packages into the app's own Python (where Test and Refresh run)",
     req("packages", "pip names, such as pyodbc.", "list"),
@@ -1436,12 +1469,13 @@ def blades_starters(a: dict[str, Any]) -> Any:
 
 @command(
     "blades_copy",
-    "Copy a starter (or a pack's blade) as the user's own",
-    req("name", "The starter."),
+    "Copy a starter (or a pack's blade) as the user's own; Save as with code",
+    req("name", "The starter or blade."),
     opt("new_name", "The copy's name (default: <name> copy)."),
+    opt("code", "The copy's code (default: its own)."),
 )
 def blades_copy(a: dict[str, Any]) -> Any:
-    body = {"name": a["new_name"]} if a.get("new_name") else {}
+    body = {k: v for k, v in (("name", a.get("new_name")), ("code", a.get("code"))) if v is not None}
     return api.call("POST", f"/blades/{_q(a['name'])}/copy", body)
 
 

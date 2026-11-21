@@ -173,6 +173,9 @@ NOT_COMMANDS = {
     "/blades/{}/show": "Show its file opens the user's own file manager at a blade's file: the user's click "
     "only (403 for the agent), as the Project Explorer's Show in folder",
     "/blades/export": "a zip of many: blades_export gives each blade's text",
+    "/blades/{}/code": "the open blade IDE's look for an edit made outside (page plumbing): blades_get gives "
+    "the code and its stamp",
+    "/blades/name-check": "Save as's live check: blades_copy refuses a taken name with the same words",
     "/workbench/handoffs": "a document moving between windows: workbench_pop_out, workbench_move_back",
     "/workbench/handoffs/{}": "the same: whether the other window took it, or it stays",
     "/workbench/handoffs/{}/take": "the same: the window that takes it (page plumbing)",
