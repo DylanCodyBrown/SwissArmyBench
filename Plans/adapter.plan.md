@@ -270,3 +270,14 @@ does.
 - **A snapshot of a grid in an export:** only on a tick. Off by default; "Keep a snapshot" per grid writes it as
   Parquet beside the export (Git-ignored, like `.sab/data/`); without the tick no row is ever written.
 - **When to build:** now, in parallel with other work; 0.0.32 is not released yet.
+
+## The owner's answers after phase 1 (2026-11-21)
+- **A fifth write mode, `truncate`:** truncate and insert (the owner: "Truncate is better terminology. Truncate and
+  insert"): the table's (or an Excel sheet's) rows all replaced in one go, all or none, everything else kept. For
+  every source.
+- **The rule covers everything, the engine too** (asked: does "every data call goes through the adapter" cover the
+  app's own DuckDB engine working on grids already loaded, the steps, the SQL box, views, analyses? The owner: "Yes,
+  everything"). So the open grids are a source of the adapter like any other (tables: the open grids; read: a plan
+  over a grid's view, steps applied; write: an edit), and the steps, the SQL box, views, the analyses, exports and
+  kernels reach rows only through it. The boundary test (tests/test_adapter_boundary.py) grows to enforce it for every
+  path as each one moves; its list from phase 1 is the work list.
