@@ -4381,6 +4381,13 @@ Checked:
 - The merge of share-app: its Share… among the launched app's entries (tests/e2e/test_share_app_page.py updated
   for the longer ▾ menu).
 
+Runs (Chromium, Streamlit 1.67, the test bed up): the quick suite 4,868 passed, 4 failed under load (each passes
+alone but tests/test_performance.py::test_million_row_targets, a timing test on a shared machine); the e2e suite
+383 passed, 11 failed: use cases 1 and 4 to 10 of test_real_world.py fail at the Workbench's "Add a blade" and the
+catalog tree, which moved with the Scripts page before this branch (11 and 11a pass); test_claude_launch_page's
+Workbench status bar is hidden with nothing open on the base too; two Workbench tests that fail under load pass
+alone.
+
 Not checked: a real connection catalog's picker list in the browser (the listing is checked over HTTP only); the
 analyzer's "needless rerun" hint on the Canvas (it cannot fire: the canvas does not know which widget makes a
 value); the desktop app's own windows for Launch with the analyzer (Chromium's popups only).
