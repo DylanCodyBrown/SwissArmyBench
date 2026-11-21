@@ -26,13 +26,6 @@ GONE: dict[str, str] = {
     name: f"{name} went (2026-11-21): app notebooks and their canvases were replaced by widgets and the Canvas: "
     "widgets_* make and run widgets, canvas_* build a page of them."
     for name in [
-        "A function's cache decorator in a cell's code: st.cache_data or st.cache_resource, its settings, or none",
-        "A widget's event handler: a function stub in its cell and on_change= (or on_click=) set",
-        "Install Streamlit into the app's Python (when streamlit_run says so)",
-        "The front canvas: its app id (for streamlit_*), page, blocks or live page",
-        "build_relaunch",
-        "build_restore",
-        "builds_compare",
         "canvas_add",
         "canvas_add_handler",
         "canvas_arrange",
@@ -47,10 +40,6 @@ GONE: dict[str, str] = {
         "canvas_state_set",
         "canvas_table",
         "canvas_toolbox",
-        "go inside with streamlit_block_change parent, slot)",
-        "perf_attach",
-        "perf_hints",
-        "perf_session",
         "streamlit_address",
         "streamlit_app",
         "streamlit_apps",
@@ -315,11 +304,120 @@ def canvas_export(a: dict[str, Any]) -> Any:
 
 @command(
     "app_launch",
-    "Launch a canvas (Visual Studio's F5): a new build in builds/<app>/<n>/, run in its own window",
+    "Launch a canvas (Ctrl+F5): a new build in builds/<app>/<n>/, run in its own window; analyzer=true attaches "
+    "the Performance Analyzer from its first load (Ctrl+Shift+F5)",
     req("canvas", "The canvas's id."),
+    opt("analyzer", "true: record with the Performance Analyzer from the first load.", "bool"),
 )
 def app_launch(a: dict[str, Any]) -> Any:
-    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/launch", {})
+    body = {"analyzer": True} if a.get("analyzer") else {}
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/launch", body)
+
+
+@command("app_stop", "Stop a canvas's launched app (its build stays)", req("canvas", "The canvas's id."))
+def app_stop(a: dict[str, Any]) -> Any:
+    return api.call("DELETE", f"/streamlit/canvases/{_q(a['canvas'])}/launch")
+
+
+@command(
+    "builds_list",
+    "A canvas's builds, newest first: number, time, what changed in words, result, saved analyzer sessions",
+    req("canvas", "The canvas's id."),
+)
+def builds_list(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/builds")
+
+
+@command(
+    "builds_files",
+    "One build's files as launched (read-only): app.py, the pages, sab_widgets.py, canvas.json, build.json",
+    req("canvas", "The canvas's id."),
+    req("build", "The build's number.", "int"),
+)
+def builds_files(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}")
+
+
+@command(
+    "builds_compare",
+    "Two builds file by file (changed, added, removed; each side's text); without b, build a against the canvas now",
+    req("canvas", "The canvas's id."),
+    req("a", "The first build's number.", "int"),
+    opt("b", "The second build's number (none: the canvas as it is now).", "int"),
+)
+def builds_compare(a: dict[str, Any]) -> Any:
+    more = f"&b={int(a['b'])}" if a.get("b") is not None else ""
+    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/builds/compare?a={int(a['a'])}{more}")
+
+
+@command(
+    "build_relaunch",
+    "Run an old build again, its own code as it was launched",
+    req("canvas", "The canvas's id."),
+    req("build", "The build's number.", "int"),
+)
+def build_relaunch(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}/launch", {})
+
+
+@command(
+    "build_restore",
+    "Put a build's canvas back as one change (canvas_undo takes it back); the library's widgets stay as they are",
+    req("canvas", "The canvas's id."),
+    req("build", "The build's number.", "int"),
+)
+def build_restore(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}/restore", {})
+
+
+@command(
+    "perf_attach",
+    "The Performance Analyzer on a launched canvas: attach (on), pause (on=false), a new session (clear), detach",
+    req("canvas", "The canvas's id."),
+    opt("on", "false: pause the recording.", "bool"),
+    opt("clear", "true: start a new session.", "bool"),
+    opt("detach", "true: stop recording and let go.", "bool"),
+)
+def perf_attach(a: dict[str, Any]) -> Any:
+    path = f"/streamlit/canvases/{_q(a['canvas'])}/perf"
+    if a.get("detach"):
+        return api.call("DELETE", path)
+    return api.call("POST", path, {k: a[k] for k in ("on", "clear") if a.get(k) is not None})
+
+
+@command(
+    "perf_session",
+    "The analyzer's session: each rerun (trigger, each widget's time), calls, caches, the web socket, hints",
+    req("canvas", "The canvas's id."),
+)
+def perf_session(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/perf")
+
+
+@command(
+    "perf_saved",
+    "A saved analyzer session, as it was recorded (builds_list names each build's sessions)",
+    req("canvas", "The canvas's id."),
+    req("build", "The build's number.", "int"),
+    req("file", "The session's file: perf-<time>.json."),
+)
+def perf_saved(a: dict[str, Any]) -> Any:
+    path = f"/streamlit/canvases/{_q(a['canvas'])}/builds/{int(a['build'])}/perf/{_q(a['file'])}"
+    return api.call("GET", path)
+
+
+@command("perf_hints", "The analyzer's hints in plain words", req("canvas", "The canvas's id."))
+def perf_hints(a: dict[str, Any]) -> Any:
+    return api.call("GET", f"/streamlit/canvases/{_q(a['canvas'])}/perf/hints")
+
+
+@command(
+    "perf_save",
+    "Save the analyzer's session into its build (perf-<time>.json)",
+    req("canvas", "The canvas's id."),
+)
+def perf_save(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/streamlit/canvases/{_q(a['canvas'])}/perf/save", {})
 
 
 # ===== widgets (the owner, 2026-11-21: a widget replaces app cells and app notebooks) =====

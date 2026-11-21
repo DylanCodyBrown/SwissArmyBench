@@ -22,6 +22,7 @@ lose work or leave a broken page.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import time
 from collections.abc import Awaitable, Callable
@@ -84,6 +85,9 @@ class Canvases:
         self._builds = builds  # adapters/build_files.py BuildFiles (Launch's builds/ in the project)
         self._now = now
         self._open: dict[str, Open] = {}
+        self.launches: Any = (
+            None  # services/launch.py Launches (Launch, Builds, the analyzer), set by the root
+        )
         widgets.renamed = self.rename_widget
 
     # ===== open =====
@@ -171,7 +175,7 @@ class Canvases:
                 missing.append(node["id"])
                 continue
             props = {p.name: p for p in built[node["widget"]].properties}
-            own = props_rules.Context(context.tables, context.variables, dict(node["values"]))
+            own = dataclasses.replace(context, values=dict(node["values"]))
             for key, value in node["values"].items():
                 if key in props:
                     try:
@@ -277,6 +281,30 @@ class Canvases:
         self.ws.audit.write(who, "canvas_redo" if redo else "canvas_undo", opened.path)
         return self.state(canvas)
 
+    async def replace(
+        self,
+        canvas: str,
+        after: dict[str, Any],
+        who: str = "user",
+        why: str = "canvas_replace",
+        window: str = "",
+    ) -> dict[str, Any]:
+        """The whole canvas replaced by another as ONE change (a build's Restore): its rules checked first,
+        kept for Undo, written atomically only when its bytes change."""
+        opened = self._get(canvas)
+        self._writable(opened)
+        await self._fresh(opened)
+        found = model.problems(after, self._facts())
+        if found:
+            raise Refused(f"It does not fit the canvas's rules: {found[0]}")
+        if after != opened.canvas:
+            opened.back.append(opened.canvas)
+            del opened.back[:-HISTORY]
+            opened.forward.clear()
+            await self._keep(opened, after, window)
+            self.ws.audit.write(who, why.split(" ", 1)[0], f"{opened.path} {why.partition(' ')[2]}".strip())
+        return self.state(canvas)
+
     async def rename_widget(self, old: str, new: str) -> int:
         """A widget renamed: every instance of it, in the open canvases and the project's canvas files."""
         count = 0
@@ -341,8 +369,11 @@ class Canvases:
         run = (body or {}).get("run") if isinstance(body, dict) else None
         if run not in (None, "play", "launch"):
             raise Refused("run is play or launch.")
+        opened = self._get(canvas)
+        if run == "launch" and self.launches is not None:
+            return {"ok": (await self.launches.stop(opened.id))["ok"]}
         prefix = "launch" if run == "launch" else "canvas"
-        return {"ok": await self._live.stop(f"{prefix}-{self._get(canvas).id}")}
+        return {"ok": await self._live.stop(f"{prefix}-{opened.id}")}
 
     async def check(self, canvas: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         opened = self._get(canvas)
@@ -376,56 +407,6 @@ class Canvases:
         where, written = self._app_files.export(chosen, files, tables)
         self.ws.audit.write(who, "export_canvas", f"{opened.path} -> {where}")
         return {"folder": where, "files": written}
-
-    async def launch(self, canvas: str, body: Any = None, who: str = "user") -> dict[str, Any]:
-        """Launch (the owner, 2026-11-19: "think Visual Studio"): the app built into the project's
-        builds/<app>/<n>/ (its files, the canvas, build.json: what changed in words) and run from that build
-        in a process of its own, for a window of its own."""
-        from datetime import UTC, datetime
-
-        from swissarmybench_streamlit.domain import builds as build_rules_
-
-        opened = self._get(canvas)
-        if self._builds is None:
-            raise Conflict("Builds are not kept here.")
-        project = opened.path.rsplit("/", 1)[0]
-        name = opened.path.rsplit("/", 1)[-1][: -len(model.SUFFIX)]
-        folder = self._builds.join(project, build_rules_.BUILDS, build_rules_.folder_name(name))
-        taken = self._builds.builds(folder)
-        number = build_rules_.next_number(taken)
-        files, names = self._app(opened)
-        canvas_text = model.write(opened.canvas)
-        before = (
-            self._builds.read_one(self._builds.join(folder, taken[-1]), model.SUFFIX[1:]) if taken else None
-        )
-        changed = (
-            ["The first build."]
-            if before is None
-            else (
-                ["The layout changed."]
-                if build_rules_.digest(before) != build_rules_.digest(canvas_text)
-                else ["Nothing changed."]
-            )
-        )
-        stamp = datetime.fromtimestamp(self._now(), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        kept = dict(files) | {model.SUFFIX[1:]: canvas_text}
-        kept[build_rules_.BUILD_FILE] = build_rules_.build_json(
-            number, stamp, name, canvas_text, changed, "started", None
-        )
-        build = self._builds.join(folder, str(number))
-        self._builds.write(build, kept)
-        tables = await self._widgets.tables_for(names)
-        run_files = dict(files) | {"app.py": build_rules_.titled(files["app.py"], name, number)}
-        answer: dict[str, Any] = await self._live.run(
-            f"launch-{opened.id}", run_files, tables, self._widgets.python(body)
-        )
-        self.ws.audit.write(who, "app_launch", f"{name}: build {number}")
-        return answer | {
-            "build": number,
-            "folder": build,
-            "changed": changed,
-            "title": f"{name} · build {number}",
-        }
 
     async def close(self, canvas: str) -> dict[str, Any]:
         opened = self._open.pop(canvas, None)

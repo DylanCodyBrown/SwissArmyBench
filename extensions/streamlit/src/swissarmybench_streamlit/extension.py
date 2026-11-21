@@ -43,6 +43,9 @@ PROJECT_TYPE = "streamlit"
 FRONT_END = ["streamlit-canvas", "widgets"]
 # Its commands' area (cli/commands.py AREAS: the prefix, then what it works on).
 AREAS = (
+    ("builds", "Builds: every launch of a canvas, kept in its project's builds/ (list, files, compare)"),
+    ("build", "One build: run it again, put its canvas back"),
+    ("perf", "The Performance Analyzer: a launched canvas's reruns, calls, caches, web socket, hints"),
     ("canvas", "The Canvas: pages of containers and widget instances in px, sizing, snap, Play, Export"),
     (
         "widgets",
@@ -98,9 +101,10 @@ def describe() -> dict[str, Any]:
 def routes(services: Any) -> list[Any]:
     """Its routes, its services built from the base's (bootstrap's Services), and the base's hooks filled."""
     from swissarmybench.server import streamlit_proxy
+    from swissarmybench.services.ports import BACKGROUND
     from swissarmybench.settings import Settings
     from swissarmybench_streamlit.adapters.build_files import BuildFiles
-    from swissarmybench_streamlit.adapters.streamlit_files import AppFiles
+    from swissarmybench_streamlit.adapters.streamlit_files import AppFiles, parquet_of
     from swissarmybench_streamlit.adapters.widget_files import (
         CanvasFiles,
         PreviewFiles,
@@ -108,11 +112,12 @@ def routes(services: Any) -> list[Any]:
         folder_names,
         read_text,
     )
-    from swissarmybench_streamlit.server import routes_canvases, routes_widgets
+    from swissarmybench_streamlit.server import routes_canvases, routes_launch, routes_widgets
     from swissarmybench_streamlit.server.live_runs import LiveRuns
     from swissarmybench_streamlit.server.previews import Previewer
     from swissarmybench_streamlit.server.streamlit_apps import Runner
     from swissarmybench_streamlit.services.canvas import Canvases
+    from swissarmybench_streamlit.services.launch import Launches
     from swissarmybench_streamlit.services.open_tables import OpenTables
     from swissarmybench_streamlit.services.widgets import Widgets
 
@@ -146,6 +151,37 @@ def routes(services: Any) -> list[Any]:
             return None
 
     tables = OpenTables(services.ws, services.export_writer)
+    # A table property also takes data.ipynb's tables (data.py's names) and a connection's [Conn].table,
+    # read through the connection-tables contract: the one gate, so each connection's query limit holds.
+    from swissarmybench_streamlit.domain.widget_properties import module_tables
+
+    connection_tables = getattr(services, "connection_tables", None)
+
+    def data_tables() -> list[str]:
+        folder = project_folder()
+        return module_tables(read_text(str(Path(folder) / "data.py"))) if folder else []
+
+    def connection_names() -> set[str]:
+        return set(connection_tables.names()) if connection_tables is not None else set()
+
+    async def connection_listing() -> dict[str, list[str] | None]:
+        out: dict[str, list[str] | None] = {}
+        if connection_tables is None:
+            return out
+        for name in connection_tables.names():
+            try:
+                out[name] = await connection_tables.listed(name)
+            except Exception:  # noqa: S112 (a key vault, a kind with no tables: not offered)
+                continue
+        return out
+
+    async def read_connection_table(reference: str) -> bytes:
+        if connection_tables is None:
+            raise LookupError("Connections are not here.")
+        table = await connection_tables.read_named(reference)
+        found: bytes = await services.ws.workers.run(BACKGROUND, parquet_of, table)
+        return found
+
     widgets = Widgets(
         services.ws,
         WidgetFiles(
@@ -160,6 +196,10 @@ def routes(services: Any) -> list[Any]:
         variables=lambda: set(os.environ),
         variable_names=variable_names,
         project_folder=project_folder,
+        data_tables=data_tables,
+        connections=connection_names,
+        connection_listing=connection_listing,
+        read_connection_table=read_connection_table,
     )
     # The Canvas: the project's <app>.canvas.json files, every change rule-checked, kept and undoable.
     canvases = Canvases(
@@ -175,10 +215,14 @@ def routes(services: Any) -> list[Any]:
         real_path=lambda path: os.path.realpath(os.path.expanduser(path)),
         builds=BuildFiles(),
     )
+    # Launch, Builds and the Performance Analyzer (Visual Studio's F5, its history, its profiler).
+    launches = Launches(canvases, live_runs, BuildFiles())
+    canvases.launches = launches
     # Each widget's preview, rendered headless once (Play's own builder and run) and kept by its hash.
     previewer = Previewer(widgets, live_runs)
     services.widgets = widgets
     services.canvases = canvases
+    services.launches = launches
     services.live_runs = live_runs
     services.previewer = previewer
 
@@ -190,7 +234,11 @@ def routes(services: Any) -> list[Any]:
     return [
         *routes_widgets.routes(widgets, previewer, web_root),
         *routes_canvases.routes(canvases, web_root),
-        *streamlit_proxy.routes(live_runs.port_of, prefix=LIVE_RUN, what="This widget or canvas"),
+        *routes_launch.routes(launches, web_root),
+        # The analyzer's tap: each websocket message of a launched app it records (its kind and size only).
+        *streamlit_proxy.routes(
+            live_runs.port_of, prefix=LIVE_RUN, what="This widget or canvas", tap=launches.tap
+        ),
     ]
 
 
@@ -213,6 +261,9 @@ async def stop(services: Any) -> None:
     previewer = getattr(services, "previewer", None)
     if previewer is not None:
         await previewer.stop()
+    launches = getattr(services, "launches", None)
+    if launches is not None:
+        await launches.stop_all()
     live_runs = getattr(services, "live_runs", None)
     if live_runs is not None:
         await live_runs.stop_all()

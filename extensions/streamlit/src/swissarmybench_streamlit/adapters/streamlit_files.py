@@ -129,3 +129,14 @@ class AppFiles:
             target.write_bytes(data)
             written.append(f"data/{name}.parquet")
         return str(root), sorted(written)
+
+
+def parquet_of(table: object) -> bytes:
+    """An Arrow table as Parquet's bytes (a connection's table read for a run: data/<stem>.parquet)."""
+    import io
+
+    import pyarrow.parquet as pq
+
+    out = io.BytesIO()
+    pq.write_table(table, out)
+    return out.getvalue()

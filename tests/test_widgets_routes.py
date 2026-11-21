@@ -107,7 +107,7 @@ def test_a_property_is_written_back_into_its_own_characters_and_checked_first(
     assert said == {
         "ok": False,
         "said": "There is no table called sales here.",
-        "fix": "Pick an open table, or leave it empty for sample data.",
+        "fix": "Pick an open table, a data.ipynb table or a connection's, or leave it empty for sample data.",
     }
     assert ok(
         client.post(

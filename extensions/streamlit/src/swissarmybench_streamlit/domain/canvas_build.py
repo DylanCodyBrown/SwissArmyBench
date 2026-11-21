@@ -20,6 +20,7 @@ Pure rules: no I/O, standard library only.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections.abc import Mapping
@@ -43,6 +44,15 @@ class Built:
 
     code: str
     properties: tuple[Property, ...]
+
+
+def table_stem(name: str) -> str:
+    """A table's file name in the run's data/ folder: an open table's own name, or for another (a
+    connection's `[Conn].table`) its words made safe with a short digest (the runtime's own _stem)."""
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,80}", name):
+        return name
+    base = re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")[:60] or "table"
+    return f"{base}_{hashlib.sha256(name.encode('utf-8')).hexdigest()[:8]}"
 
 
 def slug(name: str) -> str:
@@ -193,8 +203,9 @@ def page_code(
         "import sab_canvas as sab",
         "",
         f"sab.style({json.dumps(' '.join(writer.css))})",
+        f"sab.begin({json.dumps(page['name'], ensure_ascii=False)})",
     ]
-    return "\n".join([*head, *writer.lines]) + "\n"
+    return "\n".join([*head, *writer.lines, "sab.finish()"]) + "\n"
 
 
 def widgets_module(widgets: Mapping[str, Built]) -> str:
@@ -344,10 +355,12 @@ shows a spinner while it works. Made-up sample data stands in when no table is p
 from __future__ import annotations
 
 import contextvars
+import hashlib
 import html
 import importlib
 import linecache
 import os
+import re
 import traceback
 from pathlib import Path
 from typing import Any
@@ -355,6 +368,11 @@ from typing import Any
 import streamlit as st
 
 import sab_widgets
+
+try:  # the Performance Analyzer's helper: beside a launched app's pages only (an export has none)
+    import sab_perf as _perf
+except Exception:
+    _perf = None
 
 _HERE = Path(__file__).resolve().parent
 _INSTANCE: contextvars.ContextVar[str] = contextvars.ContextVar("sab_instance", default="w")
@@ -400,16 +418,29 @@ def sample(rows: int = 24) -> Any:
     return frame
 
 
+def _stem(name: str) -> str:
+    """A table's file name in data/ (canvas_build.table_stem's twin): its own name, or made safe."""
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,80}", name):
+        return name
+    base = re.sub(r"[^A-Za-z0-9_]+", "_", name).strip("_")[:60] or "table"
+    return f"{base}_{hashlib.sha256(name.encode('utf-8')).hexdigest()[:8]}"
+
+
 def table(name: str = "") -> Any:
-    """A table by its name: the canvas's own copy (data/<name>.parquet), else data.py's, else none: said.
-    No name: the made-up sample."""
+    """A table by its name: the canvas's own copy (data/<name>.parquet; a connection's `[Conn].table` read
+    by the app as it ran), else data.py's, else none: said. No name: the made-up sample."""
     if not name:
         return sample()
-    path = _HERE / "data" / f"{name}.parquet"
+    path = _HERE / "data" / f"{_stem(name)}.parquet"
     if path.is_file():
         import pandas as pd
 
         return pd.read_parquet(path)
+    if name.startswith("["):
+        raise Missing(
+            f"The table {name[:80]} was not read: its connection did not answer, or it is past the query "
+            "limit. Check the connection on the Connections page."
+        )
     try:
         import data as _data  # the project's data.py, when it is beside the app
     except Exception:
@@ -428,6 +459,24 @@ def var(name: str) -> str:
             f"{name} is not set on this computer: set it on the Variables page (or the host's settings)."
         )
     return value
+
+
+def begin(page: str) -> None:
+    """A page's run begins (the Performance Analyzer's clock, when it is beside the app; else nothing)."""
+    if _perf is not None:
+        try:
+            _perf.start(str(_HERE), page)
+        except Exception:
+            pass
+
+
+def finish() -> None:
+    """A page's run ended (its record, when the analyzer is beside the app; else nothing)."""
+    if _perf is not None:
+        try:
+            _perf.end()
+        except Exception:
+            pass
 
 
 def style(css: str) -> None:
@@ -480,6 +529,8 @@ def _code(name: str) -> Any:
 def render(name: str, values: dict[str, Any], instance: str) -> None:
     """One widget in its place, with its properties' values; whatever it does wrong stays in its place."""
     token = _INSTANCE.set(instance)
+    if _perf is not None:
+        _perf.before(instance)
     try:
         namespace: dict[str, Any] = {"__name__": f"sab_widget_{name}", **values}
         for variable in _widgets().VARIABLES.get(name, []):
@@ -499,4 +550,6 @@ def render(name: str, values: dict[str, Any], instance: str) -> None:
             st.code(traceback.format_exc(), language="text")
     finally:
         _INSTANCE.reset(token)
+        if _perf is not None:
+            _perf.mark(instance)
 '''

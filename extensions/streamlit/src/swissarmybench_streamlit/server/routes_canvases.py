@@ -11,7 +11,7 @@ POST   /streamlit/canvases/{canvas}/play       {"page"?}: the pages built and ru
 POST   /streamlit/canvases/{canvas}/stop
 POST   /streamlit/canvases/{canvas}/check      every page headless (AppTest): each widget's errors
 POST   /streamlit/canvases/{canvas}/export     {"folder"}: the app that runs alone (the agent's on Allow)
-POST   /streamlit/canvases/{canvas}/launch     a build in the project's builds/ and the app run from it
+(Launch, Builds and the Performance Analyzer: routes_launch.py)
 """
 
 from __future__ import annotations
@@ -72,9 +72,6 @@ def routes(canvases: Canvases, web_root: Path | None) -> list[BaseRoute]:
     async def export(request: Request) -> Response:
         return json_response(await canvases.export(name_of(request), await body_of(request), actor(request)))
 
-    async def launch(request: Request) -> Response:
-        return json_response(await canvases.launch(name_of(request), await body_of(request), actor(request)))
-
     return [
         Route("/streamlit/canvas", page),
         Route("/streamlit/canvases", safely(listing), methods=["GET", "POST"]),
@@ -86,5 +83,4 @@ def routes(canvases: Canvases, web_root: Path | None) -> list[BaseRoute]:
         Route("/streamlit/canvases/{canvas}/stop", safely(stop), methods=["POST"]),
         Route("/streamlit/canvases/{canvas}/check", safely(check), methods=["POST"]),
         Route("/streamlit/canvases/{canvas}/export", safely(export), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/launch", safely(launch), methods=["POST"]),
     ]
