@@ -230,17 +230,24 @@ def test_a_hidden_widget_runs_and_takes_no_space() -> None:
     )
     hidden, _ = model.apply(canvas, "hide", {"id": "w3", "hidden": True}, facts)
     assert model.find(hidden, "w3")[2]["hidden"] is True
-    with pytest.raises(model.CanvasError, match="only a widget is hidden"):
-        model.apply(hidden, "hide", {"id": "c1", "hidden": True}, facts)
+    # A container, titled too (the owner approved, 2026-11-21): hidden as a whole; its widgets still run.
+    boxed, _ = model.apply(hidden, "set_container", {"id": "c1", "props": {"title": "Loaders"}}, facts)
+    boxed, _ = model.apply(boxed, "hide", {"id": "c1", "hidden": True}, facts)
+    assert model.find(boxed, "c1")[2]["hidden"] is True
+    assert model.read(model.write(boxed)).canvas == boxed
+    boxed_page = build.page_code(boxed, "p1", _built())
+    boxed_css = json.loads(boxed_page.split("sab.style(", 1)[1].split(")\n", 1)[0])
+    assert "display: none" in boxed_css.split(".st-key-sab-c1 {", 1)[1].split("}", 1)[0]
+    assert "sab.render('producer', {}, 'w1')" in boxed_page  # its widget runs, its Outs flow
     with pytest.raises(model.CanvasError, match="true or false"):
         model.apply(hidden, "hide", {"id": "w3", "hidden": "yes"}, facts)
     shown, _ = model.apply(hidden, "hide", {"id": "w3", "hidden": False}, facts)
     assert "hidden" not in model.find(shown, "w3")[2]
-    # read back the same; a container's hidden is refused on read
+    # read back the same; a hidden that is not true is refused on read
     assert model.read(model.write(hidden)).canvas == hidden
     bad = json.loads(model.write(hidden))
-    bad["pages"][0]["children"][0]["hidden"] = True
-    with pytest.raises(model.CanvasError, match="on a widget only"):
+    bad["pages"][0]["children"][0]["hidden"] = False
+    with pytest.raises(model.CanvasError, match="hidden is true, or left out"):
         model.read(json.dumps(bad))
     page = build.page_code(hidden, "p1", _built())
     css = json.loads(page.split("sab.style(", 1)[1].split(")\n", 1)[0])
@@ -482,6 +489,14 @@ def test_play_records_an_outs_columns_and_the_canvas_offers_them(
     (folder / ".sab_columns.json").write_text(json.dumps({"w1.value": ["region", "amount"]}))
     state = ok(client.get(f"/streamlit/canvases/{cid}", headers=AUTH))
     assert state["wiring"]["columns"]["w1.value"] == ["region", "amount"]
+    # Launch records them too (the owner approved, 2026-11-21): a launched run's names, never its rows.
+    ok(client.post(f"/streamlit/canvases/{cid}/play", headers=AUTH, json={"stop": "play"}))
+    ok(client.post(f"/streamlit/canvases/{cid}/launch", headers=AUTH, json={"python": "/p"}))
+    launched = Path(runner.started[-1][1])
+    assert launched != folder
+    (launched / ".sab_columns.json").write_text(json.dumps({"w1.value": ["region", "amount", "store"]}))
+    state = ok(client.get(f"/streamlit/canvases/{cid}", headers=AUTH))
+    assert state["wiring"]["columns"]["w1.value"] == ["region", "amount", "store"]
 
 
 def test_a_local_play_knows_this_computers_user_a_shared_one_does_not() -> None:
@@ -495,3 +510,90 @@ def test_a_local_play_knows_this_computers_user_a_shared_one_does_not() -> None:
     # the runtime trusts App Service's sign-in headers only on App Service, else st.user, else this computer
     runtime = build.RUNTIME
     assert 'if os.environ.get("WEBSITE_SITE_NAME"):' in runtime and 'UNKNOWN = "unknown"' in runtime
+
+
+# ===== the viewer's other claims (the owner approved, 2026-11-21) =====
+
+
+def _runtime(monkeypatch: pytest.MonkeyPatch, headers: dict[str, str], user: Any = None) -> dict[str, Any]:
+    """sab_canvas's own text run with stand-ins for Streamlit (its request's headers, st.user) and the
+    widgets module: what viewer_info() reads."""
+    import sys
+    import types
+
+    st = types.ModuleType("streamlit")
+    st.context = types.SimpleNamespace(headers=headers)  # type: ignore[attr-defined]
+    st.user = user or types.SimpleNamespace(is_logged_in=False)  # type: ignore[attr-defined]
+    st.session_state = {}  # type: ignore[attr-defined]
+    widgets = types.ModuleType("sab_widgets")
+    monkeypatch.setitem(sys.modules, "streamlit", st)
+    monkeypatch.setitem(sys.modules, "sab_widgets", widgets)
+    namespace: dict[str, Any] = {"__name__": "sab_canvas_test", "__file__": "/nowhere/sab_canvas.py"}
+    exec(compile(build.RUNTIME, "sab_canvas.py", "exec"), namespace)  # noqa: S102 (the app's own runtime)
+    return namespace
+
+
+def _principal(claims: list[tuple[str, str]], role_typ: str = "roles") -> str:
+    import base64
+
+    body = {
+        "auth_typ": "aad",
+        "name_typ": "name",
+        "role_typ": role_typ,
+        "claims": [{"typ": t, "val": v} for t, v in claims],
+    }
+    return base64.b64encode(json.dumps(body).encode()).decode().rstrip("=")
+
+
+def test_the_viewers_email_id_and_roles_come_only_from_the_hosts_sign_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import types
+
+    claims = [
+        ("name", "Ada Ashdown"),
+        ("preferred_username", "ada@larkfield.example"),
+        ("http://schemas.microsoft.com/identity/claims/objectidentifier", "0000-made-up-oid"),
+        ("roles", "Approver"),
+        ("roles", "Clerk"),
+    ]
+    headers = {
+        "X-MS-CLIENT-PRINCIPAL-NAME": "ada@larkfield.example",
+        "X-MS-CLIENT-PRINCIPAL": _principal(claims),
+    }
+    monkeypatch.setenv("WEBSITE_SITE_NAME", "made-up-app")
+    monkeypatch.delenv("SAB_LOCAL_VIEWER", raising=False)
+    assert _runtime(monkeypatch, headers)["viewer"]() == {
+        "name": "ada@larkfield.example",
+        "email": "ada@larkfield.example",
+        "id": "0000-made-up-oid",
+        "roles": ["Approver", "Clerk"],
+        "via": "app service",
+    }
+    # Off App Service the same headers are anyone's: not trusted; this computer gives a name only.
+    monkeypatch.delenv("WEBSITE_SITE_NAME")
+    monkeypatch.setenv("SAB_LOCAL_VIEWER", "ada.ashdown")
+    local = _runtime(monkeypatch, headers)["viewer_info"]()
+    assert local == {"name": "ada.ashdown", "email": "", "id": "", "roles": [], "via": "this computer"}
+
+    class User(types.SimpleNamespace):
+        def get(self, key: str) -> Any:
+            return getattr(self, key, None)
+
+    # Streamlit's own sign-in: its name and email, nothing invented.
+    signed = _runtime(monkeypatch, {}, User(is_logged_in=True, email="bo@larkfield.example"))["viewer_info"]()
+    assert signed == {
+        "name": "bo@larkfield.example",
+        "email": "bo@larkfield.example",
+        "id": "",
+        "roles": [],
+        "via": "streamlit",
+    }
+    assert _runtime(monkeypatch, {})["principal_claims"]("not base64 !") == {}
+    # The app's Outs: an In of the same name takes each by itself.
+    assert {k: v["type"] for k, v in wiring.APP_OUTS.items()} == {
+        "app.viewer": "str",
+        "app.viewer_email": "str",
+        "app.viewer_id": "str",
+        "app.viewer_roles": "list[str]",
+    }

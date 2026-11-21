@@ -53,6 +53,9 @@ export interface WiringContext extends FieldContext {
 }
 
 export const VIEWER = "app.viewer";
+/** The viewer's other claims: what the host's sign-in gives (App Service, Streamlit's), empty otherwise. */
+const VIEWER_WORDS: Record<string, string> = { "app.viewer_email": "email", "app.viewer_id": "account id", "app.viewer_roles": "roles" };
+const isApp = (ref: string): boolean => ref === VIEWER || ref.startsWith("app.viewer_");
 
 export type SendWire = (port: string, wire: Wire | null) => Promise<void>;
 
@@ -70,6 +73,7 @@ export function fits(given: string, wanted: string): boolean {
  *  app's own "The viewer". */
 export const outWords = (ref: string, wiring: Wiring, page = "", names: Record<string, string> = {}): string => {
   if (ref === VIEWER) return "The viewer (who is viewing)";
+  if (ref.startsWith("app.viewer_")) return `The viewer's ${VIEWER_WORDS[ref] ?? ref}`;
   const out = wiring.outs[ref];
   if (!out) return ref;
   if (out.page && out.page !== page) return `${names[out.page] ?? out.page} · ${out.instance} ${out.widget}.${out.port}`;
@@ -116,13 +120,13 @@ function outOptions(port: Port, id: string, page: string, wiring: Wiring, value:
   const refs = Object.entries(wiring.outs).filter(([, o]) => o.instance !== id && fits(o.type, wanted));
   const groups: HTMLOptGroupElement[] = [];
   const option = ([ref, o]: [string, Wiring["outs"][string]]): HTMLOptionElement =>
-    h("option", { value: `out:${ref}`, selected: value === `out:${ref}` }, ref === VIEWER ? "viewer: who is viewing" : `${o.instance} ${o.widget} · ${o.port} (${o.direction === "event" ? "its last payload" : o.type})`);
+    h("option", { value: `out:${ref}`, selected: value === `out:${ref}` }, ref === VIEWER ? "viewer: who is viewing" : isApp(ref) ? `${o.port}: the viewer's ${VIEWER_WORDS[ref] ?? ref}` : `${o.instance} ${o.widget} · ${o.port} (${o.direction === "event" ? "its last payload" : o.type})`);
   const pageOf = (o: Wiring["outs"][string]): string => o.page ?? wiring.ports[o.instance]?.page ?? "";
-  const here = refs.filter(([ref, o]) => ref !== VIEWER && pageOf(o) === page);
+  const here = refs.filter(([ref, o]) => !isApp(ref) && pageOf(o) === page);
   if (here.length) groups.push(h("optgroup", { label: "Page values" }, ...here.map(option)));
-  const others = [...new Set(refs.filter(([ref, o]) => ref !== VIEWER && pageOf(o) !== page).map(([, o]) => pageOf(o)))];
-  for (const other of others) groups.push(h("optgroup", { label: `${names[other] ?? other} (another page)`, "data-page": other }, ...refs.filter(([ref, o]) => ref !== VIEWER && pageOf(o) === other).map(option)));
-  const app = refs.filter(([ref]) => ref === VIEWER);
+  const others = [...new Set(refs.filter(([ref, o]) => !isApp(ref) && pageOf(o) !== page).map(([, o]) => pageOf(o)))];
+  for (const other of others) groups.push(h("optgroup", { label: `${names[other] ?? other} (another page)`, "data-page": other }, ...refs.filter(([ref, o]) => !isApp(ref) && pageOf(o) === other).map(option)));
+  const app = refs.filter(([ref]) => isApp(ref));
   if (app.length) groups.push(h("optgroup", { label: "The app" }, ...app.map(option)));
   return groups;
 }
@@ -398,7 +402,7 @@ export function wiresOverlay(wiring: Wiring | undefined, boxOf: (id: string) => 
     const a = points[wire.from];
     const data = { "data-from": wire.from, "data-to": wire.to };
     if (!a || wire.cross) {
-      const label = wire.from === VIEWER ? "viewer" : (names[wire.page ?? ""] ?? wire.page ?? wire.from);
+      const label = isApp(wire.from) ? wire.from.slice(4) : (names[wire.page ?? ""] ?? wire.page ?? wire.from);
       stub(b, label, `cross${wire.auto ? " auto" : ""}`, data);
       continue;
     }

@@ -560,12 +560,13 @@ function drawNode(node: Node): HTMLElement {
     const element = h(
       "div",
       {
-        class: `cvs-node cvs-container${elsewhere}${isSelected ? " selected" : ""}${p.scrollable ? " scrollable" : ""}${p.border ? "" : " borderless"}`,
+        class: `cvs-node cvs-container${elsewhere}${node.hidden ? " app-hidden" : ""}${isSelected ? " selected" : ""}${p.scrollable ? " scrollable" : ""}${p.border ? "" : " borderless"}`,
         "data-id": node.id,
         style: { ...place, ...(p.background ? { background: p.background } : {}) },
       },
       p.title ? h("div", { class: "cvs-container-title" }, p.title) : null,
       ...(node.children ?? []).map((c) => drawNode(c)),
+      node.hidden ? h("div", { class: "cvs-hidden-mark", title: "Hidden in the app" }, icon("eye-off")) : null,
       h("div", { class: "cvs-handle", "data-handle": "se", "aria-hidden": "true" }),
     );
     hook(element, node);
@@ -1242,7 +1243,7 @@ function drawProps(): void {
   }
   if (first.kind === "container") {
     propsPane.append(section(nodes.length > 1 ? `CONTAINERS (${nodes.length})` : "CONTAINER", ...containerFields(first)));
-    if (nodes.length === 1) propsPane.append(section("LAYOUT", showOn(first)));
+    if (nodes.length === 1) propsPane.append(section("LAYOUT", showOn(first), hiddenInApp(first)));
     return;
   }
   const known = entry(first.widget ?? "");
@@ -1299,8 +1300,8 @@ function drawProps(): void {
   if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)), section("LAYOUT", showOn(first), hiddenInApp(first)));
 }
 
-/** Hidden in the app: the widget runs and its Outs flow, but the played, launched or exported page gives it
- *  no space (a widget that only moves data). */
+/** Hidden in the app: a widget (or a container's widgets) runs and its Outs flow, but the played, launched or
+ *  exported page gives it no space (a widget that only moves data; a titled box of them). */
 function hiddenInApp(node: Node): HTMLElement {
   const input = h("input", { type: "checkbox", class: "cvs-hidden", checked: Boolean(node.hidden), disabled: !editable(), "aria-label": "Hidden in the app" }) as HTMLInputElement;
   input.addEventListener("change", () => void send("hide", { id: node.id, hidden: input.checked }));
