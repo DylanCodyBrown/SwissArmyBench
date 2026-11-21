@@ -103,6 +103,42 @@ Eight files at most. Today an exported canvas is `app.py`, `app_pages/<page>.py`
 its own `connections.py`: those fold into the table above (the API target's framework file, such as
 `function_app.py`, is the one addition when an API is exported for a platform).
 
+### Who writes what
+
+The owner: "The goal is the app will write these files as the user develops, the agents can create additional files
+and structures and things as needed, but the app itself sticks to one uniform structure per project." So the app
+writes only its own files, always with the same names in the same places for a project type, as the user works
+(never all at once at New project); the user and the agent may add any other files and folders beside them, and the
+app leaves those alone (it never moves, renames or regenerates them).
+
+### A Power BI project (mock-up)
+
+```
+sales-report/
+  sab_adapter.py          made   the same adapter as every project
+  connections.py          made   the report's sources (the warehouse, Dataverse ...) and the Power BI dataset
+  data.py                 made   the grids: each table from its source + its DuckDB SQL, and the same table
+                                 as Power BI has it (read with DAX through the dataset's connection)
+  data.ipynb              yours  where the work happens: one SQL cell and one DAX cell per table
+  model.py                made   the model as code: tables, relationships (one active path) and measures (DAX)
+  powerbi/                made   the deliverable, a Power BI Project that Power BI Desktop opens
+    Sales Report.pbip
+    Sales Report.SemanticModel/definition/
+      model.tmdl
+      relationships.tmdl
+      tables/<table>.tmdl    each table's columns, measures and its Power Query (M) from connections.py
+    Sales Report.Report/      the report's pages (yours, or another report's brought over)
+  API.py                  yours  only when the report needs one (rare)
+  requirements.txt        made
+  README.md               made   how to refresh it and the variables to set
+  .sab/                   the app's state (project.json, powerbi.json)
+```
+
+The difference from a Streamlit project is only the deliverable: `model.py` and `powerbi/` instead of `app.py` and
+`widgets.py`. One honest limit: Power BI refreshes the report by running its own Power Query, so the report's refresh
+does not travel through the adapter; everything this app does with the data (the grids, the tie-out, the checks)
+does.
+
 ## What it replaces
 
 - the mock clients per source (`server/sandbox_clients.py`) and their dialects (`domain/sandbox_dialects.py`): an
