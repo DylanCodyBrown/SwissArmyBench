@@ -7458,6 +7458,63 @@ ARE the Outs.
   only); an Out's columns for a column property wired from it (typed instead); the Wiring view's lines go
   between boxes' centres, not ports.
 
+## The canvas's gaps: hidden widgets, the viewer, wires across pages, a project's widgets (the owner approved them, 2026-11-21; built, branch canvas-gaps)
+
+The owner approved nine gaps the widget-gaps and test-app branches listed, and three fixes. Built:
+
+1. **Hidden in the app** (a widget instance's `"hidden": true`; `canvas_move hidden=true`; the Canvas's Layout
+   section). It runs and its Outs flow; the played, launched and exported page give it no space (CSS
+   `display: none` in both layouts; the page's height ends at the last shown item). The canvas draws it faded
+   with an eye-off mark. **Decision:** a container with no title holding only hidden widgets takes no space
+   either (a widget dropped on the page alone gets a container round it: api_bridge's 60 px blank row is
+   gone). A container cannot be hidden in the app (Show on covers that).
+2. **Who is viewing:** the app's own Out `app.viewer` (a str), readable by any In (`{"out": "app.viewer"}`; an
+   In[str] called viewer takes it by itself), and `sab_canvas.viewer()` / `viewer_info()` in a widget. Never
+   invented: Azure App Service's sign-in headers (X-MS-CLIENT-PRINCIPAL-NAME, only when WEBSITE_SITE_NAME says
+   it is App Service: elsewhere anyone could send them), else Streamlit's own `st.user` when the app signs
+   people in, else SAB_LOCAL_VIEWER (this computer's user name, set by Play and Launch only), else "unknown".
+   **Dev Tunnels:** Microsoft Learn's Dev Tunnels security page describes the tunnel's access checks and
+   "header rewriting" but documents no header that carries the visitor's identity to the app, so a shared
+   app's viewer is "unknown" (the shared run is given no SAB_LOCAL_VIEWER: the host's own name would be a lie
+   there).
+3. **Sandbox tables as inputs:** a table In's picker offers the project's sandbox tables first (`[Sandbox].t`,
+   the connection-tables contract's Sandbox alias, read from the sandbox file: never live data). No change to
+   the sandbox or the local API builder's files: the extension's own connection listing names the Sandbox's
+   tables (extension.py).
+4. **Wires across pages:** an In reads any page's Out (`{"out": "w3.x"}`: instance ids are the canvas's own),
+   kept in the app's session state (`sab:<ref>`, which st.navigation keeps across pages), said "<page> ·
+   <widget>.<port>". Automatic wires stay on their page. Until the other page has run in the session, the In
+   takes its starting value. The Wiring view draws it as a stub with the page's name; a broken one is marked.
+5. **A wired table's columns:** `wiring.columns`: an Out[Table[Row]]'s declared fields, else the columns Play
+   last saw (sab_canvas writes `.sab_columns.json` beside the played app: names only, only in Play); a column
+   property wired from that Out offers them in a box that still takes a typed name.
+6. **Port-to-port lines:** a dot per In on a widget's left edge and per Out or Event on its right; each line
+   from the exact Out dot to the In dot.
+7. **Typed payloads:** `saved: Event[Order]` (and `Out[Table[Row]]`) with Order a TypedDict or dataclass of
+   the widget's own: the port's `schema` and `fields`; the Events' body boxes offer them. `Event[dict]` works
+   as before.
+8. **File:** a contract type (`sab_canvas.File`: name, size, type, bytes; `as_file`). input_file,
+   input_camera and input_audio give `file: Out[File]`; excel_upload takes `file: In[File]` (wired by itself
+   from a page's one `file`), reading it instead of its own upload (a type it does not take is said).
+9. **A project's widgets folder:** `<project>/widgets/` (shared in Git with the project) beside the library's:
+   the lists show This project, Library, Prebuilt; a project's name wins ("Instead of the library's");
+   `widgets_copy to=project|library`, `widgets_new where=project`; a save writes where the widget lives; an
+   export carries the project's widgets it uses in `widgets/`. examples/forms_recon's api_bridge is now a real
+   project widget (its test no longer copies it into the library).
+
+Fixes: excel_map_columns keys its pickers by the columns it maps (a real upload guesses again); a
+container's title is in the flow with its widgets in a box below it (one line, 28 px, reserved as the canvas
+draws it; a wrapped title pushes them down; one drawn in the title's line sits under it); the api_* widgets
+call the runtime's one `api_call` (their own HTTP helper went). Found on the way: an export said every app
+calls the API (the runtime itself holds api_call): now only a widget's or the wiring's use counts.
+
+Gaps to approve (not built): a container Hidden in the app with a title; the viewer's other claims (email,
+object id, roles from X-MS-CLIENT-PRINCIPAL); an Out's columns from a run that Launch (not Play) made. Also
+found, not built: examples/forms_recon's canvas predates the widget contract (its form_picker, form_designer and
+api_bridge instances still name session keys the contract replaced), so its browser test fails on the base too:
+rewire it to the contract (form_definition Out into an In, the designer's `saved` Event calling PUT /forms/{id}
+in place of the second api_bridge).
+
 ## The forms and reconciliation test app and the local API's stress test (the owner, 2026-11-21; branch test-app)
 
 The owner: "create a local API using the local API builder and scripts. Build some widget starter packs. Build a

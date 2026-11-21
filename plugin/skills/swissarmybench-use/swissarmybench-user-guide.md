@@ -1439,7 +1439,11 @@ picked: Out[int] = None  # data going out: the code assigns it (picked = 42)
 saved: Event[dict] = None  # an action it fires: saved({"id": 7}); the Canvas says what it does
 ```
 
-The types: `Table`, `str`, `int`, `float`, `bool`, `date`, `datetime`, `list[...]`, `dict`. Plain values stay
+The types: `Table`, `str`, `int`, `float`, `bool`, `date`, `datetime`, `File` (a file a viewer gave: its
+name, size, type and bytes; the file, camera and audio inputs give `file: Out[File]`, and Excel's upload takes
+`file: In[File]`), `list[...]`, `dict`. An Event can say what it sends: `saved: Event[Order]`, where `Order` is
+a TypedDict or a dataclass in the widget, and the Canvas then offers its fields when you map the body; a table
+going out can say its columns the same way, `rows: Out[Table[Row]]`. Plain values stay
 its properties (what you set while designing); Inputs, Outputs and Events are what passes at run time. The
 Widgets window's Properties shows them under **Inputs**, **Outputs** and **Events**; a declaration that does
 not read says why under it. A widget of yours that passes values through `st.session_state["key"]` shows
@@ -1465,8 +1469,14 @@ Outs of the same name, which wire by themselves on a page (the filter bar's `sal
 `form_definition` and `form_submissions`); Save, Submit, Send, Approve and Reject are Events. The Excel widgets
 need openpyxl (xlrd for old .xls): a project's Python gets both when it is made; an older one says so in place.
 
-**The Widgets window** (Widgets on the rail; a window of its own, no rail): the list on the left (yours, then
-the starter packs, then the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,
+**A project's own widgets** live in its `widgets/` folder (at the project's top, so they go into Git with
+it), beside your library's. The lists show **This project** first, then **Library**, then the prebuilt ones;
+a project widget with a library widget's name is the one used (the list says "Instead of the library's").
+**Copy to project** and **Copy to library** in the Widgets window's bar copy one across under the same name.
+An export carries the project's widgets it uses in its `widgets/` folder.
+
+**The Widgets window** (Widgets on the rail; a window of its own, no rail): the list on the left (This project,
+Library, then the starter packs, then the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,
 signatures, help and lint over a kernel of its own, and **Properties** on the right: **Name** (checked as you
 type: available, taken, not a valid name; a rename follows every canvas that uses it), **Description**, then
 each property with its mask. A value is checked before it is kept and written into its own characters in
@@ -1489,18 +1499,29 @@ grid cell), Undo and Redo, the **Widgets** and **Properties** panes' toggles, an
   you add on Desktop is stacked at full width on Phone (and something added on Phone gets a free place on
   Desktop). Drag the page's right edge to see it at another width (it shows the width in px): the page fits any
   screen; under 768 px it shows the Phone layout. **Show on** in Properties (Phone and Desktop, Desktop only,
-  Phone only) hides an item in one layout; it is faded there on the canvas.
+  Phone only) hides an item in one layout; it is faded there on the canvas. **Hidden in the app** (a widget's
+  Layout) keeps it running, its Outputs still flowing, but the played, launched and exported page give it no
+  space: a widget that only moves data. It is faded on the canvas with an eye-off mark; a container with no
+  title that holds only hidden widgets takes no space either.
 - **Widgets** pane: a card per widget with its rendered preview; hover for a larger one. Drag a card into a
   container, or double-click (or Insert) to put it in the selected container. Right-click a container:
   **Insert widget ▸**, Insert container, Scrollable, Resizable by viewers, Delete.
 - **Properties** pane: a widget's properties (its values here override the widget's defaults; ↺ goes back to
   the default), **Edit widget** (the Widgets window), its size. Then its **Inputs** (each one's source: a table,
-  another widget's Out of a fitting type under Page values, a GET endpoint of the local sandbox API, a
-  variable, a value you type; a list of tables in order for one that takes several; **Automatic** when the
+  the project's **Sandbox** tables among them (its made-up copies, never live data), another widget's Out of a
+  fitting type under Page values, or on another page under that page's name (the app keeps an Out's last
+  value as you move between pages; until that page has run, the Input takes its starting value), **The
+  viewer** (who is viewing: their sign-in where the host gives one, your user name in Play and Launch, else
+  "unknown"; a shared app's viewers are "unknown", since Dev Tunnels does not pass their names), a GET
+  endpoint of the local sandbox API, a variable, a value you type; a column property wired from another
+  widget's table offers that table's columns once they are known (declared, or seen when you last played),
+  and still takes one typed; a list of tables in order for one that takes several; **Automatic** when the
   page has one Out of its name), its **Outputs** (who reads each) and its **Events** (actions in order: **Call
   an API endpoint** with the payload, a part of it or a field each as its body; **Set a page value**; **Rerun
   the page**). A source of the wrong type is refused right there, with why. Selecting a widget lights its
-  sources and readers on the board; **Wiring** in the bottom bar draws the wires (automatic ones dashed); a wire
+  sources and readers on the board; **Wiring** in the bottom bar draws each wire from the exact Out to the In
+  it feeds, with a small dot per Input on a widget's left edge and per Output or Event on its right (automatic
+  ones dashed; a wire from another page a short stub with that page's name); a wire
   broken by a delete or a type change is marked at both ends and listed when you Play. An export runs the same
   wiring with no Swiss Army Bench; its README.md lists the API's variables to set (SAB_API_URL, SAB_API_KEY,
   SAB_API_BASE) when its events call one; a container's title, border, scrollable,

@@ -1285,7 +1285,7 @@ plugin/                  the swissarmybench plugin: skills/swissarmybench-use (S
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
 examples/forms_recon/    the owner's first app POC as a test app, made by the app through the agent's commands: API.py
                          (forms with versions, entries stored long, a PIVOT column store, monthly reconciliations),
-                         three canvas pages, widgets/api_bridge.widget.py (its library widget, kept beside it);
+                         three canvas pages, widgets/api_bridge.widget.py (the project's own widget);
                          tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
 examples/packs/          sample-store: an example pack (a made-up blade, the store's relationship set)
@@ -1326,11 +1326,14 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          variable, path, JSON); an annotation wins; a value checked before it is kept and written
                          into only its own characters; the assignments made `pass` for the page to give the values
     domain/widget_contract.py  a widget's I/O contract (2026-11-21): `x: In[T]`, `y: Out[T]`, `z: Event[dict]` at the top
-                         level, read with ast (Table, str, int, float, bool, date, datetime, list[...], dict), each
-                         one's problem in a sentence; fits (types), fits_value (a typed value); declarations made pass
+                         level, read with ast (Table, str, int, float, bool, date, datetime, File, list[...], dict), each
+                         one's problem in a sentence; a typed payload (Event[Order]) and Table[Row] from the widget's own
+                         TypedDict or dataclass (records: schema, fields); fits, fits_value; declarations made pass
     domain/canvas_wiring.py  the canvas's wiring (an instance's `wires`): an In's source (a table, an Out, a page value,
                          a GET endpoint, a variable, a value, tables), an Event's actions (call, set, rerun), each
-                         checked with the reason; automatic wires by name, readers, broken wires, the run order
+                         checked with the reason; any page's Outs (every_out: an app-wide value, a wire from another
+                         page `cross`) and the app's own app.viewer; automatic wires by name (this page), readers,
+                         broken wires, each Out[Table]'s columns (declared, else as Play last saw them), the run order
     domain/widget_upgrade.py  Upgrade to In/Out: a widget's session state keys rewritten as declarations (a preview)
     domain/canvas_model.py  the canvas file (<app>.canvas.json, byte-stable; pages of containers holding containers
                          and widget instances; the pixel engine at one layout's design width; sizing: columns, row
@@ -1339,25 +1342,32 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          (add_container, insert_widget, move, set_container, set_values, replace_widget, delete,
                          sizing: columns re-flow, pages), prune, rename
     domain/canvas_layouts.py  the two layouts (Phone, Desktop; format 2): each item's place per layout as fractions of
-                         its parent's width (x, w) and pixels (y, h), show (both, desktop, phone); a layout viewed in
+                         its parent's width (x, w) and pixels (y, h), show (both, desktop, phone), a widget's hidden
+                         (Hidden in the app: the hide command); a layout viewed in
                          pixels for the engine and written back; an item new to one placed in the other (phone:
                          stacked full width); format 1 read as desktop; problems in both
     domain/canvas_build.py  the ONE page builder (Play, Launch, a widget run alone, a preview, Export): app.py,
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
                          of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
                          place, its failure there, its Ins, Outs and Events wired; table, sample(kind), var, key, choices,
-                         marked, problem, api_call); the kernel's setup
+                         marked, problem, api_call, File and as_file, viewer: App Service's sign-in headers on App
+                         Service, st.user, SAB_LOCAL_VIEWER in Play, else "unknown"; each Out[Table]'s columns noted in
+                         Play, .sab_columns.json); a widget Hidden in the app (and a container of only such) taking no
+                         space; a container's title in the flow, its widgets in a box below it; the kernel's setup
     domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, canvas.json, build.json):
                          what changed between two canvases in words (canvas_changes), a build's widgets read back
                          with ast (widget_code), compare file by file
     domain/perf.py       the Performance Analyzer: a protobuf wire reader (a ForwardMsg's kind, element and path, a
                          BackMsg's rerun and widgets: never content), the socket per rerun, the page's records joined
                          (each block a widget instance), the caches, the hints in plain words
-    adapters/widget_files.py  the library's widgets/ and the prebuilt ones; a canvas file read with a stamp, written
+    adapters/widget_files.py  the open project's widgets/, the library's and the prebuilt ones (PLACES, in that order: a
+                         project's name wins); a canvas file read with a stamp, written
                          atomically only when it changes, a broken one's copy; the previews' cache (by hash, theme)
     adapters/streamlit_files.py, build_files.py  a run's temporary folder and an export's; a build's folder
-    services/widgets.py  Widgets: list, get, new, save, header (a rename follows every canvas), properties live,
-                         set a default, check a value, copy, delete (the agent's on Allow), Run in place, the
+    services/widgets.py  Widgets: list (This project, Library, prebuilt; `where`, `hides`), get, new (where), save
+                         (where it lives), header (a rename follows every canvas), properties live, set a default,
+                         check a value, copy (Copy to project / to library), project_widgets (an export's widgets/),
+                         delete (the agent's on Allow), Run in place, the
                          headless check, previews' state
     services/canvas.py   Canvases: open (validated), command (versioned: another window's change refused with the
                          canvas as it is now; a file changed on disk read first), undo, redo, state (missing, marks,
@@ -1387,10 +1397,11 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          53 of them in eight starter packs (sales_, ops_, cs_, de_, admin_, input_, excel_, form_);
                          four, api_*, call the local sandbox API
     starters/            the Streamlit, Components, Controllers and Text and layout starters (52)
-web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list, Monaco with the Workbench's
-                         intelligence over a kernel of its own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code;
-                         a failure's error panel with Go to line; remembered per widget this session), Properties
-                         (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
+web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the list (This project, Library, prebuilt),
+                         Copy to project / to library, Monaco with the Workbench's intelligence over a kernel of its
+                         own, on codeIde.ts; Code | Preview (F5 Preview, Esc Code; a failure's error panel with Go
+                         to line; remembered per widget this session), Properties (Name checked live, Description,
+                         each property's mask); its panes fold (Ctrl+B)
 web/src/widgetPacks.ts   a widget's heading in the lists (its pack, else its group) and a pack's description line
 web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties; endpoint:
                          a picker of API.py's endpoints; path_values: a box per {name} of its endpoint's path, a
@@ -1399,14 +1410,16 @@ web/src/widgetFields.ts  one property's box by its mask (the Widgets window's an
                          when its catalog is not listed yet)
 web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,
                          nest, snap with guides, nudge, zoom); right-click Insert widget; the Properties and Widgets
-                         panes (hideable, resizable, a card's hover preview; Show on); the top row's Play (F5; its ▾:
+                         panes (hideable, resizable, a card's hover preview; Show on, Hidden in the app: faded, eye-off); the top row's Play (F5; its ▾:
                          Launch Ctrl+F5, Launch with the Performance Analyzer Ctrl+Shift+F5, Share… while launched,
                          Builds…; Stop while running) and Export (Ctrl+Shift+E), also every right-click menu's last group; the
                          bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the
                          panes' toggles, zoom); the frame's right-edge width
                          handle (px shown); versions and notices
-web/src/canvasWiring.ts  the Canvas's Inputs, Outputs and Events sections (a source picker, readers, actions), the
-                         board's marks (sources, readers, broken) and the Wiring view's lines
+web/src/canvasWiring.ts  the Canvas's Inputs, Outputs and Events sections (a source picker: Sandbox first, this page's,
+                         another page's by its name, The app's viewer; readers; actions with a typed payload's fields),
+                         the board's marks (sources, readers, broken) and the Wiring view: port dots on each widget's
+                         edges, lines from the exact Out port to the In port, another page's wire a stub with its name
 web/src/canvasGrid.ts    the Canvas's placement maths: the step, the grid's lines, edges and centres, nudges, dots
 web/src/canvasBuilds.ts  the Canvas's Builds (newest first, what changed; Compare two or with now in Monaco's diff
                          editor; Open; Relaunch; Restore) and the analyzer's window (analyzerAddress, openAnalyzer)

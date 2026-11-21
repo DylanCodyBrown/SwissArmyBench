@@ -54,6 +54,8 @@ interface Node {
   id: string;
   kind: "container" | "widget";
   show?: "both" | "desktop" | "phone";
+  /** Hidden in the app: it runs and its Outs flow, the page gives it no space (drawn faded here). */
+  hidden?: boolean;
   x: number;
   y: number;
   w: number;
@@ -531,13 +533,13 @@ function drawBoard(): void {
   guidesLayer = h("div", { class: "cvs-guides", "aria-hidden": "true" });
   clear(board, columns, ...children.map((c) => drawNode(c)), guidesLayer, widthHandle());
   if (showWires) {
-    const centre = (id: string): { x: number; y: number } | null => {
+    const boxOf = (id: string): { x: number; y: number; w: number; h: number } | null => {
       const at = find(id);
       if (!at || !(state?.wiring?.ports[id]?.page === page)) return null;
       const corner = absolute(id);
-      return { x: X(corner.x + at.node.w / 2), y: corner.y + at.node.h / 2 };
+      return { x: X(corner.x), y: corner.y, w: X(at.node.w), h: at.node.h };
     };
-    board.append(wiresOverlay(state.wiring, centre, previewWidth[layout], height));
+    board.append(wiresOverlay(state.wiring, boxOf, page, previewWidth[layout], height, pageNames()));
   }
   if (state.broken) board.append(h("div", { class: "cvs-broken" }, icon("warning"), `${state.broken.error}${state.broken.line ? ` (line ${state.broken.line})` : ""}. A copy is kept at ${state.broken.copy}.`));
   else if (state.read_only) board.append(h("div", { class: "cvs-broken" }, icon("warning"), state.read_only));
@@ -545,6 +547,9 @@ function drawBoard(): void {
 }
 
 const entry = (name: string): WidgetEntry | undefined => widgets.find((w) => w.name === name);
+
+/** The canvas's pages' names by id (a wire from another page says its page's name). */
+const pageNames = (): Record<string, string> => Object.fromEntries((state?.model.pages ?? []).map((p) => [p.id, p.name]));
 
 function drawNode(node: Node): HTMLElement {
   const place = { left: `${X(node.x)}px`, top: `${node.y}px`, width: `${X(node.w)}px`, height: `${node.h}px` };
@@ -571,7 +576,7 @@ function drawNode(node: Node): HTMLElement {
   const marks = state?.marks[node.id];
   const element = h(
     "div",
-    { class: `cvs-node cvs-widget${elsewhere}${isSelected ? " selected" : ""}${missing ? " missing" : ""}${marks ? " marked" : ""}${nodeMarks(node.id, selected, state?.wiring)}`, "data-id": node.id, "data-widget": node.widget ?? "", style: place },
+    { class: `cvs-node cvs-widget${elsewhere}${node.hidden ? " app-hidden" : ""}${isSelected ? " selected" : ""}${missing ? " missing" : ""}${marks ? " marked" : ""}${nodeMarks(node.id, selected, state?.wiring)}`, "data-id": node.id, "data-widget": node.widget ?? "", style: place },
     missing
       ? h(
           "div",
@@ -582,6 +587,7 @@ function drawNode(node: Node): HTMLElement {
         )
       : preview(node.widget ?? "", "cvs-widget-preview"),
     h("div", { class: "cvs-widget-name" }, known?.name ?? node.widget ?? ""),
+    node.hidden ? h("div", { class: "cvs-hidden-mark", title: "Hidden in the app" }, icon("eye-off")) : null,
     h("div", { class: "cvs-handle", "data-handle": "se", "aria-hidden": "true" }),
   );
   hook(element, node);
@@ -1250,15 +1256,22 @@ function drawProps(): void {
   if (known) {
     const marks = state.marks[first.id] ?? {};
     const values: Record<string, unknown> = { ...Object.fromEntries(known.properties.map((p) => [p.name, p.default])), ...(first.values ?? {}) };
-    // A column property of an In[Table]: the columns of the table it is wired to (another source: typed).
+    // A column property of an In[Table]: the columns of the table it is wired to; wired from an Out (or by
+    // itself), that Out's columns once known (declared Table[Row], else as Play last ran it); else typed.
+    const fieldContext = { ...context, tables: { ...context.tables } };
     for (const port of state.wiring?.ports[first.id]?.ins ?? []) {
-      if (port.type === "Table") values[port.name] = (first.wires?.[port.name] as { table?: string } | undefined)?.table ?? (first.wires?.[port.name] ? "?" : "");
+      if (port.type !== "Table") continue;
+      const source = state.wiring?.sources[first.id]?.[port.name] as { table?: string; out?: string } | undefined;
+      if (source?.out) {
+        values[port.name] = `out:${source.out}`;
+        fieldContext.tables[`out:${source.out}`] = state.wiring?.columns?.[source.out] ?? null;
+      } else values[port.name] = source?.table ?? (source ? "?" : "");
     }
     const fields = known.properties.map((prop: Prop) =>
       propertyField(
         prop,
         values,
-        context,
+        fieldContext,
         !editable(),
         async (value, said) => {
           const checked = await api<{ ok: boolean; said?: string; fix?: string }>("/streamlit/widgets/check-value", "POST", { name: known.name, property: prop.name, value, values });
@@ -1280,10 +1293,18 @@ function drawProps(): void {
           throw new Error(String((e instanceof ApiError ? saidOf(e)?.error : null) ?? (e instanceof Error ? e.message : e)));
         }
       };
-      propsPane.append(...wiringSections(first.id, first.wires, state.wiring, context, editable(), sendWire, (title, ...children) => section(title, ...children)));
+      propsPane.append(...wiringSections(first.id, first.wires, state.wiring, { ...context, page_names: pageNames() }, editable(), sendWire, (title, ...children) => section(title, ...children)));
     }
   }
-  if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)), section("LAYOUT", showOn(first)));
+  if (nodes.length === 1) propsPane.append(section("SIZE", sizeFields(first)), section("LAYOUT", showOn(first), hiddenInApp(first)));
+}
+
+/** Hidden in the app: the widget runs and its Outs flow, but the played, launched or exported page gives it
+ *  no space (a widget that only moves data). */
+function hiddenInApp(node: Node): HTMLElement {
+  const input = h("input", { type: "checkbox", class: "cvs-hidden", checked: Boolean(node.hidden), disabled: !editable(), "aria-label": "Hidden in the app" }) as HTMLInputElement;
+  input.addEventListener("change", () => void send("hide", { id: node.id, hidden: input.checked }));
+  return h("label", { class: "cvs-flag" }, input, h("span", {}, "Hidden in the app"));
 }
 
 /** Show on: both layouts, or one only (the owner: "Hiding a container or widget in one layout only"). */

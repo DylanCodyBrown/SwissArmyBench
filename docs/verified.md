@@ -4528,6 +4528,43 @@ Not checked:
 - A deployed app calling a deployed API (the README's variables are written; no host was used).
 - The Wiring view's drawing on a phone layout, and very large pages' wire drawing.
 
+## The canvas's gaps (2026-11-21, branch canvas-gaps)
+
+Checked:
+- tests/test_canvas_gaps.py: typed payloads (TypedDict and dataclass) and Table[Row]; File as a type and on
+  input_file, input_camera, input_audio and excel_upload (wired by itself); a column property of In[Table[Row]];
+  a wire across pages (its `cross` and page, never automatic across pages, broken when its producer is
+  deleted); app.viewer (by itself for an In[str] viewer, refused for an int); an Out's columns declared and as
+  seen; Hidden in the app (the command, read back, a container refused, CSS display none, the page's height,
+  a container of only hidden widgets); a container's title reserved; the map-columns key and the api_* widgets
+  on api_call; over HTTP and through the agent's own commands: the project's widgets first and winning,
+  saved in place, Copy to library and to project, new in the project, an export carrying them (and naming no
+  API variables when nothing calls one: a pre-existing failure of test_api_widget_paths fixed); a sandbox
+  table wired and played from the sandbox's copy; canvas_move hidden; a wire across pages by canvas_wire;
+  Play's seen columns in canvas_state.
+- tests/test_canvas_gaps_apptest.py (Streamlit 1.67, AppTest through app.py and st.navigation): a hidden
+  widget runs and its Out reaches a widget on another page; excel_upload reads a File Out (3 rows, not its
+  sample); the viewer is SAB_LOCAL_VIEWER's name, "unknown" without it, "unknown" on App Service with no
+  sign-in header; the other page opened first gives the In its starting value.
+- tests/e2e/test_canvas_gaps_page.py (Chromium): hidden faded with its mark and absent from the played page;
+  another page's Out picked under that page's name, its stub in the Wiring view, marked broken once its
+  producer is deleted; a sandbox table feeding data_table, played (3 rows); the line's ends at the exact port
+  dots (Out on the right edge); a project widget listed first, Copy to library, "Instead of the library's";
+  a long container title one line (28 px) wide, wrapped at 420 px, never over the first widget.
+- The canvas, widgets, wiring, packs and shared e2e files pass with these changes. Microsoft Learn's Dev
+  Tunnels security page documents no visitor-identity header (hence "unknown" in a shared app); App
+  Service's X-MS-CLIENT-PRINCIPAL-* headers per "Work with user identities in Azure App Service
+  authentication".
+
+Not checked:
+- A real App Service deploy with Easy Auth (the headers reaching Streamlit's st.context on its web socket),
+  Streamlit's st.user with a configured sign-in, and a real Dev Tunnels share's viewer.
+- A real camera or microphone (their File Outs are read the same way as an upload's).
+- tests/e2e/test_forms_recon_app.py fails on this branch and on its base (3908fec) alike: the example's
+  canvas was made before the widget contract (form_picker's `definition_key` and form_designer's session
+  keys are gone, so the Sales ledger never reaches the designer). Not this branch's change; the example's
+  canvas needs rewiring to the contract (listed for approval).
+
 ## The forms and reconciliation test app and the local API under load (2026-11-21, branch test-app)
 
 examples/forms_recon, made by the app through the agent's commands (project_new, datasets_load, tabs_new_query,

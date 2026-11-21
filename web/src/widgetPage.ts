@@ -52,6 +52,9 @@ export interface WidgetEntry {
   size: [number, number];
   min_size: [number, number];
   prebuilt: boolean;
+  /** Where it lives (the project's widgets/ first) and the places further down it wins over. */
+  where?: "project" | "library" | "prebuilt";
+  hides?: string[];
   properties: Prop[];
   /** Its contract: Ins, Outs and Events declared in its code (domain/widget_contract.py). */
   contract?: { ins: ContractPort[]; outs: ContractPort[]; events: ContractPort[] };
@@ -101,6 +104,9 @@ const search = h("input", { type: "search", class: "wg-search", placeholder: "Se
 const listItems = h("div", { class: "wg-items", role: "listbox", "aria-label": "Widgets" });
 const saved = h("span", { class: "wg-saved", "aria-live": "polite" });
 const copyButton = button("Copy as your own", () => void copyCurrent(), { icon: "copy", class: "ide-btn ghost wg-copy" });
+// Copy to project / Copy to library: the same widget in the other place (the project's wins on its canvases).
+const placeButton = button("Copy to project", () => void copyCurrent(current?.where === "project" ? "library" : "project", placeButton), { icon: "copy", class: "ide-btn ghost wg-copy-place" });
+let projectOpen = false;
 // Code | Preview: one two-state switch (F5 Preview, Esc Code).
 const codeTab = h("button", { type: "button", class: "wg-mode-item on", "aria-pressed": "true", "data-mode": "code", title: "Code (Esc)", onclick: () => edit() }, icon("code"), "Code");
 const previewTab = h("button", { type: "button", class: "wg-mode-item", "aria-pressed": "false", "data-mode": "preview", title: "Preview (F5)", onclick: () => void run() }, icon("play"), "Preview");
@@ -173,15 +179,17 @@ function drawList(): void {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = widgets.filter((w) => words.every((word) => `${w.name} ${w.description} ${w.group} ${w.pack} ${w.tags.join(" ")}`.toLowerCase().includes(word)));
   clear(listItems);
-  const mine = shown.filter((w) => !w.prebuilt);
-  const groups: [string, WidgetEntry[]][] = [["Your widgets", mine]];
+  const groups: [string, WidgetEntry[]][] = [
+    ["This project", shown.filter((w) => w.where === "project")],
+    ["Library", shown.filter((w) => !w.prebuilt && w.where !== "project")],
+  ];
   for (const w of shown.filter((x) => x.prebuilt)) {
     const group = groups.find(([g]) => g === headingOf(w));
     if (group) group[1].push(w);
     else groups.push([headingOf(w), [w]]);
   }
   for (const [group, items] of groups) {
-    if (!items.length && group !== "Your widgets") continue;
+    if (!items.length && (group !== "Library" || groups[0]![1].length)) continue;
     listItems.append(items[0] ? headingElement("wg-group", items[0]) : h("div", { class: "wg-group" }, group));
     if (!items.length) listItems.append(h("div", { class: "wg-empty" }, query ? "None match." : "None yet: New widget, or Copy as your own."));
     for (const w of items) {
@@ -189,6 +197,7 @@ function drawList(): void {
         "button",
         { type: "button", class: `wg-item${current?.name === w.name ? " selected" : ""}`, role: "option", "aria-selected": String(current?.name === w.name), "data-widget": w.name, onclick: () => void select(w.name) },
         h("span", { class: "wg-item-name" }, w.name),
+        w.hides?.length ? h("span", { class: "wg-item-hides", title: `This project's ${w.name} is used instead of the ${w.hides.join(" and ")}'s` }, `Instead of the ${w.hides.join(" and ")}'s`) : null,
         h("span", { class: "wg-item-desc" }, w.description),
       );
       listItems.append(item);
@@ -197,7 +206,8 @@ function drawList(): void {
 }
 
 async function loadList(): Promise<void> {
-  const found = await api<{ widgets: WidgetEntry[] }>("/streamlit/widgets");
+  const found = await api<{ widgets: WidgetEntry[]; project_folder?: string }>("/streamlit/widgets");
+  projectOpen = Boolean(found.project_folder);
   widgets = found.widgets;
   drawList();
 }
@@ -241,6 +251,11 @@ async function select(name: string, keepUrl = false): Promise<void> {
   ide?.setName(current.name);
   saved.textContent = current.prebuilt ? "Prebuilt: read-only" : "";
   copyButton.hidden = !current.prebuilt;
+  placeButton.hidden = current.prebuilt || (current.where !== "project" && !projectOpen);
+  const placeWords = current.where === "project" ? "Copy to library" : "Copy to project";
+  placeButton.querySelector(".btn-label")!.textContent = placeWords;
+  placeButton.setAttribute("aria-label", placeWords);
+  placeButton.title = placeWords;
   drawList();
   await showEditor(current);
   drawProps();
@@ -268,7 +283,7 @@ async function showEditor(widget: WidgetFull): Promise<void> {
     language: "python",
     value: widget.code,
     theme: effectiveTheme,
-    actions: [copyButton, modeSwitch],
+    actions: [copyButton, placeButton, modeSwitch],
     stage: frameHost,
     properties: props,
     propertiesOpen: true,
@@ -597,14 +612,14 @@ async function newWidget(): Promise<void> {
   }
 }
 
-async function copyCurrent(): Promise<void> {
+async function copyCurrent(to?: "project" | "library", from: HTMLElement = copyButton): Promise<void> {
   if (!current) return;
   try {
-    const made = await api<WidgetFull>(`/streamlit/widgets/${encodeURIComponent(current.name)}/copy`, "POST", {});
+    const made = await api<WidgetFull>(`/streamlit/widgets/${encodeURIComponent(current.name)}/copy`, "POST", to ? { to } : {});
     await loadList();
     await select(made.name);
   } catch (e) {
-    errorHere(e, {}, copyButton);
+    errorHere(e, {}, from);
   }
 }
 

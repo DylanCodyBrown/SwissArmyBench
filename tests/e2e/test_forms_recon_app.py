@@ -50,34 +50,16 @@ def api(server: dict[str, Any], method: str, path: str, body: Any = None) -> Any
     return said["body"]
 
 
-def widget_code(file: Path) -> str:
-    """A widget file's code below its header (what the Widgets window's editor holds)."""
-    lines = file.read_text(encoding="utf-8").split("\n")
-    closing = next(i for i, line in enumerate(lines) if line.strip() == "# ///")
-    return "\n".join(lines[closing + 1 :])
-
-
 @pytest.fixture
 def app(server: dict[str, Any], tmp_path: Path) -> Iterator[dict[str, Any]]:
     close_tables(server)
     folder = tmp_path / "forms_recon"
     shutil.copytree(EXAMPLE, folder, ignore=shutil.ignore_patterns("sandbox", "builds", "exports"))
     call(server, "POST", "/project/open", {"path": str(folder), "discard": True})
-    # The project's own widget, made in the Widgets window (a widget lives in the library).
-    try:
-        call(
-            server,
-            "POST",
-            "/streamlit/widgets",
-            {
-                "name": "api_bridge",
-                "description": "Send a page value to a local sandbox API endpoint, or fetch one into a "
-                "page value",
-                "code": widget_code(EXAMPLE / "widgets" / "api_bridge.widget.py"),
-            },
-        )
-    except Exception:  # noqa: S110 (made by an earlier test of this run)
-        pass
+    # The project's own widget: its widgets/ folder, shared with the project (never the library's).
+    listed = call(server, "GET", "/streamlit/widgets")["widgets"]
+    bridge = next(w for w in listed if w["name"] == "api_bridge")
+    assert bridge["where"] == "project" and listed[0]["where"] == "project"
     trino, _ = source_files(tmp_path, "small")
     call(server, "POST", "/sandbox/tables", {"from": "file", "path": str(trino), "name": "trino_sales_lines"})
     for spec in TABLES:

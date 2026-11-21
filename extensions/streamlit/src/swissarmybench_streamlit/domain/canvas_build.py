@@ -127,8 +127,10 @@ class _Writer:
         `top`: what its parent's own box starts below (a titled container's padding and title line)."""
         grow = f" + {2 * inset}px" if inset else ""
         less = f" - {inset}px" if inset else ""
+        # Under a title, never above the box below it: a widget drawn in the title's line sits under it.
+        down = max(0, place["y"] - inset - top) if top else place["y"] - inset
         return (
-            f"left: calc((100%{grow}) * {place['x']}{less}); top: {place['y'] - inset - top}px; "
+            f"left: calc((100%{grow}) * {place['x']}{less}); top: {down}px; "
             f"width: calc((100%{grow}) * {place['w']})"
         )
 
@@ -137,7 +139,7 @@ class _Writer:
     ) -> None:
         base = "position: absolute; max-width: none; flex: none; box-sizing: border-box; gap: 0"
         at = node["at"]
-        hidden = bool(node.get("hidden"))  # Hidden in the app: it runs, it takes no space
+        hidden = takes_no_space(node)  # Hidden in the app: it runs, it takes no space
         desktop = rules["desktop"] + (
             [] if layouts.shown(node, "desktop") and not hidden else ["display: none"]
         )
@@ -218,6 +220,15 @@ class _Writer:
         self.emit(indent + 1, f"sab.render({node['widget']!r}, {_py(values)}, {node['id']!r}{tail})")
 
 
+def takes_no_space(node: Mapping[str, Any]) -> bool:
+    """A widget Hidden in the app, or a container with no title holding only such widgets (a box that only
+    moves data): it runs, its Outs flow, the page gives it no space."""
+    if node["kind"] == "widget":
+        return bool(node.get("hidden"))
+    children = node.get("children") or []
+    return bool(children) and not node["props"].get("title") and all(takes_no_space(c) for c in children)
+
+
 def _py(value: Any) -> str:
     return props_rules.literal(value)
 
@@ -239,10 +250,13 @@ def page_code(
 
     def bottom(layout: str) -> int:
         shown = [
-            c["at"][layout] for c in page["children"] if layouts.shown(c, layout) and not c.get("hidden")
+            c["at"][layout] for c in page["children"] if layouts.shown(c, layout) and not takes_no_space(c)
         ]
         return max((p["y"] + p["h"] for p in shown), default=40)
 
+    # A container's title takes its whole line in the flow (Streamlit pulls a markdown block's foot up by
+    # its own margin): its box's height is the title's, so the box below it starts under its last line.
+    writer.css.insert(0, '[data-testid="stMarkdownContainer"]:has(> .sab-title) { margin-bottom: 0; }')
     writer.css.insert(
         0,
         f".st-key-sab-page {{ position: relative; width: 100%; height: {bottom('desktop')}px; gap: 0; "
