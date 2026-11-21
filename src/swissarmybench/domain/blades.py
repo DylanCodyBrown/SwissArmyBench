@@ -32,6 +32,7 @@ from functools import lru_cache
 from typing import Any
 
 from swissarmybench.domain import certificate_files, python_connections, snippets, sql_server, web_calls
+from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain.blade_templates import Template as Template
 from swissarmybench.domain.catalogs import CatalogError, check_name, normalize_dialect
@@ -368,6 +369,7 @@ def _header_lines(blade: dict[str, Any]) -> list[str]:
         ]
     if kind == "other" and isinstance(blade.get("web_call"), dict) and blade["web_call"]:
         lines += web_calls.header_lines(blade["web_call"])  # an API's one endpoint, Return as table
+    lines += slot_rules.header_lines(blade.get("queries")) if kind in ("sql", "other") else []
     if kind == "other" and blade.get("variables"):
         lines += ["", "[variables]  # environment variable = where its value comes from (no secret's value)"]
         for row in blade["variables"]:
@@ -489,6 +491,7 @@ def read_blade(text: str) -> dict[str, Any]:
             blade["dialect"] = str(header.get("dialect") or "other")
         if isinstance(header.get("row_limit"), int):
             blade["row_limit"] = header["row_limit"]
+        blade |= slot_rules.from_header(header)
         catalog = header.get("catalog")
         if isinstance(catalog, dict) and isinstance(catalog.get("command"), str):
             blade["catalog"] = {
@@ -1207,11 +1210,11 @@ class Blade:
     catalog_language: str | None = None
     catalog_command: str | None = None
     vault_mapping: dict[str, str] = field(default_factory=dict)  # environment variable -> vault secret name
-    # A vault: every secret it holds (its names(), read each time), each under its own name; the mapping
-    # then only renames.
+    # A vault: every secret it holds (read each time), each under its own name; the mapping only renames.
     vault_all: bool = False
-    # A database connection: how many rows a table opens with as a grid (None: the app's default).
+    # Rows to open (None: the default); queries at once, the agent's share, the wait (connection_slots.py).
     row_limit: int | None = None
+    queries: dict[str, int] = field(default_factory=dict)
     # A connection from the user's own Python (domain/python_connections.py): the Read a table box, and
     # where each environment variable its boxes read comes from (variable -> {"from", ...}).
     read_command: str | None = None
@@ -1223,8 +1226,7 @@ class Blade:
     # A snippet's language (dax, html, markdown or streamlit), and the name a Streamlit piece gives its cell.
     language: str = ""
     cell_name: str = ""
-    # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit, Components), kept on
-    # a copy.
+    # Its family in the starter pack (Power BI, Excel, Files, DAX, HTML, Streamlit...), kept on a copy.
     family: str = ""
     web_call: dict[str, Any] = field(default_factory=dict)  # a web call blade's (domain/web_calls.py)
     table: str = ""  # its result's table name (domain/blade_tables.py); "": the name its code makes
@@ -1281,6 +1283,7 @@ class Blade:
             "vault_mapping": [{"env": e, "secret": s} for e, s in self.vault_mapping.items()],
             "vault_all": self.vault_all,
             "row_limit": self.row_limit,
+            "queries": dict(self.queries) or None,
             "read": {"command": self.read_command} if self.read_command else None,
             "variables": python_connections.sources_json(self.variables),
             "env_names": list(self.env_names),
@@ -1370,6 +1373,7 @@ def parse_blade(data: Any, previous: Blade | None = None, now: float = 0.0) -> B
         created_at=previous.created_at if previous else now,
         updated_at=now,
     )
+    blade.queries = slot_rules.queries_of(data, previous.queries if previous else None, BladeError)
     if kind == "snippet":
         # Text for a cell, with <<name>> placeholders: nothing to run, no variable, no secrets.
         blade.code = _text(data, "code", _MAX_CODE_CHARS).rstrip("\n")
@@ -1485,8 +1489,7 @@ EVERY_ROW = 0  # Rows to open: every row (Load all rows)
 
 
 def _row_limit(data: dict[str, Any]) -> int | None:
-    """Rows to open: how many rows a connection's table opens with as a grid (None: the app's default;
-    0: every row, the form's Load all rows, the owner 2026-11-16)."""
+    """Rows to open: rows a table opens with as a grid (None: the default; 0: every row, 2026-11-16)."""
     limit = data.get("row_limit")
     if limit in (None, ""):
         return None
