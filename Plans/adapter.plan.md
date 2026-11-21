@@ -125,6 +125,25 @@ and variables"), each new thing one new, clearly marked section in its one file,
 Removing a thing removes its section. Nothing is written for a connection, endpoint or variable the project never
 uses.
 
+### The sandbox lives in its own files, never in the app's
+
+The owner: "since its probably hell to find sandbox objects and clean them up later, why not create separate sandbox
+files sandbox_data.py etc." / "dont mix them into the app scaffold". So everything that exists only for testing here
+is in files whose names start with `sandbox`, beside the app's files and never inside them:
+
+| File | What it holds |
+|---|---|
+| `sandbox_data.py` | the sandbox's tables: each one's source (the connection and table it was read from once), its key, its baseline and checkpoints by name |
+| `sandbox/` | the sandbox's rows (`sandbox.duckdb`, `baseline.duckdb`, checkpoints; Git-ignored), moved out of `.sab/sandbox/` |
+
+- The app's own files (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`, the deliverable) never name the
+  sandbox. Which backend the adapter uses is decided where it runs: a local sandbox API run here gets the sandbox,
+  always; an exported project gets its connections. Endpoint code is the same in both.
+- **Find and clean up in one place:** Remove the sandbox deletes `sandbox_data.py` and `sandbox/`, and nothing else
+  changes. An export never includes a `sandbox` file.
+- Other sandbox-only things the user or the agent makes (made-up seed rows, test endpoints, test widgets) go in
+  `sandbox_*.py` files too, so they are found and removed the same way.
+
 ### The project contract is the extension's, as data
 
 The owner: "The contract for a project should be laid out by the extensions as they are added so the app kernel

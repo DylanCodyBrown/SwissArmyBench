@@ -159,6 +159,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "powerapps": "Power Apps (an extension): code apps with pa and pac, sources, connectors, Run live, Push",
     "powerbi": "Power BI (an extension): the model exported as a Power BI Project from the ERD",
     "git": "Git (an extension): GitHub sync of the meta store and shared projects, Source Control, the graph",
+    "extensions": "Making an extension: the manifest, commands, routes, the rules, tests; folders planned",
 }
 
 
