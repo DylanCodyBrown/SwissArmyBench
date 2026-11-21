@@ -25,6 +25,7 @@ import os
 import secrets
 import socket
 import sys
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -34,6 +35,9 @@ from swissarmybench.server import api_runtime as sab_api
 from swissarmybench.server import sandbox_clients
 
 LOG_SIZE = 200
+LINE_HEADER = (
+    "X-Sab-Error-Line"  # a failed request's API.py line, for Try it (this host only, never an export)
+)
 REFUSED = (
     "A local sandbox API never reaches a real connection: use connection(name) from sab_api, which gives the "
     "sandbox's mock of it."
@@ -86,7 +90,7 @@ def _error_line(error: BaseException, path: Path) -> int | None:
     return None
 
 
-def build(key: str, log: collections.deque[dict[str, Any]]) -> Any:
+def build(key: str, log: collections.deque[dict[str, Any]], api_file: Path | None = None) -> Any:
     from starlette.applications import Starlette
     from starlette.concurrency import run_in_threadpool
     from starlette.requests import Request
@@ -99,6 +103,17 @@ def build(key: str, log: collections.deque[dict[str, Any]]) -> Any:
         given = request.headers.get("authorization", "").encode("latin-1")
         return secrets.compare_digest(given, expected)
 
+    failed = threading.local()
+
+    def note(error: BaseException) -> None:
+        failed.line = _error_line(error, api_file) if api_file is not None else None
+
+    sab_api.on_failure = note
+
+    def handled(method: str, path: str, query: dict[str, str], body: bytes) -> tuple[Any, ...]:
+        failed.line = None
+        return (*sab_api.handle(method, path, query, body), failed.line)
+
     async def one(request: Request) -> Response:
         if not allowed(request):
             return JSONResponse(
@@ -107,26 +122,29 @@ def build(key: str, log: collections.deque[dict[str, Any]]) -> Any:
         started = time.perf_counter()
         body = await request.body()
         query = dict(request.query_params)
-        status, headers, payload = await run_in_threadpool(
-            sab_api.handle, request.method, request.url.path, query, body
+        status, headers, payload, line = await run_in_threadpool(
+            handled, request.method, request.url.path, query, body
         )
         rows = None
+        said = None
         try:
             parsed = json.loads(payload) if payload else None
-            rows = len(parsed) if isinstance(parsed, list) else 1 if isinstance(parsed, dict) else None
+            rows = len(parsed) if isinstance(parsed, list) else None
+            if status >= 400 and isinstance(parsed, dict):
+                said = str(parsed.get("error") or "")[:300] or None
         except ValueError:
             pass
-        log.append(
-            {
-                "at": time.strftime("%H:%M:%S"),
-                "method": request.method,
-                "path": request.url.path,
-                "status": status,
-                "ms": round((time.perf_counter() - started) * 1000, 1),
-                "rows": rows,
-            }
-        )
-        return Response(payload, status, headers=headers)
+        entry = {
+            "at": time.strftime("%H:%M:%S"),
+            "method": request.method,
+            "path": request.url.path,
+            "status": status,
+            "ms": round((time.perf_counter() - started) * 1000, 1),
+            "rows": rows,
+        }
+        # A refusal's own words (the API's, never a row's value) and API.py's line when the endpoint failed.
+        log.append(entry | ({"error": said} if said else {}) | ({"line": line} if line else {}))
+        return Response(payload, status, headers=headers | ({LINE_HEADER: str(line)} if line else {}))
 
     async def logged(request: Request) -> Response:
         if not allowed(request):
@@ -144,6 +162,9 @@ def build(key: str, log: collections.deque[dict[str, Any]]) -> Any:
     for e in sab_api.ENDPOINTS:
         by_path.setdefault(base + e.path, set()).add(e.method)
     routes += [Route(path, one, methods=sorted(methods)) for path, methods in by_path.items()]
+    # Any other path or method: the API's own refusal ({"error": ...}; its key asked first; in the log), as an
+    # export answers it, never the framework's bare "Not Found".
+    routes.append(Route("/{rest:path}", one, methods=list(sab_api.METHODS)))
     return Starlette(routes=routes)
 
 
@@ -163,7 +184,7 @@ def main() -> int:
     import uvicorn
 
     log: collections.deque[dict[str, Any]] = collections.deque(maxlen=LOG_SIZE)
-    app = build(key, log)
+    app = build(key, log, path)
     # IPPROTO_TCP named, as server/lifecycle.py does: asyncio sets TCP_NODELAY only on a socket whose proto
     # says TCP, and without it every answer after a connection's first waited ~40 ms (Nagle and delayed ACK).
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP)

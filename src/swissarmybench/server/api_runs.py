@@ -29,6 +29,8 @@ from swissarmybench.server import api_host
 from swissarmybench.services.local_api import StartFailed
 
 START_SECONDS = 30.0
+OUTPUT_LINES = 200  # the last lines API.py printed, kept for the page's Output
+OUTPUT_WIDTH = 2000
 
 
 class ApiProcess:
@@ -45,15 +47,27 @@ class ApiProcess:
         self.endpoints = endpoints
         self._key = key
         self._home = home
-        self.stderr: deque[str] = deque(maxlen=50)
-        self._drain = asyncio.create_task(self._read_errors())
+        # What API.py prints and its process's errors, the last lines (memory only). Both pipes are read to
+        # their end: one left unread fills, and the endpoint that prints into it would wait for ever.
+        self.lines: deque[str] = deque(maxlen=OUTPUT_LINES)
+        self._drains = [
+            asyncio.create_task(self._read(stream))
+            for stream in (self.process.stdout, self.process.stderr)
+            if stream is not None
+        ]
 
-    async def _read_errors(self) -> None:
-        stream = self.process.stderr
-        if stream is None:
-            return
-        while line := await stream.readline():
-            self.stderr.append(line.decode("utf-8", "replace").rstrip())
+    async def _read(self, stream: asyncio.StreamReader) -> None:
+        while True:
+            try:
+                line = await stream.readline()
+            except ValueError:  # a line longer than the reader's limit: its rest is read as the next
+                continue
+            if not line:
+                return
+            self.lines.append(line.decode("utf-8", "replace").rstrip()[:OUTPUT_WIDTH])
+
+    def output(self) -> list[str]:
+        return list(self.lines)
 
     def alive(self) -> bool:
         return self.process.returncode is None
@@ -66,10 +80,13 @@ class ApiProcess:
             except TimeoutError:
                 self.process.kill()
                 await self.process.wait()
-        self._drain.cancel()
+        for drain in self._drains:
+            drain.cancel()
         shutil.rmtree(self._home, ignore_errors=True)
 
-    def _send(self, method: str, path: str, query: dict[str, Any], body: bytes | None) -> tuple[int, bytes]:
+    def _send(
+        self, method: str, path: str, query: dict[str, Any], body: bytes | None
+    ) -> tuple[int, bytes, dict[str, str]]:
         address = f"http://127.0.0.1:{self.port}{urllib.parse.quote(path, safe='/{}')}"
         if query:
             address += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
@@ -81,17 +98,17 @@ class ApiProcess:
         )
         try:
             with urllib.request.urlopen(request, timeout=120) as answer:  # noqa: S310
-                return int(answer.status), answer.read()
+                return int(answer.status), answer.read(), dict(answer.headers.items())
         except urllib.error.HTTPError as failed:
-            return int(failed.code), failed.read()
+            return int(failed.code), failed.read(), dict(failed.headers.items())
 
     async def request(
         self, method: str, path: str, query: dict[str, Any], body: bytes | None
-    ) -> tuple[int, bytes]:
+    ) -> tuple[int, bytes, dict[str, str]]:
         return await asyncio.to_thread(self._send, method, path, query, body)
 
     async def log(self) -> list[dict[str, Any]]:
-        status, body = await self.request("GET", "/__sab/log", {}, None)
+        status, body, _ = await self.request("GET", "/__sab/log", {}, None)
         return list(json.loads(body).get("log") or []) if status == 200 else []
 
 
@@ -100,12 +117,18 @@ async def start(file: str, base: str, key: str, data_url: str) -> ApiProcess:
     home = tempfile.mkdtemp(prefix="sab-api-")
     env = rules.runner_env(
         os.environ,
-        {"SAB_API_FILE": file, "SAB_API_KEY": key, "SAB_API_BASE": base, "SAB_SANDBOX_DATA": data_url},
+        {
+            "SAB_API_FILE": file,
+            "SAB_API_KEY": key,
+            "SAB_API_BASE": base,
+            "SAB_SANDBOX_DATA": data_url,
+        },
         home,
     )
     process = await asyncio.create_subprocess_exec(
         sys.executable,
         "-I",
+        "-u",  # a print shows in the page's Output as it happens (-I takes no PYTHONUNBUFFERED)
         str(Path(api_host.__file__)),
         stdin=asyncio.subprocess.DEVNULL,
         stdout=asyncio.subprocess.PIPE,

@@ -13,7 +13,8 @@ ever").
             secret; started again when API.py changes on disk (looked at every second while it runs)
   call      one request through it, timed (Try it, the kernel's sab.api, the agent's api(call): a write waits
             for the user's Allow); its answer's rows counted, never logged with a value
-  log       its requests: method, path, status, milliseconds, rows
+  log       its requests: method, path, status, milliseconds, rows (a refusal's words and API.py line), and
+            the last lines API.py printed
   address   where it runs and its key, for this computer's own callers (Play and Launch pass them to the app)
 
 Each change is told to the pages (`local_api_changed`).
@@ -36,6 +37,7 @@ from swissarmybench.domain.local_api import ApiFileError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 WATCH_SECONDS = 1.0
+LINE_HEADER = "X-Sab-Error-Line"  # server/api_host.py's: a failed request's API.py line
 
 
 class Runner(Protocol):
@@ -50,9 +52,11 @@ class Runner(Protocol):
 
     async def request(
         self, method: str, path: str, query: dict[str, Any], body: bytes | None
-    ) -> tuple[int, bytes]: ...
+    ) -> tuple[int, bytes, dict[str, str]]: ...
 
     async def log(self) -> list[dict[str, Any]]: ...
+
+    def output(self) -> list[str]: ...
 
 
 class Start(Protocol):
@@ -118,6 +122,11 @@ class LocalApi:
         self._lock = asyncio.Lock()
         # The framework targets' ids (the export's registry fills it in: services/api_export.py).
         self.target_ids: Callable[[], list[str]] = lambda: ["fastapi", "azure_functions", "aws_lambda"]
+        # The framework targets as the page's picker and the agent read them: [{id, label}] (the export's
+        # registry, so an extension's target is offered like the base's three).
+        self.targets: Callable[[], list[dict[str, Any]]] = lambda: [
+            {"id": i, "label": i} for i in self.target_ids()
+        ]
         # The loaded catalogs (services/catalogs.py): "Will this work for real?" reads them, never loads one.
         self.catalog: Any = None
         # Where it runs, put in this server's environment while it runs (SAB_API_URL, SAB_API_KEY,
@@ -160,10 +169,9 @@ class LocalApi:
             return {}
         found: dict[str, list[str]] = {}
         for e in api.endpoints:
-            body = next((p for p in e.params if p.where == "body"), None)
-            model = api.models.get(body.type.strip("'\"")) if body is not None else None
-            if model is not None:
-                found[f"{e.method} {e.path}"] = list(model.fields)
+            fields = rules.body_fields(e, api.models)
+            if fields is not None:
+                found[f"{e.method} {e.path}"] = list(fields)
         return found
 
     def data_keys(self) -> set[str]:
@@ -200,7 +208,15 @@ class LocalApi:
         for e in api.endpoints:
             words = [data_words(n, mocks.get(n.casefold())) for n in e.connections]
             kept = examples.get(rules.endpoint_key(e.method, e.path))
-            endpoints.append(e.to_json() | {"data": words, "example": kept})
+            # Its contract, read by every door from the one definition (domain/local_api.py): the body's
+            # fields, and the made-up request Try it starts from (the kept example's body first).
+            start = rules.made_up(e, api.models)
+            if kept is not None:
+                start["body"] = kept
+            endpoints.append(
+                e.to_json()
+                | {"data": words, "example": kept, "fields": rules.body_fields(e, api.models), "try": start}
+            )
         return {
             "project": folder,
             "file": path,
@@ -211,6 +227,7 @@ class LocalApi:
             "problems": api.problems,
             "openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path),
             "examples_file": rules.EXAMPLES_FILE,
+            "targets": self.targets(),
             "running": self._running_json(),
             "failed": self._failed,
         }
@@ -414,7 +431,7 @@ class LocalApi:
             taken,
             [e.path for e in api.endpoints],
         )
-        needs = scaffold_rules.imports_missing(text)
+        text, needs = scaffold_rules.with_imports(text, scaffold_rules.imports_missing(text, block))
         written = text.rstrip("\n") + "\n" + ("\n" + needs if needs else "") + block
         self._files.write(self.path(), written)
         await self._told(who, "local_api_scaffold", table=table["name"])
@@ -520,7 +537,7 @@ class LocalApi:
                 raise Refused("The user declined (or did not answer): nothing was sent.")
         sent = None if payload is None else json.dumps(payload).encode()
         started = time.perf_counter()
-        status, answer = await self._runner.request(method, path, dict(query or {}), sent)
+        status, answer, headers = await self._runner.request(method, path, dict(query or {}), sent)
         ms = round((time.perf_counter() - started) * 1000, 1)
         try:
             parsed = json.loads(answer) if answer else None
@@ -528,13 +545,25 @@ class LocalApi:
             parsed = answer.decode("utf-8", "replace")
         rows = len(parsed) if isinstance(parsed, list) else None
         self.ws.audit.write(who, "local_api_call", f"{method} {path}", status=status, rows=rows)
-        return {"status": status, "ms": ms, "rows": rows, "body": parsed}
+        done: dict[str, Any] = {"status": status, "ms": ms, "rows": rows, "body": parsed}
+        if status >= 400:
+            # A refusal in the one shape (9.5): its sentence, and where in API.py when the endpoint itself
+            # failed (the host's line header), for Try it's Go to line and the agent alike.
+            said = parsed.get("error") if isinstance(parsed, dict) else None
+            done["error"] = str(said or f"{method} {path} answered {status}.")
+            line = next((v for k, v in headers.items() if k.lower() == LINE_HEADER.lower()), None)
+            if line and str(line).isdigit():
+                done["line"] = int(line)
+                done["where"] = f"{rules.FILE} line {line}"
+                # The mock's refusal names the line itself: said once, in `where`.
+                done["error"] = done["error"].replace(f"{rules.FILE} line {line}: ", "", 1)
+        return done
 
     async def log(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         if not self.running() or self._runner is None:
             return {"log": [], "running": False}
         try:
-            return {"log": await self._runner.log(), "running": True}
+            return {"log": await self._runner.log(), "output": self._runner.output(), "running": True}
         except OSError:  # it stopped as it was asked
             return {"log": [], "running": False}
 

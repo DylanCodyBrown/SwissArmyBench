@@ -62,10 +62,14 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
 - `executemany(sql, rows)` is one call to the sandbox (a plain INSERT ... VALUES goes in as one columnar insert):
   load rows with it, not a loop of execute(). A read answers at most 10,000 rows: page with LIMIT and OFFSET.
 - `state`: settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems with their
-  lines, the OpenAPI document, whether it runs. `settings` `{name, description, target, base_path}`.
+  lines, the OpenAPI document, whether it runs, the `targets`; each endpoint's `fields` (its body model's, with
+  `type` and `required`) and `try` (a made-up request: `path`, `query`, `body`; the kept example first): the one
+  definition Try it, the Canvas's Event mapping and Payload shapes read. `settings` `{name, description, target, base_path}`.
 - `run` (127.0.0.1, a key of its own; started again when API.py changes), `stop`, `log` (method, path, status,
-  ms, rows), `openapi`, `address` (its URL and key, for this computer's callers).
-- `call` `{"method": "POST", "path": "/orders", "body": {...}}`: a write waits for the user's Allow.
+  ms, rows; a refusal's `error` and its API.py `line`; `output`: the last lines API.py printed), `openapi`, `address` (its URL and key, for this computer's callers).
+- `call` `{"method": "POST", "path": "/orders", "body": {...}}`: a write waits for the user's Allow. A refusal
+  (400 and up) also has `error` (its sentence) and, when the endpoint itself failed, `line` and `where`
+  ("API.py line 45"). A path no endpoint answers is the API's own 404 (`{"error"}`).
 - `example` `{"endpoint": "POST /orders", "body": {...}}`: Try it's body kept as the endpoint's example (Try it
   starts from it; the OpenAPI document shows it), in its examples file in `.sab/` beside API.py (API.py is never
   written); `"body": null` forgets it.
@@ -78,7 +82,8 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   where it runs, nothing here runs it), the target's files (main.py; function_app.py, host.json,
   local.settings.json; lambda_function.py, template.yaml), requirements.txt, README.md (deploy steps, the
   checklist, `variables` to set). No secret in any file. A file edited by hand is `kept` until `replace` names it.
-  `rows`: bundle the sandbox for `connection("Sandbox")` (the agent's waits for Allow).
+  `rows`: bundle the sandbox for `connection("Sandbox")` (the agent's waits for Allow); without it the answer's
+  `warnings` say those endpoints answer an error there.
 
 ## New endpoint from a table
 - `scaffold` `{"table": "orders", "key": "order_id"}`: the CRUD set appended to API.py (list with `limit` and
@@ -93,6 +98,8 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   variable) or `{{ name }}` (a page value: the page's st.session_state). Play and Launch reach the API while it
   runs (SAB_API_URL, SAB_API_KEY, SAB_API_BASE in the app's environment); a canvas Export that calls it lists the
   three as variables to set (its answer's `variables` and `warnings`, and its README).
-- `shapes`: each canvas widget using an endpoint, what it expects beside what the endpoint answers, each mismatch.
+- `shapes`: each canvas widget using an endpoint, and each Event wired to call one (`event`), what it expects or
+  sends beside the endpoint's own definition, each mismatch (a field the body lacks, a required one not sent, a
+  path value not given).
 - `check` (Will this work for real?): each endpoint's SQL against its connection's catalog as loaded here, never a
   query on the source; an unloaded catalog is said ("load it on the Connections page").

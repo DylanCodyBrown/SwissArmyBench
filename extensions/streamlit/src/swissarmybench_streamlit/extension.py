@@ -206,7 +206,8 @@ def routes(services: Any) -> list[Any]:
         widgets.endpoint_fields = local_api.endpoint_fields
 
         def api_uses() -> list[dict[str, Any]]:
-            """Each canvas widget instance whose endpoint property names one of API.py's (Payload shapes)."""
+            """Each canvas widget instance whose endpoint property names one of API.py's, and each Event
+            wired to call one (Payload shapes)."""
             from swissarmybench_streamlit.domain import canvas_model
 
             folder = project_folder()
@@ -226,6 +227,17 @@ def routes(services: Any) -> list[Any]:
                             {"canvas": file.name, "page": page.get("name"), "instance": node.get("id"),
                              "widget": node.get("widget"), "values": values}
                         )  # fmt: skip
+                    for port, wire in (
+                        (node.get("wires") or {}).items() if node.get("kind") == "widget" else ()
+                    ):
+                        actions = wire.get("actions") if isinstance(wire, dict) else None
+                        for action in actions if isinstance(actions, list) else ():
+                            if isinstance(action, dict) and action.get("do") == "call":
+                                out.append(
+                                    {"canvas": file.name, "page": page.get("name"),
+                                     "instance": node.get("id"), "widget": node.get("widget"),
+                                     "event": port, "action": action}
+                                )  # fmt: skip
             return out
 
         local_api.api_uses = api_uses

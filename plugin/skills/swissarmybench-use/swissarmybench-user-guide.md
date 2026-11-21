@@ -1864,14 +1864,24 @@ data.
 3. **Run** it (127.0.0.1, its own key): **Try it** on each endpoint; the request log under it; the change log
    counts every row it inserted, updated or deleted. **Keep as its example** keeps the body you edited as the
    endpoint's example (Try it starts from it next time), in `.sab/api_examples.json` beside API.py.
+   - **When an endpoint refuses**, Try it shows the error where you pressed Send: what happened, the line of
+     API.py it happened on, **Go to line**, the answer itself behind Details. The request log says the same
+     beside the status; **Output** under it is what API.py printed.
+   - **Save API.py and try again:** the API starts again by itself, and an open Try it keeps what you typed.
+   - On the Scripts page API.py's main button is **Run API** (F5): the same Run. No table's cell is ever
+     written into API.py.
 4. **Reset** puts every sandbox table back to its baseline (a table's own Reset, that one alone); **Save
    checkpoint…** keeps a state to come back to.
 5. **On the canvas**, the API table, API form, API button and API metric widgets call it; their endpoint is picked
    in Properties, with one box under it for each `{name}` in its path: a value, a variable (`${REGION}`) or a page
    value (`{{ region }}`). Export lists SAB_API_URL, SAB_API_KEY and SAB_API_BASE as the variables to set where the
-   app runs (in its README too). **Payload shapes** says when a widget expects another shape than its endpoint answers.
+   app runs (in its README too). **Payload shapes** says when a widget expects another shape than its endpoint answers,
+   and when an Event wired to call an endpoint sends a field its body does not have, leaves a required one out or
+   gives no value for its path.
 6. **Will this work for real?** checks each endpoint's tables and columns against its connection's loaded catalog
    (load it on the Connections page first): nothing is sent to the source.
 7. **Export…** writes a ready-to-deploy folder (`exports/api/<target>/`) for FastAPI, Azure Functions or AWS Lambda,
-   using the real connections' own code; its README lists the variables to set and the deploy steps.
+   using the real connections' own code; its README lists the variables to set and the deploy steps. An endpoint
+   that uses `connection("Sandbox")` answers an error there unless you tick **Include the sandbox's rows**: the
+   dialog says so.
 

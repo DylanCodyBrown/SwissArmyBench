@@ -20893,6 +20893,28 @@ body.wb-full .wb-col-right {
   margin: 4px 0;
   font-size: 13px;
 }
+.local-api-try-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.local-api-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.local-api-log-error {
+  color: var(--muted);
+}
+.local-api-output {
+  margin-top: 8px;
+}
+.local-api-output pre {
+  max-height: 220px;
+  margin: 4px 0 0;
+  overflow: auto;
+  white-space: pre-wrap;
+}
 .local-api-kept {
   display: flex;
   align-items: center;

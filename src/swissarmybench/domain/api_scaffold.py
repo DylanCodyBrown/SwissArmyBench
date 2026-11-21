@@ -60,17 +60,42 @@ _NEEDED = {"TypedDict": "from typing import TypedDict", "ApiError": "sab_api", "
            "endpoint": "sab_api", "records": "sab_api"}  # fmt: skip
 
 
-def imports_missing(text: str) -> str:
-    """The import lines a CRUD set needs that API.py does not have yet ("" when it has them)."""
+def imports_missing(text: str, block: str = "") -> str:
+    """The import lines a CRUD set needs that API.py does not have yet ("" when it has them). `block`: the
+    set's text: a date or datetime field needs its import too (API.py would not start without it)."""
     imported = set(re.findall(r"^\s*from\s+[\w.]+\s+import\s+([^\n#]+)", text, re.M))
     names = {n.strip().split(" as ")[-1] for line in imported for n in line.strip("() ").split(",")}
     lines = []
     if "TypedDict" not in names:
         lines.append("from typing import TypedDict  # noqa: E402")
+    used = re.findall(r"^    \w+: (date|datetime)$", block, re.M)
+    dates = [n for n in ("date", "datetime") if n in used and n not in names]
+    if dates:
+        lines.append(f"from datetime import {', '.join(dates)}  # noqa: E402")
     wanted = [n for n in ("ApiError", "connection", "endpoint", "records") if n not in names]
     if wanted:
         lines.append(f"from sab_api import {', '.join(wanted)}  # noqa: E402")
     return "\n".join(lines) + ("\n" if lines else "")
+
+
+def with_imports(text: str, needs: str) -> tuple[str, str]:
+    """API.py with the import lines a CRUD set needs written among its own imports (after the last one before
+    its first function or class), so the file reads as one would write it and the linter stays quiet; and what
+    is still to write before the set ("" then). No import of its own to stand beside: the lines go before the
+    set, as they are."""
+    if not needs:
+        return text, ""
+    lines = text.split("\n")
+    last = -1
+    for i, line in enumerate(lines):
+        if re.match(r"(def|class|async def|@)\b|@", line):
+            break
+        if re.match(r"(from\s+[\w.]+\s+import|import)\s", line) and not line.rstrip().endswith(("(", "\\")):
+            last = i
+    if last < 0:
+        return text, needs
+    added = [n.replace("  # noqa: E402", "") for n in needs.strip("\n").split("\n")]
+    return "\n".join(lines[: last + 1] + added + lines[last + 1 :]), ""
 
 
 def model_name(table: str) -> str:

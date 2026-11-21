@@ -490,11 +490,12 @@ class Canvases:
             if not await self._approvals.ask(opened.path, "export_canvas", detail):
                 raise Refused("The user declined (or did not answer): nothing was written.")
         # An app that calls the local sandbox API reads its address from these where it is deployed.
-        # The runtime (sab_canvas.py) always can: only a page or a widget that does counts.
-        calls = any(
-            "api_call" in text or "SAB_API_URL" in text
+        # (Its widgets' or pages' code calls it, or an Event or In is wired to an endpoint: the runtime's own
+        # api_call, in every app's sab_canvas.py, does not count.)
+        calls = "README.md" in files or any(
+            "SAB_API_URL" in text or "api_call(" in text
             for name, text in files.items()
-            if name.endswith(".py") and name.rsplit("/", 1)[-1] != "sab_canvas.py"
+            if name != "sab_canvas.py"
         )
         variables = list(API_VARIABLES) if calls else []
         warnings = [f"Set {v} where it runs: {API_VARIABLES[v]}." for v in variables]

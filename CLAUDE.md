@@ -634,14 +634,17 @@ src/swissarmybench/
     local_api.py         API.py (2026-11-21): its `# /// swissarmybench-api` header (name, description, target,
                          base_path), its endpoints read with ast (method, path, parameters: path, query, body; the
                          answer; the connections and SQL it uses; problems with lines), models, OpenAPI 3.0, the
-                         scaffold, the hosting process's environment made from nothing (runner_env)
+                         scaffold, the hosting process's environment made from nothing (runner_env); an endpoint's
+                         one definition for every reader (body_fields, made_up: Try it, the Canvas's Event mapping,
+                         Payload shapes, the agent), shapes (the API widgets and each Event wired to call one)
     api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
                          Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
                          sab_api.py, connections.py: the real connections' own code; README with the deploy steps,
                          the checklist and the variables; no secret), exports/api/<target>/ a made folder
     api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
                          delete by a key; a TypedDict of the columns) in the source's style (DuckDB, a DB-API
-                         database's SQL and marks, T-SQL, Dataverse OData reads, SharePoint list calls)
+                         database's SQL and marks, T-SQL, Dataverse OData reads, SharePoint list calls); the
+                         imports it needs (a date's too) written among API.py's own (with_imports)
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -949,7 +952,9 @@ src/swissarmybench/
     sandbox_clients.py   the mock clients (MockDbApi, MockSqlServer, MockDataverse, MockSharePoint, MockDuckDB): the
                          real clients' public shape (tests/test_sandbox_clients.py), the sandbox's data route only
     api_host.py          a local sandbox API hosted (`python -I`): the app's client functions taken over first,
-                         Starlette on 127.0.0.1, its key, the request log; api_runs.py starts and stops it
+                         Starlette on 127.0.0.1, its key, the request log (a refusal's words and API.py line; the
+                         line as a header of this host only), any other path the API's own 404; api_runs.py starts
+                         and stops it and reads what it prints to the end (the last lines: Output)
     streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
                          so a page's frame policy stays `frame-src 'self'`: the Streamlit extension's apps and
                          the Power Apps extension's dev server mount it with their own prefix
@@ -1215,7 +1220,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
                          swatch and palette; panes.ts groups the home page's tabs by connection;
                          localApis.ts the APIs page's Local sandbox APIs (API.py: target, base path, Run, Stop,
-                         each endpoint's data words and Try it, problems with Go to line, the request log);
+                         each endpoint's data words and Try it (the server's made-up request; a refusal as the one
+                         error note with API.py's line; kept open over a redraw), problems with Go to line, the
+                         request log and Output); on the Scripts page API.py's main Run is Run API and it takes no
+                         Tables group (workbenchPage.ts isApiFile);
                          dataSandbox.ts the project's sandbox (Make a sandbox variant… for the grid's Table row and
                          the Structures page; the APIs page's panel, also the Connections page's Sandbox page: tables
                          sorted by their headings, their mock clients and Mocked as, the variant's mark and origin,

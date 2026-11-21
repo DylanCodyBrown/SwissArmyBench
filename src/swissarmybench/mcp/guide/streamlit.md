@@ -83,7 +83,7 @@ says so in one line.
   a mismatch is refused with the reason), a page value (`{"page": "k"}`), a GET endpoint's answer
   (`{"endpoint": "GET /orders"}`), a variable, a typed value, or for a list[Table] `{"tables": [...]}`. An
   unwired In takes the page's one Out of its name and a fitting type by itself (`auto`). An Event's wire is
-  its actions in order: `{"do": "call", "endpoint": "POST /visits", "body": "values" or {field: "values.x"},
+  `{"actions": [...]}`, its actions in order: `{"do": "call", "endpoint": "POST /visits", "body": "values" or {field: "values.x"},
   "params": {name: path}}` (the local sandbox API; an export reads SAB_API_URL, SAB_API_KEY, SAB_API_BASE,
   listed in its README.md), `{"do": "set", "key", "value": path}`, `{"do": "rerun"}`. `canvas_state`'s
   `wiring`: each instance's ports, `sources`, `readers` of each Out, `wires`, and `broken` (a deleted widget

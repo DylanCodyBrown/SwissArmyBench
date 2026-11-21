@@ -7532,3 +7532,89 @@ it" (his POC: forms people design and fill, a column store, a reconciliation run
     widgets no viewer identity. Add: the viewer's name (a shared app's Entra user) as a page value. M.
 14. **A long container title wraps over its first widget** in a narrow played page (Reconcile's title did). Add:
     the title's height follows its lines. S.
+
+## The API builder against our good designs (the owner, 2026-11-21: "Use a critic agent/fable to improve the API builder using our good app designs"; branch api-critic)
+
+A critic used the builder as a user would (a made-up clinic and depot: sandbox tables, New endpoint from a
+table, API.py edited, Run, Try it, Export, a canvas form's Save wired to an endpoint; through the agent's
+commands and the pages) and held it against the designs that already feel right: the blade IDE (8.14: the code's
+bytes are the file's, Run beside the code, a failure with its line), the Analyze contract (8.13: one definition
+read by the form, the sample, the fixes and the agent), the Canvas's contract and wiring (a mismatch refused
+with its reason before Play), the connection forms' live checks, the one loading state and the one error note.
+
+### Fixed (existing behaviour; tests/test_local_api_critic.py, tests/e2e/test_local_apis_page.py)
+- **API.py was corrupted by the Scripts page.** With a table open, API.py in front took the Tables group (`# region
+  Tables`, a `duckdb.read_csv` of the user's own file), showed as changed, and a Save wrote it in: the header was
+  no longer the file's first lines (name, target and base path read as the defaults), the API's process read a
+  real file, and every line number moved by nine. API.py never takes a table's cell now (workbenchPage.ts).
+- **Run file on API.py failed and offered to install `sab_api` from the package index.** Its main Run is **Run
+  API** (F5): saved, then hosted as the APIs page hosts it; a start that fails is said there with its line. No
+  Run as scheduled on it.
+- **New endpoint from a table over a date or timestamp column made an API.py that did not start** (`NameError:
+  name 'date' is not defined`). The import is written, among API.py's own imports (no lint note, no `noqa`).
+- **A refusal was a red status and a raw JSON tree.** Try it shows the one error note: the sentence, "API.py line
+  N" (the host notes the failing line of an endpoint's own error; the mock's refusal carries its own), Go to
+  line, the answer behind Details, Send to the agent. `api(call)` answers `error`, `line`, `where` too; the
+  request log says a refusal's words and line. The API's own answer is unchanged (an export answers the same).
+- **An open Try it lost what was typed** on every redraw (API.py saved, the API started again, any file changed
+  anywhere): the edit, save, try again loop. The box, its values and its last answer are kept while the endpoint
+  takes the same parameters; the box being typed in keeps the keyboard.
+- **What API.py printed was never read:** past the pipe's 64 KB the endpoint that printed waited for ever. Both
+  pipes are read to their end; the last 200 lines are `api(log)`'s `output` and the page's folded Output.
+- **One definition.** The Try it body was made up by the page's own rule and the Canvas's field list by a third:
+  the endpoint's `fields` (type, required) and `try` (a made-up request; the kept example first) are the
+  server's (domain/local_api.py body_fields, made_up), read by Try it, the Event mapping, Payload shapes and the
+  agent. The targets' picker reads the backend's registry (an extension's target was never offered: the page
+  had its own list of three).
+- **Payload shapes did not look at Events.** An Event wired to call an endpoint is listed and checked: a mapped
+  field the body lacks, a required one not sent, a `{name}` of the path with no value, a body sent to an endpoint
+  that takes none. "Fits" went (7.9).
+- **A path no endpoint answers** was the framework's bare "Not Found" (no key asked, not logged): it is the API's
+  own `{"error": "No endpoint answers GET /x."}`, as an export answers. The log counted an error as one row.
+- **An export of `connection("Sandbox")` endpoints with no rows** said so only in README.md: the answer's
+  `warnings` and an amber note in the dialog say it.
+- **A canvas export always listed SAB_API_URL, SAB_API_KEY and SAB_API_BASE** (the runtime's own api_call was
+  read as a use): only an app that calls the API lists them (tests/test_api_widget_paths.py failed on it).
+- **Words:** "key is not a int" is "not a whole number" (a number, true or false, a date); a mock's refusal said
+  "API.py line 139: Line 1: ..." and says the line once; "Variables to set: (none)" is "None."; "it uses []"
+  went; "No APIs yet." under a project's own API is "No imported APIs yet."; the failed start's toast went (its
+  note is in place); a settings refusal shows at its own box; the guide's Event wire is `{"actions": [...]}`.
+
+### Proposals to approve (none built), best first
+1. **The body is checked against its model.** A TypedDict body is passed through as sent: a wrong type is a 500
+   from the database ("Conversion Error"), an unknown field is silently dropped by the CRUD set, `required` is in
+   the OpenAPI document only. Check it in sab_api (422 naming the field, as a dataclass body's unknown field is
+   already), so the model, Try it, the widgets and the export agree at run time too. S-M. (Changes what an
+   existing API.py answers: the owner's call.)
+2. **One slim bar for the API, as the blade IDE's.** The head is nine controls over two rows (name, Target, Base
+   path, status, Run, Open API.py, New endpoint, Will this work for real?, Export) above a Sandbox head of four
+   more. Name, the dot, Run / Stop, Open API.py, and "…" for the rest; Target only in Export (it is asked there
+   again); Base path in Properties. M.
+3. **Try it beside the code.** The loop is two windows (Scripts for API.py, the APIs page for Try it). An
+   Endpoints pane on API.py's tab (folded, 8.14): each endpoint, Try it, the answer and the request log under the
+   editor as a blade's Output | Result | Problems. M-L.
+4. **An Event's payload has fields.** `saved: Event[dict]` says nothing of what it sends, so the Canvas asks for
+   `values.patient` typed by hand once per body field (six for a six-column table). Let a widget declare the
+   payload's fields (or read them from a table In's columns) and map by name by itself, as Analyze picks the
+   obvious column; a mismatch then reads as an In's does. M.
+5. **The sandbox keeps its keys.** A table's key is known (New endpoint asks for it) but the sandbox takes a
+   second row with the same key where the real database would refuse: an app passes here and fails live. A
+   PRIMARY KEY (and NOT NULL where the source says so) on the sandbox table, refused in the source's words. M.
+6. **Allow the agent's writes to this sandbox for the session** (the test app's gap 11): every `api(call)` write
+   waits for Allow, so an agent cannot fill test data; Reset undoes anything it does. S.
+7. **A read past 10,000 rows says so** (the test app's gap 10) and **the mock answers its own tables() and
+   columns()** (gap 9): the two refusals met first in real use. S each.
+8. **API.py's problems as you type.** The Scripts page lints Python but not the API's own rules (a path with no
+   parameter, two endpoints on one path, a connection with no table in the sandbox yet, SQL the mock will
+   refuse): they show only on the APIs page. Squiggles in the editor from the same parse; `sab_api` and the
+   sandbox's tables and columns in completion. M.
+9. **New endpoint from a table asks less and names better.** `get_visits`, `create_visits` and `/visits/{key}`:
+   singular names (get_visit) and the key's own name in the path (`/visits/{visit_id}`); a tick per operation
+   (a read-only source needs list and get only); a preview of the code before it is written, as a blade's
+   scaffold. S-M.
+10. **Export's Compare in Monaco's diff editor** (the Canvas's Builds compare has it; the export shows two
+    `<pre>` side by side), and **Export… from the agent as a dry run** (what would be written, kept, removed). S.
+11. **`api(state)` in brief.** The agent's state answers the whole OpenAPI document every time (10 KB for nine
+    endpoints): `state` without it, `openapi` for it. S.
+12. **A saved connection named "Sandbox"** (the earlier gap) is refused on save. S.
+

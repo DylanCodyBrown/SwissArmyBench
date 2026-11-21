@@ -83,7 +83,7 @@ import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, setProjectFolder } from "./kindColours";
 import { areaOfKind, gatedRun } from "./gates";
-import { markBusy } from "./loading";
+import { busyClick, markBusy } from "./loading";
 import { type Missing, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
@@ -253,7 +253,9 @@ let assignTimer: number | null = null;
  *  Python outside the Workbench (Jupyter, a script in another editor) has no cell here: the code that
  *  makes it lives there, where the app cannot write. */
 function assignTables(): void {
-  const code = docs.filter((d) => d.notebook || d.script);
+  // Never API.py: it is the project's local sandbox API (its header is the file's first lines, and its process
+  // reaches only the sandbox), so no table's cell is written into it.
+  const code = docs.filter((d) => (d.notebook || d.script) && !isApiFile(d));
   for (const [name, doc] of [...tableOwner]) if (!docs.includes(doc) || !tables.some((t) => t.name === name)) tableOwner.delete(name);
   for (const table of tables) {
     if (tableOwner.has(table.name)) continue;
@@ -1085,9 +1087,35 @@ async function openAt(path: string, line: number): Promise<void> {
     }, 300);
 }
 
+/** API.py, the project's local sandbox API (domain/local_api.py FILE): its Run is the API's, not a script's. */
+const isApiFile = (doc: Doc | null): boolean => !!doc?.script && /(^|[\\/])API\.py$/.test(doc.path ?? "");
+
+/** Run API (API.py's main Run, F5): saved first, then hosted as the APIs page's Run hosts it (POST
+ *  /local-api/run: 127.0.0.1, only the sandbox). A start that failed is said here with its line; another
+ *  project's API.py (not the open project's) runs as a plain file. */
+async function runApi(doc: Doc, from?: HTMLElement): Promise<void> {
+  try {
+    if (doc.path && doc.dirty && !(await save(doc))) return;
+    const now = await api<{ file?: string }>("/local-api");
+    const same = (a: string, b: string): boolean => a.replace(/\\/g, "/") === b.replace(/\\/g, "/");
+    if (!now.file || !doc.path || !same(now.file, doc.path)) return void (await doc.script!.runFile());
+    const done = await api<{ running: { url: string; endpoints: number } | null; failed?: { error: string; line: number | null } | null }>("/local-api/run", "POST", {});
+    if (done.failed) {
+      const line = done.failed.line;
+      if (line) doc.script!.reveal(line);
+      errorHere(done.failed.error, { where: line ? `API.py line ${line}` : "API.py" }, from ?? null);
+    } else if (done.running) {
+      toast(`Running on ${done.running.url} · ${done.running.endpoints} ${done.running.endpoints === 1 ? "endpoint" : "endpoints"}`);
+    }
+  } catch (e) {
+    errorHere(e, {}, from ?? null);
+  }
+}
+
 /** F5 and the group row's main Run: the file, or every cell. */
 async function runPrimary(doc: Doc | null): Promise<void> {
-  if (doc?.script) await doc.script.runFile();
+  if (isApiFile(doc)) await runApi(doc!);
+  else if (doc?.script) await doc.script.runFile();
   else if (doc?.notebook) await doc.notebook.runAll();
 }
 
@@ -2003,10 +2031,12 @@ function drawControls(): void {
   menuButton(addCell, "Cell kinds", () => cellEntries(doc));
   const run = doc.notebook
     ? button("Run all", () => void doc.notebook!.runAll(), { icon: "play", class: "primary", title: "Run all (F5)" })
-    : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
+    : isApiFile(doc)
+      ? button("Run API", busyClick("Starting…", (b) => runApi(doc, b)), { icon: "play", class: "primary", title: "Run the local sandbox API (F5)" })
+      : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
   // Script mode: Run as scheduled (a fresh process with no app); Notebook and Data mode: the view's switch.
   const debugButton = doc.debug ? button("Start debugging", () => void doc.debug!.start().catch((e: Error) => errorHere(e)), { icon: "bug", iconOnly: true, class: "ghost wb-debug-start", title: "Start debugging (Ctrl+Shift+D)" }) : null;
-  const scheduled = doc.script ? button("Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
+  const scheduled = doc.script && !isApiFile(doc) ? button("Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
   if (scheduled && scheduling.has(doc)) markBusy(scheduled, "Running…"); // loading.ts
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
