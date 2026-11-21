@@ -1,13 +1,18 @@
 # One way to make Excel (the owner, 2026-11-21)
 
-Status: decided; build after the adapter's first phase merges (it reads and writes through the adapter).
+Status: decided; build after the adapter's first phase merges (the Excel source lives in the adapter).
 
 ## The owner's answers
-- **Shape: one module, `sab_excel`, behind the adapter.** Two halves: `read(workbook, sheet, header_row, range)` gives
-  Arrow (one set of type rules, replacing the three readers today: the datasets loader, sab.sql over sheets, the upload
-  widget); `build(tables, design, template)` gives a workbook. The design is today's Accounting runtime design as plain
-  data (title, text, table, pivot by DuckDB, Excel's own charts, formats, conditional colours, print setup, a template
-  whose tables grow, one workbook per group with numbering and a register).
+- **Reading and writing a workbook's rows is the adapter's, like every connection** (the owner: "All connection
+  transformations are in the adapter"). An Excel workbook (a path, an upload's bytes, a SharePoint document) is one
+  more source in `sab_adapter.py`: `tables` lists its sheets and named tables, `read` gives Arrow batches (one set of
+  type rules, replacing the three readers today: the datasets loader, sab.sql over sheets, the upload widget),
+  `write` puts rows into a sheet (inserted or replaced, the other sheets kept, by safe file replacement). Nothing
+  else in the app reads or writes a sheet's rows.
+- **The workbook as a deliverable is the one separate piece: `sab_excel.build(grids, design, template)`.** It takes
+  grids (Arrow, from the adapter) and lays them out: the design is today's Accounting runtime design as plain data
+  (title, text, table, pivot by DuckDB, Excel's own charts, formats, conditional colours, print setup, a template
+  whose tables grow, one workbook per group with numbering and a register). It never reads a connection.
 - **One library: openpyxl only.** xlsxwriter goes (from the grid's export and the app's dependencies). Accepted: large
   plain exports (near a million rows) become noticeably slower; record the time before and after in docs/verified.md.
   The export's formula-injection safety and exact long numbers and early dates are kept, rewritten on openpyxl.
@@ -21,8 +26,7 @@ Status: decided; build after the adapter's first phase merges (it reads and writ
   `sab_excel`; workbook.py in an export carries only the builder parts it uses.
 - The Streamlit Excel widgets stay as thin callers (upload's reader and download's writer are the module's).
 - The grid's Excel export calls `build` with no design.
-- Excel is a source for the adapter: tables (sheets and named tables), read (Arrow batches), write (a sheet inserted
-  or replaced, the other sheets kept, by safe file replacement). An uploaded file becomes a grid like any table.
+- An uploaded file becomes a grid like any table (read through the adapter).
 
 ## The export of a project that makes a workbook
 sab_adapter.py, connections.py (used ones only), data.py, workbook.py, templates/<name>.xlsx (only if bound),
