@@ -211,6 +211,10 @@ def _source(dialect: str, database: str, schema: str, table: str) -> str:
         return dax_table(table)
     if dialect == "dataverse":  # every table is in its one schema: named by itself
         return quote_identifier(table, dialect)
+    if (
+        dialect == "mysql"
+    ):  # MySQL and MariaDB name a table schema.table; their catalog's "def" is no database
+        database = ""
     return ".".join(quote_identifier(p, dialect) for p in (database, schema, table) if p)
 
 
