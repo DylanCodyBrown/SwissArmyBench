@@ -20854,3 +20854,29 @@ body.wb-full .wb-col-right {
   overflow: auto;
   margin: 0;
 }
+
+/* The API widgets' path boxes (widgetFields.ts path_values): one per {name} of the endpoint's path. */
+.wg-path-values { display: flex; flex-direction: column; gap: 4px; }
+.wg-path-value { display: grid; grid-template-columns: minmax(64px, auto) 1fr; align-items: center; gap: 6px; }
+
+/* The project's Sandbox as a connection (sandboxGrid.ts, dataSandbox.ts, connectionsWindow.ts): its own indigo
+   (domain/sandbox.py COLOUR), a mark on every sandbox table, a sandbox grid's bar, a cell edited in place. */
+:root { --sandbox: #3a3aa0; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sandbox: #8787c4; } }
+:root[data-theme="dark"] { --sandbox: #8787c4; }
+.sandbox-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-left: 3px solid var(--sandbox); background: color-mix(in srgb, var(--sandbox) 8%, transparent); flex-wrap: wrap; }
+.sandbox-badge { display: inline-flex; align-items: center; gap: 4px; color: var(--sandbox); font-weight: 600; }
+.sandbox-badge .icon-svg, .sandbox-mark .icon-svg, .tab-sandbox .icon-svg { width: 14px; height: 14px; }
+.sandbox-mark { color: var(--sandbox); margin-right: 4px; vertical-align: -2px; }
+.tab-sandbox { color: var(--sandbox); display: inline-flex; margin-right: 2px; }
+.sandbox-variant td:first-child { border-left: 3px solid var(--sandbox); }
+.sandbox-sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; font-weight: 600; }
+.sandbox-sort.on { color: var(--sandbox); }
+.sandbox-sort .icon-svg { width: 12px; height: 12px; }
+.sandbox-cell-edit { position: fixed; z-index: 1000; }
+.sandbox-cell-input { width: 100%; box-sizing: border-box; font: inherit; padding: 2px 4px; border: 2px solid var(--sandbox); }
+.sandbox-never-live { color: var(--sandbox); }
+.connection-card.fam-sandbox { border-left: 4px solid var(--sandbox); }
+.connection-card.fam-sandbox .connection-card-icon { color: var(--sandbox); }
+.sandbox-mocked select { margin-top: 2px; }
+.sandbox-cell-edit .error-note { margin-top: 2px; max-width: 420px; box-shadow: 0 2px 8px rgb(0 0 0 / 18%); }

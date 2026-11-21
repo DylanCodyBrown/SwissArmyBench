@@ -416,6 +416,18 @@ class Structures:
         self.ws.audit.write(who, "structure_to_grid", str(name), rows=len(rows), structure=s.name)
         return answer | {"rows": len(rows), "path": path}
 
+    async def records_table(self, sid: str, path: str = "$") -> tuple[Any, str, str]:
+        """A structure's records at `path` as a table, as Open as grid makes it: (the Arrow table, the
+        structure's name, the path read). A sandbox variant of a structure is made of these."""
+        try:
+            s = self._get(sid)
+        except NotFound as error:
+            raise LookupError(str(error)) from error
+        at = rules.format_path(rules.parse_path(path or "$"))
+        node = rules.get(self.value(s), at) if at != "$" else self.value(s)
+        rows = rules.records(node, at)
+        return await asyncio.to_thread(self._to_table, rows), s.name, at
+
     # ===== saving =====
 
     def folder(self) -> str:

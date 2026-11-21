@@ -63,6 +63,7 @@ import { chooseFile } from "./fileChooser";
 import { clearError, errorHere, errorMark, errorNote, showError, warningNote } from "./errorNote";
 import { forgetVariables, namesVariable, variableBox } from "./variableBox";
 import { busy, busyClick, loadingBlock } from "./loading";
+import { sandboxPanel } from "./dataSandbox";
 import { openImport } from "./projectImport";
 import { openFindConnections } from "./findConnections";
 import { pickSheets } from "./openFile";
@@ -586,6 +587,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       const at = url.searchParams.get("at");
       if (at === "types") void showTypes();
       else if (at === "detail" && url.searchParams.get("name")) void showDetail(url.searchParams.get("name")!);
+      else if (at === "sandbox") showSandbox();
       else if (at === "api") showApi();
       else if (at === "edit" && url.searchParams.get("name")) void showForm({ edit: url.searchParams.get("name")! });
       else if (at === "form" && url.searchParams.get("type")) void showFormOf(url.searchParams.get("type")!);
@@ -659,6 +661,25 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           c.connection === "vault" ? null : slotLine(c.name),
         ),
       );
+    // The project's Sandbox (2026-11-21): a real connection kind, local test data, never live: its own card.
+    const sandboxCard = (c: Card & { words?: string; tables?: number; log_words?: string }): HTMLElement =>
+      h("li", { class: "connection-card-item" },
+        h("a", {
+          class: "connection-card fam-sandbox st-works",
+          href: urlOf({ at: "sandbox", type: null, name: null }),
+          "data-connection": c.name,
+          "data-connections": c.name,
+          onclick: (e: MouseEvent) => {
+            if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+            e.preventDefault();
+            move({ at: "sandbox", type: null, name: null }, () => showSandbox());
+          },
+        },
+          h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon("sandbox")),
+          h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, `Sandbox · ${c.tables ?? 0} tables`)),
+          h("span", { class: "connection-card-calls" }, c.log_words ?? ""),
+          h("span", { class: "connection-card-about sandbox-never-live" }, c.words ?? ""),
+        ));
     const groups: [string, (c: Card) => boolean][] = [
       ["Databases", (c) => c.connection === "database" && !LAKE_KINDS.has(c.tables_kind ?? "")],
       [LAKE_GROUP, (c) => LAKE_KINDS.has(c.tables_kind ?? "")],
@@ -675,11 +696,24 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
               const these = found.filter(belongs);
               return these.length ? [h("h2", { class: "connection-group-title" }, title), h("ul", { class: "connection-cards", "aria-label": title }, ...these.map(card))] : [];
             }),
+            ...(found.some((c) => (c.connection as string) === "sandbox") ? [h("h2", { class: "connection-group-title" }, "Sandbox"), h("ul", { class: "connection-cards", "aria-label": "Sandbox" }, ...found.filter((c) => (c.connection as string) === "sandbox").map(sandboxCard))] : []),
           )
         : emptyState({ icon: "plug", line: "A connection lists a database's or a folder's tables, so DuckDB SQL can read them by name.", action: { label: "Add connection", icon: "plus", run: () => move(TYPES, () => void showTypes()) } }),
       // APIs are not here (the owner, 2026-11-17); the line pointing to their page went: the rail has them
       // beside Connections ("its not needed", 2026-11-18).
     );
+  };
+
+  // ===== the Sandbox's own page: its tables, the change log, Reset (dataSandbox.ts's panel) =====
+  const showSandbox = (): void => {
+    leave("sandbox||");
+    listShowing = null;
+    ++drawing;
+    setOverTitle("Connections › Sandbox");
+    setHeading("Sandbox");
+    listActions(false);
+    clear(foot);
+    clear(body, h("p", { class: "sandbox-never-live" }, icon("sandbox"), " Local test data, never live: the project's own copy in .sab/sandbox/, written only by the sandbox. Never exported as a connection."), sandboxPanel());
   };
 
   // ===== DETAIL: where it is used, its configuration, its calls =====

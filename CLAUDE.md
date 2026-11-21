@@ -165,7 +165,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
-  project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox:
+  project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
+  `.sab/api_examples.json` only on Try it's Keep as its example:
   the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
   sandbox API never touches live data, its process gets only the sandbox, through mock clients, and no
   connection's code, variable or secret), the audit log and, in beta mode,
@@ -622,7 +623,10 @@ src/swissarmybench/
                          connection's code made to sign in with a registration (signed_in_with: its place kept)
     sandbox.py           the project's sandbox (2026-11-21): .sab/sandbox/ (sandbox.duckdb, baseline.duckdb,
                          checkpoints/, sandbox.json: each table's source and the client its rows are mocked as, the
-                         baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values)
+                         baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values);
+                         the Sandbox as a connection kind (CONNECTION_TYPE, its card's words, its indigo COLOUR), the
+                         sorts (name, rows, source, created, changed), variants (a designation "orders · sandbox", the
+                         origin kept and said), a grid edit's SQL (a row by every value it shows, CAST to its type)
     sandbox_dialects.py  a mock client's language over the sandbox: the source's SQL and its driver's marks made
                          DuckDB SQL by sqlglot (each mark numbered in its own order; SELECT, INSERT, UPDATE, DELETE
                          on the sandbox's tables only), OData $filter and $orderby, FetchXML, a list's filters;
@@ -703,8 +707,11 @@ src/swissarmybench/
                          theirs (register("structures"/"apis")); one failing source skipped
     sandbox.py           the project's sandbox: add (an open grid's view, a connection's table read once, a file,
                          columns), remove, Reset (the agent's on Allow), baseline, checkpoints, a mock client's
-                         reads and writes (counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias),
-                         the Catalog's Sandbox section
+                         reads and writes (counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias:
+                         the `sandbox` tables kind), the Catalog's Sandbox section; listing sorted, variant (a grid's
+                         view or a structure's records, named apart, never written back), mock (Mocked as a
+                         connection), edit (its grid's cells, rows added and deleted: typed, counted, Reset undoes),
+                         card (the Connections page's Sandbox)
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
                          (started again when API.py changes), call (the agent's writes on Allow), log, address,
                          scaffold (New endpoint from a table, appended to API.py)
@@ -1209,8 +1216,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          swatch and palette; panes.ts groups the home page's tabs by connection;
                          localApis.ts the APIs page's Local sandbox APIs (API.py: target, base path, Run, Stop,
                          each endpoint's data words and Try it, problems with Go to line, the request log);
-                         dataSandbox.ts the project's sandbox (the grid's Add to sandbox; the APIs page's panel:
-                         tables and their mock clients, Open in Grids, Reset, Set as baseline, checkpoints, the log);
+                         dataSandbox.ts the project's sandbox (Make a sandbox variant… for the grid's Table row and
+                         the Structures page; the APIs page's panel, also the Connections page's Sandbox page: tables
+                         sorted by their headings, their mock clients and Mocked as, the variant's mark and origin,
+                         Open in Grids, Reset, Set as baseline, checkpoints, the log); sandboxGrid.ts a sandbox
+                         table's grid (the bar: designation, origin, Add row, Delete rows, Reset; a cell edited in
+                         place through gridView.ts's registerCellEditor; the tab's designation);
                          swapConnection.ts the Table row's Connection: <name> (a table read from another
                          connection, its steps kept: the chooser, the other's catalog to pick, the SQL window
                          ?panel=connsql for a query), the strip's Use another connection… and its Undo rows,
@@ -1369,7 +1380,8 @@ web/src/widgetPage.ts    the Widgets window (static/widget.html, no rail): the l
                          (Name checked live, Description, each property's mask); its panes fold (Ctrl+B)
 web/src/widgetPacks.ts   a widget's heading in the lists (its pack, else its group) and a pack's description line
 web/src/widgetFields.ts  one property's box by its mask (the Widgets window's and the Canvas's Properties; endpoint:
-                         a picker of API.py's endpoints); a table's
+                         a picker of API.py's endpoints; path_values: a box per {name} of its endpoint's path, a
+                         value, a variable or a page value each); a table's
                          picker grouped: sample, open tables, data.ipynb's, each connection's [Conn].table (typed
                          when its catalog is not listed yet)
 web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,

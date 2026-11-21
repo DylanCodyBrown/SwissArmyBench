@@ -8,12 +8,18 @@
  *   [PANEL]  the tables (rows, where each came from, the client its rows are mocked as, its changes), Open in
  *            Grids (follows every write), Remove; Reset (back to the baseline), Set as baseline, Save
  *            checkpoint…, each checkpoint's Restore and Delete; the change log's line, live (sandbox_changed).
+ *   [SORT]   every column heading sorts the list (name, rows, source, created, last changed; again: the other
+ *            way), remembered in this browser (the owner, 2026-11-21: "We need all sandbox tables to be sortable")
+ *   [MOCK]   a table from a file, its columns or a grid of no connection's: "Mocked as" picks the connection whose
+ *            kind and dialect its mock client takes (or the plain DuckDB client)
+ *   [VARIANT] Make a sandbox variant… (a grid's Table row, the Structures page): a copy with its own designation
+ *            ("orders · sandbox", or the name given), its origin kept and shown, a distinct mark; never writes back
  *
- * ROUTING: GET /sandbox · POST /sandbox/tables, /tables/remove, /tables/open, /reset, /baseline, /checkpoints,
- *          /checkpoints/restore
+ * ROUTING: GET /sandbox?sort=&order= · POST /sandbox/tables, /tables/remove, /tables/open, /tables/variant,
+ *          /tables/mock, /reset, /baseline, /checkpoints, /checkpoints/restore
  */
 import { api, onNoticeWhile } from "./api";
-import { button, h, openDialog, toast } from "./dom";
+import { button, h, icon, openDialog, recall, remember, toast } from "./dom";
 import { errorHere } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
@@ -28,6 +34,14 @@ export interface SandboxTable {
   sql: string;
   open: boolean;
   changes: { inserted: number; updated: number; deleted: number };
+  type: string;
+  title: string;
+  variant: { title: string; origin: Record<string, string>; copied_at: string } | null;
+  origin_words: string;
+  added_at: string | null;
+  changed_at: string | null;
+  mockable: boolean;
+  mocked: boolean;
 }
 
 export interface SandboxState {
@@ -36,6 +50,15 @@ export interface SandboxState {
   baseline_at: string | null;
   checkpoints: { name: string; at: string }[];
   log_words?: string;
+  mock_choices?: string[];
+  sort?: { by: string; order: string; choices: Record<string, string> };
+}
+
+const SORT_KEY = "sandbox.sort";
+/** The list's sort, as this browser remembered it: "name asc" by default. */
+export function sandboxSort(): { sort: string; order: string } {
+  const [sort, order] = (recall(SORT_KEY) ?? "name asc").split(" ");
+  return { sort: sort || "name", order: order === "desc" ? "desc" : "asc" };
 }
 
 const KIND_WORDS: Record<string, string> = { database: "database", dataverse: "Dataverse", sharepoint: "SharePoint", powerbi: "Power BI", file: "file", python: "Python" };
@@ -47,26 +70,29 @@ export function clientWords(client: SandboxTable["client"]): string {
   return `Mock of ${client.connection} (${what})`;
 }
 
-/** Add to sandbox… for an open table (the grid's Table row): its view, after its steps. */
-export function addToSandbox(dataset: string, added?: () => void): void {
-  const { body, foot, close } = openDialog("Add to sandbox");
-  const name = h("input", { "aria-label": "Its name in the sandbox", value: dataset.replace(/[^A-Za-z0-9_]/g, "_").replace(/^[^A-Za-z_]/, "t_"), spellcheck: false }) as HTMLInputElement;
-  body.append(h("label", { class: "field" }, h("span", {}, "Its name in the sandbox"), name));
+/** Make a sandbox variant… of an open table (the grid's Table row) or a structure (the Structures page): a copy
+ *  with its own designation ("orders · sandbox", or the name given) and its origin kept. */
+export function makeVariant(from: "grid" | "structure", origin: string, made?: () => void, path?: string): void {
+  const { body, foot, close } = openDialog("Make a sandbox variant");
+  const name = h("input", { "aria-label": "Its name", placeholder: `${origin} · sandbox`, spellcheck: false }) as HTMLInputElement;
+  body.append(
+    h("p", {}, `A copy of ${from === "grid" ? "the open table" : "the structure's records"} `, h("strong", {}, origin), " in the project's sandbox. It never writes back."),
+    h("label", { class: "field" }, h("span", {}, "Its name"), name),
+  );
   foot.append(
     button("Cancel", () => close()),
-    button("Add", busyClick("Adding…", async (b) => {
+    button("Make", busyClick("Making…", async (b) => {
       try {
-        const done = await api<{ added: string; rows: number }>("/sandbox/tables", "POST", { from: "grid", table: dataset, name: name.value.trim() });
+        const done = await api<{ added: string; rows: number; title: string }>("/sandbox/tables/variant", "POST", { from, [from === "grid" ? "table" : "structure"]: origin, path, name: name.value.trim() || undefined });
         close();
-        toast(`${done.added} is in the sandbox: ${done.rows.toLocaleString()} rows.`);
-        added?.();
+        toast(`${done.title} is in the sandbox: ${done.rows.toLocaleString()} rows.`);
+        made?.();
       } catch (e) {
         errorHere(e, {}, b);
       }
     }), { class: "primary" }),
   );
   name.focus();
-  name.select();
 }
 
 /** The sandbox panel: its tables, Reset, checkpoints and the change log, kept live. */
@@ -74,8 +100,9 @@ export function sandboxPanel(): HTMLElement {
   const panel = h("section", { class: "sandbox-panel", "aria-label": "Sandbox" });
   const draw = async (): Promise<void> => {
     let got: SandboxState;
+    const { sort, order } = sandboxSort();
     try {
-      got = await api<SandboxState>("/sandbox");
+      got = await api<SandboxState>(`/sandbox?sort=${sort}&order=${order}`);
     } catch (e) {
       panel.replaceChildren(h("h2", {}, "Sandbox"));
       errorHere(e, {}, panel);
@@ -94,10 +121,16 @@ export function sandboxPanel(): HTMLElement {
       button("Save checkpoint…", () => saveCheckpoint(), { icon: "save" }),
     );
     const rows = got.tables.map((t) =>
-      h("tr", { "data-table": t.name },
-        h("td", {}, h("strong", {}, t.name), h("div", { class: "muted mono" }, t.sql)),
+      h("tr", { "data-table": t.name, class: t.variant ? "sandbox-variant" : "" },
+        h("td", {},
+          h("span", { class: "sandbox-mark", title: t.variant ? "A sandbox variant" : "A sandbox table" }, icon(t.variant ? "branch" : "sandbox")),
+          h("strong", {}, t.title),
+          h("div", { class: "muted mono" }, t.sql),
+          t.origin_words ? h("div", { class: "muted sandbox-origin" }, t.origin_words) : ""),
         h("td", { class: "num" }, t.rows.toLocaleString()),
-        h("td", {}, t.source_words, h("div", { class: "muted" }, clientWords(t.client))),
+        h("td", {}, t.source_words, t.mockable ? mockPicker(t, got.mock_choices ?? []) : h("div", { class: "muted" }, clientWords(t.client))),
+        h("td", { class: "muted" }, when(t.added_at)),
+        h("td", { class: "muted" }, when(t.changed_at)),
         h("td", { class: "muted" }, [t.changes.inserted && `${t.changes.inserted} inserted`, t.changes.updated && `${t.changes.updated} updated`, t.changes.deleted && `${t.changes.deleted} deleted`].filter(Boolean).join(", ")),
         h("td", { class: "sandbox-actions" },
           button("Open in Grids", busyClick("Opening…", (b) => act(b, "/sandbox/tables/open", { table: t.name }, "")), { icon: "rows" }),
@@ -116,10 +149,36 @@ export function sandboxPanel(): HTMLElement {
     panel.replaceChildren(
       head,
       got.tables.length
-        ? h("table", { class: "sandbox-tables" }, h("thead", {}, h("tr", {}, ...["Table", "Rows", "From", "Changes", ""].map((w) => h("th", {}, w)))), h("tbody", {}, ...rows))
+        ? h("table", { class: "sandbox-tables" }, h("thead", {}, h("tr", {}, ...heads(sort, order), h("th", {}, "Changes"), h("th", {}, ""))), h("tbody", {}, ...rows))
         : h("p", { class: "empty-note" }, "No tables yet: Add table…, or Add to sandbox on a grid's Table row."),
       points.length ? h("div", { class: "sandbox-checkpoints" }, h("h3", {}, "Checkpoints"), h("ul", {}, ...points)) : "",
     );
+  };
+  /** The sortable headings: a click sorts by it; again, the other way. */
+  const heads = (sort: string, order: string): HTMLElement[] =>
+    [["name", "Table"], ["rows", "Rows"], ["source", "From"], ["created", "Created"], ["changed", "Last changed"]].map(([key, words]) => {
+      const on = key === sort;
+      const th = h("th", { "aria-sort": on ? (order === "desc" ? "descending" : "ascending") : "none" },
+        h("button", { class: `sandbox-sort${on ? " on" : ""}`, type: "button", title: `Sort by ${words!.toLowerCase()}` }, words!, on ? icon(order === "desc" ? "sortdown" : "sortup") : ""));
+      th.querySelector("button")!.addEventListener("click", () => {
+        remember(SORT_KEY, `${key} ${on && order === "asc" ? "desc" : "asc"}`);
+        void draw();
+      });
+      return th;
+    });
+  const mockPicker = (t: SandboxTable, choices: string[]): HTMLElement => {
+    const pick = h("select", { "aria-label": `${t.name}: mocked as`, class: "sandbox-mock" },
+      h("option", { value: "" }, "Plain DuckDB client"),
+      ...choices.map((c) => h("option", { value: c, selected: t.mocked && t.client.connection === c }, `Mocked as ${c}`))) as HTMLSelectElement;
+    pick.addEventListener("change", async () => {
+      try {
+        await api("/sandbox/tables/mock", "POST", { table: t.name, connection: pick.value || null });
+        await draw();
+      } catch (e) {
+        errorHere(e, {}, pick);
+      }
+    });
+    return h("div", { class: "sandbox-mocked" }, pick);
   };
   const act = async (b: HTMLElement, path: string, body: unknown, said: string): Promise<void> => {
     try {
@@ -155,6 +214,8 @@ export function sandboxPanel(): HTMLElement {
   });
   return panel;
 }
+
+const when = (at: string | null): string => (at ? at.replace("T", " ").slice(0, 16) : "");
 
 /** Add table…: an open table, a file, or an empty table by its columns. */
 function chooseSource(added: () => void): void {

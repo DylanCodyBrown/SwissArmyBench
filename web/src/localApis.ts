@@ -32,6 +32,8 @@ interface Endpoint {
   returns: string;
   data: string[];
   writes: boolean;
+  /** Try it's body kept as its example (.sab/api_examples.json beside API.py), or null. */
+  example?: Value | null;
 }
 interface State {
   project: string | null;
@@ -201,7 +203,28 @@ function drawTry(box: HTMLElement, e: Endpoint, got: State): void {
     return h("label", { class: "field-inline" }, h("span", { class: "muted" }, `${p.name} (${p.where})`), input);
   });
   const bodyParam = e.params.find((p) => p.where === "body");
-  const body = bodyParam ? (h("textarea", { "aria-label": "Body", rows: 6, class: "mono", spellcheck: false }, JSON.stringify(example(bodyParam.type, bodyParam.name, got.models), null, 2)) as HTMLTextAreaElement) : null;
+  const first = e.example ?? (bodyParam ? example(bodyParam.type, bodyParam.name, got.models) : null);
+  const body = bodyParam ? (h("textarea", { "aria-label": "Body", rows: 6, class: "mono", spellcheck: false, "data-no-variables": "" }, JSON.stringify(first, null, 2)) as HTMLTextAreaElement) : null;
+  // Keep as its example: the edited body becomes the endpoint's example payload (Try it starts from it; the
+  // OpenAPI document shows it), kept beside API.py in .sab/api_examples.json.
+  const keep = body
+    ? button("Keep as its example", busyClick("Keeping…", async (b) => {
+        let sent: unknown;
+        try {
+          sent = JSON.parse(body.value || "null");
+        } catch {
+          errorHere("The body is not JSON.", {}, b);
+          return;
+        }
+        try {
+          await api("/local-api/example", "POST", { endpoint: `${e.method} ${e.path}`, body: sent });
+          e.example = sent as Value;
+          toast(`Kept as ${e.method} ${e.path}'s example (.sab/api_examples.json).`);
+        } catch (err) {
+          errorHere(err, {}, b);
+        }
+      }), { icon: "save", class: "local-api-keep" })
+    : "";
   const answer = h("div", { class: "local-api-answer" });
   box.append(
     h("div", { class: "local-api-fields" }, ...fields),
@@ -232,7 +255,7 @@ function drawTry(box: HTMLElement, e: Endpoint, got: State): void {
       } catch (err) {
         errorHere(err, {}, b);
       }
-    }), { class: "primary" })),
+    }), { class: "primary" }), keep),
     answer,
   );
 }

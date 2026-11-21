@@ -86,6 +86,8 @@ _LOADERS = (
     "a warehouse takes rows through its own bulk loads (its stage or storage), not from a notebook's rows"
 )
 READ_ONLY: dict[str, str] = {
+    # The project's sandbox writes only by itself (a local sandbox API's mock clients, its grid's edits).
+    "sandbox": "the sandbox is written by its local sandbox API and its grid's edits, not a Write starter",
     "powerbi": "a semantic model takes no rows: write its source, then refresh it (Power BI refresh dataset)",
     "duckdb": "the connection opens the file read-only: DuckDB lets one program write a file at a time",
     "snowflake": _LOADERS,

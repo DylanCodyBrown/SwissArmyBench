@@ -90,9 +90,26 @@ class Sources(Protocol):
 
     async def file_table(self, path: str, sheet: str | None) -> Any: ...
 
-    async def show(self, name: str, table: Any, follow: bool) -> dict[str, Any]: ...  # a grid of it
+    # A grid of it; `words`: its designation and origin ("orders · sandbox: A sandbox variant of orders").
+    async def show(self, name: str, table: Any, follow: bool, words: str = "") -> dict[str, Any]: ...
 
     def client_of(self, table: str | None, connection: str | None) -> dict[str, Any]: ...
+
+    # A structure's records as a table (Structures' Open as grid's): (its Arrow, its name, the path read).
+    async def structure_table(self, structure: str, path: str) -> tuple[Any, str, str]: ...
+
+    # An open grid's view rows at these positions: (its columns, each row's values; None past its end).
+    async def view_rows(self, name: str, rows: list[int]) -> tuple[list[str], list[list[Any] | None]]: ...
+
+    def connections(self) -> list[str]: ...  # the saved connections with tables (Mocked as's choices)
+
+
+async def _no_structure(structure: str, path: str) -> tuple[Any, str, str]:
+    raise LookupError("Structures are not here.")
+
+
+async def _no_rows(name: str, rows: list[int]) -> tuple[list[str], list[list[Any] | None]]:
+    raise LookupError("That table is not open in Grids.")
 
 
 @dataclass
@@ -102,11 +119,14 @@ class SourcesFrom:
     grid_view_fn: Callable[[str], Awaitable[Any]]
     connection_fn: Callable[[str, Place], Awaitable[Any]]
     file_fn: Callable[[str, str | None], Awaitable[Any]]
-    show_fn: Callable[[str, Any, bool], Awaitable[dict[str, Any]]]
+    show_fn: Callable[[str, Any, bool, str], Awaitable[dict[str, Any]]]
     # The client a table's rows are mocked as: an open table's connection (its origin), or a connection named.
     client_fn: Callable[[str | None, str | None], dict[str, Any]] = field(
         default=lambda table, connection: {"kind": rules.PLAIN}
     )
+    structure_fn: Callable[[str, str], Awaitable[tuple[Any, str, str]]] = _no_structure
+    view_rows_fn: Callable[[str, list[int]], Awaitable[tuple[list[str], list[list[Any] | None]]]] = _no_rows
+    connections_fn: Callable[[], list[str]] = field(default=lambda: [])
 
     async def grid_view(self, name: str) -> Any:
         return await self.grid_view_fn(name)
@@ -117,11 +137,20 @@ class SourcesFrom:
     async def file_table(self, path: str, sheet: str | None) -> Any:
         return await self.file_fn(path, sheet)
 
-    async def show(self, name: str, table: Any, follow: bool) -> dict[str, Any]:
-        return await self.show_fn(name, table, follow)
+    async def show(self, name: str, table: Any, follow: bool, words: str = "") -> dict[str, Any]:
+        return await self.show_fn(name, table, follow, words)
 
     def client_of(self, table: str | None, connection: str | None) -> dict[str, Any]:
         return self.client_fn(table, connection)
+
+    async def structure_table(self, structure: str, path: str) -> tuple[Any, str, str]:
+        return await self.structure_fn(structure, path)
+
+    async def view_rows(self, name: str, rows: list[int]) -> tuple[list[str], list[list[Any] | None]]:
+        return await self.view_rows_fn(name, rows)
+
+    def connections(self) -> list[str]:
+        return self.connections_fn()
 
 
 def _stamp(now: float) -> str:
@@ -212,11 +241,15 @@ class Sandbox:
                 arrow = await self._run(files.arrow, table)
             except Exception:  # noqa: S112 (a dropped table: its grid keeps what it had)
                 continue
-            await self._sources.show(rules.grid_name(table), arrow, True)
+            await self._sources.show(rules.grid_name(table), arrow, True, self._designation(files, table))
 
     # ===== list =====
 
-    async def listing(self) -> dict[str, Any]:
+    async def listing(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """The sandbox: its tables (sorted as asked: {"sort": name | rows | source | created | changed,
+        "order": asc | desc}), the baseline, the checkpoints, the change log."""
+        given = body if isinstance(body, dict) else {}
+        by, descending = rules.check_sort(given.get("sort"), given.get("order"))
         folder = self._project()
         if folder is None:
             return {"project": None, "tables": [], "checkpoints": [], "log": {}, "baseline_at": None}
@@ -224,23 +257,50 @@ class Sandbox:
         tables = await self._run(files.tables)
         meta = files.read_meta()
         for t in tables:
-            source = meta.tables.get(t["name"], {}).get("source", {})
+            info = meta.tables.get(t["name"], {})
+            source = info.get("source", {})
+            t["type"] = rules.CONNECTION_TYPE
             t["source"] = source
             t["source_words"] = rules.source_words(source)
-            t["client"] = meta.tables.get(t["name"], {}).get("client") or {"kind": rules.PLAIN}
+            t["client"] = info.get("client") or {"kind": rules.PLAIN}
+            t["mocked"] = bool(info.get("mocked"))
+            t["mockable"] = self._mockable(info)
+            t["variant"] = info.get("variant")
+            t["title"] = (info.get("variant") or {}).get("title") or t["name"]
+            t["origin_words"] = rules.origin_words(info.get("variant"))
+            t["added_at"] = info.get("added_at")
+            t["changed_at"] = info.get("changed_at")
             t["sql"] = f"[{rules.NAME}].{t['name']}"
             t["grid"] = rules.grid_name(t["name"])
             t["open"] = self.ws.grids.first_for(rules.grid_name(t["name"])) is not None
             t["changes"] = meta.log.get(t["name"], rules.Counts()).to_json()
         return {
             "project": folder,
-            "tables": tables,
+            "type": rules.CONNECTION_TYPE,
+            "tables": rules.sort_tables(tables, by, descending),
+            "sort": {"by": by, "order": "desc" if descending else "asc", "choices": rules.SORTS},
             "baseline_at": meta.baseline_at,
             "checkpoints": [{"name": c.name, "at": c.at} for c in meta.checkpoints],
             "log": rules.log_json(meta.log),
             "log_words": rules.log_words(meta.log),
             "version": self.version,
+            "mock_choices": self._mock_choices(),
         }
+
+    @staticmethod
+    def _mockable(info: dict[str, Any]) -> bool:
+        """A table that answered as no connection when it came in (a file, its columns, a grid of no
+        connection's): it may be Mocked as one."""
+        first = info.get("origin_client")
+        if first is None:  # added before Mocked as existed: its client then was its own
+            first = {} if info.get("mocked") else info.get("client") or {}
+        return not first.get("connection")
+
+    def _mock_choices(self) -> list[str]:
+        try:
+            return [c for c in self._sources.connections() if not rules.is_sandbox(c)]
+        except Exception:  # the connections' own trouble: no choices to offer
+            return []
 
     async def names(self) -> list[str]:
         if self._project() is None:
@@ -270,17 +330,12 @@ class Sandbox:
                 out.setdefault(str(client["connection"]), f"mock of its client ({what})")
         return sorted(out.items(), key=lambda kv: (kv[0] != rules.NAME, kv[0].casefold()))
 
-    async def names_and_columns(self) -> list[tuple[str, int, list[tuple[str, str]]]]:
-        """The Catalog's Sandbox section: each table, its rows, its columns and types."""
-        if self._project() is None:
+    async def names_and_columns(self) -> list[dict[str, Any]]:
+        """The Catalog's Sandbox section: each table as the listing has it (rows, columns, designation,
+        source, created, last changed)."""
+        if self._project() is None or not self._files().exists():
             return []
-        files = self._files()
-        if not files.exists():
-            return []
-        return [
-            (str(t["name"]), int(t["rows"]), [(str(c["name"]), str(c["type"])) for c in t["columns"]])
-            for t in await self._run(files.tables)
-        ]
+        return list((await self.listing())["tables"])
 
     # ===== add, remove =====
 
@@ -320,16 +375,31 @@ class Sandbox:
             source = {"kind": "file", "file": stem}
             sheet = given.get("sheet")
             arrow = await self._sources.file_table(path, str(sheet) if sheet else None)
+        elif kind == "structure":
+            wanted = str(given.get("structure") or "").strip()
+            if not wanted:
+                raise SandboxError("Name the structure to add.")
+            try:
+                arrow, structure, path = await self._sources.structure_table(
+                    wanted, str(given.get("path") or "$")
+                )
+            except LookupError as error:
+                raise NotFound(str(error)) from error
+            name = rules.check_table_name(given.get("name") or rules.ident_of(structure))
+            source = {"kind": "structure", "structure": structure, "path": path}
         elif kind == "columns":
             name = rules.check_table_name(given.get("name"))
             columns = rules.columns_spec(given.get("columns"))
             source = {"kind": "columns"}
             arrow = None
         else:
-            raise SandboxError("Add from grid, connection, file or columns.")
+            raise SandboxError("Add from grid, connection, file, structure or columns.")
         client = self._sources.client_of(
             source.get("table") if kind == "grid" else None, source.get("connection")
         )
+        if kind == "grid" and client.get("connection"):
+            source["connection"] = client["connection"]  # the open table's own (its origin's words)
+        title = str(given.get("title") or name)[:80]
         async with self._lock:
             files = self._files(create=True)
             existing = await self._run(files.table_name, name)
@@ -341,7 +411,16 @@ class Sandbox:
             else:
                 rows = await self._run(files.put_table, name, arrow, replace)
             meta = files.read_meta()
-            meta.tables[name] = {"source": source, "client": client, "added_at": _stamp(self._now())}
+            at = _stamp(self._now())
+            meta.tables[name] = {
+                "type": rules.CONNECTION_TYPE,
+                "source": source,
+                "client": client,
+                "origin_client": client,
+                "added_at": at,
+            }
+            if kind in rules.VARIANT_SOURCES:
+                meta.tables[name]["variant"] = rules.variant_record(source, title, at)
             meta.log.pop(name, None)
             # A table added is part of the baseline: Reset gives it back as it came in.
             await self._run(files.set_baseline)
@@ -349,6 +428,60 @@ class Sandbox:
             files.write_meta(meta)
         await self._told([name], who, "sandbox_add", rows=rows, source=kind)
         return {"added": name, "rows": rows, "sql": f"[{rules.NAME}].{name}"}
+
+    async def variant(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Make a sandbox variant: {"from": "grid" (default) | "structure", "table" | "structure", "path"?,
+        "name"?}: a copy of an open table's view (after its steps) or a structure's records, with its own
+        designation ("orders · sandbox", or the name given) and its origin kept. Several of one origin are
+        named apart; a variant never writes back to its origin."""
+        given = dict(body) if isinstance(body, dict) else {}
+        kind = str(given.get("from") or "grid")
+        if kind not in ("grid", "structure"):
+            raise SandboxError("A sandbox variant is made from an open table (grid) or a structure.")
+        origin = str(given.get("table") if kind == "grid" else given.get("structure") or "").strip()
+        if not origin:
+            raise SandboxError(
+                "Name the open table to make a variant of." if kind == "grid" else "Name the structure."
+            )
+        if kind == "structure":  # its own name (it was asked for by name or id)
+            try:
+                _, origin, _ = await self._sources.structure_table(origin, str(given.get("path") or "$"))
+            except LookupError as error:
+                raise NotFound(str(error)) from error
+        taken = await self.names()
+        name, title = rules.variant_name(origin, taken, given.get("name"))
+        made = await self.add(given | {"from": kind, "name": name, "title": title, "replace": False}, who)
+        return made | {"title": title, "variant": True}
+
+    async def mock(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """Mocked as: {"table", "connection"}: a table from a file, its columns or a grid of no connection's
+        answers as that connection (its kind and dialect); {"connection": null}: plain DuckDB again."""
+        given = body if isinstance(body, dict) else {}
+        wanted = given.get("connection")
+        async with self._lock:
+            files = self._files()
+            table, _ = await self._table(files, given.get("table"))
+            meta = files.read_meta()
+            info = meta.tables.setdefault(table, {"source": {}, "client": {"kind": rules.PLAIN}})
+            if not self._mockable(info):
+                said = (info.get("client") or {}).get("connection")
+                raise Conflict(f"{table} was read from {said}: it answers as {said} already.")
+            info.setdefault("origin_client", {"kind": rules.PLAIN})
+            if wanted is None or str(wanted).strip() == "":
+                info["client"] = {"kind": rules.PLAIN}
+                info.pop("mocked", None)
+            else:
+                name = str(wanted).strip()
+                if rules.is_sandbox(name):
+                    raise SandboxError("A table is mocked as one of your connections, not as the Sandbox.")
+                client = self._sources.client_of(None, name)
+                if client.get("kind") == rules.PLAIN:
+                    raise NotFound(f"There is no connection called {name} with tables to mock.")
+                info["client"] = client
+                info["mocked"] = True
+            files.write_meta(meta)
+        await self._told([table], who, "sandbox_mock", connection=str(wanted or ""))
+        return {"table": table, "client": info["client"], "mocked": bool(info.get("mocked"))}
 
     async def remove(self, body: Any, who: str = "user") -> dict[str, Any]:
         name = rules.check_table_name((body or {}).get("table") if isinstance(body, dict) else body)
@@ -386,6 +519,7 @@ class Sandbox:
             if not await self._run(files.reset):
                 raise Conflict("The sandbox has no baseline yet: add a table first.")
             undone = rules.log_json(meta.log)
+            rules.touched(meta, [t for t in meta.log if meta.log[t].any], _stamp(self._now()))
             meta.log = {}
             files.write_meta(meta)
         await self._told(sorted(meta.tables), who, "sandbox_reset")
@@ -405,6 +539,8 @@ class Sandbox:
                 raise Conflict(f"{table} is not in the baseline: Set as baseline first.")
             meta = files.read_meta()
             undone = rules.log_json({table: meta.log.pop(table, rules.Counts())})
+            if undone:
+                rules.touched(meta, [table], _stamp(self._now()))
             files.write_meta(meta)
         await self._told([table], who, "sandbox_reset")
         return {"reset": True, "table": table, "undone": undone}
@@ -472,8 +608,18 @@ class Sandbox:
         if real is None:
             raise NotFound(f"The sandbox has no table named {name}.")
         arrow = await self._run(files.arrow, real)
-        shown = await self._sources.show(rules.grid_name(real), arrow, False)
+        shown = await self._sources.show(rules.grid_name(real), arrow, False, self._designation(files, real))
         return shown | {"table": real}
+
+    @staticmethod
+    def _designation(files: Files, table: str) -> str:
+        """A sandbox table's designation and origin, for its grid's lineage: "orders · sandbox: A sandbox
+        variant of orders (Warehouse), copied 2026-11-21 14:02", or "orders in the Sandbox"."""
+        info = files.read_meta().tables.get(table, {})
+        variant = info.get("variant")
+        if not variant:
+            return f"{table} in the {rules.NAME}"
+        return f"{variant.get('title') or table}: {rules.origin_words(variant)}"
 
     def copy_now(self, target: Any) -> None:
         """The sandbox as it is now, copied whole (a local sandbox API's export, on the user's tick; called
@@ -538,11 +684,147 @@ class Sandbox:
             meta = files.read_meta()
             for (kind, table, _), n in zip(planned, counts, strict=True):
                 rules.noted(meta.log, table, kind, n)
+            rules.touched(
+                meta, [p[1] for p, n in zip(planned, counts, strict=True) if n], _stamp(self._now())
+            )
             files.write_meta(meta)
         touched = sorted({p[1] for p in planned})
         await self._told(touched, "", "")
         self.ws.audit.write(who, "sandbox_write", ", ".join(touched), rows=sum(counts))
         return {"counts": counts, "rows": sum(counts)}
+
+    # ===== edited in its grid (the owner approved "Edit sandbox rows in a grid", 2026-11-21) =====
+
+    async def edit(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """A sandbox table changed from its grid, a sandbox write like an API's (counted in the change log;
+        Reset undoes it):
+          {"table", "op": "update", "row": n, "column", "value"}   the cell at row n of its open grid's view
+          {"table", "op": "update", "where": {...}, "values": {...}}
+          {"table", "op": "insert", "values": {column: value}}     a new row (the rest blank)
+          {"table", "op": "delete", "rows": [n, ...]} | {"where": {...}}
+        Each value is checked against its column's type first: a bad one is refused in one sentence and
+        nothing is written."""
+        given = body if isinstance(body, dict) else {}
+        op = str(given.get("op") or "update")
+        files = self._files()
+        table, _ = await self._table(files, given.get("table"))
+        types = {str(c["name"]): str(c["type"]) for c in await self._run(files.columns, table)}
+        columns = list(types)
+        statements: list[rules.Statement] = []
+        if op == "update" and given.get("where") is not None:
+            values = await self._typed(files, types, given.get("values"))
+            plain = {c: v for c, (v, _) in values.items()}
+            statements = [rules.update_statement(table, columns, plain, given.get("where"))]
+        elif op == "update":
+            column = self._column(types, given.get("column"))
+            [(value, cast)] = (await self._typed(files, types, {column: given.get("value")})).values()
+            [row] = await self._shown(table, columns, [given.get("row")])
+            statements = [rules.edit_update(table, columns, row, column, value, cast)]
+        elif op == "insert":
+            statements = [
+                rules.edit_insert(table, await self._typed(files, types, given.get("values") or {}))
+            ]
+        elif op == "delete" and given.get("where") is not None:
+            statements = [rules.delete_statement(table, columns, given.get("where"))]
+        elif op == "delete":
+            wanted = given.get("rows", given.get("row"))
+            shown = await self._shown(table, columns, wanted if isinstance(wanted, list) else [wanted])
+            statements = [rules.edit_delete(table, columns, row) for row in shown]
+        else:
+            raise SandboxError("An edit is update, insert or delete.")
+        async with self._lock:
+            try:
+                [changed] = await self._run(files.write, [statements])
+            except Exception as error:  # DuckDB's own words (a key taken, a blank key): nothing was written
+                raise SandboxError(str(error).split("\n")[0]) from error
+            if op == "insert":
+                changed = max(changed, 1)
+            meta = files.read_meta()
+            if changed:
+                rules.noted(meta.log, table, op, changed)
+                rules.touched(meta, [table], _stamp(self._now()))
+                files.write_meta(meta)
+        if not changed:
+            await self._follow([table])
+            raise Conflict(f"That row of {table} changed since it was shown: it is shown again.")
+        await self._told([table], who, "sandbox_edit", rows=changed, op=op)
+        return {"table": table, "op": op, "rows": changed, "log": rules.log_json(meta.log)}
+
+    @staticmethod
+    def _column(types: dict[str, str], wanted: Any) -> str:
+        by_case = {c.casefold(): c for c in types}
+        found = by_case.get(str(wanted or "").casefold())
+        if found is None:
+            raise SandboxError(f"There is no column named {wanted}.")
+        return found
+
+    async def _typed(self, files: Files, types: dict[str, str], raw: Any) -> dict[str, tuple[Any, str]]:
+        """Each value sent, checked against its column's type (DuckDB's TRY_CAST): (value, its CAST)."""
+        if not isinstance(raw, dict):
+            raise SandboxError("values is a dict of column to value.")
+        out: dict[str, tuple[Any, str]] = {}
+        for wanted, sent in raw.items():
+            column = self._column(types, wanted)
+            cast = rules.editable_type(column, types[column])
+            value = rules.cell_value(sent, types[column])
+            if value is not None:
+                check = rules.Statement(f"SELECT TRY_CAST(? AS {cast}) IS NULL AS bad", [value])
+                try:
+                    _, _, found, _ = await self._run(files.query, check, 1)
+                except Exception:  # a value DuckDB cannot even bind
+                    found = [[True]]
+                if found and found[0][0]:
+                    raise SandboxError(rules.not_a(column, sent, types[column]))
+            out[column] = (value, cast)
+        return out
+
+    async def _shown(self, table: str, columns: list[str], wanted: list[Any]) -> list[list[Any]]:
+        """The rows at these places in the table's open grid's view, each in the table's column order."""
+        grid = rules.grid_name(table)
+        if self.ws.grids.first_for(grid) is None:
+            raise NotFound(f"Open {table} in Grids first (Open in Grids), or say which rows with where.")
+        places: list[int] = []
+        for w in wanted[:500]:
+            if isinstance(w, bool) or not isinstance(w, int) or w < 0:
+                raise SandboxError("A row is its place in the grid: 0 for the first.")
+            places.append(w)
+        if not places:
+            raise SandboxError("Say which rows.")
+        shown, rows = await self._sources.view_rows(grid, places)
+        if sorted(c.casefold() for c in shown) != sorted(c.casefold() for c in columns):
+            raise SandboxError(
+                f"{table}'s grid has steps that change its columns: turn them off to edit it there, or say "
+                "which rows with where."
+            )
+        at = {c.casefold(): i for i, c in enumerate(shown)}
+        out = []
+        for place, row in zip(places, rows, strict=True):
+            if row is None:
+                raise NotFound(f"{table}'s grid has no row {place + 1}.")
+            out.append([row[at[c.casefold()]] for c in columns])
+        return out
+
+    # ===== the Sandbox's card on the Connections page =====
+
+    def card(self) -> dict[str, Any] | None:
+        """The project's Sandbox as a connection's card (None with no project open): its tables, the change
+        log, local test data never live. From sandbox.json alone: no query."""
+        if self._project() is None:
+            return None
+        meta = self._files().read_meta()
+        return {
+            "name": rules.NAME,
+            "connection": rules.CONNECTION_TYPE,
+            "type": "Sandbox",
+            "tables_kind": rules.CONNECTION_TYPE,
+            "status": "works",
+            "words": rules.CARD_WORDS,
+            "tables": len(meta.tables),
+            "log_words": rules.log_words(meta.log),
+            "colour": rules.COLOUR,
+            "calls": {},
+            "local": [],
+        }
 
     # ===== a mock client's: its connection's tables, its own SQL, OData, FetchXML, a list's filters =====
 
@@ -583,6 +865,8 @@ class Sandbox:
             count = len(rows) if columns and columns[0].lower() != "count" else int(rows[0][0]) if rows else 0
             meta = files.read_meta()
             rules.noted(meta.log, made.table or "", made.kind, count)
+            if count and made.table:
+                rules.touched(meta, [made.table], _stamp(self._now()))
             files.write_meta(meta)
         touched = [made.table] if made.table else []
         await self._told(touched, "", "")
@@ -682,6 +966,8 @@ class Sandbox:
 class SandboxAlias:
     """[Sandbox] in DuckDB SQL: the open project's sandbox as a dataset connection name (services/hooks.py
     DatasetAlias). Its words carry the sandbox's version, so a read after a write is read again."""
+
+    tables_kind = rules.CONNECTION_TYPE  # a real connection kind (domain/connection_tables.py TABLE_KINDS)
 
     def __init__(self, sandbox: Sandbox) -> None:
         self._sandbox = sandbox

@@ -17,7 +17,9 @@ TYPES and their MASKS: bool (switch), int and float (number; a range), str (text
 date, datetime, time (pickers), choice (dropdown: `Literal[...]` or `# choices:`), table (table picker),
 column (column picker: of the first table property, or `# column of <property>`), variable (the variables
 list), path (a path), list and dict (a small JSON editor), endpoint (`# endpoint`: one of API.py's, "GET
-/orders"; a picker of the local sandbox API's endpoints). Names starting with _ are not properties.
+/orders"; a picker of the local sandbox API's endpoints), path_values (`# path values of endpoint`: a box per
+{name} of that endpoint's path, each a value, a variable or a page value). Names starting with _ are not
+properties.
 
 WRITE: a property's value is written into ONLY its own characters (the value's expression; for a variable,
 the name inside os.environ[...]): every other byte stays as typed. CHECK: a value against its type and mask
@@ -54,6 +56,9 @@ TYPES: dict[str, str] = {
     "dict": "json",
     # The project's local sandbox API: one of its endpoints, "GET /orders/{region}" (a picker of API.py's).
     "endpoint": "endpoint",
+    # One box per {name} in its endpoint's path (`# path values of endpoint`): a value, a variable or a page
+    # value each (the approved "Path fields for API widgets", 2026-11-21).
+    "path_values": "path_values",
 }
 _COLOUR = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -64,6 +69,8 @@ _ENV_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 _RANGE = re.compile(r"#\s*(-?\d+(?:\.\d+)?)\s*\.\.\s*(-?\d+(?:\.\d+)?)(?:\s+step\s+(\d+(?:\.\d+)?))?")
 _CHOICES = re.compile(r"#\s*choices?\s*:\s*(.+)$", re.IGNORECASE)
 _COLUMN_OF = re.compile(r"#\s*column\s+of\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+_PATH_OF = re.compile(r"#\s*path\s+values\s+of\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+_PATH_NAME = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _KIND_WORD = re.compile(
     r"#\s*(table|column|colour|color|path|date|datetime|time|variable|endpoint)\b", re.IGNORECASE
 )
@@ -316,6 +323,8 @@ def _help(source: _Source, line: int) -> str:
 
 
 def _guess(name: str, value: Any, comment: str, tables: set[str]) -> str:
+    if _PATH_OF.search(comment):
+        return "path_values"
     word = _KIND_WORD.search(comment)
     if word:
         kind = word.group(1).lower()
@@ -425,6 +434,9 @@ def detect(code: str, tables: set[str] | frozenset[str] = frozenset()) -> list[P
         if kind == "column":
             said_of = _COLUMN_OF.search(comment)
             of = said_of.group(1) if said_of else next((p.name for p in found if p.type == "table"), None)
+        elif kind == "path_values":
+            said_of = _PATH_OF.search(comment)
+            of = said_of.group(1) if said_of else next((p.name for p in found if p.type == "endpoint"), None)
         seen.add(target)
         found.append(
             Property(
@@ -451,12 +463,48 @@ def detect(code: str, tables: set[str] | frozenset[str] = frozenset()) -> list[P
 def _fits_type(kind: str, value: Any) -> bool:
     if kind in ("bool", "int", "float", "list", "dict"):
         return _fits(kind, value)
+    if kind == "path_values":
+        return isinstance(value, dict)
     if kind == "choice":
         return isinstance(value, (str, int, float)) and not isinstance(value, bool)
     return isinstance(value, str)
 
 
 # ===== checking a value =====
+
+
+def path_names(endpoint: Any) -> list[str]:
+    """The {names} in an endpoint's path ("GET /orders/{region}" -> ["region"]): a path box each."""
+    return list(dict.fromkeys(_PATH_NAME.findall(str(endpoint or "").partition(" ")[2])))
+
+
+_PAGE_VALUE = re.compile(r"^\{\{\s*[A-Za-z_]\w*\s*\}\}$")
+
+
+def _check_path_values(prop: Property, value: Any, context: Context) -> None:
+    """A box per {name} of its endpoint's path: each a plain value (text or a number), ${NAME} (a variable
+    of this computer) or {{ name }} (a page value); no box for a name the path does not have."""
+    endpoint = context.values.get(prop.of or "") if prop.of else None
+    names = path_names(endpoint) if isinstance(endpoint, str) and endpoint else None
+    for name, given in value.items():
+        if names is not None and name not in names:
+            raise PropertyError(
+                f"{endpoint} has no {{{name}}} in its path.",
+                f"Its path takes {', '.join(names)}." if names else "Its path takes no values.",
+            )
+        if isinstance(given, bool) or not isinstance(given, (str, int, float)):
+            raise PropertyError(
+                f"{name} is one value: text, a number, a variable or a page value.", f"Type {name}'s value."
+            )
+        text = str(given).strip()
+        match = _VARIABLE.match(text)
+        if match and context.variables is not None and match.group(1) not in context.variables:
+            raise PropertyError(
+                f"{match.group(1)} is not set on this computer.",
+                "Set it on the Variables page, or pick another.",
+            )
+        if text.startswith("{{") and not _PAGE_VALUE.match(text):
+            raise PropertyError(f"{text[:40]} is not a page value.", "Write a page value as {{ region }}.")
 
 
 def check(prop: Property, value: Any, context: Context | None = None) -> None:
@@ -485,6 +533,8 @@ def check(prop: Property, value: Any, context: Context | None = None) -> None:
         raise PropertyError(
             f"API.py has no endpoint {value}.", "Pick one of its endpoints, or add it to API.py."
         )
+    elif kind == "path_values":
+        _check_path_values(prop, value, context)
     elif kind == "colour" and value and not _COLOUR.match(value):
         raise PropertyError(f"{value[:40]} is not a colour.", "Pick a colour, as #1f77b4.")
     elif kind == "date" and value and not (_DATE.match(value) and _real_date(value)):
@@ -554,6 +604,7 @@ def _words(kind: str) -> str:
         "dict": "a set of names and values",
         "choice": "one of its choices",
         "endpoint": "an endpoint (GET /path)",
+        "path_values": "a value for each of its endpoint's {names}",
     }.get(kind, "text")
 
 

@@ -630,3 +630,56 @@ def shapes(api: Api, uses: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
              "endpoint": wanted, "expects": needs["words"], "answers": answers, "problems": problems}
         )  # fmt: skip
     return out
+
+
+# ===== an endpoint's kept example (the owner approved "Keep a Try it body", 2026-11-21) =====
+
+# Beside API.py, never in it (the user's own file keeps only its code and its settings): the project's
+# .sab/api_examples.json, by "METHOD /path", sorted and byte-stable (shared in Git with the project).
+EXAMPLES_FILE = ".sab/api_examples.json"
+MAX_EXAMPLE = 20_000  # characters of one kept body
+
+
+def read_examples(text: str | None) -> dict[str, Any]:
+    if not text:
+        return {}
+    try:
+        raw = json.loads(text)
+    except ValueError:
+        return {}
+    found = raw.get("examples") if isinstance(raw, dict) else None
+    return {str(k): v for k, v in found.items()} if isinstance(found, dict) else {}
+
+
+def examples_text(examples: Mapping[str, Any]) -> str:
+    body = {"format": 1, "examples": {k: examples[k] for k in sorted(examples)}}
+    return json.dumps(body, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def endpoint_key(method: Any, path: Any) -> str:
+    return f"{str(method or '').upper()} {path or ''!s}"
+
+
+def check_example(api: Api, key: str, body: Any) -> Any:
+    """A Try it body kept as an endpoint's example: the endpoint is API.py's and takes a body, and the body
+    is JSON of a reasonable size."""
+    found = next((e for e in api.endpoints if endpoint_key(e.method, e.path) == key), None)
+    if found is None:
+        raise ApiFileError(f"API.py has no endpoint {key}.")
+    if not any(p.where == "body" for p in found.params):
+        raise ApiFileError(f"{key} takes no body: there is nothing to keep.")
+    if len(json.dumps(body, default=str)) > MAX_EXAMPLE:
+        raise ApiFileError(f"An example is {MAX_EXAMPLE:,} characters at most.")
+    return body
+
+
+def with_examples(document: dict[str, Any], examples: Mapping[str, Any], base: str = "") -> dict[str, Any]:
+    """The OpenAPI document with each kept example as its request body's example."""
+    for path, item in (document.get("paths") or {}).items():
+        bare = path[len(base) :] if base and path.startswith(base) else path
+        for method, operation in item.items():
+            key = endpoint_key(method, bare)
+            content = ((operation.get("requestBody") or {}).get("content") or {}).get("application/json")
+            if key in examples and isinstance(content, dict):
+                content["example"] = examples[key]
+    return document

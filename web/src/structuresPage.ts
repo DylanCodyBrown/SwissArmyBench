@@ -32,6 +32,7 @@ import { dismissDialog, layerOpened, registerLayer, setOverTitle, watchLayerDial
 import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mountTree, nodeAt, type Part, pathText, type TextView, type Tree, type Value } from "./structureTree";
 import { effectiveTheme } from "./theme";
 import { errorHere, errorMark, errorNote } from "./errorNote";
+import { makeVariant } from "./dataSandbox";
 
 /** The page's name, in one place (the owner chose it, 2026-11-17): the rail, the title, the tabs. */
 
@@ -324,6 +325,8 @@ function drawPage(): void {
       if (isRecords(node)) bar.append(button("Flatten", () => void step({ op: "flatten", path: where }), { icon: "rows", title: "Nested objects as dotted keys" }));
       if (isRecords(node) || (Array.isArray(node) && node.length)) {
         bar.append(button("Open as grid", busyClick("Opening…", () => act("/grid", "POST", { path: where }).then(() => toast("Opened as a grid"))), { icon: "grids", class: "structures-to-grid" }));
+        // Its records as a sandbox variant (its own designation, the structure as its origin; never written back).
+        if (isRecords(node)) bar.append(button("Make a sandbox variant", () => makeVariant("structure", doc!.name, undefined, where), { icon: "branch", class: "structures-to-sandbox" }));
       }
       if (doc.origin.kind === "api" && doc.origin.api && doc.origin.operation) {
         bar.append(button("Return as table…", () => void returnAsTable(where), { icon: "table", title: "Save its web call with Return as table on (its API's table in SQL)" }));

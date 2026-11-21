@@ -922,7 +922,7 @@ def _leading(lines: Sequence[str]) -> Iterable[str]:
 class Origin:
     """Where a table came from, for the load its cell starts with when no code made it."""
 
-    kind: str = "unknown"  # python, file, dropped, paste, connection, query, structure, unknown
+    kind: str = "unknown"  # python, file, dropped, paste, connection, query, structure, sandbox, unknown
     kernel: str | None = None  # the Workbench kernel that pushed it
     path: str | None = None
     sheet: str | None = None
@@ -950,6 +950,8 @@ class Origin:
             return self.connection or ""
         if self.kind == "structure":
             return " · ".join(filter(None, [self.filename, self.sql]))
+        if self.kind == "sandbox":  # its designation and origin (services/sandbox.py _designation)
+            return self.filename or "Sandbox"
         return {"python": "Python", "paste": "Pasted", "query": "Query"}.get(self.kind, "")
 
 
@@ -1039,6 +1041,8 @@ def load_code(
         return ["import swissarmybench as sab"], f"{var} = sab.sql({python_string(origin.sql.strip())})"
     if origin.kind == "query" and origin.sql:
         return [duck], f"{var} = {module}.sql({python_string(origin.sql.strip())}).df()"
+    if origin.kind == "sandbox" and origin.sql:  # a sandbox table: [Sandbox].<table>, as DuckDB SQL names it
+        return ["import swissarmybench as sab"], f"{var} = sab.sql({python_string(origin.sql)})"
     if origin.kind == "structure" and origin.code:  # a structure's list of records (Structures' Open as grid)
         return ["import swissarmybench as sab"], f"{var} = {origin.code}"
     if origin.kind == "paste":

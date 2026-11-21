@@ -1812,19 +1812,34 @@ With the Git extension installed (GitHub sync: Join a team… installs it), the 
 Every project has `API.py` at its top: its own API, run here against the project's **sandbox**, never against live
 data.
 
-1. **Fill the sandbox.** On a grid's Table row, **Add to sandbox** copies the table as you see it (after its steps)
-   into the project's sandbox (`.sab/sandbox/`, kept out of Git). The APIs page's Sandbox panel adds a file, an
-   empty table by its columns, or an open table, and shows each table's rows, where it came from and the client its
-   rows answer as ("Mock of Warehouse (sqlserver)" for a table read from that connection).
+1. **Fill the sandbox.** On a grid's Table row, **Make a sandbox variant** copies the table as you see it (after
+   its steps) into the project's sandbox (`.sab/sandbox/`, kept out of Git) as a *variant*: its own name ("orders ·
+   sandbox", "orders · sandbox 2", or yours), its origin kept and shown (its tab, the bar over its grid, the
+   lists), a branch mark. It never writes back to the table it came from. The Structures page makes one from a
+   list of records the same way. The APIs page's Sandbox panel adds a file, an empty table by its columns, or an
+   open table, and shows each table's rows, where it came from and the client its rows answer as ("Mock of
+   Warehouse (sqlserver)" for a table read from that connection). A table from a file or its columns can be
+   **Mocked as** one of your connections (the picker on its row): its mock client then takes that connection's kind
+   and SQL. Click a column heading (Table, Rows, From, Created, Last changed) to sort; again, the other way. The
+   Catalog's Sandbox section sorts the same way (its Sort button).
+   - **Edit in its grid.** Open a sandbox table in Grids: double-click a cell (or Enter, F2), type, Enter. A value
+     its column cannot hold is said under the box. **Add row** and **Delete rows** are on the bar over the grid.
+     Every edit is counted in the change log, and Reset undoes it.
+   - **The Sandbox is a connection.** The Connections page shows the project's Sandbox (local test data, never
+     live) in its own indigo, with its tables, the change log and Reset. DuckDB SQL names its tables
+     `[Sandbox].orders`. It is never exported as a connection.
 2. **Write endpoints.** **New endpoint from a table…** writes list, get, create, update and delete into API.py in the
    source's own style; or write your own with `@endpoint("GET", "/orders/{region}")`. `connection("Warehouse")` is a
    mock with Warehouse's own client's methods over the sandbox.
 3. **Run** it (127.0.0.1, its own key): **Try it** on each endpoint; the request log under it; the change log
-   counts every row it inserted, updated or deleted.
+   counts every row it inserted, updated or deleted. **Keep as its example** keeps the body you edited as the
+   endpoint's example (Try it starts from it next time), in `.sab/api_examples.json` beside API.py.
 4. **Reset** puts every sandbox table back to its baseline (a table's own Reset, that one alone); **Save
    checkpoint…** keeps a state to come back to.
 5. **On the canvas**, the API table, API form, API button and API metric widgets call it; their endpoint is picked
-   in Properties. **Payload shapes** says when a widget expects another shape than its endpoint answers.
+   in Properties, with one box under it for each `{name}` in its path: a value, a variable (`${REGION}`) or a page
+   value (`{{ region }}`). Export lists SAB_API_URL, SAB_API_KEY and SAB_API_BASE as the variables to set where the
+   app runs (in its README too). **Payload shapes** says when a widget expects another shape than its endpoint answers.
 6. **Will this work for real?** checks each endpoint's tables and columns against its connection's loaded catalog
    (load it on the Connections page first): nothing is sent to the source.
 7. **Export…** writes a ready-to-deploy folder (`exports/api/<target>/`) for FastAPI, Azure Functions or AWS Lambda,

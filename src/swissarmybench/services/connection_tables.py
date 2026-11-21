@@ -32,6 +32,7 @@ from swissarmybench.services.workspace import Workspace
 MAX_KEPT: int = 64  # reads kept for the session (the oldest goes first)
 MAX_OPEN_ALL: int = 200  # tables Open all opens at once
 ALIAS = "alias"  # a project's dataset connection name, resolved through its setting (services/hooks.py)
+ALIASED = frozenset({ALIAS, "sandbox"})  # read through an alias object: the project's own (the Sandbox too)
 
 
 class Places(Protocol):
@@ -144,8 +145,8 @@ class ConnectionTables:
     def kind(self, name: str) -> tuple[str, str]:
         """A connection's saved name and its tables kind (domain/connection_tables.py TABLE_KINDS)."""
         aliased = self.alias(name)
-        if aliased is not None:
-            return aliased[0], ALIAS
+        if aliased is not None:  # the project's dataset alias, or the Sandbox (its own kind)
+            return aliased[0], str(getattr(aliased[1], "tables_kind", ALIAS))
         blade, _ = self._connections.blade(name)
         found = rules.tables_kind(
             blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
@@ -160,7 +161,7 @@ class ConnectionTables:
     async def places(self, name: str) -> list[Place]:
         """A connection's tables (its catalog, loaded now when it is not yet)."""
         saved, kind = self.kind(name)
-        alias = self.alias(saved) if kind == ALIAS else None
+        alias = self.alias(saved) if kind in ALIASED else None
         if alias is not None:
             return [Place("", "", t) for t in await alias[1].tables()]
         found = await self._catalogs.places(saved)
@@ -208,7 +209,7 @@ class ConnectionTables:
         query limit (settings) it is refused, with how to narrow it."""
         saved, kind = self.kind(name)
         sent = pushed or rules.Pushed()
-        alias = self.alias(saved) if kind == ALIAS else None
+        alias = self.alias(saved) if kind in ALIASED else None
         key = (
             (saved + (" · " + str(alias[1].words()) if alias else "")).casefold(),
             place.database.casefold(),
@@ -354,6 +355,17 @@ class ConnectionTables:
         and their tables, each with its name for SQL. `load`: load the catalog when it is not (the state
         is said while it loads)."""
         saved, kind = self.kind(name)
+        aliased = self.alias(saved) if kind in ALIASED else None
+        if aliased is not None:  # the project's own tables (the Sandbox's): listed now, nothing to load
+            names = await aliased[1].tables()
+            tables = [Place("", "", t).to_json() | {"sql": f"[{saved}].{t}"} for t in names]
+            return {
+                "connection": saved,
+                "kind": kind,
+                "group": "schema",
+                "state": {"state": "loaded"},
+                "groups": [{"database": "", "schema": "", "tables": tables, "count": len(tables)}],
+            }
         found = await self._catalogs.places(saved)
         if found is None and load:
             try:

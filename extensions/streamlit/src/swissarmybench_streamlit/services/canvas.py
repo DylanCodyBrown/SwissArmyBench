@@ -411,15 +411,33 @@ class Canvases:
             )
             if not await self._approvals.ask(opened.path, "export_canvas", detail):
                 raise Refused("The user declined (or did not answer): nothing was written.")
+        # An app that calls the local sandbox API reads its address from these where it is deployed.
+        variables = list(API_VARIABLES) if any("SAB_API_URL" in t for t in files.values()) else []
+        warnings = [f"Set {v} where it runs: {API_VARIABLES[v]}." for v in variables]
+        if variables:
+            files["README.md"] = API_README + "".join(f"- `{v}`: {API_VARIABLES[v]}\n" for v in variables)
         where, written = self._app_files.export(chosen, files, tables)
         self.ws.audit.write(who, "export_canvas", f"{opened.path} -> {where}")
-        return {"folder": where, "files": written}
+        return {"folder": where, "files": written, "variables": variables, "warnings": warnings}
 
     async def close(self, canvas: str) -> dict[str, Any]:
         opened = self._open.pop(canvas, None)
         if opened is not None:
             await self._live.stop(f"canvas-{opened.id}")
         return {"ok": True}
+
+
+# The variables an exported app that calls the local sandbox API needs where it runs (Play and Launch set them
+# here; services/local_api.py env_for_app): the approved "Export names the API variables" (2026-11-21).
+API_VARIABLES: dict[str, str] = {
+    "SAB_API_URL": "the deployed API's address (https://…)",
+    "SAB_API_KEY": "the key the deployed API takes (Authorization: Bearer)",
+    "SAB_API_BASE": "the API's base path, as /api (empty when it has none)",
+}
+API_README = (
+    "# The app\n\nRun it with `streamlit run app.py`.\n\n## Variables to set where it runs\n\nIt calls an "
+    "API (exported from the local sandbox API): set these, never in a file.\n\n"
+)
 
 
 def _keep(made: Open, fresh: Open) -> Open:

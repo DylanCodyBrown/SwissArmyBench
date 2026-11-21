@@ -4457,3 +4457,35 @@ Not checked:
   were); the Write starters run against the mocks; lakes, SharePoint documents, Power BI and Python connections
   have no mock yet (said in one sentence).
 - The canvas Export does not write SAB_API_URL as a variable to set (left to the canvas's own export).
+
+## The sandbox's approved gaps (2026-11-21, branch sandbox-gaps)
+
+Checked:
+- The rules (tests/test_sandbox_gaps.py): every sort key and its ties; variants named apart ("orders · sandbox",
+  "orders · sandbox 2", a user's name) and their origin in words; an edit's SQL names its row by every value
+  (IS NOT DISTINCT FROM, LIMIT 1 on rowid) and CASTs to the column's type; a kept example byte-stable and in the
+  OpenAPI document.
+- Over HTTP: a variant of a grid edited in its sorted grid (the right row changed: DuckDB's rowid in UPDATE and
+  DELETE's WHERE, a subquery's LIMIT 1), a bad value refused by TRY_CAST with nothing written, an insert, a delete
+  of two view rows, all counted, Reset undoing them, the origin table unchanged; sorted listings; a key taken
+  refused; a row changed since it was shown said (409); Mocked as Shop (a made-up SQLite connection): its client's
+  kind and dialect, refused for a table read from Shop, back to plain; the Sandbox's card, tree ([Sandbox].x),
+  DuckDB SQL read, fixed colour (refused when set), never in connections_code; a structure's records as a variant
+  in the Catalog with its branch icon; Try it's body kept in .sab/api_examples.json with API.py's bytes untouched.
+- The path_values mask on all four API widgets and its checks; in Streamlit 1.67's AppTest, a page value not set
+  says which box, a variable fills one (tests/test_api_widget_paths.py); a canvas Export that calls the API names
+  SAB_API_URL, SAB_API_KEY and SAB_API_BASE (answer and README), one that does not names none.
+- In Chromium (tests/e2e/test_sandbox_gaps_page.py): Make a sandbox variant from the ribbon, its tab and bar showing
+  its designation and origin, a cell edited in place (a refused value said under the box), Reset from the bar; the
+  sandbox list sorted by its Rows heading both ways; Mocked as from the row's picker; the Connections page's
+  Sandbox card and its page; Keep as its example, kept over a reload. tests/e2e/test_local_apis_page.py passes
+  with Make a sandbox variant in place of Add to sandbox.
+- The quick suite (-n 4 --dist loadfile, no e2e): 4,950 passed, 27 skipped; three failed under load and pass alone
+  (test_agent_index's two, before the guide's wording fix; test_performance's million-row targets). The e2e for
+  local APIs, the sandbox's gaps, structures, connections (colours, swap, SQL, find) and the grid palette: 19
+  passed; tests/e2e/test_ui.py: 80 passed (Chromium).
+
+Not checked:
+- Edits in a grid of a table with LIST, STRUCT or MAP columns (refused by rule; not exercised in a browser).
+- The Catalog page's Sort button in a browser (its order function is the list's, unit-checked through the API's).
+- Page values set by a running app (widget-gaps' page values are not merged; `{{ name }}` reads st.session_state).

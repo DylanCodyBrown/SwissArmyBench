@@ -63,6 +63,8 @@ class ConnectionUsage:
         # (SQL Server's about(): driver, sign-in, version, collation; never a value).
         self._errors: dict[str, str] = {}
         self._about: dict[str, dict[str, Any]] = {}
+        # More cards than the library's: the open project's Sandbox (services/sandbox.py card).
+        self.extra_cards: Callable[[], list[dict[str, Any]]] = lambda: []
 
     # ===== the calls =====
 
@@ -176,8 +178,10 @@ class ConnectionUsage:
         }
 
     def overview(self) -> dict[str, Any]:
-        """Every connection as a card: its type, its status word, its calls this session."""
-        return {"connections": [self._card(c) for c in self._connections.listing()["connections"]]}
+        """Every connection as a card: its type, its status word, its calls this session; then the open
+        project's Sandbox (local test data, never live)."""
+        cards = [self._card(c) for c in self._connections.listing()["connections"]]
+        return {"connections": cards + list(self.extra_cards())}
 
     # ===== one connection =====
 

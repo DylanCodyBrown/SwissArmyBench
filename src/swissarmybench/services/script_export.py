@@ -23,6 +23,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
 from swissarmybench.domain import dataverse, notebooks, page_queries, portability
+from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import script_export as rules
 from swissarmybench.domain import script_runtime as runtime
 from swissarmybench.domain.blades import Blade
@@ -204,6 +205,8 @@ class ScriptExports:
         (as a script export writes it: settings from the environment, a vault by managed identity), then
         their registry and connection(name): {text, requirements, variables, notes}. Checked as an export
         is: no saved password's value in it (Refused otherwise)."""
+        # The project's Sandbox is never exported as a connection: it is local test data, never live.
+        wanted = [w for w in wanted if not sandbox_rules.is_sandbox(w)]
         if not wanted:
             return {"text": "", "requirements": [], "variables": [], "notes": []}
         source = "import swissarmybench as sab\n" + "\n".join(

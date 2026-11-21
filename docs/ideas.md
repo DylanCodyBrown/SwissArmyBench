@@ -7342,3 +7342,67 @@ ever" / "So this project now needs a new file in the back called API.py".
 - Not done: the canvas Export writing SAB_API_URL as a variable to set (that is the canvas service's export, left
   alone under the rule that this branch adds widget files and a mask only); the API export's README lists the
   API's own variables, and the widgets name theirs in their code.
+
+## The sandbox's gaps, approved (the owner, 2026-11-21; built, branch sandbox-gaps)
+
+The owner approved the gaps the local sandbox API work listed, and added one: "We need all sandbox tables to be
+sortable. The moment a sandbox table is created it gets a connection type of sandbox. And grid table or structure
+can become a sandbox variant and should get its own designation."
+
+- **Keep "Reset one table".** Kept as built (`sandbox(reset, {"table"})`, the row's Reset, the grid bar's Reset).
+- **Mocked as a connection.** A table from a file, its columns or a grid of no connection's (`mockable`: its first
+  client named none) gets a "Mocked as" picker on its row (the saved connections with tables); its mock client then
+  takes that connection's kind, template and dialect (`client` in sandbox.json, `mocked: true`, `origin_client`
+  kept). A table read from a connection is refused ("it answers as Shop already"); the Sandbox itself is refused;
+  null puts the plain DuckDB client back. `sandbox(mock)`, POST /sandbox/tables/mock.
+- **Keep a Try it body.** Decision: **beside API.py, not in it**: the project's `.sab/api_examples.json` (by
+  "METHOD /path", sorted, byte-stable, shared in Git with the project). API.py stays the user's code and its
+  settings only; writing JSON bodies into its TOML header would grow the file the user reads. Try it starts from
+  the kept body; the OpenAPI document shows it as the request body's example. Only an endpoint that takes a body;
+  20,000 characters at most; null forgets it. `api(example)`, POST /local-api/example.
+- **Edit sandbox rows in a grid.** A sandbox grid (sandbox_<table>) is editable: double-click, Enter or F2 opens a
+  box over the cell (sandboxGrid.ts; other grids still open the value viewer, through gridView.ts's one
+  registerCellEditor seam); Add row (a box per column) and Delete rows (the selected rows) on the bar over the grid.
+  An edit names its row by every value the grid shows (`rowid = (SELECT rowid ... IS NOT DISTINCT FROM ... LIMIT
+  1)`), so a sorted or filtered view edits the right row; a grid whose steps change its columns is refused (edit by
+  `where` instead). Each value is checked first with DuckDB's TRY_CAST to its column's type ("'abc' is not a
+  number: amount is DOUBLE.", said under the box, which stays open); an empty box is blank but for text; yes/no
+  for a BOOLEAN. A row changed since it was shown: 409, the grid shown again. Every edit is a sandbox write in the
+  change log (Last changed set) and Reset undoes it. `sandbox(edit)` (row places or `where`).
+- **Export names the API variables.** A canvas Export whose app calls the local sandbox API (SAB_API_URL in its
+  files) answers `variables` and `warnings` and writes README.md with "Variables to set where it runs"
+  (SAB_API_URL, SAB_API_KEY, SAB_API_BASE); the Canvas page shows the warnings in its notice line.
+- **Path fields for API widgets.** A new mask, `path_values` (`# path values of endpoint`): one box per `{name}` in
+  the chosen endpoint's path, following the endpoint picked (widgetFields.ts, small). Each box takes a value, a
+  variable reference or `{{ name }}`, a page value; checked (a name the path lacks, a variable not set here, a
+  malformed page value). The four API widgets read a box at run time (_given): a variable from the environment, a
+  page value from the page's st.session_state. Decision: a page value is st.session_state[name] until the
+  widget-gaps branch's page values land (to align then).
+- **Sortable.** Every list of sandbox tables sorts by name, rows, source, created or last changed
+  (domain/sandbox.py sort_tables; ties by name): GET /sandbox?sort=&order= and `sandbox(list, {sort, order})`;
+  the APIs page's sandbox list's headings (aria-sort; remembered in this browser) and the Catalog's Sandbox
+  section (its Sort button, the same remembered choice). In its grid a sandbox table sorts as any grid does (the
+  header's sort, the steps), and edits follow the view.
+- **A real connection kind.** Every sandbox table has `type: "sandbox"`; "sandbox" is a TABLE_KINDS kind (listed
+  and read through the one contract: the alias carries `tables_kind`, its tree listed with no catalog to load;
+  write_capability says it writes only by itself). The Connections page has the project's Sandbox card (its own
+  group: tables, the change log, "Local test data, never live") and a page of it (the sandbox panel: tables,
+  Reset). Its colour is its own indigo #3a3aa0 (none of the palette's, clear of the rail's), listed `fixed` and
+  refused if set. Never exported as a connection: the API export already left it out; script exports'
+  connections_code drops it too.
+- **Sandbox variants.** "Make a sandbox variant" on the grid's Table row (it replaces Add to sandbox there) and on
+  the Structures page (a list of records); `sandbox(variant)`. The designation is "orders · sandbox" (SQL name
+  orders_sandbox), then "orders · sandbox 2", or the user's own name (its SQL name made of it). Its origin (which
+  table and its connection, connection, or structure and path; when copied) is kept in sandbox.json and shown on
+  its row, in its tab (the sandbox mark and the designation), the bar over its grid and its lineage (the grid's
+  origin, kind "sandbox": its designation and origin; its read-only cell loads it with sab.sql over
+  [Sandbox].<table>); a branch icon wherever tables are listed. Nothing names a way back: a variant never writes
+  to its origin. A connection's table read once is a variant too; files and empty tables are plain sandbox tables.
+
+Gaps to approve (not built):
+- A saved connection itself named "Sandbox" hides the project's Sandbox in DuckDB SQL (saved names win, as for any
+  alias): refuse the name, or rename it on save?
+- Page values: the API widgets read `{{ name }}` from st.session_state; align with the widget-gaps branch's page
+  values when it merges.
+- Edits of LIST, STRUCT, MAP and other nested columns in the grid are refused (edit them through the API).
+- The Catalog's Sandbox section sorts in the page only (the agent sorts through `sandbox(list)`).

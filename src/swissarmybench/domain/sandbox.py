@@ -363,4 +363,218 @@ def source_words(source: Mapping[str, Any]) -> str:
         return f"From {source.get('file', '')}"
     if kind == "columns":
         return "Made empty, by its columns"
+    if kind == "structure":
+        return f"From the structure {source.get('structure', '')}"
     return "Added"
+
+
+# ===== the Sandbox as a connection (the owner, 2026-11-21: "The moment a sandbox table is created it gets a
+# connection type of sandbox") =====
+
+CONNECTION_TYPE = "sandbox"  # every sandbox table's connection type; the Sandbox's tables kind
+CARD_WORDS = "Local test data, never live: the project's own copy, written only by the sandbox"
+# Its colour on every page: none of the palette's (domain/connection_colours.py), none of the rail's.
+COLOUR = "#3a3aa0"  # indigo
+
+
+def is_sandbox(name: Any) -> bool:
+    """`name` is the Sandbox's (any case): never a real connection, never exported as one."""
+    return str(name or "").strip().casefold() == NAME.casefold()
+
+
+# ===== sorting (the owner, 2026-11-21: "We need all sandbox tables to be sortable") =====
+
+SORTS: dict[str, str] = {
+    "name": "Name",
+    "rows": "Rows",
+    "source": "Source",
+    "created": "Created",
+    "changed": "Last changed",
+}
+
+
+def check_sort(by: Any, order: Any = None) -> tuple[str, bool]:
+    """A sort asked for: (one of SORTS, descending). The default: by name, A to Z."""
+    key = str(by or "name").strip().lower()
+    if key not in SORTS:
+        raise SandboxError(f"Sort by one of: {', '.join(SORTS)}.")
+    direction = str(order or "").strip().lower()
+    if direction not in ("", "asc", "desc"):
+        raise SandboxError("order is asc or desc.")
+    return key, direction == "desc"
+
+
+def sort_tables(tables: Sequence[Mapping[str, Any]], by: str, descending: bool) -> list[Mapping[str, Any]]:
+    """The sandbox's tables in the order asked: by name (any case), rows, source (in words), created (when
+    it came in) or last changed (its last write, else when it came in). Ties keep the name order."""
+
+    def value(t: Mapping[str, Any]) -> Any:
+        if by == "rows":
+            return int(t.get("rows") or 0)
+        if by == "source":
+            return str(t.get("source_words") or "").casefold()
+        if by == "created":
+            return str(t.get("added_at") or "")
+        if by == "changed":
+            return str(t.get("changed_at") or t.get("added_at") or "")
+        return str(t.get("name") or "").casefold()
+
+    named = sorted(tables, key=lambda t: str(t.get("name") or "").casefold())
+    return sorted(named, key=value, reverse=descending)
+
+
+# ===== variants (the owner, 2026-11-21: "And grid table or structure can become a sandbox variant and
+# should get its own designation") =====
+
+MARK = "sandbox"  # a variant's marker: "orders · sandbox"
+VARIANT_SOURCES = ("grid", "connection", "structure")
+
+
+def ident_of(text: Any) -> str:
+    """A name a person gave, as a sandbox table's name in SQL: "orders test" -> orders_test."""
+    made = re.sub(r"[^A-Za-z0-9_]+", "_", str(text or "").strip()).strip("_")[:56]
+    if not made:
+        raise SandboxError("Give the variant a name.")
+    return made if re.match(r"[A-Za-z_]", made) else f"t_{made}"
+
+
+def variant_name(origin: str, taken: Iterable[str], own: Any = None) -> tuple[str, str]:
+    """A new variant's (table name, designation). The user's own name is both (its SQL name made of it);
+    else "orders · sandbox" as orders_sandbox, then "orders · sandbox 2" as orders_sandbox_2, so several
+    variants of one origin are named apart."""
+    used = {t.casefold() for t in taken}
+    if own is not None and str(own).strip():
+        title = str(own).strip()[:80]
+        return check_table_name(ident_of(title)), title
+    base = ident_of(origin)[:48]
+    for n in range(1, 1000):
+        name = f"{base}_{MARK}" if n == 1 else f"{base}_{MARK}_{n}"
+        if name.casefold() not in used:
+            label = f"{origin} · {MARK}" if n == 1 else f"{origin} · {MARK} {n}"
+            return check_table_name(name), label
+    raise SandboxError(f"{origin} has too many sandbox variants: name this one.")
+
+
+def variant_record(source: Mapping[str, Any], title: str, at: str) -> dict[str, Any]:
+    """A variant's designation and origin: which table, connection or structure, and when it was copied.
+    A variant never writes back to its origin: nothing here names a way back."""
+    kind = str(source.get("kind") or "")
+    origin: dict[str, Any] = {"kind": kind}
+    for k in ("table", "connection", "structure", "path"):
+        if source.get(k):
+            origin[k] = source[k]
+    return {"title": title, "origin": origin, "copied_at": at}
+
+
+def origin_words(variant: Mapping[str, Any] | None) -> str:
+    """A variant's origin in words: "A sandbox variant of orders (Warehouse), copied 2026-11-21 14:02"."""
+    if not variant:
+        return ""
+    origin = variant.get("origin") or {}
+    kind = origin.get("kind")
+    if kind == "structure":
+        where = f"the structure {origin.get('structure', '')}"
+        if origin.get("path") and origin.get("path") != "$":
+            where += f" at {origin['path']}"
+    elif kind == "connection":
+        where = f"{origin.get('table', '')} from {origin.get('connection', '')}"
+    else:
+        where = str(origin.get("table") or "an open table")
+        if origin.get("connection"):
+            where += f" ({origin['connection']})"
+    at = str(variant.get("copied_at") or "").replace("T", " ")[:16]
+    return f"A sandbox variant of {where}" + (f", copied {at}" if at else "")
+
+
+# ===== editing in its grid (the owner, 2026-11-21: approved "Edit sandbox rows in a grid") =====
+
+_EDITABLE_TYPE = re.compile(r"^[A-Z][A-Z0-9_ ]*(?:\(\d+(?:,\s*\d+)?\))?$")
+_TEXT_TYPES = ("VARCHAR", "TEXT", "STRING", "CHAR", "BPCHAR", "UUID")
+_TYPE_WORDS = (
+    (("TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT", "UBIGINT", "UINTEGER"), "a whole number"),
+    (("DOUBLE", "FLOAT", "REAL", "DECIMAL", "NUMERIC"), "a number"),
+    (("BOOLEAN",), "yes or no"),
+    (("TIMESTAMP", "DATETIME"), "a date and time, as 2026-01-15 09:30"),
+    (("DATE",), "a date, as 2026-01-15"),
+    (("TIME",), "a time, as 09:30"),
+)
+_YES = {"yes": True, "y": True, "true": True, "1": True, "no": False, "n": False, "false": False, "0": False}
+
+
+def type_words(duck_type: str) -> str:
+    upper = duck_type.upper()
+    for names, words in _TYPE_WORDS:
+        if upper.split("(")[0].strip() in names or upper.startswith(names):
+            return words
+    return "text" if upper.startswith(_TEXT_TYPES) else upper.lower()
+
+
+def editable_type(column: str, duck_type: str) -> str:
+    """A column's type as an edit's CAST names it (DuckDB's own words for a plain type), or SandboxError."""
+    upper = duck_type.upper().strip()
+    if not _EDITABLE_TYPE.match(upper):
+        raise SandboxError(f"{column} is a {duck_type}: change it through the API, not in the grid.")
+    return upper
+
+
+def cell_value(value: Any, duck_type: str) -> Any:
+    """What a cell edit sent, as it is bound: an empty box is blank for anything but text; yes and no for a
+    yes/no column; every other value as sent (DuckDB's CAST checks it)."""
+    upper = duck_type.upper()
+    if isinstance(value, str):
+        if value == "" and not upper.startswith(_TEXT_TYPES):
+            return None
+        if upper == "BOOLEAN" and value.strip().lower() in _YES:
+            return _YES[value.strip().lower()]
+    if isinstance(value, (dict, list)):
+        raise SandboxError("A cell takes one value.")
+    return value
+
+
+def not_a(column: str, value: Any, duck_type: str) -> str:
+    """The refusal of a value that is not its column's type, in one sentence."""
+    shown = str(value)[:40]
+    return f"{shown!r} is not {type_words(duck_type)}: {column} is {duck_type}."
+
+
+def _row_where(table: str, columns: Sequence[str], values: Sequence[Any]) -> tuple[str, list[Any]]:
+    """One row of `table`, found by every value it shows (the grid's row): its rowid, the first of equal
+    rows (equal rows cannot be told apart, so either is the same row)."""
+    if len(columns) != len(values) or not columns:
+        raise SandboxError("A row is every one of its table's values.")
+    match = " AND ".join(f"{quote(c)} IS NOT DISTINCT FROM ?" for c in columns)
+    sub = f"SELECT rowid FROM {quote(table)} WHERE {match} LIMIT 1"  # noqa: S608 (checked names, bound values)
+    return f"rowid = ({sub})", list(values)
+
+
+def edit_update(
+    table: str, columns: Sequence[str], row: Sequence[Any], column: str, value: Any, cast: str
+) -> Statement:
+    """A cell's new value: the one row the grid shows (all its values), that column set (CAST to its type)."""
+    if column not in columns:
+        raise SandboxError(f"{table} has no column named {column}.")
+    where, params = _row_where(table, columns, row)
+    sql = f"UPDATE {quote(table)} SET {quote(column)} = CAST(? AS {cast}) WHERE {where}"  # noqa: S608
+    return Statement(sql, [value, *params])
+
+
+def edit_delete(table: str, columns: Sequence[str], row: Sequence[Any]) -> Statement:
+    where, params = _row_where(table, columns, row)
+    return Statement(f"DELETE FROM {quote(table)} WHERE {where}", params)  # noqa: S608
+
+
+def edit_insert(table: str, values: Mapping[str, tuple[Any, str]]) -> Statement:
+    """A new row: each column given (its value and its CAST type); the rest blank (or their default)."""
+    if not values:
+        return Statement(f"INSERT INTO {quote(table)} DEFAULT VALUES", [])
+    names = ", ".join(quote(c) for c in values)
+    marks = ", ".join(f"CAST(? AS {cast})" for _, cast in values.values())
+    sql = f"INSERT INTO {quote(table)} ({names}) VALUES ({marks})"  # noqa: S608 (checked names and types)
+    return Statement(sql, [v for v, _ in values.values()])
+
+
+def touched(meta: Meta, tables: Iterable[str], at: str) -> None:
+    """A write's time on each table it changed (Last changed)."""
+    for table in tables:
+        if table in meta.tables:
+            meta.tables[table]["changed_at"] = at

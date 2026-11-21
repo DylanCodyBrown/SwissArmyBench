@@ -4247,6 +4247,7 @@ _API = {
     "scaffold": ("POST", "/local-api/scaffold"),
     "check": ("POST", "/local-api/check"),
     "shapes": ("GET", "/local-api/shapes"),
+    "example": ("POST", "/local-api/example"),
 }
 
 
@@ -4255,11 +4256,13 @@ _API = {
     "The project's local sandbox API, API.py (guide: sandbox); a write call waits for Allow",
     req(
         "action",
-        "state, new, settings, run, stop, call, log, address, openapi, targets, export, scaffold, check, shapes.",
+        "state, new, settings, run, stop, call, log, address, openapi, targets, export, scaffold, check, shapes, "
+        "example.",
     ),
     opt(
         "args",
-        'call: {"method", "path", "query"?, "body"?}; settings: {"name", "target", "base_path"}.',
+        'call: {"method", "path", "query"?, "body"?}; settings: {"name", "target", "base_path"}; example: '
+        '{"endpoint": "POST /orders", "body"}.',
         "json",
     ),
 )
@@ -4280,21 +4283,34 @@ _SANDBOX = {
     "baseline": ("POST", "/sandbox/baseline"),
     "checkpoint": ("POST", "/sandbox/checkpoints"),
     "restore": ("POST", "/sandbox/checkpoints/restore"),
+    "variant": ("POST", "/sandbox/tables/variant"),
+    "mock": ("POST", "/sandbox/tables/mock"),
+    "edit": ("POST", "/sandbox/edit"),
 }
 
 
 @command(
     "sandbox",
     "The project's sandbox (guide: sandbox); reset waits for Allow",
-    req("action", "list, add, remove, open, reset, baseline, checkpoint or restore."),
-    opt("args", 'add: {"from": grid|connection|file|columns, ...}; others: {"table"} or {"name"}.', "json"),
+    req("action", ", ".join(_SANDBOX) + "."),
+    opt(
+        "args",
+        'list: {"sort": name|rows|source|created|changed, "order"}; add: {"from", ...}; variant: {"from": '
+        'grid|structure, "table"|"structure", "name"?}; mock: {"table", "connection"}; edit: {"table", "op", '
+        '...}; others: {"table"} or {"name"}.',
+        "json",
+    ),
 )
 def sandbox(a: dict[str, Any]) -> Any:
     action = str(a["action"])
     if action not in _SANDBOX:
         raise CommandError(f"action is one of: {', '.join(_SANDBOX)}.")
     method, path = _SANDBOX[action]
-    return api.call(method, path, None if method == "GET" else dict(a.get("args") or {}), timeout=900)
+    given = dict(a.get("args") or {})
+    if method == "GET":
+        shown = {k: str(v) for k, v in given.items() if k in ("sort", "order") and v}
+        return api.call(method, path + ("?" + urlencode(shown) if shown else ""), timeout=900)
+    return api.call(method, path, given, timeout=900)
 
 
 @command(

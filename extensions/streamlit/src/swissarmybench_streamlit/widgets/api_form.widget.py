@@ -20,8 +20,8 @@ from sab_canvas import key
 
 # The endpoint it sends to (a POST or a PUT whose body is a row)
 endpoint = ""  # endpoint
-# The path's values, by name: {"key": 7}
-path_values = {}
+# One box per {name} in the endpoint's path: a value, a variable or a page value
+path_values = {}  # path values of endpoint
 # The fields (empty: its body's, as API.py's model gives them)
 fields = []
 button = "Send"
@@ -56,13 +56,28 @@ def _call(method, path, body=None, query=None, root=False):
         return None, f"The local sandbox API could not be reached ({getattr(failed, 'reason', failed)})."
 
 
+def _given(value):
+    """A path box's value: as typed, ${NAME} (a variable of this computer) or {{ name }} (a page value: the
+    page's own st.session_state). None: not set."""
+    text = str(value).strip()
+    named = re.fullmatch(r"\$\{([A-Za-z_]\w*)\}", text)
+    if named:
+        return os.environ.get(named.group(1))
+    paged = re.fullmatch(r"\{\{\s*([A-Za-z_]\w*)\s*\}\}", text)
+    if paged:
+        found = st.session_state.get(paged.group(1))
+        return None if found is None or found == "" else found
+    return value
+
+
 def _path(wanted, values):
     """The endpoint's method and path, its {names} filled from `values` (None: one is missing)."""
     method, _, path = (wanted or "").partition(" ")
     for name in re.findall(r"\{(\w+)\}", path):
-        if name not in values:
+        given = _given(values[name]) if name in values else None
+        if given is None or given == "":
             return method, None, name
-        path = path.replace("{" + name + "}", urllib.parse.quote(str(values[name]), safe=""))
+        path = path.replace("{" + name + "}", urllib.parse.quote(str(given), safe=""))
     return method, path, None
 
 
@@ -99,7 +114,7 @@ else:
     if sent:
         method, path, missing = _path(endpoint, path_values)
         if missing:
-            st.warning(f"Give {missing} in path_values.")
+            st.warning(f"Give {missing} in Properties (its path box).")
         else:
             answer, problem = _call(method, path, {k: v for k, v in values.items() if v not in ("", None)})
             if problem:
