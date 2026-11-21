@@ -61,10 +61,8 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   flow order, edges, Mermaid text, and each node's value summarised (a table's shape, first rows and
   row change; a value; an error). Values are the user's data. `workbench_lineage_show` opens the
   overlay on the user's screen.
-- An approved output is kept in the notebook's cell metadata; a later run that differs is "Changed
-  since approved". `workbench_cell_approve(number)` (`remove`), `workbench_approvals` (each one's state),
-  `workbench_approval_check(outputs, approved)` (no window). Headless:
-  `python -m swissarmybench.client.standalone data.ipynb --check-approved` (exit 1 and a report).
+- Headless: `python -m swissarmybench.client.standalone data.ipynb` runs a notebook top to bottom (exit 1 on a
+  failed cell).
 
 ## Every table has a read-only cell
 - Each open table has a cell holding its grid steps as one DuckDB query over the table by its own name,

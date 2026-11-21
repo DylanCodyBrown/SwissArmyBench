@@ -515,8 +515,6 @@ src/swissarmybench/
                          (the package check, settings, the vault by managed identity, connections)
     lineage.py           a cell's or a block's lineage back to the data: makes and reads, @cell links, a
                          table's grid steps and origin, data.ipynb, controllers; nodes, edges, Mermaid
-    approvals.py         approved outputs: a cell's outputs as a snapshot, the comparison, its lines, no
-                         rows in a zip. Standard library only and standalone (an export can inline it)
     kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's fixed one,
                          never amber; the readability rule the connection colours use (fitted)
     notebook_flow.py     Notebook mode: each cell's state from the run order (notRun, edited, outOfDate
@@ -997,7 +995,7 @@ src/swissarmybench/
                          (never a table cell's own result: the grid would apply its steps twice)
   client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the
                          kernel, and as sab_lineage.py beside a playing page (it notes each block's values)
-  client/standalone.py   connections and blades without the app; a notebook run headless (--check-approved)
+  client/standalone.py   connections and blades without the app; a notebook run headless
   client/table_cells.py  a table's read-only cell run in the kernel (%%sab_table, %sab_run): it starts
                          from the original its maker made (a reference, never a copy), so a second run
                          changes nothing
@@ -1187,7 +1185,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          a DAX cell (its dataset picker, Monaco's DAX grammar) is drawn in
                          workbenchNotebook.ts, its completion in workbenchCompletion.ts;
                          workbenchLineage.ts (the Lineage overlay: Mermaid flow, a value card per step;
-                         window.openLineage), workbenchApprovals.ts (Approve the output, the amber note);
+                         window.openLineage);
                          cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
                          pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;

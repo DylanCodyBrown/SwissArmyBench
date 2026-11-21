@@ -26,8 +26,6 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   POST   /workbench/html/fill               {"html" or "markdown", "values"}: an HTML cell's design (a
                                             Markdown cell's text), its names filled
   POST   /workbench/kernels/{id}/html-marks {"names"}: a mark of what each name would draw now
-  POST   /workbench/approvals               {"outputs", "approved"?}: a cell's output as an approval keeps
-                                            it, or how it differs from its approval (domain/approvals.py)
   POST   /workbench/kernels/{id}/interrupt, /restart       DELETE /workbench/kernels/{id}
   POST   /workbench/handoffs  {"document", "kernel"?, "to"?}   a document moving to another window
   GET    /workbench/handoffs/{id}  taken yet?   POST .../take {"window"}   DELETE: not taken, it stays
@@ -144,9 +142,6 @@ def routes(
             await workbench.html_marks(request.path_params["kernel"], await read_json(request))
         )
 
-    async def approval(request: Request) -> Response:
-        return json_response(workbench.approval(await read_json(request)))
-
     async def grid(request: Request) -> Response:
         return json_response(await workbench.grid(request.path_params["kernel"], await read_json(request)))
 
@@ -204,7 +199,6 @@ def routes(
         Route("/workbench/kernels/{kernel}/structure", safely(structure), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/html-marks", safely(html_marks), methods=["POST"]),
         Route("/workbench/html/fill", safely(html_fill), methods=["POST"]),
-        Route("/workbench/approvals", safely(approval), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/interrupt", safely(interrupt), methods=["POST"]),
         Route("/workbench/kernels/{kernel}/restart", safely(restart), methods=["POST"]),
         Route("/workbench/kernels/{kernel}", safely(stop), methods=["DELETE"]),

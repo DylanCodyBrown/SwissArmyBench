@@ -8428,45 +8428,6 @@ body.dropping-file::after {
   }
 }
 
-/* ===== approved outputs: "Changed since approved" (workbenchApprovals.ts) ===== */
-
-.wb-approval {
-  margin: 4px 0;
-  padding: 6px 10px;
-  border: 1px solid var(--warn);
-  border-left-width: 4px;
-  border-radius: 6px;
-  background: var(--warn-soft);
-}
-
-.wb-approval-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.wb-approval-word {
-  color: var(--warn);
-  font-weight: 650;
-}
-
-.wb-approval-diff {
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.95em;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.wb-approval-diff .add {
-  color: var(--ok);
-}
-
-.wb-approval-diff .del {
-  color: var(--error);
-}
-
 /* ===== Kind colours in the Data panel (kindColours.ts): a project's files by kind, the Streamlit cells
    pane by each cell's source document (a left edge, the heading and the @cell mark) ===== */
 .wb-file.km-app svg,

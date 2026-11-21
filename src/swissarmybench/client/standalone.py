@@ -251,18 +251,14 @@ def records() -> list[dict[str, Any]]:
     ]
 
 
-# ===== a notebook run headless, its approved outputs checked =====
+# ===== a notebook run headless =====
 #
-#     python -m swissarmybench.client.standalone sales.ipynb --check-approved
+#     python -m swissarmybench.client.standalone sales.ipynb
 #
 # Each code cell runs top to bottom in one namespace, in the notebook's own folder (so `from data
 # import ...` finds the project's data.py), under IPython when this Python has it (SQL and DAX cells,
-# magics) and as plain Python otherwise. A cell that fails stops the run. With --check-approved, each
-# cell whose output was approved (domain/approvals.py) is compared with what it gives now. The exit
-# code is 0 when every cell ran and every approved output is the same, 1 otherwise; the report says
-# which cells and how they differ.
-
-_STEP = "    "
+# magics) and as plain Python otherwise. A cell that fails stops the run. The exit code is 0 when every
+# cell ran, 1 otherwise.
 
 
 def _shell() -> Any:
@@ -345,13 +341,12 @@ def _where(cell: Any) -> str:
     return f"@cell{cell.number}" + (f" ({cell.name})" if cell.name else "")
 
 
-def run_notebook(path: str | Path, check_approved: bool = False, say: Callable[[str], Any] = print) -> int:
-    """Run a saved notebook top to bottom, headless; with `check_approved`, compare each approved
-    output with what the cell gives now. The exit code: 0 when all is well, 1 otherwise. `say` gets
-    the report's lines."""
+def run_notebook(path: str | Path, say: Callable[[str], Any] = print) -> int:
+    """Run a saved notebook top to bottom, headless. The exit code: 0 when every cell ran, 1 otherwise.
+    `say` gets the report's lines."""
     import sys
 
-    from swissarmybench.domain import approvals, notebooks
+    from swissarmybench.domain import notebooks
 
     notebook = Path(path).expanduser().resolve()
     try:
@@ -364,8 +359,7 @@ def run_notebook(path: str | Path, check_approved: bool = False, say: Callable[[
     here, before_path = Path.cwd(), list(sys.path)
     os.chdir(notebook.parent)
     sys.path.insert(0, str(notebook.parent))
-    ran = checked = 0
-    changed: list[str] = []
+    ran = 0
     failed: str | None = None
     try:
         for cell in cells:
@@ -375,12 +369,6 @@ def run_notebook(path: str | Path, check_approved: bool = False, say: Callable[[
             outputs = run_cell(code, namespace, shell, f"<{notebook.name} {_where(cell)}>")
             ran += 1
             broke = next((o for o in outputs if o["output_type"] == "error"), None)
-            if check_approved and cell.approved is not None:
-                checked += 1
-                diff = approvals.compare(cell.approved, approvals.snapshot(outputs))
-                if diff is not None:
-                    changed.append(f"{_where(cell)}: Changed since approved")
-                    changed += [_STEP + line for line in approvals.summary(diff)]
             if broke is not None:
                 failed = f"{_where(cell)} failed: {broke['ename']}: {broke['evalue']}"
                 break
@@ -390,14 +378,10 @@ def run_notebook(path: str | Path, check_approved: bool = False, say: Callable[[
         if shell is not None:
             shell.clear_instance()
     said = f"{notebook.name}: {ran} cell{'' if ran == 1 else 's'} run"
-    if check_approved:
-        said += f", {checked} approved output{'' if checked == 1 else 's'} checked"
     say(said)
-    for line in changed:
-        say(line)
     if failed:
         say(failed)
-    return 1 if failed or changed else 0
+    return 1 if failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -408,13 +392,8 @@ def main(argv: list[str] | None = None) -> int:
         description="Run a notebook top to bottom without the app.",
     )
     parser.add_argument("notebook", help="the .ipynb file")
-    parser.add_argument(
-        "--check-approved",
-        action="store_true",
-        help="compare each approved output with what its cell gives now (exit code 1 when one changed)",
-    )
     found = parser.parse_args(argv)
-    return run_notebook(found.notebook, check_approved=found.check_approved)
+    return run_notebook(found.notebook)
 
 
 if __name__ == "__main__":

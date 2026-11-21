@@ -423,29 +423,3 @@ def test_the_agent_reads_a_lineage_as_data(served: Any, tmp_path: Path) -> None:
     said = _ok(client.post("/workbench/lineage", headers=AGENT, json={"document": path, "cell": 4}))
     assert said["nodes"][-1]["label"] == "Total"
     assert REGISTRY["workbench_lineage"].values is True  # its values come back marked as the user's data
-
-
-# ===== approved outputs over HTTP =====
-
-
-def test_an_output_is_approved_then_compared_over_http(served: Any) -> None:
-    client, _ = served
-    first = [{"output_type": "stream", "name": "stdout", "text": "total 390\n"}]
-    made = _ok(
-        client.post("/workbench/approvals", headers=AUTH, json={"outputs": first, "at": "2026-11-15T10:00"})
-    )
-    approval = made["approval"]
-    assert approval["at"] == "2026-11-15T10:00" and made["changed"] is False
-    same = _ok(
-        client.post("/workbench/approvals", headers=AUTH, json={"outputs": first, "approved": approval})
-    )
-    assert same == {"changed": False}
-    later = [{"output_type": "stream", "name": "stdout", "text": "total 400\n"}]
-    changed = _ok(
-        client.post("/workbench/approvals", headers=AUTH, json={"outputs": later, "approved": approval})
-    )
-    assert changed["changed"] is True and "+total 400" in changed["summary"]
-    bad = client.post(
-        "/workbench/approvals", headers=AUTH, json={"outputs": later, "approved": {"snapshot": 1}}
-    )
-    assert bad.status_code == 400

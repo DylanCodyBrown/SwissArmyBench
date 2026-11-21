@@ -1396,20 +1396,12 @@ made, all the way back to the data:
   plays, from the page itself: choose another region on the page and the cards follow.
 - Click a card or a node to mark both; double-click (or Enter) to go to that cell. Escape closes it.
 
-### Approved outputs: the notebook checks itself
+### A notebook run without the app
 
-Right-click a cell's output and choose **Approve the output** (or More: Approve the output). The
-output is kept in the notebook. When a later run gives something different, the cell says **⚠ Changed
-since approved** in amber, with what changed: the lines of text, a table's rows and columns, and the
-values that differ. **Approve this output** makes the new output the approved one; **Remove the
-approval** in the menu takes it away. The approvals are saved in the notebook file.
+    python -m swissarmybench.client.standalone sales.ipynb
 
-To check a notebook without the app (a scheduled run, a build): run
-
-    python -m swissarmybench.client.standalone sales.ipynb --check-approved
-
-It runs every cell in the notebook's own folder and ends with exit code 1 and a report naming each
-cell that failed or whose output changed.
+It runs every cell in the notebook's own folder and ends with exit code 1 and a report naming the cell
+that failed.
 
 ### Widgets and the Canvas (a Streamlit app)
 

@@ -4466,35 +4466,6 @@ def workbench_lineage_show(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "workbench_cell_approve",
-    "Approve a cell's output in the front notebook (a later run that differs says so); remove=true undoes",
-    opt("number", "The cell's own number (default: the selected cell).", "int"),
-    opt("remove", "true: take the approval away.", "bool"),
-)
-def workbench_cell_approve(a: dict[str, Any]) -> Any:
-    args = {k: a[k] for k in ("number", "remove") if a.get(k) is not None}
-    return _window("cell.approve", args)
-
-
-@command("workbench_approvals", "The front notebook's approved cells: each one changed since approved or not")
-def workbench_approvals(a: dict[str, Any]) -> Any:
-    return _window("approvals.list", {})
-
-
-@command(
-    "workbench_approval_check",
-    "Compare a cell's output records with its approval (or, without one, make the approval)",
-    req("outputs", "The cell's output records (nbformat).", "json"),
-    opt("approved", "Its approval, as the notebook keeps it.", "json"),
-    values=True,
-)
-def workbench_approval_check(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST", "/workbench/approvals", {k: a[k] for k in ("outputs", "approved") if a.get(k) is not None}
-    )
-
-
-@command(
     "workbench_pop_out",
     "Move the front document (unsaved text, kernel) into a Workbench window of its own",
 )

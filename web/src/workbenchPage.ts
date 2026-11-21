@@ -2994,9 +2994,6 @@ const COMMANDS: Command[] = [
     const graph = await showLineage({ number: num(a, "number") });
     return { target: graph.nodes.find((n) => n.target)?.label ?? null, nodes: graph.nodes.length, mermaid: graph.mermaid };
   } },
-  { id: "cell.approve", group: "Cell", title: "Approve the cell's output", args: "number: the cell's own number (default: the selected cell); remove: true takes the approval away", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().approve(num(a, "number"), a.remove === true) },
-  { id: "cell.unapprove", group: "Cell", title: "Remove the cell's approval", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().approve(undefined, true) },
-  { id: "approvals.list", agentOnly: true, group: "Cell", title: "The approved cells and how each output differs now", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => ({ document: current!.title, approvals: notebook().approvals() }) },
   { id: "cell.goTo", group: "Cell", title: "Go to a cell by its number", args: "number: the cell's own number (as @cell7 links to it)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
     const number = num(a, "number");
     if (number === undefined) throw new Error("Send the cell's number.");

@@ -9,7 +9,6 @@ With SWISSARMYBENCH_SHOTS set to a folder, the tests also save screenshots there
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import time
@@ -17,11 +16,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.domain import notebooks
-from tests.e2e.test_table_cells_page import close_tables, kernel_of, window
+from tests.e2e.test_table_cells_page import kernel_of, window
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
@@ -154,60 +152,3 @@ def test_a_cells_lineage_shows_the_flow_and_its_values_and_follows_the_kernel(
     workbench.keyboard.press("Escape")
     expect(overlay).to_be_hidden()
     workbench.context.close()
-
-
-def test_an_approved_output_that_changes_says_so_in_amber(
-    browser: Browser, server: dict[str, Any], tmp_path: Path
-) -> None:
-    book = tmp_path / "checks.ipynb"
-    notebook(book, ["total = 390", "print('total', total)\nprint('regions', 3)"])
-    workbench = open_window(browser, server, book)
-    cells = workbench.locator(".wb-cell")
-    expect(cells).to_have_count(2, timeout=20000)
-    window(server, "run.primary")
-    expect(cells.nth(1).locator(".wb-outputs")).to_contain_text("total 390", timeout=60000)
-
-    # ----- approve the output (the cell's right-click menu)
-    cells.nth(1).locator(".wb-outputs").click(button="right")
-    workbench.get_by_role("menuitem", name="Approve the output").click()
-    note = cells.nth(1).locator(".wb-approval")
-    expect(note).to_be_hidden()  # the same: nothing to say
-    listed = until(lambda: window(server, "approvals.list")["approvals"])
-    assert [(a["cell"], a["changed"]) for a in listed] == [(2, None)]
-
-    # ----- a run that differs: amber, with the difference; the same again: nothing
-    window(server, "run.primary")
-    expect(cells.nth(1).locator(".wb-outputs")).to_contain_text("total 390", timeout=60000)
-    expect(note).to_be_hidden()
-    cells.nth(0).locator(".monaco-editor").click()
-    workbench.keyboard.press("Control+a")
-    workbench.keyboard.insert_text("total = 400")
-    window(server, "run.primary")
-    expect(note).to_be_visible(timeout=60000)
-    expect(note.locator(".wb-approval-word")).to_have_text("⚠ Changed since approved")
-    expect(note.locator(".wb-approval-diff")).to_contain_text("-total 390")
-    expect(note.locator(".wb-approval-diff .add")).to_have_text("+total 400")
-    changed = until(lambda: window(server, "approvals.list")["approvals"][0]["changed"])
-    assert changed == ["-total 390", "+total 400", " regions 3"]
-    shot(workbench, "approved-output-changed")
-
-    # ----- saved: the approval is in the cell's metadata (plain Jupyter keeps it)
-    window(server, "file.save")
-    expect(workbench.locator(".wb-tab.dirty")).to_have_count(0, timeout=10000)
-    saved = json.loads(book.read_text(encoding="utf-8"))
-    kept = saved["cells"][1]["metadata"]["swissarmybench"]["approved"]
-    assert kept["snapshot"]["text"] == "total 390\nregions 3"
-
-    # ----- Approve this output: the new output is the approved one, the note goes
-    note.get_by_role("button", name="Approve this output").click()
-    expect(note).to_be_hidden()
-    assert window(server, "approvals.list")["approvals"][0]["changed"] is None
-    window(server, "cell.approve", number=2, remove=True)
-    assert window(server, "approvals.list")["approvals"] == []
-    workbench.context.close()
-
-
-@pytest.fixture(autouse=True)
-def _no_tables_left(server: dict[str, Any]) -> Any:
-    yield
-    close_tables(server)

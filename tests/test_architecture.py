@@ -67,7 +67,6 @@ CLIENT_MODULES = (
     "swissarmybench.domain.blades",
     "swissarmybench.domain.catalogs",
     "swissarmybench.domain.html_cells",
-    "swissarmybench.domain.approvals",
     "swissarmybench.domain.notebooks",
     "swissarmybench.domain.streamlit_use",
     "swissarmybench.adapters.blade_run",
