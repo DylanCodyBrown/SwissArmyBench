@@ -22,7 +22,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, read_json, safely, with_body
+from swissarmybench.server.http import json_response, read_json, with_body
 from swissarmybench.services.script_ide import ScriptIde
 
 
@@ -46,15 +46,15 @@ def routes(ide: ScriptIde) -> list[BaseRoute]:
         return json_response(await ide.library_file(await read_json(request)))
 
     return [
-        Route("/scripts/tree", safely(tree), methods=["GET"]),
+        Route("/scripts/tree", tree, methods=["GET"]),
         Route("/scripts/fine-tune", with_body(ide.fine_tune), methods=["POST"]),
-        Route("/scripts/definition", safely(definition), methods=["POST"]),
-        Route("/scripts/references", safely(references), methods=["POST"]),
+        Route("/scripts/definition", definition, methods=["POST"]),
+        Route("/scripts/references", references, methods=["POST"]),
         Route("/scripts/rename", with_body(ide.rename), methods=["POST"]),
-        Route("/scripts/search", safely(search), methods=["POST"]),
+        Route("/scripts/search", search, methods=["POST"]),
         Route("/scripts/replace", with_body(ide.replace), methods=["POST"]),
-        Route("/scripts/format", safely(format_), methods=["POST"]),
-        Route("/scripts/library-file", safely(library_file), methods=["POST"]),
+        Route("/scripts/format", format_, methods=["POST"]),
+        Route("/scripts/library-file", library_file, methods=["POST"]),
         Route("/scripts/files/package", with_body(ide.new_package), methods=["POST"]),
         Route("/scripts/files/move", with_body(ide.move), methods=["POST"]),
         Route("/scripts/files/duplicate", with_body(ide.duplicate), methods=["POST"]),

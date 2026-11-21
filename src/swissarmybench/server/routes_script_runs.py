@@ -11,7 +11,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.script_runs import ScriptRuns
 
 
@@ -23,6 +23,6 @@ def routes(runs: ScriptRuns) -> list[BaseRoute]:
         return json_response(runs.set_settings(await read_json(request), actor(request)))
 
     return [
-        Route("/workbench/scripts/settings", safely(settings)),
-        Route("/workbench/scripts/settings", safely(set_settings), methods=["PUT"]),
+        Route("/workbench/scripts/settings", settings),
+        Route("/workbench/scripts/settings", set_settings, methods=["PUT"]),
     ]

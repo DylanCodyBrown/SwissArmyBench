@@ -27,7 +27,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_streamlit.services.launch import Launches
 
 
@@ -91,15 +91,15 @@ def routes(launches: Launches, web_root: Path | None) -> list[BaseRoute]:
 
     base = "/streamlit/canvases/{canvas}"
     return [
-        Route(f"{base}/launch", safely(launch), methods=["GET", "POST", "DELETE"]),
-        Route(f"{base}/builds", safely(listing)),
-        Route(f"{base}/builds/compare", safely(compare)),
-        Route(f"{base}/builds/{{number}}", safely(build)),
-        Route(f"{base}/builds/{{number}}/launch", safely(relaunch), methods=["POST"]),
-        Route(f"{base}/builds/{{number}}/restore", safely(restore), methods=["POST"]),
-        Route(f"{base}/builds/{{number}}/perf/{{name}}", safely(saved)),
-        Route(f"{base}/perf", safely(analyzer), methods=["GET", "POST", "DELETE"]),
-        Route(f"{base}/perf/hints", safely(hints)),
-        Route(f"{base}/perf/save", safely(save), methods=["POST"]),
+        Route(f"{base}/launch", launch, methods=["GET", "POST", "DELETE"]),
+        Route(f"{base}/builds", listing),
+        Route(f"{base}/builds/compare", compare),
+        Route(f"{base}/builds/{{number}}", build),
+        Route(f"{base}/builds/{{number}}/launch", relaunch, methods=["POST"]),
+        Route(f"{base}/builds/{{number}}/restore", restore, methods=["POST"]),
+        Route(f"{base}/builds/{{number}}/perf/{{name}}", saved),
+        Route(f"{base}/perf", analyzer, methods=["GET", "POST", "DELETE"]),
+        Route(f"{base}/perf/hints", hints),
+        Route(f"{base}/perf/save", save, methods=["POST"]),
         Route("/streamlit/perf", window),
     ]

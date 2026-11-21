@@ -22,7 +22,6 @@ from swissarmybench.server.http import (
     read_body,
     read_json,
     refusal,
-    safely,
 )
 from swissarmybench.services.snapshots import (
     PNG_SIGNATURE,
@@ -93,7 +92,7 @@ def routes(snapshots: Snapshots) -> list[BaseRoute]:
         return json_response({"failed": True})
 
     return [
-        Route("/snapshots", safely(request_snapshot), methods=["POST"]),
+        Route("/snapshots", request_snapshot, methods=["POST"]),
         Route("/snapshots/{snapshot_id}", upload, methods=["POST"]),
         Route("/snapshots/{snapshot_id}/error", fail, methods=["POST"]),
     ]

@@ -13,7 +13,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.file_dialogs import FileDialogs
 
 
@@ -25,7 +25,7 @@ def routes(dialogs: FileDialogs) -> list[BaseRoute]:
         return json_response(dialogs.remember(await read_json(request), actor(request)))
 
     return [
-        Route("/dialogs", safely(status), methods=["GET"]),
+        Route("/dialogs", status, methods=["GET"]),
         Route("/dialogs/choose", with_body(dialogs.choose), methods=["POST"]),
-        Route("/dialogs/recent", safely(recent), methods=["POST"]),
+        Route("/dialogs/recent", recent, methods=["POST"]),
     ]

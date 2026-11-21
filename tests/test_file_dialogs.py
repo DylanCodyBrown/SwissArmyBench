@@ -19,6 +19,7 @@ from starlette.testclient import TestClient
 from swissarmybench.domain import file_dialogs as rules
 from swissarmybench.server import routes_file_dialogs
 from swissarmybench.server.dialog_runner import DialogRunner, nearest_folder
+from swissarmybench.server.http import guarded
 from swissarmybench.services.file_dialogs import FileDialogs
 from tests.conftest import AGENT, AUTH, make_client
 
@@ -282,7 +283,7 @@ def test_a_pick_is_remembered_and_shown_as_a_place(tmp_path: Path) -> None:
 
 def door(answer: Any, platform: str = "win32", env: dict[str, str] | None = None) -> TestClient:
     run, _ = runner(answer, platform, env)
-    return TestClient(Starlette(routes=routes_file_dialogs.routes(FileDialogs(run, Memory()))))
+    return TestClient(Starlette(routes=guarded(routes_file_dialogs.routes(FileDialogs(run, Memory())))))
 
 
 def test_the_agent_is_refused_and_the_user_gets_the_path() -> None:

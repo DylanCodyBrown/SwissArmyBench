@@ -18,7 +18,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.timeseries import TimeSeries
 
@@ -31,7 +31,7 @@ def _one(grids: GridService, series: TimeSeries, name: str) -> Callable[[Request
             raise ValueError('Send {"date": name, "metric": name, "period": "month"}.')
         return json_response(await series.run(name, grid, info, body, actor(request)))
 
-    return safely(handle)
+    return handle
 
 
 def routes(grids: GridService, series: TimeSeries) -> list[BaseRoute]:

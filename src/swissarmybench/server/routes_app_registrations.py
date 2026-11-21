@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, safely, with_body
+from swissarmybench.server.http import actor, json_response, with_body
 from swissarmybench.services.app_registrations import AppRegistrations
 
 
@@ -35,7 +35,7 @@ def routes(registrations: AppRegistrations) -> list[BaseRoute]:
         Route("/app-registrations", listing),
         Route("/app-registrations", with_body(registrations.add), methods=["POST"]),
         Route("/app-registrations/remove", with_body(registrations.remove), methods=["POST"]),
-        Route("/app-registrations/{name}", safely(one)),
-        Route("/app-registrations/{name}/check", safely(check), methods=["POST"]),
+        Route("/app-registrations/{name}", one),
+        Route("/app-registrations/{name}/check", check, methods=["POST"]),
         Route("/connections/{name}/access", access),
     ]

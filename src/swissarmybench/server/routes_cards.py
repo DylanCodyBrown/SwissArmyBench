@@ -41,10 +41,8 @@ from swissarmybench.domain.charts import ChartError
 from swissarmybench.server.http import (
     actor,
     error_as,
-    error_response,
     json_response,
     read_json,
-    safely,
     with_body,
 )
 from swissarmybench.services.charts import Cards
@@ -67,8 +65,6 @@ def routes(cards: Cards) -> list[BaseRoute]:
             return json_response(await cards.add(grid, info, await read_json(request), actor(request)))
         except ChartError as error:
             return error_as(error, 400)
-        except Exception as error:
-            return error_response(error)
 
     async def update_card(request: Request) -> Response:
         try:
@@ -76,8 +72,6 @@ def routes(cards: Cards) -> list[BaseRoute]:
             return json_response(await cards.update(card, await read_json(request), actor(request)))
         except ChartError as error:
             return error_as(error, 400)
-        except Exception as error:
-            return error_response(error)
 
     async def delete_card(request: Request) -> Response:
         removed = await cards.remove(request.path_params["card_id"], actor(request))
@@ -133,21 +127,21 @@ def routes(cards: Cards) -> list[BaseRoute]:
 
     return [
         Route("/analyze/themes", list_themes),
-        Route("/analyze/theme", safely(set_theme), methods=["PUT"]),
+        Route("/analyze/theme", set_theme, methods=["PUT"]),
         Route("/analyze/themes", with_body(cards.add_theme), methods=["POST"]),
-        Route("/analyze/themes/{theme_id}", safely(remove_theme), methods=["DELETE"]),
+        Route("/analyze/themes/{theme_id}", remove_theme, methods=["DELETE"]),
         # The old addresses, one release (Visualizations is the Analyze page, 2026-11-19).
-        Route("/dashboards", safely(saved)),
-        Route("/dashboards", safely(save), methods=["POST"]),
-        Route("/dashboards/{name}", safely(versions)),
-        Route("/dashboards/{name}/open", safely(open_saved), methods=["POST"]),
-        Route("/dashboards/{name}", safely(delete_saved), methods=["DELETE"]),
-        Route("/cards", safely(all_cards)),
+        Route("/dashboards", saved),
+        Route("/dashboards", save, methods=["POST"]),
+        Route("/dashboards/{name}", versions),
+        Route("/dashboards/{name}/open", open_saved, methods=["POST"]),
+        Route("/dashboards/{name}", delete_saved, methods=["DELETE"]),
+        Route("/cards", all_cards),
         Route("/cards", with_body(cards.add_free), methods=["POST"]),
-        Route("/grids/{grid_id}/cards", safely(list_cards)),
+        Route("/grids/{grid_id}/cards", list_cards),
         Route("/grids/{grid_id}/cards", add_card, methods=["POST"]),
         Route("/cards/{card_id}", update_card, methods=["PATCH"]),
         Route("/cards/{card_id}", delete_card, methods=["DELETE"]),
-        Route("/cards/{card_id}/select", safely(select), methods=["POST"]),
-        Route("/cards/{card_id}/code", safely(code)),
+        Route("/cards/{card_id}/select", select, methods=["POST"]),
+        Route("/cards/{card_id}/code", code),
     ]

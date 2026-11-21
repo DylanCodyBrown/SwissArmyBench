@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, safely
+from swissarmybench.server.http import actor, json_response
 from swissarmybench.services.shared_catalog import SharedCatalog
 
 
@@ -29,6 +29,6 @@ def routes(shared: SharedCatalog) -> list[BaseRoute]:
 
     return [
         Route("/shared-catalog", listing),
-        Route("/shared-catalog/table", safely(table)),
+        Route("/shared-catalog/table", table),
         Route("/shared-catalog/refresh", refresh, methods=["POST"]),
     ]

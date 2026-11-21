@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.structures import Structures
 
 
@@ -93,23 +93,23 @@ def routes(structures: Structures) -> list[BaseRoute]:
         return json_response(await structures.save_as(sid(request), await read_json(request), actor(request)))
 
     return [
-        Route("/structures", safely(listing), methods=["GET"]),
+        Route("/structures", listing, methods=["GET"]),
         Route("/structures", with_body(structures.new), methods=["POST"]),
         Route("/structures/open", with_body(structures.open_file), methods=["POST"]),
         Route("/structures/paste", with_body(structures.paste), methods=["POST"]),
-        Route("/structures/saved", safely(saved), methods=["GET"]),
-        Route("/structures/references", safely(references), methods=["GET"]),
-        Route("/structures/{sid}", safely(show), methods=["GET"]),
-        Route("/structures/{sid}", safely(close), methods=["DELETE"]),
-        Route("/structures/{sid}", safely(change), methods=["PUT"]),
-        Route("/structures/{sid}/describe", safely(describe), methods=["GET"]),
-        Route("/structures/{sid}/steps", safely(step), methods=["POST"]),
-        Route("/structures/{sid}/steps/remove", safely(remove_step), methods=["POST"]),
-        Route("/structures/{sid}/undo", safely(undo), methods=["POST"]),
-        Route("/structures/{sid}/redo", safely(redo), methods=["POST"]),
-        Route("/structures/{sid}/grid", safely(grid), methods=["POST"]),
-        Route("/structures/{sid}/save", safely(save), methods=["POST"]),
-        Route("/structures/{sid}/run-again", safely(run_again), methods=["POST"]),
-        Route("/structures/{sid}/lineage", safely(lineage), methods=["GET"]),
-        Route("/structures/{sid}/save-as", safely(save_as), methods=["POST"]),
+        Route("/structures/saved", saved, methods=["GET"]),
+        Route("/structures/references", references, methods=["GET"]),
+        Route("/structures/{sid}", show, methods=["GET"]),
+        Route("/structures/{sid}", close, methods=["DELETE"]),
+        Route("/structures/{sid}", change, methods=["PUT"]),
+        Route("/structures/{sid}/describe", describe, methods=["GET"]),
+        Route("/structures/{sid}/steps", step, methods=["POST"]),
+        Route("/structures/{sid}/steps/remove", remove_step, methods=["POST"]),
+        Route("/structures/{sid}/undo", undo, methods=["POST"]),
+        Route("/structures/{sid}/redo", redo, methods=["POST"]),
+        Route("/structures/{sid}/grid", grid, methods=["POST"]),
+        Route("/structures/{sid}/save", save, methods=["POST"]),
+        Route("/structures/{sid}/run-again", run_again, methods=["POST"]),
+        Route("/structures/{sid}/lineage", lineage, methods=["GET"]),
+        Route("/structures/{sid}/save-as", save_as, methods=["POST"]),
     ]

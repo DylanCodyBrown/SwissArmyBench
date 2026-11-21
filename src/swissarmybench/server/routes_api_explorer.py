@@ -21,7 +21,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.api_explorer import Explorer
 
 
@@ -81,16 +81,16 @@ def routes(explorer: Explorer) -> list[BaseRoute]:
         return json_response(await explorer.delete(name(request), await read_json(request), actor(request)))
 
     return [
-        Route("/apis", safely(listing), methods=["GET"]),
-        Route("/apis/search", safely(search), methods=["GET"]),
-        Route("/apis/{name}", safely(describe), methods=["GET"]),
-        Route("/apis/{name}/calls/{op}", safely(send), methods=["POST"]),
-        Route("/apis/{name}/calls/{op}", safely(save_call), methods=["PUT"]),
-        Route("/apis/{name}/calls/{op}/write", safely(write), methods=["POST"]),
-        Route("/apis/{name}/calls/{op}/write", safely(save_write), methods=["PUT"]),
-        Route("/apis/{name}/refresh", safely(refresh), methods=["POST"]),
-        Route("/apis/{name}/refresh/apply", safely(apply), methods=["POST"]),
-        Route("/apis/{name}/check", safely(check), methods=["PUT"]),
-        Route("/apis/{name}/name", safely(rename), methods=["PUT"]),
-        Route("/apis/{name}/delete", safely(delete), methods=["POST"]),
+        Route("/apis", listing, methods=["GET"]),
+        Route("/apis/search", search, methods=["GET"]),
+        Route("/apis/{name}", describe, methods=["GET"]),
+        Route("/apis/{name}/calls/{op}", send, methods=["POST"]),
+        Route("/apis/{name}/calls/{op}", save_call, methods=["PUT"]),
+        Route("/apis/{name}/calls/{op}/write", write, methods=["POST"]),
+        Route("/apis/{name}/calls/{op}/write", save_write, methods=["PUT"]),
+        Route("/apis/{name}/refresh", refresh, methods=["POST"]),
+        Route("/apis/{name}/refresh/apply", apply, methods=["POST"]),
+        Route("/apis/{name}/check", check, methods=["PUT"]),
+        Route("/apis/{name}/name", rename, methods=["PUT"]),
+        Route("/apis/{name}/delete", delete, methods=["POST"]),
     ]

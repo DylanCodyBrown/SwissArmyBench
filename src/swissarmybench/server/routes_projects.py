@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.projects import Projects
 
 
@@ -24,8 +24,8 @@ def routes(projects: Projects) -> list[BaseRoute]:
         return json_response(await projects.dictionary(await read_json(request)))
 
     return [
-        Route("/projects/dictionary", safely(data_dictionary), methods=["POST"]),
+        Route("/projects/dictionary", data_dictionary, methods=["POST"]),
         Route("/projects", with_body(projects.create), methods=["POST"]),
-        Route("/projects/open", safely(open_project), methods=["POST"]),
+        Route("/projects/open", open_project, methods=["POST"]),
         Route("/projects/export-data", with_body(projects.export_data), methods=["POST"]),
     ]

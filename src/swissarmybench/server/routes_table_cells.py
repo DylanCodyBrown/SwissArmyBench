@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, read_json, safely
+from swissarmybench.server.http import json_response, read_json
 from swissarmybench.services.table_cells import TableCells
 
 
@@ -31,7 +31,7 @@ def routes(tables: TableCells) -> list[BaseRoute]:
         return Response(data, media_type="application/vnd.apache.arrow.stream")
 
     return [
-        Route("/workbench/tables", safely(listing)),
-        Route("/workbench/tables/{name}/arrow", safely(view)),
-        Route("/workbench/tables/arrange", safely(arrange), methods=["POST"]),
+        Route("/workbench/tables", listing),
+        Route("/workbench/tables/{name}/arrow", view),
+        Route("/workbench/tables/arrange", arrange, methods=["POST"]),
     ]

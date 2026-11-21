@@ -21,7 +21,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, query_int, read_body, safely
+from swissarmybench.server.http import actor, json_response, query_int, read_body
 from swissarmybench.services.catalogs import CatalogService
 
 _ARROW_STREAM: str = "application/vnd.apache.arrow.stream"
@@ -81,10 +81,10 @@ def routes(catalogs: CatalogService) -> list[BaseRoute]:
 
     return [
         Route("/catalogs", list_catalogs),
-        Route("/catalogs/{name}", safely(load_catalog), methods=["PUT"]),
-        Route("/catalogs/{name}", safely(remove_catalog), methods=["DELETE"]),
-        Route("/catalogs/{name}/schemas", safely(schemas)),
-        Route("/catalogs/{name}/tables", safely(tables)),
-        Route("/catalogs/{name}/columns", safely(columns)),
-        Route("/catalogs/{name}/search", safely(search)),
+        Route("/catalogs/{name}", load_catalog, methods=["PUT"]),
+        Route("/catalogs/{name}", remove_catalog, methods=["DELETE"]),
+        Route("/catalogs/{name}/schemas", schemas),
+        Route("/catalogs/{name}/tables", tables),
+        Route("/catalogs/{name}/columns", columns),
+        Route("/catalogs/{name}/search", search),
     ]

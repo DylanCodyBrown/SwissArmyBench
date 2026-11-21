@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, read_json, safely, with_body
+from swissarmybench.server.http import json_response, read_json, with_body
 from swissarmybench.services.project_explorer import ProjectExplorer
 
 
@@ -43,12 +43,12 @@ def routes(explorer: ProjectExplorer) -> list[BaseRoute]:
         return json_response(await explorer.explained(await read_json(request)))
 
     return [
-        Route("/projects/explorer", safely(listing), methods=["GET"]),
-        Route("/projects/types", safely(types), methods=["GET"]),
+        Route("/projects/explorer", listing, methods=["GET"]),
+        Route("/projects/types", types, methods=["GET"]),
         Route("/projects/sort", with_body(explorer.sort), methods=["POST"]),
-        Route("/projects/explained", safely(explained), methods=["POST"]),
+        Route("/projects/explained", explained, methods=["POST"]),
         Route("/projects/folder", with_body(explorer.set_folder), methods=["POST"]),
-        Route("/projects/folder", safely(folders), methods=["GET"]),
+        Route("/projects/folder", folders, methods=["GET"]),
         Route("/projects/share", with_body(explorer.share), methods=["POST"]),
         Route("/projects/copy-local", with_body(explorer.copy_local), methods=["POST"]),
         Route("/projects/rename", with_body(explorer.rename), methods=["POST"]),

@@ -11,7 +11,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.connection_colours import ConnectionColours
 
 
@@ -28,6 +28,6 @@ def routes(colours: ConnectionColours) -> list[BaseRoute]:
 
     return [
         Route("/connection-colours", get),
-        Route("/connection-colours/uses", safely(uses), methods=["POST"]),
-        Route("/connection-colours/{name}", safely(put), methods=["PUT"]),
+        Route("/connection-colours/uses", uses, methods=["POST"]),
+        Route("/connection-colours/{name}", put, methods=["PUT"]),
     ]

@@ -8,9 +8,10 @@ where an error becomes a status code.
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from typing import Any, TypeVar
@@ -20,6 +21,7 @@ import duckdb
 import sqlglot
 from starlette.requests import Request
 from starlette.responses import Response, StreamingResponse
+from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain import refusals
 from swissarmybench.domain.blades import BladeError
@@ -130,7 +132,8 @@ def error_response(error: Exception) -> Response:
 
 
 def safely(handler: Handler) -> Handler:
-    """`handler` with any error it raises answered by `error_response` (its status, the one shape)."""
+    """`handler` with any error it raises answered by `error_response` (its status, the one shape). The app
+    puts every route's handler under it once (guarded); a route module never writes its own."""
 
     async def guarded(request: Request) -> Response:
         try:
@@ -141,14 +144,23 @@ def safely(handler: Handler) -> Handler:
     return guarded
 
 
+def guarded(routes: Sequence[BaseRoute]) -> list[BaseRoute]:
+    """Every HTTP route's async handler under `safely`, once, at the app: a crash in any route answers the
+    one refusal shape. WebSocket routes, mounts and plain (sync) handlers are left as they are."""
+    out: list[BaseRoute] = []
+    for route in routes:
+        if isinstance(route, Route) and inspect.iscoroutinefunction(route.endpoint):
+            methods = sorted(route.methods - {"HEAD"}) if route.methods else None
+            route = Route(route.path, safely(route.endpoint), methods=methods, name=route.name)
+        out.append(route)
+    return out
+
+
 def answered(work: Callable[[Request], Awaitable[Any]]) -> Handler:
-    """A route that answers what `work(request)` returns as JSON (an error in the one shape)."""
+    """A route that answers what `work(request)` returns as JSON (an error: the app's guard)."""
 
     async def handle(request: Request) -> Response:
-        try:
-            return json_response(await work(request))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await work(request))
 
     return handle
 
@@ -173,10 +185,7 @@ def with_body(run: Callable[[Any, str], Awaitable[Any]]) -> Handler:
     one shape)."""
 
     async def handle(request: Request) -> Response:
-        try:
-            return json_response(await run(await read_json(request), actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await run(await read_json(request), actor(request)))
 
     return handle
 
@@ -185,10 +194,7 @@ def with_actor(run: Callable[[str], Awaitable[Any]]) -> Handler:
     """A route that runs `run(who is asking)` and answers its result (an error in the one shape)."""
 
     async def handle(request: Request) -> Response:
-        try:
-            return json_response(await run(actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await run(actor(request)))
 
     return handle
 

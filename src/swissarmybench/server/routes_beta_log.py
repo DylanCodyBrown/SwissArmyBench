@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, query_int, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, query_int, read_json, with_body
 from swissarmybench.services.beta_log import BetaLog
 
 
@@ -42,10 +42,10 @@ def routes(beta: BetaLog) -> list[BaseRoute]:
     return [
         Route("/beta", state),
         Route("/beta", with_body(beta.set), methods=["PUT"]),
-        Route("/beta/log", safely(events)),
+        Route("/beta/log", events),
         Route("/beta/log", clear, methods=["DELETE"]),
         Route("/beta/notes", notes),
         Route("/beta/notes", with_body(beta.note), methods=["POST"]),
-        Route("/beta/page-errors", safely(page_error), methods=["POST"]),
+        Route("/beta/page-errors", page_error, methods=["POST"]),
         Route("/beta/export", with_body(beta.export), methods=["POST"]),
     ]

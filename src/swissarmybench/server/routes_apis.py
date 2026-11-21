@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.apis import Apis
 
 
@@ -36,9 +36,9 @@ def routes(apis: Apis) -> list[BaseRoute]:
         return json_response(await apis.make_into_blades(name, body, actor(request)))
 
     return [
-        Route("/apis/choices", safely(choices), methods=["GET"]),
-        Route("/apis/preview", safely(preview), methods=["POST"]),
-        Route("/apis/try", safely(try_it), methods=["POST"]),
+        Route("/apis/choices", choices, methods=["GET"]),
+        Route("/apis/preview", preview, methods=["POST"]),
+        Route("/apis/try", try_it, methods=["POST"]),
         Route("/apis", with_body(apis.add), methods=["POST"]),
-        Route("/apis/{name}/make-into-blades", safely(make_into_blades), methods=["POST"]),
+        Route("/apis/{name}/make-into-blades", make_into_blades, methods=["POST"]),
     ]

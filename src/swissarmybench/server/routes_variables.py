@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.variables import Variables
 
 
@@ -40,10 +40,10 @@ def routes(variables: Variables) -> list[BaseRoute]:
         return json_response(variables.uses(request.query_params.get("name")))
 
     return [
-        Route("/variables", safely(listing), methods=["GET", "PUT"]),
-        Route("/variables/resolve", safely(resolve), methods=["POST"]),
-        Route("/variables/uses", safely(uses), methods=["GET"]),
+        Route("/variables", listing, methods=["GET", "PUT"]),
+        Route("/variables/resolve", resolve, methods=["POST"]),
+        Route("/variables/uses", uses, methods=["GET"]),
         Route("/variables/rename", with_body(variables.rename), methods=["POST"]),
-        Route("/variables/reveal", safely(reveal), methods=["POST"]),
-        Route("/variables/{name}", safely(remove), methods=["DELETE"]),
+        Route("/variables/reveal", reveal, methods=["POST"]),
+        Route("/variables/{name}", remove, methods=["DELETE"]),
     ]

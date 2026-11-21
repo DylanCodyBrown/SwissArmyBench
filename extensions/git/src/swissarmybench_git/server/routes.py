@@ -35,7 +35,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, safely, with_actor, with_body
+from swissarmybench.server.http import actor, json_response, with_actor, with_body
 from swissarmybench_git.services.scm import SourceControl
 
 Handler = Callable[[Request], Awaitable[Response]]
@@ -48,10 +48,7 @@ def with_query(run: Callable[[Any, str], Awaitable[dict[str, Any]]]) -> Handler:
         query: dict[str, Any] = dict(request.query_params)
         for key in ("conflict", "unified"):
             query[key] = query.get(key) in ("1", "true")
-        try:
-            return json_response(await run(query, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await run(query, actor(request)))
 
     return handle
 
@@ -59,17 +56,14 @@ def with_query(run: Callable[[Any, str], Awaitable[dict[str, Any]]]) -> Handler:
 def routes(sync: SourceControl) -> list[BaseRoute]:
     async def status(request: Request) -> Response:
         remote = request.query_params.get("remote") in ("1", "true")
-        try:
-            return json_response(await sync.status(remote, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await sync.status(remote, actor(request)))
 
     async def mark(request: Request) -> Response:
         return json_response({"mark": (await sync.status(False, actor(request)))["footer"]})
 
     return [
         Route("/git", status),
-        Route("/git/mark", safely(mark)),
+        Route("/git/mark", mark),
         Route("/git/sign-in/token", with_body(sync.sign_in_token), methods=["POST"]),
         Route("/git/sign-in/device", with_actor(sync.device_start), methods=["POST"]),
         Route("/git/sign-in/device/poll", with_actor(sync.device_poll), methods=["POST"]),

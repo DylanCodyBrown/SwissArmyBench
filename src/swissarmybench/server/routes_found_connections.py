@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_body, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_body, with_body
 from swissarmybench.services.found_connections import FoundConnections
 
 
@@ -30,7 +30,7 @@ def routes(found: FoundConnections) -> list[BaseRoute]:
         return json_response(found.cancel())
 
     return [
-        Route("/connections/found", safely(scan), methods=["POST"]),
+        Route("/connections/found", scan, methods=["POST"]),
         Route("/connections/found/cancel", cancel, methods=["POST"]),
         Route("/connections/found/import", with_body(found.import_found), methods=["POST"]),
     ]
