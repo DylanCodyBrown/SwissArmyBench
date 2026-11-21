@@ -122,7 +122,7 @@ Routes are behind the base's guard (127.0.0.1, the token): never open a port of 
 - **Folders in the library** (Plans/folder-extensions.plan.md): `library/extensions/<id>/` with the same
   `extension.py`, `commands.py`, `sources.py`, `starters/` and `README.md`, found at start, trusted like the
   library's blades, a missing package offered through the Install now prompt, and a New extension scaffold.
-- **The project contract** (Plans/adapter.plan.md): a `<type>.project.json` file (JSON) listing the files the
+- **The project contract** (Plans/adapter.plan.md): a `project.json` at the extension's root (JSON; not a project's own `.sab/project.json`) listing the files the
   extension owns, made or yours, and what grows each; the base scaffolds, grows and exports a project from it.
 - **Sources for the adapter:** `sources.py` with three calls (list tables, read a plan as Arrow, write Arrow),
   the only way an extension reaches data once the adapter exists.

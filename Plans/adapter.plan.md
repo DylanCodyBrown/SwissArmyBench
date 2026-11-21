@@ -158,7 +158,10 @@ The owner: "The contract for a project should be laid out by the extensions as t
 doesn't require a change" / "A project's contract is laid out in json. Everything including the ide language. The
 back end always remains python based with the duckdb adapter being the entry for data and apis in and out."
 
-- Each project type is one JSON file, `<type>.project.json`, shipped by its extension (the base ships `bi`'s): its
+- The owner: "So extensions have a project.json in root." Each extension that adds a project type has one
+  `project.json` at its root (the base ships the BI one); one with no project type (Copilot, Git) has none. Not to be
+  mixed up with a project's own `.sab/project.json` (a project's state): the contract says what a type of project
+  is, the state what one project holds. The contract: its
   files and folders, what the editors offer (languages, cell kinds, the IDE's language per file pattern), its canvas,
   what grows each file, its export, its words. The base reads only this file to scaffold, grow, list, check, open
   and export a project; it never names an extension's file, and the front end draws what the JSON says.

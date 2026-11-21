@@ -17,7 +17,7 @@ Status: decided; not built. Build after the adapter (Plans/adapter.plan.md), who
 
 ```
 library/extensions/databricks/
-  <type>.project.json  the project contract as JSON: files, IDE languages, cells, canvas, export, words
+  project.json  the project contract as JSON: files, IDE languages, cells, canvas, export, words
                     (today's MODE moves here)
   extension.py      the rest of the manifest as Python values: ID, NAME, DESCRIPTION, AREAS, RAIL, STARTERS,
                     API_TARGETS, SESSION_RULES; routes(services) and commands
@@ -38,7 +38,7 @@ Backend and data only, as every extension (the front end draws what its manifest
 - **Reloads** on its Turn off / Turn on and on a restart; a change to its files is noticed (the file_changed look) and
   offered as Reload.
 - **New extension** (the Extensions page and the agent's `extensions_new`) writes the folder above with one command,
-  one route and an empty <type>.project.json, so an agent has a working skeleton to grow; the Scripts page shows the library's
+  one route and an empty project.json, so an agent has a working skeleton to grow; the Scripts page shows the library's
   extensions in its explorer like the library's other code.
 - **Checks** each one against the shared shapes before it is turned on (its manifest, its project.json against the shared schema, its sources'
   three calls, no front-end file in it); a failure is its one sentence on its card.
