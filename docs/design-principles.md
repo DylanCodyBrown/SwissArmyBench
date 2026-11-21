@@ -656,6 +656,15 @@ settings, a path, Run settings, a project setting and a SQL query take `${NAME}`
   - a second use earns the shared piece; a third earns the abstraction;
   - when in doubt, delete it: less code is fewer bugs. A simplification never changes what the user sees or
     the agent can do (that is a feature change, asked first).
+- **Code the app writes reads like a roadmap** (the owner, 2026-11-21: "The scaffolded codes and blades should read
+  like a roadmap with clear comments and defs in a logical order that makes since"): every scaffold, starter blade,
+  export and made file opens with what it does and how it is laid out, then its functions in the order they run
+  (settings, then reading, then shaping, then writing, then the entry point), each under a short comment saying
+  what it is for. A reader should follow it top to bottom without jumping.
+- **Flat over nested** (the owner: "Code more than 3 def levels deep should draw heavy criticism and two levels
+  should draw mild criticism"): a function inside a function inside a function, or blocks nested past three levels,
+  is rewritten flat (early returns, a named helper at the top level, a loop over data instead of branches); two
+  levels need a reason.
 
 ## 13a. Kits: how the app grows
 
