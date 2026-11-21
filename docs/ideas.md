@@ -7889,3 +7889,6 @@ values code makes (the library's ${NAME} settings page stays its own); the scree
 is designing it from RStudio's Environment pane, Positron's Variables pane, Spyder and VS Code (a mockup and questions
 to follow). Today: the watcher (client/watcher.py) finds tables in a kernel by class; the Workbench's Variables pane
 shows the front kernel's values; neither browses, deletes or manages the project's tables.
+Decided (2026-11-21): one process for the project as RStudio, a table shared at once, the ${NAME} settings page merged
+into the Environment page, the .venv in the project folder, Remove with an "Also delete it in Python" tick.
+Plan: Plans/environment.plan.md.
