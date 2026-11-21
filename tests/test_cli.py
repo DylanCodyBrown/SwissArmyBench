@@ -115,6 +115,15 @@ NOT_COMMANDS = {
     # MCP. What is left here is not a user action, or would let the agent approve itself or read a
     # password's value.
     "/agent/approvals/{}": "answering an approval: the agent cannot approve its own request",
+    # A connection's slots (2026-11-21): a kernel's leased slot is its own process's
+    # (client/connection_slot.py); a query's SQL is the user's only (the agent sees names and counts);
+    # a page's Cancel of its own waiting queries (the agent cancels by id: connections_cancel_query).
+    "/connections/slots/acquire": "a Workbench kernel's own slot for its query (client/connection_slot.py)",
+    "/connections/slots/{}/renew": "a Workbench kernel's slot kept while its query runs",
+    "/connections/slots/{}/release": "a Workbench kernel's slot given back when its query ends",
+    "/connections/queries/{}/sql": "a query's SQL text, shown to the user only (403 for the agent)",
+    "/connections/queries/cancel-mine": "a page's Cancel of the queries it asked for (X-Sab-Client); the "
+    "agent cancels by id with connections_cancel_query",
     "/analyze/land": "sab.analyze's own: a result Python computed on a DataFrame, put on the board (the "
     "agent runs an analysis with analyze_run, which lands its cards itself)",
     "/relationships/tangs": "the old name of /relationships/sets (a tang until 2026-11-17), one release",

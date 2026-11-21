@@ -34,7 +34,7 @@ from swissarmybench.adapters.blade_run import (
     run_vault,
     set_variables,
 )
-from swissarmybench.client import connection_use, standalone
+from swissarmybench.client import connection_slot, connection_use, standalone
 from swissarmybench.client.kernel_values import is_table
 from swissarmybench.client.push_client import (
     ServerNotRunningError,
@@ -57,11 +57,15 @@ def _call(method: str, path: str, body: bytes | None = None, content_type: str =
         f"http://127.0.0.1:{info['port']}{path}",
         data=body,
         method=method,
-        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": content_type},
+        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": content_type}
+        | connection_slot.kernel_headers(),
     )
     try:
         with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310 (fixed http://127.0.0.1 URL)
             return json.loads(response.read() or b"null")
+    except KeyboardInterrupt:
+        connection_slot.cancel_mine()  # a read waiting in a connection's line gives up its place
+        raise
     except urllib.error.HTTPError as error:
         message = error.read().decode("utf-8", "replace")
         if error.code == 404:
@@ -90,7 +94,8 @@ def _post_bytes(path: str, body: bytes) -> tuple[bytes, dict[str, str]]:
         f"http://127.0.0.1:{info['port']}{path}",
         data=body,
         method="POST",
-        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"}
+        | connection_slot.kernel_headers(),
     )
     try:
         with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:  # noqa: S310 (fixed http://127.0.0.1 URL)
@@ -191,7 +196,11 @@ def blade(name: str) -> Any:
     if spec["kind"] == "secret":
         _ask(list(spec["env_names"]), str(spec["name"]))
         return list(spec["env_names"])
-    made = _made(spec)[0]
+    if spec["kind"] == "vault":
+        made = _made(spec)[0]
+    else:  # a connection's connect waits for one of its slots in a Workbench kernel
+        with connection_slot.slot(str(spec["name"]), "blade"):
+            made = _made(spec)[0]
     if spec["kind"] != "vault":  # a connection's (the app counts only those), in a Workbench kernel only
         connection_use.report(str(spec["name"]), "connect")
     return _named(made, str(spec.get("table") or ""))
@@ -273,9 +282,10 @@ def read(connection: str, table: str, schema: str = "", limit: int | None = None
             f"{spec['name']} has no Read a table box: sab.read is for a connection made of your own "
             "Python. For a database, use sab.sql(connection, query)."
         )
-    _, names = _made(spec)
     try:
-        rows, _ = read_table(names, command, schema, table, limit, spec["secrets"], str(spec["name"]))
+        with connection_slot.slot(str(spec["name"]), "read", targets=(table,)):
+            _, names = _made(spec)
+            rows, _ = read_table(names, command, schema, table, limit, spec["secrets"], str(spec["name"]))
     except BladeRunError as error:
         connection_use.report(str(spec["name"]), "read", ok=False)
         if error.missing_module:

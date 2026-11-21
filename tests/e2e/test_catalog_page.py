@@ -453,6 +453,17 @@ def test_the_blade_screen_is_an_ide_typed_linted_run_saved_and_cancelled(
         page.get_by_role("button", name="Throw them away").click()
         expect(editor(page)).to_contain_text("baking loaves")
         expect(ide.locator(".ide-dirty")).to_be_hidden()
+        # The code zooms on its own (Ctrl+= / Ctrl+0 over the code): the size shows only while not 100%.
+        zoom = ide.locator(".ide-zoom")
+        expect(zoom).to_be_hidden()
+        size = editor(page).locator(".view-line").first.evaluate("e => getComputedStyle(e).fontSize")
+        editor(page).locator(".view-lines").click()
+        page.keyboard.press("Control+Equal")
+        page.keyboard.press("Control+Equal")
+        expect(zoom).to_have_text("115%")
+        assert editor(page).locator(".view-line").first.evaluate("e => getComputedStyle(e).fontSize") != size
+        page.keyboard.press("Control+0")
+        expect(zoom).to_be_hidden()
         # An edit made outside shows at once while nothing is unsaved.
         file.write_text(text.replace("baking loaves", "fresh from the oven"), encoding="utf-8")
         expect(editor(page)).to_contain_text("fresh from the oven", timeout=10000)

@@ -185,6 +185,14 @@ async def run(job: dict[str, Any], timeout: float, report: Report = _no_report) 
             f"{job['label']} did not finish within {timeout:.0f} seconds and was stopped. "
             "Check the server name and network, or narrow the catalog query."
         ) from None
+    except asyncio.CancelledError:
+        # Cancelled (the Queries window's Cancel, the page gone): the child goes with it, so its
+        # connection's slot is free at once (services/connection_slots.py).
+        process.kill()
+        with contextlib.suppress(Exception):
+            await asyncio.shield(process.wait())
+        report("cancelled", process.returncode, time.monotonic() - began, "")
+        raise
     try:
         answer: Any = json.loads(out.decode("utf-8") or "null")
     except ValueError:

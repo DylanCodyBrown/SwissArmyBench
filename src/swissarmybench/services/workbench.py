@@ -135,6 +135,8 @@ class Workbench:
         self._vault_names: set[str] = set()
         # Told when a kernel stops: the document's Streamlit process stops with it.
         self._kernel_stopped = kernel_stopped
+        # Each kernel's runs still going, in order, by who started them ("user" or "agent").
+        self._runs: dict[str, list[str]] = {}
         # An extension's part (services/hooks.py): which cells are shown live, an app's own file.
         self._hooks = hooks or Hooks()
         self._running: dict[str, Kernel] = {}
@@ -359,7 +361,24 @@ class Workbench:
             raise NotFound("That kernel is not running (the server restarted, or it was closed). Run again.")
         return kernel
 
-    def execute(self, kernel_id: str, body: Any) -> AsyncIterator[dict[str, Any]]:
+    def set_kernel_stopped(self, stopped: Callable[[str], Awaitable[None]]) -> None:
+        """What runs when a kernel stops (bootstrap: its connection slots go back, then the extensions')."""
+        self._kernel_stopped = stopped
+
+    def runner_of(self, kernel_id: str) -> tuple[str, str]:
+        """Who runs a kernel's code now (the user or the agent: the first of its runs still going, as a
+        kernel runs its cells one at a time) and its document's words (Notebook sales.ipynb, Script
+        load.py): what a connection's slot is counted as (services/connection_slots.py)."""
+        runs = self._runs.get(kernel_id) or []
+        role = runs[0] if runs else "user"
+        path = self._documents_of.get(kernel_id) or ""
+        name = path.replace("\\", "/").rsplit("/", 1)[-1]
+        words = (
+            (("Notebook " if name.endswith(".ipynb") else "Script ") + name) if name else "A Workbench kernel"
+        )
+        return role, words
+
+    def execute(self, kernel_id: str, body: Any, actor: str = "user") -> AsyncIterator[dict[str, Any]]:
         """Run code (kind code), a SQL cell (kind sql, its connection), a DAX cell (kind dax, its
         connection naming a Power BI workspace's dataset: Finance/Sales model), an HTML cell (kind html:
         `code`
@@ -408,6 +427,16 @@ class Workbench:
         stdin = body.get("stdin") is not False
 
         async def run() -> AsyncIterator[dict[str, Any]]:
+            runs = self._runs.setdefault(kernel_id, [])
+            runs.append("agent" if actor == "agent" else "user")
+            try:
+                async for item in outputs():
+                    yield item
+            finally:
+                if runs:
+                    runs.pop(0)
+
+        async def outputs() -> AsyncIterator[dict[str, Any]]:
             usage = ""  # a SQL cell's error is IPython's usage error, written to stderr
             async for item in kernel.execute(code, stdin=stdin):
                 if "error_detail" in item:

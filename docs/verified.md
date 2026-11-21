@@ -4237,3 +4237,25 @@ Quick suite 4840 passed, 49 skipped; e2e suite (-n 2, Chromium) 387 passed, 24 s
 the IDE after a Run with a table result. Not checked: Copilot's ghost text in the blade editor (no extension on
 in the tests), Run's Stop mid-run in a browser (the cancel route is tested only by its wiring), the Reload /
 Keep mine note in a browser (its route is tested), the Workbench's blade tab, Edge, Windows.
+## Each connection's slots and the Queries window (2026-11-21, branch connection-throttle)
+
+Checked: the rule's unit tests (defaults, validation, total and agent's share, FIFO and priority, places, leases,
+words, SQL kept out of the agent's view, the formatter: a long one-line query becomes clauses on lines, a bad one
+and DAX left as written, `${REGION}` kept). The service with a slow stand-in: 12 queries on 8 slots with the
+agent's 4 -> never more than 8 at once nor 4 of the agent's, FIFO in each share, Cancel frees a waiting place and
+stops a running one, the wait limit gives up with Try again, an error frees its slot, a kernel that stops renewing
+loses its slot, the agent's long wait is a Session entry. HTTP with a slow made-up SQLite connection: limits checked
+and kept in its file (the same limits, the same bytes; the defaults write nothing), a second query waiting with its
+place, the agent cancelling its own (408 "Cancelled"), a page's cancel-mine, the finished list and Clear, the SQL
+403 for the agent, a kernel's acquire/renew/release. e2e in Chromium: the card's live count, the Queries window
+(Running with ticking time, Waiting with its place, the highlighted SQL box in clauses, Cancel, Finished), the "+"
+draft's query waiting with its place and Cancel.
+Not gated (connection calls that do not pass the gate): the access probes (adapters/app_registrations.py
+MicrosoftProbe: they sign in and list directly, not through run_blade), a Python connection's code a kernel
+runs itself after `sab.connection(...)` / `sab.blade(...)` returned its object (only the connect is gated, the
+user's later calls on that object are not), the Power BI extension's live link and a project's dataset alias
+(`alias.read`, `alias.dax`: they read through the extension's own client), a vault's names read (not a
+connection), Streamlit apps and exported automations (outside the app, by design), and the Dataverse and lake
+writes of the Write starters run in a kernel (they are not sab.sql). Not checked: Edge; the agent's cancel of
+the user's query through a real Allow click in a browser (the route is tested); a kernel's waiting cell line in a
+real Workbench kernel (the client's no-gate paths are tested, the lease routes are tested over HTTP).

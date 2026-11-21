@@ -2439,6 +2439,52 @@ def connections_colours(a: dict[str, Any]) -> Any:
     return api.call("GET", "/connection-colours")
 
 
+# ----- each connection's slots: queries at once, the agent's share, the line (2026-11-21) -----
+
+
+@command(
+    "connections_slots",
+    "Each connection's running and waiting query counts and limits (default 8 at once, 4 the agent's)",
+)
+def connections_slots(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/connections/slots")
+
+
+@command(
+    "connections_queries",
+    "Running, waiting and finished queries (who, what, tables, place, time); no SQL",
+    opt("connection", "One connection's (default: every one's)."),
+    opt("clear", "true: empty the finished list first.", "bool"),
+)
+def connections_queries(a: dict[str, Any]) -> Any:
+    if a.get("clear"):
+        api.call("POST", "/connections/queries/clear", {})
+    query = "?connection=" + _q(a["connection"]) if a.get("connection") else ""
+    return api.call("GET", "/connections/queries" + query)
+
+
+@command(
+    "connections_cancel_query",
+    "Cancel a query by its id: yours at once, the user's on their Allow",
+    req("id", "The query's id."),
+)
+def connections_cancel_query(a: dict[str, Any]) -> Any:
+    return api.call("POST", f"/connections/queries/{_q(a['id'])}/cancel", {})
+
+
+@command(
+    "connections_set_limits",
+    "Set a connection's queries at once (1-64), the agent's share and the wait in seconds",
+    req("name", "The connection."),
+    opt("total", "Queries at once.", "int"),
+    opt("agent", "The agent's share.", "int"),
+    opt("wait", "Seconds a query waits in line before it gives up.", "int"),
+)
+def connections_set_limits(a: dict[str, Any]) -> Any:
+    body = {k: a[k] for k in ("total", "agent", "wait") if a.get(k) is not None}
+    return api.call("PUT", f"/connections/{_q(a['name'])}/limits", body)
+
+
 # ----- a table's connection swapped (its steps kept), and the code that named the old one -----
 
 

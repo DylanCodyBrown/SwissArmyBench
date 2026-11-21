@@ -38,6 +38,7 @@ import { analyzeParts, onFindData, onOpenAnalyze } from "./analyzePage";
 import { openFindData } from "./gridCommands";
 import { mountErd } from "./erdView";
 import { mountBottomBar, setLive } from "./bottomBar";
+import { mountQueriesWindow } from "./queriesWindow";
 import { $, button, clear, closeDialogs, h, toast } from "./dom";
 import { HOME_URL, layerShown, mountNav, openLayer, setTitle, startNav, visit, withParams } from "./nav";
 import { mountNavRail } from "./rail";
@@ -294,6 +295,11 @@ async function start(): Promise<void> {
     window: popout ? "steps" : keysWindow ? "keys" : sqlWindow ? "sql" : "main",
     tabs: () => [`front:${document.querySelector<HTMLElement>(".workspace")?.dataset.view ?? "grid"}`, ...Array.from(document.querySelectorAll(".tabs-row [role=tab]"), () => "tab")],
   });
+  if (panelParam === "queries") {
+    // A connection's queries in progress, in a window of its own (queriesWindow.ts).
+    await mountQueriesWindow();
+    return;
+  }
   if (panelParam === "connsql") {
     // A table's query, moved to another connection: looked over in a window of its own, then run there.
     await mountConnectionSqlWindow();

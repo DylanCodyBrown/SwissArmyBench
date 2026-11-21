@@ -19190,4 +19190,349 @@ body.wb-full.has-rail {
   overflow: auto;
   padding: 8px;
   background: var(--surface);
+/* ===== a connection's slots (connectionSlots.ts) and the Queries window (queriesWindow.ts) ===== */
+
+.connection-card {
+  grid-template-areas:
+    "icon text"
+    "status calls"
+    "slots slots";
+}
+
+.connection-slots {
+  display: inline-flex;
+  grid-area: slots;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.connection-slots[hidden] {
+  display: none;
+}
+
+.connection-slots .icon-svg {
+  width: 14px;
+  height: 14px;
+}
+
+.connection-slots.busy {
+  border-color: var(--border-strong);
+  color: var(--fg);
+}
+
+.connection-slots.full {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.connection-slots:hover,
+.connection-slots:focus-visible {
+  border-color: var(--border-strong);
+  outline: none;
+}
+
+.connection-queries {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.connection-limits {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.connection-limit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.connection-limit {
+  width: 76px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+}
+
+.connection-limits.compact .connection-limit {
+  width: 64px;
+}
+
+body.queries-window {
+  overflow: auto;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.queries-main {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 24px;
+}
+
+.queries-main > * {
+  flex-shrink: 0;
+}
+
+.queries-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 16px;
+}
+
+.queries-top h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+}
+
+.queries-connection {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--fg);
+  font: inherit;
+}
+
+.queries-counts {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.queries-limits {
+  margin-left: auto;
+}
+
+.queries-note {
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.queries-note[hidden] {
+  display: none;
+}
+
+.queries-header-table,
+.queries-table,
+.queries-finished-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-variant-numeric: tabular-nums;
+}
+
+.queries-header-table th,
+.queries-finished-table th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.queries-header-table th:nth-child(1),
+.queries-table td:nth-child(1) {
+  width: 14%;
+}
+
+.queries-header-table th:nth-child(2),
+.queries-table td:nth-child(2) {
+  width: 16%;
+}
+
+.queries-header-table th:nth-child(3),
+.queries-table td:nth-child(3) {
+  width: 20%;
+}
+
+.queries-header-table th:nth-child(4),
+.queries-table td:nth-child(4) {
+  width: 14%;
+}
+
+.queries-header-table th:nth-child(8),
+.queries-table td:nth-child(8) {
+  width: 132px;
+}
+
+.queries-list {
+  position: relative;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.queries-list:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+}
+
+.queries-list[hidden] {
+  display: none;
+}
+
+.queries-list.virtual .queries-rows {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+}
+
+.queries-row td,
+.queries-finished-table td {
+  overflow: hidden;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queries-row {
+  cursor: pointer;
+}
+
+.queries-row:hover {
+  background: var(--row-hover);
+}
+
+.queries-row.selected {
+  background: var(--selected);
+}
+
+.queries-row.opened td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.queries-row.st-waiting .queries-state {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.queries-row.st-running .queries-state {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.queries-who.who-agent {
+  color: var(--agent);
+}
+
+.queries-targets,
+.queries-reason {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.queries-actions {
+  text-align: right;
+}
+
+.queries-empty {
+  margin: 0;
+  color: var(--muted);
+}
+
+.queries-empty[hidden],
+.queries-sql[hidden],
+.queries-finished[hidden] {
+  display: none;
+}
+
+.queries-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--raised);
+}
+
+.queries-sql-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.queries-sql-head h2,
+.queries-finished-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto 0 0;
+  font-size: 15px;
+}
+
+.queries-sql-box .code-box {
+  margin: 0;
+  max-height: 45vh;
+  overflow: auto;
+}
+
+.queries-finished {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.queries-finished-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.queries-done.out-ok .queries-outcome {
+  color: var(--ok);
+}
+
+.queries-done.out-cancelled .queries-outcome,
+.queries-done.out-timed-out .queries-outcome,
+.queries-done.out-ended .queries-outcome {
+  color: var(--warn);
+}
+
+.queries-done.out-failed .queries-outcome {
+  color: var(--error);
+}
+
+.busy-line-cancel {
+  margin-left: 8px;
+}
+
+.queries-header-table th:nth-child(5),
+.queries-table td:nth-child(5) {
+  width: 112px;
 }

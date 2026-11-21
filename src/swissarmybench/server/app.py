@@ -16,6 +16,8 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_connections.py    connections (database and file blades, seen apart): the user's alone
   routes_found_connections.py  Find connections on this computer: the known tools and the hint scan, import
   routes_connection_tables.py  a connection's tables: the tree, Open all, DuckDB SQL naming them
+  routes_connection_slots.py  each connection's slots (queries at once, the agent's share, the line), the
+                           Queries window, a kernel's leased slot
   routes_connection_swap.py  a table's connection swapped (its steps kept), every table of a deleted
                            one moved, the code that named it pointed at the new one
   routes_apis.py           Add API: an OpenAPI document or a form made into API_<name>.py and a connection
@@ -93,6 +95,7 @@ from swissarmybench.server import (
     routes_catalog,
     routes_claude,
     routes_connection_colours,
+    routes_connection_slots,
     routes_connection_swap,
     routes_connection_tables,
     routes_connections,
@@ -137,6 +140,7 @@ from swissarmybench.server import (
     routes_workbench,
 )
 from swissarmybench.server.beta_requests import BetaRequests
+from swissarmybench.server.routes_connection_slots import CallerAtTheDoor
 from swissarmybench.server.security import (
     OLD_WEBSOCKET_SUBPROTOCOL,
     WEBSOCKET_SUBPROTOCOL,
@@ -321,6 +325,9 @@ def create_app(
         workers.close()
         ctx.beta.stopped()
 
+    def connection_names() -> list[str]:
+        return [str(c["name"]) for c in ctx.connections.listing()["connections"]]
+
     app = Starlette(
         routes=[
             *routes_datasets.routes(ctx.datasets),
@@ -333,6 +340,11 @@ def create_app(
             *routes_cards.routes(ctx.cards),
             *routes_catalog.routes(ctx.catalogs),
             *routes_blades.routes(ctx.blades),
+            # Before the routes that read /connections/{name}: /connections/slots and /connections/queries.
+            *routes_connection_slots.routes(
+                ctx.connection_slots,
+                lambda: [str(c["name"]) for c in ctx.connections.listing()["connections"]],
+            ),
             *routes_connection_swap.routes(ctx.connection_swap),
             *routes_connection_tables.routes(ctx.connection_tables, ctx.blades, ctx.connections),
             *routes_found_connections.routes(ctx.found_connections),
@@ -405,6 +417,7 @@ def create_app(
                 activity=ctx.lifecycle.request,
             ),
             Middleware(BetaRequests, beta=ctx.beta, slow_seconds=settings.beta_slow_seconds),
+            Middleware(CallerAtTheDoor),  # who each request's connection calls are for (their slots)
         ],
         lifespan=lifespan,
         # No such address, or not that method: the one refusal shape too (design principle 9.5).
