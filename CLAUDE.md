@@ -534,8 +534,7 @@ src/swissarmybench/
                          module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
                          name, a library's source that may be shown read-only (library_file)
     script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
-                         plain value, a key vault, never a secret's value), the variables a script needs,
-                         a scheduled run's plan, a run's record
+                         plain value, a key vault, never a secret's value), the variables a script needs
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
@@ -747,7 +746,7 @@ src/swissarmybench/
     code_files.py        code files that update themselves everywhere: `file_changed` {path, hash, by} on the app's
                          writes (touched) and on a look every few seconds at the project's and library's .py and
                          .ipynb (off the loop); its listeners (a made file saved by hand: project_scope.saw)
-    script_runs.py       a script's run settings (run_settings.json), Run as scheduled, its run history
+    script_runs.py       a script's run settings (run_settings.json): Run file's arguments, the Variables page
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
@@ -953,7 +952,6 @@ src/swissarmybench/
     streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
                          so a page's frame policy stays `frame-src 'self'`: the Streamlit extension's apps and
                          the Power Apps extension's dev server mount it with their own prefix
-    script_runner.py     Run as scheduled: `python <script> <arguments>` as a fresh process with no app
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
@@ -1243,7 +1241,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
                          in its group, the status bar's toggles), workbenchDocModes.ts (Notebook's Outline,
-                         Script's Run settings and Run history, Data's Dictionary and Lineage's place)
+                         Script's Run settings, Data's Dictionary and Lineage's place)
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, workbench,

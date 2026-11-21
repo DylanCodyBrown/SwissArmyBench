@@ -116,17 +116,3 @@ export function options(select: HTMLSelectElement, list: [string, string][], val
   return select;
 }
 
-/** "Today 14:02", "Yesterday 16:20", "12 November 17:12". */
-export function when(seconds: number, now = new Date()): string {
-  const at = new Date(seconds * 1000);
-  const time = at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const day = (d: Date): string => d.toDateString();
-  if (day(at) === day(now)) return `Today ${time}`;
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (day(at) === day(yesterday)) return `Yesterday ${time}`;
-  return `${at.getDate()} ${at.toLocaleString("en-GB", { month: "long" })} ${time}`;
-}
-
-/** "4.2 seconds" */
-export const took = (seconds: number): string => `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} ${seconds === 1 ? "second" : "seconds"}`;

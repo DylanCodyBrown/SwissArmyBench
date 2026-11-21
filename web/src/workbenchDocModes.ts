@@ -17,7 +17,6 @@
  */
 import { api } from "./api";
 import { button, clear, h, icon } from "./dom";
-import { took, when } from "./workbenchModes";
 import { variableBox } from "./variableBox";
 import { errorHere, errorNote } from "./errorNote";
 
@@ -101,23 +100,9 @@ export interface RunSettings {
   variables: Variable[];
 }
 
-export interface RunRecord {
-  how: "scheduled" | "file";
-  how_words: string;
-  started: number;
-  seconds: number;
-  exit_code: number | null;
-  command: string;
-  sources: { name: string; words: string }[];
-  log: string[];
-}
-
 const settingsUrl = (path: string): string => `/workbench/scripts/settings?path=${encodeURIComponent(path)}`;
 
 export const runSettings = (path: string): Promise<RunSettings> => api<RunSettings>(settingsUrl(path));
-export const runHistory = async (path: string): Promise<RunRecord[]> => (await api<{ runs: RunRecord[] }>(`/workbench/scripts/history?path=${encodeURIComponent(path)}`)).runs;
-export const runAsScheduled = (path: string, python: string | null): Promise<RunRecord> => api<RunRecord>("/workbench/scripts/run", "POST", { path, ...(python ? { python } : {}) });
-export const recordRunFile = (path: string, ok: boolean, seconds: number): Promise<unknown> => api("/workbench/scripts/history", "POST", { path, seconds, exit_code: ok ? 0 : 1 });
 
 /** What a variable row sends back (its source; a vault's names; a plain value). */
 type Row = { name: string; from: string; value?: string; vault?: string; secret?: string };
@@ -199,58 +184,6 @@ export function drawRunSettings(body: HTMLElement, path: string | null, vaults: 
       ),
     );
   };
-}
-
-export function drawRunHistory(body: HTMLElement, path: string | null, runAgain: () => void, chosen: { at: number }): void {
-  if (!path) return void clear(body, h("p", { class: "hint app-empty" }, "Save the script first"));
-  void runHistory(path).then((runs) => {
-    if (!runs.length) return void clear(body, h("p", { class: "hint app-empty" }, "No runs yet"));
-    const at = Math.min(chosen.at, runs.length - 1);
-    const run = runs[at]!;
-    const failed = (r: RunRecord): boolean => r.exit_code !== 0;
-    const list = h(
-      "table",
-      { class: "wb-runs" },
-      h("thead", {}, h("tr", {}, h("th", {}, "Time"), h("th", {}, "How"), h("th", {}, "Took"), h("th", {}, "Exit code"))),
-      h(
-        "tbody",
-        {},
-        ...runs.map((r, i) =>
-          h(
-            "tr",
-            { class: i === at ? "active" : "", tabindex: 0, onclick: () => ((chosen.at = i), drawRunHistory(body, path, runAgain, chosen)), onkeydown: (e: KeyboardEvent) => e.key === "Enter" && ((chosen.at = i), drawRunHistory(body, path, runAgain, chosen)) },
-            h("td", {}, when(r.started)),
-            h("td", {}, r.how_words),
-            h("td", {}, took(r.seconds)),
-            h("td", { class: `mono${failed(r) ? " wb-exit-bad" : ""}` }, r.exit_code === null ? "stopped" : String(r.exit_code)),
-          ),
-        ),
-      ),
-    );
-    const detail = h(
-      "div",
-      { class: "wb-run-detail" },
-      h(
-        "div",
-        { class: "wb-run-detail-head" },
-        h("strong", {}, icon(run.how === "scheduled" ? "clock" : "play"), h("span", {}, run.how_words)),
-        h("span", {}, "Exit code ", h("strong", { class: failed(run) ? "wb-exit-bad" : "" }, run.exit_code === null ? "stopped" : String(run.exit_code))),
-        h("span", {}, "Took ", h("strong", {}, took(run.seconds))),
-        h("span", {}, "Started ", h("strong", {}, when(run.started))),
-        h("span", { class: "spacer" }),
-        run.how === "scheduled" && at > 0 ? button("Run again", runAgain, { icon: "play", class: "ghost" }) : null,
-      ),
-      h(
-        "div",
-        { class: "wb-run-detail-body" },
-        run.sources.length
-          ? h("div", { class: "wb-run-sources" }, h("h3", { class: "app-heading" }, "Variables"), ...run.sources.map((s) => h("div", { class: "wb-run-source-row" }, h("span", { class: "mono" }, s.name), h("span", {}, s.words))))
-          : null,
-        !run.log.length ? null : h("div", { class: "wb-run-log" }, h("h3", { class: "app-heading" }, "Log"), h("pre", { class: "mono" }, ...run.log.map((line) => h("div", { class: /Error|Traceback|^\s*File "/.test(line) && failed(run) ? "wb-log-bad" : "" }, line)))),
-      ),
-    );
-    clear(body, h("div", { class: "wb-history" }, list, detail));
-  }, (e: Error) => clear(body, errorNote(e)));
 }
 
 // ===== Data mode: the dictionary and lineage =====

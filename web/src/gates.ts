@@ -111,7 +111,7 @@ export function gated(area: string | null | undefined): boolean {
 // The palette's commands and the Workbench's New entries by the area they belong to (their ids as
 // workbenchPage.ts names them; an extension's own commands name theirs with Command.area).
 const COMMAND_AREAS: [RegExp, string][] = [
-  [/^(file\.newScript|file\.exportScript|script(\.|$)|runSettings|runHistory)/, "scripts"],
+  [/^(file\.newScript|file\.exportScript|script(\.|$)|runSettings)/, "scripts"],
   [/^(file\.newApp|page$)/, "canvas"],
   [/^(data\.blades|data\.starters|data\.starterList|blade$|starters$|snippet\.)/, "blades"],
   [/^data\.addApi/, "apis"],

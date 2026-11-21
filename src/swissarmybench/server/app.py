@@ -48,7 +48,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
-  routes_script_runs.py    a script's run settings, Run as scheduled and its run history
+  routes_script_runs.py    a script's run settings
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X
   routes_extensions.py     the Extensions page: the catalog, Install and Remove (the updater's helper)

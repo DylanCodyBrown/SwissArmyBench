@@ -1,5 +1,5 @@
-"""A script's runs (the Workbench's Script mode, 2026-11-15): its run settings, "Run as scheduled" and
-its run history.
+"""A script's run settings (the Workbench's Script mode, 2026-11-15; Run as scheduled and its run history
+went, the owner's simplicity pass, 2026-11-21).
 
 RUN SETTINGS: the arguments the script is run with (one line, split as a shell would), and each
 environment variable it needs with where its value comes from:
@@ -13,14 +13,7 @@ The variables are found for the user: those the script reads itself (`os.environ
 (`sab.read("Warehouse", ...)`: WAREHOUSE_PASSWORD, as a run without the app looks for it). Values are
 never shown or kept but a plain value's. The settings are kept by the script's path.
 
-RUN AS SCHEDULED runs the script as a schedule would: `python <script> <arguments>` in the script's
-own Python, in its folder, as a fresh process with no app (the client finds no server and reads
-connections as an exported script does), with the variables set from their sources. Its exit code,
-how long it took, which sources gave its variables and the end of its output are kept in the run
-history, with each Run file of the script (the kernel's run).
-
-The history is memory only (it may hold what a script printed): the last MAX_RUNS runs of a script,
-the last MAX_LOG_LINES lines of each. Pure rules, no I/O.
+Pure rules, no I/O.
 """
 
 from __future__ import annotations
@@ -36,13 +29,8 @@ from swissarmybench.domain.connections import env_name_for
 
 SOURCES: tuple[str, ...] = ("env", "value", "vault")
 SOURCE_WORDS: dict[str, str] = {"env": "This computer", "value": "Plain value", "vault": "Key vault"}
-HOW: dict[str, str] = {"scheduled": "Run as scheduled", "file": "Run file"}
 MAX_ARGUMENTS: int = 2_000
 MAX_VARIABLES: int = 100
-MAX_RUNS: int = 50
-MAX_LOG_LINES: int = 400
-MAX_LINE: int = 2_000
-RUN_SECONDS: float = 30 * 60.0
 _NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 
 
@@ -216,99 +204,3 @@ def rows(settings: RunSettings, found: Iterable[Needed]) -> list[dict[str, Any]]
                 | {"words": source_words(source)}
             )
     return listed
-
-
-# ===== a run =====
-
-
-@dataclass(frozen=True)
-class Plan:
-    """What a scheduled run is given: the command's arguments, the plain values, the vaults to read
-    (their variables' secret names), and each variable's source in words (for the history)."""
-
-    arguments: list[str]
-    values: dict[str, str]
-    vaults: dict[str, dict[str, str]]  # vault -> variable -> secret
-    sources: list[tuple[str, str]]
-    missing: list[str]  # variables from this computer that it does not have
-
-
-def plan(settings: RunSettings, found: Iterable[Needed], present: Callable[[str], bool]) -> Plan:
-    values: dict[str, str] = {}
-    vaults: dict[str, dict[str, str]] = {}
-    sources: list[tuple[str, str]] = []
-    missing: list[str] = []
-    found = list(found)
-    required = {n.name for n in found if n.required}
-    every = {n.name: settings.variables.get(n.name, {"from": "env"}) for n in found} | settings.variables
-    for name, source in every.items():
-        origin = source.get("from", "env")
-        sources.append((name, source_words(source)))
-        if origin == "value":
-            values[name] = source.get("value", "")
-        elif origin == "vault":
-            vaults.setdefault(source["vault"], {})[name] = source["secret"]
-        elif name in required and not present(name):
-            missing.append(name)
-    return Plan(split_arguments(settings.arguments), values, vaults, sources, missing)
-
-
-@dataclass(frozen=True)
-class Run:
-    how: str  # "scheduled" or "file"
-    started: float
-    seconds: float
-    exit_code: int | None  # None: it was stopped (the time ran out)
-    command: str
-    sources: tuple[tuple[str, str], ...]
-    log: tuple[str, ...]
-
-    def to_json(self, with_log: bool = True) -> dict[str, Any]:
-        said: dict[str, Any] = {
-            "how": self.how,
-            "how_words": HOW.get(self.how, self.how),
-            "started": self.started,
-            "seconds": round(self.seconds, 2),
-            "exit_code": self.exit_code,
-            "command": self.command,
-            "sources": [{"name": n, "words": w} for n, w in self.sources],
-        }
-        if with_log:
-            said["log"] = list(self.log)
-        return said
-
-
-def tail(text: str) -> tuple[str, ...]:
-    """The end of a run's output: its last lines, each cut to a length."""
-    lines = text.replace("\r\n", "\n").split("\n")
-    if lines and lines[-1] == "":
-        lines.pop()
-    return tuple(line[:MAX_LINE] for line in lines[-MAX_LOG_LINES:])
-
-
-def command_line(script: str, arguments: Sequence[str]) -> str:
-    """The run as the log shows it: `$ python daily_sales.py --date 2026-11-14`."""
-    name = re.split(r"[\\/]", script)[-1]
-    return " ".join(["$ python", shlex.quote(name), *(shlex.quote(a) for a in arguments)])
-
-
-def recorded(sent: Any) -> Run:
-    """A Run file of the script, as the window reports it: {"seconds", "exit_code", "log"?}."""
-    if not isinstance(sent, dict):
-        raise ScriptRunError('Send {"seconds": 3.9, "exit_code": 0}.')
-    seconds, code = sent.get("seconds"), sent.get("exit_code")
-    if not isinstance(seconds, int | float) or isinstance(seconds, bool) or seconds < 0:
-        raise ScriptRunError("seconds is how long the run took.")
-    if code is not None and (not isinstance(code, int) or isinstance(code, bool)):
-        raise ScriptRunError("exit_code is a whole number (0: it ran to its end).")
-    log = sent.get("log") or ""
-    started = sent.get("started")
-    return Run(
-        "file",
-        float(started) if isinstance(started, int | float) and not isinstance(started, bool) else 0.0,
-        float(seconds),
-        code,
-        "Run file",
-        (),
-        tail(log if isinstance(log, str) else ""),
-    )

@@ -112,7 +112,6 @@ from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.desktop import SystemShell, qt_version
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
-from swissarmybench.server.script_runner import ScriptRunner
 from swissarmybench.server.text_process import run_text
 from swissarmybench.server.tunnels import DevTunnelProgram
 from swissarmybench.server.updater import Helper as UpdateHelper
@@ -621,12 +620,7 @@ def bootstrap(
         ws,
         JsonFile(state_dir / "run_settings.json" if audit_log else None),
         documents,
-        ScriptRunner(),
-        os.environ,
-        default_python=lambda: sys.executable,
         secrets_of=secrets_of,
-        vault_values=vault_values,
-        now=time.time,
         files_of=files_of,
     )
     table_cells = TableCells(

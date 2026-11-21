@@ -82,7 +82,7 @@ import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
 import { type Kind, kindIcon, kindOfPath, notebookRole, notebookWord, onProjectFolder, setProjectFolder } from "./kindColours";
 import { areaOfKind, gatedRun } from "./gates";
-import { busyClick, markBusy } from "./loading";
+import { busyClick } from "./loading";
 import { type Missing, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
@@ -97,7 +97,7 @@ import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLineage, lineageNoticed, openLineage } from "./workbenchLineage";
-import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
+import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, runSettings } from "./workbenchDocModes";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
 import { activeMode, canvasAnywhere, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, copyProject, exportOutline, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
@@ -741,9 +741,8 @@ function present(doc: Doc, on?: boolean): boolean {
   return now;
 }
 
-// ----- Script mode: run settings, Run as scheduled, run history
+// ----- Script mode: run settings
 
-const historyAt = new Map<Doc, { at: number }>();
 let vaultNames: string[] = [];
 
 function scriptModes(doc: Doc): void {
@@ -754,34 +753,9 @@ function scriptModes(doc: Doc): void {
     doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
     return;
   }
-  const chosen = { at: 0 };
-  historyAt.set(doc, chosen);
   doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
-  doc.modes.add({ id: "runHistory", title: "Run history", icon: "history", where: "bottom", draw: (body) => drawRunHistory(body, doc.path, () => void runScheduled(doc), chosen) });
 }
 
-/** Run as scheduled: saved first, then the script as a fresh process with no app; the history shows it. */
-async function runScheduled(doc: Doc): Promise<RunRecord | null> {
-  if (!doc.script) return null;
-  if ((doc.dirty || !doc.path) && !(await save(doc))) return null;
-  scheduling.add(doc);
-  drawControls();
-  try {
-    const run = await runAsScheduled(doc.path!, doc.python);
-    historyAt.get(doc)!.at = 0;
-    if (!doc.modes?.isOpen("runHistory")) doc.modes?.toggle("runHistory", true);
-    else doc.modes.redraw("runHistory");
-    if (run.exit_code !== 0) errorHere(`Exit code ${run.exit_code ?? "stopped"}`);
-    return run;
-  } catch (e) {
-    errorHere(e);
-    return null;
-  } finally {
-    scheduling.delete(doc);
-    drawControls();
-  }
-}
-const scheduling = new Set<Doc>();
 const scriptArguments = new Map<Doc, string>();
 
 /** The run settings' arguments, for Run file (read when the script opens and when its settings change). */
@@ -1205,12 +1179,8 @@ function openScript(path: string | null, text: string, modified: number | null):
     tablesChanged: () => doc === current && drawTablesTool(),
     // No live Streamlit cells (2026-11-21): no streamlit host.
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
-    // Script mode: Run file takes the run settings' arguments, and is kept in the run history.
+    // Script mode: Run file takes the run settings' arguments.
     arguments: () => scriptArguments.get(doc) ?? "",
-    ranFile: (ok, seconds) => {
-      if (!doc.path) return;
-      void recordRunFile(doc.path, ok, seconds).then(() => doc.modes?.redraw("runHistory"), () => undefined);
-    },
     breakpoints: debug?.gutter,
     editorReady: (editor) => {
       scriptEditors.set(doc, editor);
@@ -2033,14 +2003,11 @@ function drawControls(): void {
     : isApiFile(doc)
       ? button("Run API", busyClick("Starting…", (b) => runApi(doc, b)), { icon: "play", class: "primary", title: "Run the local sandbox API (F5)" })
       : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
-  // Script mode: Run as scheduled (a fresh process with no app); Notebook and Data mode: the view's switch.
   const debugButton = doc.debug ? button("Start debugging", () => void doc.debug!.start().catch((e: Error) => errorHere(e)), { icon: "bug", iconOnly: true, class: "ghost wb-debug-start", title: "Start debugging (Ctrl+Shift+D)" }) : null;
-  const scheduled = doc.script && !isApiFile(doc) ? button("Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
-  if (scheduled && scheduling.has(doc)) markBusy(scheduled, "Running…"); // loading.ts
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, debugButton, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, view === "cells" ? run : null, debugButton, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -3049,7 +3016,7 @@ const COMMANDS: Command[] = [
     return { cell: number };
   } },
   // The Workbench's modes (2026-11-15): Notebook, Script and Data (App mode went with app notebooks, 2026-11-21)
-  { id: "mode.panel", group: "View", title: "Show or hide a panel of the document in front (Outline, Run settings, Run history)", args: 'panel: "outline", "runSettings" or "runHistory"; show: true or false (default: the other way)', when: () => !!current?.modes, whyNot: "the document in front has no panels", run: (a) => {
+  { id: "mode.panel", group: "View", title: "Show or hide a panel of the document in front (Outline, Run settings)", args: 'panel: "outline" or "runSettings"; show: true or false (default: the other way)', when: () => !!current?.modes, whyNot: "the document in front has no panels", run: (a) => {
     const panel = text(a, "panel");
     const doc = current!;
     if (!panel || !doc.modes!.panels().some((p) => p.id === panel)) throw new Error(`The document in front has these panels: ${doc.modes!.panels().map((p) => p.id).join(", ") || "none"}.`);
@@ -3065,8 +3032,6 @@ const COMMANDS: Command[] = [
     return (await refreshFlow(current!))?.cells ?? [];
   } },
   { id: "notebook.present", group: "Notebook", title: "Present: the notebook as a document (no code)", args: "on: true or false (default: the other way)", when: () => isNotebook() && !dataViews.has(current!), whyNot: "the document in front is not a notebook (data.ipynb has its own views)", run: (a) => ({ presenting: present(current!, a.on === undefined ? undefined : a.on === true) }) },
-  { id: "script.runScheduled", group: "Run", title: "Run as scheduled: the script as a fresh process with no app", when: isScript, whyNot: "the document in front is not a script", run: () => runScheduled(current!) },
-  { id: "script.history", agentOnly: true, group: "Run", title: "The script's run history", when: isScript, whyNot: "the document in front is not a script", run: async () => (current!.path ? runHistory(current!.path) : []) },
   { id: "data.view", group: "Data", title: "data.ipynb's view: Cells, Lineage or Dictionary", args: 'view: "cells", "lineage" or "dictionary"', when: () => !!current && dataViews.has(current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
     const view = text(a, "view") ?? "cells";
     if (view !== "cells" && view !== "lineage" && view !== "dictionary") throw new Error('view is "cells", "lineage" or "dictionary".');

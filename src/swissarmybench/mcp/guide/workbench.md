@@ -102,8 +102,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
 - Notebook: `workbench_window` "notebook.runOrder" (each cell notRun, edited, outOfDate with the names
   made again), "notebook.outline", "run.upToHere", "notebook.present"; "mode.panel" opens a panel.
 - Script: `workbench_script_settings` (arguments; each variable's source: env, value or vault, never a
-  secret's value), `workbench_script_run` (Run as scheduled: a fresh process with no app; exit code,
-  time, sources, log), `workbench_script_history` (memory only).
+  secret's value); Run file takes its arguments.
 - Data (data.ipynb): "data.view" (cells, lineage, dictionary), "dictionary.list", "dictionary.describe"
   (kept in data.ipynb, written into data.py); `project_dictionary` reads a saved project's.
 

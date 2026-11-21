@@ -1676,10 +1676,8 @@ own). The status bar shows the document in front's panels as toggles.
   shows the notebook as a document: its text and outputs, no code.
 - **Script:** **Run settings** holds the arguments and each environment variable the script needs (the
   ones it reads, by line; each connection's password) with where it comes from: **This computer**, a
-  **Plain value**, or a **Key vault**'s secret. Values are never shown but a plain one's. **Run as
-  scheduled** runs the script the way a schedule would: a fresh process with no app. **Run history**
-  lists its runs (Run file too) with their exit code, time, sources and log (kept until Swiss Army Bench
-  stops).
+  **Plain value**, or a **Key vault**'s secret. Values are never shown but a plain one's. **Run file**
+  runs the script with those arguments.
 - **Data** (`data.ipynb`): **Cells | Lineage | Dictionary**. The **Dictionary** lists each table's
   columns with their types in plain words and where each comes from (the file, or the grid's step that
   made it). Type a description: it is kept in data.ipynb and written into data.py as comments.
