@@ -22,7 +22,6 @@ from swissarmybench.domain import connection_usage as rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import dataverse, portability, python_connections, sql_server
 from swissarmybench.domain.blades import Blade, BladeError
-from swissarmybench.domain.connection_usage import Reference
 from swissarmybench.domain.notebooks import NotebookError
 from swissarmybench.domain.table_cells import Origin
 from swissarmybench.services.blades import BladeService
@@ -44,12 +43,9 @@ class ConnectionUsage:
         origin_of: Callable[[str], Origin],
         environ: Mapping[str, str],
         now: Callable[[], float],
-        canvas_references: Callable[[str, str, str, list[Reference]], list[Reference]] | None = None,
     ) -> None:
         self.ws = ws
         self._blades = blades
-        # A canvas's blocks that use a connection (the Streamlit extension's rules; none: no canvas counts).
-        self._canvas_references = canvas_references or (lambda path, title, text, cells: [])
         self._connections = connections
         # SEAM (project-scope): the documents a connection's references are looked for in. Today: the
         # Workbench's recent files, the open documents and the open project's files (bootstrap.py).
@@ -239,7 +235,6 @@ class ConnectionUsage:
         documents that could not be read."""
         found: list[rules.Reference] = []
         unread: list[str] = []
-        apps: list[tuple[str, str, str]] = []
         seen: set[str] = set()
         for path in list(dict.fromkeys(self._documents()))[:MAX_DOCUMENTS]:
             try:
@@ -252,18 +247,11 @@ class ConnectionUsage:
                 continue
             seen.add(key)
             title = full.replace("\\", "/").rsplit("/", 1)[-1]
-            if full.lower().endswith(".stapp.json"):
-                apps.append((full, title, text))
+            if full.lower().endswith(".stapp.json"):  # an old app canvas: nothing reads it any more
                 continue
             try:
                 found += rules.document_references(full, title, text, name)
             except (NotebookError, ValueError):
-                unread.append(full)
-        cells = list(found)
-        for full, title, text in apps:
-            try:
-                found += self._canvas_references(full, title[: -len(".stapp.json")] or title, text, cells)
-            except ValueError:
                 unread.append(full)
         for grid in self.ws.grids.all():
             origin = self._origin_of(grid.dataset)
