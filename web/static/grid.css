@@ -35,7 +35,6 @@ html[data-theme="light"] {
   --changed: #dcf4e3;
   --selected: #dbe3ec;
   --row-hover: #f2f4f7;
-  --steel-sheen: linear-gradient(180deg, #f4f6f8 0%, #dfe4e9 100%);
   --shadow: 0 8px 24px rgba(28, 34, 40, 0.16);
   --focus-width: 2px;
   --cat-1: #c8102e; --cat-2: #3b6e96; --cat-3: #17722f; --cat-4: #a3248f;
@@ -75,7 +74,6 @@ html[data-theme="dark"] {
   --changed: #133d24;
   --selected: #253342;
   --row-hover: #1d2228;
-  --steel-sheen: linear-gradient(180deg, #262c33 0%, #1a1f24 100%);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
   --focus-width: 2px;
   --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
@@ -89,7 +87,6 @@ html[data-theme="dark"] {
 
 /* High contrast themes aim for 7:1 text, thick always-visible focus, strong borders. */
 html[data-theme="hc-light"] {
-  --steel-sheen: var(--surface-2); /* flat: no gradient under high contrast */
   color-scheme: light;
   --bg: #ffffff;
   --surface: #ffffff;
@@ -127,7 +124,6 @@ html[data-theme="hc-light"] {
 }
 
 html[data-theme="hc-dark"] {
-  --steel-sheen: var(--surface-2); /* flat: no gradient under high contrast */
   color-scheme: dark;
   --bg: #000000;
   --surface: #000000;
@@ -3827,25 +3823,10 @@ body.agent-view .titlebar {
   font-style: italic;
 }
 
-.tour-line,
-.tour-clue {
+.tour-line {
   margin: 0 0 10px;
   color: var(--muted);
   line-height: 1.4;
-}
-
-.tour-clue {
-  color: var(--fg);
-  font-size: 16px;
-}
-
-.tour-kicker {
-  margin: 0 0 6px;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .tour-code {
@@ -3892,90 +3873,6 @@ body.agent-view .titlebar {
   margin-right: auto;
 }
 
-.tour-choices {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.tour-choice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.tour-choice:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-
-.tour-choice.right {
-  border-color: var(--ok);
-  background: var(--ok);
-  color: var(--ok);
-  font-weight: 600;
-}
-
-.tour-choice.wrong {
-  border-color: var(--error);
-  background: var(--error-soft);
-  animation: tour-shake 0.35s;
-}
-
-/* The score: a Swiss army knife with one blade opened per right answer. */
-.tour-knife {
-  position: relative;
-  width: 120px;
-  height: 70px;
-  margin: 0 auto 4px;
-}
-
-.tour-handle {
-  position: absolute;
-  left: 10px;
-  bottom: 6px;
-  width: 100px;
-  height: 22px;
-  border-radius: 11px;
-  background: var(--accent);
-  z-index: 1; /* closed blades fold away behind it */
-}
-
-.tour-handle::after {
-  content: "+";
-  position: absolute;
-  inset: 0;
-  color: var(--accent-fg);
-  font-weight: 800;
-  line-height: 22px;
-}
-
-.tour-blade {
-  position: absolute;
-  left: 22px;
-  bottom: 22px;
-  width: 8px;
-  height: 46px;
-  border-radius: 4px 4px 1px 1px;
-  background: var(--steel-sheen);
-  border: 1px solid var(--border-strong);
-  transform-origin: 50% 100%;
-  transform: translateX(calc(var(--i) * 15px)) translateY(6px) rotate(90deg) scaleY(0.6);
-  transition: transform 0.5s cubic-bezier(0.3, 1.5, 0.6, 1);
-  transition-delay: calc(var(--i) * 0.12s);
-}
-
-.tour-blade.open {
-  transform: translateX(calc(var(--i) * 15px)) rotate(calc(-30deg + var(--i) * 15deg));
-}
-
 @keyframes tour-pulse {
   50% {
     transform: scale(1.25);
@@ -3989,24 +3886,13 @@ body.agent-view .titlebar {
   }
 }
 
-@keyframes tour-shake {
-  25% {
-    transform: translateX(-5px);
-  }
-  75% {
-    transform: translateX(5px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tour-spot,
-  .tour-card,
-  .tour-blade {
+  .tour-card {
     transition: none;
   }
 
   .tour-icon,
-  .tour-choice.wrong,
   .tour-btn.tour-new .icon-svg {
     animation: none;
   }

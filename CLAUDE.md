@@ -1087,8 +1087,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          resting over its header (its profile: range, blanks, distinct, a histogram);
                          tour.ts is the first-time tour (on the Projects page only: a card per
                          place in the rail's order that goes there and lights up the real control,
-                         two made-up tables staged and closed again, back to where it started; then
-                         a matching game; nav.ts returnTo; loaded when first opened);
+                         two made-up tables staged and closed again, back to where it started;
+                         nav.ts returnTo; loaded when first opened);
                          catalogRail.ts (the blades list, its "…": import, export, blade folders, packs; the
                          catalog tree only where a page gives it a place: the Workbench's "+ Table") is the
                          Scripts page's Blades pane (the blades page went 2026-11-21: /catalog redirects there,

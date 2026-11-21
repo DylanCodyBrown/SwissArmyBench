@@ -4,7 +4,7 @@ owner, 2026-11-16: "new here take a tour should be on the project page and no wh
 2026-11-18 ("the tutorial needs to move and highlight the
 item it is talking about, so the tutorial might need to stage a couple tables in the grid then remove them.
 it will need to navigate to pages as it goes"): each card goes to its place and lights up the real control,
-two made-up tables are staged and closed again, and the game still ends it."""
+two made-up tables are staged and closed again, and the last card's Start ends it."""
 
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ def lights_up(tour: Locator, target: Locator) -> None:
         time.sleep(0.1)
 
 
-def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
+def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_on_start(
     browser: Browser, server: dict[str, Any]
 ) -> None:
     # The user's own table, with the name the tour would like: the tour's takes another, and this one stays.
@@ -235,20 +235,13 @@ def test_the_tour_goes_to_each_place_with_its_own_tables_and_ends_with_a_game(
             time.sleep(0.1)
         assert PRACTICE not in variables(server)  # its made-up variable gone too
 
-        # Again, to the end: the game, then the Projects page with the tables gone.
+        # Again, to the end: the last card's Start, then the Projects page with the tables gone.
         page.reload()
         expect(row.locator(".tour-btn")).to_be_visible()
         expect(row.locator(".tour-bubble")).to_have_count(0)  # remembered in this browser
         row.get_by_role("button", name="Tour", exact=True).click()
         expect(tabs.filter(has_text="tour_customers")).to_have_count(1)
         to_word(page, tour, "Agent")
-        tour.get_by_role("button", name="Play").click()
-        for round_number in range(1, 6):
-            expect(tour.locator(".tour-kicker")).to_have_text(f"Round {round_number} of 5")
-            tour.locator(".tour-choice").first.click()
-            expect(tour.locator(".tour-choice.right")).to_have_count(1)
-        expect(tour.locator(".tour-word")).to_contain_text("of 5.", timeout=5000)
-        expect(tour.locator(".tour-code")).to_contain_text("sab.push(df)")
         tour.get_by_role("button", name="Start").click()
         expect(tour).to_have_count(0)
         expect(row).to_be_visible()

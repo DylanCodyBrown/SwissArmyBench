@@ -167,7 +167,7 @@ been checked against real versions is in [docs/verified.md](docs/verified.md); d
 open notes are in [docs/ideas.md](docs/ideas.md).
 
 New here? The **Tour** button (the question mark in the Application row) explains every word, grid to
-pack, by lighting up each one on the page, then plays a quick matching game.
+pack, by lighting up each one on the page.
 
 ## Renamed from SwissArmyGrid
 
