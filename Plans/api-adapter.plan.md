@@ -78,15 +78,17 @@ history of that return in a permanent table. So it actually learns from the API 
 payloads as well ... So when an agent explores an API through the app there is a stored history of the last time that
 endpoint was called and a def will then scan that struct and expose to the widgets an updated contract."
 - **The declared return type is a first guess, never trusted:** every answer's types are detected from what came back.
-- **A permanent history per endpoint, both ways:** for each call, what was sent and what came back: status, kind, every
-  field path with its detected type, presence, emptiness, value format (a date style, a number as text), size, when.
-- **The learned contract:** one function (`learn(endpoint)`) reads the history and gives every path ever seen with how
-  often ("present in 98% of 340 calls"), the types seen, whether it can be empty, and the formats; it is updated as
-  calls come in. Widgets (the canvas's field pickers, an Event's payload fields, the drift marks) read the learned
-  contract, not the declared one.
-- **The agent sees it:** for each endpoint, the last call (what was sent, what came back, when), the learned contract
-  and how it has moved.
-- **What is kept (the owner's answer):** the **shape** of every call, always and permanently, shared with the team in
-  the library (`apis/<name>/history/`, one small file per endpoint, byte-stable); **values** only for an API whose
+- **The current shape per endpoint, both ways, replaced when it changes** (the owner: "It's not kept forever because
+  when a new shape is detected it replaces"): for each endpoint, the shape of what is sent and of what comes back:
+  every field path with its detected type, whether it can be empty, its value format (a date style, a number as
+  text), the status and kind, and when it was last seen. A call with the same shape only updates "last seen"; a new
+  shape replaces the old one, and what changed (fields new, gone, retyped) is said once as the drift note, then the
+  old shape is gone.
+- **The learned contract:** one function (`learn(endpoint)`) reads the current shape and exposes it to the widgets (the
+  canvas's field pickers, an Event's payload fields, the drift marks) instead of the declared one.
+- **The agent sees it:** for each endpoint, the last call (what was sent, what came back, when), the current shape and
+  the last change.
+- **What is kept (the owner's answers):** each endpoint's **current shape**, shared with the team in the library
+  (`apis/<name>/shapes/`, one small file per endpoint, byte-stable, replaced when the shape changes); **values** only for an API whose
   "Keep example payloads" is ticked, in the project's `.sab/` (Git-ignored), the last N calls per endpoint, with anything
   that looks like a secret, token or password removed before it is written. Never a value in the library.
