@@ -29,12 +29,37 @@ FAMILIES: tuple[str, ...] = (
 # writers, and Power BI's refreshes (after the source is written, the model is refreshed).
 CROSS_LISTED: dict[str, tuple[str, ...]] = {
     "Write": (
-        "Excel write table",
-        "Excel range as table",
+        "Excel make a workbook",
         "Power BI refresh dataset",
         "Power BI refresh and wait",
     ),
 }
+
+# Starters that went with the one Excel module (2026-11-22, Plans/excel.plan.md): the twelve cell-level Excel
+# starters. Each old name answers with one line for one release: where its effect is now.
+_MAKE = 'a design option of sab.blade("Excel make a workbook")'
+GONE_STARTERS: dict[str, str] = {
+    "Excel add sheet": 'a sheet of rows is sab.blade("Write to an Excel sheet"); a laid-out one is ' + _MAKE,
+    "Excel set cell values": "a title or text block, " + _MAKE,
+    "Excel write table": "a table block, " + _MAKE,
+    "Excel borders": "a table's style, " + _MAKE,
+    "Excel fonts and fills": "a block's style, " + _MAKE,
+    "Excel number formats": "a column's format, " + _MAKE,
+    "Excel autofit columns": "done for every table (a column's width sets it), " + _MAKE,
+    "Excel freeze panes": "a sheet's freeze, " + _MAKE,
+    "Excel merge cells": "a text block's w and h, " + _MAKE,
+    "Excel conditional colours": "a table's conditional rules, " + _MAKE,
+    "Excel range as table": "a table block with filter, " + _MAKE,
+    "Excel copy template": 'sab.blade("Excel fill a template")',
+}
+
+
+def gone_starter(name: str) -> str | None:
+    """The one line an old starter's name answers with (None: not one that went)."""
+    for old, now in GONE_STARTERS.items():
+        if old.casefold() == name.strip().casefold():
+            return f"{old} went with the one Excel module: it is now {now}."
+    return None
 
 
 @dataclass(frozen=True)

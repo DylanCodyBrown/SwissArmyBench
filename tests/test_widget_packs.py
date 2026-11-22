@@ -13,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from swissarmybench_streamlit.adapters.widget_files import excel_files
 from swissarmybench_streamlit.domain import canvas_build as build
 from swissarmybench_streamlit.domain import canvas_model as model
 from swissarmybench_streamlit.domain import widget_contract as contract
@@ -169,7 +170,9 @@ def _drive(folder: Path, cases: list[dict[str, Any]]) -> dict[str, Any]:
         ][0]
         page["id"], page["name"] = f"p{at}", case["name"]
         canvas["pages"].append(page)
-    files = build.build(canvas, built)
+    # What the services carry beside the pages for the Excel widgets: adapter.py and sab_excel.py.
+    carried = excel_files("\n".join(b.code for b in built.values()))
+    files = build.build(canvas, built, carried=carried)
     pages = sorted(p for p in files if p.startswith("app_pages/"))
     for case, page in zip(
         cases, sorted(pages, key=lambda p: [c["name"] for c in cases].index(Path(p).stem)), strict=True

@@ -10,6 +10,7 @@ import io
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pytest
@@ -78,7 +79,7 @@ def test_notes_are_sheets_of_labelled_lines_and_long_text_is_refused_or_cut() ->
 
 # ===== a design =====
 
-DESIGN = {
+DESIGN: dict[str, Any] = {
     "title": "Made-up report",
     "sheets": [
         {
@@ -117,7 +118,7 @@ def test_a_design_lays_the_grids_out_and_the_datas_text_is_never_a_formula(tmp_p
 
 
 def test_a_tables_columns_may_be_a_form_to_fill_in() -> None:
-    design = {
+    design: dict[str, Any] = {
         "sheets": [
             {
                 "name": "Data",

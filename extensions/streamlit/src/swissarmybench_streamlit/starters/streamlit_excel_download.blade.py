@@ -19,19 +19,18 @@ snippet = r"""
 #   st.download_button(label, data, file_name, mime)   a button; a click saves `data` as a file in
 #                                                      the browser's downloads
 #
-# The workbook is written into memory (io.BytesIO), never to a file here; pandas writes it with
-# openpyxl, which the page's Python needs (pip install openpyxl).
-import io
-
+# The workbook is made in memory, never as a file here, by sab_excel (sab_excel.py, carried beside the
+# app's pages: the one way to make a workbook), with openpyxl, which the page's Python needs (pip install
+# openpyxl). Text from the data is always text, never a formula.
+import sab_excel
 import streamlit as st
 
-_workbook = io.BytesIO()
-<<table>>.to_excel(_workbook, index=False, sheet_name="<<sheet: Orders>>")
+_workbook = sab_excel.build({"<<sheet: Orders>>": <<table>>})
 # key= gives the widget a name of its own on the page: two widgets with the same label would
 # otherwise be taken for one, and Streamlit would stop with a "duplicate widget" error.
 st.download_button(
     "<<label: Download as Excel>>",
-    _workbook.getvalue(),
+    _workbook,
     file_name="<<file: orders.xlsx>>",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     key="<<table>>_excel",

@@ -12,6 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from swissarmybench_streamlit.adapters.widget_files import excel_files
 from swissarmybench_streamlit.domain import canvas_build as build
 from swissarmybench_streamlit.domain import canvas_layouts as model
 from swissarmybench_streamlit.domain import widgets as rules
@@ -131,7 +132,9 @@ def _app() -> tuple[dict[str, Any], dict[str, build.Built]]:
 @needs_streamlit
 def test_hidden_cross_page_viewer_and_a_file_run_for_real(tmp_path: Path) -> None:
     canvas, built = _app()
-    files = build.build(canvas, built)
+    # What the services carry beside the pages for the Excel widgets: adapter.py and sab_excel.py.
+    carried = excel_files("\n".join(b.code for b in built.values()))
+    files = build.build(canvas, built, carried=carried)
     assert not build.compiles(files)
     load_page = files["app_pages/load.py"]
     assert "sab.render('producer'" in load_page  # hidden, it still runs

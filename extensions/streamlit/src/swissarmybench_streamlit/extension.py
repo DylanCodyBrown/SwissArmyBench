@@ -107,6 +107,7 @@ def routes(services: Any) -> list[Any]:
         CanvasFiles,
         PreviewFiles,
         WidgetFiles,
+        excel_files,
         folder_names,
         read_text,
     )
@@ -207,6 +208,7 @@ def routes(services: Any) -> list[Any]:
         connection_listing=connection_listing,
         read_connection_table=read_connection_table,
     )
+    widgets.excel_files = excel_files  # the Excel widgets' adapter.py and sab_excel.py, beside the pages
     # An endpoint property's picker: the project's local sandbox API (the base's API.py), when it is there.
     local_api = getattr(services, "local_api", None)
     if local_api is not None:

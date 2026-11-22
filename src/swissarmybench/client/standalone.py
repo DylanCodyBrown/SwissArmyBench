@@ -11,7 +11,7 @@ same calls find the connection here, so the notebook runs as it is, with no expo
     2. the blade folders: those the app lists, those in SWISSARMYBENCH_BLADE_FOLDERS (separated by the
        system's path separator), the current folder and its blades/ folder. A connection's portable file
        (its Export, `Shop.blade.py`) put beside the notebook is found there;
-    3. the starter pack, shipped inside the package (`sab.blade("Excel copy template")`).
+    3. the starter pack, shipped inside the package (`sab.blade("Excel make a workbook")`).
 
 Passwords: a value saved on this computer (the keyring, when this Python has the keyring package and
 the computer a vault), else an environment variable named after the connection and the secret

@@ -215,6 +215,8 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         # 2026-11-22 (Plans/excel.plan.md): a workbook's sheets in a SQL cell are the adapter's Excel read,
         # imported when a cell names a workbook.
         "client/sql_cell.py",
+        # 2026-11-22 (Plans/excel.plan.md): Read a workbook is the adapter's Excel read.
+        "starters/excel_read_workbook.blade.py",
         "starters/write_to_dataverse.blade.py",
         "starters/write_to_sharepoint_list.blade.py",
         "starters/write_to_delta.blade.py",

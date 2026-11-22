@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -188,6 +189,23 @@ class PreviewFiles:
         path = self.path(key)
         if path is not None:
             write_atomic(path.with_suffix(".failed"), said[:2000])
+
+
+_CARRIED = {"adapter": "adapters/adapter.py", "sab_excel": "sab_excel.py"}
+
+
+def excel_files(used: str) -> dict[str, str]:
+    """What a built app carries to read and make workbooks (Plans/excel.plan.md): adapter.py where its code
+    imports the adapter (a workbook read), sab_excel.py where it imports the builder (a workbook made); each
+    the base's own file, as it is."""
+    import swissarmybench
+
+    base = Path(swissarmybench.__file__).parent
+    return {
+        f"{module}.py": (base / place).read_text(encoding="utf-8")
+        for module, place in _CARRIED.items()
+        if re.search(rf"^[ \t]*import {module}\b", used, re.MULTILINE)
+    }
 
 
 def read_text(path: str) -> str | None:

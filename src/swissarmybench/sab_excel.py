@@ -190,12 +190,14 @@ def _quote(name: str) -> str:
 
 
 def connect(tables: Mapping[str, Any]) -> Any:
-    """A DuckDB of its own with each table registered under its name (a DataFrame, an Arrow table, or
-    (columns, rows)), then locked: no files, no network, no settings changed."""
+    """A DuckDB of its own with each table registered under its name (a DataFrame, an Arrow table,
+    (columns, rows), or one record as a dict), then locked: no files, no network, no settings changed."""
     import duckdb
 
     con = duckdb.connect(":memory:")
     for name, table in tables.items():
+        if isinstance(table, Mapping):  # one record
+            table = (list(table), [tuple(table.values())])
         if isinstance(table, tuple) and len(table) == 2:
             columns, rows = table
             import pyarrow as pa
@@ -355,7 +357,8 @@ def _table(ws: Any, con: Any, block: Mapping[str, Any]) -> dict[str, Any]:
     else:
         specs = [{"name": n} for n in names]
         header = list(names)
-    formats = [excel_format(c.get("format")) for c in specs]
+    by_kind = block.get("formats") or {}  # a format for each kind of value, where a column names none
+    formats = [excel_format(c.get("format") or _kind_format(rows, i, by_kind)) for i, c in enumerate(specs)]
     total: list[Any] | None = None
     if block.get("total_row"):
         total = ["Total", *([None] * (len(specs) - 1))]
@@ -382,7 +385,23 @@ def _table(ws: Any, con: Any, block: Mapping[str, Any]) -> dict[str, Any]:
     for rule in block.get("conditional") or []:
         _conditional(ws, rule, header, specs, done)
     _entry(ws, specs, done, block)
+    if block.get("filter") and header:  # the header's own filter buttons
+        ws.auto_filter.ref = f"{cell_name(row, column)}:{cell_name(done['last'], column + len(header) - 1)}"
     return done
+
+
+def _kind_format(rows: Sequence[Sequence[Any]], i: int, by_kind: Mapping[str, Any]) -> Any:
+    """The block's format for a column's kind of value (integer, number, date), from its first value."""
+    if not by_kind:
+        return None
+    first = next((r[i] for r in rows if r[i] is not None), None)
+    if isinstance(first, bool) or first is None:
+        return None
+    if isinstance(first, int):
+        return by_kind.get("integer")
+    if isinstance(first, float | decimal.Decimal):
+        return by_kind.get("number")
+    return by_kind.get("date") if isinstance(first, _dt.date) else None
 
 
 def _conditional(
@@ -460,6 +479,10 @@ def _entry(
             )
         elif check == "date":
             rule = DataValidation(type="date", operator="greaterThan", formula1="1", allow_blank=not needed)
+            for at in range(done["row"] + 1, done["row"] + rows + 1):  # a date typed in shows as one
+                ws.cell(row=at, column=done["column"] + i).number_format = excel_format(
+                    spec.get("format") or "date"
+                )
         elif check:
             raise WorkbookError(f"{check} is not a check: {', '.join(CHECKS)}.")
         else:
@@ -965,6 +988,8 @@ def _numbers(spec: Mapping[str, Any] | None, count: int) -> list[Any]:
 
 
 def _as_rows(table: Any) -> tuple[list[str], list[tuple[Any, ...]]]:
+    if isinstance(table, Mapping):  # one record
+        return list(table), [tuple(table.values())]
     if isinstance(table, tuple) and len(table) == 2:
         return list(table[0]), [tuple(r) for r in table[1]]
     con = connect({"t": table})
@@ -1424,7 +1449,9 @@ def build(
     (columns, rows)).
 
       no design            a plain workbook, a sheet a grid (plain_workbook; `notes`, `truncate`)
-      a design             its sheets of blocks: title, text, table, pivot, chart (build_workbook)
+      a design             its sheets of blocks: title, text, table, pivot, chart (build_workbook); with
+                           no sheets named, each grid one table on its own sheet in the design's "style"
+                           and "formats" ({"integer": ..., "number": ..., "date": ...})
       a template           the template filled by the design's bindings: {"bindings": [...], "data": the
                            grid its values come from (default: the first), "lines": the grid of its table's
                            rows}; with "group_by" (or "each_row": true) a statement per group in the folder
@@ -1435,4 +1462,32 @@ def build(
         return _from_template(grids, design or {}, template, out)
     if design is None:
         return plain_workbook(grids, out, notes, truncate)
+    if not design.get("sheets") and isinstance(grids, Mapping):
+        design = _sheet_per_grid(grids, design)
     return _saved(build_workbook(design, grids), out)
+
+
+def _sheet_per_grid(grids: Mapping[str, Any], design: Mapping[str, Any]) -> dict[str, Any]:
+    """A design that names no sheets: each grid one table on a sheet of its own, in the design's `style`
+    and `formats` (by kind of value: integer, number, date), its header frozen (`freeze`: false leaves it)
+    and filtered."""
+    return dict(design) | {
+        "sheets": [
+            {
+                "name": str(name)[:31] or "Sheet",
+                "freeze": "A2" if design.get("freeze", True) else None,
+                "blocks": [
+                    {
+                        "id": f"grid{at}",
+                        "kind": "table",
+                        "cell": "A1",
+                        "source": {"table": str(name)},
+                        "style": design.get("style") or {},
+                        "formats": design.get("formats") or {},
+                        "filter": True,
+                    }
+                ],
+            }
+            for at, name in enumerate(grids, start=1)
+        ]
+    }

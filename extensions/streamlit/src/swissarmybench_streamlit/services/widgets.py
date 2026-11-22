@@ -156,15 +156,18 @@ class Widgets:
     # What a built app carries to call APIs' actions (the base's services/actions.py carried: api_adapter.py,
     # sab_actions.json, a library API's client), given the app's canvas and code as text.
     api_files: Callable[[str], dict[str, str]] | None = None
+    # What it carries to read and make workbooks (adapter.py, sab_excel.py: the Excel widgets call them).
+    excel_files: Callable[[str], dict[str, str]] | None = None
 
     def carried(self, canvas: Mapping[str, Any], built: Mapping[str, Any]) -> dict[str, str]:
+        used = json.dumps(canvas, ensure_ascii=False) + "\n".join(str(b.code) for b in built.values())
+        files = dict(self.excel_files(used)) if self.excel_files is not None else {}
         if self.api_files is None:
-            return {}
-        used = json.dumps(canvas, ensure_ascii=False) + "".join(str(b.code) for b in built.values())
+            return files
         try:
-            return dict(self.api_files(used))
+            return files | dict(self.api_files(used))
         except Exception:  # an API's own trouble: the app is built all the same (a call says what is missing)
-            return {}
+            return files
 
     def _endpoints(self) -> list[str] | None:
         try:

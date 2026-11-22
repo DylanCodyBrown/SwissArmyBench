@@ -9,9 +9,7 @@
 # size = [4, 1]
 # min_size = [2, 1]
 # ///
-import io
 
-import pandas as pd
 import streamlit as st
 from sab_canvas import key
 
@@ -37,100 +35,96 @@ file_name = "template.xlsx"
 
 
 def _openpyxl():
-    """openpyxl, or None after saying in this widget's place how to get it."""
+    """Whether this app's Python has openpyxl (said in this widget's place, with how to get it, when not)."""
     try:
-        import openpyxl
+        import openpyxl  # noqa: F401
     except ImportError:
         st.warning("Excel files need openpyxl in this app's Python: pip install openpyxl")
-        return None
-    return openpyxl
+        return False
+    return True
 
 
-def _template(fields, rows, openpyxl):
-    """A workbook to fill in: a Data sheet whose header is the fields (required ones red), each column's
-    type and choices checked by Excel, a note per header, and an Instructions sheet. `rows`: rows to start
-    with (a table, or None). Returns the file's bytes."""
-    from openpyxl.comments import Comment
-    from openpyxl.styles import Font, PatternFill
-    from openpyxl.utils import get_column_letter
-    from openpyxl.worksheet.datavalidation import DataValidation
+def _template(fields, rows):
+    """A workbook to fill in, made by sab_excel (sab_excel.py, beside the pages): a Data sheet whose header
+    is the fields (required ones red), each column's type and choices checked by Excel, a note per header,
+    and an Instructions sheet. `rows`: rows to start with (a table, or None). Returns the file's bytes."""
+    import sab_excel
 
-    book = openpyxl.Workbook()
-    sheet = book.active
-    sheet.title = "Data"
-    sheet.append([f["name"] for f in fields])
-    if rows is not None:
-        for row in rows.itertuples(index=False):
-            sheet.append(
-                [
-                    None if pd.isna(v) else (v.to_pydatetime() if hasattr(v, "to_pydatetime") else v)
-                    for v in row
-                ]
-            )
-    for at, field in enumerate(fields, start=1):
-        letter = get_column_letter(at)
-        cell = sheet.cell(row=1, column=at)
-        needed = bool(field.get("required"))
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(
-            "solid", start_color="C00000" if needed else "1F4E79", end_color="C00000" if needed else "1F4E79"
+    names = [f["name"] for f in fields]
+    checks = {"number": "number", "money": "number", "whole": "whole", "date": "date"}
+    columns = [
+        {
+            "name": f["name"],
+            "required": bool(f.get("required")),
+            "choices": f.get("choices"),
+            "check": checks.get(f.get("type", "text")),
+            "note": " ".join(
+                w
+                for w in (
+                    f.get("help", ""),
+                    "Required." if f.get("required") else "",
+                    f"Type: {f.get('type', 'text')}.",
+                )
+                if w
+            ),
+            "width": max(12, len(f["name"]) + 4),
+        }
+        for f in fields
+    ]
+    listed = [
+        (
+            f["name"],
+            f.get("type", "text"),
+            "yes" if f.get("required") else "",
+            ", ".join(str(c) for c in f.get("choices") or []),
+            f.get("help", ""),
         )
-        words = [field.get("help", ""), "Required." if needed else "", f"Type: {field.get('type', 'text')}."]
-        cell.comment = Comment(" ".join(w for w in words if w), "Swiss Army Bench")
-        sheet.column_dimensions[letter].width = max(12, len(field["name"]) + 4)
-        area = f"{letter}2:{letter}{max_rows + 1}"
-        kind = field.get("type", "text")
-        rule = None
-        if field.get("choices"):
-            rule = DataValidation(
-                type="list",
-                formula1='"' + ",".join(str(c) for c in field["choices"]) + '"',
-                allow_blank=not needed,
-            )
-        elif kind in ("number", "money"):
-            rule = DataValidation(
-                type="decimal", operator="greaterThanOrEqual", formula1="-1E+300", allow_blank=not needed
-            )
-        elif kind == "whole":
-            rule = DataValidation(
-                type="whole", operator="greaterThanOrEqual", formula1="-2147483647", allow_blank=not needed
-            )
-        elif kind == "date":
-            rule = DataValidation(type="date", operator="greaterThan", formula1="1", allow_blank=not needed)
-            for row in sheet[area]:
-                row[0].number_format = "yyyy-mm-dd"
-        if rule is not None:
-            rule.error = f"{field['name']}: {field.get('help') or 'see Instructions'}"
-            rule.showErrorMessage = True
-            sheet.add_data_validation(rule)
-            rule.add(area)
-    sheet.freeze_panes = "A2"
-    notes = book.create_sheet("Instructions")
-    notes.append(["Field", "Type", "Required", "Choices", "Help"])
-    for field in fields:
-        notes.append(
-            [
-                field["name"],
-                field.get("type", "text"),
-                "yes" if field.get("required") else "",
-                ", ".join(str(c) for c in field.get("choices") or []),
-                field.get("help", ""),
-            ]
-        )
-    for cell in notes[1]:
-        cell.font = Font(bold=True)
-    out = io.BytesIO()
-    book.save(out)
-    return out.getvalue()
+        for f in fields
+    ]
+    plain = {"theme": "plain", "header_fill": "1F4E79", "header_colour": "FFFFFF"}
+    design = {
+        "sheets": [
+            {
+                "name": "Data",
+                "freeze": "A2",
+                "blocks": [
+                    {
+                        "id": "data",
+                        "kind": "table",
+                        "cell": "A1",
+                        "source": {"table": "data"},
+                        "columns": columns,
+                        "entry_rows": max_rows,
+                        "style": plain,
+                    }
+                ],
+            },
+            {
+                "name": "Instructions",
+                "blocks": [
+                    {
+                        "id": "fields",
+                        "kind": "table",
+                        "cell": "A1",
+                        "source": {"table": "fields"},
+                        "style": plain,
+                    }
+                ],
+            },
+        ]
+    }
+    data = rows.reindex(columns=names) if rows is not None else (names, [])
+    return sab_excel.build(
+        {"data": data, "fields": (["Field", "Type", "Required", "Choices", "Help"], listed)}, design
+    )
 
 
-openpyxl = _openpyxl()
-if openpyxl is not None:
+if _openpyxl():
     needed = [f["name"] for f in fields if f.get("required")]
     st.caption(f"{len(fields)} fields" + (f", required: {', '.join(needed)}" if needed else ""))
     st.download_button(
         label,
-        _template(fields, None, openpyxl),
+        _template(fields, None),
         file_name or "template.xlsx",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         key=key("download"),

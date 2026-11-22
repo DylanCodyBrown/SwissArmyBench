@@ -10,6 +10,7 @@ import subprocess
 import sys
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pytest
@@ -22,7 +23,7 @@ from swissarmybench.adapters.adapter import Counts, Filter, Plan
 ADAPTER = Path(sab.__file__)
 
 
-def workbook(sheets: dict[str, list[list[object]]], named: dict[str, tuple[str, str]] | None = None) -> bytes:
+def workbook(sheets: dict[str, list[list[Any]]], named: dict[str, tuple[str, str]] | None = None) -> bytes:
     book = Workbook()
     book.remove(book.active)
     for name, rows in sheets.items():
@@ -36,7 +37,7 @@ def workbook(sheets: dict[str, list[list[object]]], named: dict[str, tuple[str, 
     return out.getvalue()
 
 
-ORDERS = [
+ORDERS: list[list[Any]] = [
     ["order_id", "region", "amount", "ordered", "paid"],
     [1, "North", 120.5, datetime(2026, 1, 5), True],
     [2, "South", 80, datetime(2026, 2, 1), False],
@@ -122,7 +123,7 @@ def test_mixed_columns_become_text_and_headers_are_made_unique() -> None:
 
 
 def test_a_column_that_changes_kind_far_down_is_text_whole() -> None:
-    rows: list[list[object]] = [["n", "m"]] + [[i, i] for i in range(60_000)] + [["oops", 1.5]]
+    rows: list[list[Any]] = [["n", "m"], *([i, i] for i in range(60_000)), ["oops", 1.5]]
     table = sab.read(sab.Excel(workbook({"Big": rows})), "Big")[0].read_all()
     assert table.num_rows == 60_001
     assert table.column("n").to_pylist()[-2:] == ["59999", "oops"]
@@ -233,6 +234,7 @@ def test_a_write_keeps_text_as_text_long_numbers_exact_and_early_dates_true(tmp_
 def test_bytes_written_are_the_sources_new_bytes(book: Path) -> None:
     source = sab.Excel(book.read_bytes(), "An upload")
     sab.write(source, "Extra", pa.table({"n": [1, 2]}))
+    assert source.data is not None
     assert load_workbook(io.BytesIO(source.data)).sheetnames == ["Orders", "Report", "Extra"]
     assert load_workbook(book).sheetnames == ["Orders", "Report"]
 
