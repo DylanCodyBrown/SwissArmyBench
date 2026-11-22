@@ -4770,6 +4770,12 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   (Sql over a cursor, rows made Arrow a batch at a time) at 1M rows: 1.39 s, 91 MB.
 - Not checked: Windows; Edge (Chromium here); the canvas and script exports (unchanged); an Arrow body over a few
   thousand rows (sab_api reads the body whole, as before).
+- The suites: the quick suite 4,948 passed, 37 skipped; in Chromium test_local_apis_page, test_forms_recon_app,
+  test_sandbox_gaps_page, test_claude_launch_page, test_dataverse_page, test_lakes_page, test_sql_server_page,
+  test_connection_sql_page, test_swap_connection_page and test_python_connection_page passed; test_real_world (with
+  the test bed's drivers, keyrings.alt and nbclient) 13 passed, 1 failed: use case 11 (the Widgets window previews
+  the widget by its old name after its rename, "There is no widget called my_widget") fails the same way on the
+  base commit 8415755, so it is not this branch's.
 
 ## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
 - Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite
