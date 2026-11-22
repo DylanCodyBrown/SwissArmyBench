@@ -13,7 +13,7 @@
  *              Replace all with its preview.
  */
 import { api } from "./api";
-import { button, clear, h, icon, openDialog, toast } from "./dom";
+import { askText, button, clear, h, icon, openDialog, toast } from "./dom";
 import { errorHere } from "./errorNote";
 
 export interface IdeDoc {
@@ -108,7 +108,7 @@ function previewList(preview: Preview[], skipped: { path: string; why: string }[
 }
 
 async function rename(doc: IdeDoc, line: number, column: number, word: string): Promise<void> {
-  const to = prompt(`Rename ${word || "the symbol"} to`, word);
+  const to = await askText(`Rename ${word || "the symbol"} to`, word);
   if (!to || to === word) return;
   const body = { text: doc.text(), line, column, path: doc.path(), to };
   const plan = await api<{ preview: Preview[]; skipped: { path: string; why: string }[]; changes: Record<string, string> }>("/scripts/rename", "POST", body);

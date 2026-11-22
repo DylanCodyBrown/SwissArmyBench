@@ -411,6 +411,72 @@ export function openDialog(title: string, wide = false, options: { history?: boo
   return { dialog, body, foot, close };
 }
 
+// ===== one question, on the app's own dialog (never the browser's prompt() or confirm()) =====
+
+const ASK_HEADING = 70; // a question longer than this is read in the dialog's body
+
+export interface AskOptions {
+  /** The dialog's heading (default: the question's first line). */
+  title?: string;
+  /** The primary button's word (default OK) and the other's (default Cancel). */
+  ok?: string;
+  cancel?: string;
+}
+
+/** The question's dialog: its paragraphs (a blank line apart), its two buttons, the answer once it closes.
+ *  Escape, Cancel and Close answer `none`; focus goes back to where it was. */
+function ask<T>(question: string, options: AskOptions, none: T, build: (parts: DialogParts, answer: (value: T) => void) => HTMLElement): Promise<T> {
+  const before = document.activeElement as HTMLElement | null;
+  const paragraphs = question.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  // A short question is its own heading; a long one is read under a plain heading.
+  const heading = options.title ?? ((paragraphs[0] ?? "").length <= ASK_HEADING ? (paragraphs[0] ?? "") : "Swiss Army Bench");
+  const parts = openDialog(heading, false, { history: false });
+  parts.dialog.classList.add("ask");
+  parts.dialog.dataset.question = question; // the whole question, as asked (a test reads it)
+  return new Promise<T>((resolve) => {
+    let said = none;
+    const answer = (value: T): void => {
+      said = value;
+      parts.close();
+    };
+    // A question that is the heading is not said twice: only the rest is under it.
+    const shown = heading === paragraphs[0] ? paragraphs.slice(1) : paragraphs;
+    parts.body.append(...shown.map((p) => h("p", { class: "ask-words", style: "white-space: pre-line" }, p)));
+    const first = build(parts, answer);
+    parts.dialog.addEventListener("close", () => {
+      resolve(said);
+      if (before?.isConnected) before.focus();
+    });
+    first.focus();
+  });
+}
+
+/** A yes-or-no question: Enter on the focused primary button (or a click) says yes; Cancel, Escape and Close
+ *  say no. */
+export function askYesNo(question: string, options: AskOptions = {}): Promise<boolean> {
+  return ask<boolean>(question, options, false, (parts, answer) => {
+    const yes = button(options.ok ?? "OK", () => answer(true), { class: "primary ask-ok" });
+    parts.foot.append(button(options.cancel ?? "Cancel", () => answer(false), { class: "ask-cancel" }), yes);
+    return yes;
+  });
+}
+
+/** A one-line answer (a name): Enter or OK gives the text as typed; Cancel, Escape and Close give null. */
+export function askText(question: string, value = "", options: AskOptions = {}): Promise<string | null> {
+  return ask<string | null>(question, options, null, (parts, answer) => {
+    const input = h("input", { type: "text", class: "ask-text", value, spellcheck: "false", "aria-label": options.title ?? question.split("\n")[0] ?? "Answer" }) as HTMLInputElement;
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      answer(input.value);
+    });
+    parts.body.append(input);
+    parts.foot.append(button(options.cancel ?? "Cancel", () => answer(null), { class: "ask-cancel" }), button(options.ok ?? "OK", () => answer(input.value), { class: "primary ask-ok" }));
+    queueMicrotask(() => input.select());
+    return input;
+  });
+}
+
 /** Close every open dialog (the newest first), as their own Close buttons do. */
 export function closeDialogs(): void {
   for (const dialog of [...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].reverse()) dialog.close();

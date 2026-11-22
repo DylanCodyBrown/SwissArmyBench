@@ -27,6 +27,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from tests import powerapps_fakes as fakes
+from tests.e2e.asks import answer_ask
 from tests.e2e.test_ui import browser, call  # noqa: F401
 from tests.test_powerapps_rules import OPENAPI
 
@@ -155,9 +156,9 @@ def test_the_code_app_page_from_new_app_to_push(browser: Browser, server: dict[s
     expect(tree.locator(".ca-file[data-path='package.json']")).to_have_count(0, timeout=20000)
     # The starter page, and New page: its folder, listed in src/pages.ts, opened in the Workbench.
     expect(tree.locator(".ca-file[data-path='src/pages/Accounts/AccountsPage.tsx']")).to_have_count(1)
-    page.once("dialog", lambda d: d.accept("Open orders"))
     with page.context.expect_page() as opened:
         tree.locator(".ca-new-page").click()
+        answer_ask(page, "Open orders")  # New page asks its name on the app's own dialog
     expect(tree.locator(".ca-file[data-path='src/pages/OpenOrders/OpenOrdersPage.tsx']")).to_have_count(
         1, timeout=20000
     )

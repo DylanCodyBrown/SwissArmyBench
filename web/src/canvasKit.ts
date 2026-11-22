@@ -1,6 +1,9 @@
 /**
- * canvasKit.ts: the machinery a canvas shares (the Streamlit canvas, workbenchCanvas.ts; the Excel canvas,
- * excelCanvas.ts; the Report canvas after them): one place for each, never a fork. [SHARED]
+ * canvasKit.ts: the machinery of a canvas whose document lives in the page (the Excel canvas, excelCanvas.ts,
+ * and any canvas after it that keeps its own state): one place for each, never a fork. The widget Canvas
+ * (canvasPage.ts) does not use the history or the tabs here, on purpose: its undo, redo and page changes are
+ * the server's versioned commands (services/canvas.py), shared by every window on that canvas, so there is no
+ * state in the page to keep. [SHARED]
  *
  *   [HISTORY]  Undo and Redo: the state before each change kept (50 at most); a new change clears Redo
  *   [TABS]     the canvas's pages or sheets as tabs: a click selects, a double-click or F2 renames, the
@@ -9,7 +12,7 @@
  *   [GRIP]     a resize grip: the pointer captured, each move given its distance from where it started,
  *              the end given once
  */
-import { button, dragResize, h } from "./dom";
+import { askYesNo, button, dragResize, h } from "./dom";
 
 export interface History<T> {
   /** Keep the state before a change (Redo is cleared). */
@@ -115,9 +118,9 @@ export function pageTabs<P extends TabPage>(o: TabsOptions<P>): HTMLElement {
         },
       },
       label,
-      button(`Remove ${p.name}`, (e) => {
+      button(`Remove ${p.name}`, async (e) => {
         e.stopPropagation();
-        if (o.holds(p) && !confirm(`Remove the ${o.noun} ${p.name} and its blocks?`)) return;
+        if (o.holds(p) && !(await askYesNo(`Remove the ${o.noun} ${p.name} and its blocks?`))) return;
         o.remove(p);
       }, { icon: "close", iconOnly: true, class: "tab-close" }),
     );

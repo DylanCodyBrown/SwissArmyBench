@@ -22,7 +22,7 @@
  *          POST /extensions/install; the project's own: projectFile.ts
  */
 import { api, onNotice, onNoticeWhile } from "./api";
-import { button, clear, h, icon, toast } from "./dom";
+import { askText, button, clear, h, icon, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { loadingBlock } from "./loading";
 import { baseName, closeProject, copyProject, newProject, onProject, openProject, projectState, type ProjectState, when } from "./projectFile";
@@ -444,7 +444,7 @@ async function copyTo(c: ProjectCard, path: string, words: string): Promise<void
       const said = (e as Error).message;
       const free = /"([^"]+)" is free/.exec(said)?.[1];
       if (!free) throw e;
-      const asked = prompt(`${said}\n\nName the copy:`, free)?.trim();
+      const asked = (await askText(`${said}\n\nName the copy:`, free))?.trim();
       if (!asked) return;
       name = asked;
     }
@@ -460,7 +460,7 @@ const share = async (c: ProjectCard): Promise<void> => {
 const copyLocal = (c: ProjectCard): Promise<void> => copyTo(c, "/projects/copy-local", `A local copy of ${c.name} is made`);
 
 async function rename(c: ProjectCard): Promise<void> {
-  const name = prompt(`Rename ${c.name}`, c.name)?.trim();
+  const name = (await askText(`Rename ${c.name}`, c.name))?.trim();
   if (!name || name === c.name) return;
   await api("/projects/rename", "POST", { path: c.path, name });
   await refreshExplorer();
@@ -468,7 +468,7 @@ async function rename(c: ProjectCard): Promise<void> {
 
 async function remove(c: ProjectCard, trash = false): Promise<void> {
   if (trash) {
-    const typed = prompt(`Delete ${c.name}: its folder goes to the trash.\n\nType ${c.name} to delete it.`);
+    const typed = await askText(`Delete ${c.name}: its folder goes to the trash.\n\nType ${c.name} to delete it.`);
     if (typed === null) return;
     const done = await api<{ to: string }>("/projects/delete", "POST", { path: c.path, confirm: typed });
     toast(`${c.name} is in ${done.to}`);

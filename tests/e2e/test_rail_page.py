@@ -22,6 +22,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
 # In the order of the work (the owner, 2026-11-17).
@@ -260,6 +261,7 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     current page, the open in new tab is optional"."""
     page = home_page(browser, orchard)
     page.on("dialog", lambda d: d.accept())  # leaving a Workbench with unsaved edits asks first
+    accept_asks(page)
     pages = len(page.context.pages)
     # Notebooks from the home page: this tab goes to the Notebooks page (never code in the grid page).
     area(page, "notebooks").click()

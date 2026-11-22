@@ -16,7 +16,7 @@
  */
 import { bringPage } from "./workbenchPages";
 import { api } from "./api";
-import { button, clear, h, icon, toast } from "./dom";
+import { askYesNo, button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
 import { clearError, errorHere, errorNote, showError } from "./errorNote";
@@ -107,7 +107,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
   };
 
   const openAll = async (g: TreeGroup): Promise<void> => {
-    if (!confirm(`Open all ${g.count} tables of ${g.schema}? Each opens as its own grid.`)) return;
+    if (!(await askYesNo(`Open all ${g.count} tables of ${g.schema}? Each opens as its own grid.`))) return;
     try {
       const got = await busy(section, `Opening ${g.count} tables of ${g.schema}…`, api<{ opened: unknown[]; failed: { table: string; error: string }[] }>(`/connections/${path}/open-dataset`, "POST", { dataset: g.schema }), { errorIn: false });
       const failed = got.failed.length ? ` ${got.failed.length} could not: ${got.failed.map((f) => f.table).join(", ")}.` : "";

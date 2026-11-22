@@ -58,7 +58,7 @@ import type { FilledSnippet } from "./starters";
 import { type BladeKind, type BladeSummary, editBlade, newBladeDialog } from "./bladeEditor";
 import { mountRail, schemaDetails, tableDetails, watchTheme } from "./catalogRail";
 import { openConnections, setCellOpener } from "./connectionsWindow";
-import { button, clear, h, icon, openDialog, toast } from "./dom";
+import { askText, askYesNo, button, clear, h, icon, openDialog, toast } from "./dom";
 import { closeWindow, inApp, windowFullScreen } from "./desktopApp";
 import { chooseFile } from "./fileChooser";
 import { openFile, tableName } from "./openFile";
@@ -531,7 +531,7 @@ async function exportDocument(doc: Doc | null, format: "script" | "notebook", to
   // 2026-11-17: "this is meant to scale to a function app or up to a hosted streamlit application").
   if (!agent) {
     const looked = await call<ExportAnswer>("/workbench/export-script", "POST", { ...body, check: true });
-    if (looked.local_words && !confirm(`${looked.local_words}\n\nExport it anyway?`)) {
+    if (looked.local_words && !(await askYesNo(`${looked.local_words}\n\nExport it anyway?`))) {
       toast("Nothing was exported.");
       return null;
     }
@@ -539,7 +539,7 @@ async function exportDocument(doc: Doc | null, format: "script" | "notebook", to
   let done = await call<ExportAnswer>("/workbench/export-script", "POST", body);
   if (done.ask) {
     const said = [...done.problems, ...done.lint].map((p) => `• ${p}`).join("\n");
-    if (agent || !confirm(`These cannot be exported:\n${said}\n\nExport the rest, with a stub that raises FILL IN for each?`)) {
+    if (agent || !(await askYesNo(`These cannot be exported:\n${said}\n\nExport the rest, with a stub that raises FILL IN for each?`))) {
       if (!agent) toast("Nothing was exported.");
       return done;
     }
@@ -1347,7 +1347,13 @@ function focused(doc: Doc | null): void {
 
 function close(doc: Doc, moved = false): void {
   // (A document that moved to another window took its changes with it.)
-  if (!moved && doc.dirty && !confirm(`${doc.title} has changes that are not saved. Close it anyway?`)) return;
+  if (!moved && doc.dirty) {
+    // Asked on the app's own dialog (dom.ts askYesNo): its yes closes the document, if it is still open.
+    void askYesNo(`${doc.title} has changes that are not saved. Close it anyway?`, { ok: "Close it" }).then((yes) => {
+      if (yes && docs.includes(doc)) close(doc, true);
+    });
+    return;
+  }
   doc.kernel?.stop(); // its own kernel; the project's one session goes on for its other documents
   doc.kernel?.forget();
   doc.workbook?.close();
@@ -1530,7 +1536,7 @@ const scriptLanguage = (): string | null => {
 const LANGUAGE_WORDS: Record<string, string> = { typescript: "TypeScript", tsx: "TSX", python: "Python" };
 async function newModeFile(language: string): Promise<void> {
   const ending = language === "tsx" ? ".tsx" : ".ts";
-  const name = prompt(`New ${LANGUAGE_WORDS[language] ?? language} file (in src/shared, or a path under src/pages/<Page>/)`, `module${ending}`);
+  const name = await askText(`New ${LANGUAGE_WORDS[language] ?? language} file (in src/shared, or a path under src/pages/<Page>/)`, `module${ending}`);
   if (!name) return;
   try {
     const path = await newCodeFile(name.endsWith(ending) || /\.(ts|tsx)$/.test(name) ? name : `${name}${ending}`);
@@ -1828,7 +1834,7 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     await send(false);
     return true;
   } catch (e) {
-    if (e instanceof ApiError && e.status === 409 && confirm(`${e.message}\n\nReplace the file on disk with this one?`)) {
+    if (e instanceof ApiError && e.status === 409 && (await askYesNo(`${e.message}\n\nReplace the file on disk with this one?`))) {
       return send(true).then(
         () => true,
         (err: Error) => (errorHere(err), false),
@@ -2123,7 +2129,7 @@ function drawControls(): void {
 
 async function restartKernel(kernel: Kernel): Promise<boolean> {
   // The project's one session: every notebook's and script's variables go, so it is asked first.
-  if (kernel.shared && kernel.id && !confirm("Restart the project's Python session? Every variable is cleared, for every notebook and script of the project.")) return false;
+  if (kernel.shared && kernel.id && !(await askYesNo("Restart the project's Python session? Every variable is cleared, for every notebook and script of the project."))) return false;
   const did = await kernel.restart();
   toast(did ? (kernel.shared ? "The project's Python session was restarted: every variable is cleared." : "Restarted") : "Nothing to restart");
   return did;
@@ -2148,10 +2154,10 @@ function sessionEntries(kernel: Kernel, shared: boolean): { label: string; icon:
 
 /** Stop the document's Python: its own kernel, or (asked first) the project's one session for every
  *  document of the project. The next Run starts a new one. */
-function stopSession(): { stopped: boolean } {
+async function stopSession(): Promise<{ stopped: boolean }> {
   const kernel = kernelOf();
   if (!kernel.id) return { stopped: false };
-  if (kernel.shared && !confirm("Stop the project's Python session? Every variable is gone, for every notebook and script of the project. The next Run starts a new one.")) return { stopped: false };
+  if (kernel.shared && !(await askYesNo("Stop the project's Python session? Every variable is gone, for every notebook and script of the project. The next Run starts a new one."))) return { stopped: false };
   kernel.stop(false, kernel.shared);
   toast(kernel.shared ? "The project's Python session stopped" : "Kernel stopped");
   return { stopped: true };

@@ -57,7 +57,7 @@ import { api, onNotice } from "./api";
 import { slotLine, slotsSection } from "./connectionSlots";
 import { type Figures, figuresTerms, figuresTitle, usualWords } from "./callFigures";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
+import { askYesNo, button, clear, h, hasIcon, icon, recall, remember, toast } from "./dom";
 import { accessSection } from "./connectionAccess";
 import { tablesSection } from "./connectionTree";
 import { chooseFile } from "./fileChooser";
@@ -798,8 +798,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       config.kind === "vault" ? null : button("Copy for Python", () => void navigator.clipboard.writeText(`conn = sab.connection("${name}")`).then(() => toast("Copied")), { icon: "copy" }),
       readOnly
         ? null
-        : button("Remove", () => {
-            if (!confirm(config.kind === "vault" ? `Remove the key vault ${name}? Its variables stop being set.` : `Remove the connection ${name}? Its saved passwords go too.`)) return;
+        : button("Remove", async () => {
+            if (!(await askYesNo(config.kind === "vault" ? `Remove the key vault ${name}? Its variables stop being set.` : `Remove the connection ${name}? Its saved passwords go too.`))) return;
             void api<{ relationships_removed?: number }>(`/blades/${path}`, "DELETE").then((gone) => {
               // The relationships its tables held went with it (the ERD redraws on the server's notice).
               const n = gone.relationships_removed ?? 0;

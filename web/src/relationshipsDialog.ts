@@ -29,7 +29,7 @@
  * The agent's: relationships_delete, _update, _undo, _save_set, _export_set, _rename_set, _delete_set.
  */
 import { api, download, grid } from "./api";
-import { append, button, clear, dateTime, h, icon, openDialog, showMenu, toast, type MenuItem } from "./dom";
+import { append, askYesNo, button, clear, dateTime, h, icon, type MenuItem, openDialog, showMenu, toast } from "./dom";
 import { showAgentView } from "./panes";
 import { saveBlob } from "./profileView";
 import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
@@ -325,7 +325,7 @@ export function openRelationships(startFinding = false): void {
   }
 
   async function deleteSet(t: SavedSet): Promise<void> {
-    if (!confirm(`Delete the saved set ${t.name}? Its file goes.`)) return;
+    if (!(await askYesNo(`Delete the saved set ${t.name}? Its file goes.`))) return;
     try {
       await api(`/relationships/sets/${encodeURIComponent(t.name)}`, "DELETE");
       toast(`Deleted ${t.name}.`);

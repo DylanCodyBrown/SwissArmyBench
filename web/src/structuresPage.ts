@@ -25,7 +25,7 @@
  */
 import { api, ApiError, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { button, h, icon, openDialog, toast } from "./dom";
+import { askYesNo, button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { promptForError } from "./missingPackages";
@@ -214,7 +214,7 @@ function drawPage(): void {
           { class: `structures-tab${s.id === front ? " current" : ""}`, role: "tab", "aria-selected": s.id === front ? "true" : "false", "data-structure": s.id },
           h("button", { type: "button", class: "structures-tab-name", onclick: () => void go(s.id) }, icon(s.origin.kind === "api" ? "bolt" : "json"), s.name, s.dirty ? h("span", { class: "structures-dirty", "aria-label": "Unsaved" }, "●") : null),
           h("button", { type: "button", class: "structures-tab-close", "aria-label": `Close ${s.name}`, title: "Close", onclick: async () => {
-            if (s.dirty && !window.confirm(`${s.name} has changes that are not saved. Close it?`)) return;
+            if (s.dirty && !(await askYesNo(`${s.name} has changes that are not saved. Close it?`))) return;
             await call(`/structures/${encodeURIComponent(s.id)}`, "DELETE");
             if (front === s.id) front = null;
             await load();

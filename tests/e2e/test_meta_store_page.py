@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_METASTORE_SHOTS")
@@ -111,6 +112,7 @@ def open_page(browser: Browser, server: dict[str, Any], view: str = "") -> Page:
     context = browser.new_context(viewport={"width": 1400, "height": 900}, device_scale_factor=2)
     page = context.new_page()
     page.on("dialog", lambda d: d.accept())
+    accept_asks(page)
     page.goto(f"http://127.0.0.1:{server['port']}/workspace{view}#token={server['token']}")
     expect(page.locator(".nav-rail")).to_be_visible(timeout=20000)
     return page

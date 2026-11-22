@@ -37,7 +37,7 @@ import { analyzerAddress, openAnalyzer, openBuilds } from "./canvasBuilds";
 import { type Guide, type Rect } from "./canvasSnap";
 import { dotSpacing, gridLines, nudgeBy, snapRect, type Step } from "./canvasGrid";
 import { watchTheme } from "./catalogRail";
-import { button, clear, h, icon, toast } from "./dom";
+import { askText, button, clear, h, icon, toast } from "./dom";
 import { clearError, errorHere, showError } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import { busy, loadingBlock } from "./loading";
@@ -339,8 +339,8 @@ function drawTabs(): void {
       drawBoard();
       drawProps();
     });
-    tab.addEventListener("dblclick", () => {
-      const name = prompt("The page's name", p.name);
+    tab.addEventListener("dblclick", async () => {
+      const name = await askText("The page's name", p.name);
       if (name && name.trim() && name !== p.name) void send("change_page", { page: p.id, name: name.trim() });
     });
     tab.addEventListener("contextmenu", (e) => {
@@ -1456,8 +1456,8 @@ async function landing(): Promise<void> {
     list.append(
       button(
         "New canvas",
-        () => {
-          const name = prompt("The new canvas's name", "App");
+        async () => {
+          const name = await askText("The new canvas's name", "App");
           if (name) void api<State>("/streamlit/canvases", "POST", { name, folder: listed.folder }).then((s) => location.assign(`?path=${encodeURIComponent(s.path)}${location.hash}`));
         },
         { icon: "plus", class: "primary" },

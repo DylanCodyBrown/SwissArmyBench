@@ -7,7 +7,7 @@
  * imported one, once the server has made it readable) meets its contrast.
  */
 import { api } from "./api";
-import { button, h, toast } from "./dom";
+import { askYesNo, button, h, toast } from "./dom";
 import { saveBlob } from "./profileView";
 import { effectiveTheme } from "./theme";
 import { errorHere } from "./errorNote";
@@ -109,8 +109,8 @@ export function themeControls(themes: Themes, changed: () => void): HTMLElement 
       : null,
     chosen?.by_agent ? button("Keep this theme", () => void api("/analyze/themes", "POST", { name: chosen.label, dark: chosen.dark, tokens: { ...chosen.tokens, cat: chosen.cat } }).then(() => { toast(`Kept ${chosen.label}.`); changed(); }, (e: Error) => errorHere(e)), { icon: "save", class: "ghost" }) : null,
     chosen?.custom && !chosen.by_agent
-      ? button("Remove this theme", () => {
-          if (!confirm(`Remove the theme ${chosen.label}? Analyze goes back to following the app.`)) return;
+      ? button("Remove this theme", async () => {
+          if (!(await askYesNo(`Remove the theme ${chosen.label}? Analyze goes back to following the app.`))) return;
           void api(`/analyze/themes/${encodeURIComponent(chosen.id)}`, "DELETE").then(changed, (e: Error) => errorHere(e));
         }, { icon: "trash", iconOnly: true, class: "ghost", title: `Remove ${chosen.label} (a theme you imported)` })
       : null,

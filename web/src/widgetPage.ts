@@ -26,7 +26,7 @@
  * …/run, …/check, /streamlit/widgets/properties (live), …/check-name, …/check-value, …/context.
  */
 import { api, connect, onNotice, requireSession } from "./api";
-import { button, clear, h, icon } from "./dom";
+import { askYesNo, button, clear, h, icon } from "./dom";
 import { errorHere, showError } from "./errorNote";
 import { inlineSource } from "./inlineCompletion";
 import type { CodeEditor } from "./lazy/codeEditor";
@@ -456,8 +456,8 @@ function drawProps(): void {
         { class: "wg-props-foot" },
         button(
           "Delete widget",
-          () => {
-            if (!current || !confirm(`Delete ${current.name} from the library?`)) return;
+          async () => {
+            if (!current || !(await askYesNo(`Delete ${current.name} from the library?`))) return;
             void api(`/streamlit/widgets/${encodeURIComponent(current.name)}`, "DELETE")
               .then(async () => {
                 current = null;

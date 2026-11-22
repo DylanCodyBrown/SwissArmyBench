@@ -17,6 +17,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.asks import answer_ask
 from tests.e2e.environment_helpers import open_settings
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
@@ -234,20 +235,12 @@ def test_a_project_closes_from_the_projects_page(browser: Browser, server: dict[
     shot(page, "projects-close")
     # The existing question; the first answer (Cancel) keeps it open.
     asked: list[str] = []
-
-    def answer(dialog: Any) -> None:
-        asked.append(dialog.message)
-        if len(asked) == 1:
-            dialog.dismiss()
-        else:
-            dialog.accept()
-
-    page.on("dialog", answer)
     card.get_by_role("button", name="Close project").click()
-    page.wait_for_timeout(800)
+    asked.append(answer_ask(page, yes=False))
     assert asked and "Let them go and close the project?" in asked[0], asked
     expect(top).to_be_visible()
     top.get_by_role("button", name="Close project").click()
+    asked.append(answer_ask(page))
     expect(top).to_have_count(0, timeout=20000)
     expect(projects.locator(".explorer-card.is-open")).to_have_count(0)
     expect(projects).to_be_visible()  # the Projects page stays

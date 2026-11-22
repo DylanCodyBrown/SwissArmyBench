@@ -17,6 +17,8 @@ from urllib.parse import quote
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.asks import accept_asks
+
 # The grid tests' fixtures (browser, server, orders_url), imported by name.
 from tests.e2e.environment_helpers import open_settings
 from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
@@ -662,6 +664,7 @@ def test_a_deleted_cell_comes_back_and_open_documents_survive_a_reload(
 ) -> None:
     workbench = open_workbench(open_grid(browser, orders_url))
     workbench.on("dialog", lambda dialog: dialog.accept())  # the unsaved-changes warning on reload
+    accept_asks(workbench)
     start(workbench)
     first = workbench.locator(".wb-cell .monaco-editor").first
     expect(first).to_be_visible(timeout=20000)

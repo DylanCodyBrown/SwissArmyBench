@@ -15,7 +15,7 @@
  *   [NOTICE]   debug_state from the server (the agent's moves too: workbench_debug) is what draws it.
  */
 import { api } from "./api";
-import { button, clear, h, icon, type MenuItem, showMenu } from "./dom";
+import { askText, button, clear, h, icon, type MenuItem, showMenu } from "./dom";
 import { errorHere } from "./errorNote";
 import type { BreakpointMark, CodeEditor } from "./lazy/codeEditor";
 
@@ -159,8 +159,8 @@ export function debugSession(host: DebugHost): DebugSession {
     draw();
     void send();
   }
-  function ask(words: string, now: string): string | null {
-    const said = prompt(words, now);
+  async function ask(words: string, now: string): Promise<string | null> {
+    const said = await askText(words, now);
     return said === null ? null : said.trim();
   }
 
@@ -238,12 +238,12 @@ export function debugSession(host: DebugHost): DebugSession {
         const here = marks.find((m) => m.line === line);
         const items: MenuItem[] = [
           ...(here ? ([["close", `Remove ${KIND_WORDS[kindOf(here)]!.toLowerCase()}`, () => setMark(line, null)]] as MenuItem[]) : ([["bug", "Add breakpoint", () => setMark(line, { line })]] as MenuItem[])),
-          ["bug", here?.condition ? "Edit condition…" : "Add conditional breakpoint…", () => {
-            const condition = ask(`Break at line ${line} when (Python)`, here?.condition ?? "");
+          ["bug", here?.condition ? "Edit condition…" : "Add conditional breakpoint…", async () => {
+            const condition = await ask(`Break at line ${line} when (Python)`, here?.condition ?? "");
             if (condition) setMark(line, { line, condition });
           }],
-          ["note", here?.log ? "Edit log point…" : "Add log point…", () => {
-            const log = ask(`At line ${line}, print (values in {braces})`, here?.log ?? "");
+          ["note", here?.log ? "Edit log point…" : "Add log point…", async () => {
+            const log = await ask(`At line ${line}, print (values in {braces})`, here?.log ?? "");
             if (log) setMark(line, { line, log });
           }],
         ];

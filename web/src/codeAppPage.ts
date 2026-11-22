@@ -27,7 +27,7 @@
  */
 import { api, onNotice, saidOf, type Notice, token } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { button, h, icon, openDialog, toast } from "./dom";
+import { askText, askYesNo, button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { type Missing, promptForError } from "./missingPackages";
@@ -318,7 +318,7 @@ function drawPage(): void {
   };
 
   const newPage = async (): Promise<void> => {
-    const name = prompt("New page: its name", "Orders");
+    const name = await askText("New page: its name", "Orders");
     if (!name?.trim()) return;
     const made = await call<{ open: string }>("/powerapps/pages", "POST", { name: name.trim() });
     if (!made) return;
@@ -380,7 +380,7 @@ function drawPage(): void {
   };
 
   const removeSource = async (s: Source): Promise<void> => {
-    if (!confirm(`Remove ${s.name} from the app? Its generated model and service go too.`)) return;
+    if (!(await askYesNo(`Remove ${s.name} from the app? Its generated model and service go too.`))) return;
     const done = await call<Project>("/powerapps/sources/remove", "POST", { name: s.name, connector: s.connector });
     if (done) void load();
   };

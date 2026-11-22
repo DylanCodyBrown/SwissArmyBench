@@ -11,6 +11,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, expect
 
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_scripts_ide_page import shop, tree_file  # noqa: F401
 from tests.e2e.test_ui import browser, server  # noqa: F401
 
@@ -37,7 +38,8 @@ def test_a_script_paused_at_a_breakpoint_read_stepped_and_continued(
     )
     page = context.new_page()
     answers = ["n == 2", "day {day}"]
-    page.on("dialog", lambda d: d.accept(answers.pop(0)) if d.type == "prompt" and answers else d.accept())
+    page.on("dialog", lambda d: d.accept())
+    accept_asks(page, lambda _words: answers.pop(0) if answers else None)  # a condition, then a log line
     page.goto(f"http://127.0.0.1:{server['port']}/scripts#token={server['token']}")
     tree_file(page, "scripts/bake.py").click()
     tab = page.locator(".wb-tab", has_text="bake.py")

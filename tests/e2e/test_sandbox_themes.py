@@ -12,6 +12,7 @@ import pyarrow as pa
 from playwright.sync_api import Browser, expect
 
 from swissarmybench.client import push_client
+from tests.e2e.asks import answer_ask
 from tests.e2e.test_ui import browser, call, open_grid, server  # noqa: F401
 
 
@@ -54,8 +55,8 @@ def test_the_sandbox_takes_a_theme_of_its_own(
         # An imported theme has Remove beside the picker; a built-in one has none.
         remove = page.get_by_role("button", name="Remove this theme")
         expect(remove).to_have_count(1)
-        page.once("dialog", lambda asked: asked.accept())
         remove.click()
+        answer_ask(page)
         expect(page.locator("#ai-panel-body")).not_to_have_attribute(
             "data-sandbox-theme", "custom-harbour-test", timeout=20000
         )

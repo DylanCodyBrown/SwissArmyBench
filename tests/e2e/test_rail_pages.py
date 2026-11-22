@@ -22,6 +22,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, call, grid_of, server  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_RAILPAGES_SHOTS")
@@ -106,6 +107,7 @@ def home(browser: Browser, url: str) -> Page:
     page.goto(url)
     expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
     page.on("dialog", lambda d: d.accept())
+    accept_asks(page)
     return page
 
 
