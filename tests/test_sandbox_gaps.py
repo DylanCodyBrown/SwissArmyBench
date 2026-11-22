@@ -91,6 +91,14 @@ def test_variants_are_named_apart_with_their_designation() -> None:
     assert rules.origin_words(record) == "A sandbox variant of orders (Warehouse), copied 2026-11-21 14:02"
     structure = rules.variant_record({"kind": "structure", "structure": "shop", "path": "$.orders"}, "x", "")
     assert rules.origin_words(structure) == "A sandbox variant of the structure shop at $.orders"
+    # A connection's table read once is named by its place: the words say which table (they said
+    # "A sandbox variant of  from Depot"; found building the field service test app, 2026-11-22).
+    place = {"database": "", "schema": "", "table": "stock"}
+    read = rules.variant_record({"kind": "connection", "connection": "Depot", "place": place}, "stock", "")
+    assert read["origin"] == {"kind": "connection", "connection": "Depot", "table": "stock"}
+    assert rules.origin_words(read) == "A sandbox variant of stock from Depot"
+    nameless = {"origin": {"kind": "connection", "connection": "Depot"}}  # one kept before the fix
+    assert rules.origin_words(nameless) == "A sandbox variant of a table from Depot"
 
 
 def test_an_edit_names_its_row_by_every_value_and_casts_to_its_type() -> None:

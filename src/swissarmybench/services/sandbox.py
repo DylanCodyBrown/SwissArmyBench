@@ -713,6 +713,7 @@ class Sandbox:
             if not await self._run(files.reset_table, table):
                 raise Conflict(f"{table} is not in the baseline: Set as baseline first.")
             meta = files.read_meta()
+            await self._keys_back(files, meta)  # its rows were put back as a new table: its key again
             undone = rules.log_json({table: meta.log.pop(table, rules.Counts())})
             if undone:
                 rules.touched(meta, [table], _stamp(self._now()))

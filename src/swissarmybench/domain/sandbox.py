@@ -483,6 +483,11 @@ def variant_record(source: Mapping[str, Any], title: str, at: str) -> dict[str, 
     for k in ("table", "connection", "structure", "path"):
         if source.get(k):
             origin[k] = source[k]
+    place = source.get("place")
+    if "table" not in origin and isinstance(place, Mapping) and place.get("table"):
+        origin["table"] = place[
+            "table"
+        ]  # a connection's table is named by its place (database, schema, table)
     return {"title": title, "origin": origin, "copied_at": at}
 
 
@@ -497,7 +502,7 @@ def origin_words(variant: Mapping[str, Any] | None) -> str:
         if origin.get("path") and origin.get("path") != "$":
             where += f" at {origin['path']}"
     elif kind == "connection":
-        where = f"{origin.get('table', '')} from {origin.get('connection', '')}"
+        where = f"{origin.get('table') or 'a table'} from {origin.get('connection', '')}"
     else:
         where = str(origin.get("table") or "an open table")
         if origin.get("connection"):
