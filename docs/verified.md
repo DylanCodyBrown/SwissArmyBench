@@ -5371,9 +5371,18 @@ The checks before the push:
   is a word, not a record: all three pass). One passed alone (test_intellisense_service). Two fail here because
   this run gives its child Pythons the worktree's source (test_updater, test_script_export: the known leak), and
   two are on the load list (test_performance's million rows, test_desktop_shell).
-- In Chromium: the sixteen browser test files this branch could touch (test_api_learned_page, test_local_apis_page,
-  test_endpoint_wizard_page, test_canvas_page, test_widget_wiring_page, test_canvas_gaps_page,
-  test_environment_page, test_session_page, test_scripts_ide_page, test_notebook_kinds,
+- In Chromium, first the sixteen browser test files this branch could touch (test_api_learned_page,
+  test_local_apis_page, test_endpoint_wizard_page, test_canvas_page, test_widget_wiring_page,
+  test_canvas_gaps_page, test_environment_page, test_session_page, test_scripts_ide_page, test_notebook_kinds,
   test_project_session_page, test_streamlit_extension_page, test_data_page, test_add_api_page, test_catalog_page,
   test_rail_pages): 56 passed, Streamlit's Python given.
+- Then every browser test (`-n 3 --dist loadfile tests/e2e`): 396 passed, 15 skipped (the real-world use cases
+  among them), 10 failed under that load. Run alone, seven pass (test_first_run_page's two, test_ui's two,
+  test_scripts_ide_page's two, test_project_session_page). The other three are not this branch's, each checked
+  against the commit it started from (unpacked beside it and run the same way):
+  test_workbench_page's first save asserts that the tests' folder has "pytest" in its path (this run's did not;
+  it passes with one that does); test_share_app_page's Share from Play's menu fails the same on the starting
+  commit (the device code never shows here); and test_powerbi_gates_everywhere passes alone and fails after
+  another module in the same process, the same on the starting commit (docs/ideas.md "The sweep": the gate's
+  cover on the Scripts page, left for the owner).
 - ruff, ruff format, mypy (1,036 files), the page's typecheck and build: clean.

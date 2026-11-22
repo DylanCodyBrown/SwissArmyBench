@@ -8578,6 +8578,15 @@ Left open (seen, not changed):
   real connections, and an API export asks before it bundles them. Share copies into a team's folder: should
   the sandbox stay behind unless ticked, like the kept rows? Push already leaves it (the folder is ignored
   there). The owner's call: leaving it behind changes what a copy holds.
+- **A closed area's cover on the Scripts page** (tests/e2e/test_powerbi_gates_everywhere.py fails by turns, on
+  the commit this branch started from too). Since Notebooks and Scripts are two pages, `/scripts` in a Power BI
+  project is itself the address of a closed area, so the gate's cover stands over the page. The palette's New
+  script then shows the plain line, which takes the cover away; any later reload of the gates (a project
+  notice) puts the cover back, and the test's next click (the New menu) lands on it. The scaffold's API.py in
+  every project adds to it: the page opens it, the address becomes a script's. Which is right is the owner's
+  call: the cover staying on a closed area's own page (then the palette and New menu checks belong on the
+  Notebooks page, and the plain line should not take a cover away), or no cover on the code pages. Tried and
+  taken back: not opening a closed area's documents (it changed nothing the user sees under the cover).
 - **The ERD with open tables and no relationships** says "None of the relationships' tables is used in this
   project: draw all tables to see them" (the shared catalog knows same-named tables of a connection). "No
   relationships yet" with what to do next would read better there.
