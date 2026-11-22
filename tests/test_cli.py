@@ -260,7 +260,10 @@ NOT_COMMANDS = {
 def test_every_server_route_has_a_command_or_a_stated_reason(live: Live, tmp_path: Path) -> None:
     app = create_app(1, "t", Settings(state_dir=tmp_path, export_dir=tmp_path))
     server_paths = {_normal(getattr(r, "path", "")) for r in app.routes}
-    source = (Path(main.__file__).parent / "commands.py").read_text(encoding="utf-8")
+    # The registry's file and each area's module (cli/commands_<area>.py, 2026-11-22).
+    source = "".join(
+        p.read_text(encoding="utf-8") for p in sorted(Path(main.__file__).parent.glob("command*.py"))
+    )
     # And each extension's that is on (the Streamlit extension, preinstalled: its commands.py).
     from swissarmybench import extensions
 
