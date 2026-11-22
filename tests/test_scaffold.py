@@ -155,6 +155,77 @@ def test_a_structure_read_as_a_grid_has_its_line_in_data_py(tmp_path: Path) -> N
     ]
 
 
+def _read_by_data_py(folder: Path, names: str) -> Any:
+    done = subprocess.run(  # noqa: S603 (this Python, the test's own script)
+        [sys.executable, "-I", "-c", HERE + f"import data, json; print(json.dumps([{names}], default=str))"],
+        cwd=folder, capture_output=True, text=True, timeout=120, check=False,
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)
+
+
+def test_yaml_xml_and_toml_structures_have_their_lines_too(tmp_path: Path) -> None:
+    """The sweep, 2026-11-22: only a JSON structure got its data.py line. Each format is read as the app
+    reads it (XML's attributes as "@name", TOML's dates as text), with the standard library but YAML."""
+    folder = tmp_path / "structures"
+    folder.mkdir()
+    (folder / "rates.toml").write_text(
+        '[[rates]]\ncode = "EUR"\nrate = 1.08\nsince = 2026-01-05\n\n[[rates]]\ncode = "GBP"\nrate = 1.27\n'
+        "since = 2026-02-01\n",
+        encoding="utf-8",
+    )
+    (folder / "catalog.xml").write_text(
+        '<catalog><item sku="A1"><name>Lamp</name><price>12.5</price></item>'
+        '<item sku="B2"><name>Desk</name><price>140</price></item></catalog>',
+        encoding="utf-8",
+    )
+    (folder / "gates.yaml").write_text("gates:\n  - name: review\n    limit: 500\n", encoding="utf-8")
+    grids = [
+        rules.StructureGrid("catalog", "structures/catalog.xml", "$.catalog.item"),
+        rules.StructureGrid("rates", "structures/rates.toml", "$.rates"),
+    ]
+    (tmp_path / "data.py").write_text(rules.with_structures('"""data.py"""\n', grids), encoding="utf-8")
+    assert _read_by_data_py(tmp_path, "data.catalog.to_dict('records'), data.rates.to_dict('records')") == [
+        [{"@sku": "A1", "name": "Lamp", "price": "12.5"}, {"@sku": "B2", "name": "Desk", "price": "140"}],
+        [
+            {"code": "EUR", "rate": 1.08, "since": "2026-01-05"},
+            {"code": "GBP", "rate": 1.27, "since": "2026-02-01"},
+        ],
+    ]
+    # YAML is PyYAML's: without it the line says what to install; with it (stood in for here) it reads.
+    yaml_grid = [rules.StructureGrid("gates", "structures/gates.yaml", "$.gates")]
+    (tmp_path / "data.py").write_text(rules.with_structures('"""data.py"""\n', yaml_grid), encoding="utf-8")
+    missing = subprocess.run(  # noqa: S603
+        [sys.executable, "-I", "-c", HERE + "import data"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=120, check=False,
+    )  # fmt: skip
+    if "pip install pyyaml" in missing.stderr:  # this Python has no PyYAML: a stand-in that reads this file
+        (tmp_path / "yaml.py").write_text(
+            "def safe_load_all(text):\n    return [{'gates': [{'name': 'review', 'limit': 500}]}]\n",
+            encoding="utf-8",
+        )
+    assert _read_by_data_py(tmp_path, "data.gates.to_dict('records')") == [[{"name": "review", "limit": 500}]]
+    # XML that declares an entity is refused here as in the app.
+    (folder / "catalog.xml").write_text('<!DOCTYPE x [<!ENTITY a "b">]><catalog/>', encoding="utf-8")
+    (tmp_path / "data.py").write_text(rules.with_structures('"""data.py"""\n', grids[:1]), encoding="utf-8")
+    refused = subprocess.run(  # noqa: S603
+        [sys.executable, "-I", "-c", HERE + "import data"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=120, check=False,
+    )  # fmt: skip
+    assert refused.returncode != 0 and "DOCTYPE" in refused.stderr
+
+
+def test_data_py_written_again_from_data_ipynb_keeps_its_structures(tmp_path: Path) -> None:
+    """The sweep, 2026-11-22: Export data.py (data.ipynb's own write) dropped the structures' part until
+    the scaffold's next refresh. The part is carried over as it stands."""
+    grids = [rules.StructureGrid("rates", "structures/rates.toml", "$.rates")]
+    old = rules.with_structures('"""data.py"""\n\norders = 1\n', grids)
+    new = '"""data.py"""\n\norders = 2\n'
+    kept = rules.keeping_structures(old, new)
+    assert kept == rules.with_structures(new, grids) and "orders = 2" in kept
+    assert rules.keeping_structures(new, new) == new and rules.keeping_structures(None, new) == new
+
+
 # ===== the sandbox's move and its removal =====
 
 
@@ -284,6 +355,25 @@ def test_the_scaffold_grows_with_a_connection_and_shrinks_when_it_goes(
     assert not (folder / "connections.py").exists() and "SHOP_PASSWORD" not in (
         folder / "README.md"
     ).read_text(encoding="utf-8")
+
+
+def test_a_toml_structure_opened_as_a_grid_has_its_line_and_export_data_keeps_it(
+    shop: tuple[int, Path, Path],
+) -> None:
+    """The sweep, 2026-11-22: through the app. A TOML structure's grid gets its data.py line (only JSON
+    did), and data.ipynb's own write of data.py (Export data.py) leaves the line where it is."""
+    port, folder, _ = shop
+    (folder / "structures").mkdir()
+    rates = folder / "structures" / "rates.toml"
+    rates.write_text('[[rates]]\ncode = "EUR"\nrate = 1.08\n', encoding="utf-8")
+    opened = ask(port, "POST", "/structures/open", {"path": str(rates)})
+    ask(port, "POST", f"/structures/{opened['id']}/grid", {"path": "$.rates", "name": "rates"})
+    ask(port, "POST", "/project/scaffold", {})
+    line = "rates = _records('structures/rates.toml', '$.rates')"
+    assert line in (folder / "data.py").read_text(encoding="utf-8")
+    ask(port, "POST", "/projects/export-data", {"folder": str(folder), "replace": True})
+    assert line in (folder / "data.py").read_text(encoding="utf-8")
+    assert ask(port, "POST", "/project/scaffold", {})["written"] == []  # nothing to put back
 
 
 def test_the_sandbox_mirror_grows_beside_the_app_and_goes_with_remove(shop: tuple[int, Path, Path]) -> None:

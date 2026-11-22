@@ -35,6 +35,25 @@ def test_cells_that_use_a_name_are_listed_by_document_with_their_numbers() -> No
     )
 
 
+def test_a_name_in_a_comment_is_not_a_use() -> None:
+    """The sweep, 2026-11-22: a new project's API.py holds a commented example about an orders table, so a
+    table called orders (the sample store's) said "Used in API.py" before anything used it."""
+    api = rules.Document(
+        "/p/API.py",
+        "API.py",
+        ((None, '"""Endpoints."""\n# db.read("orders", limit=5)\nlimit = 5  # of the orders\n'),),
+    )
+    assert "orders" not in rules.cell_uses([api], ["orders"], fold=True)
+    used = rules.Document("/p/API.py", "API.py", ((None, 'rows = db.read("orders")  # every row\n'),))
+    assert rules.cell_uses([used], ["orders"], fold=True)["orders"][0].words == "API.py"
+    # A SQL cell is not Python (a # there is the source's own: a T-SQL temporary table), and code that does
+    # not read as Python yet (half typed) is looked at as it is written.
+    sql = rules.Document("/p/n.ipynb", "n.ipynb", ((3, "%%sql Shop\nSELECT * FROM #orders"),))
+    assert rules.cell_uses([sql], ["orders"], fold=True)["orders"][0].words == "n.ipynb · cell 3"
+    half = rules.Document("/p/n.ipynb", "n.ipynb", ((4, "total = orders['amount'].sum("),))
+    assert rules.cell_uses([half], ["orders"])["orders"][0].words == "n.ipynb · cell 4"
+
+
 def test_a_canvas_widget_that_names_a_table_is_a_use() -> None:
     canvas = (
         '{"pages": [{"id": "p1", "name": "Sales page", "children": [{"kind": "container", "children": ['

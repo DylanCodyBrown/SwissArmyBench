@@ -333,7 +333,7 @@ class Cards:
 
     async def set_theme(self, theme_id: Any, who: str) -> dict[str, Any]:
         if theme_id != themes.APP and (not isinstance(theme_id, str) or self._theme_by_id(theme_id) is None):
-            raise NotFound(f"No Visualizations theme {theme_id!r}: GET /analyze/themes lists them.")
+            raise NotFound(f"No Analyze theme {theme_id!r}: GET /analyze/themes lists them.")
         self._theme = str(theme_id)
         await self.ws.live.broadcast({"type": "cards_updated", "grid": None})
         self.ws.audit.write(who, "analyze_theme", self._theme)
@@ -544,7 +544,7 @@ class Cards:
             raise ValueError('Send {"name": ...}: 1 to 64 letters, digits, _ or -.')
         shown = (await self.everything())["cards"]
         if not shown:
-            raise ValueError("Visualizations is empty: nothing to save.")
+            raise ValueError("The Analyze board is empty: nothing to save.")
         kept = [{k: c[k] for k in _KEPT if k in c} | {"frozen": _frozen(c)} for c in shown]
         saved = datetime.now(UTC).isoformat(timespec="seconds")
         theme = self._theme_by_id(self._theme)

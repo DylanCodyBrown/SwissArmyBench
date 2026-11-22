@@ -5423,3 +5423,135 @@ touches; the test bed's real PostgreSQL 16 and MariaDB were up for 1.8.0 and 1.9
   Reconcile) to the Scripts page opening API.py from its address, which fails the same way on the base branch here.
 - **Not checked here**: SQL Server's, Oracle's, Snowflake's, Trino's and Databricks' period and contains SQL against
   real servers (sqlglot only); Excel itself opening the new export (LibreOffice did); the export on Windows.
+## Sweep, 2026-11-22 (branch sweep): the functionality and bug sweep before the build
+Linux, Python 3.12, Chromium (Playwright's, not Edge), the app's server run from the branch with its own state
+folder and the Streamlit extension on; a made-up SQLite store (40 customers, 500 orders), the sample store,
+tests/api_standins.py's orders API (an API key in a header) and a folder extension made for it. Made-up data only.
+The desktop app's window was not run: the pages in the browser, and every action again through the agent's
+commands (the same registry the MCP server serves).
+
+What was walked, as the agent and in the browser:
+- Home and projects: New project of each type (Analysis, Streamlit app, a folder extension's own type from its
+  contract.json: its `ledger.md` scaffolded), save, autosave off, close, open again, Copy project to, the recent
+  list, the Project Explorer's cards. The Notebooks and Scripts pages of a Streamlit project.
+- Connections: a SQLite connection tested unsaved, saved, its tables listed, previewed and opened, DuckDB SQL
+  naming `[Store].customers` and `[Sandbox].orders`, colours, slots, the card's running figures ("3 calls ·
+  usually 490 ms"), the amber Only works on your machine line.
+- APIs: Add API from the stand-in's OpenAPI document (preview, add, its variables), the five actions listed,
+  described, run (25 records over 3 pages by its token), the learned shape, Discover (one Allow, four reads, the
+  master and detail pair found), Build as a notebook cell, a script function and a canvas widget; `sab.run` and
+  `sab.records` in the project's session.
+- The local sandbox API: the sandbox filled from three grids, a key set, the wizard's plan for all nine patterns
+  (Versions rightly refused: no version column), eight scaffolded into API.py (13 endpoints), Run, every GET
+  called, a POST on the agent's one Allow, a 422 naming the field, the request log, Export for FastAPI, Azure
+  Functions and AWS Lambda (the fewest files each); the wizard and Try it in the browser.
+- The project scaffold: adapter.py once something reads through it, connections.py once the project used the
+  store, README.md's Variables, the sandbox mirror, a made file edited by hand kept and taken back with Take
+  the new one, Remove the sandbox (the folder and its two files, nothing else), structures of three formats
+  opened as grids with their data.py lines, Export data.py and Export outline after them.
+- Environment: every tab (Tables, Variables, Structures, Settings and secrets, Libraries), the one search, Used
+  in, Remove, Clear's dry run, the old open=variables address landing on its tab.
+- Notebooks and Scripts: a notebook made, a Python and a SQL cell run, Save as; ONE Python session for the
+  project (a variable made for the notebook read for a script), an HTML cell filled from the kernel, `sab.table`,
+  the Scripts IDE's references and rename across two modules, the debugger in the project's session (a
+  breakpoint, the frames, the locals, evaluate, step over), a blade made and run.
+- Canvas and Widgets: widgets inserted, paired and wired, the headless check, Play in the page, Launch (build 1
+  in builds/), the builds' list, Export (app.py, widgets.py, data.py, adapter.py, api_adapter.py, connections.py,
+  requirements.txt, README.md), the Widgets window.
+- Grids, Analyze, relationships: steps, the profile, SQL, Compare, the Key Finder, Find relationships, CSV,
+  Parquet and Excel exports; all fourteen analyses on their own samples and eight on the orders table.
+- Session (the entries and each change's words), Settings, Extensions (New extension: a folder extension made on
+  Allow, its card, its route, its command in a new agent process, its project type), statistics and the change log
+  after each of the above.
+- The browser's console and failed requests were read on every page.
+
+Found and fixed (each with its test; the commit's first line in quotes):
+1. "A Streamlit project's Notebooks and Scripts pages no longer ask the Workbench for its canvas": opening a
+   Streamlit project's code pages showed an error box ("The Workbench opens notebooks (.ipynb), Python scripts
+   (.py) and Streamlit apps (.stapp.json)") because the pages asked the Workbench to open `<app>.canvas.json`.
+2. "The project scaffold's made files are not documents the code pages open": the Scripts page opened
+   adapter.py (3,650 lines) and the sandbox mirror as tabs, and connections.py counted as a reference to every
+   connection it holds.
+3. "A project opened again does not log its tables as added again": each open of a project logged every table
+   it read again, so a table's last change was always the last open.
+4. "The change log hears API.py's endpoints whenever the file is read": it heard them only while the API ran;
+   the wizard's eight patterns left the log empty.
+5. The change log also hears a library's pin, update, install and removal (the known item), a new API, and the
+   Scripts page's rename, replace, duplicate and delete; something new or gone is said in plain words ("Added
+   the table orders (4 columns)", not a list of every part).
+6. "An Add API that is refused leaves nothing behind": a new API whose connection could not be saved kept its
+   folder and web call blades, and the APIs page listed it with "no openapi.json".
+7. "No keyring on this computer is a refusal in words from every route, never a 500" (Add API on a Linux box
+   with no Secret Service).
+8. "Build's table widget on another API reads": Return as table was switched on with the records at the
+   answer's top though the answer keeps them in `$.items`, so the API's tables failed to list and the widget
+   showed "was not read". `insert: false` now answers a widget's plan alone.
+9. "A select box paired with a Choices endpoint takes its options from the label column": it was wired and still
+   showed North, South, East, West.
+10. "Try it starts an optional filter empty": a Summary's `?status=` started as "made-up status", so the first
+    Send answered 0 rows.
+11. "The project scaffold: YAML, XML and TOML structures get their data.py line; Export data.py keeps the
+    structures' part" (the two known items). XML is read as the app reads it (attributes as "@name", a DOCTYPE
+    refused), TOML by tomllib, YAML by PyYAML with one line saying what to install when it is missing.
+12. "Start-up's catalog loads leave a catalog the user took away this session": the cause of
+    test_data_page.py::test_the_rails_data_lands_on_the_page_and_browses passing and failing by turns (start-up's
+    loads run two seconds after the first window opens and brought back the catalog the test had just removed).
+    Run alone ten times after the fix: ten passes (one failure in six before).
+13. "The real-world tests wait for the save itself": use cases 5 and 10 waited for the file chooser to close,
+    which happens before the save request is answered; the helper now waits for the tab to carry the file's
+    name with its dot gone (checked in the browser on a notebook saved the same way: the file was there).
+14. "The Environment's Used in: a name in a comment uses nothing" (a new project's API.py holds a commented
+    example about an orders table).
+15. Words: Visualizations where the owner reads Analyze (the Home page's Analysis card, the project's README,
+    four refusals), the Azure Functions target promising a local.settings.json it does not write, the agent's
+    guide naming sab_api.py in an export and the blades page, the command help's "meta store" and "catalog (the
+    blades page)", "No Notebooks or Scripts page is not open", the user guide's `.sab/sandbox/`, CLAUDE.md's
+    Variables page and its count of commands (363 in the base, 393 with the Streamlit extension).
+16. The APIs page's What it answers now follows the `api_shape_changed` notice (nothing listened to it).
+17. "Any document of the project is the project's one session's": the debugger refused a project's script with
+    "run it once first" while the project's session ran.
+18. "The Catalog page's question (where would Insert go?) has an answer with no Notebooks or Scripts page open":
+    it was refused (409), an error in the browser's console every time the Catalog opened.
+
+Seen and left (see the report and docs/ideas.md "The sweep, 2026-11-22"):
+- The Scripts tree's Local sandbox API group lists every exported copy (exports/api/<target>/…, twelve files
+  after three exports): by design, noisy.
+- The Canvas and Widgets pages opened first, with only the token in the address, answer the guard's 401 as raw
+  JSON (every other page loads and buys its cookie); the app always opens them from a window that has it.
+- `scaffold_changed`, `inbox_changed`, `relationship_sets_changed` and `app_registration_checked` are sent and no
+  page listens (the files' own `file_changed` covers the scaffold).
+- A folder extension made while an MCP server is running: its command appears in a new agent process only.
+- A widget's Used in also counts a table's name inside an endpoint's path (GET /customers/choices).
+
+Not checked: Edge, Windows and macOS, the desktop app's windows; DAX against tests/powerbi_standin.py by hand
+(tests/test_powerbi*.py ran in the suite); the Environment's Libraries against tests/libraries_standin.py in the
+browser (the routes, with the stand-in's venv, in tests/test_environment.py); the real-world use cases
+(tests/e2e/test_real_world.py skipped, 14 of 14: the test bed's drivers, pymysql, nbclient and keyrings.alt, are
+not in this machine's shared Python, and a keyring backend put there would change other runs; its helper's change
+is the wait described above, checked by hand on a notebook saved the same way); Git, Power BI, Power Apps,
+Copilot and Accounting extensions beyond the suite; Excel's own paths (another builder's: one export and its
+read-back worked).
+
+The checks before the push:
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`), on the final tree: 5,244 passed, 38
+  skipped, 2 failed, both because this run gives its child Pythons the worktree's source (test_updater,
+  test_script_export: the known leak). A first run, part way through, had six more: three were this branch's
+  and are fixed (a pinned sentence in tests/test_workbench.py; tests/test_powerbi_live.py and
+  tests/test_powerbi_page_actions.py, which caught the change log reading an audit detail called `change` that
+  is a word, not a record), and three were load (test_intellisense_service, test_performance's million rows,
+  test_desktop_shell: all passed in the final run).
+- In Chromium, first the sixteen browser test files this branch could touch (test_api_learned_page,
+  test_local_apis_page, test_endpoint_wizard_page, test_canvas_page, test_widget_wiring_page,
+  test_canvas_gaps_page, test_environment_page, test_session_page, test_scripts_ide_page, test_notebook_kinds,
+  test_project_session_page, test_streamlit_extension_page, test_data_page, test_add_api_page, test_catalog_page,
+  test_rail_pages): 56 passed, Streamlit's Python given.
+- Then every browser test (`-n 3 --dist loadfile tests/e2e`): 396 passed, 15 skipped (the real-world use cases
+  among them), 10 failed under that load. Run alone, seven pass (test_first_run_page's two, test_ui's two,
+  test_scripts_ide_page's two, test_project_session_page). The other three are not this branch's, each checked
+  against the commit it started from (unpacked beside it and run the same way):
+  test_workbench_page's first save asserts that the tests' folder has "pytest" in its path (this run's did not;
+  it passes with one that does); test_share_app_page's Share from Play's menu fails the same on the starting
+  commit (the device code never shows here); and test_powerbi_gates_everywhere passes alone and fails after
+  another module in the same process, the same on the starting commit (docs/ideas.md "The sweep": the gate's
+  cover on the Scripts page, left for the owner).
+- ruff, ruff format, mypy (1,036 files), the page's typecheck and build: clean.

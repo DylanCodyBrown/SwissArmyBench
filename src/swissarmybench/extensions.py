@@ -63,8 +63,8 @@ BASE_MODE: dict[str, Any] = {
     "for_whom": "For anyone exploring data and handing over what they found.",
     "explain": (
         "Explore your data in notebooks: tables from files and connections, SQL that shapes them, charts "
-        "and statistics. You get data.ipynb for the tables, notebooks for the analysis, and Visualizations "
-        "for the report."
+        "and statistics. You get data.ipynb for the tables, notebooks for the analysis, and the Analyze "
+        "board for the report."
     ),
     "example": "Example: a quarter's sales by region, checked and charted for the finance team.",
     # The cell kinds this mode runs somewhere else than the Python kernel: {kind: {name, language, run

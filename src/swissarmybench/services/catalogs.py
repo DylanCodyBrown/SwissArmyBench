@@ -62,6 +62,9 @@ class CatalogService:
         self.ws = ws
         self._catalogs = catalogs
         self._reader = reader
+        # The catalogs the user or the agent took away this session, case folded: start-up's loads leave
+        # them (services/catalog_loading.py); Load and first use still bring one.
+        self._taken_away: set[str] = set()
 
     async def _on_worker(self, fn: Callable[[Any], Any]) -> Any:
         def job() -> Any:
@@ -78,6 +81,10 @@ class CatalogService:
 
     def loaded_names(self) -> set[str]:
         return {i.name.casefold() for i in self._catalogs.all()}
+
+    def taken_away(self) -> set[str]:
+        """The catalogs the user or the agent removed this session (names case folded)."""
+        return set(self._taken_away)
 
     def listing(self) -> dict[str, Any]:
         return {"catalogs": [i.to_json() for i in self._catalogs.all()]}
@@ -115,6 +122,8 @@ class CatalogService:
 
     async def remove(self, name: str, who: str) -> dict[str, Any]:
         await self._on_worker(lambda cur: self._catalogs.remove(cur, name))
+        if who != "app":
+            self._taken_away.add(name.casefold())
         self.ws.audit.write(who, "remove_catalog", name)
         await self._changed()
         return {"removed": name}

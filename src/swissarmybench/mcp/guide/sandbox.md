@@ -108,11 +108,12 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
 - `targets`: FastAPI, Azure Functions (Linux, Python v2), AWS Lambda (Linux, Python); extensions add theirs.
 - The target is API.py's own (asked at New, changed in Properties: `settings`); Export never asks again.
 - `export` `{"target"?, "folder"?, "rows"?, "replace"?: [files]}`: `exports/api/<target>/` in the project (a made
-  folder): API.py as it is, sab_api.py, adapter.py (the adapter: duckdb and pyarrow in its requirements),
-  connections.py (each connection's own portable code: its variables read
-  where it runs, nothing here runs it), the target's files (main.py; function_app.py, host.json,
-  local.settings.json; lambda_function.py, template.yaml), requirements.txt, README.md (deploy steps, the
-  checklist, `variables` to set). No secret in any file. A file edited by hand is `kept` until `replace` names it.
+  folder), the fewest files: API.py as it is, adapter.py (the adapter: duckdb and pyarrow in its
+  requirements), connections.py (each connection's own portable code: its variables read where it runs,
+  nothing here runs it), the target's files (main.py; function_app.py, host.json, .funcignore;
+  lambda_function.py, template.yaml: `sab_api` is folded into the framework file as a module of its own, so
+  API.py's import still holds), the API adapter's file only when API.py calls another API, requirements.txt,
+  README.md (deploy steps, the checklist, `variables` to set; a local.settings.json is the user's own). No secret in any file. A file edited by hand is `kept` until `replace` names it.
   `rows`: bundle the sandbox for `connection("Sandbox")` (the agent's waits for Allow); without it the answer's
   `warnings` say those endpoints answer an error there.
 

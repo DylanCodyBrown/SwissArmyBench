@@ -492,7 +492,7 @@ TARGETS: dict[str, Target] = {
     "azure_functions": Target(
         "azure_functions",
         "Azure Functions (Linux, Python)",
-        "function_app.py on the v2 model, host.json, local.settings.json",
+        "function_app.py on the v2 model, host.json, .funcignore",
         render_azure,
         "func start",
     ),

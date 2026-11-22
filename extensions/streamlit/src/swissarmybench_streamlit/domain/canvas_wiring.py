@@ -561,10 +561,17 @@ def pair_for(
     if chosen is None:
         return None
     port = str(chosen.get("port") or "endpoint")
+    given = node.get("values") or {}
+    sets = {
+        str(p): str(v)
+        for p, v in dict(chosen.get("sets") or {}).items()
+        if p in properties and not given.get(p)
+    }
     return {
         "endpoint": str(chosen["endpoint"]),
         "port": port,
         "as": "property" if port == "endpoint" else "in",
+        **({"sets": sets} if sets else {}),
         "words": f"{node['widget']} is wired to {chosen['endpoint']}: the {chosen.get('pattern')} pattern "
         f"over {chosen.get('of')} pairs with it. Change it in Properties.",
     }

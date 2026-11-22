@@ -567,7 +567,7 @@ in any editor. It is ordinary files, so it can be a Git repository.
 
 - `data.ipynb` makes the tables; `data.py` is its export (do not edit it by hand).
 - `.sab/` is the app's own state: `project.json` (each table's source and steps, the tabs and windows),
-  `visualizations.json` and `visualizations/` (Visualizations and its saved dashboards), `model.json`
+  `visualizations.json` and `visualizations/` (the Analyze board and its saved dashboards), `model.json`
   (the relationships).
 - `.sab/data/` holds a table's rows only when you ticked Keep its rows; `sandbox/` the sandbox's tables
   (Add to sandbox), for the local sandbox APIs, described by `sandbox_data.py` and stood in for by

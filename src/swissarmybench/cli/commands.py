@@ -159,7 +159,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "privacy": "Approvals and privacy: what waits for the user, passwords, untrusted data, the beta log",
     "powerapps": "Power Apps (an extension): code apps with pa and pac, sources, connectors, Run live, Push",
     "powerbi": "Power BI (an extension): the model exported as a Power BI Project from the ERD",
-    "git": "Git (an extension): GitHub sync of the meta store and shared projects, Source Control, the graph",
+    "git": "Git (an extension): GitHub sync of the team library and shared projects, Source Control, the graph",
     "extensions": "Making an extension: the manifest, commands, routes, the rules, tests; folders planned",
 }
 
@@ -4173,7 +4173,7 @@ def library_info(a: dict[str, Any]) -> Any:
 
 @command(
     "library_set_folder",
-    "Point the meta store (library) folder at a clone of the team's repository, or the default; waits for Allow",
+    "Point the library folder at a local copy of the team's repository, or the default; waits for Allow",
     opt("folder", "The folder's whole path; none: the default (~/.swissarmybench/library)."),
 )
 def library_set_folder(a: dict[str, Any]) -> Any:
@@ -5105,9 +5105,9 @@ def app_audit(a: dict[str, Any]) -> Any:
         "apps, blades, connections, environment, structures, session, settings; back, forward, add_connection, "
         "add_api; home: "
         "new_query (the New query page), query, query:<connection> (its draft, Query from set), grid:<id>; "
-        "catalog (the blades page): blade:<name>, new_blade",
+        "scripts (its Blades pane): blade:<name>, new_blade",
     ),
-    opt("window", "home (default), catalog, notebooks, scripts or workbench (either: the one last used)."),
+    opt("window", "home (default), notebooks, scripts or workbench (either: the one last used)."),
     opt("new_window", "notebooks, scripts, apps: true opens a Workbench window of its own.", "bool"),
 )
 def app_navigate(a: dict[str, Any]) -> Any:

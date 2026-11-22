@@ -1930,7 +1930,7 @@ Every project has `API.py` at its top: its own API, run here against the project
 data.
 
 1. **Fill the sandbox.** On a grid's Table row, **Make a sandbox variant** copies the table as you see it (after
-   its steps) into the project's sandbox (`.sab/sandbox/`, kept out of Git) as a *variant*: its own name ("orders ·
+   its steps) into the project's sandbox (`sandbox/` at the project's top, kept out of Git) as a *variant*: its own name ("orders ·
    sandbox", "orders · sandbox 2", or yours), its origin kept and shown (its tab, the bar over its grid, the
    lists), a branch mark. It never writes back to the table it came from. The Structures page makes one from a
    list of records the same way. The APIs page's Sandbox panel adds a file, an empty table by its columns, or an

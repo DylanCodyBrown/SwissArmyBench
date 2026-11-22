@@ -44,7 +44,8 @@ from typing import Any
 
 from swissarmybench.domain.html_cells import check_height
 
-APP_SUFFIX: str = ".stapp.json"  # a Streamlit app's file (domain/streamlit_cells.py)
+APP_SUFFIX: str = ".stapp.json"  # an old app canvas (went 2026-11-21): said gone in one line when opened
+CANVAS_SUFFIX: str = ".canvas.json"  # an app's canvas: the Canvas page's, never a code page's document
 MAX_CELLS: int = 2_000
 MAX_CELL_CHARS: int = 1_000_000
 MAX_OUTPUTS_PER_CELL: int = 200
@@ -394,9 +395,9 @@ def kind_of(path: str) -> str:
         return "notebook"
     if lowered.endswith(".py"):
         return "script"
-    raise NotebookError(
-        f"The Workbench opens notebooks (.ipynb), Python scripts (.py) and Streamlit apps ({APP_SUFFIX})."
-    )
+    if lowered.endswith(CANVAS_SUFFIX):
+        raise NotebookError("An app's canvas (.canvas.json) opens on the Canvas page, not in a code page.")
+    raise NotebookError("The Notebooks and Scripts pages open notebooks (.ipynb) and Python scripts (.py).")
 
 
 def quote_path(path: str) -> str:

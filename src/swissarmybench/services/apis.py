@@ -25,6 +25,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import api_clients, api_explorer, apis, web_calls
 from swissarmybench.domain.apis import ApiError, Names, Spec
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
@@ -58,6 +59,8 @@ class Library(Protocol):
     def read(self, path: str) -> str | None: ...
 
     def write(self, path: str, text: str) -> None: ...
+
+    def remove(self, folder: str) -> None: ...
 
 
 class Blades(Protocol):
@@ -265,6 +268,25 @@ class Apis:
         if plan.taken:
             raise Conflict(plan.taken)
         answer = plan.to_json()
+        try:
+            return answer | await self._added(plan, body, who)
+        except Exception:
+            if plan.existing is None:  # a new API that did not go through leaves nothing of itself
+                await self._undo(plan, who)
+            raise
+
+    async def _undo(self, plan: _Plan, who: str) -> None:
+        """A new API's add that failed part way: its web call blades, its connection and its folder go."""
+        api = plan.names.connection
+        names = [web_calls.name_of(api, op.name) for op in plan.spec.operations]
+        for name in (*names, api):
+            try:
+                await self._blades.remove(name, who)
+            except Exception:  # noqa: S110 (not made yet: nothing to take away)
+                pass
+        self._library.remove(plan.folder)
+
+    async def _added(self, plan: _Plan, body: Any, who: str) -> dict[str, Any]:
         self._library.write(plan.path, plan.text)  # the library's apis/<name>/
         tables = len(plan.spec.tables())
         count = len(plan.spec.operations)
@@ -296,10 +318,20 @@ class Apis:
             connection["library_folder"] = self._library_relative(plan.folder)
         saved = await self._connections.save(connection, previous, who)
         self._write_description(plan, body.get("check") is True)
-        self.ws.audit.write(
-            who, "add_api", f"{plan.names.connection}: {plan.path}", connection=plan.names.connection
+        # The change log (services/changes.py): a new API, its operations by method and path (a
+        # re-import's difference is the APIs page's Refresh's to say: services/api_explorer.py).
+        operations = {f"{op.method} {op.path}": {"name": op.name} for op in plan.spec.operations}
+        change = (
+            raised("api", plan.names.connection, None, {"operations": operations}) if previous is None else {}
         )
-        return answer | {"saved": saved, "written": plan.path, "web_calls": [c["name"] for c in calls]}
+        self.ws.audit.write(
+            who,
+            "add_api",
+            f"{plan.names.connection}: {plan.path}",
+            connection=plan.names.connection,
+            **change,
+        )
+        return {"saved": saved, "written": plan.path, "web_calls": [c["name"] for c in calls]}
 
     def _library_relative(self, folder: str) -> str:
         return "apis/" + folder.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]

@@ -46,7 +46,7 @@
  */
 import { inlineStatus } from "./inlineCompletion";
 import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
-import { bringPage, type CodePage, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
+import { bringPage, type CodePage, isCanvasFile, openCanvasFile, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
 import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile, searchScripts } from "./workbenchIde";
 import { debugSession, type DebugSession, type DebugState } from "./workbenchDebug";
@@ -647,7 +647,7 @@ async function followProject(state: ProjectState): Promise<void> {
   const all = opened.layout.workbench as (Kept & Partial<Record<CodePage, Kept>>) | undefined;
   const own = all?.[PAGE];
   const saved: Kept | undefined = own ?? (all?.documents ? { documents: all.documents } : undefined);
-  const wanted = (saved?.documents?.length ? saved.documents.map((relative) => joinPath(opened.folder, relative)) : (listed?.files ?? [])).filter((p) => (pageOfPath(p) ?? PAGE) === PAGE);
+  const wanted = (saved?.documents?.length ? saved.documents.map((relative) => joinPath(opened.folder, relative)) : (listed?.files ?? [])).filter((p) => !isCanvasFile(p) && (pageOfPath(p) ?? PAGE) === PAGE);
   const byKey = new Map<number, Doc>();
   for (const [key, path] of wanted.entries()) {
     await open(path);
@@ -1588,6 +1588,8 @@ async function open(path?: string): Promise<void> {
   // page's window opens it (opened on it when there is none).
   const there = pageOfPath(chosen);
   if (there && there !== PAGE) return openOnPage(chosen);
+  // An app's canvas is the Canvas page's (asked for here from the project's files): it opens there.
+  if (isCanvasFile(chosen)) return openCanvasFile(chosen);
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
   if (chosen.toLowerCase().endsWith(WORKBOOK_ENDING)) return void openWorkbook(chosen);

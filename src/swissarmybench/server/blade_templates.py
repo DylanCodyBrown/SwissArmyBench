@@ -1164,7 +1164,7 @@ def analyze(df: pd.DataFrame) -> list:
     note = f"## {len(df):,} rows, {len(df.columns)} columns\\n\\nCounts, means and spreads of each column."
     return [note, summary]""",
         "analyze",
-        note="Runs on the grid's rows as it shows them; its result can go to Visualizations.",
+        note="Runs on the grid's rows as it shows them; its result can go to the Analyze board.",
     ),
     Template(
         "pareto",

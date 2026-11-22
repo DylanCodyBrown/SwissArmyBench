@@ -154,7 +154,7 @@ What a grid page does:
   source with its type, as a searchable tree, readable by the agent so it can write SQL in the
   source's own dialect.
 - **Jupyter and Python in the terminal** are where code goes: drag a blade, table or column from the
-  blades page into a cell or an editor for its line, query or name.
+  Scripts page's Blades pane into a cell or an editor for its line, query or name.
 - **Themes:** light, dark, high contrast light and high contrast dark, following the system by
   default; Windows forced colors are supported. One zoom for the whole page, Analyze
   included: Ctrl+= and Ctrl+-.

@@ -28,6 +28,10 @@ ANSWER_SECONDS: float = 600.0
 
 Answer = asyncio.Future[Any]
 
+# The commands that only ask, with their answer when no Notebooks or Scripts page is open (a refusal there
+# is noise: the Catalog page asks where Insert would go each time it opens).
+_WITH_NO_PAGE: dict[str, dict[str, Any]] = {"explorer.target": {"document": None, "cell": None}}
+
 
 class WindowRefused(Exception):
     """The window could not do it (no such command, nothing open...): its reason."""
@@ -55,11 +59,17 @@ class WorkbenchWindow:
         if not isinstance(args, dict):
             raise ValueError("args is an object of the command's arguments.")
         to = workbench_pages.page_for_command(page, args, command)
+        if not self.ws.live.workbench_open(to) and command in _WITH_NO_PAGE:
+            return dict(_WITH_NO_PAGE[command])  # a question with an answer when no page is open
         if not self.ws.live.workbench_open(to):
             words = workbench_pages.WORDS[to] if to else "Notebooks or Scripts"
-            which = f"The {words} page" if to else "No Notebooks or Scripts page"
+            which = (
+                f"The {words} page is not open"
+                if to
+                else "Neither the Notebooks nor the Scripts page is open"
+            )
             raise Conflict(
-                f"{which} is not open: the rail's {words} opens it."
+                f"{which}: the rail's {words} opens it."
                 " (Files and kernels work without it: workbench_open, workbench_run.)"
             )
         request_id = secrets.token_hex(6)

@@ -516,7 +516,8 @@ class Actions:
         project's data.ipynb; a function at the end of the script `path` names (inside the project; made when
         it is not there): {"code", "path", "cell" | "line"}, the document opened there for the agent's (the
         page opens its own). With no project open, no `path` for a function, or "insert": false, the code
-        alone is answered, to copy. A widget is put on a canvas page (the Streamlit extension's)."""
+        alone is answered, to copy. A widget is put on a canvas page (the Streamlit extension's); with
+        "insert": false its plan alone is answered (nothing placed, no Return as table switched on)."""
         given = body if isinstance(body, dict) else {}
         made = str(given.get("as") or "")
         if made not in rules.BUILDS:
@@ -557,11 +558,13 @@ class Actions:
             plan = rules.widget(name, one.to_json(), kind, entry is None)
         except BuildError as error:
             raise Conflict(str(error)) from None
+        if given.get("insert", True) is False:  # the plan alone: nothing placed, no table switched on
+            return {"as": "widget", "widget": plan["widget"], "plan": plan}
         put = getattr(self._hooks, "canvas_put", None)
         if put is None:
             raise Conflict("A widget goes on a canvas page: the Streamlit extension makes canvases.")
         if plan.get("as_table"):  # another API's records: its web call with Return as table on, the one gate
-            await self._explorer.save_call(name, one.name, {"as_table": True}, who)
+            await self._explorer.table_call(name, one.name, str(contract.get("envelope") or "$"), who)
         placed = await put({k: given.get(k) for k in ("canvas", "page") if given.get(k)} | plan, who)
         return {"as": "widget", "widget": plan["widget"], **placed}
 

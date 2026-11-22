@@ -135,3 +135,12 @@ def test_the_agent_names_a_page_that_is_not_open(tmp_path: Path) -> None:
         assert bad.status_code == 400
         nav = client.post("/navigate", json={"window": "scripts", "to": "back"}, headers=AGENT)
         assert nav.status_code == 409 and "Scripts page" in nav.text
+        neither = client.post("/workbench/window", json={"command": "documents", "args": {}}, headers=AGENT)
+        assert neither.status_code == 409
+        assert "Neither the Notebooks nor the Scripts page is open" in neither.text
+        # "Where would Insert go?" has an answer with no page open: nowhere (the sweep, 2026-11-22: the
+        # Catalog page asks it as it opens, and a refusal showed as an error in the browser's console).
+        asked = client.post(
+            "/workbench/window", json={"command": "explorer.target", "args": {}}, headers=AUTH
+        )
+        assert asked.status_code == 200 and asked.json()["result"] == {"document": None, "cell": None}

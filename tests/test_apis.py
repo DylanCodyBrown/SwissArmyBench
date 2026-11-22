@@ -833,6 +833,66 @@ def test_add_api_writes_the_client_and_its_connection_in_one_step(
     assert standin.API_KEY not in on_disk and "API_Orders" in on_disk
 
 
+def test_an_add_that_is_refused_leaves_nothing_behind(
+    client: TestClient, service: Service, tmp_path: Path
+) -> None:
+    """The sweep, 2026-11-22: an Add API the connection's save refused (a key given with no source said for
+    it) left the API's folder, its file and its web call blades behind: the APIs page then listed an API
+    with "no openapi.json", and the same Add again said the name was taken."""
+    service.mode = "api_key_header"
+    folder = tmp_path / "state" / "library" / "apis" / "Orders"
+    body = {"spec_url": service.url + "/openapi.json", "secrets": {"ORDERS_API_KEY": standin.API_KEY}}
+    refused = client.post("/apis", json=body, headers=AGENT)
+    assert refused.status_code == 400 and "ORDERS_API_KEY" in refused.text
+    assert not folder.exists()
+    assert client.get("/apis", headers=AUTH).json()["apis"] == []
+    blades = client.get("/blades", headers=AUTH).json()["blades"]
+    assert not [b["name"] for b in blades if b["name"].startswith("Orders")]
+    assert client.get("/connections/Orders", headers=AUTH).status_code == 404
+    variables = client.get("/variables", headers=AUTH).json()["variables"]
+    assert not [v["name"] for v in variables if v["name"].startswith("ORDERS_")]
+    # Said right, the same Add goes through: nothing of the refused one is in its way.
+    keyed = body | {"variables": [{"name": "ORDERS_API_KEY", "from": "keyring"}]}
+    added = client.post("/apis", json=keyed, headers=AGENT)
+    assert added.status_code == 200, added.text
+    assert (folder / "openapi.json").is_file() and len(added.json()["web_calls"]) == 5
+    # The change log hears a new API (Plans/changes.plan.md: "an API's specification"), once.
+    asked = {"action": "history", "object": "api:Orders"}
+    history = client.get("/changes", params=asked, headers=AUTH).json()["changes"]
+    assert [c["words"] for c in history] == ["Added the API Orders"] and history[0]["who"] == "agent"
+    assert history[0]["diff"]["operations"]["added"][0] == "GET /clients"
+    # An API that is there keeps everything when an add over it is refused.
+    again = client.post("/apis", json=body | {"secrets": {"NOT_ITS_KEY": "made-up"}}, headers=AGENT)
+    assert again.status_code in (400, 409)
+    assert (folder / "openapi.json").is_file() and (folder / "API_Orders.py").is_file()
+
+
+def test_no_keyring_on_this_computer_is_a_refusal_in_words_not_a_crash(
+    client: TestClient, service: Service, tmp_path: Path
+) -> None:
+    """The sweep, 2026-11-22: Add API with a key for the keyring, on a computer with none (a Linux box
+    with no Secret Service), answered 500. It is a refusal the user can act on, as the connection's and the
+    blade's own saves already said it (409), and it leaves nothing of the API behind."""
+    import keyring
+    from keyring.backends import fail
+
+    service.mode = "api_key_header"
+    previous = keyring.get_keyring()
+    keyring.set_keyring(fail.Keyring())  # type: ignore[no-untyped-call]
+    try:
+        body = {
+            "spec_url": service.url + "/openapi.json",
+            "variables": [{"name": "ORDERS_API_KEY", "from": "keyring"}],
+            "secrets": {"ORDERS_API_KEY": standin.API_KEY},
+        }
+        refused = client.post("/apis", json=body, headers=AGENT)
+    finally:
+        keyring.set_keyring(previous)
+    assert refused.status_code == 409, refused.text
+    assert "keep secrets in" in refused.json()["error"] and "grid server" not in refused.text
+    assert not (tmp_path / "state" / "library" / "apis" / "Orders").exists()
+
+
 def test_re_import_shows_the_changes_then_writes_and_keeps_the_mapping(
     client: TestClient, service: Service, tmp_path: Path
 ) -> None:

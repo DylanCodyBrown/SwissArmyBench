@@ -115,6 +115,35 @@ def test_a_dropped_widget_wires_itself_to_the_endpoint_its_pattern_pairs_with(
     assert node(back, back["made"])["values"] == {"endpoint": "POST /orders"}
 
 
+def test_a_select_box_paired_with_choices_takes_its_options_from_the_label_column(
+    shop: tuple[TestClient, Path],
+) -> None:
+    """The sweep, 2026-11-22: a select box dropped beside a Choices endpoint was wired to it and still
+    showed its typed North, South, East, West: its column of options was left empty, so the wire did
+    nothing until the user found the property. The pairing sets it to the label the pattern answers."""
+    client, folder = shop
+    done = scaffold(client, "orders", "choices", value="order_id", label="customer")
+    assert {(p["widget"], p["endpoint"]) for p in done["paired"]} == {
+        ("select_box", "GET /orders/choices"),
+        ("input_select", "GET /orders/choices"),
+    }
+    canvas = opened(client, folder)["canvas"]
+    box = ok(command(client, canvas, "insert_widget", widget="select_box"))
+    made = node(box, box["made"])
+    assert made["wires"] == {"options_table": {"endpoint": "GET /orders/choices"}}
+    assert made["values"] == {"options_column": "customer"}
+    assert box["wired"]["sets"] == {"options_column": "customer"}
+    # A column the caller gave is the caller's.
+    mine = ok(
+        command(client, canvas, "insert_widget", widget="input_select", values={"options_column": "order_id"})
+    )
+    assert node(mine, mine["made"])["values"] == {"options_column": "order_id"}
+    assert node(mine, mine["made"])["wires"] == {"options_table": {"endpoint": "GET /orders/choices"}}
+    # One Undo takes the widget, its wire and its column back together.
+    undone = ok(client.post(f"/streamlit/canvases/{canvas}/undo", headers=AUTH, json={}))
+    assert [n for n in undone["model"]["pages"][0]["children"] if n["id"] == mine["made"]] == []
+
+
 def test_the_nearest_widget_decides_between_two_matching_endpoints() -> None:
     pairings = [
         {

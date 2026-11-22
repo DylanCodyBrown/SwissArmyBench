@@ -157,6 +157,13 @@ def test_a_projects_files_open_data_first() -> None:
         ".hidden.py",
     ]
     assert rules.project_files(names) == ["data.ipynb", "sales.stapp.json", "mockups.ipynb", "zeta.py"]
+    # The project scaffold's made files are not documents either (the sweep, 2026-11-22: opening a
+    # project's Scripts page opened adapter.py and the sandbox mirror as tabs, and connections.py counted
+    # as a reference to every connection it holds). API.py is the user's own: it opens.
+    grown = [*names, "adapter.py", "connections.py", "sandbox_data.py", "sandbox_connections.py", "API.py"]
+    assert rules.project_files(grown) == [
+        "data.ipynb", "sales.stapp.json", "mockups.ipynb", "API.py", "zeta.py",
+    ]  # fmt: skip
     assert rules.check_folder_name(" sales 2026 ") == "sales 2026"
     for bad in ("", "a/b", "..", "x" * 61, "what?"):
         with pytest.raises(rules.ProjectError):

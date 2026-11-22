@@ -22,6 +22,7 @@ Each change is told to the pages (`local_api_changed`).
 
 from __future__ import annotations
 
+import ast
 import asyncio
 import json
 import re
@@ -127,7 +128,8 @@ class LocalApi:
         self._key = ""
         self._data_key = ""
         self._failed: dict[str, Any] | None = None  # the last start's failure: {error, line}
-        self._endpoints_seen: dict[str, Any] = {}  # API.py's endpoints at the last start (the change log)
+        self._endpoints_seen: dict[str, Any] = {}  # API.py's endpoints as last read (the change log)
+        self._endpoints_of: str | None = None  # the API.py they were read from
         # The project whose sandbox the agent may write through the API for the rest of this session (the
         # owner approved, 2026-11-21: one Allow, the sandbox only, never live; Reset undoes it); None: each
         # agent write asks.
@@ -220,6 +222,7 @@ class LocalApi:
         text = self._text()
         if text is None:
             return {"project": folder, "file": path, "exists": False, "running": None}
+        self._endpoints_noted(text)  # a hand edit since the last read: the change log's
         try:
             api = rules.parse(text)
         except ApiFileError as error:
@@ -544,9 +547,11 @@ class LocalApi:
         if dry:
             return {"dry_run": True, "pattern": pattern.id, "code": block.lstrip("\n"), "imports": needs,
                     "added": made.added, "streams": made.streams, "words": made.words}  # fmt: skip
+        self._endpoints_noted(text)  # as it stood, so the log says what this write added, and who did
         text, needs = scaffold_rules.with_imports(text, needs)
         written = text.rstrip("\n") + "\n" + ("\n" + needs if needs else "") + block
         self._files.write(self.path(), written)
+        self._endpoints_noted(written, who)
         await self._told(who, "local_api_scaffold", table=table["name"], pattern=pattern.id)
         note = ""
         if made.key and not any(c.get("key") for c in table["columns"]):
@@ -580,7 +585,12 @@ class LocalApi:
         found: list[dict[str, Any]] = []
         for e in api.endpoints:
             made_by, of = pattern_rules.pattern_at(text, e.line)
+            answer = rules.answer_fields(e, api.models)
             for w in self.patterns.pairings(made_by, e.name) if made_by else []:
+                # A property the pairing sets to a field of the answer (a select's column: the label).
+                places = dict(w.get("sets") or {})
+                sets = {p: answer[i] for p, i in places.items() if 0 <= int(i) < len(answer)}
+                w = {k: v for k, v in w.items() if k != "sets"} | ({"sets": sets} if sets else {})
                 found.append(w | {"endpoint": f"{e.method} {e.path}", "pattern": made_by, "of": of})
         return found
 
@@ -601,7 +611,7 @@ class LocalApi:
         if text is None:
             raise NotFound("The project has no API.py yet: New local sandbox API… makes it.")
         settings = rules.read_settings(text)
-        self._endpoints_seen = _endpoint_shapes(text)
+        self._endpoints_noted(text)
         self._key = secrets.token_urlsafe(24)
         self._data_key = secrets.token_urlsafe(24)
         self._stamp = self._files.stamp(path)
@@ -639,14 +649,31 @@ class LocalApi:
     async def stop_all(self) -> None:
         await self.stop(None, "app")
 
-    def _endpoints_changed(self, was: dict[str, Any], now: dict[str, Any]) -> None:
-        """The change log (services/changes.py): each endpoint API.py added, changed or removed, one event
-        each (its method and path; its parameters, answer and SQL fingerprinted), seen by the app."""
+    def _endpoints_noted(self, text: str | None, who: str = "app") -> None:
+        """The change log (services/changes.py): each endpoint API.py added, changed or removed since it
+        was last read here, one event each (its method and path; its parameters, answer and SQL
+        fingerprinted). `who`: whoever wrote it (the wizard's caller), else the app, which saw a file edited
+        by hand. The first read of a project's API.py is where it starts from (nothing said), and a file
+        that does not parse for a moment is passed over (a half-typed line removes nothing)."""
+        path = self.path()
+        now = _endpoint_shapes(text) if text is not None else {}
+        if now is None:
+            return
+        was = self._endpoints_seen if self._endpoints_of == path else None
+        self._endpoints_of, self._endpoints_seen = path, now
+        if was is None:
+            return
+        by = "app" if who == "app" else ""
         for key in sorted(set(was) | set(now)):
             before, after = was.get(key), now.get(key)
-            change = raised("endpoint", f"{rules.FILE} {key}", before, after, by="app")
+            words = (
+                f"Added the endpoint {key} to {rules.FILE}" if before is None
+                else f"Removed the endpoint {key} from {rules.FILE}" if after is None
+                else ""
+            )  # fmt: skip
+            change = raised("endpoint", f"{rules.FILE} {key}", before, after, words, by=by)
             if change:
-                self.ws.audit.write("app", "changed", rules.FILE, **change)
+                self.ws.audit.write(who, "changed", rules.FILE, **change)
 
     async def _watch_file(self) -> None:
         """While it runs (or its last start failed), a change to API.py on disk starts it again."""
@@ -662,12 +689,10 @@ class LocalApi:
                     return
                 stamp = self._files.stamp(path)
                 if stamp != self._stamp:
-                    was = self._endpoints_seen
                     async with self._lock:
                         await self._stop_quietly()
                         await self._begin()
                     await self._told("app", "local_api_restart", failed=bool(self._failed))
-                    self._endpoints_changed(was, self._endpoints_seen)
         except asyncio.CancelledError:
             pass
 
@@ -680,7 +705,9 @@ class LocalApi:
         path = str(given.get("path") or "/")
         if method not in rules.METHODS or not path.startswith("/"):
             raise ApiFileError("A call is {method: GET|POST|PUT|PATCH|DELETE, path: /...}.")
-        query = given.get("query") if isinstance(given.get("query"), dict) else {}
+        asked = given.get("query")
+        # An optional parameter left empty (None) is not sent.
+        query = {k: v for k, v in asked.items() if v is not None} if isinstance(asked, dict) else {}
         payload = given.get("body")
         if not self.running() or self._runner is None:
             raise Conflict("The local sandbox API is not running: Run it first.")
@@ -788,13 +815,15 @@ class StartFailed(Exception):
         self.line = line
 
 
-def _endpoint_shapes(text: str) -> dict[str, Any]:
+def _endpoint_shapes(text: str) -> dict[str, Any] | None:
     """API.py's endpoints by method and path, each as the change log fingerprints it (its parameters, answer,
-    connections and SQL; not its lines, which move when code above it does)."""
+    connections and SQL; not its lines, which move when code above it does). None: the file does not read
+    as an API right now."""
     try:
+        ast.parse(text)  # rules.parse answers no endpoints for a file Python cannot read: not "all removed"
         found = rules.parse(text).endpoints
     except (SyntaxError, ValueError):
-        return {}
+        return None
     return {
         f"{e.method} {e.path}": {"endpoint": {k: v for k, v in asdict(e).items() if k not in ("line", "end")}}
         for e in found

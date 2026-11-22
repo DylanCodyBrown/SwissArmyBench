@@ -120,6 +120,15 @@ def test_rename_previews_skips_a_made_file_and_applies(tmp_path: Path) -> None:
         assert {n["type"] for n in notices} == {"file_changed"} and all(n["hash"] for n in notices)
         bad = client.post("/scripts/rename", json=at | {"to": "class"}, headers=AGENT)
         assert bad.status_code == 400
+        # The change log hears each script the rename wrote (the sweep, 2026-11-22: only a document's own
+        # Save was heard), by the functions it changed and whose doing it was.
+        asked = {"action": "last", "object": "script:functions.py"}
+        change = ok(client.get("/changes", params=asked, headers=AUTH))["change"]
+        assert change["who"] == "agent" and "neat" in change["words"] and "tidy" in change["words"]
+        loaded = ok(
+            client.get("/changes", params={"action": "last", "object": "script:load.py"}, headers=AUTH)
+        )
+        assert loaded["change"]["who"] == "agent"
 
 
 def test_search_and_replace_across_the_scripts(tmp_path: Path) -> None:
@@ -146,6 +155,24 @@ def test_search_and_replace_across_the_scripts(tmp_path: Path) -> None:
         # A made file is never replaced in.
         plan = ok(client.post("/scripts/replace", json={"query": "name", "to": "who"}, headers=AGENT))
         assert any(Path(s["path"]).name == "data.py" for s in plan["skipped"])
+
+
+def test_a_duplicate_and_a_replace_are_in_the_change_log(tmp_path: Path) -> None:
+    with make_client(tmp_path) as client:
+        folder = project(client, tmp_path)
+        copied = ok(
+            client.post("/scripts/files/duplicate", json={"path": str(folder / "functions.py")}, headers=AUTH)
+        )
+        name = Path(copied["path"]).name
+        made = ok(client.get("/changes", params={"action": "last", "object": f"script:{name}"}, headers=AUTH))
+        assert made["change"]["words"] == f"Added the script {name}"
+        body = {"query": "tidy", "to": "neat", "case": True, "apply": True}
+        done = ok(client.post("/scripts/replace", json=body, headers=AUTH))
+        assert done["written"]
+        changed = ok(
+            client.get("/changes", params={"action": "last", "object": "script:functions.py"}, headers=AUTH)
+        )
+        assert changed["change"]["who"] == "user" and "neat" in changed["change"]["words"]
 
 
 def test_format_needs_ruff_in_the_scripts_python(tmp_path: Path) -> None:

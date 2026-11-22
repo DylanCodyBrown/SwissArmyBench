@@ -91,6 +91,8 @@ class SessionLog:
 class Changes(Protocol):
     def heard(self, actor: str, action: str, dataset: str | None, details: dict[str, Any]) -> None: ...
 
+    def settled(self, made: dict[str, Any]) -> dict[str, Any] | None: ...
+
 
 class Heard:
     """The audit as every service writes it: the audit log's file first, then the Session page's log, then
@@ -110,6 +112,14 @@ class Heard:
         rows: int | None = None,
         **details: Any,
     ) -> None:
+        if self.changes is not None and isinstance(details.get("change"), dict):
+            # (A detail called `change` that is not one of the change log's is left as its writer gave it.)
+            # Something the open project's log already knows in this shape (a project opened again reads
+            # its tables again) is no change: the entry stays, its change does not.
+            settled = self.changes.settled(details["change"])
+            details = {k: v for k, v in details.items() if k != "change"}
+            if settled is not None:
+                details["change"] = settled
         self._inner.write(actor, action, dataset, query, rows, **details)
         # Never the query's text: the Session page's entries are names and counts only.
         self._log.heard(actor, action, dataset, details | ({"rows": rows} if rows is not None else {}))

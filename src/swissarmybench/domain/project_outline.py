@@ -661,7 +661,7 @@ def _deliverables(o: Outline) -> list[str]:
         "script": "Scripts",
         "app": "Apps",
         "api": "Local sandbox API",
-        "dashboard": "Visualizations dashboards",
+        "dashboard": "Analyze dashboards",
     }
     for kind in order:
         listed = [d for d in o.deliverables if d.kind == kind]

@@ -396,6 +396,9 @@ class Canvases:
             else:
                 wire = {"endpoint": found["endpoint"]}
                 after = wiring.set_wire(canvas, {"id": made, "port": found["port"], "wire": wire})
+            if found.get("sets"):  # what the pairing also sets (a select's column of options: the label)
+                body = {"id": made, "values": dict(found["sets"])}
+                after = model.apply(after, "set_values", body, self._facts())[0]
         except (model.CanvasError, ValueError):
             return None
         return found | {"canvas": after}

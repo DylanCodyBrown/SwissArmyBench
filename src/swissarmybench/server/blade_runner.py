@@ -883,7 +883,7 @@ def _analysis(function: Any, job: dict[str, Any]) -> dict[str, Any]:
         try:
             cards.append(card_for(part))
         except (TypeError, ValueError) as error:
-            message = f"{job['label']} returned something Visualizations can't show: {error}"
+            message = f"{job['label']} returned something the Analyze board can't show: {error}"
             raise BladeRunError(message) from None
     if not cards:
         raise BladeRunError(f"{job['label']} returned nothing to show: return markdown, a table or a figure.")

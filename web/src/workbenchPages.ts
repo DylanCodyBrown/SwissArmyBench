@@ -19,6 +19,14 @@ export const CODE_PAGES: readonly CodePage[] = ["notebooks", "scripts"];
 export const PAGE_WINDOW: Record<CodePage, string> = { notebooks: "sab-notebooks", scripts: "sab-scripts" };
 export const PAGE_WORDS: Record<CodePage, string> = { notebooks: "Notebooks", scripts: "Scripts" };
 
+/** An app's canvas (<app>.canvas.json): the Canvas page's own, never a document of these pages. */
+export const isCanvasFile = (path: string | null | undefined): boolean => (path ?? "").toLowerCase().endsWith(".canvas.json");
+
+/** The Canvas page on `path` (its own window's name, so a second ask brings it forward). */
+export function openCanvasFile(path: string): void {
+  window.open(`/streamlit/canvas?path=${encodeURIComponent(path)}`, "sab-canvas")?.focus();
+}
+
 /** The page a file opens on (null: neither). */
 export function pageOfPath(path: string | null | undefined): CodePage | null {
   const name = (path ?? "").replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";

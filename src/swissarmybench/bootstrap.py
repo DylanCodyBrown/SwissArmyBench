@@ -2224,7 +2224,7 @@ def _scaffold(b: Built) -> Scaffold:
             if origin is None or origin.kind != "structure" or not inside(origin.path):
                 continue
             relative = os.path.relpath(str(origin.path), found[0]).replace("\\", "/")
-            if relative.lower().endswith(".json"):
+            if relative.lower().endswith(scaffold_rules.STRUCTURE_SUFFIXES):
                 out.append(
                     scaffold_rules.StructureGrid(variable_name(grid.dataset), relative, origin.sql or "$")
                 )

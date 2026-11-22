@@ -74,6 +74,39 @@ class ChangeLog:
         self._now = now
         self._lock = threading.Lock()
         self._session: list[rules.Change] = []  # with no project open (memory only)
+        self._known_for: str | None = None  # the project whose log _known_of was read from
+        self._known_of: dict[tuple[str, str], str] = {}  # (kind, name): its fingerprint as last logged
+
+    def _known(self, project: str) -> dict[tuple[str, str], str]:
+        """Each object's fingerprint as the open project's log last has it (read once a project, then
+        kept up as events are written). Held under the lock."""
+        if self._known_for != project:
+            self._known_of = {}
+            for event in rules.parse(self._files.read(f"{project}/{CHANGES_FILE}") or ""):
+                found = event["object"]
+                self._known_of[(str(found.get("kind")), str(found.get("name")))] = str(
+                    event.get("after") or ""
+                )
+            self._known_for = project
+        return self._known_of
+
+    def settled(self, made: Mapping[str, Any]) -> dict[str, Any] | None:
+        """A change about something new to this session, against what the open project's log already
+        knows: None when it is there in the same shape (the project was opened again and read its table
+        again: nothing changed), said as changed since when it is there in another shape, else as made."""
+        found = made.get("object")
+        project = self._project()
+        if made.get("before") or not project or not isinstance(found, Mapping):
+            return dict(made)
+        with self._lock:
+            was = self._known(project).get((str(found.get("kind")), str(found.get("name"))))
+        if not was:  # not in the log, or last removed: it really is new
+            return dict(made)
+        if was == made.get("after"):
+            return None
+        words = f"{found.get('name')} changed since this project last had it open"
+        # What it was is not kept (fingerprints only), so the difference by name cannot be said: none is.
+        return dict(made) | {"before": was, "words": words, "diff": {}}
 
     def heard(self, actor: str, action: str, dataset: str | None, details: Mapping[str, Any]) -> None:
         """An audit entry was written: its change, kept (as it happens)."""
@@ -85,6 +118,10 @@ class ChangeLog:
         project = self._project()
         with self._lock:
             if project:
+                found = event["object"]
+                self._known(project)[(str(found.get("kind")), str(found.get("name")))] = str(
+                    event.get("after") or ""
+                )
                 self._files.append(f"{project}/{CHANGES_FILE}", rules.line(event))
             else:
                 self._session.append(event)

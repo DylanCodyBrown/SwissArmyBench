@@ -53,6 +53,22 @@ def test_a_settings_value_never_comes_along() -> None:
     assert made["words"] == "Warehouse: settings added sslmode; changed host"
 
 
+def test_something_new_or_gone_says_so_in_plain_words() -> None:
+    """The sweep, 2026-11-22: a table opened for the first time read "orders: columns added amount,
+    customer_id, order_id, placed; source added connection, kind, where" (a new connection listed its
+    twenty header fields). New and gone are said plainly; the difference still names every part."""
+    shape = {"columns": {"order_id": "BIGINT", "amount": "DOUBLE"}, "source": {"kind": "connection"}}
+    made = rules.change("table", "orders", None, shape)
+    assert made is not None and made["words"] == "Added the table orders (2 columns)"
+    assert made["diff"]["columns"]["added"] == ["amount", "order_id"]
+    gone = rules.change("table", "orders", shape, None)
+    assert gone is not None and gone["words"] == "Removed the table orders"
+    api = rules.change("api", "Shop", None, {"actions": {"list_orders": "GET /orders"}})
+    assert api is not None and api["words"] == "Added the API Shop"
+    one = rules.change("table", "totals", None, {"columns": {"total": "DOUBLE"}})
+    assert one is not None and one["words"] == "Added the table totals (1 column)"
+
+
 def test_given_words_win_and_a_kind_is_checked() -> None:
     made = rules.change(
         "endpoint", "Shop list_orders", None, {"fields": {"id": "integer"}}, "Its answer gained id."
@@ -124,5 +140,5 @@ def test_a_canvas_page_and_api_pys_endpoints_as_the_log_names_them() -> None:
         '\n\n@endpoint("GET", "/orders/{region}")\ndef orders_in(region: str) -> list[dict]:\n    return []\n'
     )
     shapes = _endpoint_shapes(local_api.scaffold("Orders") + endpoint)
-    assert list(shapes) == ["GET /orders/{region}"]
+    assert shapes is not None and list(shapes) == ["GET /orders/{region}"]
     assert all("line" not in s["endpoint"] for s in shapes.values())

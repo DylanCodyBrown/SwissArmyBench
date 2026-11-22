@@ -97,3 +97,56 @@ def test_the_bi_base_has_no_apps_and_offers_the_extension(browser: Browser, base
     expect(work.locator(".nav-rail [data-area='canvas']")).to_be_hidden()
     shot(work, "streamlit-off-workbench.png")
     work.context.close()
+
+
+def test_a_streamlit_projects_code_pages_open_without_asking_for_its_canvas(
+    browser: Browser, full: dict[str, Any], tmp_path: Path
+) -> None:
+    """The sweep, 2026-11-22: opening a Streamlit project's Notebooks (or Scripts) page asked the Workbench
+    to open the project's <app>.canvas.json, which it refused in an error box naming the old .stapp.json.
+    The canvas is the Canvas page's: the code pages leave it, and opening it from one goes there."""
+    from tests.e2e.test_ui import call
+
+    made = call(full, "POST", "/project/new", {"path": str(tmp_path / "shop"), "type": "streamlit"})
+    canvas = next(f for f in made["files"] if f.endswith(".canvas.json"))
+    try:
+        for path, tab in (("/notebooks", "data.ipynb"), ("/scripts", "Local sandbox API")):
+            page = open_page(browser, full, path)
+            refused: list[str] = []
+
+            def note(response: Any, seen: list[str] = refused) -> None:
+                if response.status >= 400:
+                    seen.append(response.url)
+
+            page.on("response", note)
+            if tab == "data.ipynb":
+                expect(page.locator(".wb-tab", has_text=tab)).to_be_visible(timeout=20000)
+            else:
+                expect(page.locator(".wb-codex-body")).to_contain_text(tab, timeout=20000)
+            page.wait_for_load_state("networkidle")
+            expect(page.locator(".error-note")).to_have_count(0)
+            assert not [u for u in refused if "/workbench/open" in u], refused
+            page.context.close()
+        # Asked for by its path (the agent's workbench_open, a link): one sentence that says where it opens.
+        asked = call_refused(full, "/workbench/open", {"path": canvas})
+        assert "Canvas page" in asked and ".stapp.json" not in asked
+    finally:
+        call(full, "POST", "/project/close", {"discard": True})
+
+
+def call_refused(info: dict[str, Any], path: str, body: Any) -> str:
+    """A POST the server refuses: its one sentence."""
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{info['port']}{path}",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"Authorization": f"Bearer {info['token']}", "Content-Type": "application/json"},
+    )
+    try:
+        urllib.request.urlopen(request, timeout=60)  # noqa: S310
+    except urllib.error.HTTPError as error:
+        return str(json.loads(error.read())["error"])
+    raise AssertionError("it was not refused")

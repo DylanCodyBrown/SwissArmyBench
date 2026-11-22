@@ -8641,3 +8641,88 @@ plan's words:
   call pandas' read_excel in generated code; `xlsxwriter` as a library a notebook's own environment may still install.
   An export of a project that makes a workbook (the plan's last section) is the project scaffold's builder's work:
   sab_excel.py is ready to be carried as adapter.py is.
+
+## The sweep, 2026-11-22 (branch sweep): the decisions made, and what is left open
+The functionality and bug sweep before the build (docs/verified.md "Sweep, 2026-11-22" lists what was walked
+and each fix). Decided without asking, as told; each is small and none removes a feature.
+
+Decisions:
+- **A canvas is the Canvas page's, never a code page's document.** The Notebooks and Scripts pages leave
+  `<app>.canvas.json` out of the documents they open with a project; asked for from one of them (the project's
+  files in the Data Explorer pane), it opens the Canvas page on it. The server's refusal for a canvas says where
+  it opens, and no longer promises the old `.stapp.json`.
+- **A made file is not a document.** "Which files the Workbench opens" (domain/projects.py project_files) leaves
+  out everything domain/code_tree.py made_from knows: data.py as before, and now adapter.py, connections.py and
+  the sandbox mirror. They stay in the Scripts tree's Project code, where a click opens one. The same list feeds
+  the Connections page's references, so connections.py no longer counts as a use of each connection.
+- **The change log says what changed, not what was read again.** Something new to the session that the open
+  project's log already has in the same shape is no event (services/changes.py settled: a project opened again
+  reads its tables again). When the shape differs, one event says "orders changed since this project last had
+  it open", with no difference by name: the log keeps fingerprints, never what the shape was, so it does not
+  pretend to know. A new or removed object is said as that ("Added the table orders (4 columns)", "Removed the
+  endpoint GET /orders from API.py"), the difference still naming every part.
+- **API.py's endpoints are noted whenever the file is read**, not only by the running API's file watch: the
+  wizard's write says who added them, a hand edit is seen at the next read (the app's doing), the first read of
+  a project's API.py is where it starts from, and a file Python cannot read for a moment is passed over.
+- **A library's change is one event a library**: pin, unpin, update (from, to), install and removal. One library:
+  on the action's own entry; several installed at once: the action's entry, then a `changed` entry each.
+- **Start-up's catalog loads leave a catalog the user took away this session.** Load, first use and a save still
+  bring it. (It was the race behind a browser test that failed by turns, and a real one for a user who removes
+  a catalog in the first seconds.)
+- **A refused Add API leaves nothing.** Only for a new API; one that is there keeps everything when an add over
+  it is refused, as before.
+- **No keyring is a refusal (409), everywhere.** The sentence now says Swiss Army Bench (not "the grid server")
+  and names what to use instead: a key vault, an environment variable or a secret blade.
+- **Build's table widget takes its records from the learned shape's envelope**, and leaves alone a web call the
+  user already set as a table (services/api_explorer.py table_call). `insert: false` on a widget answers its
+  plan alone, as it does for a cell and a function.
+- **A pairing may set widget properties** (domain/api_patterns.py Pairing.sets: a property to a field of the
+  endpoint's answer by its place). Choices sets a select's column of options to the label. An extension's
+  pattern can say the same in its `widgets`. A value the caller gave is never overwritten.
+- **Try it starts an optional query parameter empty** (its default when it has one; a required one is still
+  made up), and a call drops a parameter left empty.
+- **data.py's structures: every format the app opens as a grid.** JSON, XML and TOML with the standard library;
+  YAML with PyYAML, said in one line when it is missing (the scaffold must run without the app, and PyYAML is
+  not ours to add to a project's requirements.txt without the owner's word: see below). XML with a DOCTYPE or an
+  entity is refused in data.py as in the app. Export data.py carries the structures' part over as it stands.
+- **One session a project means any of its documents.** The kernel a document runs in is the project's
+  session whether or not that document started it (services/workbench.py kernel_for): the debugger and a
+  lineage's values use it straight away. A file outside the project still has none.
+- **A question with no page open has an answer.** "Where would Insert go?" (the Catalog page asks as it opens)
+  answers no document when neither the Notebooks nor the Scripts page is open, where it was refused.
+- **Used in reads code, not comments.** Python's comments are left out (tokenize); a `%%sql` cell and code that
+  does not read as Python yet are looked at as written.
+
+Left open (seen, not changed):
+- **requirements.txt and a YAML structure.** A project whose data.py reads a YAML structure needs PyYAML where
+  it runs; data.py says so when it is missing. Should the scaffold add `pyyaml` to requirements.txt as it adds
+  the line? The owner's call (a dependency the plan does not list).
+- **The Scripts tree's Local sandbox API group after an export**: twelve read-only copies under one group after
+  three targets. A folded "Exports" group under it would be quieter; the grouping is as documented, so it stayed.
+- **The Canvas and Widgets pages as a first address** (a bookmark after a restart) answer the guard's 401 as
+  JSON. The base's pages are served and buy their cookie from the token; an extension's page could too.
+- **Notices nobody hears**: `scaffold_changed`, `inbox_changed`, `relationship_sets_changed`,
+  `app_registration_checked` (the Session log and the files' own notices cover what the pages need today).
+- **A folder extension's command and a running MCP server**: the registry is read when the agent's process
+  starts, so a new extension's command needs a new agent session. The card could say so.
+- **Used in and an endpoint's path**: a widget wired to `GET /customers/choices` counts as a use of the table
+  `customers` because the word is in the path.
+- **A table whose shape changed while the project was closed** is said without its difference (above). Keeping
+  each object's shape (names and types, never a value) beside its fingerprint would let the log name it.
+- **Copy project to, Share and Make a local copy take the sandbox's rows along** (`sandbox/`, as they took
+  `.sab/sandbox/` before the move): only `.sab/data/` waits for the tick. The sandbox holds rows read once from
+  real connections, and an API export asks before it bundles them. Share copies into a team's folder: should
+  the sandbox stay behind unless ticked, like the kept rows? Push already leaves it (the folder is ignored
+  there). The owner's call: leaving it behind changes what a copy holds.
+- **A closed area's cover on the Scripts page** (tests/e2e/test_powerbi_gates_everywhere.py fails by turns, on
+  the commit this branch started from too). Since Notebooks and Scripts are two pages, `/scripts` in a Power BI
+  project is itself the address of a closed area, so the gate's cover stands over the page. The palette's New
+  script then shows the plain line, which takes the cover away; any later reload of the gates (a project
+  notice) puts the cover back, and the test's next click (the New menu) lands on it. The scaffold's API.py in
+  every project adds to it: the page opens it, the address becomes a script's. Which is right is the owner's
+  call: the cover staying on a closed area's own page (then the palette and New menu checks belong on the
+  Notebooks page, and the plain line should not take a cover away), or no cover on the code pages. Tried and
+  taken back: not opening a closed area's documents (it changed nothing the user sees under the cover).
+- **The ERD with open tables and no relationships** says "None of the relationships' tables is used in this
+  project: draw all tables to see them" (the shared catalog knows same-named tables of a connection). "No
+  relationships yet" with what to do next would read better there.

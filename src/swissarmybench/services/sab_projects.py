@@ -750,7 +750,7 @@ class SabProjects:
                         "Save the project, with these rows kept in its folder:",
                         f"  {current.folder}",
                         *(f"  {name} ({self._rows(name):,} rows)" for name in rows_tables),
-                        *(["  Visualizations' table cards"] if card_rows else []),
+                        *(["  The Analyze board's table cards"] if card_rows else []),
                     ]
                 )
                 if not await self._approvals.ask(current.name, "save the project with rows", detail):
