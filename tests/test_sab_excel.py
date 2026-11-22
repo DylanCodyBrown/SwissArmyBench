@@ -6,9 +6,11 @@ tests are tests/test_accounting_workbook.py and tests/test_accounting_statements
 from __future__ import annotations
 
 import datetime as dt
+import decimal
 import io
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +62,59 @@ def test_a_reader_from_the_adapter_streams_into_the_workbook_and_reads_back_the_
     assert not list(path.parent.glob(".*sab-writing"))
     back = adapter.read(adapter.Excel(path), "Rows")[0].read_all()
     assert back.num_rows == 120_000 and back.column("id").to_pylist()[-1] == 119_999
+
+
+def test_the_plain_rows_written_as_their_own_xml_keep_every_rule(tmp_path: Path) -> None:
+    """The plain export writes its data rows' XML itself (openpyxl the rest: 2026-11-22, five times faster):
+    each kind read back by openpyxl as openpyxl's own cells were (made-up values)."""
+    zone = dt.timezone(dt.timedelta(hours=2))
+    rows = pa.table(
+        {
+            "whole": [7, 10**15, None],
+            "number": [1.5, float("nan"), 1e20],
+            "text": ["=1+1", " a & <b> ", "ctrl\x01"],
+            "flag": [True, False, None],
+            "money": pa.array(
+                [decimal.Decimal("12.34"), None, decimal.Decimal("-0.01")], pa.decimal128(10, 2)
+            ),
+            "day": [dt.date(2026, 1, 5), dt.date(1899, 12, 30), None],
+            "at": [dt.datetime(2026, 1, 5, 9, 30, 15, 500000), None, dt.datetime(2026, 1, 5, 9)],
+            "clock": [dt.time(9, 30), None, dt.time(23, 59, 59)],
+            "lasted": [dt.timedelta(hours=30), None, dt.timedelta(0)],
+            "listed": [[1, 2], None, []],
+            "zoned": pa.array([dt.datetime(2026, 1, 5, 9, tzinfo=zone)] * 3, pa.timestamp("us", tz="+02:00")),
+        }
+    )
+    path = tmp_path / "kinds.xlsx"
+    sab_excel.build({"Kinds": rows.to_reader(2)}, out=path)  # a reader's batches, sliced as they come
+    sheet = load_workbook(path)["Kinds"]
+    got = [[(c.value, c.data_type, c.number_format) for c in row] for row in sheet.iter_rows(min_row=2)]
+    assert got[0] == [
+        (7, "n", "General"),
+        (1.5, "n", "General"),
+        ("=1+1", "s", "General"),
+        (True, "b", "General"),
+        (12.34, "n", "General"),
+        (dt.datetime(2026, 1, 5), "d", "yyyy-mm-dd"),
+        (dt.datetime(2026, 1, 5, 9, 30, 15, 500000), "d", "yyyy-mm-dd h:mm:ss"),
+        (dt.time(9, 30), "d", "h:mm:ss"),
+        (dt.timedelta(hours=30), "d", "[hh]:mm:ss"),
+        ("[1, 2]", "s", "General"),
+        ("2026-01-05T09:00:00+02:00", "s", "General"),
+    ]  # fmt: skip  a time with its zone: its ISO text
+    # A whole number Excel would round, NaN and a date before Excel's: exact text.
+    assert [v for v, _, _ in got[1]][:6] == [
+        "1000000000000000",
+        "nan",
+        " a & <b> ",
+        False,
+        None,
+        "1899-12-30",
+    ]
+    assert got[2][2][0] == "ctrl_x0001_" and got[2][10][0] == "2026-01-05T09:00:00+02:00"  # a zone: ISO text
+    assert (got[2][5][0], got[2][0][0], got[2][3][0]) == (None, None, None)  # blanks stay blank
+    assert sheet.dimensions == "A1:K4" and sheet.auto_filter.ref == "A1:K4" and sheet.freeze_panes == "A2"
+    assert not list(Path(tempfile.gettempdir()).glob("sab_excel.*.rows.xml"))  # its rows' files gone
 
 
 def test_notes_are_sheets_of_labelled_lines_and_long_text_is_refused_or_cut() -> None:

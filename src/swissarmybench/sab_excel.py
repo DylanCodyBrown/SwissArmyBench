@@ -25,7 +25,10 @@ an export carries only the parts its design uses:
   charts      a chart block: Excel's own chart over a table or a pivot on the workbook
   templates   fill_template: an existing workbook's places bound to data, its tables growing
   statements  build_statements: one workbook per group (or a sheet each), named, numbered, dated, a register
-  plain       plain_workbook: rows as they are, streamed (the grid's Excel export; near a million rows)
+  plain       plain_workbook: rows as they are, streamed (the grid's Excel export; near a million rows):
+              openpyxl writes the workbook (styles, each sheet's header, widths, frozen pane, filter) and
+              the data rows' XML is written here a batch at a time by the one rule, then put in each sheet's
+              part (about five times faster than a cell object a value; the same cells read back)
   build       build(grids, design, template, out): the one call over all of it
 
 Standard library, openpyxl and duckdb only: nothing of the app.
@@ -33,10 +36,13 @@ Standard library, openpyxl and duckdb only: nothing of the app.
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import datetime as _dt
 import decimal
+import io
 import json
+import os
 import re
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
@@ -47,7 +53,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import absolute_coordinate, get_column_letter, quote_sheetname, range_boundaries
 from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"  # 1.1.0: the plain export writes its data rows' XML itself (openpyxl the rest)
 
 MAX_ROWS = 1_000_000  # one block's rows (a sheet holds 1,048,576)
 SHEET_ROWS = 1_048_576  # the rows one sheet holds, its header too
@@ -1211,8 +1217,9 @@ def read_register(folder: str | Path) -> tuple[list[str], list[tuple[Any, ...]]]
 
 # ===== plain: rows as they are, streamed into a workbook (the grid's Excel export) =====
 
-BATCH_ROWS = 50_000  # the rows read and written at a time
-WIDEST = 60  # a column is sized to its longest text in the first batch, up to this
+BATCH_ROWS = 10_000  # the rows written at a time (a reader's bigger batch sliced: what is held stays small)
+WIDEST = 60  # a column is sized to its longest value in its first rows (SAMPLE_ROWS), up to this
+ZIP_LEVEL = 6  # the deflate level the sheets are written at (zlib's default, as openpyxl's own)
 _LIMIT = 10**EXACT_DIGITS
 _INF = float("inf")
 
@@ -1223,12 +1230,20 @@ def _batches(rows: Any) -> tuple[list[str], Iterator[list[list[Any]]]]:
     through a DuckDB of its own."""
     if hasattr(rows, "schema") and hasattr(rows, "to_batches"):  # an Arrow table
         batches = rows.to_batches(max_chunksize=BATCH_ROWS)
-        return list(rows.schema.names), ([c.to_pylist() for c in b.columns] for b in batches)
+        return list(rows.schema.names), _arrow_columns(batches)
     if hasattr(rows, "schema") and hasattr(rows, "read_next_batch"):  # an Arrow reader
-        return list(rows.schema.names), ([c.to_pylist() for c in b.columns] for b in rows)
+        return list(rows.schema.names), _arrow_columns(rows)
     result = connect({"rows": rows}).execute('SELECT * FROM "rows"')
     names = [d[0] for d in result.description]
     return names, _fetched(result, len(names))
+
+
+def _arrow_columns(batches: Iterable[Any]) -> Iterator[list[list[Any]]]:
+    """Arrow batches as columns of Python values, BATCH_ROWS rows at a time (a bigger batch sliced: no copy),
+    so what is held at once stays small whatever the reader's batches are."""
+    for batch in batches:
+        for at in range(0, batch.num_rows, BATCH_ROWS):
+            yield [c.to_pylist() for c in batch.slice(at, BATCH_ROWS).columns]
 
 
 def _fetched(result: Any, width: int) -> Iterator[list[list[Any]]]:
@@ -1239,34 +1254,115 @@ def _fetched(result: Any, width: int) -> Iterator[list[list[Any]]]:
         yield [[r[i] for r in chunk] for i in range(width)]
 
 
-def _plain_column(
-    values: list[Any], name: str, first_row: int, truncate: bool
-) -> tuple[list[Any], list[int], int]:
-    """One batch's column as cells take it (changed in place where the rule says), the positions whose text
-    Excel would read as a formula or an error (written as text cells), and its longest text."""
-    forced: list[int] = []
-    width = 0
-    for at, value in enumerate(values):
-        if value is None:
-            continue
+SAMPLE_ROWS = 1_000  # the first batch's rows a column's width is measured on
+_ESCAPED = str.maketrans({"&": "&amp;", "<": "&lt;", ">": "&gt;"})  # text as XML holds it
+_SPACES = (" ", "\t", "\n", "\r")  # a text that starts or ends with one keeps it (xml:space)
+_DAY_ONE = _dt.date(1899, 12, 30).toordinal()  # Excel's day 0 (1900 dates; from 1900-03-01 on, exact)
+_KINDS = (
+    ("date", _dt.date(2026, 1, 1)),
+    ("datetime", _dt.datetime(2026, 1, 1)),
+    ("time", _dt.time(0, 0)),
+    ("duration", _dt.timedelta(0)),
+)  # fmt: skip  each one's style, as openpyxl gives it
+
+
+def _plain_styles(ws: Any) -> dict[str, int]:
+    """The shared style of a date, a date and time, a time and a duration (openpyxl's own number formats:
+    yyyy-mm-dd, yyyy-mm-dd h:mm:ss, h:mm:ss, [hh]:mm:ss), one each in the workbook: never one a cell."""
+    from openpyxl.cell import WriteOnlyCell
+
+    return {kind: int(WriteOnlyCell(ws, value=value).style_id) for kind, value in _KINDS}
+
+
+def _text_xml(at: str, text: str, name: str, row: int, truncate: bool) -> str:
+    """A text cell, written as an inline string: never a formula or an error, whatever its first character
+    (=, +, -, @, #); its characters XML cannot hold as Excel's _xHHHH_, longer than a cell holds refused or
+    cut."""
+    held = cell_text(text)
+    if len(held) > MAX_CELL_CHARS:
+        held = _shortened(held, name, row - 1, truncate)
+    kept = ' xml:space="preserve"' if held[:1] in _SPACES or held[-1:] in _SPACES else ""
+    return f'<c r="{at}" t="inlineStr"><is><t{kept}>{held.translate(_ESCAPED)}</t></is></c>'
+
+
+def _value_xml(at: str, value: Any, styles: Mapping[str, int], name: str, row: int, truncate: bool) -> str:
+    """One value's cell by the one rule (cell_value): a number as itself, a whole number of more digits than
+    Excel keeps as text, yes/no, a date, a date and time, a time or a duration as Excel's number in its
+    shared style, one before 1900-03-01 or with a zone as its ISO text, anything else as cell_value says."""
+    kind = type(value)
+    if kind is int:
+        return (
+            f'<c r="{at}"><v>{value}</v></c>'
+            if -_LIMIT < value < _LIMIT
+            else _text_xml(at, str(value), name, row, truncate)
+        )
+    if kind is float:
+        if value == value and value not in (_INF, -_INF):
+            return f'<c r="{at}"><v>{value!r}</v></c>'
+        return _text_xml(at, repr(value), name, row, truncate)
+    if kind is str:
+        return _text_xml(at, value, name, row, truncate)
+    if kind is bool:
+        return f'<c r="{at}" t="b"><v>{int(value)}</v></c>'
+    if kind is decimal.Decimal:  # a number while Excel keeps its digits, else its exact text
+        if value.is_finite() and len(value.as_tuple().digits) <= EXACT_DIGITS:
+            return f'<c r="{at}"><v>{float(value)!r}</v></c>'
+        return _text_xml(at, str(value), name, row, truncate)
+    if isinstance(value, _dt.date) and value == value:  # a date, or a date and time (pandas' NaT: blank)
+        zoned = getattr(value, "tzinfo", None) is not None
+        if zoned or (value.year, value.month, value.day) < FIRST_DAY:
+            return _text_xml(at, value.isoformat(), name, row, truncate)
+        day = value.toordinal() - _DAY_ONE
+        if not isinstance(value, _dt.datetime):
+            return f'<c r="{at}" s="{styles["date"]}"><v>{day}</v></c>'
+        seconds = value.hour * 3600 + value.minute * 60 + value.second + value.microsecond / 1_000_000
+        return f'<c r="{at}" s="{styles["datetime"]}"><v>{day + seconds / 86_400!r}</v></c>'
+    if isinstance(value, _dt.time):
+        if value.tzinfo is not None:
+            return _text_xml(at, value.isoformat(), name, row, truncate)
+        seconds = value.hour * 3600 + value.minute * 60 + value.second + value.microsecond / 1_000_000
+        return f'<c r="{at}" s="{styles["time"]}"><v>{seconds / 86_400!r}</v></c>'
+    if isinstance(value, _dt.timedelta):
+        return f'<c r="{at}" s="{styles["duration"]}"><v>{value.total_seconds() / 86_400!r}</v></c>'
+    held, text = cell_value(value)  # a decimal, numpy's scalars, a list or a record, anything else
+    if held is None:
+        return ""
+    if text:
+        return _text_xml(at, held, name, row, truncate)
+    return _value_xml(at, held, styles, name, row, truncate) if type(held) is not kind else ""
+
+
+def _column_xml(
+    values: Sequence[Any], letter: str, first: int, styles: Mapping[str, int], name: str, truncate: bool
+) -> list[str]:
+    """One batch's column as its cells' XML, a row each ("" for a blank): a whole number, a number and a
+    text written here at once, the rest by _value_xml."""
+    out: list[str] = []
+    append = out.append
+    for row, value in enumerate(values, first):
         kind = type(value)
-        if kind is bool or (kind is int and -_LIMIT < value < _LIMIT):
-            width = max(width, len(str(value)))
-            continue
-        if kind is float and value == value and value not in (_INF, -_INF):
-            if width < WIDEST:
-                width = max(width, len(repr(value)))
-            continue
-        held, text = cell_value(value)
-        if text:
-            if len(held) > MAX_CELL_CHARS:
-                held = _shortened(held, name, first_row + at, truncate)
-            if held[:1] in ("=", "#"):
-                forced.append(at)
-        values[at] = held
-        if width < WIDEST:
-            width = max(width, len(str(held)))
-    return values, forced, min(WIDEST, width)
+        if value is None:
+            append("")
+        elif kind is int and -_LIMIT < value < _LIMIT:
+            append(f'<c r="{letter}{row}"><v>{value}</v></c>')
+        elif kind is float and value == value and value not in (_INF, -_INF):
+            append(f'<c r="{letter}{row}"><v>{value!r}</v></c>')
+        elif kind is str:
+            append(_text_xml(f"{letter}{row}", value, name, row, truncate))
+        else:
+            append(_value_xml(f"{letter}{row}", value, styles, name, row, truncate))
+    return out
+
+
+def _sampled_width(values: Sequence[Any]) -> int:
+    """A column's width from its first rows' longest shown value, up to WIDEST."""
+    width = 0
+    for value in values[:SAMPLE_ROWS]:
+        if value is not None:
+            width = max(width, len(cell_text(value) if type(value) is str else str(cell_value(value)[0])))
+            if width >= WIDEST:
+                return WIDEST
+    return width
 
 
 def _shortened(text: str, name: str, row: int, truncate: bool) -> str:
@@ -1289,15 +1385,18 @@ def _text_cell(ws: Any, text: str, bold: bool = False) -> Any:
     return cell
 
 
-def _plain_sheet(ws: Any, rows: Any, truncate: bool) -> int:
-    """One grid streamed into its sheet: a bold header, frozen, with a filter; each column sized to its
-    longest text in the first batch. Returns the rows written."""
+def _plain_sheet(ws: Any, rows: Any, truncate: bool, into: Any) -> tuple[int, int]:
+    """One grid streamed into its sheet: a bold header, frozen, with a filter (openpyxl's); each column sized
+    to its first rows' longest value; the data rows' XML written into `into` (a text file) a batch at a
+    time, for the sheet's part (_spliced). Returns the rows and the columns written."""
     names, batches = _batches(rows)
     if len(names) > SHEET_COLUMNS:
         raise WorkbookError(
             f"{len(names):,} columns is more than one Excel sheet holds ({SHEET_COLUMNS:,}). "
             "Choose fewer columns, or export CSV or Parquet."
         )
+    letters = [get_column_letter(i + 1) for i in range(len(names))]
+    styles = _plain_styles(ws)
     written = 0
     for columns in batches:
         size = len(columns[0]) if columns else 0
@@ -1306,31 +1405,52 @@ def _plain_sheet(ws: Any, rows: Any, truncate: bool) -> int:
                 f"More rows than one Excel sheet holds ({SHEET_ROWS - 1:,} data rows). Filter first, or "
                 "export CSV or Parquet."
             )
-        made = [_plain_column(c, names[i], written + 1, truncate) for i, c in enumerate(columns)]
         if not written:
-            _plain_top(ws, names, [m[2] for m in made])
-        table: Iterable[Sequence[Any]] = zip(*(m[0] for m in made), strict=True)
-        if any(m[1] for m in made):
-            table = _with_text_cells(ws, table, [m[1] for m in made])
-        for row in table:
-            ws.append(row)
+            _plain_top(ws, names, [_sampled_width(c) for c in columns])
+        first = written + 2  # the sheet's row: the header is row 1
+        cells = [_column_xml(c, letters[i], first, styles, names[i], truncate) for i, c in enumerate(columns)]
+        rows_xml = (
+            f'<row r="{r}">{"".join(row)}</row>' for r, row in enumerate(zip(*cells, strict=True), first)
+        )
+        into.write("".join(rows_xml))
         written += size
     if not written:
         _plain_top(ws, names, [0] * len(names))
     if names:
-        ws.auto_filter.ref = f"A1:{get_column_letter(len(names))}{max(written, 1) + 1}"
-    return written
+        ws.auto_filter.ref = f"A1:{letters[-1]}{max(written, 1) + 1}"
+    return written, len(names)
 
 
-def _with_text_cells(
-    ws: Any, table: Iterable[Sequence[Any]], forced: Sequence[Sequence[int]]
-) -> list[list[Any]]:
-    """The batch's rows with each text Excel would misread as a text cell of its own."""
-    rows = [list(r) for r in table]
-    for i, places in enumerate(forced):
-        for at in places:
-            rows[at][i] = _text_cell(ws, rows[at][i])
-    return rows
+def _spliced(made: bytes, rows: Mapping[str, tuple[str, int, int]], target: Any) -> None:
+    """openpyxl's workbook (`made`: each streamed sheet with its header only) copied into `target` (a path
+    or a file), each sheet's data rows (`rows`: its part's name -> the file of its rows' XML, its rows, its
+    columns) put in its sheetData after the header, its dimension made the whole range. Every other part is
+    openpyxl's as it wrote it."""
+    import shutil
+    import zipfile
+
+    with (
+        zipfile.ZipFile(io.BytesIO(made)) as given,
+        zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=ZIP_LEVEL) as book,
+    ):
+        for part in given.infolist():
+            data = given.read(part.filename)
+            if part.filename not in rows:
+                book.writestr(part, data)
+                continue
+            path, count, width = rows[part.filename]
+            text = data.decode("utf-8")
+            if "</sheetData>" not in text:  # no header row either: an empty sheetData
+                text = text.replace("<sheetData/>", "<sheetData></sheetData>", 1)
+            head, _, tail = text.rpartition("</sheetData>")
+            if width:
+                whole = f'<dimension ref="A1:{get_column_letter(width)}{count + 1}"'
+                head = re.sub(r'<dimension ref="[^"]*"', whole, head, count=1)
+            big = os.path.getsize(path) > 2**31 - 2**24  # past what a plain zip entry says: Zip64
+            with book.open(part.filename, "w", force_zip64=big) as into, open(path, "rb") as streamed:
+                into.write(head.encode("utf-8"))
+                shutil.copyfileobj(streamed, into, 1 << 20)
+                into.write(("</sheetData>" + tail).encode("utf-8"))
 
 
 def _plain_top(ws: Any, names: Sequence[str], widths: Sequence[int]) -> None:
@@ -1353,15 +1473,44 @@ def plain_workbook(
     workbook's bytes, or the path written when `out` is given."""
     if not isinstance(grids, Mapping) or not grids:
         raise WorkbookError('A plain workbook takes its grids by sheet name: {"Orders": orders}.')
+    import tempfile
+
     book = Workbook(write_only=True)
-    for name, rows in grids.items():
-        _plain_sheet(book.create_sheet(str(name)[:31] or "Sheet"), rows, truncate)
-    for name, lines in (notes or {}).items():
-        ws = book.create_sheet(str(name)[:31])
-        ws.column_dimensions["A"].width, ws.column_dimensions["B"].width = 14, 80
-        for label, text in lines:
-            ws.append([_text_cell(ws, str(label), bold=True), _text_cell(ws, str(text))])
-    return _saved(book, out)
+    streamed: dict[Any, tuple[str, int, int]] = {}  # a sheet -> its rows' file, rows, columns
+    try:
+        for name, rows in grids.items():
+            ws = book.create_sheet(str(name)[:31] or "Sheet")
+            handle, path = tempfile.mkstemp(prefix="sab_excel.", suffix=".rows.xml")
+            streamed[ws] = (path, 0, 0)
+            with open(handle, "w", encoding="utf-8", buffering=1 << 20) as into:
+                count, width = _plain_sheet(ws, rows, truncate, into)
+            streamed[ws] = (path, count, width)
+        for name, lines in (notes or {}).items():
+            ws = book.create_sheet(str(name)[:31])
+            ws.column_dimensions["A"].width, ws.column_dimensions["B"].width = 14, 80
+            for label, text in lines:
+                ws.append([_text_cell(ws, str(label), bold=True), _text_cell(ws, str(text))])
+        made = io.BytesIO()
+        book.save(made)  # openpyxl's whole workbook: the styles, each streamed sheet's header and filter
+        parts = {ws.path.lstrip("/"): found for ws, found in streamed.items()}
+        if out is None:
+            buffer = io.BytesIO()
+            _spliced(made.getvalue(), parts, buffer)
+            return buffer.getvalue()
+        path_out = Path(out)
+        path_out.parent.mkdir(parents=True, exist_ok=True)
+        partial = path_out.with_name(f".{path_out.name}.sab-writing")
+        try:
+            _spliced(made.getvalue(), parts, str(partial))
+            os.replace(partial, path_out)
+        finally:
+            if partial.exists():
+                partial.unlink()
+        return str(path_out)
+    finally:
+        for path, _, _ in streamed.values():
+            with contextlib.suppress(OSError):
+                os.remove(path)
 
 
 # ===== build: the one call =====
@@ -1369,9 +1518,6 @@ def plain_workbook(
 
 def _saved(book: Any, out: str | Path | None) -> Any:
     """The workbook's bytes, or, with `out`, its file: written beside it, then put in its place."""
-    import io
-    import os
-
     if out is None:
         buffer = io.BytesIO()
         book.save(buffer)
@@ -1391,8 +1537,6 @@ def _saved(book: Any, out: str | Path | None) -> Any:
 def _from_template(grids: Mapping[str, Any], design: Mapping[str, Any], template: Any, out: Any) -> Any:
     """A template filled once (the first row of its data, its lines), or, with `group_by` (or `each_row`),
     a statement per group into the folder `out`."""
-    import io
-
     names = list(grids) if isinstance(grids, Mapping) else []
     data = grids.get(design.get("data") or (names[0] if names else "")) if names else None
     lines = grids.get(design["lines"]) if design.get("lines") else None
