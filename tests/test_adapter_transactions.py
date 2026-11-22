@@ -162,3 +162,33 @@ def trino(monkeypatch: pytest.MonkeyPatch) -> TrinoStandIn:
     fake.paramstyle = "qmark"  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "trino", fake)
     return TrinoStandIn()
+
+
+# ----- 1.7.0: a write's dry run through the connection object -----
+
+UPLOAD = [{"id": 2, "status": "Done"}, {"id": 3, "status": "Done"}, {"id": 4, "status": "New"}]
+
+
+def test_a_connections_planned_says_what_its_write_would_do_and_writes_nothing(shop: str) -> None:
+    db = adapter.Connection(adapter.DuckDB.file(shop), "Garden")
+    assert db.planned("tasks", UPLOAD, key=["id"], mode="merge") == Counts(inserted=1, updated=2)
+    assert db.planned("tasks", pa.table({"id": [1, 9]}), key="id", mode="delete") == Counts(deleted=1)
+    assert db.planned("tasks", mode="truncate") == Counts(deleted=3)
+    assert db.planned("tasks", UPLOAD) == Counts(inserted=3)
+    assert _statuses(db.source) == ["Open", "Open", "Open"]  # nothing written
+    with pytest.raises(adapter.AdapterError, match="A merge names the key"):
+        db.planned("tasks", UPLOAD, mode="merge")
+
+
+def test_planned_through_sqlite_and_sql_servers_own_dry_run(tmp_path: Path, server: standin.Server) -> None:
+    con = sqlite3.connect(tmp_path / "garden.db")
+    con.execute("CREATE TABLE tasks (id INTEGER PRIMARY KEY, status TEXT)")
+    con.executemany("INSERT INTO tasks VALUES (?, 'Open')", [(1,), (2,), (3,)])
+    con.commit()
+    lite = adapter.Connection(adapter.Sql(con, "sqlite", "Garden"))
+    assert lite.planned("tasks", UPLOAD, key=["id"], mode="merge") == Counts(inserted=1, updated=2)
+    warehouse = adapter.Connection(adapter.Sql(server.connect(), "sqlserver", "Warehouse"))
+    keys = pa.table({"id": pa.array([2, 3, 4], pa.int64())})  # the keys alone: what a dry run needs
+    assert warehouse.planned("dbo.tasks", keys, key=["id"], mode="merge") == Counts(inserted=1, updated=2)
+    assert any(s.startswith("CREATE TABLE #sab_keys") for s in server.statements)  # its own staged keys
+    assert server.rows("dbo.tasks") == [(1, "Open"), (2, "Open"), (3, "Open")]

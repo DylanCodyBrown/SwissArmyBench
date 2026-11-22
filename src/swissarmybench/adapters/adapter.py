@@ -13,6 +13,7 @@ only a view of one.
 
     db = Connection("Warehouse")              # what API.py's connection(name) hands out: the same calls
     db.read("orders", filters=[["region", "=", "North"]], limit=100); db.query(sql, params); db.write(...)
+    db.write_all([...]); db.planned("orders", rows, key=("id",), mode="merge")   # all or none; a dry run
 
 It reads top to bottom in the order a call runs:
 
@@ -39,7 +40,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.6.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.7.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -75,6 +76,8 @@ Version 1.6.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            transaction, all of them or none, each one's counts (Write; OneWrite; a source's own write_all:
            DuckDB's, Sql's (SQL Server's run whole again on a passing error), Remote's through the door's
            write_all); Trino, Dataverse's Web API, Rows, Files and Excel refuse two or more in one sentence
+  1.7.0    Connection.planned(table, rows, key, mode): a write's dry run through the connection object, as
+           planned() is (rows as write takes them; a key as one name or several)
 """
 
 from __future__ import annotations
@@ -98,7 +101,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.6.0"  # the docstring's change list says what each version added
+VERSION = "1.7.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -3930,6 +3933,19 @@ class Connection:
         """Several writes in one transaction, all or none (write_all): each a Write, {table, rows, key, mode}
         or (table, rows, key, mode); each one's counts."""
         return write_all(self.source, writes)
+
+    def planned(
+        self,
+        table: str,
+        rows: pa.Table | pa.RecordBatchReader | Sequence[Mapping[str, Any]] | None = None,
+        key: Sequence[str] | str = (),
+        mode: str = "insert",
+    ) -> Counts:
+        """What write(table, rows, key, mode) would do, nothing written (planned): the counts it would give,
+        and its notes. For a keyed mode the key columns alone are enough."""
+        keys = ((key,) if key else ()) if isinstance(key, str) else tuple(key)
+        given = None if rows is None else _reader_of(rows)
+        return planned(self.source, table, given, keys, mode)
 
     def __getattr__(self, name: str) -> Any:
         if name in GONE_CALLS:

@@ -185,3 +185,11 @@ def test_the_sandbox_through_remote_writes_two_tables_all_or_none(two_tables: Te
     broken = two_tables.post("/sandbox/adapter/write_all", content=b'{"writes": [{"bytes": 9}]}\nabc',
                              headers=AUTH)  # fmt: skip
     assert broken.status_code == 422 and "not what the JSON line said" in broken.json()["error"]
+
+
+def test_a_connections_planned_counts_through_the_sandbox_and_writes_nothing(two_tables: TestClient) -> None:
+    db = adapter.Connection(TestRemote(two_tables, "Sandbox"), "Sandbox")
+    keys = [{"id": 2}, {"id": 3}, {"id": 7}]
+    assert db.planned("tasks", keys, key="id", mode="merge") == adapter.Counts(inserted=1, updated=2)
+    assert db.planned("audit", mode="truncate") == adapter.Counts(deleted=1)
+    assert two_tables.get("/sandbox", headers=AUTH).json()["log"].get("tasks", {}).get("updated", 0) == 0
