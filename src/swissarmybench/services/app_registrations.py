@@ -145,7 +145,11 @@ class AppRegistrations:
         users = [(n, k) for n, k, _code in coded]
         if missing:
             why = f"{', '.join(missing)} {'has' if len(missing) == 1 else 'have'} no value on this computer"
-            items.append(rules.Access("Sign-in", reg.name, None, why, "Set it on the Variables page"))
+            items.append(
+                rules.Access(
+                    "Sign-in", reg.name, None, why, "Set it on the Environment's Settings and secrets tab"
+                )
+            )
         else:
             items += await asyncio.to_thread(self._powerbi, reg, values, identity, users)
         for connection, kind, code in coded:

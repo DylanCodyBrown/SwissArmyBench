@@ -638,7 +638,8 @@ their own, run in an IPython kernel on this computer.
   multiprocessing), saving it first. Ctrl+Enter (or Shift+Enter, F9) runs the whole statement at the
   cursor, a `for` block or a function, then moves to the next one. Run to here and Run from here are in
   the palette.
-- **The console:** every notebook and script has one, on its own kernel. Enter runs a whole statement
+- **The console:** every notebook and script has one, on its Python session (a project's documents share
+  the project's one session; a loose file has its own). Enter runs a whole statement
   and adds a line to an unfinished one; Shift+Enter adds a line; Up goes back through what ran.
   `input()` asks in place. Colours, progress bars and long output show as they would in a terminal.
 - **Notebooks:** a new notebook has the cursor in its first cell: type at once. A result that is a
@@ -673,7 +674,7 @@ their own, run in an IPython kernel on this computer.
   or the kernel made count as defined), warnings in yellow, unused imports faded; with Ruff in the
   document's Python its rules join in. The status bar counts errors and warnings (click it for the
   list, a click on one goes there), and Ctrl+. offers the fixes: add the import, remove the unused
-  import, define a name from the Variables page, use the close name. A SQL cell is checked by DuckDB's
+  import, define a name from the Environment's settings, use the close name. A SQL cell is checked by DuckDB's
   own parser (another database's by its dialect). Your agent sees the same list.
 - **Send to the agent:** right-click an error (its panel, or the underlined code), or select code and
   right-click, then **Send to the agent** (or **…with a question** to add your own words). It reaches
@@ -709,7 +710,7 @@ changes nothing in those tools and never reads a password (nor browsers, passwor
 or cloud sync folders). One row per connection, with every tool it was found in; **Already added** for one you
 have; a kind Swiss Army Bench has no connection for yet is shown but cannot be ticked. Tick the ones you want
 (**Select all**, the search box), **Import**: each becomes a connection of its kind with its password a
-variable that is not set yet (**Needs a password** on its card: set it once on the Variables page or Set up
+variable that is not set yet (**Needs a password** on its card: set it once on the Environment's Settings and secrets tab or Set up
 this computer). SQL Server and Azure SQL use mssql-python (no ODBC driver); a Windows sign-in, an ODBC data
 source or a file on this disk keep the amber "Only works on your machine". For you: `connections_find`, then
 `connections_import_found(ids)`; both wait for the user's Allow.
@@ -1000,9 +1001,28 @@ project holds, with a tab for each kind:
   query, your code). A table your Python holds that is not open yet is marked **In Python**.
 - **Variables**: what your code makes (numbers, text, lists, dictionaries), with a short look at the value.
 - **Structures**: JSON, YAML, XML and TOML documents (they open in the Structures viewer; **New, open or paste…**).
-- **Settings and secrets**: the `${NAME}` settings. A secret is always masked; **Show** is yours alone, in the
-  viewer. **Add a setting…**; **Key vaults and more…** opens the page that lists and adds key vaults.
-- **Libraries**: the libraries of the project's Python: version, what each is for, where it is imported.
+- **Settings and secrets**: the `${NAME}` settings (this was the Variables page). A secret is always masked;
+  **Show** is yours alone, in the viewer. **Add a setting…** adds one. Your **key vaults** are listed above the
+  settings they give (a card each: a click opens it, **Read again** reads its names); **Add key vault** adds one.
+- **Libraries**: the libraries of the project's Python: version, what each is for, where it is imported. The line
+  above them says what the project's Python is.
+
+**One Python for the whole project.** Every notebook and script of a project runs in one Python session, so a
+value one makes, the others see, and the Variables tab shows that one session. Code runs one cell at a time: a
+long cell in one document makes the others wait. **Interrupt** stops what is running, whichever document
+started it; **Restart** clears every variable for all of them, so it asks first. Both are in the status bar of
+the Notebooks and Scripts pages, under **Python session**. A file that is not in a project keeps a session of
+its own.
+
+**The project's own Python.** The app makes a `.venv` folder in the project (Git never takes it) when you make
+or open a project, with the libraries `requirements.txt` names, so a teammate's copy gets the same ones. It is
+made in the background: you can work at once in the app's own Python, and one line says when the project's is
+ready (**Restart** the session to use it). If it could not be made, the Libraries tab says why, with **Try
+again**. A notebook that had an environment of its own says so once when it opens, and offers its libraries to
+the project (**Add them**, **Not now**).
+
+**Every table by its name.** Any table on the Tables tab can be read in code by its name, whether or not a grid
+shows it: `sab.table("orders")`, or a DuckDB SQL cell that names it.
 
 What you can do there:
 
@@ -1051,7 +1071,7 @@ tables, so it is not on the Connections page). Click a vault's card for its deta
 ### A variable in any box: `${NAME}`
 
 Type `${NAME}` into any box where you type a value: a connection's server, user or password, an API's
-address, a file's path, a script's Run settings, a SQL query. It reads that variable from the Variables page
+address, a file's path, a script's Run settings, a SQL query. It reads that setting (the Environment's Settings and secrets tab)
 at the moment it is used, on this computer, so the value stays out of the files you share and each computer
 fills in its own.
 
@@ -1077,8 +1097,8 @@ fills in its own.
   one is kept, on Save, as a keyring variable named after the connection (`WAREHOUSE_PASSWORD`), said in amber
   while it is typed because it works only on this computer. A key vault's secret is a variable too: type its
   variable's name. There are no "comes from" lists beside the boxes: where a value comes from is set once, on
-  the Variables page, for every place that uses it.
-- The Variables page lists each variable's uses by box: `Warehouse · Server`.
+  the Environment's Settings and secrets tab, for every place that uses it.
+- The Settings and secrets tab lists each setting's uses by box: `Warehouse · Server`.
 - **Anywhere:** typing `${` in any box of the app lists the variables the same way, and right-clicking a box
   offers **Insert variable…** (beside Cut, Copy and Paste; Shift+F10 from the keyboard). A SQL cell or query
   box completes them after `${` too. Search boxes, and Python cells (use `os.environ["NAME"]` there), do not.
@@ -1156,7 +1176,7 @@ columns appear as `table#1`, `col#3`.
 - **Its table is called:** a blade whose result is a table (a function or code that makes a DataFrame) has a table name of its own, kept in its file (`table = "monthly_sales"`), so it travels with the library's Git repository. As you type, the line under it says **available**, or why not: **orders is already a table**, **Warehouse is a connection**, **monthly_sales is Monthly sales's table**, or **not a valid name** (1 to 64 letters, digits, `_` or `-`; not a word DuckDB's SQL keeps for itself). Save refuses a taken name with the same words. Left empty, the table is called what its code makes. In a notebook, `sab.blade(...)` makes its result (a function's, each time it is called) the variable of that name, so `%%sql SELECT * FROM monthly_sales` works, and the Variables panel and the Open list show it by that name; the Data Explorer lists it under that name too.
 - **Passwords** go in the code as `secret("password")`. Type the value on the blade's screen: it is kept in Windows Credential Manager (or macOS Keychain), never in the blade.
 - **Analysis blades** are your own analyses: the code is a function of the grid's rows, `def analyze(df, columns): ...`, where `df` is the rows as the grid shows them (a pandas DataFrame, its steps applied) and `columns` the columns you selected. Return markdown text, a table (a DataFrame), a figure (matplotlib, Plotly, Altair), or a list of them. It appears under **Your analyses** in the Analyze menu; it runs in the grid server's own Python, in a process of its own, and its result shows in a window with **Send to Analyze**.
-- **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable (key vaults are added on the Variables page). **Secret blades** keep only variable names: you type the values once per session.
+- **Vault blades** read secrets from Azure Key Vault, AWS, Google, HashiCorp Vault, 1Password, a `.env` file or the operating system's vault, and set each one as an environment variable (key vaults are added on the Environment's Settings and secrets tab). **Secret blades** keep only variable names: you type the values once per session.
 - **Packages:** the blade's screen lists the packages the code needs that are missing. A missing one is asked for as the blade opens (**Install now**, **Not now**), and **Install <package>** asks again; they go into the grid server's Python.
 - **A connection's tables are always listed.** On a connection's screen, **How its tables are listed** in Properties is the query that lists them; a connection saved before without one uses its starter's. Drag a blade into a script or a cell for its `sab.blade` line (on a line of its own, after the line you drop it on).
 - **Find a blade:** the search box above the blades matches names, descriptions and tags, and the tag chips under it narrow the list. The star pins a favourite to the top.

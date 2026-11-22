@@ -214,7 +214,7 @@ def test_the_lint_across_cells_in_run_order() -> None:
 def test_a_variable_from_the_variables_page_is_offered_as_its_definition() -> None:
     found = asyncio.run(service().lint({"text": "print(WAREHOUSE_URL)"}))
     titles = [f["title"] for f in found["problems"][0]["fixes"]]
-    assert "Define `WAREHOUSE_URL` from the Variables page (a plain value)" in titles
+    assert "Define `WAREHOUSE_URL` from the Environment's settings (a plain value)" in titles
 
 
 RUFF = shutil.which("ruff")

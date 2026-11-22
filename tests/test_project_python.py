@@ -18,6 +18,7 @@ import pyarrow.ipc as ipc
 import pytest
 from starlette.testclient import TestClient
 
+from swissarmybench.adapters import environment as environment_files
 from swissarmybench.cli import commands
 from swissarmybench.domain import project_python as rules
 from swissarmybench.server import environments
@@ -187,6 +188,56 @@ def test_the_run_says_which_document_it_is_for(client: TestClient, project: Path
     assert workbench.kernel_count() == 1
 
 
+def test_the_session_is_no_windows_a_popped_out_document_keeps_it(client: TestClient, project: Path) -> None:
+    """A document popped out into a window of its own takes its kernel with it; the project's one session
+    is no window's, so that window closing (or a minute without it) never stops it for the others."""
+    import asyncio
+
+    notebook = str(project / "report.ipynb")
+    kernel = start(client, path=notebook, window="main-window")["kernel"]
+    run(client, kernel, "kept = 7", document=notebook)
+    document = {"kind": "notebook", "path": notebook, "cells": []}
+    handed = ok(
+        client.post("/workbench/handoffs", json={"document": document, "kernel": kernel}, headers=AUTH)
+    )
+    taken = ok(
+        client.post(
+            f"/workbench/handoffs/{handed['id']}/take",
+            json={"window": "popped-window", "page": "notebooks"},
+            headers=AUTH,
+        )
+    )
+    assert taken["kernel"] == kernel
+    workbench = client.app.state.ctx.workbench  # type: ignore[attr-defined]
+    workbench._now = lambda: 10_000_000_000.0  # long after: every window that ever held it is gone
+    assert asyncio.run(workbench.stop_orphans(set())) == []
+    assert asyncio.run(workbench.stop_orphans(set())) == []
+    assert workbench.session_kernel() == kernel
+    assert "7" in text_of(run(client, kernel, "print(kept)"))
+
+
+def test_a_table_the_session_sends_names_the_document_whose_code_made_it() -> None:
+    """A project's documents share one kernel, so the kernel alone no longer says which document a table's
+    read-only cell belongs in: the document the run was for is kept as the table arrives."""
+    from swissarmybench.domain.table_cells import Origin
+    from swissarmybench.services.table_cells import Origins
+
+    running = {"k1": "/work/Shop/load.py"}
+    origins = Origins()
+    origins.document_of = lambda kernel: running.get(kernel or "")
+    origins.note("orders", Origin(kind="python", kernel="k1"))
+    running["k1"] = "/work/Shop/report.ipynb"  # another document's code runs in the same session
+    origins.note("late", Origin(kind="python", kernel="k1"))
+    assert origins.document("orders") == "/work/Shop/load.py"
+    assert origins.document("late") == "/work/Shop/report.ipynb"
+    origins.rename("orders", "sales")
+    assert origins.document("sales") == "/work/Shop/load.py" and origins.document("orders") is None
+    origins.note("sales", Origin(kind="file", path="/work/Shop/sales.csv"))  # read again from a file
+    assert origins.document("sales") is None
+    origins.forget("late")
+    assert origins.document("late") is None
+
+
 def test_a_loose_file_keeps_a_session_of_its_own(client: TestClient, project: Path, tmp_path: Path) -> None:
     loose = tmp_path / "elsewhere" / "scratch.py"
     loose.parent.mkdir()
@@ -292,6 +343,18 @@ def test_a_project_that_has_one_is_left_alone(making: TestClient, tmp_path: Path
     state = ok(making.get("/environment/python", headers=AUTH))
     assert state["status"] == "ready"
     assert not list(libraries_standin.site_packages(folder).glob("ipykernel-*"))  # nothing was made again
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a link to a program needs a right on Windows")
+def test_a_venv_that_links_to_the_apps_python_is_still_its_own_environment(tmp_path: Path) -> None:
+    """Found with a real `.venv` (uv links its Python to the one it was made from): the project's libraries
+    were read as the app's own. A Python is the app's by its place, never by what its link points to."""
+    python = libraries_standin.make_venv(tmp_path, {"tabulate": "0.10.0"})
+    python.unlink()
+    python.symlink_to(sys.executable)
+    assert environment_files.installed(str(python)) == {"tabulate": "0.10.0"}
+    assert environment_files.requires(str(python)) == {"tabulate": []}
+    assert "pytest" in environment_files.installed(sys.executable)
 
 
 # ===== a notebook that had its own environment =====

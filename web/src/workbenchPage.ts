@@ -274,7 +274,10 @@ function assignTables(): void {
     // In a project a table's read-only cell lives in data.ipynb (its export data.py is what the
     // other notebooks and the pages import): a table no document made goes there.
     const data = code.find(isData);
-    const found = (table.kernel ? code.find((d) => d.kernel?.id === table.kernel) : undefined) ?? code.find((d) => viewOf(d)!.holdsTable(table.name)) ?? data ?? (noPython && current && code.includes(current) ? current : undefined);
+    // The document whose code made it (the server says: a project's documents share one kernel), else the
+    // document of the kernel that sent it.
+    const made = table.document ? code.find((d) => d.path === table.document) : undefined;
+    const found = made ?? (table.kernel ? code.find((d) => d.kernel?.id === table.kernel && (!d.kernel.shared || !table.document)) : undefined) ?? code.find((d) => viewOf(d)!.holdsTable(table.name)) ?? data ?? (noPython && current && code.includes(current) ? current : undefined);
     if (found) tableOwner.set(table.name, found);
   }
   for (const doc of code) {
@@ -3405,6 +3408,7 @@ onNotice((notice) => {
   if (notice.type === "session_restarted" || notice.type === "session_ended") {
     const said = notice as unknown as { type: string; kernel?: string; python?: string; words?: string };
     if (sessionHeard(said) && said.words) toast(said.words);
+    void loadProjectPython().then(() => drawStatus()); // the session's kernel as it is now
     drawStatus();
   }
   if (notice.type === "workbook_changed") for (const d of docs) d.workbook?.noticed(String((notice as unknown as { id: string }).id));

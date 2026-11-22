@@ -969,7 +969,13 @@ registerLayer("environment", {
 // setting it named (open=variables&name=REGION_DEFAULT), with the address put right.
 registerLayer("variables", {
   isOpen: () => false,
-  open: (url) => void go(withParams({ open: "environment", at: "settings", name: url?.searchParams.get("name") ?? null, type: null }), "replace"),
+  open: (url) => {
+    const name = url?.searchParams.get("name") ?? undefined;
+    void go(withParams({ open: "environment", at: "settings", name: name ?? null, type: null }), "replace").then(() => {
+      if (shownPage?.open) view?.show("setting", name);
+      else drawPage("setting", name);
+    });
+  },
   show: () => undefined,
   dismiss: () => undefined,
 });

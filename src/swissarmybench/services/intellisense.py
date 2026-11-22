@@ -351,7 +351,7 @@ class Intellisense:
         elif quoted.kind == "variable":
             for v in self._variables():
                 where = str(v.get("words") or v.get("from") or "")
-                offer(str(v["name"]), "variable", where, f"From the Variables page: {where}" if where else "")
+                offer(str(v["name"]), "variable", where, f"A setting (Environment): {where}" if where else "")
         elif quoted.kind == "column" and quoted.table:
             for column, kind in self._columns(quoted.table):
                 offer(column, "column", f"{quoted.table} · {kind}")

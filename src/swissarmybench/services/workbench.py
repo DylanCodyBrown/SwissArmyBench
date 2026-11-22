@@ -301,6 +301,11 @@ class Workbench:
         ):
             raise ValueError('Send {"path": "the document", "python": "its Python"}.')
         checked = self._kernels.check_python(body["python"])
+        project = self.project()
+        if project is not None and project_python.in_project(body["path"], project[0]):
+            return (
+                checked  # a project's document runs in the project's one Python: nothing of its own to keep
+            )
         self._documents.remember_environment(body["path"], str(checked["python"]))
         return checked
 
@@ -701,7 +706,8 @@ class Workbench:
                 raise Conflict(wrong)
         held["taken"] = True
         kernel = held["kernel"] if held["kernel"] in self._running else None
-        if kernel is not None:
+        if kernel is not None and kernel != self._session:
+            # (The project's one session is no window's: it lives with the project, whichever window left.)
             self._owner[kernel] = window
             self._gone_since.pop(kernel, None)
         return {"document": held["document"], "kernel": kernel}

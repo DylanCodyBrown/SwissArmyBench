@@ -533,7 +533,7 @@ def _check_path_values(prop: Property, value: Any, context: Context) -> None:
         if match and context.variables is not None and match.group(1) not in context.variables:
             raise PropertyError(
                 f"{match.group(1)} is not set on this computer.",
-                "Set it on the Variables page, or pick another.",
+                "Set it on the Environment's Settings and secrets tab, or pick another.",
             )
         if text.startswith("{{") and not _PAGE_VALUE.match(text):
             raise PropertyError(f"{text[:40]} is not a page value.", "Write a page value as {{ region }}.")
@@ -605,7 +605,8 @@ def check(prop: Property, value: Any, context: Context | None = None) -> None:
             raise PropertyError(f"{value[:40]} is not a variable's name.", "Pick a variable from the list.")
         if context.variables is not None and value not in context.variables:
             raise PropertyError(
-                f"{value} is not set on this computer.", f"Set {value} on the Variables page."
+                f"{value} is not set on this computer.",
+                f"Set {value} on the Environment's Settings and secrets tab.",
             )
     elif kind == "str" and len(value or "") > MAX_TEXT:
         raise PropertyError(f"{name} is {MAX_TEXT} characters at most.", "Shorten it.")

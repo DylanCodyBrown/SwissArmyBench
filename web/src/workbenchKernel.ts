@@ -182,17 +182,26 @@ export class Kernel {
 
   /** Run code; each output as it arrives; the run's end. */
   async run(body: RunBody, onOutput: (o: RunItem) => void): Promise<Done> {
-    const id = await this.ensure();
+    let id = await this.ensure();
     this.running++;
     this.set("busy");
     this.tellOthers();
     try {
-      const response = await fetch(`/workbench/kernels/${id}/execute`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        // The document this code runs for: a project's one session runs every document's.
-        body: JSON.stringify({ ...body, document: this.path() }),
-      });
+      const send = (kernel: string): Promise<Response> =>
+        fetch(`/workbench/kernels/${kernel}/execute`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          // The document this code runs for: a project's one session runs every document's.
+          body: JSON.stringify({ ...body, document: this.path() }),
+        });
+      let response = await send(id);
+      if (response.status === 404 && this.shared) {
+        // The project's session ended since this document took it (the project closed and opened, the
+        // session was stopped from another window): the run starts the new one, as a first Run does.
+        this.id = null;
+        id = await this.ensure();
+        response = await send(id);
+      }
       if (response.status === 404) {
         this.id = null; // the server restarted or the kernel was stopped: start a new one next time
         throw new ApiError(404, "The kernel was gone: run again.");

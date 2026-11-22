@@ -168,7 +168,10 @@ class ProjectPython:
         if folder is None:
             return None
         project_python, _ = self._files.python_of(folder)
-        if _same(python, project_python):
+        # The project's own Python, or the app's own, is no environment of the notebook's: nothing to offer.
+        if _same(python, project_python) or _same(python, self._files.python_of(None)[0]):
+            if self.forget_environment is not None:
+                self.forget_environment(path)
             return None
         try:
             there = rules.chosen(self._files.requires(python))

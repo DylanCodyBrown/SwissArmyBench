@@ -20,7 +20,7 @@ import pandas as pd
 from playwright.sync_api import Browser, Locator, Page, expect
 
 from swissarmybench.client import push_client
-from tests.e2e.environment_helpers import open_variables
+from tests.e2e.environment_helpers import add_setting, open_settings, setting_row
 from tests.e2e.test_ui import browser, call, not_now  # noqa: F401
 
 
@@ -86,20 +86,17 @@ def test_a_vaults_variables_are_there_after_a_restart(
         page = browser.new_context(viewport={"width": 1300, "height": 820}).new_page()
         page.goto(url)
         expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
-        open_variables(page)
-        found = page.locator('.area-page[data-page="variables"]')
-        rows = found.locator(".variable-row")
-        vaulted = rows.filter(has=page.locator(".variable-name", has_text="warehouse_password"))
-        expect(vaulted.locator(".variable-value")).to_have_text("Team vault · warehouse-password")
+        found = open_settings(page)
+        expect(setting_row(page, "warehouse_password")).to_contain_text("Team vault · warehouse-password")
         card = found.locator('.variables-vault-card[data-vault="Team vault"]')
         expect(card.locator(".variables-vault-count")).to_have_text("2 variables")
         # The ${ list offers them.
-        found.get_by_role("button", name="Add variable").click()
-        value = found.locator(".variables-form").get_by_label("Value")
+        value = add_setting(page).get_by_label("Value")
         value.press_sequentially("${team")
         offered = page.get_by_role("listbox", name="Variables")
         expect(offered.get_by_role("option").first).to_contain_text("team_key")
         value.press("Escape")
+        page.locator("dialog").get_by_role("button", name="Cancel").click()
         # The start-up read failed: the card says when the names are from, and Read again.
         stale = found.locator(".variables-vault-stale")
         expect(stale).to_contain_text("Names from", timeout=40000)
@@ -144,8 +141,7 @@ def test_the_owners_steps_add_read_save_then_the_dollar_brace(
         page.goto(url)
         expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
         dialog = page.locator(".area-page[data-page='connections']")
-        open_variables(page)
-        page.locator('.area-page[data-page="variables"]').get_by_role("button", name="Add key vault").click()
+        open_settings(page).get_by_role("button", name="Add key vault").click()
         page.locator(".variables-vault-types .connection-type", has_text="Azure Key Vault").click()
         not_now(page)
         dialog.locator("summary", has_text="Python code").click()

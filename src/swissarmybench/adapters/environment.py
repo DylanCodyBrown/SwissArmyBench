@@ -63,10 +63,17 @@ def _site_packages(python: str) -> list[Path]:
     return [*root.glob("lib/python*/site-packages"), *root.glob("Lib/site-packages")]
 
 
+def _is_app_python(python: str) -> bool:
+    """Whether `python` is this app's own. By its place, never by what its link points to: a project's
+    `.venv` made from the app's Python links to the same program, and is still another environment (found
+    with a real `.venv`, 2026-11-22: its libraries were listed as the app's own)."""
+    return os.path.normcase(os.path.abspath(python)) == os.path.normcase(os.path.abspath(sys.executable))
+
+
 def installed(python: str) -> dict[str, str]:
     """A Python's libraries: name -> version. This app's own from its import system; another's from the
     metadata folders in its site-packages."""
-    if os.path.realpath(python) == os.path.realpath(sys.executable):
+    if _is_app_python(python):
         found = metadata.distributions()
     else:
         found = metadata.distributions(path=[str(p) for p in _site_packages(python)])
@@ -82,7 +89,7 @@ def requires(python: str) -> dict[str, list[str]]:
     """A Python's libraries, each with what it says it needs (its metadata's Requires-Dist names, an extra's
     left out): how the libraries someone chose are told from the ones they brought (domain/project_python.py).
     Read from the metadata folders in its site-packages: nothing runs."""
-    if os.path.realpath(python) == os.path.realpath(sys.executable):
+    if _is_app_python(python):
         found = metadata.distributions()
     else:
         found = metadata.distributions(path=[str(p) for p in _site_packages(python)])

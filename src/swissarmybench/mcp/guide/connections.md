@@ -21,7 +21,7 @@ a variable by its name.
 - `app_navigate(to="connection:<name>")` shows that detail to the user; `workbench_window
   file.openCell` opens a reference's cell.
 
-## Variables (the rail's Variables page)
+## Variables (the Environment's Settings and secrets tab)
 - This computer's, whether or not a project is open; never in a project. Connections, notebooks, scripts
   and Workbench kernels read them as environment variables (a running kernel: at its next start).
 - `variables_list(search, source)`: each variable's source (`vault`: the vault and secret name; `value`:

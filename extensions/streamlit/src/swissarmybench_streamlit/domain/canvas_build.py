@@ -1043,7 +1043,8 @@ def var(name: str) -> str:
     value = os.environ.get(name)
     if value is None:
         raise Missing(
-            f"{name} is not set on this computer: set it on the Variables page (or the host's settings)."
+            f"{name} is not set on this computer: set it on the Environment's Settings and secrets tab "
+            "(or the host's settings)."
         )
     return value
 

@@ -3522,12 +3522,18 @@ def workbench_pythons(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_kernel_start",
-    "Start a kernel (every connection is a variable by its name in it); its id",
-    opt("python", "The Python (default: the app's own)."),
-    opt("path", "The document it runs (its folder is the working folder)."),
+    "Start a kernel (every connection is a variable by its name in it); its id. With a project open it is "
+    "the project's ONE Python session, shared by every notebook and script of the project (session.shared)",
+    opt("python", "The Python (default: the app's own). A project's session runs in the project's own."),
+    opt(
+        "path", "The document it runs (its folder is the working folder; a loose file: a kernel of its own)."
+    ),
+    opt("own", "true: a kernel of its own even while a project is open (no document only).", "bool"),
 )
 def workbench_kernel_start(a: dict[str, Any]) -> Any:
-    return api.call("POST", "/workbench/kernels", {k: a[k] for k in ("python", "path") if a.get(k)})
+    body = {k: a[k] for k in ("python", "path") if a.get(k)}
+    # No document: the open project's one session (the Environment's variables are that session's).
+    return api.call("POST", "/workbench/kernels", body | {"project": not a.get("own")})
 
 
 def _outputs(lines: list[Any]) -> dict[str, Any]:
@@ -3611,10 +3617,12 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
     opt("table", "kind table: the table (its cell starts from the table as made, so a rerun is safe)."),
     opt("path", "kind file: a saved script to run (its __file__)."),
     opt("args", "kind file: its command-line arguments (sys.argv)."),
+    opt("document", "The document the code runs for (a project's one session runs every document's)."),
     values=True,
 )
 def workbench_run(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("code", "kind", "connection", "path", "args", "table") if a.get(k) is not None}
+    keys = ("code", "kind", "connection", "path", "args", "table", "document")
+    body = {k: a[k] for k in keys if a.get(k) is not None}
     # This call waits for the run's end, so it could never answer input(): there input() raises instead.
     body["stdin"] = False
     return _outputs(api.call_lines("POST", f"/workbench/kernels/{_q(a['kernel'])}/execute", body))
@@ -4881,7 +4889,12 @@ def workbench_run_notebook(a: dict[str, Any]) -> Any:
         lines = api.call_lines(
             "POST",
             f"/workbench/kernels/{_q(kernel)}/execute",
-            {"code": cell["source"], "kind": cell["kind"], "connection": cell.get("connection")},
+            {
+                "code": cell["source"],
+                "kind": cell["kind"],
+                "connection": cell.get("connection"),
+                "document": opened["path"],
+            },
         )
         cell["outputs"] = [item for item in lines if "done" not in item and "clear" not in item]
         done: dict[str, Any] = next((item["done"] for item in lines if "done" in item), {})
@@ -4944,19 +4957,22 @@ def workbench_to_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "workbench_kernel",
-    "Interrupt, restart or stop a kernel",
+    "Interrupt, restart or stop a kernel. A project's one Python session: interrupt and restart act on it "
+    "for every document of the project, stop leaves it running for them, stop_session stops it",
     req("kernel", "The kernel's id."),
-    req("action", "interrupt, restart or stop."),
+    req("action", "interrupt, restart, stop or stop_session."),
 )
 def workbench_kernel(a: dict[str, Any]) -> Any:
     kernel, action = _q(a["kernel"]), a["action"]
     if action == "stop":
         return api.call("DELETE", f"/workbench/kernels/{kernel}")
+    if action == "stop_session":
+        return api.call("DELETE", f"/workbench/kernels/{kernel}?session=1")
     if action == "interrupt":
         return api.call("POST", f"/workbench/kernels/{kernel}/interrupt")
     if action == "restart":
         return api.call("POST", f"/workbench/kernels/{kernel}/restart")
-    raise CommandError("The action is interrupt, restart or stop.")
+    raise CommandError("The action is interrupt, restart, stop or stop_session.")
 
 
 @command(
@@ -5247,7 +5263,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("erd", "ERD tab"),
     ("blades", "Blades: the user's saved code that loads from outside Python"),
     ("connections", "Connections: the user's databases and files (Application row's Connections)"),
-    ("variables", "Variables page: this computer's variables, their sources and uses"),
+    ("variables", "Settings and secrets (the Environment's tab): this computer's variables, sources, uses"),
     (
         "library",
         "The library: the folder of connections, APIs, vaults, blades and variables (a Git repository)",

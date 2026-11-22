@@ -31,6 +31,8 @@ export interface TableInfo {
   rows?: number;
   /** The Workbench kernel that sent it to the grid (null: no kernel did). */
   kernel: string | null;
+  /** The document whose code made it (a project's documents share one kernel: this tells them apart). */
+  document?: string | null;
   steps: number;
   step_list: unknown[];
   /** Each step in plain words (the Scripts and Notebooks pages' cards). */

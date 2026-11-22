@@ -1,6 +1,6 @@
 # The Environment (the owner, 2026-11-21)
 
-Status: built in part (2026-11-22, branch `environment`; see "What is built" at the end). Was: decided; build after adapter phase 2 (a session reads a grid by name through the adapter). Mockup (made-up
+Status: built (2026-11-22, branches `environment` and `environment-2`; see "What is built" at the end). Was: decided; build after adapter phase 2 (a session reads a grid by name through the adapter). Mockup (made-up
 data): the published Environment Mockup artifact; its source in the session scratchpad (environment/).
 
 > "one shared space for all tables at the env level ... each project should have its own env ... a simple trigger and
@@ -131,9 +131,28 @@ column headings' menu and the choice is kept per tab.
   Install a library… through the one install prompt; requirements.txt follows.
 - **Step 5, in part:** the watcher's trigger after each cell runs (IPython's post-run hook; a script's timer) and its
   report of variables by name, type and size; a table Python holds is listed at once (In Python) and opens as a grid
-  on request. **Not built:** making the project's `.venv` from the app, one kernel for the whole project, notebooks'
-  own environments moved, a table shared with every session at once without being opened.
+  on request.
 - **Step 6, in part:** the `${NAME}` settings are the Settings and secrets tab (a secret masked, Show the user's,
-  Change, Rename, Remove, Add a setting…). **Not built:** the key vaults' cards and Add key vault on the tab: the
-  old Variables page stays at its address (open=variables, "Key vaults and more…") and is not redirected; the
-  Structures page stays as the viewer (New, open or paste… on the Structures tab).
+  Change, Rename, Remove, Add a setting…); the Structures page stays as the viewer (New, open or paste… on the
+  Structures tab).
+
+## What is built (2026-11-22, branch `environment-2`): the rest
+- **One Python per project (step 4):** every notebook and script of the open project runs in ONE session
+  (services/workbench.py: start answers the same kernel for each document; a run says which document it is for).
+  Interrupt and Restart are the session's and say so (the status bar's Python session; Restart asks first and every
+  window is told); closing a document leaves it running; it ends with the project. A loose file, and the Widgets
+  window's editor, keep a kernel of their own. The agent's `workbench_kernel_start` joins the session too.
+- **The project's `.venv`:** made by the app in the background on New project and on opening a project without one
+  (services/project_python.py; uv, else venv and pip; the kernel, the Excel readers, requirements.txt), said in one
+  line at the start and at the end, never waited for: the app's own Python runs the code until it is ready, and
+  the session moves to it at its next Restart. A failure is said with Try again (the Libraries tab; the agent's
+  `environment(action="set_python", args={"make": true})`).
+- **A notebook that had its own environment:** read once as it opens in a project; the libraries it chose that the
+  project lacks are offered in one line (Add them: installed and written to requirements.txt; Not now).
+- **A table is shared at once (step 5):** every table in the Environment is read by name through the open tables'
+  door (`sab.table`, a DuckDB SQL cell, a canvas's table property) whether or not a grid shows it; none is opened
+  as a grid for it. **Not built:** a table only Python holds read by name by another process without Open.
+- **Step 6, the rest:** the key vaults' cards, Read again and Add key vault are on the Settings and secrets tab
+  (web/src/keyVaults.ts); the Variables page went, `open=variables` lands on `open=environment&at=settings` (at
+  the setting it named), and "Key vaults and more…" went.
+- The decisions made while building: docs/ideas.md "The Environment, finished".

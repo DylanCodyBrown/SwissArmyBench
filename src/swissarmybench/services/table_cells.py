@@ -38,9 +38,22 @@ class Origins:
 
     def __init__(self) -> None:
         self._known: dict[str, Origin] = {}
+        # The document whose code made a table a kernel sent, as the kernel's run said when it arrived (a
+        # project's one session runs every document's code: the kernel alone no longer names the document).
+        self.document_of: Callable[[str | None], str | None] = lambda kernel: None
+        self._documents: dict[str, str] = {}
 
     def note(self, name: str, origin: Origin) -> None:
         self._known[name] = origin
+        made_in = self.document_of(origin.kernel) if origin.kernel else None
+        if made_in:
+            self._documents[name] = made_in
+        elif not origin.kernel:
+            self._documents.pop(name, None)
+
+    def document(self, name: str) -> str | None:
+        """The document whose code made the table (None: no kernel sent it, or it did not say)."""
+        return self._documents.get(name)
 
     def get(self, name: str) -> Origin:
         return self._known.get(name) or Origin()
@@ -48,9 +61,12 @@ class Origins:
     def rename(self, old: str, new: str) -> None:
         if old in self._known:
             self._known[new] = self._known.pop(old)
+        if old in self._documents:
+            self._documents[new] = self._documents.pop(old)
 
     def forget(self, name: str) -> None:
         self._known.pop(name, None)
+        self._documents.pop(name, None)
 
 
 class TableCells:
@@ -113,6 +129,8 @@ class TableCells:
             ),
             "rows": info.row_count,
             "kernel": origin.kernel,  # the Workbench kernel that sent it (None: no kernel did)
+            # The document whose code made it (a project's documents share one kernel: this tells them apart).
+            "document": self._origins.document(info.name),
             "steps": len(on),
             "step_list": [s.to_json() for s in steps],
             # Each transformation in plain words (the Scripts and Notebooks pages' cards).

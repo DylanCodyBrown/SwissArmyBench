@@ -812,7 +812,7 @@ def define_fix(text: str, name: str, source: str, at: tuple[int, int] | None = N
     where = last + 1 if last else first
     line = f'{name} = os.environ["{name}"]\n'
     edits = (Edit(where, 1, where, 1, ("" if has_os else "import os\n") + line),)
-    return Fix(f"Define `{name}` from the Variables page ({source})", edits, "define")
+    return Fix(f"Define `{name}` from the Environment's settings ({source})", edits, "define")
 
 
 # ===== another database's SQL =====

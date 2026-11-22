@@ -1138,6 +1138,7 @@ def _workbench_part(b: Built) -> None:
     async def kernel_ended(kernel: str) -> None:
         b.slots.kernel_stopped(kernel)  # its slots go back at once
 
+    b.datasets.origins.document_of = workbench.document_of  # a table a kernel sends: the document it ran for
     b.slots.kernel_caller = kernel_caller
     b.slots.interrupt_kernel = workbench.interrupt
     workbench.set_kernel_stopped(kernel_ended)

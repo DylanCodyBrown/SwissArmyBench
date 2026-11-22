@@ -18,7 +18,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 # The grid tests' fixtures (browser, server, orders_url), imported by name.
-from tests.e2e.environment_helpers import open_variables
+from tests.e2e.environment_helpers import open_settings
 from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
 
 
@@ -335,9 +335,9 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
     page = open_grid(browser, orders_url)
     dialog = page.locator(".area-page[data-page='connections']")
     try:
-        # A key vault is added on the Variables page (its form is the Connections page's).
-        open_variables(page)
-        page.locator('.area-page[data-page="variables"]').get_by_role("button", name="Add key vault").click()
+        # A key vault is added with the settings it gives: the Environment's Settings and secrets tab (its
+        # form is the Connections page's).
+        open_settings(page).get_by_role("button", name="Add key vault").click()
         page.locator(".variables-vault-types .connection-type", has_text="Azure Key Vault").click()
         not_now(page)
         dialog.locator("summary", has_text="Python code").click()
@@ -373,10 +373,10 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         password.press("Enter")
         expect(password).to_have_value("${CRM_KEY}")
         expect(code_box(dialog)).to_have_value(re.compile(r'secret\("CRM_KEY"\)'))
-        # The vault is not on the Connections page (it has no tables): the Variables page lists it.
+        # The vault is not on the Connections page (it has no tables): the Settings and secrets tab lists it.
         dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
         expect(dialog.get_by_role("heading", name="Key vaults")).to_have_count(0)
-        open_variables(page)
+        open_settings(page)
         # Its card's detail: what it sets (the Connections page's detail, 2026-11-16).
         page.locator(".variables-vault-card", has_text="Azure Key Vault").click()
         config = dialog.locator(".connection-config")

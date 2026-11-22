@@ -100,6 +100,9 @@ class Sources:
     # A table's origin (domain/table_cells.py's Origin) and the document a kernel was started for.
     origin_of: Callable[[str], Any]
     kernel_document: Callable[[str | None], str | None] = lambda kernel: None
+    # The document whose code made a table, as said when it arrived (a project's one session: the kernel
+    # alone does not name the document).
+    table_document: Callable[[str], str | None] = lambda name: None
     # The open project ({"folder", "name", "tables": [{"name", "keep_rows"}]}) or None.
     project: Callable[[], Mapping[str, Any] | None] = lambda: None
     # The running kernels' ids, and one's variables (client/kernel_variables.py's snapshot; busy: True).
@@ -195,7 +198,9 @@ class Environment:
         if kind == "file" and getattr(origin, "path", None):
             return "File · " + str(origin.path).replace("\\", "/").rsplit("/", 1)[-1]
         if kind == "python":
-            document = self._s.kernel_document(getattr(origin, "kernel", None))
+            document = self._s.table_document(name) or self._s.kernel_document(
+                getattr(origin, "kernel", None)
+            )
             return _title(document) if document else "Python"
         return ORIGIN_WORDS.get(kind, "")
 
@@ -963,6 +968,7 @@ def sources_from(
     return Sources(
         origin_of=datasets.origins.get,
         kernel_document=workbench.document_of,
+        table_document=datasets.origins.document,
         project=project,
         kernels=workbench.running_kernels,
         kernel_variables=workbench.variables,

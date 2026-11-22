@@ -47,7 +47,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   made to be a Git repository (Plans/library.plan.md; the owner, 2026-11-17): the **library** folder, below. An
   API lives in its `apis/<name>/` (API_<name>.py, the API blade, its web call blades, openapi.json, source.json);
   an API's tables are its web calls with Return as table on, and it is not on the Connections page. Key vaults
-  are added and listed on the Variables page, not the Connections page.
+  are added and listed on the Environment's Settings and secrets tab, not the Connections page.
 - **Connections scale beyond this computer (the owner, 2026-11-17: "we want to advise against any connectors that
   only work locally for the user, this is meant to scale to a function app or up to a hosted streamlit application" /
   "any connector that does not scale to a function app needs to carry a warning that it will only work on your
@@ -144,7 +144,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   OpenAPI document or a form made into API_<name>.py and its connection, every auth type), the SQL
   cell (`%%sql <connection>`), the DAX cell (`%%dax <connection>/<dataset>`, `sab.dax`), the
   Workbench (notebooks, scripts,
-  completion, per-notebook environments), every table's read-only cell there (its transformations as
+  completion, one Python session and one `.venv` a project, a loose file's own environment), every table's read-only cell there (its transformations as
   one DuckDB query, the Tables group, cell numbers, `@cell` links, the uses line; the copy buttons
   left the grid's steps strip), HTML cells (a design drawn from a cell's HTML in a walled-off frame,
   `{{ name }}` filled from the kernel), widgets and the Canvas (2026-11-21: a widget is the library's `widgets/<name>.widget.py`, its top-level
@@ -170,7 +170,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
-  project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
+  project's scaffold, its own `.venv` (made by the app as a project is made or opened, Git-ignored: one Python per
+  project, the owner 2026-11-21; uv or pip fetch its libraries from the package index then), `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
   `.sab/api_examples.json` only on Try it's Keep as its example:
   the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
   sandbox API never touches live data, its process gets only the sandbox, through the adapter's door, and no
@@ -528,7 +529,12 @@ src/swissarmybench/
                          over every tab by the Data Explorer's matching (explorer.hit), requirements.txt read and
                          written (Pin name==version, Unpin, a library added or taken out), a newer version, what a
                          library is for and where it is imported, a secret masked, Clear's ticks, Insert's code
-    environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
+    environments.py      a loose notebook's own environment: the libraries offered (groups, presets, imports)
+    project_python.py    one Python per project (the owner, 2026-11-21): which document is the project's (a path
+                         inside its folder), what its `.venv` is made with (the kernel, the Excel readers,
+                         requirements.txt's plain lines), the libraries someone chose in an older environment (the
+                         ones no other needs) and what they offer the project, the states (none, making, ready,
+                         missing, failed) and every word said (the session's Interrupt and Restart, ready, failed)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
                          the missing table (DuckDB's own-table "Did you mean" dropped)
@@ -724,8 +730,10 @@ src/swissarmybench/
     environment.py       the Environment: the one list (listing with search, show, a table's columns with ranges and
                          blanks), open (a table: a grid, a view of it; one in Python only: its session sends it),
                          rename, remove (a table: also delete it in Python), keep, clear, insert; libraries (the
-                         project's Python, check the index only when asked, pin, install, update, uninstall: the
-                         agent's on Allow); `environment_changed` once things settle (heard: the live notices);
+                         project's Python, check the index only when asked, pin, install (one or several),
+                         update, uninstall: the agent's on Allow); python and set_python (the project's own
+                         Python: Make it now, an offered notebook environment's libraries added or not);
+                         `environment_changed` once things settle (heard: the live notices);
                          sources_from (the app's services as its Sources)
     explorer.py          the Data Explorer's search: a provider per source (connections and their loaded catalogs,
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
@@ -763,7 +771,17 @@ src/swissarmybench/
     file_dialogs.py      the system's own file dialog on the user's click (403 for the agent), the picker's places
                          and recent folders per kind of pick
     workbench.py         the Workbench: open, save, recent; kernels; completion; environments, remembered;
-                         a document moving to another window (handoffs: its state and its kernel)
+                         a document moving to another window (handoffs: its state and its kernel); ONE Python
+                         session per project (2026-11-22): start answers the same kernel for every document of
+                         the open project (_join), a run says which document it is for, Interrupt and Restart
+                         are the session's (session_restarted; Restart moves to a `.venv` made since), leave (a
+                         closed document leaves it running), end_session (the project closed: session_ended); a
+                         loose file keeps a kernel of its own
+    project_python.py    the project's own `.venv`: made in the background on New project and on opening a
+                         project without one (never waited for; the app's own Python meanwhile), Make it now and
+                         Try again, the `project_python` notice (making, ready, failed), the session's folder and
+                         Python for the Workbench, a notebook's older environment read once and offered (moved,
+                         settle_offer); SWISSARMYBENCH_PROJECT_VENV=off: never by itself
     workbench_window.py  the agent's workbench_window: a palette command run in the Workbench window
     intellisense.py      the editors' intelligence: complete, signature, hover, lint (Jedi in the kernel or
                          a Script over the project; the app's names; Ruff or pyflakes where there; a worker
@@ -805,9 +823,10 @@ src/swissarmybench/
                          when its bytes change (write); seams: UsedTables.used(project) (the tables the project
                          uses) and Portability.verdict(connection) (default: "Not checked yet")
     table_cells.py       every open table as its read-only cell's text (the grid's steps as one DuckDB
-                         query); a document's Tables group arranged; where each table came from; an open
-                         table's grid view as Arrow for a kernel's DuckDB SQL naming it (view); the open tables as
-                         a source of the adapter (adapter_tables, adapter_read: a plan over a grid view)
+                         query); a document's Tables group arranged; where each table came from; a table as
+                         Arrow for a kernel's DuckDB SQL naming it (view); the Environment's tables as a source
+                         of the adapter (adapter_tables, adapter_read: a plan over a grid's view, or over the
+                         table as it is when no grid shows it: a table is shared at once, never opened first)
     hooks.py             what an extension hands the base's services once built (late binding): the documents
                          the Workbench windows hold, a canvas, what stops with a kernel or a window, an app's
                          own file, the cells shown live, a new project's app; a project's dataset connection
@@ -959,7 +978,7 @@ src/swissarmybench/
                          libraries read from site-packages' metadata (nothing runs), requirements.txt (atomic, only
                          when its bytes change), the package index's newest versions (one GET a library, only when
                          the Libraries tab opens or the user asks; SWISSARMYBENCH_PACKAGE_INDEX), a structure's file
-                         removed
+                         removed; requires (each library with what it says it needs: a notebook's older environment)
     variables.py         the Variables page's files (the library's variables.toml, shareable; local/variables.toml,
                          this computer's), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets (the app's windows counted for the server's life)
@@ -1020,7 +1039,8 @@ src/swissarmybench/
     blade_runner.py      Refresh/Test in a child process; the blade IDE's Run (run_streaming: prints streamed,
                          the result a table or a value, a failure as the error panel's detail); installing packages
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
-    environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
+    environments.py      making a loose notebook's environment and a project's `.venv` (make_venv: uv, else venv
+                         and pip; its own .gitignore inside it); the client lent to kernels
     api_runtime.py       sab_api, what API.py imports (standard library; copied into each export): endpoint,
                          connection (use_clients; else the adapter's Connection), records (Arrow or a cursor),
                          ApiError, handle (one request: every target calls it);
@@ -1119,8 +1139,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          fit, 2026-11-18; 2026-11-21: Home first, a house, "just call it home instead of projects";
                          Structures beside APIs; Scripts beside Blades; Catalog; Git): Home, Connections, APIs,
                          Environment (2026-11-22: it took the Structures and Variables places; the Structures page
-                         stays as the viewer a structure opens into, the Variables page at open=variables for the
-                         key vaults, both off the rail), Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
+                         stays as the viewer a structure opens into, off the rail; the Variables page went:
+                         open=variables lands on the Settings and secrets tab), Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
                          Scripts, Notebooks, Canvas, Widgets, Analyze, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
@@ -1137,8 +1157,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          over the home page only, open=projects); projectsPage.ts the Projects page (the rail's
                          mark, 2026-11-18: the Project Explorer and the tour; the app opens on it with no table and
                          no project; /workspace?view=start lands on it; it makes way for a project opened there or
-                         a table that arrives); variablesPage.ts the Variables page (open=variables:
-                         by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
+                         a table that arrives); keyVaults.ts the key vaults on the Environment's Settings and
+                         secrets tab (a card each, Read again, Add key vault: moved from the Variables page, which
+                         went 2026-11-22); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
                          the grids, Analyze and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); findConnections.ts the Connections page's Find connections on this computer… (the scan gated
@@ -1274,8 +1295,13 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          and the Workbench's right pane, environmentPane: tabs by kind with their own columns, one
                          search over every tab, rows that unfold, the viewer beside the list (Ctrl+B), Used in
                          links, Remove with the Python tick, Rename, Clear…, Keep, Libraries' Pin, Update and
-                         Install through missingPackages.ts; follows environment_changed, no Refresh; it replaced
-                         workbenchVariables.ts), lazy/codeEditor.ts (Monaco: line edits that keep the
+                         Install through missingPackages.ts; the Settings and secrets tab's key vaults and Add
+                         key vault; the Libraries tab's line about the project's Python; follows
+                         environment_changed, no Refresh; it replaced workbenchVariables.ts and the Variables
+                         page), projectSession.ts (one Python per project as the pages say it: the project's
+                         Python's state and its one line, Make it now, a notebook's older environment offered;
+                         workbenchKernel.ts holds the project's one session for each of its documents: Python
+                         session in the status bar, Restart asked first, every window told), lazy/codeEditor.ts (Monaco: line edits that keep the
                          cursor, cell links, a script's folds and marker notes),
                          workbenchTables.ts (every table's read-only cell: its state against the text it
                          last ran, the folded lines' words, the uses line); the Tables group, cell
@@ -1378,8 +1404,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
                          orders service, every sign-in it takes stood in for), libraries_standin.py (uv and pip stood
-                         in for, a made-up .venv and a made-up package index on 127.0.0.1: the Environment's
-                         Libraries tab), devtunnel_standin.py (Microsoft's
+                         in for, a made-up .venv (a project's own made too) and a made-up package index on
+                         127.0.0.1: the Environment's Libraries tab, one Python per project), devtunnel_standin.py (Microsoft's
                          devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
                          and Git Data APIs and the device flow over in-memory repositories of made-up files)
 tools/                   screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
