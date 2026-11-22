@@ -35,8 +35,10 @@ from tests.fake_keyring import memory_keyring
 from tests.field_service_app import (
     CANVAS,
     ENDPOINTS,
+    EXAMPLE,
     KEYRING_SECRET,
     LOW_STOCK,
+    NOT_KEPT,
     OWN_ENDPOINTS,
     PATTERNS,
     VISIT_CARD,
@@ -998,7 +1000,9 @@ def test_the_canvas_is_built_paired_and_wired(app: Built) -> None:
     )
     put("pie", "cs_status_pie", parent=charts, x=610, y=8, values={"title": "Share by status"})
     # ----- wiring: an In from a table, from another widget's Out, from an endpoint; app.viewer itself -----
-    wire("card", "orders", SANDBOX_ORDERS)
+    # The visits to do read through the API each rerun (a [Conn].table property is the table as Play read
+    # it, so a write by the card's own Event would not show until the next Play; found in the browser test).
+    wire("card", "orders", {"endpoint": "GET /work_orders"})
     wire("card", "technicians", {"table": "[Sandbox].technicians"})
     wire("card", "technician", {"out": f"{ids['select']}.value"})
     wire("bars", "table_name", {"endpoint": "GET /work_orders/summary/status"})
@@ -1082,7 +1086,7 @@ def test_the_canvas_is_built_paired_and_wired(app: Built) -> None:
             "date_column": "opened_on",
             "revenue_column": "amount",
             "units_column": "hours",
-            "margin_column": "amount",
+            "margin_column": "",  # no margin in work orders: shown as a dash
             "currency": "£",
         },
     )
@@ -1466,7 +1470,9 @@ def test_share_a_launched_app_with_the_organization(app: Built) -> None:
     assert [s["url"] for s in status["shares"]] == [shared["url"]] and status["work_account"] is True
     # A link always ends with its app: stopping the launch ends the share; then Stop sharing by itself.
     agent("app_launch", canvas=cid, stop=True)
-    assert until(lambda: not [s for s in agent("sharing_status", app=cid)["shares"] if s["state"] == "sharing"])
+    assert until(
+        lambda: not [s for s in agent("sharing_status", app=cid)["shares"] if s["state"] == "sharing"]
+    )
     agent("app_launch", canvas=cid)
     again = agent("sharing_start", app=cid)
     assert again["state"] == "sharing" and again["url"] != shared["url"]
@@ -1485,7 +1491,10 @@ def test_the_statistics_and_the_change_log_say_what_happened_never_a_value(app: 
     agent, folder = app.agent, app.folder
     summary = agent("stats")
     busiest = {b["object"]: b for b in summary["busiest"]}
-    assert busiest["connection:The sandbox"]["count"] > 50 and {"connection:Orders", "connection:Depot"} <= set(busiest)
+    assert busiest["connection:The sandbox"]["count"] > 50 and {
+        "connection:Orders",
+        "connection:Depot",
+    } <= set(busiest)
     assert agent("stats", action="endpoint", name="local complete_work_orders")["figures"]["errors"] == 0
     one = agent("stats", action="endpoint", name="local export_work_orders")
     assert one["figures"]["count"] >= 1 and one["calls"][0]["outcome"]["ok"] is True, one
@@ -1525,7 +1534,9 @@ def test_the_statistics_and_the_change_log_say_what_happened_never_a_value(app: 
         for value in ("Ada Marlow", "thermostat", "Brightline", KEYRING_SECRET, "288.75"):
             assert value not in text, value
     # The Environment: each table with where it is used (its grid, API.py's endpoints, the canvas's widgets).
-    listed = {i["id"]: i for i in agent("environment", action="list", args={"search": "technicians"})["items"]}
+    listed = {
+        i["id"]: i for i in agent("environment", action="list", args={"search": "technicians"})["items"]
+    }
     used = {u["kind"] for u in listed["table:technicians"]["used"]}
     assert "grid" in used, listed["table:technicians"]["used"]
 
@@ -1540,6 +1551,16 @@ def _kept(folder: Path) -> dict[str, bytes]:
         for file in sorted(folder.rglob("*"))
         if file.is_file() and not set(file.relative_to(folder).parts) & set(NOT_KEPT)
     }
+
+
+def _unversioned(name: str, content: bytes) -> bytes:
+    """A file as compared with the example: .sab/project.json's app_version is the app's that saved it (a
+    release changes it and nothing else), so it is left out; every other file byte for byte."""
+    if name != ".sab/project.json":
+        return content
+    raw = json.loads(content)
+    raw.pop("app_version", None)
+    return json.dumps(raw, sort_keys=True).encode()
 
 
 def test_the_finished_project_is_the_example_folder_and_the_sandbox_is_removed_last(app: Built) -> None:
@@ -1574,7 +1595,9 @@ def test_the_finished_project_is_the_example_folder_and_the_sandbox_is_removed_l
     example = _kept(EXAMPLE)
     assert sorted(example) == sorted(made)
     for name, content in made.items():
-        assert example[name] == content, f"examples/field_service/{name} is not what the build makes"
+        assert _unversioned(name, example[name]) == _unversioned(name, content), (
+            f"examples/field_service/{name} is not what the build makes"
+        )
     # Remove the sandbox (the agent's waits for Allow): its folder and its two files, nothing else.
     left = sorted(p.name for p in folder.iterdir() if not p.name.startswith("sandbox"))
     removed = agent("sandbox", action="drop")

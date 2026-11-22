@@ -148,8 +148,9 @@ def until(check: Any, seconds: float = 30) -> Any:
 # ===== the made-up Depot: a real connection (SQLite), its password in the keyring =====
 
 
-def depot_connection(folder: Path) -> dict[str, Any]:
-    """The Depot database (the parts in stock) made in `folder`, and its connection as the form saves it."""
+def depot_connection(folder: Path, keyring: bool = True) -> dict[str, Any]:
+    """The Depot database (the parts in stock) made in `folder`, and its connection as the form saves it.
+    keyring=False: no password at all (the e2e server runs where no keyring is)."""
     database = folder / "depot.sqlite"
     with sqlite3.connect(database) as made_up:
         made_up.execute(
@@ -165,8 +166,8 @@ def depot_connection(folder: Path) -> dict[str, Any]:
         )
     code = (
         "import sqlite3\nfrom pathlib import Path\n\n"
-        'assert secret("password")\n'
-        f'path = Path(r"{database}")\n'
+        + ('assert secret("password")\n' if keyring else "")
+        + f'path = Path(r"{database}")\n'
         "conn = sqlite3.connect(path)\n"
     )
     return {
@@ -176,8 +177,7 @@ def depot_connection(folder: Path) -> dict[str, Any]:
         "dialect": "sqlite",
         "code": code,
         "description": "The parts in stock (made up)",
-        "secrets": {"password": KEYRING_SECRET},
-    }
+    } | ({"secrets": {"password": KEYRING_SECRET}} if keyring else {})
 
 
 LOW_STOCK = sorted(sku for at, (sku, _, _) in enumerate(data.PARTS) if (at * 7) % 12 <= 5)

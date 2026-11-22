@@ -110,10 +110,10 @@ def test_free_names_and_the_documents_of_a_project() -> None:
     assert [d["path"] for d in rules.documents([("a.py", 1, 0.0), ("b.ipynb", 1, 0.0)], "script")] == ["a.py"]
     # The project scaffold's made files, the sandbox mirror and an API export are made too (the landing page
     # and the agent's project_documents never offer adapter.py as a script of the user's); API.py is theirs.
-    scaffold = ["adapter.py", "connections.py", "sandbox_data.py", "sandbox_connections.py"]
-    files = [*scaffold, "exports/api/fastapi/main.py", "API.py", "scripts/visits.py"]
+    core = ["adapter.py", "connections.py", "sandbox_data.py", "sandbox_connections.py"]
+    files = [*core, "exports/api/fastapi/main.py", "API.py", "scripts/visits.py"]
     made = {d["path"]: d["made"] for d in rules.documents([(f, 1, 0.0) for f in files], "script")}
-    assert made == dict.fromkeys([*scaffold, "exports/api/fastapi/main.py"], True) | {
+    assert made == dict.fromkeys([*core, "exports/api/fastapi/main.py"], True) | {
         "API.py": False,
         "scripts/visits.py": False,
     }

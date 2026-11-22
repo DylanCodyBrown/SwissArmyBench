@@ -1,0 +1,25 @@
+customer_id,name,city,region
+500,Alderbrook Bakery,Alderbrook,North
+501,Fennick Market,Hollin,North
+502,Greywater Dairy,Pellham,South
+503,Hollin Workshop,Fennick,South
+504,Marsh End Laundry,Marsh End,East
+505,Oakhollow Clinic,Runswick,East
+506,Pellham School,Greywater,West
+507,Runswick Hotel,Oakhollow,West
+508,Alderbrook Clinic,Alderbrook,North
+509,Fennick School,Hollin,North
+510,Greywater Hotel,Pellham,South
+511,Hollin Bakery,Fennick,South
+512,Marsh End Market,Marsh End,East
+513,Oakhollow Dairy,Runswick,East
+514,Pellham Workshop,Greywater,West
+515,Runswick Laundry,Oakhollow,West
+516,Alderbrook Dairy,Alderbrook,North
+517,Fennick Workshop,Hollin,North
+518,Greywater Laundry,Pellham,South
+519,Hollin Clinic,Fennick,South
+520,Marsh End School,Marsh End,East
+521,Oakhollow Hotel,Runswick,East
+522,Pellham Bakery,Greywater,West
+523,Runswick Market,Oakhollow,West

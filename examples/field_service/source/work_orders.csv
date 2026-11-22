@@ -1,0 +1,121 @@
+work_order_id,customer_id,technician_id,region,status,priority,opened_on,closed_on,hours,amount,summary
+1000,500,100,North,open,low,2026-07-01,,0.0,0.0,HVAC visit: air filter check
+1001,511,105,South,done,high,2026-07-08,2026-07-10,3.25,288.75,Electrical visit: compressor relay check
+1002,522,110,West,done,normal,2026-07-15,2026-07-18,5.5,492.5,Plumbing visit: shut-off valve check
+1003,509,103,North,scheduled,normal,2026-07-22,,0.0,0.0,Refrigeration visit: thermostat check
+1004,520,108,East,cancelled,low,2026-07-29,,0.0,0.0,HVAC visit: fan motor check
+1005,507,101,West,done,high,2026-08-05,2026-08-06,5.25,508.75,Electrical visit: door seal check
+1006,518,106,South,in_progress,normal,2026-08-12,,7.5,0.0,Plumbing visit: air filter check
+1007,505,111,East,open,normal,2026-08-19,,0.0,0.0,Refrigeration visit: compressor relay check
+1008,516,104,North,done,low,2026-08-26,2026-08-30,5.0,450.0,HVAC visit: shut-off valve check
+1009,503,109,South,done,high,2026-09-02,2026-09-07,7.25,653.75,Electrical visit: thermostat check
+1010,514,102,West,scheduled,normal,2026-09-09,,0.0,0.0,Plumbing visit: fan motor check
+1011,501,107,North,cancelled,normal,2026-09-16,,0.0,0.0,Refrigeration visit: door seal check
+1012,512,100,East,done,low,2026-09-23,2026-09-26,7.0,595.0,HVAC visit: air filter check
+1013,523,105,West,in_progress,high,2026-09-30,,2.25,0.0,Electrical visit: compressor relay check
+1014,510,110,South,open,normal,2026-10-07,,0.0,0.0,Plumbing visit: shut-off valve check
+1015,521,103,East,done,normal,2026-10-14,2026-10-15,6.75,611.25,Refrigeration visit: thermostat check
+1016,508,108,North,done,low,2026-10-21,2026-10-23,2.0,220.0,HVAC visit: fan motor check
+1017,519,101,South,scheduled,high,2026-10-28,,0.0,0.0,Electrical visit: door seal check
+1018,506,106,West,cancelled,normal,2026-07-07,,0.0,0.0,Plumbing visit: air filter check
+1019,517,111,North,done,normal,2026-07-14,2026-07-19,1.75,161.25,Refrigeration visit: compressor relay check
+1020,504,104,East,in_progress,low,2026-07-21,,4.0,0.0,HVAC visit: shut-off valve check
+1021,515,109,West,open,high,2026-07-28,,0.0,0.0,Electrical visit: thermostat check
+1022,502,102,South,done,normal,2026-08-04,2026-08-07,1.5,177.5,Plumbing visit: fan motor check
+1023,513,107,East,done,normal,2026-08-11,2026-08-15,3.75,381.25,Refrigeration visit: door seal check
+1024,500,100,North,scheduled,low,2026-08-18,,0.0,0.0,HVAC visit: air filter check
+1025,511,105,South,cancelled,high,2026-08-25,,0.0,0.0,Electrical visit: compressor relay check
+1026,522,110,West,done,normal,2026-09-01,2026-09-03,3.5,322.5,Plumbing visit: shut-off valve check
+1027,509,103,North,in_progress,normal,2026-09-08,,5.75,0.0,Refrigeration visit: thermostat check
+1028,520,108,East,open,low,2026-09-15,,0.0,0.0,HVAC visit: fan motor check
+1029,507,101,West,done,high,2026-09-22,2026-09-27,3.25,338.75,Electrical visit: door seal check
+1030,518,106,South,done,normal,2026-09-29,2026-09-30,5.5,467.5,Plumbing visit: air filter check
+1031,505,111,East,scheduled,normal,2026-10-06,,0.0,0.0,Refrigeration visit: compressor relay check
+1032,516,104,North,cancelled,low,2026-10-13,,0.0,0.0,HVAC visit: shut-off valve check
+1033,503,109,South,done,high,2026-10-20,2026-10-24,5.25,483.75,Electrical visit: thermostat check
+1034,514,102,West,in_progress,normal,2026-10-27,,7.5,0.0,Plumbing visit: fan motor check
+1035,501,107,North,open,normal,2026-07-06,,0.0,0.0,Refrigeration visit: door seal check
+1036,512,100,East,done,low,2026-07-13,2026-07-15,5.0,425.0,HVAC visit: air filter check
+1037,523,105,West,done,high,2026-07-20,2026-07-23,7.25,628.75,Electrical visit: compressor relay check
+1038,510,110,South,scheduled,normal,2026-07-27,,0.0,0.0,Plumbing visit: shut-off valve check
+1039,521,103,East,cancelled,normal,2026-08-03,,0.0,0.0,Refrigeration visit: thermostat check
+1040,508,108,North,done,low,2026-08-10,2026-08-11,7.0,645.0,HVAC visit: fan motor check
+1041,519,101,South,in_progress,high,2026-08-17,,2.25,0.0,Electrical visit: door seal check
+1042,506,106,West,open,normal,2026-08-24,,0.0,0.0,Plumbing visit: air filter check
+1043,517,111,North,done,normal,2026-08-31,2026-09-04,6.75,586.25,Refrigeration visit: compressor relay check
+1044,504,104,East,done,low,2026-09-07,2026-09-12,2.0,195.0,HVAC visit: shut-off valve check
+1045,515,109,West,scheduled,high,2026-09-14,,0.0,0.0,Electrical visit: thermostat check
+1046,502,102,South,cancelled,normal,2026-09-21,,0.0,0.0,Plumbing visit: fan motor check
+1047,513,107,East,done,normal,2026-09-28,2026-10-01,1.75,211.25,Refrigeration visit: door seal check
+1048,500,100,North,in_progress,low,2026-10-05,,4.0,0.0,HVAC visit: air filter check
+1049,511,105,South,open,high,2026-10-12,,0.0,0.0,Electrical visit: compressor relay check
+1050,522,110,West,done,normal,2026-10-19,2026-10-20,1.5,152.5,Plumbing visit: shut-off valve check
+1051,509,103,North,done,normal,2026-10-26,2026-10-28,3.75,356.25,Refrigeration visit: thermostat check
+1052,520,108,East,scheduled,low,2026-07-05,,0.0,0.0,HVAC visit: fan motor check
+1053,507,101,West,cancelled,high,2026-07-12,,0.0,0.0,Electrical visit: door seal check
+1054,518,106,South,done,normal,2026-07-19,2026-07-24,3.5,297.5,Plumbing visit: air filter check
+1055,505,111,East,in_progress,normal,2026-07-26,,5.75,0.0,Refrigeration visit: compressor relay check
+1056,516,104,North,open,low,2026-08-02,,0.0,0.0,HVAC visit: shut-off valve check
+1057,503,109,South,done,high,2026-08-09,2026-08-12,3.25,313.75,Electrical visit: thermostat check
+1058,514,102,West,done,normal,2026-08-16,2026-08-20,5.5,517.5,Plumbing visit: fan motor check
+1059,501,107,North,scheduled,normal,2026-08-23,,0.0,0.0,Refrigeration visit: door seal check
+1060,512,100,East,cancelled,low,2026-08-30,,0.0,0.0,HVAC visit: air filter check
+1061,523,105,West,done,high,2026-09-06,2026-09-08,5.25,458.75,Electrical visit: compressor relay check
+1062,510,110,South,in_progress,normal,2026-09-13,,7.5,0.0,Plumbing visit: shut-off valve check
+1063,521,103,East,open,normal,2026-09-20,,0.0,0.0,Refrigeration visit: thermostat check
+1064,508,108,North,done,low,2026-09-27,2026-10-02,5.0,475.0,HVAC visit: fan motor check
+1065,519,101,South,done,high,2026-10-04,2026-10-05,7.25,678.75,Electrical visit: door seal check
+1066,506,106,West,scheduled,normal,2026-10-11,,0.0,0.0,Plumbing visit: air filter check
+1067,517,111,North,cancelled,normal,2026-10-18,,0.0,0.0,Refrigeration visit: compressor relay check
+1068,504,104,East,done,low,2026-10-25,2026-10-29,7.0,620.0,HVAC visit: shut-off valve check
+1069,515,109,West,in_progress,high,2026-07-04,,2.25,0.0,Electrical visit: thermostat check
+1070,502,102,South,open,normal,2026-07-11,,0.0,0.0,Plumbing visit: fan motor check
+1071,513,107,East,done,normal,2026-07-18,2026-07-20,6.75,636.25,Refrigeration visit: door seal check
+1072,500,100,North,done,low,2026-07-25,2026-07-28,2.0,170.0,HVAC visit: air filter check
+1073,511,105,South,scheduled,high,2026-08-01,,0.0,0.0,Electrical visit: compressor relay check
+1074,522,110,West,cancelled,normal,2026-08-08,,0.0,0.0,Plumbing visit: shut-off valve check
+1075,509,103,North,done,normal,2026-08-15,2026-08-16,1.75,186.25,Refrigeration visit: thermostat check
+1076,520,108,East,in_progress,low,2026-08-22,,4.0,0.0,HVAC visit: fan motor check
+1077,507,101,West,open,high,2026-08-29,,0.0,0.0,Electrical visit: door seal check
+1078,518,106,South,done,normal,2026-09-05,2026-09-09,1.5,127.5,Plumbing visit: air filter check
+1079,505,111,East,done,normal,2026-09-12,2026-09-17,3.75,331.25,Refrigeration visit: compressor relay check
+1080,516,104,North,scheduled,low,2026-09-19,,0.0,0.0,HVAC visit: shut-off valve check
+1081,503,109,South,cancelled,high,2026-09-26,,0.0,0.0,Electrical visit: thermostat check
+1082,514,102,West,done,normal,2026-10-03,2026-10-06,3.5,347.5,Plumbing visit: fan motor check
+1083,501,107,North,in_progress,normal,2026-10-10,,5.75,0.0,Refrigeration visit: door seal check
+1084,512,100,East,open,low,2026-10-17,,0.0,0.0,HVAC visit: air filter check
+1085,523,105,West,done,high,2026-10-24,2026-10-25,3.25,288.75,Electrical visit: compressor relay check
+1086,510,110,South,done,normal,2026-07-03,2026-07-05,5.5,492.5,Plumbing visit: shut-off valve check
+1087,521,103,East,scheduled,normal,2026-07-10,,0.0,0.0,Refrigeration visit: thermostat check
+1088,508,108,North,cancelled,low,2026-07-17,,0.0,0.0,HVAC visit: fan motor check
+1089,519,101,South,done,high,2026-07-24,2026-07-29,5.25,508.75,Electrical visit: door seal check
+1090,506,106,West,in_progress,normal,2026-07-31,,7.5,0.0,Plumbing visit: air filter check
+1091,517,111,North,open,normal,2026-08-07,,0.0,0.0,Refrigeration visit: compressor relay check
+1092,504,104,East,done,low,2026-08-14,2026-08-17,5.0,450.0,HVAC visit: shut-off valve check
+1093,515,109,West,done,high,2026-08-21,2026-08-25,7.25,653.75,Electrical visit: thermostat check
+1094,502,102,South,scheduled,normal,2026-08-28,,0.0,0.0,Plumbing visit: fan motor check
+1095,513,107,East,cancelled,normal,2026-09-04,,0.0,0.0,Refrigeration visit: door seal check
+1096,500,100,North,done,low,2026-09-11,2026-09-13,7.0,595.0,HVAC visit: air filter check
+1097,511,105,South,in_progress,high,2026-09-18,,2.25,0.0,Electrical visit: compressor relay check
+1098,522,110,West,open,normal,2026-09-25,,0.0,0.0,Plumbing visit: shut-off valve check
+1099,509,103,North,done,normal,2026-10-02,2026-10-07,6.75,611.25,Refrigeration visit: thermostat check
+1100,520,108,East,done,low,2026-10-09,2026-10-10,2.0,220.0,HVAC visit: fan motor check
+1101,507,101,West,scheduled,high,2026-10-16,,0.0,0.0,Electrical visit: door seal check
+1102,518,106,South,cancelled,normal,2026-10-23,,0.0,0.0,Plumbing visit: air filter check
+1103,505,111,East,done,normal,2026-07-02,2026-07-06,1.75,161.25,Refrigeration visit: compressor relay check
+1104,516,104,North,in_progress,low,2026-07-09,,4.0,0.0,HVAC visit: shut-off valve check
+1105,503,109,South,open,high,2026-07-16,,0.0,0.0,Electrical visit: thermostat check
+1106,514,102,West,done,normal,2026-07-23,2026-07-25,1.5,177.5,Plumbing visit: fan motor check
+1107,501,107,North,done,normal,2026-07-30,2026-08-02,3.75,381.25,Refrigeration visit: door seal check
+1108,512,100,East,scheduled,low,2026-08-06,,0.0,0.0,HVAC visit: air filter check
+1109,523,105,West,cancelled,high,2026-08-13,,0.0,0.0,Electrical visit: compressor relay check
+1110,510,110,South,done,normal,2026-08-20,2026-08-21,3.5,322.5,Plumbing visit: shut-off valve check
+1111,521,103,East,in_progress,normal,2026-08-27,,5.75,0.0,Refrigeration visit: thermostat check
+1112,508,108,North,open,low,2026-09-03,,0.0,0.0,HVAC visit: fan motor check
+1113,519,101,South,done,high,2026-09-10,2026-09-14,3.25,338.75,Electrical visit: door seal check
+1114,506,106,West,done,normal,2026-09-17,2026-09-22,5.5,467.5,Plumbing visit: air filter check
+1115,517,111,North,scheduled,normal,2026-09-24,,0.0,0.0,Refrigeration visit: compressor relay check
+1116,504,104,East,cancelled,low,2026-10-01,,0.0,0.0,HVAC visit: shut-off valve check
+1117,515,109,West,done,high,2026-10-08,2026-10-11,5.25,483.75,Electrical visit: thermostat check
+1118,502,102,South,in_progress,normal,2026-10-15,,7.5,0.0,Plumbing visit: fan motor check
+1119,513,107,East,open,normal,2026-10-22,,0.0,0.0,Refrigeration visit: door seal check
