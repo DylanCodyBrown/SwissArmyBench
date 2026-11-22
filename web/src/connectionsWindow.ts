@@ -697,7 +697,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         },
           h("span", { class: "connection-card-icon", "aria-hidden": "true" }, icon("sandbox")),
           h("span", { class: "connection-card-text" }, h("strong", { class: "connection-card-name" }, c.name), h("span", { class: "connection-card-type" }, `Sandbox · ${c.tables ?? 0} tables`)),
-          h("span", { class: "connection-card-calls" }, c.log_words ?? ""),
+          // Its status row where every other card has its status: on the left, not the calls' place at the right.
+          h("span", { class: "connection-card-marks connection-card-type connection-card-log" }, c.log_words ?? ""),
           h("span", { class: "connection-card-about sandbox-never-live" }, c.words ?? ""),
         ));
     const groups: [string, (c: Card) => boolean][] = [

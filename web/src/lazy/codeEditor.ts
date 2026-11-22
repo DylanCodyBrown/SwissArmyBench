@@ -100,7 +100,26 @@ monaco.json.jsonDefaults.setModeConfiguration({
   selectionRanges: false,
 });
 
-const THEMES: Record<string, string> = { light: "vs", dark: "vs-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
+// SQL's colours, one rule for both themes: Monaco's SQL grammar tokens its word operators (JOIN, LEFT, ON's
+// AND, OR, IN, LIKE, IS, NULL, UNION...) as "operator", which its vs themes draw a washed-out grey beside the
+// blue keywords. Here every word of SQL is a keyword (blue), and the symbols (=, <, +) take the text's colour,
+// as VS Code's Light+ and Dark+ draw them.
+monaco.languages.registerTokensProviderFactory("sql", {
+  create: async () => sqlWords(((await import("monaco-editor/languages/definitions/sql/sql.js")) as { language: monaco.languages.IMonarchLanguage }).language),
+});
+/** The grammar with its word operators as keywords; its symbols stay operators. */
+export function sqlWords(language: monaco.languages.IMonarchLanguage): monaco.languages.IMonarchLanguage {
+  const root = (language.tokenizer.root ?? []).map((rule) => {
+    const action = Array.isArray(rule) ? (rule[1] as { cases?: Record<string, string> } | undefined) : undefined;
+    if (!Array.isArray(rule) || !action?.cases || !("@operators" in action.cases)) return rule;
+    return [rule[0], { ...action, cases: { ...action.cases, "@operators": "keyword" } }, ...rule.slice(2)] as monaco.languages.IMonarchLanguageRule;
+  });
+  return { ...language, tokenizer: { ...language.tokenizer, root } };
+}
+const SQL_RULES = { light: [{ token: "operator.sql", foreground: "000000" }], dark: [{ token: "operator.sql", foreground: "D4D4D4" }] };
+monaco.editor.defineTheme("sab-light", { base: "vs", inherit: true, rules: SQL_RULES.light, colors: {} });
+monaco.editor.defineTheme("sab-dark", { base: "vs-dark", inherit: true, rules: SQL_RULES.dark, colors: {} });
+const THEMES: Record<string, string> = { light: "sab-light", dark: "sab-dark", "hc-light": "hc-light", "hc-dark": "hc-black" };
 
 /** A completion: what it shows, what it inserts, its kind (variable, function, table, column...). */
 export interface Suggestion {
@@ -897,7 +916,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
   const ownModel = uri ? monaco.editor.createModel(options.value, monacoId(options.language), uri) : null;
   const editor = monaco.editor.create(host, {
     ...(ownModel ? { model: ownModel } : { value: options.value, language: monacoId(options.language) }),
-    theme: THEMES[options.theme] ?? "vs",
+    theme: THEMES[options.theme] ?? "sab-light",
     automaticLayout: !options.grow,
     minimap: { enabled: !!options.minimap },
     lineNumbers: options.grow ? "off" : "on",
@@ -1417,7 +1436,7 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       );
     },
     focus: () => editor.focus(),
-    setTheme: (theme) => monaco.editor.setTheme(THEMES[theme] ?? "vs"),
+    setTheme: (theme) => monaco.editor.setTheme(THEMES[theme] ?? "sab-light"),
     setFontSize: (px) => {
       editor.updateOptions({ fontSize: px });
       if (options.grow) fit();
@@ -1481,7 +1500,7 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
   const editor = monaco.editor.create(host, {
     value: initial,
     language: "sql",
-    theme: THEMES[theme] ?? "vs",
+    theme: THEMES[theme] ?? "sab-light",
     minimap: { enabled: false },
     automaticLayout: true,
     fontSize: 13,
@@ -1503,7 +1522,7 @@ export function createSqlEditor(host: HTMLElement, initial: string, onRun: () =>
       if (model) editor.setPosition(model.getPositionAt(text.length));
     },
     focus: () => editor.focus(),
-    setTheme: (t) => monaco.editor.setTheme(THEMES[t] ?? "vs"),
+    setTheme: (t) => monaco.editor.setTheme(THEMES[t] ?? "sab-light"),
     setNames: (columns, tables) => {
       const model = editor.getModel();
       if (model) namesOf.set(model, { columns, tables });
@@ -1537,13 +1556,13 @@ function defineModernThemes(): void {
   monaco.editor.defineTheme("vscode-dark-modern", {
     base: "vs-dark",
     inherit: true,
-    rules: [],
+    rules: SQL_RULES.dark,
     colors: { "editor.background": "#1F1F1F", "editor.foreground": "#CCCCCC", "editorLineNumber.foreground": "#6E7681", "editorLineNumber.activeForeground": "#CCCCCC", "editorGutter.background": "#1F1F1F" },
   });
   monaco.editor.defineTheme("vscode-light-modern", {
     base: "vs",
     inherit: true,
-    rules: [],
+    rules: SQL_RULES.light,
     colors: { "editor.background": "#FFFFFF", "editor.foreground": "#3B3B3B", "editorLineNumber.foreground": "#6E7681", "editorLineNumber.activeForeground": "#171184", "editorGutter.background": "#FFFFFF" },
   });
 }

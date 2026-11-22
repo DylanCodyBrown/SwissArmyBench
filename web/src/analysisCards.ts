@@ -5,6 +5,8 @@
  * alike. Charts name the theme's colors ("theme:accent"), which lazy/plotly.ts resolves when it draws.
  */
 
+import { isLabelColumn, plainNumber } from "./dom";
+
 export interface SandboxCard {
   kind: "note" | "plotly";
   title: string;
@@ -73,14 +75,17 @@ const STAT_NAMES: [string, string][] = [
 /** A column's profile: its numbers in a table, its most common values, and a histogram (numbers),
  * rows by month (dates) or the top values (anything else). */
 export function profileCards(p: ProfileInput, dataset: string): SandboxCard[] {
-  const stats = STAT_NAMES.filter(([key]) => p[key] !== undefined && p[key] !== null).map(([key, name]) => [name, fmt(p[key])]);
+  const label = isLabelColumn(p.column, p.min, p.max);
+  const AMOUNTS = new Set(["min", "q1", "median", "q3", "max"]);
+  const shown = (v: unknown): string => (label && typeof v === "number" ? plainNumber(v) : fmt(v));
+  const stats = STAT_NAMES.filter(([key]) => p[key] !== undefined && p[key] !== null).map(([key, name]) => [name, AMOUNTS.has(key) ? shown(p[key]) : fmt(p[key])]);
   const lines = [
     `# Profile of ${p.column}`,
     `**${fmt(p.rows)} rows, ${fmt(p.distinct)} different values${p.all_unique ? " (every row different)" : ""}, ${fmt(p.blanks)} blank (${p.blank_percent}%).** A ${p.type.toLowerCase()} column of \`${dataset}\`.`,
   ];
   if (stats.length) lines.push("", mdTable(["Measure", "Value"], stats, [false, true]));
   if (p.top_values.length) {
-    lines.push("", "#### Most common values", mdTable(["Value", "Rows", "Share"], p.top_values.slice(0, 10).map((t) => [t.value ?? "(blank)", t.count, pct(t.count / Math.max(1, p.rows))]), [false, true, true]));
+    lines.push("", "#### Most common values", mdTable(["Value", "Rows", "Share"], p.top_values.slice(0, 10).map((t) => [t.value === null || t.value === undefined ? "(blank)" : shown(t.value), t.count, pct(t.count / Math.max(1, p.rows))]), [false, true, true]));
   }
   const histogram = p.histogram as { low: number; high: number; count: number }[] | undefined;
   const months = p.by_month as { month: string; count: number }[] | undefined;
@@ -98,7 +103,7 @@ export function profileCards(p: ProfileInput, dataset: string): SandboxCard[] {
   } else if (p.top_values.length > 1) {
     const top = [...p.top_values.slice(0, 15)].reverse();
     figure = {
-      data: [{ type: "bar", orientation: "h", x: top.map((t) => t.count), y: top.map((t) => fmt(t.value ?? "(blank)")), marker: { color: "theme:accent" }, hovertemplate: "%{y}: %{x} rows<extra></extra>" }],
+      data: [{ type: "bar", orientation: "h", x: top.map((t) => t.count), y: top.map((t) => (t.value === null || t.value === undefined ? "(blank)" : shown(t.value))), marker: { color: "theme:accent" }, hovertemplate: "%{y}: %{x} rows<extra></extra>" }],
       layout: { ...BASE_LAYOUT, xaxis: { title: { text: "Rows" } }, yaxis: { automargin: true, type: "category" } },
     };
   }
@@ -111,7 +116,7 @@ export function tableProfileCards(r: { rows: number; duplicate_rows: number; col
     `# Profile of ${dataset}`,
     `**${fmt(r.rows)} rows, ${fmt(r.columns.length)} columns, ${fmt(r.duplicate_rows)} duplicate rows.**`,
     "",
-    mdTable(["Column", "Type", "Blank", "Blank %", "Different values", "Lowest", "Highest"], r.columns.map((c) => [c.column, String(c.type).toLowerCase(), c.blanks, `${String(c.blank_percent)}%`, c.distinct, c.min, c.max]), [false, false, true, true, true, false, false]),
+    mdTable(["Column", "Type", "Blank", "Blank %", "Different values", "Lowest", "Highest"], r.columns.map((c) => [c.column, String(c.type).toLowerCase(), c.blanks, `${String(c.blank_percent)}%`, c.distinct, ...(isLabelColumn(String(c.column), c.min, c.max) ? [plainNumber(c.min), plainNumber(c.max)] : [c.min, c.max])]), [false, false, true, true, true, false, false]),
   ].join("\n");
   return pair(`Profile of ${dataset}`, markdown, null).map((card) => ({ ...card, size: { w: 12, h: card.size.h } }));
 }
@@ -128,6 +133,6 @@ export function valueCards(value: unknown, title: string, dataset: string): Sand
 
 /** One row: each column and its value, as a two-column table. */
 export function rowCards(values: Record<string, unknown>, row: number, dataset: string): SandboxCard[] {
-  const markdown = [`# Row ${fmt(row + 1)} of ${dataset}`, "", mdTable(["Column", "Value"], Object.entries(values).map(([k, v]) => [k, v === null || v === undefined ? "(blank)" : typeof v === "object" ? JSON.stringify(v) : v]))].join("\n");
+  const markdown = [`# Row ${fmt(row + 1)} of ${dataset}`, "", mdTable(["Column", "Value"], Object.entries(values).map(([k, v]) => [k, v === null || v === undefined ? "(blank)" : typeof v === "object" ? JSON.stringify(v) : typeof v === "number" && isLabelColumn(k) ? plainNumber(v) : v]))].join("\n");
   return [{ kind: "note", title: `Row ${fmt(row + 1)} of ${dataset}`, body: markdown, size: { w: 5, h: Math.max(5, Math.min(18, Math.ceil(Object.keys(values).length * 0.6) + 3)) } }];
 }

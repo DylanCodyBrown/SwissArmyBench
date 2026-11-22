@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from typing import Any
 
 Card = dict[str, Any]
@@ -36,6 +37,42 @@ def fmt(v: Any) -> str:
         text = f"{v:,.2f}".rstrip("0").rstrip(".")
         return text if text not in ("-0", "") else "0"
     return str(v)
+
+
+# A column whose numbers are labels, not amounts: a year or an identifier reads without separators
+# ("2018", "100234"), never "2,018". By its name's words, or whole numbers that all read as years.
+LABEL_WORDS = frozenset({"year", "yr", "fy", "id", "key", "code", "zip", "postcode", "sku"})
+
+
+def _words(name: str) -> list[str]:
+    spaced = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", name)
+    return [w.lower() for w in re.split(r"[^A-Za-z0-9]+", spaced) if w]
+
+
+def is_label_column(column: Any, low: Any = None, high: Any = None) -> bool:
+    """True for a year or an identifier: its name says so (fiscal_year, CustomerKey, order_id), or its
+    lowest and highest are whole numbers between 1800 and 2200 (years)."""
+    if any(w in LABEL_WORDS or w.endswith("year") for w in _words(str(column or ""))):
+        return True
+
+    def yearish(v: Any) -> bool:
+        return (
+            isinstance(v, (int, float))
+            and not isinstance(v, bool)
+            and float(v).is_integer()
+            and 1800 <= v <= 2200
+        )
+
+    return yearish(low) and yearish(high)
+
+
+def plain(v: Any) -> str:
+    """A label's number as its digits: 2018, not 2,018 (anything else as fmt writes it)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return fmt(v)
+    if isinstance(v, float) and v.is_integer() and abs(v) < 1e15:
+        return str(int(v))
+    return str(v) if isinstance(v, int) else fmt(v).replace(",", "")
 
 
 def pct(v: float | None) -> str:
@@ -1047,8 +1084,11 @@ def profile_cards(r: dict[str, Any], dataset: str) -> list[Card]:
                         c.get("blanks"),
                         f"{c.get('blank_percent')}%",
                         c.get("distinct"),
-                        c.get("min"),
-                        c.get("max"),
+                        *(
+                            (plain(c.get("min")), plain(c.get("max")))
+                            if is_label_column(c.get("column"), c.get("min"), c.get("max"))
+                            else (c.get("min"), c.get("max"))
+                        ),
                     ]
                     for c in columns
                 ],

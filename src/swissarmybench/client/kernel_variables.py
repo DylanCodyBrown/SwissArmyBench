@@ -43,6 +43,8 @@ def _size(value: Any) -> str:
     if isinstance(shape, tuple) and all(isinstance(n, int) for n in shape):
         if len(shape) == 2 and hasattr(value, "columns"):
             return f"{_count(shape[0], 'row')} by {_count(shape[1], 'column')}"
+        if len(shape) == 1 and type(value).__name__ == "Series":  # pandas or polars: one column
+            return _count(shape[0], "value")
         return " by ".join(f"{n:,}" for n in shape) or "scalar"
     num_rows = getattr(value, "num_rows", None)  # a pyarrow Table
     if isinstance(num_rows, int) and hasattr(value, "num_columns"):

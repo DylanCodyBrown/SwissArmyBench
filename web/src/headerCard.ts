@@ -10,7 +10,7 @@
  * ROUTING: StatsHeader (gridView.ts) mouseenter -> hoverHeader(); mouseleave / mousedown -> hideHeaderCard()
  */
 import { api, query } from "./api";
-import { formatCount, h } from "./dom";
+import { formatCount, h, isLabelColumn, plainNumber } from "./dom";
 import type { PageState } from "./state";
 
 const HOVER_MS = 450;
@@ -74,7 +74,9 @@ function draw(p: Profile): HTMLElement {
   ];
   let picture: HTMLElement | null = null;
   if (p.family === "number") {
-    lines.push(line("Range", `${number(p.min)} to ${number(p.max)}`));
+    const label = isLabelColumn(p.column, p.min, p.max); // a year or an identifier: 2018, not 2,018
+    const value = (v: unknown): string => (label ? plainNumber(v) : number(v));
+    lines.push(line("Range", `${value(p.min)} to ${value(p.max)}`));
     if (p.mean != null) lines.push(line("Mean", number(p.mean)));
     picture = bars((p.histogram ?? []).map((b) => b.count));
   } else if (p.family === "date" || p.family === "timestamp") {

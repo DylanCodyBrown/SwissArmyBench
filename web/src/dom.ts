@@ -456,6 +456,19 @@ export const isBoolType = (type: string): boolean => type.toUpperCase() === "BOO
 const grouping = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
 export const formatCount = (n: number): string => grouping.format(n);
 
+/** A column whose numbers are labels, not amounts: a year or an identifier, written without separators
+ *  ("2018", never "2,018"). By its name's words (fiscal_year, CustomerKey, order_id), or whole numbers
+ *  from `low` to `high` that all read as years (1800 to 2200). The server's twin: analysis_cards.is_label_column. */
+const LABEL_WORDS = new Set(["year", "yr", "fy", "id", "key", "code", "zip", "postcode", "sku"]);
+export function isLabelColumn(column: string, low?: unknown, high?: unknown): boolean {
+  const words = column.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (words.some((w) => LABEL_WORDS.has(w) || w.endsWith("year"))) return true;
+  const yearish = (v: unknown): boolean => typeof v === "number" && Number.isInteger(v) && v >= 1800 && v <= 2200;
+  return yearish(low) && yearish(high);
+}
+/** A label's number as its digits (anything else as given, for the caller's own formatting). */
+export const plainNumber = (v: unknown): string => (typeof v === "number" ? (Number.isInteger(v) ? String(v) : String(Number(v.toFixed(2)))) : String(v ?? ""));
+
 /** A count with its word, the one way every page says it: "1 row", "1,204 rows" (`many` for a word whose
  *  plural is not its word and an s). */
 export const plural = (n: number, word: string, many = `${word}s`): string => `${formatCount(n)} ${n === 1 ? word : many}`;

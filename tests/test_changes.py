@@ -5,6 +5,7 @@ difference by names (columns with their types), fingerprints before and after, p
 from __future__ import annotations
 
 import json
+from typing import Any
 
 import pytest
 
@@ -142,3 +143,25 @@ def test_a_canvas_page_and_api_pys_endpoints_as_the_log_names_them() -> None:
     shapes = _endpoint_shapes(local_api.scaffold("Orders") + endpoint)
     assert shapes is not None and list(shapes) == ["GET /orders/{region}"]
     assert all("line" not in s["endpoint"] for s in shapes.values())
+
+
+def test_a_canvas_change_reads_in_plain_words() -> None:
+    # Never "items changed w1 title": which widget, which property, which page; never a value.
+    from swissarmybench_streamlit.services.canvas import _pages
+
+    def canvas(title: str, extra: list[dict[str, Any]]) -> dict[str, Any]:
+        chart = {"id": "w1", "kind": "widget", "widget": "bar_chart", "values": {"title": title}}
+        return {"pages": [{"id": "p1", "name": "Overview", "children": [chart, *extra]}]}
+
+    was = _pages(canvas("Sales by month", []))["Overview"]
+    now = _pages(canvas("Revenue by month", []))["Overview"]
+    made = rules.change("canvas", "sales / Overview", was, now)
+    assert made is not None and made["words"] == "Changed the title of bar_chart on Overview"
+    assert "Revenue" not in json.dumps(made)
+    kpi = {"id": "w2", "kind": "widget", "widget": "kpi_card", "values": {}, "at": {"desktop": {"x": 0}}}
+    added = _pages(canvas("Sales by month", [kpi]))["Overview"]
+    made = rules.change("canvas", "sales / Overview", was, added)
+    assert made is not None and made["words"] == "Added kpi_card to Overview"
+    moved = _pages(canvas("Sales by month", [kpi | {"at": {"desktop": {"x": 10}}}]))["Overview"]
+    made = rules.change("canvas", "sales / Overview", added, moved)
+    assert made is not None and made["words"] == "Moved or resized kpi_card on Overview"

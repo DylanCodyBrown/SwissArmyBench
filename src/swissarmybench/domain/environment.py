@@ -186,7 +186,7 @@ TYPE_WORDS: dict[str, str] = {
     "DataFrame": "Table",
     "Table": "Table",
     "DuckDBPyRelation": "Table",
-    "Series": "Column",
+    "Series": "Series",
     "ndarray": "Array",
     "Path": "Path",
     "PosixPath": "Path",

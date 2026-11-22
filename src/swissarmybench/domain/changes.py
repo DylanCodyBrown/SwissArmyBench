@@ -126,6 +126,67 @@ def words_of(name: str, found: Mapping[str, Mapping[str, Any]]) -> str:
     return f"{name}: " + "; ".join(_part_words(part, one) for part, one in found.items())
 
 
+# A canvas page's item, as the Session page says it changed: which part of a widget instance (its values by
+# their property names, never a value; its place; where it shows; its wires), in plain words.
+_ITEM_PARTS = {"at": "moved or resized", "show": "changed where it shows", "wires": "rewired"}
+
+
+def _item_name(node: Mapping[str, Any]) -> str:
+    widget = node.get("widget")
+    if widget:
+        return str(widget)
+    title = node.get("title")
+    return f"the container {title}" if title else "a container"
+
+
+def _and(names: Sequence[str]) -> str:
+    names = list(names)
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def canvas_words(name: str, before: Mapping[str, Any] | None, after: Mapping[str, Any] | None) -> str:
+    """A canvas page's change in plain words: "Changed the title of bar_chart on Overview", "Added kpi_card
+    to Overview; moved or resized table on Overview" (`name` is "<app> / <page>"; the page is said). ""
+    when the page itself was added or removed (change() says those)."""
+    if before is None or after is None:
+        return ""
+    page = str(name).rsplit(" / ", 1)[-1]
+    was, now = dict(before.get("items") or {}), dict(after.get("items") or {})
+    said: list[str] = []
+    for label in sorted(set(was) | set(now)):
+        old, new = was.get(label), now.get(label)
+        if old is None and isinstance(new, Mapping):
+            said.append(f"added {_item_name(new)} to {page}")
+        elif new is None and isinstance(old, Mapping):
+            said.append(f"removed {_item_name(old)} from {page}")
+        elif isinstance(old, Mapping) and isinstance(new, Mapping) and fingerprint(old) != fingerprint(new):
+            what = _item_name(new)
+            values_old, values_new = dict(old.get("values") or {}), dict(new.get("values") or {})
+            props = sorted(
+                k
+                for k in set(values_old) | set(values_new)
+                if fingerprint(values_old.get(k)) != fingerprint(values_new.get(k))
+            )
+            if new.get("title") != old.get("title") and not new.get("widget"):
+                props.append("title")
+            parts = [
+                words
+                for key, words in _ITEM_PARTS.items()
+                if fingerprint(old.get(key)) != fingerprint(new.get(key))
+            ]
+            if props:
+                more = " and more" if len(props) > 4 else ""
+                said.append(f"changed the {_and(props[:4])}{more} of {what} on {page}")
+            said += [f"{words} {what} on {page}" for words in parts]
+            if not props and not parts:
+                said.append(f"changed {what} on {page}")
+    if not said:
+        return ""
+    shown = said[:3] + ([f"and {len(said) - 3} more"] if len(said) > 3 else [])
+    text = "; ".join(shown)
+    return text[0].upper() + text[1:]
+
+
 def change(
     kind: str, name: str, before: Mapping[str, Any] | None, after: Mapping[str, Any] | None, words: str = ""
 ) -> Change | None:
@@ -138,6 +199,8 @@ def change(
     if was == now and not words:  # words given: the caller knows it changed (a variable's value, unseen)
         return None
     found = diff(before, after)
+    if not words and kind == "canvas":
+        words = canvas_words(name, before, after)
     if not words and before is None and after is not None:
         columns = after.get("columns")
         count = len(columns) if isinstance(columns, Mapping | list | tuple) else 0
