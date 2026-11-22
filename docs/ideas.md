@@ -8198,3 +8198,47 @@ a write is never sent twice after a passing error (429 only); discovery's Allow 
 Every change to a project's objects (table structure, connection, API and shape, endpoint, widget, canvas, code,
 setting, library) is one event in .sab/changes.jsonl (Git-ignored, everything kept, never values); the agent's changes
 tool answers the last change on an object. Plan: Plans/changes.plan.md.
+
+## Folder extensions and contract.json (the owner, 2026-11-21/22): built (branch folder-extensions)
+An extension can be a plain folder in the library, `library/extensions/<id>/`, trusted like the rest of the library
+(no signing), found at start beside the packages. Plan: Plans/folder-extensions.plan.md. Decided while building:
+- **It loads as the package `sab_ext_<id>`** (its folder that package's only path), so its extension.py and
+  commands.py have the same layout as a packaged extension's `swissarmybench_<id>/extension.py` and its files import
+  each other relatively. Its id is a Python name (2 to 31 lower-case letters, digits, `_`): it names the module, its
+  routes (`/<id>/...`) and its commands' prefix; New extension refuses a word of the base's own (grids, blades...)
+  and a catalog extension's id.
+- **A folder with an installed package's id loses to the package**, said on the package's card (`note`), so there is
+  never two cards of one id.
+- **What it leaves out is filled from its folder:** ID from the folder's name (a different declared ID is refused in
+  one sentence), its commands' area from its id, and with a contract.json and no MODE or scaffold of its own, its
+  MODE and its New project files from the contract. A command whose prefix names no area is left out rather than
+  breaking the registry's order (that would have stopped every tool).
+- **REQUIRES is a literal list read with ast before the folder loads**: a missing package keeps it off, its card has
+  the one missing-package answer, and Install (the page's Install now, the agent's `extensions_install` on Allow)
+  installs it into the app's own Python with the blades' installer, then loads it. A missing import while loading is
+  offered the same way, by its module's pip name.
+- **No restart for a folder:** its routes are mounted into the running app (inserted at the front of the router;
+  its id is never a base word) and unmounted on Remove; Install doubles as Load again. Its commands reach an agent's
+  tool list when the MCP server next starts (that process reads the library from the state folder's library.json);
+  until then its routes answer through the app. A SESSION_RULES or SECRET_PATHS of a folder made while the app runs
+  takes effect at the next start.
+- **Remove sends the folder to the system's trash** (the user's asks first, the agent's waits for Allow) and stops
+  its routes at once. **Show its folder is the user's click only** (403 for the agent, NOT_COMMANDS).
+- **New extension waits for the user's Allow when the agent asks** (its code runs in the app's server, as a proposed
+  blade waits for Allow). One new tool, `extensions_new` (the tool list had about 4,300 characters to spare); the
+  rest are the existing extensions_list, _install and _remove.
+- **Tests never read the real home's library:** tests/conftest.py points SWISSARMYBENCH_EXTENSION_FOLDERS at an empty
+  place; a test that makes one points it at its own folder, or unsets it and uses its server's library.
+- **contract.json, FORMAT 1** (domain/project_contract.py): the adapter plan's sketch (type, name, deliverable,
+  languages by file pattern, cells, files with owner user or app, canvas, export, areas, words) plus `requirements`
+  and a file's `starter` (what New project writes; `{name}`, and `{slug}` in a path). Unknown keys are refused (a typo
+  is said, not lost); a newer format is said as made for a newer Swiss Army Bench; the core files (adapter.py,
+  connections.py, API.py, data.py, data.ipynb, requirements.txt) and paths out of the project are refused. A name word
+  may hold a dot (`workbook.py` in Accounting's export).
+- **The four shipped types carry one each** (streamlit, accounting, powerapps, powerbi: at their package root, so it
+  ships in the wheel), describing what they have today; a test checks each against its MODE and that every file its
+  scaffold writes is one the contract lists. Their MODE and scaffold stay in extension.py for now (the task: New
+  project changes only where the deliverable is a plain list of files, which is the folder extensions' generic
+  scaffold); moving MODE into the contract is the next step. Copilot and Git add no project type and have none.
+- Not built: a folder's `starters/`, the Scripts page listing the library's extensions, a change to a folder's files
+  noticed by itself (Load again is the user's or the agent's), `sources.py`, Turn off / Turn on.

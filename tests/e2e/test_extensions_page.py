@@ -156,3 +156,112 @@ def test_a_development_checkout_says_what_to_run(browser: Browser, server: dict[
     expect(said).to_contain_text("development checkout")
     expect(page.locator(".extension-progress")).to_have_count(0)
     page.context.close()
+
+
+def folder(ident: str, name: str, **more: Any) -> dict[str, Any]:
+    """A folder extension's card as GET /extensions lists it (made up)."""
+    folder_fields = {
+        "package": "",
+        "version": "0.1.0",
+        "source": "folder",
+        "path": f"/made/up/library/extensions/{ident}",
+        "on": True,
+        "error": None,
+        "missing": None,
+    }
+    return ext(ident, name, "installed") | folder_fields | more
+
+
+def _answer(posted: list[Any], body: Any) -> Any:
+    """A route that keeps what was posted and answers `body` (or what body(posted) gives)."""
+
+    def handle(route: Route) -> None:
+        sent = route.request.post_data_json
+        posted.append(sent)
+        given = body(sent) if callable(body) else body
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(given))
+
+    return handle
+
+
+def _removed(sent: dict[str, Any]) -> dict[str, Any]:
+    if sent.get("confirmed"):
+        return {"removed": sent["id"]}
+    return {"confirm": "Its folder goes to the trash.", "id": sent["id"]}
+
+
+def test_a_folder_extension_is_drawn_from_its_data_with_remove_show_and_install_now(
+    browser: Browser, server: dict[str, Any]
+) -> None:
+    page = grid_page(browser)
+    missing = {
+        "feature": "The Plots extension",
+        "packages": ["made-up-plots>=1"],
+        "python": "app",
+        "command": "uv pip install 'made-up-plots>=1'",
+    }
+    broken_words = "It did not load: RuntimeError: made-up (extension.py, line 3)."
+    listing = {
+        "extensions": [
+            folder(
+                "stockroom",
+                "Stockroom",
+                project_type="stockroom",
+                project_name="Stockroom",
+                deliverable=["stock_report.md"],
+            ),
+            folder("plots", "Plots", on=False, missing=missing),
+            folder("broken", "Broken", on=False, error=broken_words),
+        ],
+        "installable": True,
+        "changing": None,
+    }
+    posted: dict[str, list[Any]] = {"install": [], "remove": [], "new": [], "show": []}
+    page.route(
+        "**/extensions",
+        lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(listing)),
+    )
+    page.route("**/extensions/install", _answer(posted["install"], {"loaded": {}}))
+    page.route("**/extensions/show", _answer(posted["show"], {"shown": "/made/up"}))
+    page.route("**/extensions/remove", _answer(posted["remove"], _removed))
+    page.route("**/extensions/new", _answer(posted["new"], {"made": "/made/up/library/extensions/bins"}))
+    page.locator(".nav-rail [data-area='extensions']").click()
+    stockroom = page.locator(".extension-card[data-extension='stockroom']")
+    expect(stockroom.locator(".extension-status")).to_have_text("Installed (folder)", timeout=10000)
+    expect(stockroom.locator(".extension-project")).to_have_text(
+        "Adds the Stockroom project type: stock_report.md"
+    )
+    expect(stockroom.locator(".extension-path")).to_have_text("/made/up/library/extensions/stockroom")
+    stockroom.get_by_role("button", name="Show its folder").click()
+    page.wait_for_timeout(300)
+    assert posted["show"] == [{"id": "stockroom"}]
+    # A broken one says why, with Load again.
+    broken = page.locator(".extension-card[data-extension='broken']")
+    expect(broken).to_contain_text("made-up (extension.py, line 3)")
+    expect(broken.get_by_role("button", name="Load again")).to_be_visible()
+    # Missing packages: the one missing-package prompt; Install now posts Install for the folder.
+    page.locator(".extension-card[data-extension='plots'] .extension-install").click()
+    prompt = page.locator("dialog.missing-packages")
+    expect(prompt).to_contain_text("The Plots extension will not work without made-up-plots>=1.")
+    prompt.get_by_role("button", name="Install now").click()
+    expect(prompt).to_have_count(0, timeout=10000)
+    assert posted["install"] == [{"id": "plots"}]
+    # Remove asks first, then removes (no restart: no progress).
+    stockroom.get_by_role("button", name="Remove").click()
+    page.locator("dialog").get_by_role("button", name="Remove Stockroom").click()
+    page.wait_for_timeout(300)
+    assert posted["remove"] == [
+        {"id": "stockroom", "confirmed": False},
+        {"id": "stockroom", "confirmed": True},
+    ]
+    expect(page.locator(".extension-progress")).to_have_count(0)
+    # New extension…: the id and project type posted.
+    page.get_by_role("button", name="New extension…").click()
+    dialog = page.locator("dialog[aria-label='New extension']")
+    dialog.locator("input[name='id']").fill("bins")
+    dialog.locator("input[name='project_type']").fill("bins")
+    dialog.get_by_role("button", name="Make it").click()
+    expect(dialog).to_have_count(0, timeout=10000)
+    assert posted["new"] == [{"id": "bins", "project_type": "bins"}]
+    shot(page, "extensions-folder.png")
+    page.context.close()

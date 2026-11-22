@@ -24,6 +24,10 @@ if "streamlit" not in os.environ.get("SWISSARMYBENCH_EXTENSIONS", ""):
         p for p in ("streamlit", os.environ.get("SWISSARMYBENCH_EXTENSIONS")) if p
     )
 
+# Folder extensions (the library's extensions/<id>/): none in a test unless it makes one
+# (test_folder_extensions.py points this at its own folder); never the real home's library.
+os.environ["SWISSARMYBENCH_EXTENSION_FOLDERS"] = str(Path(__file__).resolve().parent / "no-extension-folders")
+
 import pyarrow as pa  # noqa: E402
 import pyarrow.ipc as ipc  # noqa: E402
 import pytest  # noqa: E402

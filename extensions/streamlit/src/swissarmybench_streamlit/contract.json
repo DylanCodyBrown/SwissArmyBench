@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "type": "streamlit",
+  "name": "Streamlit",
+  "deliverable": "a Streamlit app",
+  "core": "base",
+  "languages": {
+    "*.py": "python",
+    "*.ipynb": "python",
+    "*.json": "json"
+  },
+  "cells": [
+    "python",
+    "sql",
+    "html",
+    "markdown"
+  ],
+  "files": [
+    {
+      "path": "{slug}.canvas.json",
+      "owner": "user",
+      "about": "The app's canvas: pages of containers and widgets.",
+      "starter": null,
+      "made_from": null,
+      "grows_on": [],
+      "section": ""
+    },
+    {
+      "path": "builds/",
+      "owner": "app",
+      "about": "Each Launch's build of the app.",
+      "starter": null,
+      "made_from": "the canvas",
+      "grows_on": [
+        "launch"
+      ],
+      "section": ""
+    }
+  ],
+  "requirements": [],
+  "canvas": "streamlit",
+  "export": [
+    "app",
+    "pages"
+  ],
+  "areas": [],
+  "words": {
+    "title": "Streamlit app",
+    "for_whom": "Anyone who wants a small web app on their data, for themselves or their team.",
+    "explain": "Draw containers on a canvas and insert widgets: charts, tables, filters and buttons, each with its properties. A filter widget sets a value the other widgets read.",
+    "example": "A sales dashboard with a region filter, a chart by month and a table of the top customers."
+  }
+}

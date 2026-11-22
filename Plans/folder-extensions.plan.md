@@ -1,6 +1,10 @@
 # Extensions as folders (the owner, 2026-11-21)
 
-Status: decided; not built. Build after the adapter (Plans/adapter.plan.md), whose project contract it uses.
+Status: built in part (branch folder-extensions, 2026-11-22; docs/ideas.md "Folder extensions and contract.json"):
+found, loaded, checked, listed (Installed (folder)), Install (its packages, then Load again), Remove (to the trash),
+Show its folder, New extension and `extensions_new`, contract.json (domain/project_contract.py) read for a folder's
+project type and carried by the shipped types. Not yet: its `starters/`, the Scripts page's listing, a change noticed
+by itself, `sources.py`, Turn off / Turn on.
 
 > "Extensions should be loadable as a folder in the app so users can create them with their own agents as needed
 > and transform the app."

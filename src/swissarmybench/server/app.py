@@ -78,7 +78,7 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
-from starlette.routing import Mount, Route, WebSocketRoute
+from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
@@ -386,7 +386,13 @@ def create_app(
                 *routes_script_export.routes(ctx.script_exports),
                 *routes_modes.routes(ctx.modes),
                 # Each extension that is on: its routes, given the services (its own are built from them).
-                *(route for extension in ctx.switched_on for route in extension.routes(ctx)),
+                # (a folder extension's are mounted below, so Remove and New extension change them at once).
+                *(
+                    route
+                    for extension in ctx.switched_on
+                    if not getattr(extension, "FOLDER", None)
+                    for route in extension.routes(ctx)
+                ),
                 # Each catalog extension that is not on here: its door answers which extension it is.
                 *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
                 *routes_explorer.routes(ctx.explorer),
@@ -445,4 +451,41 @@ def create_app(
         exception_handlers={404: _no_such_address, 405: _no_such_address},
     )
     app.state.ctx = ctx
+    _mount_folder_extensions(app, ctx)
     return app
+
+
+def _mount_folder_extensions(app: Starlette, ctx: Any) -> None:
+    """The library's folder extensions' routes, in the running app: each on one mounted now, and again on its
+    Load again or New extension; unmounted on its Remove. A routes() that fails is said on its card (its
+    error) and leaves the app as it was."""
+    from swissarmybench import extensions as loader
+    from swissarmybench.domain import extension_folders as folder_rules
+
+    mounted: dict[str, list[BaseRoute]] = {}
+
+    def unmount(ident: str) -> None:
+        for route in mounted.pop(ident, []):
+            if route in app.router.routes:
+                app.router.routes.remove(route)
+
+    def mount(ident: str) -> str:
+        unmount(ident)
+        found = loader.folders().get(ident)
+        if found is None or found.module is None:
+            return ""
+        try:
+            made = guarded(
+                list(found.module.routes(ctx)) if callable(getattr(found.module, "routes", None)) else []
+            )
+        except Exception as error:  # its own code: said on its card, never the app's stop
+            found.error, found.module = folder_rules.load_error(error, str(found.path)), None
+            return found.error
+        mounted[ident] = made
+        app.router.routes[0:0] = made  # its own /<id>/ addresses (its id is never a base word)
+        return ""
+
+    ctx.extensions.mount, ctx.extensions.unmount = mount, unmount
+    for extension in ctx.switched_on:
+        if getattr(extension, "FOLDER", None):
+            mount(str(extension.ID))

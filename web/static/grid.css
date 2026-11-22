@@ -11708,6 +11708,24 @@ g.follow-pulse > path:first-of-type {
   width: 100%;
 }
 
+/* A folder extension's card: its path on one line, its actions side by side. */
+.extension-project,
+.extension-path {
+  margin: 0;
+  font-size: 0.92em;
+}
+
+.extension-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.extension-foot.folder {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
 .structures-cards,
 .apis-cards {
   display: grid;
