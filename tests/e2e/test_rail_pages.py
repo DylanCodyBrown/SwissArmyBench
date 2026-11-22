@@ -182,16 +182,16 @@ def test_each_rail_icon_lands_on_a_page_and_back_and_forward_walk_them(
     area(page, "notebooks").click()
     expect(page.locator(".area-page")).to_have_count(0)
     expect(landing).to_be_visible()
-    # Blades: the Scripts page's Blades pane (2026-11-21), the Scripts window brought forward.
+    # Scripts: the Scripts window brought forward, its Files pane on the right (Blades beside it, 2026-11-22).
     with page.context.expect_page() as opened:
-        area(page, "blades").click()
+        area(page, "scripts").click()
     scripts = opened.value
-    expect(scripts).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
-    expect(scripts.locator(".wb-codex-lower.lower-blades")).to_be_visible(timeout=20000)
+    expect(scripts).to_have_url(re.compile(r"/scripts\?"), timeout=20000)
+    expect(scripts.locator(".wb-side.wb-codex")).to_be_visible(timeout=20000)
     no_box(scripts)
     area(scripts, "connections").click()
     expect(scripts.locator(".area-page[data-page='connections']")).to_be_visible()
-    area(scripts, "blades").click()
+    area(scripts, "scripts").click()
     expect(scripts.locator(".area-page")).to_have_count(0)
     page.context.close()
 

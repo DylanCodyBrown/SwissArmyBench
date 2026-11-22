@@ -69,8 +69,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "data",  # the one place to browse tables (2026-11-17)
         "grids",
         "erd",
-        "blades",
-        "scripts",  # beside Blades (2026-11-21)
+        "scripts",  # its Blades pane on the right: no Blades icon (2026-11-22)
         "notebooks",
         "canvas",  # the Apps area renamed (2026-11-21)
         "widgets",  # the Widgets window (2026-11-21)

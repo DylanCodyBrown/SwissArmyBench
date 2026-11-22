@@ -236,10 +236,10 @@ def add_database(act: Actions, page: Page, kind: str, name: str, where: dict[str
 
 
 def open_blades(act: Actions, page: Page) -> Page:
-    """The rail's Blades: the Scripts page's Blades pane (the blades page went, 2026-11-21), in the Scripts
-    page's own window, or this tab when the rail moves it."""
+    """The Scripts page's Blades pane (the blades page went, 2026-11-21; no rail icon, 2026-11-22: the rail's
+    Scripts, then the status bar's Blades when it is hidden), in the Scripts page's window or this tab."""
     pages = len(page.context.pages)
-    act.click(page.locator(".nav-rail [data-area='blades']"))
+    act.click(page.locator(".nav-rail [data-area='scripts']"))
     for _ in range(50):
         if len(page.context.pages) > pages:
             break
@@ -247,7 +247,11 @@ def open_blades(act: Actions, page: Page) -> Page:
             break
         page.wait_for_timeout(100)
     blades = page.context.pages[-1] if len(page.context.pages) > pages else page
-    expect(blades.locator(".wb-codex-lower.lower-blades .blade-list")).to_be_visible(timeout=LONG)
+    toggle = blades.locator(".wb-status .side-toggle", has_text="Blades")
+    expect(toggle).to_be_visible(timeout=LONG)
+    if toggle.get_attribute("aria-pressed") != "true":
+        act.click(toggle)
+    expect(blades.locator(".wb-blades-side .blade-list")).to_be_visible(timeout=LONG)
     return blades
 
 

@@ -5668,3 +5668,30 @@ The checks, on the final tree:
   test_project_outline_page, test_environment_page, test_sab_projects, test_table_cells_page,
   test_variables_page, test_sandbox_dashboards, test_query_from_page, test_project_session_page,
   test_rail_pages): 27 passed.
+
+
+## Side panes on the code pages, 2026-11-22 (branch side-panes)
+
+The owner: "Let's make the blades and files panes function just like properties and widgets on canvas. On the
+right side with buttons to show and hide them and then go ahead and remove blades rail icon".
+- Checked in Chromium (the browser tests' conftest pointed at this machine's Chromium for the run only, never
+  committed) on a real server with made-up files and the made-up sample store: the Scripts page with Files and
+  Blades side by side on the right of the code, each toggled from the status bar, the Files pane resized by its
+  edge, the choice and the width kept over a reload; the Notebooks page with its Files pane on the right; a
+  blade's address (/catalog, ?pane=blades) landing on the Blades pane shown; app_navigate `blades` and the
+  window's `view.files` / `view.blades` the same. Photographed light and dark at 1600x950 and looked at.
+- tests/e2e/test_scripts_ide_page.py test_files_and_blades_are_side_panes_on_the_right (new): no Blades on the
+  rail, Files shown and Blades hidden at first, the two columns side by side (Blades right of Files, the same
+  top and height), a drag on Files' edge widens it, a reload keeps Blades shown and the width, Files hidden is
+  kept over a reload, the agent's `view.files` and `view.blades`, /catalog and app_navigate `blades` show the
+  pane. The rail, catalog, navigation, blade tab, canvas and workbench browser tests updated and run:
+  test_scripts_ide_page, test_rail_page, test_rail_pages, test_catalog_page, test_navigation_page,
+  test_blade_tab_page, test_canvas_page (the Canvas's panes now on sidePanes.ts, its toggles and stored
+  format unchanged), test_workbench_groups, test_workbench_page.
+- Under load (four browser workers beside other work) six of test_workbench_page's kernel tests and one of
+  test_workbench_groups timed out; each passed when run again on its own, but
+  test_the_first_save_on_a_fresh_home_folder_has_somewhere_to_go, which asserts that its home folder's path
+  holds "pytest" and so fails under any `--basetemp` outside pytest's own folder (not this change).
+- tests/test_navigation.py (the rail's areas without blades; `blades` still a place from every window),
+  tests/test_cli.py, tests/test_agent_index.py, tests/test_desktop_rules.py, tests/test_catalog_routes.py:
+  130 passed.

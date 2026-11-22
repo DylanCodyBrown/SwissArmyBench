@@ -8764,3 +8764,28 @@ Open notes:
   rows): a project on local files goes to Power BI as Parquet rows only.
 - **The ERD marks a join's target column FK too** (regions.region_id PK,FK): the docstring says it marks every
   column a join uses; a reader expects FK only on the many side.
+
+
+## Side panes on the code pages, 2026-11-22 (decisions and open notes)
+
+The owner: "Let's make the blades and files panes function just like properties and widgets on canvas. On the
+right side with buttons to show and hide them and then go ahead and remove blades rail icon" (and: Files and
+Blades side by side, two columns, not stacked).
+- **One shared piece, web/src/sidePanes.ts**: the Canvas's pane code moved into the base (it was in
+  canvasPage.ts, already the base's) and both pages use it: each pane a column with a grip on its left edge
+  (200 to 560 px; the arrow keys on a focused grip too), a toggle button a pane with aria-pressed, kept under a
+  key as `{<id>: bool, <id>Width}` (the Canvas's own format, so a canvas's kept panes still read).
+- **Files nearest the code, Blades at the far right**, as Properties sits nearest the canvas and Widgets at
+  the far right. Blades start hidden (most work on the page is the files); Files start shown.
+- **The buttons are in the status bar's right end** (Files, Blades), styled as the Canvas's toggles. Ctrl+B
+  stays Files (`view.files`); Blades is `view.blades` (the palette and the agent's `workbench_window`): no new
+  agent command was needed, workbench_window runs any palette command.
+- **Nothing open keeps the status bar**, showing only the two buttons: before, the bar hid with no document
+  and the panes would have had no way back.
+- **The rail has no Blades.** `blades` stays a place (app_navigate, an older link, the desktop app's file
+  opener, /catalog, ?pane=blades, ?blade=<name>): the Scripts page with the Blades pane shown (and the blade's
+  tab). On the Scripts page the rail marks Scripts. The tour's Blades card went; the Scripts card says where
+  Files and Blades are.
+- **The Files pane lost its fold-to-a-strip and its Files/Blades splitter**: a hidden pane is gone from the
+  row, its button brings it back, as the Canvas's.
+- Open: the Data Explorer pane (Ctrl+Shift+E) is still on the left; it could join the side panes if wanted.

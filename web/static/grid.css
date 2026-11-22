@@ -17515,13 +17515,16 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   border: 0;
   background: #ffffff;
 }
-.cvs-grip {
+.cvs-grip,
+.side-grip {
   width: 5px;
   cursor: col-resize;
   background: var(--border);
   flex-shrink: 0;
 }
-.cvs-grip:hover {
+.cvs-grip:hover,
+.side-grip:hover,
+.side-grip:focus-visible {
   background: var(--border-strong);
 }
 .cvs-pane {
@@ -17536,7 +17539,9 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   width: 300px;
 }
 .cvs-pane[hidden],
-.cvs-grip[hidden] {
+.cvs-grip[hidden],
+.side-pane[hidden],
+.side-grip[hidden] {
   display: none;
 }
 .cvs-pane-head {
@@ -17754,7 +17759,8 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   background: var(--selected);
   font-weight: 600;
 }
-.cvs-toggle[aria-pressed="false"] {
+.cvs-toggle[aria-pressed="false"],
+.side-toggle[aria-pressed="false"] {
   opacity: 0.6;
 }
 .cvs-toggle.has-dot::after {
@@ -17856,7 +17862,8 @@ html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   font-size: 0.85rem;
   color: var(--muted);
 }
-.cvs-bottom .cvs-toggle[aria-pressed="true"] {
+.cvs-bottom .cvs-toggle[aria-pressed="true"],
+.side-toggle[aria-pressed="true"] {
   background: var(--selected);
   color: var(--fg);
   border-color: var(--border-strong);
@@ -18292,23 +18299,44 @@ body:has(.cat-main > .blade-host > .code-ide) .cat-top {
   display: none;
 }
 
-/* ===== the Notebooks and Scripts pages' explorer (codeExplorer.ts; the owner, 2026-11-21) =====
-   No top bar on either page: the layout has the whole height; the explorer is always on the left. */
-.workbench-page[data-page] {
-  grid-template-rows: minmax(0, 1fr);
+/* ===== the Notebooks and Scripts pages' Files pane (codeExplorer.ts; the owner, 2026-11-21) and Blades, on the
+   right of the documents as the Canvas's Properties and Widgets (sidePanes.ts; the owner, 2026-11-22).
+   No top bar on either page: the layout has the whole height. */
+.wb-siderow {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
 }
-.wb-top[hidden] {
-  display: none;
+.wb-siderow > .wb-body {
+  min-width: 0;
 }
-.wb-codex {
+.wb-side {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
   width: calc(260px * var(--ui-zoom, 1));
   min-width: 0;
-  border-right: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
+}
+.wb-blades-side {
+  width: calc(300px * var(--ui-zoom, 1));
+  overflow: auto;
+}
+.wb-side-toggles {
+  display: inline-flex;
+  gap: 2px;
+}
+/* Nothing open: the status bar keeps the panes' buttons alone (workbenchPage.ts bareStatus). */
+.wb-status.wb-status-bare > :not(.wb-side-toggles):not(.grow) {
+  display: none !important;
+}
+.workbench-page[data-page] {
+  grid-template-rows: minmax(0, 1fr);
+}
+.wb-top[hidden] {
+  display: none;
 }
 .wb-codex-head {
   display: flex;
@@ -18461,44 +18489,10 @@ body:has(.cat-main > .blade-host > .code-ide) .cat-top {
   display: grid;
   place-items: center;
 }
-/* The explorer folds to a strip (Ctrl+B) and resizes (its sash); full screen hides all but the tabs and code. */
-.wb-codex {
-  position: relative;
-}
-.wb-codex-strip {
-  display: none;
-}
-.wb-codex.closed {
-  width: 32px !important;
-}
-.wb-codex.closed > :not(.wb-codex-strip) {
-  display: none;
-}
-.wb-codex.closed .wb-codex-strip {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-.wb-codex-sash {
-  position: absolute;
-  top: 0;
-  right: -3px;
-  width: 6px;
-  height: 100%;
-  cursor: col-resize;
-  z-index: 2;
-}
-.wb-codex-sash:hover,
-.wb-codex-sash:focus-visible {
-  background: var(--focus);
-  opacity: 0.4;
-}
+/* Full screen hides all but the tabs and the code. */
 body.wb-full .nav-rail,
-body.wb-full .wb-codex,
+body.wb-full .wb-side,
+body.wb-full .wb-siderow > .side-grip,
 body.wb-full .wb-explorer,
 body.wb-full .wb-console-pane,
 body.wb-full .wb-env,
@@ -18570,50 +18564,6 @@ body.wb-full.has-rail {
 }
 .ide-skipped {
   color: var(--warn);
-}
-/* The Scripts page's left side: Files above Blades, a splitter between, each folds. */
-.wb-codex.stacked {
-  display: flex;
-  flex-direction: column;
-}
-.wb-codex-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-.wb-codex-pane.folded > :not(.wb-codex-head) {
-  display: none;
-}
-.wb-codex-pane-fold {
-  display: inline-flex;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-.wb-codex-pane-fold .icon-svg {
-  width: 12px;
-  height: 12px;
-}
-.wb-codex-lower {
-  border-top: 1px solid var(--border);
-}
-.wb-codex-lower-body {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-}
-.wb-codex-hsash {
-  flex: 0 0 5px;
-  cursor: row-resize;
-  background: transparent;
-}
-.wb-codex-hsash:hover,
-.wb-codex-hsash:focus-visible {
-  background: var(--focus);
-  opacity: 0.4;
 }
 .wb-blades-pane {
   padding: 0 4px;

@@ -13,7 +13,7 @@
  *   [MENU]       right-click a container: Insert widget ▸ (every widget, grouped, with search), Insert
  *                container, Scrollable, Resizable, Delete; the empty grid: Insert container, Insert widget ▸
  *   [PANES]      Properties (nearest the canvas) and Widgets (at the far right), each its own pane, resizable,
- *                hidden or shown by the bottom bar's buttons (remembered per canvas; a hidden Properties pane
+ *                hidden or shown by the bottom bar's buttons (sidePanes.ts, shared with the code pages; remembered per canvas; a hidden Properties pane
  *                stays hidden on a selection, its button shows a dot). Widgets: a card per widget (its
  *                rendered preview, name, description), search, groups; drag a card in, double-click or Insert
  *                puts it in the selected container; hovering a card shows its preview large
@@ -49,6 +49,7 @@ import { type Prop, propertyField } from "./widgetFields";
 import { brokenWords, nodeMarks, type Wiring, type WiringContext, wiresOverlay, wiringSections } from "./canvasWiring";
 import { headingElement, headingOf } from "./widgetPacks";
 import type { Context, WidgetEntry } from "./widgetPage";
+import { sidePanes } from "./sidePanes";
 
 interface Node {
   id: string;
@@ -173,65 +174,21 @@ const body = h("div", { class: "cvs-body" }, stage, propsPane, galleryPane);
 
 function layoutPage(): void {
   clear(root, top, notice, body, bottom);
-  for (const pane of [propsPane, galleryPane]) {
-    const grip = h("div", { class: "cvs-grip", role: "separator", "aria-orientation": "vertical", title: "Drag to resize" });
-    pane.before(grip);
-    grip.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      const start = e.clientX;
-      const width = pane.getBoundingClientRect().width;
-      const move = (m: PointerEvent): void => {
-        pane.style.width = `${Math.max(200, Math.min(560, width - (m.clientX - start)))}px`;
-      };
-      const up = (): void => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", up);
-        remember();
-      };
-      window.addEventListener("pointermove", move);
-      window.addEventListener("pointerup", up);
-    });
-  }
+  panes.mount();
 }
 
-// ===== remembered per canvas: the panes (this computer), the zoom (this session) =====
-
-interface Kept {
-  widgets: boolean;
-  properties: boolean;
-  widgetsWidth?: string;
-  propertiesWidth?: string;
-}
+// ===== remembered per canvas: the panes (this computer: sidePanes.ts), the zoom (this session) =====
 
 const keptKey = (): string => `sab.canvas.panes:${state?.path ?? ""}`;
-function kept(): Kept {
-  try {
-    return { widgets: true, properties: true, ...(JSON.parse(localStorage.getItem(keptKey()) ?? "{}") as Partial<Kept>) };
-  } catch {
-    return { widgets: true, properties: true };
-  }
-}
-function remember(change: Partial<Kept> = {}): void {
-  const now = { ...kept(), ...change, widgetsWidth: galleryPane.style.width || undefined, propertiesWidth: propsPane.style.width || undefined };
-  try {
-    localStorage.setItem(keptKey(), JSON.stringify(now));
-  } catch {
-    /* no storage: this window only */
-  }
-  applyPanes();
-}
-function applyPanes(): void {
-  const now = kept();
-  galleryPane.hidden = !now.widgets;
-  propsPane.hidden = !now.properties;
-  (galleryPane.previousElementSibling as HTMLElement | null)?.toggleAttribute("hidden", !now.widgets);
-  (propsPane.previousElementSibling as HTMLElement | null)?.toggleAttribute("hidden", !now.properties);
-  if (now.widgetsWidth) galleryPane.style.width = now.widgetsWidth;
-  if (now.propertiesWidth) propsPane.style.width = now.propertiesWidth;
-  widgetsToggle.setAttribute("aria-pressed", String(now.widgets));
-  propsToggle.setAttribute("aria-pressed", String(now.properties));
-  propsDot();
-}
+const panes = sidePanes(
+  keptKey,
+  [
+    { id: "widgets", label: "Widgets", icon: "blade", pane: galleryPane },
+    { id: "properties", label: "Properties", icon: "properties", pane: propsPane },
+  ],
+  { toggleClass: "cvs-toggle", gripClass: "cvs-grip", changed: () => propsDot() },
+);
+const applyPanes = (): void => panes.apply();
 function zoomKey(): string {
   return `sab.canvas.zoom:${state?.path ?? ""}`;
 }
@@ -400,14 +357,14 @@ function drawTabs(): void {
 // ===== the bottom bar =====
 
 const zoomLabel = h("button", { type: "button", class: "cvs-zoom-label", title: "Back to 100%", onclick: () => setZoom(1) }, "100%");
-const widgetsToggle = button("Widgets", () => remember({ widgets: !kept().widgets }), { icon: "blade", class: "ghost cvs-toggle", pressed: true });
-const propsToggle = button("Properties", () => remember({ properties: !kept().properties }), { icon: "properties", class: "ghost cvs-toggle", pressed: true });
+const widgetsToggle = panes.toggle("widgets");
+const propsToggle = panes.toggle("properties");
 const undoButton = button("Undo", () => void undo(false), { icon: "undo", iconOnly: true, class: "ghost", title: "Undo (Ctrl+Z)" });
 const redoButton = button("Redo", () => void undo(true), { icon: "redo", iconOnly: true, class: "ghost", title: "Redo (Ctrl+Y)" });
 const sizingMore = button("More sizing", (e) => sizingMenu(e.currentTarget as HTMLElement), { icon: "more", iconOnly: true, class: "ghost cvs-sizing-more" });
 
 function propsDot(): void {
-  const hidden = !kept().properties;
+  const hidden = !panes.shown("properties");
   propsToggle.classList.toggle("has-dot", hidden && selected.length > 0);
 }
 

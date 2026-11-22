@@ -33,8 +33,7 @@ AREAS = [
     "data",  # the one place to browse tables: Catalog (2026-11-21)
     "grids",
     "erd",
-    "blades",
-    "scripts",  # beside Blades (the owner, 2026-11-21)
+    "scripts",  # its Blades a pane on the right: no Blades icon (the owner, 2026-11-22)
     "notebooks",
     "canvas",
     "widgets",
@@ -51,7 +50,6 @@ NAMES = [
     "Catalog",
     "Grids",
     "ERD",
-    "Blades",
     "Scripts",
     "Notebooks",
     "Canvas",
@@ -230,7 +228,7 @@ def keyboard_and_tips(browser: Browser, orchard: str) -> None:
     expect(current(page)).to_have_attribute("data-area", "erd")
     area(page, "erd").focus()
     page.keyboard.press("ArrowDown")
-    expect(area(page, "blades")).to_be_focused()  # Blades after the ERD (2026-11-21)
+    expect(area(page, "scripts")).to_be_focused()  # Scripts after the ERD (no Blades icon, 2026-11-22)
     for _ in range(6):
         page.keyboard.press("ArrowUp")  # the ERD, the grids, Catalog, Environment, APIs, Connections
     expect(area(page, "connections")).to_be_focused()
@@ -304,17 +302,18 @@ def test_a_rail_click_moves_this_tab_and_a_new_window_is_only_on_request(
     area(page, "analyze").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "agent", timeout=20000)
     expect(current(page)).to_have_attribute("data-area", "analyze")
-    # Blades: this tab goes to the Scripts page's Blades (2026-11-21), Blades marked; Settings opens
-    # there; ERD comes home.
-    area(page, "blades").click()
-    expect(page).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
-    expect(current(page)).to_have_attribute("data-area", "blades")
-    expect(page.locator(".wb-codex-lower.lower-blades")).to_be_visible()
+    # Scripts: this tab goes to the Scripts page (its Blades a pane there: no Blades icon, 2026-11-22),
+    # Scripts marked; Settings opens there; ERD comes home.
+    expect(area(page, "blades")).to_have_count(0)
+    area(page, "scripts").click()
+    expect(page).to_have_url(re.compile(r"/scripts\?"), timeout=20000)
+    expect(current(page)).to_have_attribute("data-area", "scripts")
+    expect(page.locator(".wb-status .side-toggle", has_text="Blades")).to_be_visible()
     area(page, "settings").click()
     expect(page).to_have_url(re.compile(r"open=settings"))
     expect(page.locator(".area-page[data-page='settings']")).to_be_visible()
     page.go_back()
-    expect(current(page)).to_have_attribute("data-area", "blades")
+    expect(current(page)).to_have_attribute("data-area", "scripts")
     area(page, "erd").click()
     expect(page.locator(".workspace")).to_have_attribute("data-view", "erd", timeout=20000)
     # Back walks the same tab back through the pages.

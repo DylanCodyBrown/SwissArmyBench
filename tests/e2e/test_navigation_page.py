@@ -233,7 +233,7 @@ def test_the_old_blades_pages_addresses_land_on_the_scripts_pages_blades(
     try:
         page.goto(f"{base}/catalog#token={server['token']}")
         expect(page).to_have_url(re.compile(r"/scripts\?pane=blades"), timeout=20000)
-        expect(page.locator(".wb-codex-lower.lower-blades .blade-list")).to_be_visible(timeout=20000)
+        expect(page.locator(".wb-blades-side .blade-list")).to_be_visible(timeout=20000)
         expect(page.locator(".nav-rail-item").first).to_have_attribute("data-area", "projects")
         page.goto(f"{base}/catalog?blade=Made-up%20loaves")
         tab = page.locator(".wb-tab[data-kind='blade']", has_text="Made-up loaves")

@@ -48,6 +48,7 @@ import { inlineStatus } from "./inlineCompletion";
 import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
 import { bringPage, type CodePage, isCanvasFile, openCanvasFile, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
+import { sidePanes } from "./sidePanes";
 import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile, searchScripts } from "./workbenchIde";
 import { debugSession, type DebugSession, type DebugState } from "./workbenchDebug";
 import type { CodeEditor } from "./lazy/codeEditor";
@@ -2149,7 +2150,9 @@ function relint(doc: Doc): void {
   doc.notebook?.relint();
 }
 // The app's one footer (appFooter.ts), the Workbench's own parts in its middle: the panes' switches on the right.
-mountAppFooter(layout.status, [explorerToggle, kernelHost, envHost, cursorHost, problemsButton, inlineStatus()], [consoleToggle, modeToggles, variablesToggle]);
+// Files and Blades' buttons (sidePanes.ts) at the end, as the Canvas's Widgets and Properties: put in once the panes exist.
+const sideToggles = h("span", { class: "wb-side-toggles", role: "group", "aria-label": "Panes" });
+mountAppFooter(layout.status, [explorerToggle, kernelHost, envHost, cursorHost, problemsButton, inlineStatus()], [consoleToggle, modeToggles, variablesToggle, sideToggles]);
 
 function drawCursor(): void {
   const doc = current;
@@ -2308,12 +2311,13 @@ function newHere(): void {
   start.run();
 }
 
-// The Scripts page's Blades, under the files (the owner, 2026-11-21: "navigation on top, blade on bottom"): the
-// blades list (catalogRail.ts) drawn here; a blade opens as a tab (bladeDoc). Elsewhere the Data Explorer's.
+// The Scripts page's Blades, a pane on the right beside Files (the owner, 2026-11-22: "make the blades and files
+// panes function just like properties and widgets on canvas"): the blades list (catalogRail.ts) drawn here; a
+// blade opens as a tab (bladeDoc). Elsewhere the Data Explorer's.
 const bladesPane = PAGE === "scripts" ? h("section", { class: "rail-section wb-blades-pane", id: "blades", "aria-labelledby": "blades-title" }) : null;
 
-// The page's own explorer on the left, always there (codeExplorer.ts): the project's scripts by module, or its
-// notebooks; a click opens the file as a tab here.
+// The page's Files pane (codeExplorer.ts): the project's scripts by module, or its notebooks; a click opens the
+// file as a tab here.
 const codex = mountCodeExplorer({
   page: PAGE,
   open: (file) => (file.item ? showGenerated(file) : void open(file.full)),
@@ -2325,21 +2329,41 @@ const codex = mountCodeExplorer({
   newPackage: PAGE === "scripts" ? () => newPackage(null, () => void codex.refresh()) : undefined,
   fileAction: PAGE === "scripts" ? treeAction : undefined,
   menu: topMenu, // the page's "…" (no top bar: the owner, 2026-11-21)
-  lower: bladesPane ? { id: "blades", title: "Blades", element: bladesPane } : undefined,
   openNow: () => ({ paths: docs.map((d) => d.path ?? "").filter(Boolean), dirty: docs.filter((d) => d.dirty && d.path).map((d) => d.path!), front: current?.path ?? null }),
 });
-(document.querySelector(".wb-layout") as HTMLElement).prepend(codex.element);
 codexHooks.mark = codex.mark;
-// The rail's Blades (rail.ts) on this page, and an address that names the pane: the Blades pane, focused.
-window.addEventListener("sab-blades", () => codex.showLower());
-if (new URLSearchParams(location.search).get("pane") === "blades") window.setTimeout(() => codex.showLower(), 0);
+// Files and Blades: columns on the right of the documents, side by side (Files nearest the code), each shown or
+// hidden by its status bar button and resized by its edge, as the Canvas's Properties and Widgets (sidePanes.ts);
+// remembered per page in this browser.
+const bladesSide = bladesPane ? h("aside", { class: "wb-side wb-blades-side", "aria-label": "Blades" }, bladesPane) : null;
+codex.element.classList.add("wb-side");
+const sides = sidePanes(() => `wb-sides:${PAGE}`, [
+  { id: "files", label: "Files", icon: PAGE === "scripts" ? "code" : "notebook", pane: codex.element, title: "Files (Ctrl+B)" },
+  ...(bladesSide ? [{ id: "blades", label: "Blades", icon: "blade", pane: bladesSide, shown: false, title: "Blades" }] : []),
+]);
+{
+  const docs = document.getElementById("wb-body") as HTMLElement;
+  const row = h("div", { class: "wb-siderow" });
+  docs.before(row);
+  row.append(docs, codex.element, ...(bladesSide ? [bladesSide] : []));
+  sides.mount();
+  sideToggles.append(...sides.toggles);
+}
+/** The Blades pane shown, the focus in it (the old rail icon's place: ?pane=blades, ?blade=, app_navigate). */
+function showBlades(): void {
+  if (!bladesSide) return;
+  sides.show("blades", true);
+  bladesSide.querySelector<HTMLElement>("input, button")?.focus();
+}
+window.addEventListener("sab-blades", () => showBlades());
+if (new URLSearchParams(location.search).get("pane") === "blades") window.setTimeout(() => showBlades(), 0);
 /** ?blade=<name> (the old /catalog?blade=, a Session link, the agent's blade:<name>): that blade's tab here; an
  *  empty name: New blade. The word leaves the address once it is shown (a reload does not open it again). */
 function bladeAsked(url: URL): void {
   if (PAGE !== "scripts" || !url.searchParams.has("blade")) return;
   const name = url.searchParams.get("blade") ?? "";
   void go(withParams({ blade: null }), "replace");
-  codex.showLower();
+  showBlades();
   bladeDoc(name || null);
 }
 
@@ -2724,6 +2748,13 @@ setCellOpener(openCell);
 
 // ===== start =====
 
+/** Nothing open: the status bar keeps only the panes' buttons (Files, Blades: they show or hide whatever is
+ *  open), the document's own words gone. */
+function bareStatus(on: boolean): void {
+  layout.status.hidden = false;
+  layout.status.classList.toggle("wb-status-bare", on);
+}
+
 /** Nothing open: the empty state has the area (Start a notebook; Start an app once app pages exist). */
 function drawEmpty(): void {
   const none = docs.length === 0;
@@ -2732,7 +2763,7 @@ function drawEmpty(): void {
     groups.element.hidden = true;
     empty.hidden = true;
     layout.empty(true);
-    layout.status.hidden = true;
+    bareStatus(true);
     if (!landing.kind()) landing.show("script");
     return;
   }
@@ -2744,7 +2775,7 @@ function drawEmpty(): void {
   groups.element.hidden = none;
   empty.hidden = !none;
   layout.empty(none);
-  layout.status.hidden = none;
+  bareStatus(none);
   if (!none || empty.childElementCount) return;
   const app = tabKinds().find((k) => k.mark === "app" && k.start);
   clear(
@@ -3135,7 +3166,8 @@ const COMMANDS: Command[] = [
   // the window; the rail, the explorer and the bottom panels go; Escape or the same button comes back.
   { id: "view.fullScreen", group: "View", title: "Full screen", keys: "F11", args: "on: true or false (default: the other way)", run: (a) => ({ on: fullScreen(typeof a.on === "boolean" ? a.on : undefined) }) },
   { id: "view.codeSize", group: "View", title: "Code size", args: "px: 8 to 40 (13: as it was)", run: (a) => ({ px: setCodeFont(typeof a.px === "number" ? a.px : BASE_FONT) }) },
-  { id: "view.files", group: "View", title: "Show or hide the explorer", keys: "Ctrl+B", args: "show: true or false (default: the other way)", run: (a) => ({ open: codex.toggle(typeof a.show === "boolean" ? a.show : undefined) }) },
+  { id: "view.files", group: "View", title: "Show or hide the Files pane", keys: "Ctrl+B", args: "show: true or false (default: the other way)", run: (a) => ({ open: sides.show("files", typeof a.show === "boolean" ? a.show : undefined) }) },
+  { id: "view.blades", group: "View", title: "Show or hide the Blades pane", args: "show: true or false (default: the other way)", when: () => PAGE === "scripts", whyNot: "the Blades pane is on the Scripts page", run: (a) => ({ open: sides.show("blades", typeof a.show === "boolean" ? a.show : undefined) }) },
   ...(PAGE === "scripts"
     ? [{ id: "search.scripts", group: "Find", title: "Search in scripts…", keys: "Ctrl+Shift+F", run: () => (searchScripts({ openAt: (p: string, line: number) => void openAt(p, line) }, () => (current?.script ? { path: () => current!.path, text: () => current!.script!.text(), python: () => current!.python, replaceText: (t: string) => current!.script!.replaceText(t), reveal: (line: number) => current!.script!.reveal(line) } : null)), { opened: true }) }]
     : []),

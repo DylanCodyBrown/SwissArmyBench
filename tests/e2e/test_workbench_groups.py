@@ -295,9 +295,10 @@ def test_the_status_bar_has_the_kernel_its_menu_the_environment_and_the_panes(
 ) -> None:
     close_tables(server)
     workbench = open_workbench(browser, server)
-    # Nothing open: the empty state alone, no status bar.
+    # Nothing open: the empty state, the status bar only the panes' buttons (2026-11-22).
     expect(workbench.get_by_role("button", name="Start a notebook")).to_be_visible()
-    expect(workbench.locator(".wb-status")).to_be_hidden()
+    expect(workbench.locator(".wb-status .wb-state")).to_be_hidden()
+    expect(workbench.locator(".wb-status .side-toggle", has_text="Files")).to_be_visible()
     workbench.get_by_role("button", name="Start a notebook").click()
     bar = workbench.locator(".wb-status")
     expect(bar).to_be_visible()

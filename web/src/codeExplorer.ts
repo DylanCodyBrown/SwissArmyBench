@@ -1,10 +1,11 @@
 /**
- * codeExplorer.ts: the explorer on the left of the Notebooks and Scripts pages (the owner, 2026-11-21: "What
+ * codeExplorer.ts: the Files pane of the Notebooks and Scripts pages (the owner, 2026-11-21: "What
  * it should have is a project file explorer to browse and open all project scripts" / "a by module navigation
  * tree on the left to navigate all of the scripts (except the notebooks)"). [WIRE]
  *
- *   [ALWAYS]  always there on its page, the creator in the middle included; no project open: one line with a
- *             link to Projects.
+ *   [PANE]    a column on the right of the documents (the owner, 2026-11-22: "just like properties and widgets
+ *             on canvas"): the page puts it in a side pane (sidePanes.ts), shown or hidden by the status bar's
+ *             Files (Ctrl+B), resized by its edge; no project open: one line with a link to Home.
  *   [GROUPS]  the server's (GET /project/tree?page=, domain/code_tree.py): Scripts by module in groups (Your
  *             scripts, Project code, the library's code, what the app generates), Notebooks with the data
  *             notebook first. Never the other page's kind.
@@ -68,9 +69,6 @@ export interface CodeExplorerHost {
   openNow: () => { paths: string[]; dirty: string[]; front: string | null };
   /** The page's own menu ("…": New, Open…, split, Commands…, Settings…), at the head's end. */
   menu?: HTMLElement;
-  /** A pane under the files, with a splitter between (the Scripts page's Blades: the owner, 2026-11-21:
-   *  "navigation on top, blade on bottom"); each folds, the split remembered. */
-  lower?: { id: string; title: string; element: HTMLElement; actions?: HTMLElement[] };
 }
 
 export interface CodeExplorer {
@@ -83,10 +81,6 @@ export interface CodeExplorer {
   files: () => TreeFile[];
   /** New's words as the mode has them ("New TypeScript file" in a code app). */
   setNewLabel: (label: string) => void;
-  /** Collapse it to a thin strip, or open it again (Ctrl+B); remembered per page. Whether it is open. */
-  toggle: (show?: boolean) => boolean;
-  /** The lower pane (Blades) unfolded and the focus in it. */
-  showLower: () => void;
 }
 
 const SYMBOL_ICONS: Record<string, string> = { class: "blade", function: "formula", method: "formula", constant: "number" };
@@ -98,68 +92,17 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
   const newPackage = host.newPackage ? button("New package", () => host.newPackage!(), { icon: "folder", iconOnly: true, class: "ghost wb-codex-package", title: "New package" }) : null;
   const refreshButton = button("Refresh", () => void refresh(), { icon: "reset", iconOnly: true, class: "ghost", title: "Refresh" });
   const body = h("div", { class: "wb-codex-body", role: "tree", "aria-label": words.title });
-  // Its width and whether it is folded, per page (this browser's: a convenience).
-  const KEY = `wb-codex:${host.page}`;
-  const kept = (() => {
-    try {
-      return JSON.parse(localStorage.getItem(KEY) ?? "{}") as { width?: number; closed?: boolean; split?: number; filesFolded?: boolean; lowerFolded?: boolean };
-    } catch {
-      return {};
-    }
-  })();
-  let width = Math.min(520, Math.max(160, kept.width ?? 240));
-  let closed = !!kept.closed;
-  let split = Math.min(0.85, Math.max(0.15, kept.split ?? 0.55)); // the files' share of the height
-  let filesFolded = !!kept.filesFolded;
-  let lowerFolded = !!kept.lowerFolded;
-  const keep = (): void => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({ width, closed, split, filesFolded, lowerFolded }));
-    } catch {
-      /* storage blocked */
-    }
-  };
-  const fold = button("Collapse the explorer", () => toggle(), { icon: "collapse", iconOnly: true, class: "ghost wb-codex-fold-all", title: "Collapse (Ctrl+B)" });
-  const strip = h("button", { type: "button", class: "wb-codex-strip", title: `${words.title} (Ctrl+B)`, "aria-label": `Show the ${words.title.toLowerCase()} explorer`, onclick: () => toggle(true) }, icon(host.page === "scripts" ? "code" : "notebook"));
-  const sash = h("div", { class: "wb-codex-sash", role: "separator", "aria-orientation": "vertical", "aria-label": "Explorer width", tabindex: 0 });
   const filesHead = h(
     "div",
     { class: "wb-codex-head" },
-    h("button", { type: "button", class: "wb-codex-pane-fold", "aria-label": `Fold ${words.title}`, onclick: () => foldPane("files") }, icon("down")),
-    h("strong", { class: "wb-codex-title" }, host.lower ? "Files" : words.title),
+    h("strong", { class: "wb-codex-title" }, "Files"),
     h("span", { class: "wb-grow" }),
     newDoc,
     newPackage,
     refreshButton,
     host.menu ?? null,
-    fold,
   );
-  const filesPane = h("section", { class: "wb-codex-pane wb-codex-filespane", "aria-label": host.lower ? "Files" : words.title }, filesHead, search, body);
-  const lowerSash = host.lower ? h("div", { class: "wb-codex-hsash", role: "separator", "aria-orientation": "horizontal", "aria-label": `${host.lower.title} height`, tabindex: 0 }) : null;
-  const lowerPane = host.lower
-    ? h(
-        "section",
-        { class: `wb-codex-pane wb-codex-lower lower-${host.lower.id}`, "aria-label": host.lower.title, "data-pane": host.lower.id },
-        h(
-          "div",
-          { class: "wb-codex-head" },
-          h("button", { type: "button", class: "wb-codex-pane-fold", "aria-label": `Fold ${host.lower.title}`, onclick: () => foldPane("lower") }, icon("down")),
-          h("strong", { class: "wb-codex-title" }, host.lower.title),
-          h("span", { class: "wb-grow" }),
-          ...(host.lower.actions ?? []),
-        ),
-        h("div", { class: "wb-codex-lower-body" }, host.lower.element),
-      )
-    : null;
-  const element = h(
-    "aside",
-    { class: `wb-codex page-${host.page}${host.lower ? " stacked" : ""}`, "aria-label": `${words.title} explorer` },
-    filesPane,
-    lowerSash,
-    lowerPane,
-    strip,
-    sash,
-  );
+  const element = h("aside", { class: `wb-codex page-${host.page}`, "aria-label": `Files: ${words.title.toLowerCase()}` }, filesHead, search, body);
   let groups: TreeGroup[] = [];
   let project: string | null = null;
   let loaded = false;
@@ -167,80 +110,6 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
   const unfolded = new Set<string>(); // the modules whose outline shows
   const live = new Map<string, Symbol[]>(); // an open document's outline as typed
   let typedTimer: number | null = null;
-  const drawSplit = (): void => {
-    filesPane.classList.toggle("folded", filesFolded);
-    lowerPane?.classList.toggle("folded", lowerFolded);
-    if (lowerSash) lowerSash.hidden = filesFolded || lowerFolded;
-    filesPane.style.flex = filesFolded ? "0 0 auto" : lowerPane && !lowerFolded ? `${split} 1 0` : "1 1 0";
-    if (lowerPane) lowerPane.style.flex = lowerFolded ? "0 0 auto" : filesFolded ? "1 1 0" : `${1 - split} 1 0`;
-    for (const [pane, folded] of [[filesPane, filesFolded], [lowerPane, lowerFolded]] as const) {
-      const b = pane?.querySelector<HTMLElement>(".wb-codex-pane-fold");
-      if (b) {
-        b.setAttribute("aria-expanded", String(!folded));
-        b.replaceChildren(icon(folded ? "forward" : "down"));
-      }
-    }
-  };
-  function foldPane(which: "files" | "lower", folded?: boolean): void {
-    if (which === "files") filesFolded = folded ?? !filesFolded;
-    else lowerFolded = folded ?? !lowerFolded;
-    keep();
-    drawSplit();
-  }
-  lowerSash?.addEventListener("pointerdown", (e) => {
-    const box = element.getBoundingClientRect();
-    lowerSash.setPointerCapture(e.pointerId);
-    const move = (m: PointerEvent): void => {
-      split = Math.min(0.85, Math.max(0.15, (m.clientY - box.top) / Math.max(1, box.height)));
-      drawSplit();
-    };
-    lowerSash.addEventListener("pointermove", move);
-    lowerSash.addEventListener("pointerup", () => (lowerSash.removeEventListener("pointermove", move), keep()), { once: true });
-  });
-  lowerSash?.addEventListener("keydown", (e) => {
-    const by = e.key === "ArrowUp" ? -0.05 : e.key === "ArrowDown" ? 0.05 : 0;
-    if (!by) return;
-    e.preventDefault();
-    split = Math.min(0.85, Math.max(0.15, split + by));
-    keep();
-    drawSplit();
-  });
-  drawSplit();
-  const apply = (): void => {
-    element.classList.toggle("closed", closed);
-    element.style.width = closed ? "" : `${width}px`;
-    window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
-  };
-  function toggle(show?: boolean): boolean {
-    closed = show === undefined ? !closed : !show;
-    keep();
-    apply();
-    return !closed;
-  }
-  sash.addEventListener("pointerdown", (e) => {
-    const start = e.clientX;
-    const from = width;
-    sash.setPointerCapture(e.pointerId);
-    const move = (m: PointerEvent): void => {
-      width = Math.min(520, Math.max(160, from + m.clientX - start));
-      element.style.width = `${width}px`;
-    };
-    const up = (): void => {
-      sash.removeEventListener("pointermove", move);
-      keep();
-      window.dispatchEvent(new Event("resize"));
-    };
-    sash.addEventListener("pointermove", move);
-    sash.addEventListener("pointerup", up, { once: true });
-  });
-  sash.addEventListener("keydown", (e) => {
-    const by = e.key === "ArrowLeft" ? -16 : e.key === "ArrowRight" ? 16 : 0;
-    if (!by) return;
-    e.preventDefault();
-    width = Math.min(520, Math.max(160, width + by));
-    keep();
-    apply();
-  });
 
   const matches = (text: string): boolean => text.toLowerCase().includes(search.value.trim().toLowerCase());
   const symbolMatches = (symbols: Symbol[]): boolean => symbols.some((s) => matches(s.name) || symbolMatches(s.children));
@@ -345,7 +214,6 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
   }
 
   search.addEventListener("input", draw);
-  apply();
   draw();
   void refresh();
   return {
@@ -353,12 +221,6 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
     refresh,
     mark: draw,
     files: () => groups.flatMap((g) => g.files),
-    toggle,
-    showLower: () => {
-      toggle(true);
-      foldPane("lower", false);
-      lowerPane?.querySelector<HTMLElement>("input, button")?.focus();
-    },
     setNewLabel: (label) => {
       newDoc.title = label;
       newDoc.setAttribute("aria-label", label);

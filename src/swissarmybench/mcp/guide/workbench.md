@@ -35,6 +35,8 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   none). App notebooks, live Streamlit cells and the old `.stapp.json` canvases went (2026-11-21): an app
   is widgets on the Canvas (the streamlit guide); a cell that calls Streamlit runs in the kernel like any
   other, and "file.open" of a `.stapp.json` says so in one line.
+  The Files pane (the page's notebooks or scripts) and, on Scripts, the Blades pane are columns on the right
+  of the code, each shown or hidden by its status bar button ("view.files", Ctrl+B; "view.blades").
   The Data Explorer (the left pane, off until opened: "view.explorer", Ctrl+Shift+E) sits beside every
   document; "documents" panes.data_explorer says open or closed. "explorer.search" searches it
   (as `explorer_search`), "explorer.insert" puts a result's insert code in the front document's cell,
@@ -131,6 +133,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   (to the trash) is the user's own. `workbench_debug(action, document)`: the script in its running kernel
   under the debugger: start (code, breakpoints [{line, condition?, log?}]), state (paused line, frames,
   output), breakpoints, over, into, out, continue, variables, evaluate (expression in the frame), stop. The window's `view.fullScreen`,
-  `view.files`, `view.codeSize`, `search.scripts`.
+  `view.files` (the Files pane on the right, Ctrl+B), `view.blades` (the Blades pane beside it), `view.codeSize`,
+  `search.scripts`.
 - Every code file changed anywhere is said with the `file_changed` notice; data.py edited by hand is kept
   (`project_export_data` with `replace` to write it again).

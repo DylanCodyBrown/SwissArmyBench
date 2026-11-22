@@ -184,31 +184,86 @@ def test_the_scripts_ide(browser: Browser, server: dict[str, Any], shop: Path) -
     page.keyboard.press("Escape")
     expect(page.locator(".nav-rail")).to_be_visible()
     expect(explorer).to_be_visible()
-    # The explorer folds to a strip (Ctrl+B) and opens again.
-    page.locator(".wb-codex-fold-all").click()
-    expect(page.locator(".wb-codex-strip")).to_be_visible()
-    shot(page, "scripts-ide-explorer-folded")
-    page.locator(".wb-codex-strip").click()
+    # The Files pane hides by its status bar button and comes back (Ctrl+B is the same command).
+    files = page.locator(".wb-status .side-toggle", has_text="Files")
+    files.click()
+    expect(explorer).to_be_hidden()
+    expect(files).to_have_attribute("aria-pressed", "false")
+    shot(page, "scripts-ide-files-hidden")
+    files.click()
     expect(explorer.locator(".wb-codex-search")).to_be_visible()
     page.context.close()
 
 
-def test_blades_below_the_files_and_the_rails_blades(
+def box(locator: Any) -> dict[str, float]:
+    found = locator.bounding_box()
+    assert found is not None
+    return dict(found)
+
+
+def window_command(server: dict[str, Any], command: str, args: dict[str, Any] | None = None) -> Any:  # noqa: F811
+    body = {"command": command, "args": args or {}, "page": "scripts"}
+    return call(server, "POST", "/workbench/window", body, agent=True)["result"]
+
+
+def test_files_and_blades_are_side_panes_on_the_right(
     browser: Browser,  # noqa: F811
     server: dict[str, Any],  # noqa: F811
     shop: Path,
 ) -> None:
-    page = page_of(browser, server, "workspace")
-    page.locator(".nav-rail [data-area='blades']").click()
-    expect(page).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
-    blades = page.locator(".wb-codex-lower.lower-blades")
+    """The owner, 2026-11-22: "make the blades and files panes function just like properties and widgets on
+    canvas. On the right side with buttons to show and hide them and then go ahead and remove blades rail
+    icon": two columns side by side on the right of the code, each its own toggle, resized by its edge,
+    remembered over a reload; the rail has no Blades; every way to Blades lands on the pane shown."""
+    page = page_of(browser, server, "scripts")
+    files = page.locator(".wb-side.wb-codex")
+    blades = page.locator(".wb-blades-side")
+    files_toggle = page.locator(".wb-status .side-toggle", has_text="Files")
+    blades_toggle = page.locator(".wb-status .side-toggle", has_text="Blades")
+    expect(page.locator(".nav-rail [data-area='blades']")).to_have_count(0)
+    expect(files).to_be_visible()
+    expect(blades).to_be_hidden()  # Blades start hidden
+    expect(files_toggle).to_have_attribute("aria-pressed", "true")
+    expect(blades_toggle).to_have_attribute("aria-pressed", "false")
+    assert box(files)["x"] > box(page.locator(".wb-body"))["x"] + 400  # on the right of the code
+    blades_toggle.click()
+    expect(blades).to_be_visible()
+    expect(blades_toggle).to_have_attribute("aria-pressed", "true")
+    # Side by side, not stacked: Blades its own column at the far right, level with Files.
+    f, b = box(files), box(blades)
+    assert b["x"] >= f["x"] + f["width"] and abs(b["y"] - f["y"]) < 2 and abs(b["height"] - f["height"]) < 2
+    shot(page, "scripts-side-panes")
+    # Resized by its left edge.
+    grip = page.locator(".wb-siderow > .side-grip").first
+    g = box(grip)
+    page.mouse.move(g["x"] + 2, g["y"] + 200)
+    page.mouse.down()
+    page.mouse.move(g["x"] - 78, g["y"] + 200, steps=4)
+    page.mouse.up()
+    wider = box(files)["width"]
+    assert wider > f["width"] + 60
+    # Remembered over a reload: Blades shown, the width kept; then Files hidden, kept too.
+    page.reload()
     expect(blades).to_be_visible(timeout=20000)
-    expect(page.locator(".nav-rail [data-area='blades']")).to_have_attribute("aria-current", "page")
-    # The split: Files above, Blades below; each folds.
-    expect(page.locator(".wb-codex-filespane")).to_be_visible()
-    blades.get_by_role("button", name="Fold Blades").click()
-    expect(blades).to_have_class(re.compile(r"\bfolded\b"))
-    blades.get_by_role("button", name="Fold Blades").click()
+    assert abs(box(files)["width"] - wider) < 2
+    files_toggle.click()
+    expect(files).to_be_hidden()
+    page.reload()
+    expect(blades).to_be_visible(timeout=20000)
+    expect(files).to_be_hidden()
+    # The agent: the same buttons as commands (workbench_window).
+    assert window_command(server, "view.files", {"show": True}) == {"open": True}
+    expect(files).to_be_visible()
+    assert window_command(server, "view.blades", {"show": False}) == {"open": False}
+    expect(blades).to_be_hidden()
+    # An address that names Blades (the old rail icon's, /catalog's, app_navigate's): the pane shown.
+    page.goto(f"http://127.0.0.1:{server['port']}/catalog#token={server['token']}")
+    expect(page).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
+    expect(blades).to_be_visible(timeout=20000)
+    window_command(server, "view.blades", {"show": False})
+    expect(blades).to_be_hidden()
+    call(server, "POST", "/navigate", {"to": "blades", "window": "scripts"}, agent=True)
+    expect(blades).to_be_visible(timeout=20000)
     # A starter opens as a tab; its Save is refused with Copy as your own.
     starter = blades.locator(".starter-family").first
     expect(starter).to_be_visible(timeout=20000)

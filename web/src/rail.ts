@@ -8,13 +8,13 @@
  *             Projects page (projectsPage.ts, open=projects, the home page's only); from another window it
  *             brings the home window forward showing Projects (nav.ts goHome). Alt+Home is the same.
  *   [AREAS]   Data after Variables (dataPage.ts, open=data: the one place to browse and find tables), Grids (the home page's tabbed grids, only the grids), Analyze, ERD, Notebooks,
- *             Scripts, Canvas (canvasPage.ts: the Streamlit canvas), Widgets (its own window), Blades, Connections, Session (what the agent made this
+ *             Scripts (its Files and Blades panes on the right: no Blades icon, 2026-11-22), Canvas (canvasPage.ts: the Streamlit canvas), Widgets (its own window), Connections, Session (what the agent made this
  *             session, a count of what is new on its icon: sessionPage.ts), and Extensions
  *             (extensionsPage.ts) and Settings pinned at the bottom. An icon each, its name in a tip on hover and on keyboard focus; Notebooks,
  *             Scripts and Apps wear their kind colours.
  *   [PAGES]   Every area lands on a page, never a dialog or a menu (the owner, 2026-11-16: "clicking the
  *             rail should land on a page not open a form"): the grids, Analyze, the ERD, a kind's
- *             landing page in the Workbench (workbenchLanding.ts), the blades page, the Connections page
+ *             landing page in the Workbench (workbenchLanding.ts), the Connections page
  *             and the Settings page (areaPage.ts, over the page you are on: open=connections,
  *             open=settings).
  *   [GO]      A click is a navigation like any other (nav.ts): an area this page shows is pushed, so
@@ -22,7 +22,7 @@
  *             has them. An area another page shows takes this tab there (the owner, 2026-11-16: "the
  *             rail icons is opening a new tab every time instead of navigating the current page"): the
  *             home page for the grids, Analyze and the ERD; the Workbench for notebooks, scripts and apps
- *             (code still never sits in the grid page); the blades page.
+ *             (code still never sits in the grid page).
  *   [KINDS]   Notebooks, Scripts and Apps land on that kind's page in the Workbench (?kind=notebook&
  *             view=list): its documents as cards, open ones first; New is on that page's panel, never in
  *             a menu beside the icon (the owner: "get rid of that its duplicated behavior we should only
@@ -83,9 +83,8 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "data", name: DATA, icon: "data" }, // the one place to browse and find tables (dataPage.ts)
   { area: "grids", name: "Grids", icon: "grids" },
   { area: "erd", name: "ERD", icon: "diagram" },
-  { area: "blades", name: "Blades", icon: "blade" },
-  // Scripts beside Blades (the owner, 2026-11-21: "scripts and blades should be beside each other on the
-  // rail"); Notebooks and Scripts are two pages (workbenchPages.ts).
+  // Notebooks and Scripts are two pages (workbenchPages.ts). Blades have no icon (the owner, 2026-11-22: "remove
+  // blades rail icon"): they are the Scripts page's Blades pane on the right (OFF_RAIL).
   { area: "scripts", name: "Scripts", icon: "code", kind: "script" },
   { area: "notebooks", name: "Notebooks", icon: "notebook", kind: "notebook" },
   // An extension's area: its plug-in says whether it is on here (hidden until it says so).
@@ -111,7 +110,9 @@ const UNDER_ENVIRONMENT: readonly string[] = ["structures", "variables"];
 // The areas an on extension names with a page drawn from data (extensionArea.ts), each its own layer.
 const DATA_AREAS = new Set<string>();
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area) || DATA_AREAS.has(name ?? "");
-const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name) || DATA_AREAS.has(String(name));
+// Places with no icon that still go somewhere (app_navigate, an older link): Blades, the Scripts page's pane.
+const OFF_RAIL: readonly Area[] = ["blades"];
+const isArea = (name: unknown): name is Area => AREAS.some((a) => a.area === name) || OFF_RAIL.includes(name as Area) || DATA_AREAS.has(String(name));
 const kindOfArea = (area: Area): Kind | undefined => AREAS.find((a) => a.area === area)?.kind;
 const areaOfKind = (kind: string | null): Area | null => AREAS.find((a) => a.kind === kind)?.area ?? null;
 
@@ -125,9 +126,8 @@ function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
   if (open && UNDER_ENVIRONMENT.includes(open)) return "environment";
   if (isLayer(open)) return open;
-  if (kind === "catalog") return "blades";
+  if (kind === "catalog") return "scripts";
   if (kind === "canvas") return "canvas";
-  if (kind === "workbench" && url.searchParams.get("pane") === "blades") return "blades"; // the Scripts page's Blades
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind")) ?? (thisPage() === "scripts" ? "scripts" : "notebooks");
   const view = kind === "home" ? url.searchParams.get("view") : null;
   if (view === "analyze") return "analyze";
@@ -168,7 +168,7 @@ export function openWidgets(name?: string): void {
 function pageUrl(area: Area): string {
   const k = kindOfArea(area);
   if (k) return `/${pageOfKind(k) ?? "notebooks"}?kind=${k}&view=list`; // that kind's page (workbenchPages.ts)
-  // Blades live on the Scripts page, under its files (the owner, 2026-11-21: "navigation on top, blade on bottom").
+  // Blades live on the Scripts page, its pane on the right (the owner, 2026-11-22).
   if (area === "blades") return "/scripts?kind=script&pane=blades";
   if (area === "canvas") return "/streamlit/canvas";
   return arrivalUrl(area);
@@ -194,7 +194,7 @@ export function goArea(area: Area, newWindow = false): void {
     return;
   }
   if (area === "blades" && kind === "workbench" && thisPage() === "scripts") {
-    // Here: the Blades pane unfolded and focused (workbenchPage.ts listens).
+    // Here: the Blades pane shown and focused (workbenchPage.ts listens).
     visit(withParams({ ...LAYER_OFF, pane: "blades" }));
     window.dispatchEvent(new CustomEvent("sab-blades"));
     return;

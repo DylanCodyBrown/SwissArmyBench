@@ -11,8 +11,8 @@
  *             place, in the rail's order: the tour goes there with the rail's own moves (nav.ts runArea, the
  *             grids' activateGrid and splitWith), waits a moment for the real control, scrolls it into view
  *             and lights it up (a spotlight); a control that does not come sits the card in the middle with
- *             "Not here right now." Back goes to the previous card's place. The Workbench and the blades
- *             page are other pages: their cards light the rail's icon and say so.
+ *             "Not here right now." Back goes to the previous card's place. The Notebooks and Scripts
+ *             pages are other pages: their cards light the rail's icon and say so.
  *   [STAGED]  two small made-up tables (orders and customers sharing customer_id), pasted as the page's
  *             Ctrl+V pastes (POST /datasets/{name}/paste), named so they never take an open table's name,
  *             the orders sorted so Steps has one to show. Closing the tour at any point (Escape, Skip, the
@@ -188,17 +188,11 @@ export const STOPS: readonly Stop[] = [
     target: ["#erd-view .erd-diagram", "#erd-view .btn.primary", "#erd-view"],
   },
   {
-    icon: "blade",
-    word: "Blades",
-    line: "Saved Python that loads data, from a database query to a file reader, one file each. Run one from a notebook with sab.blade, or copy one from the starter pack. Click Blades on the rail; it opens the blades page.",
-    target: [rail("blades")],
-    code: 'conn = sab.blade("Warehouse")',
-  },
-  {
     icon: "code",
     word: "Scripts",
-    line: "The Python behind the project on a page of its own: every .py by module on the left, with its outline, and an editor that completes, checks and runs your code. Use one for work you repeat on a schedule. Click Scripts on the rail; notebooks never open here.",
+    line: "The Python behind the project on a page of its own: an editor that completes, checks and runs your code, with every .py by module in the Files pane on the right and your Blades beside it (saved Python that loads data, one file each; run one from a notebook with sab.blade). The Files and Blades buttons at the bottom show or hide them. Click Scripts on the rail; notebooks never open here.",
     target: [rail("scripts")],
+    code: 'conn = sab.blade("Warehouse")',
   },
   {
     icon: "notebook",

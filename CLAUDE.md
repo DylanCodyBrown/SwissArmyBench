@@ -115,13 +115,14 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   **Rule: code always opens in its own browser window, never in the grid page**, so it can sit on another
   screen. **Notebooks and Scripts are two pages** (the owner, 2026-11-21: "notebooks and scripts should not reuse
   the same page they are seperate things"): /notebooks (the window sab-notebooks: notebooks, and an app's canvas
-  beside them) and /scripts (sab-scripts: every .py, never a notebook), each its own explorer on the left, tabs,
-  session and layout; a file opens on its kind's page from anywhere, a wrong-kind take is refused in one line
+  beside them) and /scripts (sab-scripts: every .py, never a notebook), each its own Files pane on the right
+  (2026-11-22), tabs, session and layout; a file opens on its kind's page from anywhere, a wrong-kind take is refused in one line
   (domain/workbench_pages.py, web/src/workbenchPages.ts); /workbench redirects. **The Scripts page is a Python
   IDE** ("this is meant to expose the high level code of everything in the app for fine tuning"): Files (the
   project's scripts by module with outlines, Project code, the library's Connections, APIs, Key vaults, Widgets;
-  Generated, read-only, with Fine-tune as a script) above Blades (a blade opens as a tab: bladeDoc, the blade
-  IDE's seam); F12, Shift+F12, F2, Shift+Alt+F, Ctrl+Shift+F, F11 full screen, Ctrl+B; every code file
+  Generated, read-only, with Fine-tune as a script) beside Blades (a blade opens as a tab: bladeDoc, the blade
+  IDE's seam): two columns on the right of the code, each shown or hidden by its status bar button and resized by
+  its edge, as the Canvas's Properties and Widgets (the owner, 2026-11-22; web/src/sidePanes.ts); F12, Shift+F12, F2, Shift+Alt+F, Ctrl+Shift+F, F11 full screen, Ctrl+B; every code file
   follows a change anywhere (the file_changed notice); a made file saved by hand is kept from a regenerate; saved workspaces; the desktop app (PySide6 windows,
   its pages in Qt WebEngine; built 2026-11-18, the browser secondary); and a Power BI style relationships view
   with autodetection. VS Code is optional.
@@ -1281,10 +1282,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          rail.ts is the slim icon rail down the left of every page and window, in the order of
                          the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; 24px icons so more
                          fit, 2026-11-18; 2026-11-21: Home first, a house, "just call it home instead of projects";
-                         Structures beside APIs; Scripts beside Blades; Catalog; Git): Home, Connections, APIs,
+                         Structures beside APIs; Catalog; Git; 2026-11-22: no Blades icon, "remove blades rail
+                         icon": the Scripts page's Blades pane, ?pane=blades and app_navigate blades): Home,
+                         Connections, APIs,
                          Environment (2026-11-22: it took the Structures and Variables places; the Structures page
                          stays as the viewer a structure opens into, off the rail; the Variables page went:
-                         open=variables lands on the Settings and secrets tab), Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
+                         open=variables lands on the Settings and secrets tab), Catalog, Grids, ERD,
                          Scripts, Notebooks, Canvas, Widgets, Analyze, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
@@ -1348,8 +1351,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          nav.ts returnTo; loaded when first opened);
                          catalogRail.ts (the blades list, its "…": import, export, blade folders; the
                          catalog tree only where a page gives it a place: the Workbench's "+ Table") is the
-                         Scripts page's Blades pane (the blades page went 2026-11-21: /catalog redirects there,
-                         ?blade=<name> that blade's tab); bladeEditor.ts is the
+                         Scripts page's Blades pane, on the right beside Files (the blades page went
+                         2026-11-21: /catalog redirects there, the pane shown; ?blade=<name> that blade's tab); bladeEditor.ts is the
                          blade screen, an IDE on codeIde.ts, and New blade; its pieces mount on their own in
                          another page's tab (bladeProperties: the header and the live table-name check;
                          runBladeCode into codeIde.ts's runPanel; watchOutsideEdits: Reload / Keep mine;
@@ -1409,7 +1412,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          where app pages are added; the canvases' New entries follow the mode),
                          modes.ts (the open project's mode as the backend declares it: canvases offered,
                          families shown first with Show all, New <type> project), canvasKit.ts (what the
-                         canvases share: Undo/Redo, the page tabs, the resize grip), excelCanvas.ts (the
+                         canvases share: Undo/Redo, the page tabs, the resize grip), sidePanes.ts (panes down the
+                         right of a page, side by side, each its own toggle for the bottom bar, resized by its left
+                         edge, kept per key: the Canvas's Properties and Widgets, the code pages' Files and Blades), excelCanvas.ts (the
                          Accounting extension's Excel canvas: workbook.design.json, blocks on a grid of
                          cells, Properties, Play, Download, Export workbook.py), excelPreview.ts (a built or
                          imported workbook's sheet drawn, its charts), excelTemplates.ts (templates bound by
@@ -1426,9 +1431,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
                          workbenchPages.ts (Notebooks and Scripts, two pages: the page of a file or a kind, this
                          window's, openOnPage and bringPage by the windows' names, the old session split once);
-                         codeExplorer.ts (each page's explorer on the left: the server's groups, a module's outline
-                         as typed, marks, search, New; folds to a strip with Ctrl+B and resizes; on Scripts, Blades
-                         below with a splitter); workbenchIde.ts (the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F
+                         codeExplorer.ts (each page's Files pane, on the right in a side pane: the server's groups,
+                         a module's outline as typed, marks, search, New; the status bar's Files and Ctrl+B show or
+                         hide it (view.files), Blades beside it on Scripts (view.blades); nothing open: the status
+                         bar keeps these buttons alone); workbenchIde.ts (the Scripts IDE's F12, Shift+F12, F2, Shift+Alt+F
                          and Ctrl+Shift+F over /scripts/*; the tree's Rename with its imports' preview,
                          Duplicate, Delete, New package; a library's file read-only on F12);
                          workbenchDebug.ts (the debugger: gutter breakpoints, conditional and log points, the
@@ -1725,7 +1731,7 @@ web/src/widgetFields.ts  one property's box by its mask (the Widgets window's an
                          when its catalog is not listed yet)
 web/src/canvasPage.ts    the Canvas page (static/canvas.html, with the rail): page tabs; the board (draw, move, size,
                          nest, snap with guides, nudge, zoom); right-click Insert widget; the Properties and Widgets
-                         panes (hideable, resizable, a card's hover preview; Show on, Hidden in the app: faded, eye-off); the top row's Play (F5; its ▾:
+                         panes (hideable, resizable: sidePanes.ts; a card's hover preview; Show on, Hidden in the app: faded, eye-off); the top row's Play (F5; its ▾:
                          Launch Ctrl+F5, Launch with the Performance Analyzer Ctrl+Shift+F5, Share… while launched,
                          Builds…; Stop while running) and Export (Ctrl+Shift+E), also every right-click menu's last group; the
                          bottom bar (sizing, Desktop | Phone and the preview width, Snap and step, Undo, Redo, the

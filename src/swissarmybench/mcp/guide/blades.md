@@ -2,7 +2,8 @@
 
 A blade is the user's saved Python that reaches outside Python: a database connection, a file, an
 API, a vault, or an analysis. In any Python, `conn = sab.blade("Warehouse")` runs it there. The blades
-page is Blades on the rail. A blade's screen is an IDE (the owner, 2026-11-21: "This is an IDE not a save
+are the Scripts page's Blades pane (no rail icon since 2026-11-22: `app_navigate` to `blades`, or
+`workbench_window` `view.blades`, shows it). A blade's screen is an IDE (the owner, 2026-11-21: "This is an IDE not a save
 form"): the code editable with the Workbench's intelligence, Run with its output, result and problems below,
 Properties (name, description, tags, table name) at the right. The code's bytes are its file's (a
 `.blade.py` in the library or a blade folder): Save writes the file, only when it changes.
@@ -59,8 +60,10 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
 
 ## Packs (blades and relationship sets from a Claude Code marketplace)
 
-## On the Scripts page (2026-11-21)
+## On the Scripts page (2026-11-21; panes 2026-11-22)
 
-The blades live below the Scripts page's files (the rail's Blades lands there): a blade opens as a tab of the
+The blades are a pane on the right of the Scripts page, beside Files (the owner, 2026-11-22: "just like properties
+and widgets on canvas"): each shown or hidden by its button in the status bar (`view.files`, Ctrl+B, and
+`view.blades` through `workbench_window`), resized by its edge, remembered per page. A blade opens as a tab of the
 Scripts IDE, its code editable, its Properties beside it, Run with its Output, Result and Problems; a starter's Save
-is refused with Copy as your own. The library's connections, APIs and vaults are in the files above, edited in place.
+is refused with Copy as your own. The library's connections, APIs and vaults are in the Files pane, edited in place.

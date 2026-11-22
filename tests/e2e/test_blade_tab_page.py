@@ -22,7 +22,7 @@ def test_new_blade_is_a_blank_working_scaffold_with_its_properties(
     server: dict[str, Any],  # noqa: F811
 ) -> None:
     page = page_of(browser, server, "scripts?pane=blades")
-    blades = page.locator(".wb-codex-lower.lower-blades")
+    blades = page.locator(".wb-blades-side")
     expect(blades).to_be_visible(timeout=20000)
     blades.get_by_role("button", name="New blade").click()
     dialog = page.get_by_role("dialog", name="New blade")

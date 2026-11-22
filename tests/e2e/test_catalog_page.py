@@ -63,14 +63,18 @@ def test_the_page_follows_the_theme(browser: Browser, warehouse: str) -> None:
     page.close()
 
 
-def test_the_rail_takes_this_tab_to_the_blades_page(browser: Browser, orders_url: str) -> None:
-    """A rail click moves this tab (the owner, 2026-11-16: "the open in new tab is optional")."""
+def test_the_rail_takes_this_tab_to_the_blades_pane(browser: Browser, orders_url: str) -> None:
+    """A rail click moves this tab (the owner, 2026-11-16: "the open in new tab is optional"); the blades are
+    the Scripts page's Blades pane on the right, its button in the status bar (no rail icon, 2026-11-22)."""
     page = open_grid(browser, orders_url)
     pages = len(page.context.pages)
-    page.locator(".nav-rail [data-area='blades']").click()
-    # The blades live on the Scripts page, below its files (the owner, 2026-11-21).
-    expect(page).to_have_url(re.compile(r"/scripts\?.*pane=blades"), timeout=20000)
-    expect(page.locator(".wb-codex-lower.lower-blades .blade-list")).to_be_visible(timeout=20000)
+    expect(page.locator(".nav-rail [data-area='blades']")).to_have_count(0)
+    page.locator(".nav-rail [data-area='scripts']").click()
+    expect(page).to_have_url(re.compile(r"/scripts\?"), timeout=20000)
+    toggle = page.locator(".wb-status .side-toggle", has_text="Blades")
+    if toggle.get_attribute("aria-pressed") != "true":
+        toggle.click()
+    expect(page.locator(".wb-blades-side .blade-list")).to_be_visible(timeout=20000)
     assert len(page.context.pages) == pages
     page.close()
 
@@ -286,7 +290,7 @@ def test_the_blades_pane_has_no_catalog_panel(browser: Browser, warehouse: str) 
     old blades page's address is the Scripts page's Blades (2026-11-21)."""
     page = open_page(browser, warehouse.replace("/scripts?pane=blades#", "/catalog#"))
     expect(page).to_have_url(re.compile(r"/scripts\?pane=blades"))
-    pane = page.locator(".wb-codex-lower.lower-blades")
+    pane = page.locator(".wb-blades-side")
     expect(pane.get_by_role("heading", name="Connections and blades", exact=True)).to_be_visible()
     expect(pane.locator("#catalog")).to_have_count(0)
     expect(pane.get_by_role("heading", name="Catalog", exact=True)).to_have_count(0)

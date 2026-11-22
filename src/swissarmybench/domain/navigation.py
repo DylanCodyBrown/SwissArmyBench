@@ -42,8 +42,7 @@ AREAS: tuple[str, ...] = (
     "data",  # the one place to browse tables (the owner, 2026-11-17: "a standalone DATA rail icon")
     "grids",
     "erd",
-    "blades",
-    "scripts",  # beside Blades (the owner, 2026-11-21: "scripts and blades should be beside each other")
+    "scripts",  # Blades are its pane on the right (the owner, 2026-11-22: "remove blades rail icon")
     "notebooks",
     "canvas",  # 2026-11-21: the Apps area is the Canvas (its own page)
     "widgets",  # 2026-11-21: the Widgets window (its own, no rail)
@@ -67,6 +66,7 @@ EVERYWHERE: tuple[str, ...] = (
     "home",
     *AREAS,
     "structures",  # the Structures viewer (a structure's row opens into it)
+    "blades",  # no rail icon (2026-11-22): the Scripts page with its Blades pane shown
     "back",
     "forward",
     "connection:<name>",
