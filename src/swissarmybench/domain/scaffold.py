@@ -347,12 +347,58 @@ class StructureGrid:
 _READER = '''
 
 def _records(file: str, path: str = "$"):
-    """A structure's list of records (structures/<file>), at its path ($.orders, $.data[*]), nested keys
-    dotted: the same table Swiss Army Bench's Open as grid shows. JSON only, the standard library."""
+    """A structure's list of records (structures/<file>: JSON, YAML, XML or TOML), at its path ($.orders,
+    $.data[*]), nested keys dotted: the same table Swiss Army Bench's Open as grid shows. The standard
+    library only, but for YAML (PyYAML)."""
     import json as _json
     from pathlib import Path as _Path
 
-    value = _json.loads((_Path(__file__).resolve().parent / file).read_text(encoding="utf-8"))
+    text = (_Path(__file__).resolve().parent / file).read_text(encoding="utf-8")
+    kind = file.rsplit(".", 1)[-1].lower()
+    if kind in ("yaml", "yml"):
+        try:
+            import yaml as _yaml
+        except ImportError:
+            raise ImportError(f"{file} is YAML, which needs PyYAML: pip install pyyaml") from None
+        found = list(_yaml.safe_load_all(text))
+        value = _json.loads(_json.dumps(found[0] if len(found) == 1 else found, default=str))
+    elif kind == "toml":
+        import tomllib as _toml
+
+        def plain(item):  # a date or a time as its text, as the app shows it
+            return item.isoformat() if hasattr(item, "isoformat") else str(item)
+
+        value = _json.loads(_json.dumps(_toml.loads(text), default=plain))
+    elif kind == "xml":
+        import re as _re
+        import xml.etree.ElementTree as _tree
+
+        if _re.search(r"<!\\s*(DOCTYPE|ENTITY)", text, _re.IGNORECASE):
+            raise ValueError(f"{file} declares a DOCTYPE or an entity: it is not read (remove it first).")
+
+        def element(node):  # attributes as "@name", text beside children as "#text", repeats as a list
+            out = {f"@{k}": v for k, v in node.attrib.items()}
+            for child in node:
+                if not isinstance(child.tag, str):
+                    continue
+                inner = element(child)
+                if child.tag in out:
+                    if not isinstance(out[child.tag], list):
+                        out[child.tag] = [out[child.tag]]
+                    out[child.tag].append(inner)
+                else:
+                    out[child.tag] = inner
+            words = (node.text or "").strip()
+            if not out:
+                return words
+            if words:
+                out["#text"] = words
+            return out
+
+        root = _tree.fromstring(text)
+        value = {root.tag: element(root)}
+    else:
+        value = _json.loads(text)
     steps = path.lstrip("$").replace("[*]", "").replace("]", "").replace("[", ".")
     for part in [p for p in steps.split(".") if p]:
         value = value[int(part)] if isinstance(value, list) else value[part]
@@ -374,6 +420,9 @@ def _records(file: str, path: str = "$"):
     return _pandas.DataFrame.from_records([flat(r) for r in rows])
 '''
 
+# The files a structure's line reads (domain/structures.py SUFFIXES: the formats Open as grid takes).
+STRUCTURE_SUFFIXES = (".json", ".yaml", ".yml", ".xml", ".toml")
+
 
 def structure_lines(structures: Sequence[StructureGrid]) -> str:
     """data.py's part for the structures read as grids: one line each, marked (empty: none)."""
@@ -390,6 +439,17 @@ def with_structures(data_py: str, structures: Sequence[StructureGrid]) -> str:
         data_py = data_py[:start].rstrip("\n") + "\n" + data_py[end + len(STRUCTURES_CLOSE) :].lstrip("\n")
     part = structure_lines(structures)
     return data_py.rstrip("\n") + ("\n\n\n" + part if part else "") + "\n"
+
+
+def keeping_structures(old: str | None, new: str) -> str:
+    """data.py made again from data.ipynb (`new`) with the structures' part the file had (`old`): the part
+    is the scaffold's, so data.ipynb's own write carries it over as it stands (none: `new` as it is)."""
+    if old is None:
+        return new
+    start, end = old.find(STRUCTURES_OPEN), old.find(STRUCTURES_CLOSE)
+    if start < 0 or end <= start:
+        return new
+    return new.rstrip("\n") + "\n\n\n" + old[start : end + len(STRUCTURES_CLOSE)] + "\n"
 
 
 # ===== what to write =====

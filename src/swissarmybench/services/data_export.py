@@ -12,7 +12,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import dictionary as data_dictionary
-from swissarmybench.domain import notebooks, projects
+from swissarmybench.domain import notebooks, projects, scaffold
 from swissarmybench.domain.projects import DataCell
 from swissarmybench.services.workspace import Conflict
 
@@ -71,7 +71,9 @@ class DataExport:
             said = data_dictionary.of_notebook(self._project.read(folder, projects.DATA_NOTEBOOK))
         made = projects.data_module(title, cells, said)
         if replace or projects.DATA_FILE not in self._edited(folder):
-            self._project.write(folder, projects.DATA_FILE, made.text)
+            # The structures read as grids are the scaffold's part of data.py (services/scaffold.py): kept.
+            had = self._project.read(folder, projects.DATA_FILE)
+            self._project.write(folder, projects.DATA_FILE, scaffold.keeping_structures(had, made.text))
         return made
 
     async def export_data(self, folder: str, title: str, replace: bool = False) -> dict[str, Any]:
