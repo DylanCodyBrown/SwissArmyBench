@@ -935,7 +935,6 @@ LATE_BOUND = (
     "datasets.origins.document_of",
     "datasets.connection_sql",
     "datasets.variables",
-    "blades.open_table",
     "blades.lint",
     "connection_slots.kernel_caller",
     "connection_slots.interrupt_kernel",
@@ -1179,10 +1178,10 @@ def _data(b: Built) -> None:
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
         kept_names=b.kept_vault_names,
         stream_blade=b.stream_blade,
-    )
-    # The blade IDE's Open as grid: a run's table in a tab of its own.
-    blades.open_table = lambda name, table, who: datasets.store_table(
-        datasets.free_name(name), table, "blade", True, who
+        # The blade IDE's Open as grid: a run's table in a tab of its own.
+        open_table=lambda name, table, who: datasets.store_table(
+            datasets.free_name(name), table, "blade", True, who
+        ),
     )
     b.catalog_loading = CatalogLoading(
         ws, blades, b.catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, b.live.windows

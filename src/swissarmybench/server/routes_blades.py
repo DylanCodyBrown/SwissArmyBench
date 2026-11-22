@@ -254,7 +254,7 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return _run_failed(error, request.path_params["name"])
 
     async def analyses(request: Request) -> Response:
-        return json_response(blades.analyses())
+        return json_response(blades.analysis_blades.analyses())
 
     async def analyze(request: Request) -> Response:
         """The user's own analysis on the grid's rows as shown, run in a child process like Test."""
@@ -263,7 +263,9 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             if not isinstance(body, dict) or not isinstance(body.get("name"), str):
                 raise ValueError('Send {"name": the analysis blade, "columns": [the selected columns]}.')
             grid, info = blades.ws.grid_and_info(request.path_params["grid_id"])
-            return json_response(await blades.analyze(body["name"], grid, info, body, actor(request)))
+            return json_response(
+                await blades.analysis_blades.analyze(body["name"], grid, info, body, actor(request))
+            )
         except NeedsValues as error:
             return _needs(error)
         except RefreshError as error:

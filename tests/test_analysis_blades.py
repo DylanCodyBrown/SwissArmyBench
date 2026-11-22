@@ -1,92 +1,93 @@
-"""Analysis blades: the user's own analysis, saved as a blade, run from the Analyze menu on the grid's
-rows as it shows them, in a child process. Made-up orders only."""
+"""Analysis blades on their own (services/analysis_blades.py), over fakes of the store, the workspace and the
+child process (craft review 2026-11-22, item 10). Made-up names and rows."""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import asyncio
+from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Any
 
-import pyarrow as pa
 import pytest
-from starlette.testclient import TestClient
 
-from swissarmybench.domain.blades import BladeError, parse_blade
-from tests.conftest import AGENT, AUTH, grid_id, push
-from tests.fake_keyring import memory_keyring
+from swissarmybench.domain.blades import Blade, BladeError
+from swissarmybench.services.analysis_blades import AnalysisBlades
 
-CODE = """import pandas as pd
-
-
-def analyze(df: pd.DataFrame, columns: list[str]) -> list:
-    column = columns[0] if columns else "region"
-    counts = df[column].value_counts().rename_axis(column).reset_index(name="rows")
-    return [f"## {len(df)} rows by {column}", counts]
-"""
+BLADES = [
+    Blade(name="Odds by region", kind="analysis", description="Made up", tags=["mine"]),
+    Blade(name="Warehouse", kind="sql"),
+]
 
 
-@pytest.fixture(autouse=True)
-def vault() -> Iterator[None]:
-    with memory_keyring():
-        yield
+class Store:
+    def all(self) -> list[Blade]:
+        return BLADES
+
+    def get(self, name: str) -> Blade:
+        return next(b for b in BLADES if b.name == name)
 
 
-def save(client: TestClient, name: str, code: str, variable: str = "analyze") -> Any:
-    return client.post(
-        "/blades", json={"name": name, "kind": "analysis", "code": code, "variable": variable}, headers=AUTH
+class Cursor:
+    def __init__(self, rows: int) -> None:
+        self.rows = rows
+
+    def execute(self, sql: str) -> Any:
+        return SimpleNamespace(fetchone=lambda: (self.rows,), to_arrow_table=lambda: "the table")
+
+
+def _ws(rows: int) -> Any:
+    audit: list[tuple[str, str, str]] = []
+
+    @contextmanager
+    def reading(cur: Any, info: Any, steps: Any, settings: Any) -> Any:
+        yield "SELECT * FROM orders"
+
+    async def grid_query(grid: Any, generation: Any, priority: Any, read: Any) -> Any:
+        return read(Cursor(rows))
+
+    return SimpleNamespace(
+        settings=SimpleNamespace(max_analysis_rows=100),
+        views=SimpleNamespace(reading=reading),
+        grid_query=grid_query,
+        audit=SimpleNamespace(write=lambda who, action, what, **more: audit.append((who, action, what))),
+        said=audit,
     )
 
 
-def test_an_analysis_blade_is_a_function_of_the_rows() -> None:
-    blade = parse_blade({"name": "By region", "kind": "analysis", "code": CODE, "variable": "analyze"})
-    assert blade.kind == "analysis" and blade.variable == "analyze"
-    with pytest.raises(BladeError, match="is a function of the rows"):
-        parse_blade({"name": "Not one", "kind": "analysis", "code": "analyze = 3", "variable": "analyze"})
-    with pytest.raises(BladeError, match="1 or 2 arguments"):
-        parse_blade(
-            {
-                "name": "Too many",
-                "kind": "analysis",
-                "code": "def analyze(a, b, c):\n    return ''",
-                "variable": "analyze",
-            }
-        )
+def _blades(rows: int = 10) -> tuple[AnalysisBlades, list[Any]]:
+    ran: list[Any] = []
+
+    async def run(blade: Blade, mode: str, typed: dict[str, str], extra: dict[str, Any]) -> dict[str, Any]:
+        ran.append((blade.name, mode, extra))
+        return {"title": "Odds", "cards": [{"kind": "note"}]}
+
+    return AnalysisBlades(_ws(rows), Store(), lambda blade, body: {}, run), ran
 
 
-def test_it_runs_on_the_grid_as_shown_and_comes_back_as_cards(client: TestClient) -> None:
-    assert save(client, "By region", CODE).status_code == 200
-    assert [a["name"] for a in client.get("/blades/analyses", headers=AUTH).json()["analyses"]] == [
-        "By region"
-    ]
-    gid = grid_id(
-        push(client, "orders", pa.table({"region": ["North", "North", "South", "East"], "n": [1, 2, 3, 4]}))
-    )
-    step = {"kind": "filter", "params": {"column": "region", "op": "ne", "value": "East"}}
-    assert (
-        client.post(f"/grids/{gid}/step-ops", json={"op": "add", "step": step}, headers=AUTH).status_code
-        == 200
-    )
-    ran = client.post(
-        f"/grids/{gid}/blade-analysis", json={"name": "By region", "columns": ["region"]}, headers=AUTH
-    )
-    assert ran.status_code == 200, ran.text
-    note, table = ran.json()["cards"]
-    assert note == {"kind": "note", "body": "## 3 rows by region"}  # the filter step came first
-    assert (
-        table["kind"] == "table"
-        and table["columns"] == ["region", "rows"]
-        and table["rows"] == [["North", 2], ["South", 1]]
-    )
-    assert (
-        client.post(f"/grids/{gid}/blade-analysis", json={"name": "By region"}, headers=AGENT).status_code
-        == 200
-    )
+def test_the_analysis_blades_are_listed_and_found_by_name() -> None:
+    blades, _ = _blades()
+    assert blades.analyses() == {
+        "analyses": [{"name": "Odds by region", "description": "Made up", "tags": ["mine"]}]
+    }
+    assert blades.analysis_blade("Odds by region").kind == "analysis"
+    with pytest.raises(BladeError, match="Warehouse is not an analysis blade"):
+        blades.analysis_blade("Warehouse")
 
 
-def test_a_failing_analysis_says_why(client: TestClient) -> None:
-    assert save(client, "Breaks", "def analyze(df):\n    return df['nowhere']\n").status_code == 200
-    assert save(client, "Nothing", "def analyze(df):\n    return None\n").status_code == 200
-    gid = grid_id(push(client, "orders", pa.table({"n": [1]})))
-    broke = client.post(f"/grids/{gid}/blade-analysis", json={"name": "Breaks"}, headers=AUTH)
-    assert broke.status_code == 422 and "KeyError" in broke.text
-    empty = client.post(f"/grids/{gid}/blade-analysis", json={"name": "Nothing"}, headers=AUTH)
-    assert empty.status_code == 422 and "returned nothing to show" in empty.text
+def test_a_run_reads_the_grid_s_view_and_is_audited() -> None:
+    blades, ran = _blades()
+    info = SimpleNamespace(name="orders")
+    grid = SimpleNamespace(steps=[], settings={})
+    answer = asyncio.run(blades.analyze("Odds by region", grid, info, {"columns": ["region"]}, "agent"))  # type: ignore[arg-type]
+    assert answer == {"title": "Odds", "cards": [{"kind": "note"}], "blade": "Odds by region"}
+    assert ran == [("Odds by region", "analysis", {"table": "the table", "columns": ["region"]})]
+    assert blades.ws.said == [("agent", "blade_analysis", "orders")]  # type: ignore[attr-defined]
+
+
+def test_too_many_rows_and_bad_columns_are_said() -> None:
+    blades, _ = _blades(rows=1000)
+    grid, info = SimpleNamespace(steps=[], settings={}), SimpleNamespace(name="orders")
+    with pytest.raises(BladeError, match="more than an analysis blade takes"):
+        asyncio.run(blades.analyze("Odds by region", grid, info, {"columns": []}, "user"))  # type: ignore[arg-type]
+    with pytest.raises(BladeError, match="columns is a list"):
+        asyncio.run(blades.analyze("Odds by region", grid, info, {"columns": "region"}, "user"))  # type: ignore[arg-type]
