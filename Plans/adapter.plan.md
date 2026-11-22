@@ -400,3 +400,9 @@ be created in app." So, everywhere in this plan and the code:
 "Just call it adapter.py not sab_adapter." The file is `adapter.py` (the app's `adapters/adapter.py`; the scaffold's
 and every export's `adapter.py`, imported as `adapter`). The rename is the last step of phase 4 (branch adapter-4);
 and is done (adapter-4 merged): adapter.py, version 1.0.0.
+
+## The owner's answers after phase 4 (2026-11-22)
+- SQL Server and Trino writes move into adapter.py too (SQL Server's typed staging, MERGE WITH (HOLDLOCK) and Azure
+  retries as its own section; Trino's write without a transaction, said plainly in its dry run); then every write is
+  the adapter's.
+- The rest of bootstrap() is split by area after one typed record of the shared services is made.
