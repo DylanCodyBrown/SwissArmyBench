@@ -817,7 +817,8 @@ class SqlWrite(Write):
         return [s for s in (create, f"DELETE FROM {self.table}" if mode == "truncate" else "", insert) if s]
 
 
-# A starter's mode -> the adapter's (create: the table made, then an insert).
+# A starter's mode -> the adapter's (create: the table made, then an insert); the same words as
+# domain/write_capability.py's OPERATION_MODES (this module is standard library only: a test holds them).
 ADAPTER_MODES: dict[str, str] = {
     "append": "insert",
     "create": "insert",

@@ -11,7 +11,14 @@ starters>" or "Read-only: <why>", so nobody, the agent included, tries to write 
 
 A Write starter (the starter pack's Write family) names the kinds it writes to among its tags; the
 tests hold the two together: every writable kind has a starter, every starter names a writable kind,
-and a read-only kind has none. Standard library only; no I/O.
+and a read-only kind has none.
+
+Three vocabularies, tied here (the craft review of 2026-11-22): a kind's **operations** are its Write
+starters' own words (append, create, replace, upsert...: tests/test_write_vocabulary.py reads each
+starter's modes and holds them to this table); its **modes** are the adapter's (insert, update, merge,
+delete, truncate: what sab.write and the agent's connections_write take on it); OPERATION_MODES says which
+mode does each operation, and STARTER_ONLY the operations no mode does (a starter's own call). The words
+say both lists. Standard library only; no I/O.
 """
 
 from __future__ import annotations
@@ -47,14 +54,35 @@ def write_request(body: Any) -> tuple[str, str, list[str], bool]:
     return body["table"].strip(), mode, key, body.get("dry_run") is True
 
 
+# A Write starter's operation -> the adapter's mode that does it (create: the table or the record made,
+# then an insert; replace and overwrite: what is there taken out, then the rows).
+OPERATION_MODES: dict[str, str] = {
+    "append": "insert",
+    "create": "insert",
+    "replace": "truncate",
+    "overwrite": "truncate",
+    "truncate": "truncate",
+    "upsert": "merge",
+    "merge": "merge",
+    "update": "update",
+    "delete": "delete",
+}
+# The operations no adapter mode does: a Delta table's upkeep, the lake's own calls in its starter.
+STARTER_ONLY: tuple[str, ...] = ("optimize", "vacuum")
+# A file or a sheet is written whole or added to; nothing in it is matched by a key.
+WHOLE_MODES: tuple[str, ...] = ("insert", "truncate")
+
+
 @dataclass(frozen=True)
 class Writable:
-    operations: tuple[str, ...]
+    operations: tuple[str, ...]  # its Write starters' words
     how: str  # in plain words: native SQL in one transaction, the Web API's change sets...
     note: str = ""  # a limit worth saying beside the starters
+    modes: tuple[str, ...] = WRITE_MODES  # the adapter's modes sab.write takes on it
 
 
 _SQL = ("append", "create", "replace", "upsert", "delete")
+_DELTA = ("append", "overwrite", "merge", "delete", "optimize", "vacuum")
 
 WRITABLE: dict[str, Writable] = {
     "sqlserver": Writable(_SQL, "T-SQL in one transaction: staged, MERGE, retried on passing errors"),
@@ -72,34 +100,40 @@ WRITABLE: dict[str, Writable] = {
     ),
     "odbc": Writable(("append", "create", "replace", "delete"), "SQL, where the source's driver writes"),
     "dataverse": Writable(
-        ("create", "update", "upsert", "delete"),
+        ("create", "update", "upsert", "delete", "truncate"),
         "the Web API's $batch change sets (its SQL endpoint is read-only)",
     ),
-    "csv": Writable(("create", "replace"), "a new file, then put in its place"),
-    "excel": Writable(("create", "replace", "append"), "a sheet written, the workbook's other sheets kept"),
-    "parquet": Writable(("create", "replace"), "a new file, then put in its place"),
-    "json": Writable(("create", "replace"), "a new file, then put in its place"),
+    "csv": Writable(("create", "replace"), "a new file, then put in its place", modes=WHOLE_MODES),
+    "excel": Writable(
+        ("create", "replace", "append"),
+        "a sheet written, the workbook's other sheets kept",
+        modes=WHOLE_MODES,
+    ),
+    "parquet": Writable(("create", "replace"), "a new file, then put in its place", modes=WHOLE_MODES),
+    "json": Writable(("create", "replace"), "a new file, then put in its place", modes=WHOLE_MODES),
     "folder": Writable(
-        ("create", "replace", "append"), "files in the folder, partitioned Parquet among them"
+        ("create", "replace", "append"),
+        "files in the folder, partitioned Parquet among them",
+        modes=WHOLE_MODES,
     ),
     # Lakes and SharePoint (domain/lakes.py): the connection's own code writes (domain/lake_code.py
     # LakeWrites, domain/sharepoint.py SharePointLists).
     "delta": Writable(
-        ("append", "replace", "upsert", "delete", "optimize", "vacuum"),
+        _DELTA,
         "a Delta commit a write (the deltalake package): merge by keys, delete by a condition",
         "vacuum keeps 7 days unless the cell says otherwise",
     ),
     "onelake": Writable(
-        ("append", "replace", "upsert", "delete", "create"),
+        (*_DELTA, "create"),
         "a lakehouse's Delta tables (the deltalake package) and its Files/ (Parquet, CSV)",
         "a warehouse is written with T-SQL in its own tools",
     ),
     "datalake": Writable(
-        ("append", "replace", "upsert", "delete", "create"),
+        (*_DELTA, "create"),
         "its Delta tables (the deltalake package), and Parquet or CSV files through the ADLS Gen2 API",
     ),
     "sharepoint": Writable(
-        ("create", "update", "delete"),
+        ("create", "update", "delete", "truncate"),
         "Microsoft Graph's $batch, retried on 429 (a list has no transaction)",
     ),
 }
@@ -157,22 +191,27 @@ def tables_kinds_covered() -> dict[str, str]:
 def capability(
     template: str | None, starters: Iterable[Mapping[str, Any]] = (), tables_kind: str | None = None
 ) -> dict[str, Any]:
-    """A connection kind's writes: {"writable", "operations", "how", "note", "starters" (the Write
-    starters' names for it), "reason" (read-only: why), "words"} ("Writes: ..." or "Read-only: ...").
+    """A connection kind's writes: {"writable", "operations" (its Write starters' words), "modes" (the
+    adapter's: what sab.write takes on it), "how", "note", "starters" (the Write starters' names for it),
+    "reason" (read-only: why), "words"} ("Writes: ..." or "Read-only: ...").
     `tables_kind` is connection_tables.tables_kind's answer (None for a form: its template decides)."""
     key = kind_of(tables_kind, template)
     found = WRITABLE.get(key)
     if found is None:
         reason = READ_ONLY.get(key, "the app has no write starters for this kind of connection")
-        return {"writable": False, "operations": [], "how": "", "note": "", "starters": [], "reason": reason,
-                "words": f"Read-only: {reason}"}  # fmt: skip
+        return {"writable": False, "operations": [], "modes": [], "how": "", "note": "", "starters": [],
+                "reason": reason, "words": f"Read-only: {reason}"}  # fmt: skip
     names = starters_for(key, starters)
-    words = f"Writes: {', '.join(found.operations)}"
+    words = (
+        f"Writes: {', '.join(found.operations)} with its Write starters; "
+        f"{', '.join(found.modes)} with sab.write"
+    )
     if found.note:
         words += f" ({found.note})"
     return {
         "writable": True,
         "operations": list(found.operations),
+        "modes": list(found.modes),
         "how": found.how,
         "note": found.note,
         "starters": names,

@@ -250,7 +250,10 @@ def test_every_writable_kind_has_a_starter_and_every_starter_names_writable_kind
     for kind in write_capability.READ_ONLY:
         assert write_capability.starters_for(kind, blades) == []
     words = write_capability.capability("postgres", blades)["words"]
-    assert words == "Writes: append, create, replace, upsert, delete"
+    assert words == (
+        "Writes: append, create, replace, upsert, delete with its Write starters; "
+        "insert, update, merge, delete, truncate with sab.write"
+    )
 
 
 def test_the_connections_page_says_what_each_connection_writes(client: TestClient) -> None:
