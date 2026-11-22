@@ -15,10 +15,8 @@
  *   [DOCS]    that kind's documents: the open ones first (in front marked, unsaved marked), then the
  *             project's (with no project open: this computer's recent ones of that kind). A click brings
  *             an open one forward, or opens the file.
- *   [KINDS]   Notebooks in a project: under Data notebook (data.ipynb) and Notebooks (every other: app notebooks
- *             were replaced by widgets, 2026-11-21),
- *             after the Transformations (the owner, 2026-11-16: "data notebooks and app notebooks");
- *             a notebook outside the project under Notebooks. Each card's icon is its kind's.
+ *   [KINDS]   One list a kind: every notebook is a notebook, data.ipynb among them (the owner, 2026-11-22:
+ *             "that concept is gone we just have notebooks"). Each card's icon is its kind's.
  *
  * The groups and the empty state hide while the page shows; the rest of the Workbench (the top row,
  * the Data panel, kernels) stays as it was.
@@ -26,7 +24,7 @@
 import { api } from "./api";
 import { h, icon } from "./dom";
 import { emptyState } from "./emptyState";
-import { type Kind, kindIcon, notebookRole, notebookWord } from "./kindColours";
+import { type Kind, kindIcon } from "./kindColours";
 
 export interface LandingDoc {
   title: string;
@@ -68,12 +66,6 @@ export const KIND_TITLES: Record<Kind, { title: string; one: string }> = {
   script: { title: "Scripts", one: "script" },
   app: { title: "Apps", one: "Streamlit app" },
 };
-
-/** The Notebooks page's groups: each notebook's role, its heading. */
-const KINDS: ["data" | "", string][] = [
-  ["data", "Data notebook"],
-  ["", "Notebooks"],
-];
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
 const folderOf = (path: string): string => path.slice(0, Math.max(0, path.length - baseName(path).length - 1));
@@ -119,7 +111,7 @@ export function mountLanding(host: LandingHost): Landing {
           "data-path": doc.path ?? "",
           onclick: () => host.choose(k, doc),
         },
-        h("span", { class: "wb-landing-icon", title: k === "notebook" ? notebookWord(doc.path) : "", "data-icon": kindIcon(k, doc.path) }, icon(kindIcon(k, doc.path))),
+        h("span", { class: "wb-landing-icon", "data-icon": kindIcon(k, doc.path) }, icon(kindIcon(k, doc.path))),
         h(
           "span",
           { class: "wb-landing-text" },
@@ -175,23 +167,6 @@ export function mountLanding(host: LandingHost): Landing {
       const doc = { title: baseName(path), path, dirty: false, front: false };
       all.push([doc, false]);
       list.append(card(k, doc, false));
-    }
-    const kinds = (k as Kind) === "notebook" ? KINDS.map(([role, title]) => [role, title, all.filter(([d]) => (notebookRole(d.path) === "data" ? "data" : "") === role)] as const) : [];
-    if (kinds.some(([role, , docs]) => role && docs.length)) {
-      // In a project: the data notebook, then the other notebooks (and any notebook from outside it).
-      list.replaceWith(
-        ...kinds.flatMap(([role, title, docs]) =>
-          docs.length || role === "data"
-            ? [
-                h("h2", { class: "wb-landing-section", "data-role": role || "plain" }, title),
-                docs.length
-                  ? h("ul", { class: `wb-landing-cards wb-landing-${role || "plain"}`, "aria-label": title }, ...docs.map(([d, open]) => card(k, d, open)))
-                  : h("p", { class: "empty-note" }, "No data notebook yet"),
-              ]
-            : [],
-        ),
-      );
-      return;
     }
     if (tables.length) tablesHost.append(h("h2", { class: "wb-landing-section" }, `Your ${words.title.toLowerCase()}`));
     if (!list.childElementCount)

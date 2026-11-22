@@ -290,8 +290,7 @@ class ProjectOutline:
         listed = [
             d for d in scope_rules.documents(self._files.files(folder)) if d["path"] != local_api_rules.FILE
         ]
-        roles = scope_rules.notebook_roles(listed)
-        return [d | {"role": roles.get(d["path"])} for d in listed][:MAX_DOCUMENTS]
+        return listed[:MAX_DOCUMENTS]
 
     def _text(self, folder: str, relative: str) -> str | None:
         try:
@@ -316,16 +315,11 @@ class ProjectOutline:
         mode = self._mode() or {}
         name = str(project.get("name") or "")
         entries = [
-            rules.FileEntry(path, scope_rules.kind_of(path) or "file", False, None)
+            rules.FileEntry(path, scope_rules.kind_of(path) or "file", False)
             for path, _, _ in self._files.files(folder)
         ]
         known = {d["path"]: d for d in self._listed(folder)}
-        entries = [
-            rules.FileEntry(
-                e.path, e.kind, bool(known.get(e.path, {}).get("made")), known.get(e.path, {}).get("role")
-            )
-            for e in entries
-        ]
+        entries = [rules.FileEntry(e.path, e.kind, bool(known.get(e.path, {}).get("made"))) for e in entries]
         return rules.Overview(
             name,
             str(mode.get("title") or ""),
@@ -645,7 +639,7 @@ class ProjectOutline:
             needed += data_requirements(data_py)
         documents = self.documents_text(folder)
         own = {posixpath.splitext(p)[0].replace("/", ".") for p, _ in documents if p.endswith(".py")}
-        own |= {"data"}  # data.py, the data notebook's export
+        own |= {"data"}  # data.py, data.ipynb's export
         for path, text in documents:
             for cell in self._cells(path, text):
                 if cell.kind != "code":

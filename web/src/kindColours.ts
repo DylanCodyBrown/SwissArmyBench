@@ -19,9 +19,9 @@ export function kindOfPath(path: string | null | undefined): Kind | null {
   return null;
 }
 
-/** The open project's folder (null: none open). In a project, data.ipynb at its top is THE data notebook;
- *  every other notebook is plain (app notebooks went, 2026-11-21: widgets on the Canvas replaced them).
- *  workbenchPage.ts keeps it current. */
+/** The open project's folder (null: none open); workbenchPage.ts keeps it current. Every notebook is a
+ *  notebook (the owner, 2026-11-22: "that concept is gone we just have notebooks"): data.ipynb, the one data.py
+ *  is made from, wears no kind of its own. */
 let projectFolder: string | null = null;
 const slashes = (path: string): string => path.replace(/\\/g, "/");
 
@@ -35,27 +35,12 @@ export function setProjectFolder(folder: string | null): void {
 
 export const projectOpen = (): boolean => projectFolder !== null;
 
-/** A notebook's role by its whole path (the same rule as domain/project_scope.py notebook_kind): "data"
- *  for data.ipynb (at the project's top; with no project open, anywhere: its Data mode is its own), ""
- *  (plain) for every other notebook. */
-export function notebookRole(path: string | null | undefined): "data" | "" {
-  if (!path) return "";
-  const whole = slashes(path);
-  const data = /(^|\/)data\.ipynb$/i.test(whole);
-  if (!projectFolder || !/^(\/|[a-z]:\/)/i.test(whole)) return data ? "data" : "";
-  if (!whole.toLowerCase().startsWith(`${projectFolder.toLowerCase()}/`)) return "";
-  return whole.slice(projectFolder.length + 1).toLowerCase() === "data.ipynb" ? "data" : "";
-}
+/** The open project's folder, as last set (null: none). */
+export const projectFolderNow = (): string | null => projectFolder;
 
-/** A notebook's word by its role: Data notebook, Notebook. */
-export function notebookWord(path: string | null | undefined): string {
-  return notebookRole(path) === "data" ? "Data notebook" : "Notebook";
-}
-
-/** The icon a document of this kind shows: the data notebook has its own (the owner, 2026-11-16), a
- *  notebook with its corner marked. Without a path: the kind's own icon. */
-export function kindIcon(kind: Kind | null, path?: string | null): string {
-  if (kind === "notebook") return path !== undefined && notebookRole(path) === "data" ? "dataNotebook" : "notebook";
+/** The icon a document of this kind shows: every notebook the notebook's (2026-11-22). */
+export function kindIcon(kind: Kind | null, _path?: string | null): string {
+  if (kind === "notebook") return "notebook";
   return kind === "app" ? "page" : kind === "script" ? "code" : "file";
 }
 

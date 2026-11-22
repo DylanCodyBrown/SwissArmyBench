@@ -30,9 +30,8 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
 
 ## The window (it must be open; the "front document" is the one in front)
 - New ("file.newNotebook", "file.newScript"; "file.newApp" opens the Canvas page) and Open… ("file.open").
-  In a project data.ipynb is THE data notebook; every other notebook is plain (tab kinds `dataNotebook`,
-  `notebook`): `project_documents` and "documents" give the data notebook's `role` ("data"; the others
-  none). App notebooks, live Streamlit cells and the old `.stapp.json` canvases went (2026-11-21): an app
+  Every notebook is a notebook (the owner, 2026-11-22: "we just have notebooks"): one tab kind `notebook`, one
+  Notebooks list (data.ipynb first: the notebook data.py is made from), no `role`. App notebooks, live Streamlit cells and the old `.stapp.json` canvases went (2026-11-21): an app
   is widgets on the Canvas (the streamlit guide); a cell that calls Streamlit runs in the kernel like any
   other, and "file.open" of a `.stapp.json` says so in one line.
   The Files pane (the page's notebooks or scripts) and, on Scripts, the Blades pane are columns on the right

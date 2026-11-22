@@ -20,7 +20,7 @@ Store analysis/
 ├── API.py                      the local sandbox API (its endpoints: Deliverables)
 ├── app.ipynb                   a notebook
 ├── daily.py                    a script
-├── data.ipynb                  the data notebook: it makes the tables
+├── data.ipynb                  a notebook: it makes the tables (data.py is made from it)
 ├── data.py                     made by the app from another file: never edit it by hand
 ├── README.md                   what the project is for
 ├── requirements.txt            what to install
@@ -99,7 +99,7 @@ erDiagram
 
 ## 4. Transformations
 
-In short: 1 table is shaped by steps (each as one DuckDB query over the table), and 2 named cells in the data notebook make or read the rest.
+In short: 1 table is shaped by steps (each as one DuckDB query over the table), and 2 named cells in data.ipynb make or read the rest.
 
 ### `orders`
 
@@ -122,7 +122,7 @@ ORDER BY "order_date" DESC NULLS LAST, row_number() OVER ()  -- ties keep their 
 
 ## 5. Lineage
 
-In short: data flows left to right, from the sources (cylinders) into the tables (double boxes), through the data notebook's named cells (boxes), to what the project delivers (rounded).
+In short: data flows left to right, from the sources (cylinders) into the tables (double boxes), through data.ipynb's named cells (boxes), to what the project delivers (rounded).
 
 ```mermaid
 flowchart LR

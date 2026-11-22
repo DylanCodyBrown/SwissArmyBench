@@ -80,7 +80,7 @@ import { back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, 
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
-import { type Kind, kindIcon, kindOfPath, notebookRole, notebookWord, onProjectFolder, setProjectFolder } from "./kindColours";
+import { type Kind, kindIcon, kindOfPath, onProjectFolder, setProjectFolder } from "./kindColours";
 import { areaOfKind, gatedRun } from "./gates";
 import { busyClick } from "./loading";
 import { type Missing, promptInstall } from "./missingPackages";
@@ -424,12 +424,12 @@ function listProject(): void {
   if (!project) return void explorerPane.setFiles(null);
   const files = project.files.flatMap((path) => {
     const name = baseName(path);
-    const file = { path: name, icon: kindIcon(kindOfPath(name), path), word: kindOfPath(name) === "notebook" ? notebookWord(path) : undefined, open: () => void open(path) };
+    const file = { path: name, icon: kindIcon(kindOfPath(name), path), open: () => void open(path) };
     // data.py is data.ipynb's export: listed under it, greyed, never opened from here.
     return name.toLowerCase() === DATA_NOTEBOOK ? [file, { path: "data.py", icon: "code", derived: true }] : [file];
   });
   // The mode's own files a person edits (a code app's .ts and .tsx under src/), opened in the code editor.
-  for (const path of modeFiles) files.push({ path, icon: "code", word: undefined, open: () => void openCodeFileDoc(path) });
+  for (const path of modeFiles) files.push({ path, icon: "code", open: () => void openCodeFileDoc(path) });
   explorerPane.setFiles({ root: `${project.name}/`, files });
 }
 
@@ -1376,18 +1376,14 @@ function docMark(doc: Doc): "notebook" | "script" | undefined {
   return doc.kind === "notebook" ? "notebook" : doc.kind === "script" ? "script" : undefined;
 }
 
-/** A document's kind of tab: Data notebook (a project's data.ipynb), Notebook (any other), Script, Blade,
- *  Table, Workbook. */
+/** A document's kind of tab: Notebook (every one, data.ipynb too: the owner, 2026-11-22, "we just have
+ *  notebooks"), Script, Blade, Table, Workbook. */
 function kindOf(doc: Doc): string {
   if (doc.kind === "workbook") return "workbook";
-  if (doc.kind === "notebook") return notebookRole(doc.path) === "data" ? "dataNotebook" : "notebook";
   return doc.kind === "table" ? "explorer" : doc.kind;
 }
 
-// Kind colours (kindColours.ts): notebooks blue (the data notebook with its own icon and word: the owner,
-// 2026-11-16; app notebooks went, 2026-11-21: widgets on the Canvas replaced them), scripts green; a blade
-// or a catalog table wears none.
-registerTabKind({ id: "dataNotebook", label: "Data notebook", icon: "dataNotebook", mark: "notebook" });
+// Kind colours (kindColours.ts): notebooks blue, scripts green; a blade or a catalog table wears none.
 registerTabKind({ id: "notebook", label: "Notebook", icon: "notebook", mark: "notebook", start: { label: "New notebook", run: () => void openNotebook(null, [], null) } });
 registerTabKind({ id: "script", label: "Script", icon: "code", mark: "script", start: { label: "New script", run: () => void openScript(null, "", null) } });
 registerTabKind({ id: "blade", label: "Blade", icon: "bolt", mark: "plain" });
@@ -2911,8 +2907,6 @@ function documents(): unknown {
     documents: docs.map((d, index) => ({
       index,
       kind: d.kind,
-      // A notebook's kind: data (the project's data.ipynb), app (any other in a project), "" (plain).
-      ...(d.notebook ? { role: notebookRole(d.path) } : {}),
       title: d.title,
       path: d.path,
       unsaved_changes: d.dirty,

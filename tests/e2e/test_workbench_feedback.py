@@ -239,13 +239,13 @@ def test_the_data_notebook_has_an_icon_of_its_own(
     def icon(title: str) -> Locator:
         return page.locator(".wb-tab", has_text=title).locator(".wb-tab-icon")
 
-    expect(icon("data.ipynb")).to_have_attribute("data-icon", "dataNotebook", timeout=30000)
-    # In a project every other notebook is a plain one (app notebooks went, 2026-11-21).
+    expect(icon("data.ipynb")).to_have_attribute("data-icon", "notebook", timeout=30000)
+    # Every notebook is a notebook (2026-11-22: "we just have notebooks"), data.ipynb too.
     expect(icon("scratch.ipynb")).to_have_attribute("data-icon", "notebook")
     expect(icon("views.ipynb")).to_have_attribute("data-icon", "notebook", timeout=20000)
     # The Data panel's files and the landing's cards wear them too.
     for title, name in (
-        ("data.ipynb", "dataNotebook"),
+        ("data.ipynb", "notebook"),
         ("scratch.ipynb", "notebook"),
         ("views.ipynb", "notebook"),
     ):
@@ -257,7 +257,7 @@ def test_the_data_notebook_has_an_icon_of_its_own(
     views = explorer.locator(".wb-codex-file[data-path='views.ipynb'] svg").first
     expect(views).to_have_attribute("data-icon", "notebook", timeout=20000)
     data = explorer.locator(".wb-codex-file[data-path='data.ipynb'] svg").first
-    expect(data).to_have_attribute("data-icon", "dataNotebook")
+    expect(data).to_have_attribute("data-icon", "notebook")
     shot(page, "notebook-icons")
 
 

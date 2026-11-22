@@ -248,7 +248,6 @@ class VariableFacts:
 class DocumentFacts:
     kind: str  # notebook, script, app
     path: str  # in the project's folder
-    role: str | None = None  # data, app (a notebook's)
 
 
 @dataclass(frozen=True)
@@ -437,10 +436,8 @@ def _variables(s: State, trims: set[str]) -> list[str]:
 def _documents(s: State, trims: set[str]) -> list[str]:
     if not s.documents:
         return ["None." if s.project else "No project is open (`project_new`, `project_open`)."]
-    words = {"data": "the data notebook"}
     out = [
-        f"- {code(d.path)}: {words.get(d.role or '', d.kind)}"
-        for d in sorted(s.documents, key=lambda d: (d.kind, d.path.casefold()))
+        f"- {code(d.path)}: {d.kind}" for d in sorted(s.documents, key=lambda d: (d.kind, d.path.casefold()))
     ]
     return _cut(out, "lists" in trims, "`project_documents`")
 

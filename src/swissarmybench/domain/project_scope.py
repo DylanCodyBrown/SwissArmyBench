@@ -6,9 +6,8 @@ scripts or apps will have to be imported from another project"). Pure rules, no 
               blade store's own files: names, code and where each password comes from, never a value)
               and its saved Visualizations dashboards (`.sab/dashboards/<name>.json`)
   documents   the project's notebooks, scripts and apps: its files by their ending, the made ones marked
-              (data.py and pages/*.py are exports of data.ipynb and the canvas); a notebook's role: the
-              data notebook (data.ipynb), one an app's canvas links a cell of, or a plain one (each has an
-              icon of its own, 2026-11-16)
+              (data.py and pages/*.py are exports of data.ipynb and the canvas); every notebook is a notebook
+              (the owner, 2026-11-22: "that concept is gone we just have notebooks": no data or app role)
   import      a copy into the project: a document from another project (its folder) or a
               loose file, a connection or blade from another project or from this computer's saved ones.
               A name the project has already is never overwritten: a document gets the next free name
@@ -104,36 +103,9 @@ def documents(files: Iterable[tuple[str, int, float]], kind: str | None = None) 
     return sorted(found, key=lambda d: (order[d["kind"]], d["made"], d["path"].casefold()))
 
 
-DATA_NOTEBOOK: str = "data.ipynb"  # the project's data notebook, at its top
-DATA_ROLE: str = "data"
-
-
-def notebook_roles(documents: Iterable[Mapping[str, Any]]) -> dict[str, str]:
-    """Each notebook's role by its path inside the project: "data" for THE data notebook, data.ipynb at
-    the project's top (the owner, 2026-11-16). Every other notebook is plain and has none (app notebooks
-    went, 2026-11-21: widgets on the Canvas replaced them); other documents have none either."""
-    return {
-        str(d["path"]): DATA_ROLE
-        for d in documents
-        if d.get("kind") == "notebook" and str(d["path"]).replace("\\", "/").casefold() == DATA_NOTEBOOK
-    }
-
-
-def notebook_kind(path: str, project: str | None) -> str | None:
-    """A notebook's kind by its whole path and the open project's folder (None: no project open):
-    "data" for data.ipynb (at the project's top, or anywhere with no project: its Data mode is its
-    own), "" (plain) for every other notebook. None: not a notebook."""
-    whole = path.replace("\\", "/")
-    if not whole.casefold().endswith(".ipynb"):
-        return None
-    name = posixpath.basename(whole)
-    if project is None:
-        return DATA_ROLE if name.casefold() == DATA_NOTEBOOK else ""
-    top = project.replace("\\", "/").rstrip("/")
-    if not whole.casefold().startswith(top.casefold() + "/"):
-        return ""
-    inside = whole[len(top) + 1 :]
-    return notebook_roles([{"path": inside, "kind": "notebook"}]).get(inside, "")
+# The project's data.ipynb, at its top: the notebook data.py is made from (a notebook like any other: no
+# role of its own since 2026-11-22).
+DATA_NOTEBOOK: str = "data.ipynb"
 
 
 def inside(folder: str, relative: str) -> str:

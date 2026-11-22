@@ -43,7 +43,7 @@ def ref(api: str, method: str, path: str) -> str:
 
 # The files of a project a built function never goes into: the app makes them, or they are the API itself.
 NOT_SCRIPTS = ("API.py", "data.py", "adapter.py", "api_adapter.py", "connections.py", "sab_api.py")
-DATA_NOTEBOOK = "data.ipynb"  # where a built cell goes: the project's data notebook
+DATA_NOTEBOOK = "data.ipynb"  # where a built cell goes: the project's data.ipynb
 SAB_IMPORT = "import swissarmybench as sab"
 
 

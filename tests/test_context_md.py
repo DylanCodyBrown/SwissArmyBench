@@ -88,7 +88,7 @@ def _state(**more: Any) -> State:
             rules.VariableFacts("SALES_REGION", "a plain value"),
         ),
         "documents": (
-            rules.DocumentFacts("notebook", "data.ipynb", "data"),
+            rules.DocumentFacts("notebook", "data.ipynb"),
             rules.DocumentFacts("app", "sales.stapp.json"),
         ),
         "windows": ("The home window: grid `g1` on `orders` in front",),
@@ -129,7 +129,7 @@ def test_the_sections_say_names_counts_types_and_steps_never_a_value() -> None:
         "`A SQL step`",
         "`orders` (`cust`) -> `customers` (`customer_id`): many-to-one",
         "`WAREHOUSE_PASSWORD`: a key vault `Company vault`",
-        "`data.ipynb`: the data notebook",
+        "`data.ipynb`: notebook",
         "### Swiss Army Bench: the index (read first)",  # the index under the Tool guide
         "### Reading one",
         "Naming a connection's tables in DuckDB SQL",

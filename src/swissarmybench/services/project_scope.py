@@ -98,24 +98,17 @@ class ProjectScope:
             return {"project": None, "documents": []}
         files = self._files.files(current.folder)
         listed = rules.documents(files, kind or None)
-        # THE data notebook's role (its icon and word): data.ipynb; every other notebook is plain.
-        roles = rules.notebook_roles(listed)
         return {
             "project": current.name,
             "folder": current.folder,
-            "documents": [
-                d
-                | {"full": rules.inside(current.folder, d["path"])}
-                | ({"role": roles[d["path"]]} if d["path"] in roles else {})
-                for d in listed
-            ],
+            "documents": [d | {"full": rules.inside(current.folder, d["path"])} for d in listed],
         }
 
     # ===== the explorer of the Notebooks and Scripts pages (domain/code_tree.py) =====
 
     def tree(self, page: Any) -> dict[str, Any]:
         """The explorer's groups for a page: {"page": "scripts"} every .py of the open project by module, each
-        with its outline; {"page": "notebooks"} its notebooks, the data notebook first. No project: none."""
+        with its outline; {"page": "notebooks"} its notebooks, data.ipynb first. No project: none."""
         if page not in ("notebooks", "scripts"):
             raise ValueError("page is notebooks or scripts.")
         current = self._projects.current

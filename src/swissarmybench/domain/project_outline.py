@@ -47,8 +47,8 @@ MAX_PURPOSE: int = 600
 # Files that are the app's or Git's, not the project's layout (ARCHITECTURE.md itself: an export that
 # listed itself would change on its second write).
 _NOT_LAYOUT: frozenset[str] = frozenset({FILE_NAME.casefold(), ".gitignore"})
-_ROLE_WORDS: dict[str, str] = {"data": "the data notebook: it makes the tables"}
 _NAME_WORDS: dict[str, str] = {
+    "data.ipynb": "a notebook: it makes the tables (data.py is made from it)",
     "readme.md": "what the project is for",
     "requirements.txt": "what to install",
     "api.py": "the local sandbox API (its endpoints: Deliverables)",
@@ -70,7 +70,6 @@ class FileEntry:
     path: str  # inside the project, with forward slashes
     kind: str  # notebook, script, app, structure, file
     made: bool = False  # an export the app writes (data.py, pages/*.py)
-    role: str | None = None  # a notebook's: data, app
 
 
 @dataclass(frozen=True)
@@ -326,7 +325,7 @@ def _tree(name: str, files: Sequence[FileEntry]) -> list[str]:
             if folder not in seen_folders:
                 seen_folders.add(folder)
                 rows.append((f"{'    ' * (depth - 1)}├── {_plain(parts[depth - 1])}/", ""))
-        words = _ROLE_WORDS.get(f.role or "") or _NAME_WORDS.get(f.path.casefold()) or _WORDS.get(f.kind, "")
+        words = _NAME_WORDS.get(f.path.casefold()) or _WORDS.get(f.kind, "")
         if f.made:
             words = "made by the app from another file: never edit it by hand"
         rows.append((f"{'    ' * (len(parts) - 1)}├── {_plain(parts[-1])}", words))
@@ -493,7 +492,7 @@ def _transformations(o: Outline) -> list[str]:
     lines = [
         f"In short: {_plural(len(stepped), 'table')} {'is' if len(stepped) == 1 else 'are'} shaped by steps "
         f"(each as one DuckDB query over the table), and {_plural(len(o.cells), 'named cell')} in "
-        "the data notebook make or read the rest.",
+        "data.ipynb make or read the rest.",
         "",
     ]
     for t in stepped:
@@ -635,7 +634,7 @@ def _lineage(o: Outline) -> list[str]:
         return [NONE]
     lines = [
         "In short: data flows left to right, from the sources (cylinders) into the tables (double boxes), "
-        "through the data notebook's named cells (boxes), to what the project delivers (rounded).",
+        "through data.ipynb's named cells (boxes), to what the project delivers (rounded).",
         "",
         "```mermaid",
         flowchart(nodes, edges),
@@ -691,7 +690,7 @@ _UNPORTABLE: dict[str, str] = {
     "paste": "pasted into the app, so only its kept rows travel. Read it from a file in the project or a "
     "connection instead.",
     "outside": "a file outside the project folder. Copy it into the project, or read it from a connection.",
-    "query": "a query typed in the app's + tab. Put it in the data notebook.",
+    "query": "a query typed in the app's + tab. Put it in data.ipynb.",
 }
 
 

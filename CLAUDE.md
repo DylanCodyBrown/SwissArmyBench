@@ -543,7 +543,7 @@ src/swissarmybench/
                          notebook for a zip, requirements, README, which files open (never a made file:
                          data.py, adapter.py, connections.py, the sandbox mirror)
     project_scope.py     what is the open project's own: its documents (by kind; data.py and pages/*.py
-                         marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/visualizations (and an older one's .sab/blades), an import's free names and
+                         marked made; every notebook a notebook, no role: 2026-11-22), its .sab/visualizations (and an older one's .sab/blades), an import's free names and
                          picks, a connection's passwords with no source on this computer and the fix
     sab_files.py         a project is a folder: .sab/project.json (each table's source and grids' steps, the
                          tabs, the windows' layout, autosave; sorted, no timestamp; unknown fields kept, a
@@ -590,7 +590,8 @@ src/swissarmybench/
                          one line a wrong-kind take is refused with, the old /workbench addresses, a command's page
     code_tree.py         the pages' explorers: a .py's module (scripts/etl/load.py is etl.load), its outline by ast,
                          the groups (Your scripts, Project code, made files and what they are made from, the
-                         library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (data first)
+                         library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (one list,
+                         data.ipynb first)
     script_ide.py        the Scripts IDE's rules: search and replace across the scripts (regex, case, word), a
                          rename's plan and preview that never writes a made file, a Python name checked; a
                          module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
@@ -1328,8 +1329,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          Copy name, Open all, Import its relationships, Query in a notebook); connectionSql.ts the
                          connections a DuckDB query names (a SQL cell's head) and their completion;
                          workbenchLanding.ts a kind's landing page in the Workbench (?kind=notebook&view=list:
-                         its documents as cards, Scripts' and Notebooks' Transformations cards first, Notebooks'
-                         under Data notebook and App notebooks; New and Open… in the top bar);
+                         its documents as cards in one list (every notebook a notebook, the owner 2026-11-22: "we
+                         just have notebooks"); New and Open… in the top bar);
                          aiPanel.ts is the Analyze board (a 12-column dashboard of resizable cards; an
                          analysis's cards land at its top and are marked; a result's actions under its card);
                          analyzePage.ts the Analyze toolbar (every analysis, grouped, everyday words first) and
@@ -1473,9 +1474,8 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
                          pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
-                         kindColours.ts the kind colours (fixed: grid.css's tokens) and a
-                         notebook's kind (in a project data.ipynb the data notebook; every other plain:
-                         notebookRole, kindIcon);
+                         kindColours.ts the kind colours (fixed: grid.css's tokens) and each kind's
+                         icon (kindIcon: every notebook the notebook's, data.ipynb too, 2026-11-22);
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
                          (open a folder, "Make this folder a project?"; New project's dialog: name, type, "?"
                          for the types explained, where; save, Keep its rows asked once; Copy project to…;

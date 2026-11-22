@@ -1,11 +1,12 @@
-"""The explorer on the left of the Notebooks and Scripts pages (the owner, 2026-11-21: "What it should have is
-a project file explorer to browse and open all project scripts" / "a by module navigation tree on the left to
-navigate all of the scripts (except the notebooks)").
+"""The Files pane of the Notebooks and Scripts pages, on the right of the code since 2026-11-22 (the owner,
+2026-11-21: "What it should have is a project file explorer to browse and open all project scripts" / "a by
+module navigation tree on the left to navigate all of the scripts (except the notebooks)").
 
 The Scripts page's tree: every .py of the project by module (`scripts/etl/load.py` is `etl.load`), in groups
 (Your scripts, Project code: what the app makes and the pages), each module's outline by ast (classes, their
-methods, functions, module constants); never a notebook. The Notebooks page's: the project's notebooks, the
-data notebook first. Pure rules, no I/O: the files come in as (path inside the project, made, edited by hand).
+methods, functions, module constants); never a notebook. The Notebooks page's: the project's notebooks, one
+list, data.ipynb first (every notebook a notebook: the owner, 2026-11-22, "we just have notebooks"). Pure
+rules, no I/O: the files come in as (path inside the project, made, edited by hand).
 """
 
 from __future__ import annotations
@@ -143,7 +144,8 @@ def script_tree(files: Iterable[tuple[str, str | None]], edited: Iterable[str] =
 
 
 def notebook_tree(paths: Iterable[str]) -> list[dict[str, Any]]:
-    """The Notebooks page's groups: the data notebook (data.ipynb at the top) first, then the rest."""
+    """The Notebooks page's one group: every notebook, data.ipynb at the top first (the file data.py is made
+    from; no kind of its own: the owner, 2026-11-22, "that concept is gone we just have notebooks")."""
     data: list[dict[str, Any]] = []
     rest: list[dict[str, Any]] = []
     for relative in paths:
@@ -153,10 +155,7 @@ def notebook_tree(paths: Iterable[str]) -> list[dict[str, Any]]:
         item = {"path": relative, "name": posixpath.basename(relative), "folder": posixpath.dirname(relative)}
         (data if relative.lower() == "data.ipynb" else rest).append(item)
     rest.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
-    return [
-        {"id": "data", "name": "Data notebook", "files": data},
-        {"id": "notebooks", "name": "Notebooks", "files": rest},
-    ]
+    return [{"id": "notebooks", "name": "Notebooks", "files": data + rest}]
 
 
 # The library's code (the owner, 2026-11-21: "this is meant to expose the high level code of everything in the

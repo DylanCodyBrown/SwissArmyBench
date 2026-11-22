@@ -8789,3 +8789,13 @@ Blades side by side, two columns, not stacked).
 - **The Files pane lost its fold-to-a-strip and its Files/Blades splitter**: a hidden pane is gone from the
   row, its button brings it back, as the Canvas's.
 - Open: the Data Explorer pane (Ctrl+Shift+E) is still on the left; it could join the side panes if wanted.
+- **Just notebooks** (the owner, the same day: "in the screenshot I still saw app notebooks and data notebooks,
+  that concept is gone we just have notebooks"): no data or app role anywhere the user or the agent sees: one
+  tab kind (`notebook`; the `dataNotebook` kind and its icon went), one Notebooks list on the Notebooks page's
+  Files pane and its landing page (data.ipynb first), no `role` in /project/documents or the window's
+  "documents", context.md and ARCHITECTURE.md call data.ipynb a notebook (the outline still says it makes the
+  tables and data.py is made from it). data.ipynb keeps its work: data.py is exported from it, Build's cell goes
+  into it, the Dictionary reads it, a folder with one is a project. Nothing saved carried a role (it was worked
+  out from the path each time), so every older project opens as before. The violet app kind stays for the
+  Canvas's apps (kindColours.ts); the Power Apps extension's "data notebook" (its TypeScript notebook) is that
+  extension's own word and was left.

@@ -587,6 +587,6 @@ in any editor. It is ordinary files, so it can be a Git repository.
 
 def is_project(names: Iterable[str]) -> bool:
     """A folder the app treats as a project by its top's names: its .sab/project.json, or the scaffold's
-    data notebook."""
+    data.ipynb."""
     found = set(names)
     return MANIFEST_PATH in found or project_rules.DATA_NOTEBOOK in found

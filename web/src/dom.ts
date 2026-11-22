@@ -91,9 +91,6 @@ const ICONS: Record<string, string> = {
   // The Workbench's tabs and Data panel (the redesign of 2026-11-15): a notebook, an app page, a file,
   // a blade's value, and splitting a group right or down.
   notebook: '<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 3v18M12.5 7.5h3M12.5 11h3"/>',
-  // The project's data notebook (data.ipynb) (the owner, 2026-11-16: "differentiate with seperate icons the
-  // data notebook"): a notebook whose corner holds a small table. (App notebooks went, 2026-11-21.)
-  dataNotebook: '<path d="M11 20H4.5A1.5 1.5 0 013 18.5v-14A1.5 1.5 0 014.5 3h10A1.5 1.5 0 0116 4.5V11"/><path d="M7 3v17M10 7.5h3"/><rect x="12.5" y="12.5" width="9" height="8.5" rx="1"/><path d="M12.5 15.5h9M12.5 18.2h9M17 12.5V21"/>',
   page: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 9h18M10 9v11"/>',
   file: '<path d="M6 3h8l4 4v14H6zM14 3v4h4"/>',
   bolt: '<path d="M13 3L5 13.5h6L10 21l8-10.5h-6z"/>',

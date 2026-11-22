@@ -1,8 +1,8 @@
 # ruff: noqa: F811
-"""The data notebook and the other notebooks, in a real browser (the owner, 2026-11-16: "differentiate
-with seperate icons the data notebook"). In a project data.ipynb is THE data notebook; every other notebook
-is plain (app notebooks went, 2026-11-21: "Creating a widget is what will replace the concept of app cells
-and app notebooks"). Opening an old app canvas (.stapp.json) says so in one line. Made-up data only.
+"""A project's notebooks, in a real browser: every notebook is a notebook (the owner, 2026-11-22: "in the
+screenshot I still saw app notebooks and data notebooks, that concept is gone we just have notebooks"),
+data.ipynb among them (app notebooks went, 2026-11-21: "Creating a widget is what will replace the concept of
+app cells and app notebooks"). Opening an old app canvas (.stapp.json) says so in one line. Made-up data only.
 
 With SWISSARMYBENCH_NBKINDS_SHOTS set to a folder, the tests also save screenshots there (2x)."""
 
@@ -70,34 +70,29 @@ def tab(page: Page, title: str) -> Locator:
     return page.locator(".wb-tab", has_text=title)
 
 
-def test_a_projects_notebooks_wear_their_kind_on_tabs_cards_and_files(
+def test_a_projects_notebooks_are_all_notebooks_on_tabs_cards_and_files(
     browser: Browser, server: dict[str, Any], orchard: Path
 ) -> None:
     page = workbench(browser, server)
     window(server, "project.open", folder=str(orchard))
-    for title, kind, word in (
-        ("data.ipynb", "dataNotebook", "Data notebook"),
-        ("pickers.ipynb", "notebook", "Notebook"),
-        ("views.ipynb", "notebook", "Notebook"),
-    ):
-        expect(tab(page, title)).to_have_attribute("data-kind", kind, timeout=30000)
-        expect(tab(page, title).locator(".wb-tab-icon")).to_have_attribute("data-icon", kind)
-        expect(tab(page, title).locator(".wb-tab-icon")).to_have_attribute("title", word)
-        expect(page.locator(".wb-file-open", has_text=title)).to_have_attribute("title", word)
-    # The agent sees the same kinds: the data notebook's role, none for the others.
-    roles = {d["title"]: d.get("role") for d in window(server, "documents")["documents"]}
-    assert roles["data.ipynb"] == "data" and not roles["pickers.ipynb"], roles
-    # The Notebooks page's explorer (2026-11-21): the data notebook first, then the rest, each its icon.
+    for title in ("data.ipynb", "pickers.ipynb", "views.ipynb"):
+        expect(tab(page, title)).to_have_attribute("data-kind", "notebook", timeout=30000)
+        expect(tab(page, title).locator(".wb-tab-icon")).to_have_attribute("data-icon", "notebook")
+        expect(tab(page, title).locator(".wb-tab-icon")).to_have_attribute("title", "Notebook")
+    # The agent sees no role either: a notebook is a notebook.
+    assert all("role" not in d for d in window(server, "documents")["documents"])
+    # The Notebooks page's Files pane: one list, data.ipynb first, every one the notebook's icon.
     explorer = page.locator(".wb-codex.page-notebooks")
     heads = explorer.locator(".wb-codex-group-head > span:not(.wb-codex-count)")
-    expect(heads).to_have_text(["Data notebook", "Notebooks"], timeout=20000)
-    data_files = explorer.locator(".wb-codex-group[data-group='data'] .wb-codex-file")
-    expect(data_files).to_have_count(1)
-    expect(data_files.first.locator("svg").first).to_have_attribute("data-icon", "dataNotebook")
-    others = explorer.locator(".wb-codex-group[data-group='notebooks'] .wb-codex-file")
-    expect(others).to_have_count(2)
-    expect(page.locator("svg[data-icon='appNotebook']")).to_have_count(0)
-    shot(page, "notebooks-page-two-groups")
+    expect(heads).to_have_text(["Notebooks"], timeout=20000)
+    files = explorer.locator(".wb-codex-group[data-group='notebooks'] .wb-codex-file")
+    expect(files).to_have_count(3)
+    expect(files.first).to_contain_text("data.ipynb")
+    for i in range(3):
+        expect(files.nth(i).locator("svg").first).to_have_attribute("data-icon", "notebook")
+    expect(page.locator("svg[data-icon='appNotebook'], svg[data-icon='dataNotebook']")).to_have_count(0)
+    expect(page.get_by_text("Data notebook", exact=True)).to_have_count(0)
+    shot(page, "notebooks-page-one-list")
     # New on that page makes a plain notebook (never an app notebook).
     page.get_by_role("button", name="Workbench menu", exact=True).click()
     expect(page.get_by_role("menuitem", name="New app notebook")).to_have_count(0)

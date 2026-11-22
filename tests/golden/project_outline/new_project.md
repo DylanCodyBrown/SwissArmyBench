@@ -18,7 +18,7 @@ In short: `Empty one` is an Analysis project whose deliverable is a notebook, wi
 ```text
 Empty one/
 ├── API.py            the local sandbox API (its endpoints: Deliverables)
-├── data.ipynb        the data notebook: it makes the tables
+├── data.ipynb        a notebook: it makes the tables (data.py is made from it)
 ├── data.py           made by the app from another file: never edit it by hand
 ├── README.md         what the project is for
 ├── requirements.txt  what to install

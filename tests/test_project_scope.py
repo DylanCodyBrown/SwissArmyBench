@@ -178,37 +178,11 @@ def test_autosave_saves_after_a_change_and_not_when_off(tmp_path: Path) -> None:
         )
 
 
-def test_a_projects_notebooks_are_its_data_notebook_and_plain_ones() -> None:
-    """In a project, data.ipynb (at its top) is THE data notebook; every other notebook is plain (app
-    notebooks went, 2026-11-21: widgets on the Canvas replaced them)."""
-    listed = [
-        {"path": "data.ipynb", "kind": "notebook"},
-        {"path": "views/sales.ipynb", "kind": "notebook"},
-        {"path": "scratch.ipynb", "kind": "notebook"},
-        {"path": "Data.IPYNB", "kind": "notebook"},
-        {"path": "more/data.ipynb", "kind": "notebook"},
-        {"path": "tidy.py", "kind": "script"},
-        {"path": "shop.stapp.json", "kind": "app"},
-    ]
-    assert rules.notebook_roles(listed) == {
-        "data.ipynb": "data",
-        "Data.IPYNB": "data",  # one data notebook: the project's own, at its top (more/data.ipynb is plain)
-    }
-
-
-def test_a_notebooks_kind_inside_a_project_and_outside_one() -> None:
-    """A notebook's kind by its whole path and the open project's folder: outside a project a notebook
-    is plain (data.ipynb stays the data notebook: its Data mode is its own)."""
-    folder = "/work/orchard"
-    assert rules.notebook_kind("/work/orchard/data.ipynb", folder) == "data"
-    assert rules.notebook_kind("/work/orchard/views/sales.ipynb", folder) == ""
-    assert rules.notebook_kind("/work/orchard/views/data.ipynb", folder) == ""
-    assert rules.notebook_kind("/elsewhere/scratch.ipynb", folder) == ""
-    assert rules.notebook_kind("/elsewhere/scratch.ipynb", None) == ""
-    assert rules.notebook_kind("/elsewhere/data.ipynb", None) == "data"
-    assert rules.notebook_kind("C:\\work\\orchard\\one.ipynb", "C:\\work\\orchard") == ""
-    assert rules.notebook_kind("/work/orchardist/one.ipynb", folder) == ""
-    assert rules.notebook_kind("/work/orchard/tidy.py", folder) is None  # not a notebook
+def test_every_notebook_is_a_notebook() -> None:
+    """The owner, 2026-11-22: "that concept is gone we just have notebooks": no data or app role, data.ipynb
+    a notebook like any other (the rules give no role to read)."""
+    assert not hasattr(rules, "notebook_roles") and not hasattr(rules, "notebook_kind")
+    assert rules.DATA_NOTEBOOK == "data.ipynb"  # still the file data.py is made from
 
 
 # ===== scope =====
@@ -231,7 +205,7 @@ def test_documents_and_dashboards_are_each_projects_own_connections_and_blades_t
         ok(client.post("/dashboards", json={"name": "Quarter"}, headers=AUTH))
         documents = ok(client.get("/project/documents?kind=notebook", headers=AUTH))
         assert [d["path"] for d in documents["documents"]] == ["analysis.ipynb", "data.ipynb"]
-        assert [d.get("role") for d in documents["documents"]] == [None, "data"]
+        assert all("role" not in d for d in documents["documents"])  # every notebook a notebook (2026-11-22)
         assert documents["documents"][0]["full"] == str(Path(made["folder"]) / "analysis.ipynb")
         assert client.get("/project/documents?kind=sheet", headers=AUTH).status_code == 400
         ok(client.post("/project/save", json={}, headers=AUTH))

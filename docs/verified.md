@@ -5695,3 +5695,13 @@ right side with buttons to show and hide them and then go ahead and remove blade
 - tests/test_navigation.py (the rail's areas without blades; `blades` still a place from every window),
   tests/test_cli.py, tests/test_agent_index.py, tests/test_desktop_rules.py, tests/test_catalog_routes.py:
   130 passed.
+- Just notebooks (the owner, the same day: "in the screenshot I still saw app notebooks and data notebooks,
+  that concept is gone we just have notebooks"): tests/e2e/test_notebook_kinds.py (every tab of kind
+  `notebook` with the notebook's icon and the word Notebook, no `role` in the agent's "documents", the Notebooks
+  page's Files pane one Notebooks list of three with data.ipynb first, no data notebook icon or words anywhere),
+  test_workbench_feedback, test_scripts_ide_page, test_data_explorer, test_blade_tab_page, test_navigation_page,
+  test_rail_pages, test_canvas_page: 28 passed, 4 skipped. tests/test_project_scope.py (no notebook_roles or
+  notebook_kind; /project/documents gives no role), test_context_md (data.ipynb is `notebook`),
+  test_project_outline (its golden files: data.ipynb "a notebook: it makes the tables (data.py is made from
+  it)"), test_script_ide (the notebooks tree), test_sab_projects, test_cli, test_agent_index, test_lineage,
+  test_workbench, test_workbench_pages, test_navigation, test_architecture, test_projects, test_actions.
