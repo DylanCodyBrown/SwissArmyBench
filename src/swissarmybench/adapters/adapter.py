@@ -291,7 +291,7 @@ def catalog_rows(listed: Sequence[Table]) -> tuple[list[str], list[list[Any]]]:
 @dataclass(frozen=True)
 class Counts:
     """A write's rows each way; `notes`: what the source says beside them (a passing error run again, MERGE
-    refused and done in two statements)."""
+    refused and done in two statements, Trino's writes without a transaction)."""
 
     inserted: int = 0
     updated: int = 0
@@ -825,6 +825,7 @@ class Dialect:
     no_limit: str = ""  # what LIMIT says for "every row" before an OFFSET (MySQL's, SQLite's)
     listing: str = ""  # its starter's whole listing (listed()); "": its tables() are its listing
     listing_shape: tuple[str, ...] = _LISTED  # what each of the listing's columns is, in order
+    drains: bool = False  # a statement runs as its answer is read (Trino): every write's answer fetched
 
     def quote(self, name: str) -> str:
         opening, closing = self.quotes[0], self.quotes[1]
@@ -865,7 +866,7 @@ DIALECTS: dict[str, Dialect] = {
     ),
     "trino": Dialect(
         "trino", limit="offset_limit", columns=_INFO_COLUMNS.format(where=""), keys="", transactional=False,
-        listing=_INFO_LISTING,
+        listing=_INFO_LISTING, drains=True,
     ),
     "databricks": Dialect(
         "databricks", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = current_schema() "),
@@ -1082,6 +1083,8 @@ class Sql:
             raise AdapterError(f"A {mode} names the key its rows are matched by.")
         if self.dialect.name == "sqlserver":
             return _server_written(self, table, batches, list(key), mode)
+        if self.dialect.name == "trino":
+            return _trino_written(self, table, batches, list(key), mode)
         if not self.dialect.transactional:
             raise AdapterError(f"{self.name} takes no transactions, so a write could not be all or none.")
         target = table_name(self.dialect, table)
@@ -1113,12 +1116,17 @@ class Sql:
                 cursor.execute(sql)
             if reads_only(sql) and cursor.description:
                 return cursor_batches(cursor)
-            answer = cursor_batches(cursor).read_all() if cursor.description else None
+            answer = None
+            if self.dialect.drains:  # Trino runs a statement as its answer is read
+                cursor.fetchall()
+            elif cursor.description:
+                answer = cursor_batches(cursor).read_all()
             changed = int(getattr(cursor, "rowcount", 0) or 0)
-            self.connection.commit()
+            if self.dialect.transactional:
+                self.connection.commit()
         except BaseException:
             _quietly(cursor.close)
-            if not reads_only(sql):
+            if not reads_only(sql) and self.dialect.transactional:
                 _quietly(self.connection.rollback)
             raise
         _quietly(cursor.close)
@@ -1143,16 +1151,22 @@ class Sql:
 
     def planned(self, table: str, rows: pa.Table, key: Sequence[str], mode: str) -> Counts:
         """A write's dry run on this database: SQL Server's keys staged and counted by one join (then rolled
-        back); any other's by reads."""
+        back); Trino's counted by reads, its writes without a transaction said; any other's by reads."""
         if self.dialect.name == "sqlserver":
             return _server_planned(self, table, rows, list(key), mode)
-        return counted_by_reads(self, table, rows, key, mode)
+        counts = counted_by_reads(self, table, rows, key, mode)
+        if self.dialect.name == "trino":
+            _trino_checked(table, rows.schema.names, mode)
+            return replace(counts, notes=(NO_TRANSACTION,))
+        return counts
 
     def statements(self, table: str, names: Sequence[str], key: Sequence[str], mode: str) -> list[str]:
-        """What a write will run here, in its own SQL, for a dry run's report (SQL Server's; []:
+        """What a write will run here, in its own SQL, for a dry run's report (SQL Server's and Trino's; []:
         the generic INSERT, UPDATE and DELETE, which a caller says itself)."""
         if self.dialect.name == "sqlserver":
             return _server_statements(self, table, list(names), list(key), mode)
+        if self.dialect.name == "trino":
+            return _trino_statements(self, table, list(names), list(key), mode)
         return []
 
 
@@ -1796,6 +1810,138 @@ def _server_statements(db: Sql, table: str, names: list[str], key: list[str], mo
         _quietly(cursor.close)
     staged = f"CREATE TABLE {STAGE} (the target's own types), the rows into it by executemany (as arrays)"
     return [staged, _server_merge(w, key) if mode == "merge" else _server_update(w, key)]
+
+
+# ----- Trino writes: row batches without a transaction -----
+# Trino's connectors take no transaction (most of them), so a write is a statement a batch: a failure part-way
+# leaves the batches before it written, which its error says. An insert is INSERT ... VALUES (...), (...); a
+# merge and an update MERGE INTO ... USING (VALUES ...) on the connectors that have MERGE (Iceberg, Delta
+# Lake, Hive transactional tables, some JDBC ones); a delete DELETE ... WHERE the batch's keys. A truncate
+# with rows is refused: it would clear the table first, then could fail part-way, leaving it without its rows.
+
+NO_TRANSACTION = (
+    "Trino writes row batches without a transaction: a failure part-way leaves the rows already written."
+)
+
+
+def _trino_checked(table: str, names: Sequence[str], mode: str) -> None:
+    if mode == "truncate" and names:
+        raise AdapterError(
+            f"{NO_TRANSACTION[:-1]}, so a truncate with rows could clear {table} and then fail, leaving it "
+            "without its rows. Clear it first (truncate with no rows), then insert the rows."
+        )
+
+
+def _trino_sql(db: Sql, target: str, names: list[str], key: list[str], mode: str, rows: int) -> str:
+    """One batch's statement: `rows` rows of marks in VALUES."""
+    q = db.dialect.quote
+    cols = ", ".join(q(n) for n in names)
+    groups = ", ".join("(" + ", ".join(_mark(db.style, 1) for _ in names) + ")" for _ in range(rows))
+    if mode == "insert":
+        return f"INSERT INTO {target} ({cols}) VALUES {groups}"  # noqa: S608
+    others = [n for n in names if n not in key]
+    text = f"MERGE INTO {target} AS t USING (VALUES {groups}) AS s ({cols})\nON "
+    text += " AND ".join(f"t.{q(k)} = s.{q(k)}" for k in key) + "\n"
+    if others:
+        text += "WHEN MATCHED THEN UPDATE SET " + ", ".join(f"{q(c)} = s.{q(c)}" for c in others) + "\n"
+    if mode == "update":
+        return text.rstrip("\n")
+    return (
+        text + f"WHEN NOT MATCHED THEN INSERT ({cols}) VALUES (" + ", ".join(f"s.{q(c)}" for c in names) + ")"  # noqa: S608
+    )
+
+
+def _trino_written(db: Sql, table: str, batches: pa.RecordBatchReader, key: list[str], mode: str) -> Counts:
+    """A Trino write, a statement a batch (each answer read: Trino runs a statement as its answer is read)."""
+    names = [str(n) for n in batches.schema.names]
+    _trino_checked(table, names, mode)
+    if mode == "update" and not [n for n in names if n not in key]:
+        raise AdapterError("The rows have nothing to change but their key.")
+    target = table_name(db.dialect, table)
+    cursor = db.connection.cursor()
+    try:
+        before = _trino_count(db, cursor, target) if mode in ("merge", "delete", "truncate") else 0
+        if mode == "truncate":
+            _trino_run(db, cursor, f"DELETE FROM {target}", [])  # noqa: S608
+            return Counts(deleted=before, notes=(NO_TRANSACTION,))
+        written, updated = _trino_batches(db, cursor, table, target, batches, key, mode)
+        after = _trino_count(db, cursor, target) if mode in ("merge", "delete") else 0
+    finally:
+        _quietly(cursor.close)
+    if mode == "insert":
+        return Counts(inserted=written, notes=(NO_TRANSACTION,))
+    if mode == "delete":
+        return Counts(deleted=before - after, notes=(NO_TRANSACTION,))
+    if mode == "update":
+        return Counts(updated=updated, notes=(NO_TRANSACTION,))
+    return Counts(inserted=after - before, updated=written - (after - before), notes=(NO_TRANSACTION,))
+
+
+def _trino_batches(
+    db: Sql, cursor: Any, table: str, target: str, batches: pa.RecordBatchReader, key: list[str], mode: str
+) -> tuple[int, int]:
+    """Each batch's statement; a failure names its batch and the rows written before it. The rows written,
+    and an update's rows that were there (counted by reads before each batch)."""
+    names = [str(n) for n in batches.schema.names]
+    before = updated = 0
+    for number, batch in enumerate(batches, 1):
+        rows = pa.Table.from_batches([batch])
+        try:
+            if mode == "update":
+                updated += present(db, table, rows, key)
+            _trino_rows(db, cursor, target, names, key, mode, rows)
+        except Exception as error:
+            _batch_noted(error, Batch(number, before, batch.num_rows), target)
+            error.add_note(
+                f"Trino writes row batches without a transaction: the {before:,} rows before it were written."
+            )
+            raise
+        before += batch.num_rows
+    return before, updated
+
+
+def _trino_rows(
+    db: Sql, cursor: Any, target: str, names: list[str], key: list[str], mode: str, rows: pa.Table
+) -> None:
+    """One batch's rows: one statement; a delete's keys, a hundred a statement."""
+    records = rows.to_pylist()
+    if mode != "delete":
+        values = [db.value(r[n]) for r in records for n in names]
+        _trino_run(db, cursor, _trino_sql(db, target, names, key, mode, len(records)), values)
+        return
+    keys = list(dict.fromkeys(tuple(r[k] for k in key) for r in records))
+    q = db.dialect.quote
+    one = "(" + " AND ".join(f"{q(k)} = {_mark(db.style, 1)}" for k in key) + ")"
+    for at in range(0, len(keys), 100):
+        part = keys[at : at + 100]
+        where = " OR ".join(one for _ in part)
+        _trino_run(db, cursor, f"DELETE FROM {target} WHERE {where}", [db.value(v) for k in part for v in k])  # noqa: S608
+
+
+def _trino_run(db: Sql, cursor: Any, sql: str, values: list[Any]) -> None:
+    if values:
+        cursor.execute(sql, _bound(db.style, values))
+    else:
+        cursor.execute(sql)
+    cursor.fetchall()  # Trino runs a statement as its answer is read
+
+
+def _trino_count(db: Sql, cursor: Any, target: str) -> int:
+    cursor.execute(f"SELECT COUNT(*) FROM {target}")  # noqa: S608
+    return int(cursor.fetchall()[0][0])
+
+
+def _trino_statements(db: Sql, table: str, names: list[str], key: list[str], mode: str) -> list[str]:
+    """What a Trino write runs, for a dry run's report (a batch's statement, its rows as (...))."""
+    target = table_name(db.dialect, table)
+    if mode == "truncate":
+        return [f"DELETE FROM {target}"]  # noqa: S608
+    if mode == "delete":
+        where = " AND ".join(f"{db.dialect.quote(k)} = ?" for k in key)
+        return [f"DELETE FROM {target} WHERE ({where}) OR ...  -- a hundred keys a statement"]  # noqa: S608
+    one = _trino_sql(db, target, names, key, mode, 1)
+    groups = "(" + ", ".join(_mark(db.style, 1) for _ in names) + ")"
+    return [one.replace(f"VALUES {groups}", f"VALUES {groups}, ...", 1) + "  -- a batch of rows a statement"]
 
 
 # ----- Dataverse's Web API: OData folded into its connection's own read -----
@@ -2749,7 +2895,7 @@ def planned(
     """What a write would do, nothing written (a Write starter's dry run): an insert's rows; an update's and a
     merge's keys that are there (a merge inserts the rest), a delete's; a truncate's rows now and the rows it
     inserts. Counted by reads through the source, or by the source's own dry run where it has one (SQL
-    Server's staged keys); its notes say what to know before writing."""
+    Server's staged keys); its notes say what to know before writing (Trino's: no transaction)."""
     _checked_write(mode, key)
     found = source_of(source)
     data = (
@@ -2789,7 +2935,7 @@ def statements(
     source: str | Source, table: str, names: Sequence[str], key: Sequence[str] = (), mode: str = "insert"
 ) -> list[str]:
     """What a write of rows with these columns would run, in the source's own SQL, for a dry run's report:
-    SQL Server's staging and MERGE; [] when the source does not say."""
+    SQL Server's staging and MERGE, Trino's batch statements; [] when the source does not say."""
     _checked_write(mode, key)
     say = getattr(source_of(source), "statements", None)
     return list(say(table, list(names), list(key), mode)) if callable(say) else []
