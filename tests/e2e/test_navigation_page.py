@@ -242,6 +242,8 @@ def test_the_old_blades_pages_addresses_land_on_the_scripts_pages_blades(
         page.goto(f"{base}/catalog?blade=")
         expect(page.get_by_role("dialog", name="New blade")).to_be_visible(timeout=20000)
         page.keyboard.press("Escape")
+        expect(page.get_by_role("dialog", name="New blade")).to_have_count(0)  # closed: its history step done
+        page.wait_for_load_state()
         page.goto(f"{base}/scripts?pane=blades&blade=Gone")
         expect(page.locator(".code-ide-missing, .wb-doc .error-note").first).to_contain_text(
             "Gone", timeout=20000
