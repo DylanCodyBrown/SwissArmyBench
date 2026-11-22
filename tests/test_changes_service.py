@@ -94,3 +94,38 @@ def test_an_endpoint_the_wizard_adds_and_one_edited_by_hand_with_the_api_not_run
     api.write_text(text[:start] + "def broken(:\n", encoding="utf-8")
     ok(client.get("/local-api", headers=AUTH))
     assert last(client, "endpoint:API.py GET /orders")["words"].startswith("Added")
+
+
+def test_a_project_opened_again_does_not_add_its_tables_again(client: TestClient, tmp_path: Path) -> None:
+    """The sweep, 2026-11-22: each open of a project logged every table it read again as "Added the table
+    orders", so a table's last change was always the last open. What the log already knows in the same
+    shape says nothing; one that changed while the project was closed says so once."""
+    project = tmp_path / "shop"
+    ok(client.post("/project/new", json={"path": str(project)}, headers=AUTH))
+    csv = tmp_path / "orders.csv"
+    csv.write_text("order_id,region\n1,North\n2,South\n", encoding="utf-8")
+    ok(client.post("/datasets/orders/load", json={"path": str(csv)}, headers=AUTH))
+    ok(client.post("/project/save", json={}, headers=AUTH))
+    first = last(client, "table:orders")
+    assert first["words"] == "Added the table orders (2 columns)"
+    lines = (project / ".sab" / "changes.jsonl").read_text(encoding="utf-8").splitlines()
+
+    def reopen() -> None:
+        ok(client.post("/project/close", json={}, headers=AUTH))
+        ok(client.post("/project/open", json={"path": str(project)}, headers=AUTH))
+
+    reopen()
+    reopen()
+    again = (project / ".sab" / "changes.jsonl").read_text(encoding="utf-8").splitlines()
+    assert again == lines and last(client, "table:orders") == first
+    # The Session page says the table opened, with no change beside it.
+    session = ok(client.get("/session-log", params={"who": "user", "changes": "1"}, headers=AUTH))
+    assert len([e for e in session["entries"] if e.get("change")]) == 1
+    # Its file gained a column while the project was closed: one event, said as what it is.
+    ok(client.post("/project/close", json={}, headers=AUTH))
+    csv.write_text("order_id,region,amount\n1,North,9.5\n2,South,3.0\n", encoding="utf-8")
+    ok(client.post("/project/open", json={"path": str(project)}, headers=AUTH))
+    changed = last(client, "table:orders")
+    assert changed["words"] == "orders changed since this project last had it open"
+    assert changed["before"] == first["after"] and changed["after"] != first["after"]
+    assert changed["diff"] == {}  # what it was is not kept, so no difference by name is claimed
