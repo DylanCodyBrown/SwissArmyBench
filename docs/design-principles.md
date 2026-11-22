@@ -691,21 +691,26 @@ answer says which one it is about:
   the libraries in its `requirements.txt`). The app's own copy of a scaffold file (sab_adapter.py) is the same bytes the
   scaffold gets: one source, written out.
 
-## 12b. adapter.py is the most valuable file (the owner, 2026-11-22)
+## 12b. adapter.py and api_adapter.py are the most valuable files (the owner, 2026-11-22)
 
-"This adapter file is the single most valuable piece of code here and will be the thing we always come back to." So
-it gets the most care of anything in the repository:
+"This adapter file is the single most valuable piece of code here and will be the thing we always come back to" /
+"But the api_adapter is equally important. These two files should be treated as a way to adapt DuckDB and any API to
+a simple, ready-to-go set of front-end functions." So the two adapters are one idea in two files: `adapter.py` adapts
+DuckDB and every data source, `api_adapter.py` adapts any API, and together they give everything above them (widgets,
+the canvas, notebooks, API.py, the agent) one small set of plain functions to call: tables, read, query, write, table,
+refresh, and run(action). Nothing above them talks to a source or an API any other way. Both get the most care of
+anything in the repository, the same rules for each:
 - **One file, a roadmap:** it opens with what it does and its layout, then the plan, the sources, the reads, the
   writes, the tables, in that order; every function under a short comment; flat, never nested past two levels.
 - **Only what it carries:** standard library, duckdb and pyarrow; it imports nothing of the app; a test runs it alone
   in an empty folder, as every export does.
-- **A stable contract:** its calls (tables, read, query, write, table, refresh) and their answers change only by
-  adding; a change that would break a caller is the owner's decision, asked first. It states its own version at its
+- **A stable contract:** their calls (adapter.py's tables, read, query, write, table, refresh; api_adapter.py's run and
+  its one envelope) and their answers change only by adding; a change that would break a caller is the owner's decision, asked first. It states its own version at its
   top, and a short change list beside it says what each version added.
 - **Proven before it changes:** every change runs its own tests against every backend (the stand-ins and the test
   bed's real databases), the boundary test, and the memory and speed numbers on Larkfield large, recorded in
-  docs/verified.md; a change that makes a read slower or a stream hold more memory is not merged without the owner's
-  word.
+  docs/verified.md (api_adapter.py: its detection and drift tests over recorded made-up payloads of every shape); a
+  change that makes a read slower or a stream hold more memory is not merged without the owner's word.
 - **Reviewed on its own:** a change to it is its own commit, never mixed with other work.
 
 ## 13a. Kits: how the app grows
