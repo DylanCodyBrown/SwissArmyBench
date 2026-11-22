@@ -88,7 +88,7 @@ endpoint was called and a def will then scan that struct and expose to the widge
   canvas's field pickers, an Event's payload fields, the drift marks) instead of the declared one.
 - **The agent sees it:** for each endpoint, the last call (what was sent, what came back, when), the current shape and
   the last change.
-- **What is kept (the owner's answers):** each endpoint's **current shape**, shared with the team in the library
-  (`apis/<name>/shapes/`, one small file per endpoint, byte-stable, replaced when the shape changes); **values** only for an API whose
-  "Keep example payloads" is ticked, in the project's `.sab/` (Git-ignored), the last N calls per endpoint, with anything
-  that looks like a secret, token or password removed before it is written. Never a value in the library.
+- **What is kept (the owner's answers):** each endpoint's **current shape** only, shared with the team in the library
+  (`apis/<name>/shapes/`, one small file per endpoint, byte-stable, replaced when the shape changes). **Values are never
+  kept** (the owner: "No need to ever keep values"): no example payloads, no tick, nothing of an answer's or a request's
+  values on disk, in the library or in the project.
