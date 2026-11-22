@@ -5365,12 +5365,13 @@ Copilot and Accounting extensions beyond the suite; Excel's own paths (another b
 read-back worked).
 
 The checks before the push:
-- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,237 passed, 38 skipped, 8 failed. Three
-  were this branch's and are fixed (a pinned sentence in tests/test_workbench.py; tests/test_powerbi_live.py and
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`), on the final tree: 5,244 passed, 38
+  skipped, 2 failed, both because this run gives its child Pythons the worktree's source (test_updater,
+  test_script_export: the known leak). A first run, part way through, had six more: three were this branch's
+  and are fixed (a pinned sentence in tests/test_workbench.py; tests/test_powerbi_live.py and
   tests/test_powerbi_page_actions.py, which caught the change log reading an audit detail called `change` that
-  is a word, not a record: all three pass). One passed alone (test_intellisense_service). Two fail here because
-  this run gives its child Pythons the worktree's source (test_updater, test_script_export: the known leak), and
-  two are on the load list (test_performance's million rows, test_desktop_shell).
+  is a word, not a record), and three were load (test_intellisense_service, test_performance's million rows,
+  test_desktop_shell: all passed in the final run).
 - In Chromium, first the sixteen browser test files this branch could touch (test_api_learned_page,
   test_local_apis_page, test_endpoint_wizard_page, test_canvas_page, test_widget_wiring_page,
   test_canvas_gaps_page, test_environment_page, test_session_page, test_scripts_ide_page, test_notebook_kinds,
