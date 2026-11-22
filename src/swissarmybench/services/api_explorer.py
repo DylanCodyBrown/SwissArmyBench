@@ -31,6 +31,7 @@ from swissarmybench.domain import write_rows as write_rules
 from swissarmybench.domain.apis import ApiError
 from swissarmybench.domain.structures import get as structure_get
 from swissarmybench.services.apis import Apis
+from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import BACKGROUND
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 
@@ -670,8 +671,20 @@ class Explorer:
             "name": api["name"],
             "auth": api["mark"].get("auth") or {"type": "none"},
         }
+        was = self._operations(api)
         done = await self._add.add(body, who)
+        # The change log (services/changes.py): its specification's operations, by method and path.
+        change = raised("api", api["name"], was, self._operations(self._api(api["name"])))
+        if change:
+            self.ws.audit.write(who, "changed", api["name"], **change)
         return {"name": api["name"], "applied": True, "web_calls": done.get("web_calls", [])}
+
+    def _operations(self, api: dict[str, Any]) -> dict[str, Any]:
+        """An API's specification as the change log names it: each operation by method and path (its
+        parameters and schemas fingerprinted there)."""
+        doc = self._document(api)
+        explored = api_explorer.explore(doc, apis.parse_spec(doc, ""))
+        return {"operations": {f"{o['method']} {o['path']}": o for o in explored.get("operations") or []}}
 
     async def set_check(self, name: str, on: bool) -> dict[str, Any]:
         api = self._api(name)

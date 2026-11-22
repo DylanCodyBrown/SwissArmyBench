@@ -38,6 +38,7 @@ from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
 from swissarmybench.adapters.call_stats import StatsFiles
 from swissarmybench.adapters.catalogs import CatalogStore
+from swissarmybench.adapters.changes import ChangeFiles
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
 from swissarmybench.adapters.connection_colours import ColoursFile
@@ -131,6 +132,7 @@ from swissarmybench.services.blades import BladeService
 from swissarmybench.services.call_stats import CallStats
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
+from swissarmybench.services.changes import ChangeLog
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.claude import Claude
 from swissarmybench.services.code_files import CodeFiles
@@ -229,6 +231,7 @@ class Services:
     connection_usage: ConnectionUsage
     connection_slots: ConnectionSlots
     call_stats: CallStats
+    changes: ChangeLog
     apis: Apis
     structures: Structures
     api_explorer: ApiExplorer
@@ -748,6 +751,7 @@ class Built:
     approvals: Approvals
     slots: ConnectionSlots
     call_stats: CallStats
+    changes: ChangeLog
     datasets: DatasetService
     file_watch: FileWatch
     catalogs: CatalogService
@@ -1022,13 +1026,21 @@ def _data(b: Built) -> None:
         save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
         ask=b.approvals.ask,
     )
+
     # Every call's statistics (Plans/stats.plan.md): the slots' finished calls, the adapter's and the API
     # adapter's facts in this process; the running figures in the open project's .sab/stats.json. No value.
-    b.call_stats = CallStats(
-        StatsFiles(),
-        lambda: b.sab_projects.current.folder if b.has("sab_projects") and b.sab_projects.current else None,
-        lambda: datetime.now(UTC).isoformat(timespec="seconds"),
-    )
+    def project() -> str | None:
+        return b.sab_projects.current.folder if b.has("sab_projects") and b.sab_projects.current else None
+
+    def stamp() -> str:
+        return datetime.now(UTC).isoformat(timespec="seconds")
+
+    b.call_stats = CallStats(StatsFiles(), project, stamp)
+    # The change log (Plans/changes.plan.md): each change a service raises on its audit entry, heard with
+    # the Session page's and written as it happens to the open project's .sab/changes.jsonl.
+    b.changes = ChangeLog(ChangeFiles(), project, stamp)
+    if isinstance(ws.audit, Heard):
+        ws.audit.changes = b.changes
     b.slots.on_finished = b.call_stats.finished
     adapter.observe(b.call_stats.adapter)
     api_adapter.observe(b.call_stats.api_observed)
@@ -2084,6 +2096,7 @@ def _services(b: Built) -> Services:
         connection_usage=b.connection_usage,
         connection_slots=b.slots,
         call_stats=b.call_stats,
+        changes=b.changes,
         apis=b.apis,
         structures=b.structures,
         api_explorer=b.api_explorer,

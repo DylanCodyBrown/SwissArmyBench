@@ -1,4 +1,4 @@
-# Swiss Army Bench: the index (read first; live picture: `app_context`, swissarmybench://context)
+# Swiss Army Bench: the index (read first; live picture: `app_context`)
 
 A local server on 127.0.0.1: the user's tables in live grids; DuckDB SQL transforms.
 A project is a folder; connections, APIs, vaults, blades, variables: the library.
@@ -9,7 +9,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 3. `steps_run_sql`: one DuckDB SELECT; `grid` is that grid's view, other tables by name, a
    connection's as `[Finance].Sales` (`connections_tables`).
 4. `agent_events`: the user's next move; `agent_inbox`: sent to you.
-5. `project_outline`: the project for a newcomer.
+5. `project_outline`: the project for a newcomer; `changes`: what changed; `stats`: call times.
 
 ## Tools by prefix
 | Prefix | Area | Key tools |
@@ -22,7 +22,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `steps_` | a grid's steps, SQL, code | `steps_add`, `steps_kinds`, `steps_python` |
 | `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
-| `compare_`, `stats_` | two grids; call statistics | `compare_create`, `stats` |
+| `compare_`, `stats_`, `changes_` | grids; call stats; changes | `compare_create` |
 | `connections_`, `variables_` | connections; variables; access | `connections_list`, `variables_resolve`, `app_registration_check` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
 | `apis_`, `actions_`; `sandbox_`, `api_` | APIs, any API call; local APIs | `actions`, `apis_call`; `sandbox`, `api` |
@@ -53,7 +53,6 @@ No prefix: `guide`, `commands`, `health`.
 
 ## More
 - `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
-  streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, extensions, writing, privacy. Or
-  swissarmybench://guide/<topic>.
+  streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, extensions, writing, privacy.
 - swissarmybench://analyze/contracts: each analysis's contract; then `analyze_run`.
 - `commands(match="word")`: each tool's arguments.

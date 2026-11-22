@@ -31,6 +31,8 @@ import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
+from swissarmybench.domain import changes as change_rules
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_model as model
@@ -420,7 +422,7 @@ class Widgets:
         if code != widget.code:
             head, _, _ = text.partition("\n" + rules._CLOSE + "\n")
             self._write(name, head + "\n" + rules._CLOSE + "\n" + code, self._place(name))
-            self.ws.audit.write(who, "save_widget", name)
+            self.ws.audit.write(who, "save_widget", name, **_widget_change(name, widget.code, code))
             await self._changed(name)
         return self.get(name)
 
@@ -477,7 +479,8 @@ class Widgets:
             raise _said(error) from None
         head, _, _ = text.partition("\n" + rules._CLOSE + "\n")
         self._write(name, head + "\n" + rules._CLOSE + "\n" + after, self._place(name))
-        self.ws.audit.write(who, "set_widget_property", f"{name}.{prop}")
+        change = _widget_change(name, widget.code, after)
+        self.ws.audit.write(who, "set_widget_property", f"{name}.{prop}", **change)
         await self._changed(name)
         return self.get(name)
 
@@ -688,3 +691,18 @@ def _hash(text: str) -> str:
 
 def _said(error: props_rules.PropertyError) -> ValueError:
     return ValueError(f"{error} {error.fix}".strip())
+
+
+def _widget_shape(code: str) -> dict[str, Any]:
+    """A widget's properties by name and its code's definitions, as the change log names them (their
+    values and text fingerprinted there, never kept)."""
+    try:
+        found = {p.name: p.default for p in props_rules.detect(code)}
+    except (props_rules.PropertyError, SyntaxError):
+        found = {}
+    return {"properties": found} | change_rules.document_shape("script", code)
+
+
+def _widget_change(name: str, before: str, after: str) -> dict[str, Any]:
+    """The change log's event (the base's services/changes.py) for a widget's code or properties."""
+    return raised("widget", name, _widget_shape(before), _widget_shape(after))

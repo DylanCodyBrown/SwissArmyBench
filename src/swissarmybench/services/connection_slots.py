@@ -32,6 +32,7 @@ from swissarmybench.domain import connection_slots as rules
 from swissarmybench.domain.connection_slots import Board, Limits, Ticket
 from swissarmybench.domain.query_text import format_sql
 from swissarmybench.domain.refusals import first_sentence, try_again
+from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import Audit, Notifier
 from swissarmybench.services.workspace import NotFound, Refused, TimedOut
 
@@ -415,9 +416,14 @@ class ConnectionSlots:
         """A connection's limits (its file's [queries]): total 1 to 64, the agent's at most the total."""
         if self._save_limits is None:
             raise ValueError("The limits cannot be saved here.")
-        limits = rules.check_limits(body if isinstance(body, dict) else None, self.board.limits(name))
+        was = self.board.limits(name)
+        limits = rules.check_limits(body if isinstance(body, dict) else None, was)
         saved = self._save_limits(name, limits.header())
-        self._audit.write(who, "connection_limits", saved, total=limits.total, agent=limits.agent)
+        # The change log: a setting by name (the counts are settings, not data).
+        change = raised(
+            "setting", f"{saved} queries at once", {"limits": was.to_json()}, {"limits": limits.to_json()}
+        )
+        self._audit.write(who, "connection_limits", saved, total=limits.total, agent=limits.agent, **change)
         self._wake(self.board.regrant(saved, self._clock()))
         self._changed()
         return self.limits(saved)

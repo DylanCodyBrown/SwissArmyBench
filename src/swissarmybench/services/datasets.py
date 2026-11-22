@@ -17,6 +17,7 @@ from swissarmybench.domain.datasets import DatasetError, DatasetInfo, Opened, mi
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.sql_guard import SqlRefused, guard
 from swissarmybench.domain.table_cells import Origin
+from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import BACKGROUND, INTERACTIVE, SqlSession
 from swissarmybench.services.processes import ProcessRegistry
 from swissarmybench.services.table_cells import Origins
@@ -236,12 +237,16 @@ class DatasetService:
         again. It refreshes the grid where it is: no jump to the front, and no new tab if the user
         closed the old one (the data stays fresh for when they open it again)."""
         ws = self.ws
+        old = ws.store.get(name)
+        was = _source_shape(old, self.origins.get(name)) if old is not None else None
         info: DatasetInfo = await ws.workers.run(
             BACKGROUND, ws.store.replace, name, table, source_kind, query, opened
         )
         ws.views.forget_dataset(name)
         if origin is not None:
             self.origins.note(name, origin)
+        # The change log (services/changes.py): its columns or its source, when either moved.
+        change = raised("table", name, was, _source_shape(info, self.origins.get(name)))
         existing = ws.grids.first_for(name)
         if follow and existing is None:
             await ws.live.dataset_updated(name, info.version)
@@ -253,6 +258,7 @@ class DatasetService:
                 source_kind=info.source_kind,
                 bytes=info.nbytes,
                 follow=True,
+                **change,
             )
             return {
                 "grid_url": None,
@@ -277,13 +283,20 @@ class DatasetService:
                 source_kind=info.source_kind,
                 bytes=info.nbytes,
                 follow=True,
+                **change,
             )
             watched = True  # the tab is wherever the user left it
         else:
             # An open workspace adds the grid as a tab (if new) and brings it to the front.
             await ws.live.broadcast({"type": "grid_shown", "grid": grid.id, "dataset": name})
             ws.audit.write(
-                who, "push", name, rows=info.row_count, source_kind=info.source_kind, bytes=info.nbytes
+                who,
+                "push",
+                name,
+                rows=info.row_count,
+                source_kind=info.source_kind,
+                bytes=info.nbytes,
+                **change,
             )
             # Nothing shows it yet: VS Code opens the workspace (its window the user was last in), else the
             # desktop app (the browser where the app cannot run).
@@ -614,3 +627,16 @@ class ConnectionTables:
 def _file_of(origin: Origin) -> tuple[str, str | None] | None:
     """The file a table was read from (its path and sheet), when it was read from one on disk."""
     return (origin.path, origin.sheet) if origin.kind == "file" and origin.path else None
+
+
+def _source_shape(info: DatasetInfo, origin: Origin) -> dict[str, Any]:
+    """A table's columns with their types and its source for the change log: the kind of source and its
+    connection by name; where exactly (a path, a query) only fingerprinted. Never a row or a value."""
+    return {
+        "columns": {c.name: c.type for c in info.columns},
+        "source": {
+            "kind": origin.kind,
+            "connection": origin.connection or "",
+            "where": [origin.path, origin.sheet, origin.sql, list(origin.place or ())],
+        },
+    }

@@ -56,6 +56,7 @@ from swissarmybench.domain.datasets import DatasetInfo
 from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.packages import blade_feature, connection_feature, missing_packages
 from swissarmybench.services.catalogs import CatalogService
+from swissarmybench.services.changes import connection_change, raised
 from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.vault_names import KeptVaultNames
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
@@ -432,7 +433,8 @@ class BladeService:
         if "variable" in changes:
             self._missing(blade, blade.code, changes)
         saved = self._blades.set_header(blade.name, changes)
-        self.ws.audit.write(who, "save_blade", saved.name, kind=_kind_word(saved.kind, saved.template))
+        kind = _kind_word(saved.kind, saved.template)
+        self.ws.audit.write(who, "save_blade", saved.name, kind=kind, **connection_change(blade, saved))
         await self.ws.live.broadcast({"type": "blades_changed"})
         return self.header(saved.name) | {"stamp": self._blades.stamp_of(saved.name)}
 
@@ -500,7 +502,7 @@ class BladeService:
         must be as it is."""
         if not isinstance(body, dict):
             raise BladeError('Send {"code", "stamp", "name", "description", "tags", "table"}.')
-        blade = self._blades.get(name)
+        blade = original = self._blades.get(name)
         now = blade.to_json()
         # Properties' other fields (domain/blade_header.py keys: dialect, queries.total, catalog.command...).
         extra = {
@@ -557,7 +559,9 @@ class BladeService:
             self._blades.set_secrets(saved.name, body["secrets"])
         word = _kind_word(saved.kind, saved.template)
         changed = "changed" if code_changed or extra else None
-        self.ws.audit.write(who, "save_blade", saved.name, kind=word, code=changed)
+        self.ws.audit.write(
+            who, "save_blade", saved.name, kind=word, code=changed, **connection_change(original, saved)
+        )
         await self.ws.live.broadcast({"type": "blades_changed"})
         if code_changed:
             for hook in self.blade_saved:
@@ -762,6 +766,15 @@ class BladeService:
         self._reveal(str(path))
         return {"shown": str(path)}
 
+    def _saved_or_none(self, name: Any) -> Blade | None:
+        """The blade saved under that name, or None (a new one): the change log's before."""
+        if not isinstance(name, str) or not name:
+            return None
+        try:
+            return self._blades.get(name)
+        except (KeyError, LookupError, BladeError):
+            return None
+
     async def save(self, body: Any, previous: str | None, who: str = "user") -> dict[str, Any]:
         read_names: list[str] | None = None
         if (
@@ -779,6 +792,7 @@ class BladeService:
                 if isinstance(listed, list):
                     read_names = [str(n) for n in listed if isinstance(n, str) and n.strip()]
                 self._vault_names_free(body, previous)
+        was = self._saved_or_none(previous or (body.get("name") if isinstance(body, dict) else None))
         blade = self._blades.save(body, previous)
         if self.kept_names is not None and blade.kind == "vault":
             if previous and previous != blade.name:
@@ -790,7 +804,8 @@ class BladeService:
                 await self.ws.live.broadcast({"type": "variables_changed"})
         if isinstance(body, dict) and isinstance(body.get("secrets"), dict) and body["secrets"]:
             self._blades.set_secrets(blade.name, body["secrets"])
-        self.ws.audit.write(who, "save_blade", blade.name, kind=_kind_word(blade.kind, blade.template))
+        kind = _kind_word(blade.kind, blade.template)
+        self.ws.audit.write(who, "save_blade", blade.name, kind=kind, **connection_change(was, blade))
         await self.ws.live.broadcast({"type": "blades_changed"})
         for hook in self.blade_saved:
             await hook(blade)
@@ -1183,7 +1198,11 @@ class BladeService:
         code, text = await self._install_packages(packages)
         if code is None:
             return False, {"ok": False, "output": "The install took over 10 minutes and was stopped."}
-        self.ws.audit.write("user", "install_packages", ", ".join(packages))
+        words = f"Installed {', '.join(packages)} in the app's Python"  # the change log's (names as asked)
+        change = raised(
+            "library", "the app's Python", None, {"libraries": dict.fromkeys(packages, "")}, words
+        )
+        self.ws.audit.write("user", "install_packages", ", ".join(packages), **(change if code == 0 else {}))
         tail = "\n".join(text.strip().splitlines()[-15:])
         if code != 0:
             return False, {

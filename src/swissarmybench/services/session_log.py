@@ -58,14 +58,17 @@ class SessionLog:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    def listing(self, who: Any = None, limit: Any = None) -> dict[str, Any]:
-        """This session's entries, newest first, by the filter; and the Follow switch."""
+    def listing(self, who: Any = None, limit: Any = None, changes: Any = None) -> dict[str, Any]:
+        """This session's entries, newest first, by the filter (`changes`: only those that changed
+        something, the change log's events); and the Follow switch."""
         shown = rules.check_filter(who)
         try:
             most = int(limit) if limit not in (None, "") else 200
         except (TypeError, ValueError):
             raise rules.SessionLogError("limit is a whole number.") from None
         entries = list(self._entries)
+        if changes in (True, "1", "true", "yes"):
+            entries = [e for e in entries if e.get("change")]
         return {
             "entries": rules.shown(entries, shown, min(most, rules.MAX_ENTRIES)),
             "who": shown,
@@ -85,12 +88,18 @@ class SessionLog:
         return self.follow()
 
 
-class Heard:
-    """The audit as every service writes it: the audit log's file first, then the Session page's log."""
+class Changes(Protocol):
+    def heard(self, actor: str, action: str, dataset: str | None, details: dict[str, Any]) -> None: ...
 
-    def __init__(self, inner: Audit, log: SessionLog) -> None:
+
+class Heard:
+    """The audit as every service writes it: the audit log's file first, then the Session page's log, then
+    the change log (services/changes.py: an entry's `change`, the same event the Session page shows)."""
+
+    def __init__(self, inner: Audit, log: SessionLog, changes: Changes | None = None) -> None:
         self._inner = inner
         self._log = log
+        self.changes = changes  # set once made (bootstrap), so every service's audit carries it
 
     def write(
         self,
@@ -104,6 +113,8 @@ class Heard:
         self._inner.write(actor, action, dataset, query, rows, **details)
         # Never the query's text: the Session page's entries are names and counts only.
         self._log.heard(actor, action, dataset, details | ({"rows": rows} if rows is not None else {}))
+        if self.changes is not None and details.get("change"):
+            self.changes.heard(actor, action, dataset, details)
 
     def tail(self, limit: int = 200, actor: str | None = None) -> list[dict[str, Any]]:
         return self._inner.tail(limit, actor)

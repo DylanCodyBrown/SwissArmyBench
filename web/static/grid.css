@@ -10564,6 +10564,25 @@ body.sql-window dialog[open] textarea.code-input {
   color: var(--accent);
 }
 
+/* The entry's words and, under them, what it changed (the change log's event). */
+.session-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.session-change {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-changes-filter {
+  display: flex;
+}
+
 @media (max-width: 720px) {
   .session-entry {
     grid-template-columns: 64px minmax(0, 1fr) auto;

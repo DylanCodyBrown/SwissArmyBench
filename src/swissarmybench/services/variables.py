@@ -22,6 +22,7 @@ from swissarmybench.domain import variable_refs as refs
 from swissarmybench.domain import variables as rules
 from swissarmybench.domain.blades import Blade, BladeCodeError, detect_settings, env_settings
 from swissarmybench.domain.python_connections import TEMPLATE as PYTHON_TEMPLATE
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Refused, Workspace
 
 AGENT_REFUSED = "A secret's value is shown to the user only (Show on the Variables page)."
@@ -249,7 +250,18 @@ class Variables:
 
     async def _changed(self, who: str, action: str, name: str, **details: Any) -> None:
         self.apply()
-        self.ws.audit.write(who, action, name, **details)
+        # The change log (services/changes.py): the variable by name and how it is kept, never its value.
+        kept = str(details.get("kept") or "")
+        words = {
+            "add_variable": f"Added the variable {name}" + (f" ({kept})" if kept else ""),
+            "change_variable": f"Changed the variable {name}" + (f" ({kept})" if kept else ""),
+            "rename_variable": f"Renamed the variable {name} to {details.get('to')}",
+            "remove_variable": f"Removed the variable {name}",
+        }.get(action, f"Changed the variable {name}")
+        after = None if action == "remove_variable" else {"variable": {"kept": kept or "as it was"}}
+        before = None if action == "add_variable" else {"variable": {"name": name}}
+        change = raised("variable", str(details.get("to") or name), before, after, words)
+        self.ws.audit.write(who, action, name, **details, **change)
         await self.ws.live.broadcast({"type": "variables_changed"})
 
     # ===== add, change, rename, remove =====

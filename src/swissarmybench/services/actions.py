@@ -30,6 +30,7 @@ from typing import Any, Protocol
 from swissarmybench.domain import api_actions as rules
 from swissarmybench.domain import apis as api_rules
 from swissarmybench.domain.api_actions import LOCAL, BuildError
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 DISCOVER_CALLS = 20  # calls a discovery makes at most
@@ -151,12 +152,15 @@ class Actions:
         self, api: str, entry: dict[str, Any] | None, action: str, answer: dict[str, Any], who: str
     ) -> None:
         path = self._shape_path(api, entry, action)
-        kept, change = self._aa.keep(self._shape(path), answer, self._today())
+        was = self._shape(path)
+        kept, change = self._aa.keep(was, answer, self._today())
         if kept:
             self._write_shape(path, kept)
         if change:  # said once: the Session log, the pages, the agent's next read
             words = self._aa.drift_words(change, kept.get("changed", ""))
-            self.ws.audit.write(who, "api_shape_changed", f"{api} {action}", words=words)
+            # The change log: the endpoint's learned shape (its fields and their types), seen by the app.
+            logged = raised("endpoint", f"{api} {action}", _fields(was), _fields(kept), words, by="app")
+            self.ws.audit.write(who, "api_shape_changed", f"{api} {action}", words=words, **logged)
             await self.ws.live.broadcast(
                 {"type": "api_shape_changed", "api": api, "action": action, "words": words}
             )
@@ -382,6 +386,14 @@ class Actions:
             await self._explorer.save_call(name, one.name, {"as_table": True}, who)
         placed = await put({k: given.get(k) for k in ("canvas", "page") if given.get(k)} | plan, who)
         return {"as": "widget", "widget": plan["widget"], **placed}
+
+
+def _fields(shape: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A kept shape's answer as the change log names it: each field's path and type (never a value)."""
+    fields = ((shape or {}).get("returned") or {}).get("fields")
+    if not isinstance(fields, dict):
+        return None
+    return {"fields": {str(p): str((f or {}).get("type") or "") for p, f in fields.items()}}
 
 
 def _child_command(expression: str) -> str:
