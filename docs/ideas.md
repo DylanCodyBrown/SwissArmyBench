@@ -8132,3 +8132,8 @@ never guessed). Plan: Plans/api-adapter.plan.md (its "Built" and "Not yet" secti
 shapes are kept beside each API in the library (the local sandbox API's in .sab/api-shapes/); "seen" is a day so a
 same-shape call changes no byte most days; a rename is offered only when exactly one new field of the same type is alike;
 a write is never sent twice after a passing error (429 only); discovery's Allow is remembered for the session.
+
+## The change log (the owner, 2026-11-22): decided
+Every change to a project's objects (table structure, connection, API and shape, endpoint, widget, canvas, code,
+setting, library) is one event in .sab/changes.jsonl (Git-ignored, everything kept, never values); the agent's changes
+tool answers the last change on an object. Plan: Plans/changes.plan.md.
