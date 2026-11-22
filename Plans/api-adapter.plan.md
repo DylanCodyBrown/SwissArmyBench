@@ -163,3 +163,12 @@ The agent runs the same discovery (`actions(action="discover")`) and reads the s
   values" may mean it goes.
 - Build's cell and function are answered to copy; putting them straight into a notebook or script is not built.
 - Remembered Allow for discovery is per session (memory), not kept.
+
+## The owner's answers after the first build (2026-11-22)
+- The canvas's Events and the API widgets go through api_adapter: one action picker for any API; every built app
+  carries api_adapter.py; the prebuilt API widgets read the envelope's records.
+- Try it's "Keep as its example" is removed (.sab/api_examples.json goes; values are never kept); Try it fills its form
+  from the learned shape.
+- Build inserts: a notebook cell into data.ipynb, or a function into a script the user picks, and opens it there.
+- Discover's Allow is remembered per API (kept with the API in the library, until the user takes it back; the agent's
+  too).
