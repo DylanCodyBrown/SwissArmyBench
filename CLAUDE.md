@@ -97,7 +97,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   just tables"): a connection's tables are always listed (a missing listing query is its starter's, on read).
 - **Two things: the app and the project scaffold (the owner, 2026-11-22; design principle 12a).** The app is Swiss
   Army Bench itself (`src/swissarmybench/`, `web/`, `extensions/`, the library); the project scaffold is what it writes
-  into a project folder and an export carries (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`,
+  into a project folder and an export carries (`adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`,
   `requirements.txt`, the type's deliverable, the sandbox mirror) and must run without the app. Say which one a change
   is about. **adapter.py and api_adapter.py are the most valuable files** (the owner: "the single most valuable piece of
   code here" / "the api_adapter is equally important ... a way to adapt duckdb and any API to a simple ready to go set

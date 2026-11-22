@@ -684,11 +684,11 @@ answer says which one it is about:
 - **The app** is Swiss Army Bench itself: the desktop app, the server, its pages, services and adapters, the library,
   the extensions (`src/swissarmybench/`, `web/`, `extensions/`). It runs only on the user's computer.
 - **The project scaffold** is what the app writes into a user's project folder and what an export carries: the core
-  files (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`), `data.ipynb`, `requirements.txt`, the type's
+  files (`adapter.py`, `connections.py`, `API.py`, `data.py`), `data.ipynb`, `requirements.txt`, the type's
   deliverable from its `contract.json`, the sandbox mirror (`sandbox_*.py`, `sandbox/`), `exports/`. It must run without
   the app, on a Function App or a hosted Streamlit app.
 - The app may use anything of its own; the scaffold uses only what it carries (standard library, duckdb, pyarrow and
-  the libraries in its `requirements.txt`). The app's own copy of a scaffold file (sab_adapter.py) is the same bytes the
+  the libraries in its `requirements.txt`). The app's own copy of a scaffold file (adapter.py) is the same bytes the
   scaffold gets: one source, written out.
 
 ## 12b. adapter.py and api_adapter.py are the most valuable files (the owner, 2026-11-22)
