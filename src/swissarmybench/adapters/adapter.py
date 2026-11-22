@@ -26,7 +26,8 @@ It reads top to bottom in the order a call runs:
   3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
                     table, batches, key, mode): by a source's name (use() says how a name is found) or
                     the source itself; what a source could not fold is finished here, in DuckDB, over the
-                    stream; Connection(name): the same calls on one source (API.py's connection(name))
+                    stream; Connection(name): the same calls on one source (API.py's connection(name));
+                    observe(hook): each call's facts as it ends, for the statistics (never a value)
   4. JSON to Arrow  pages of records (an API's answer, a request's body) made Arrow by DuckDB, page by page,
                     with the types given (else the first page's)
   5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
@@ -35,7 +36,7 @@ It reads top to bottom in the order a call runs:
 The standard library, duckdb and pyarrow only: an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.1.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.2.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -51,11 +52,15 @@ Version 1.1.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            transaction, said in NO_TRANSACTION; a truncate with rows refused; Dialect.drains); Counts.notes;
            a source's own planned() and statements() (what a write runs, for a dry run's report); a
            three-part name quoted part by part
+  1.2.0    observe(hook): each read's, query's and write's facts as it ends (times in parts, sizes, what the
+           source folded against what DuckDB did, the outcome's kind, the result's fingerprint; never a
+           value); fingerprint(schema)
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import http.client
 import itertools
 import json
@@ -71,7 +76,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.1.0"  # the docstring's change list says what each version added
+VERSION = "1.2.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -2786,6 +2791,125 @@ class Files:
 # ===== 3. The calls =====
 
 _find: Callable[[str], Source] | None = None
+_OBSERVERS: list[Callable[[dict[str, Any]], Any]] = []
+
+
+# Each call's facts, for the statistics (Plans/stats.plan.md): handed to observe()'s hook as the call ends
+# (a read's or a query's when its stream ends or is dropped). Never a value: names, times, sizes, the
+# result's fingerprint (its columns' names and types, hashed). No hook: nothing is timed or wrapped.
+
+
+def observe(hook: Callable[[dict[str, Any]], Any] | None) -> None:
+    """A hook handed each read's, query's and write's facts as it ends:
+    {"call": read | query | write, "source", "kind" (the source's class), "table", "mode" (a write's),
+     "ms": {"connect" (a name found: its source made), "first_row", "total"},
+     "size": {"rows", "bytes", "batches", "columns" (returned), "asked" (columns the plan named; 0: all)},
+     "folded": the plan's parts the source took, "by_duckdb": the parts DuckDB did after,
+     "outcome": {"ok", "error": its kind (the exception's class), never its words}, "fingerprint"}.
+    None: no hook (the default). A hook that fails never fails a call."""
+    _OBSERVERS.clear()
+    if hook is not None:
+        _OBSERVERS.append(hook)
+
+
+def fingerprint(schema: pa.Schema) -> str:
+    """A result's shape in 12 characters: its columns' names and types, hashed (never a value)."""
+    said = "|".join(f"{f.name}:{f.type}" for f in schema)
+    return hashlib.sha1(said.encode(), usedforsecurity=False).hexdigest()[:12]
+
+
+class _Timed:
+    """One call's facts while it runs; made only while observe() has a hook."""
+
+    def __init__(self, call: str, source: str | Source, table: str, asked: int, mode: str) -> None:
+        self.began = time.perf_counter()
+        self.facts: dict[str, Any] = {
+            "call": call,
+            "source": source if isinstance(source, str) else str(getattr(source, "name", "") or ""),
+            "kind": "" if isinstance(source, str) else type(source).__name__,
+            "table": str(table),
+            "mode": mode,
+            "ms": {"connect": None, "first_row": None, "total": None},
+            "size": {"rows": 0, "bytes": 0, "batches": 0, "columns": 0, "asked": asked},
+            "folded": [],
+            "by_duckdb": [],
+            "outcome": {"ok": True, "error": ""},
+            "fingerprint": "",
+        }
+        self.told = False
+
+    @classmethod
+    def start(cls, call: str, source: str | Source, table: str, asked: int, mode: str = "") -> _Timed | None:
+        return cls(call, source, table, asked, mode) if _OBSERVERS else None
+
+    def ms(self) -> float:
+        return round((time.perf_counter() - self.began) * 1000, 2)
+
+    @staticmethod
+    def failed(timed: _Timed | None, error: BaseException) -> None:
+        if timed is not None:
+            timed.facts["outcome"] = {"ok": False, "error": type(error).__name__}
+            timed.tell()
+
+    def tell(self) -> None:
+        if self.told:
+            return
+        self.told = True
+        self.facts["ms"]["total"] = self.ms()
+        for hook in list(_OBSERVERS):
+            try:
+                hook(self.facts)
+            except Exception:  # noqa: S110 (a statistics hook never fails a call)
+                pass
+
+    def counted(self, batch: pa.RecordBatch) -> None:
+        size = self.facts["size"]
+        if size["batches"] == 0:
+            self.facts["ms"]["first_row"] = self.ms()
+        size["batches"] += 1
+        size["rows"] += batch.num_rows
+        size["bytes"] += batch.get_total_buffer_size()
+
+    def streamed(
+        self, reader: pa.RecordBatchReader, folded: Sequence[str], rest: Sequence[str]
+    ) -> pa.RecordBatchReader:
+        """The stream as it was, counted batch by batch; its facts told when it ends (or is dropped)."""
+        self.facts["folded"], self.facts["by_duckdb"] = list(folded), list(rest)
+        self.facts["size"]["columns"] = len(reader.schema)
+        self.facts["fingerprint"] = fingerprint(reader.schema)
+        return pa.RecordBatchReader.from_batches(reader.schema, self._counting(reader))
+
+    def _counting(self, reader: pa.RecordBatchReader) -> Iterator[pa.RecordBatch]:
+        try:
+            for batch in reader:
+                self.counted(batch)
+                yield batch
+        except Exception as error:
+            self.facts["outcome"] = {"ok": False, "error": type(error).__name__}
+            raise
+        finally:
+            self.tell()
+
+    def taking(self, given: pa.RecordBatchReader | pa.Table) -> None:
+        """A write's columns and shape; its rows' bytes when given whole (a stream is never wrapped: DuckDB
+        takes Arrow natively, a Python generator would cost it its parallel read)."""
+        self.facts["size"]["columns"] = len(given.schema)
+        self.facts["fingerprint"] = fingerprint(given.schema)
+        if isinstance(given, pa.Table):
+            self.facts["size"]["bytes"] = given.get_total_buffer_size()
+
+    def wrote(self, counts: Counts) -> None:
+        self.facts["size"]["rows"] = counts.rows
+        self.tell()
+
+
+def _found(source: str | Source, timed: _Timed | None) -> Source:
+    """source_of, its making timed (connect) when a name is found."""
+    found = source_of(source)
+    if timed is not None and isinstance(source, str):
+        timed.facts["ms"]["connect"] = timed.ms()
+        timed.facts["kind"] = type(found).__name__
+    return found
 
 
 def use(find: Callable[[str], Source] | None) -> None:
@@ -2828,16 +2952,22 @@ def read(source: str | Source, table: str, plan: Plan | None = None) -> tuple[pa
     fold is done here by DuckDB over the stream (never a copy of the whole read)."""
     asked = plan or Plan()
     check_plan(asked)
-    reader, folded = source_of(source).read(table, asked)
-    took = [p in folded.parts for p in asked.parts()]
-    if any(later and not earlier for earlier, later in itertools.pairwise(took)):
-        raise AdapterError(
-            "A source folds a plan's parts in the order SQL applies them, never a later one alone."
-        )
-    rest = folded.rest(asked)
-    if not rest.parts():
-        return reader, folded
-    return _finished(reader, rest), folded
+    timed = _Timed.start("read", source, table, len(asked.columns))
+    try:
+        reader, folded = _found(source, timed).read(table, asked)
+        took = [p in folded.parts for p in asked.parts()]
+        if any(later and not earlier for earlier, later in itertools.pairwise(took)):
+            raise AdapterError(
+                "A source folds a plan's parts in the order SQL applies them, never a later one alone."
+            )
+        rest = folded.rest(asked)
+        answer = reader if not rest.parts() else _finished(reader, rest)
+    except Exception as error:
+        _Timed.failed(timed, error)
+        raise
+    if timed is None:
+        return answer, folded
+    return timed.streamed(answer, folded.parts, rest.parts()), folded
 
 
 def _finished(reader: pa.RecordBatchReader, rest: Plan) -> pa.RecordBatchReader:
@@ -2861,15 +2991,20 @@ def query(source: str | Source, sql: str, params: Params = ()) -> pa.RecordBatch
     """SQL a plan cannot say (joins, CTEs, a write with RETURNING), in the source's own SQL and its driver's
     marks, answered as Arrow; a statement that returns no rows answers one `count` column. The sandbox makes
     it DuckDB SQL over its tables, so the same statement runs against the real source in an export."""
-    found = source_of(source)
-    run = getattr(found, "query", None)
-    if not callable(run):
-        said = getattr(found, "name", "") or type(found).__name__
-        raise AdapterError(f"{said} has no SQL of its own: read its tables with a plan (read).")
-    answer = run(sql, params)
-    if not isinstance(answer, pa.RecordBatchReader):
-        answer = answer.to_reader()
-    return answer
+    timed = _Timed.start("query", source, "", 0)
+    try:
+        found = _found(source, timed)
+        run = getattr(found, "query", None)
+        if not callable(run):
+            said = getattr(found, "name", "") or type(found).__name__
+            raise AdapterError(f"{said} has no SQL of its own: read its tables with a plan (read).")
+        answer = run(sql, params)
+        if not isinstance(answer, pa.RecordBatchReader):
+            answer = answer.to_reader()
+    except Exception as error:
+        _Timed.failed(timed, error)
+        raise
+    return answer if timed is None else timed.streamed(answer, (), ())
 
 
 def write(
@@ -2888,8 +3023,19 @@ def write(
         if mode != "truncate":
             raise AdapterError(f"A {mode} takes the rows it writes.")
         batches = pa.table({})
+    timed = _Timed.start("write", source, table, 0, mode)
+    if timed is not None:
+        timed.taking(batches)
     reader = batches if isinstance(batches, pa.RecordBatchReader) else batches.to_reader()
-    return source_of(source).write(table, reader, tuple(key), mode)
+    try:
+        found = _found(source, timed)
+        counts = found.write(table, reader, tuple(key), mode)
+    except Exception as error:
+        _Timed.failed(timed, error)
+        raise
+    if timed is not None:
+        timed.wrote(counts)
+    return counts
 
 
 def planned(

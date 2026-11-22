@@ -244,8 +244,10 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # rows of any shape (arrow_of), the widened catalogs and the open tables' view as a source.
 # 3,500 (2026-11-22, phase 5): SQL Server's write (staged, MERGE, retried; about 420 lines) and Trino's (about
 # 160) moved in from the Write starters (the owner: "then every write is the adapter's").
+# 3,650 (2026-11-22, 1.2.0): observe(), each call's facts for the statistics (about 140 lines), and Trino's
+# replace as one CREATE OR REPLACE TABLE ... AS (Plans/stats.plan.md; phase 5's open decision).
 # api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
-ONE_FILE = {"adapter.py": 3500, "api_adapter.py": 3000}
+ONE_FILE = {"adapter.py": 3650, "api_adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:
