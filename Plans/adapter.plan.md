@@ -363,3 +363,8 @@ be created in app." So, everywhere in this plan and the code:
 - MySQL, Oracle and Snowflake: the adapter's catalog query widened to their starters' scope (and SQL Server's
   descriptions and keys), then every connection lists through the adapter (a user's edited listing still wins).
 - Grid windows, the steps, analyses and profiles go through the adapter: the view cache becomes one of its sources.
+
+## The name (the owner, 2026-11-22)
+"Just call it adapter.py not sab_adapter." The file is `adapter.py` (the app's `adapters/adapter.py`; the scaffold's
+and every export's `adapter.py`, imported as `adapter`). The rename is the last step of phase 4 (branch adapter-4);
+until it merges, read sab_adapter.py above as adapter.py.
