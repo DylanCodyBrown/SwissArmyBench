@@ -99,7 +99,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   Army Bench itself (`src/swissarmybench/`, `web/`, `extensions/`, the library); the project scaffold is what it writes
   into a project folder and an export carries (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`, `data.ipynb`,
   `requirements.txt`, the type's deliverable, the sandbox mirror) and must run without the app. Say which one a change
-  is about.
+  is about. **adapter.py is the most valuable file** (the owner: "the single most valuable piece of code here";
+  design principle 12b): one readable file, standard library + duckdb + pyarrow only, its contract changed only by
+  adding (a break is the owner's call), its own version and change list, every change tested against every backend
+  with the memory and speed numbers recorded, and committed on its own.
 - **What SAB is for:** Python-to-DuckDB work on one screen instead of three. SAB brings Python's
   power (analysis, fast data); **DuckDB SQL does the transforming**. Generated transformations are
   DuckDB SQL over the user's own table, never a pandas translation.

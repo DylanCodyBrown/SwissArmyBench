@@ -691,6 +691,23 @@ answer says which one it is about:
   the libraries in its `requirements.txt`). The app's own copy of a scaffold file (sab_adapter.py) is the same bytes the
   scaffold gets: one source, written out.
 
+## 12b. adapter.py is the most valuable file (the owner, 2026-11-22)
+
+"This adapter file is the single most valuable piece of code here and will be the thing we always come back to." So
+it gets the most care of anything in the repository:
+- **One file, a roadmap:** it opens with what it does and its layout, then the plan, the sources, the reads, the
+  writes, the tables, in that order; every function under a short comment; flat, never nested past two levels.
+- **Only what it carries:** standard library, duckdb and pyarrow; it imports nothing of the app; a test runs it alone
+  in an empty folder, as every export does.
+- **A stable contract:** its calls (tables, read, query, write, table, refresh) and their answers change only by
+  adding; a change that would break a caller is the owner's decision, asked first. It states its own version at its
+  top, and a short change list beside it says what each version added.
+- **Proven before it changes:** every change runs its own tests against every backend (the stand-ins and the test
+  bed's real databases), the boundary test, and the memory and speed numbers on Larkfield large, recorded in
+  docs/verified.md; a change that makes a read slower or a stream hold more memory is not merged without the owner's
+  word.
+- **Reviewed on its own:** a change to it is its own commit, never mixed with other work.
+
 ## 13a. Kits: how the app grows
 
 **A new capability arrives as a kit, in one release:** a connection, a cell type, and blades, together.
