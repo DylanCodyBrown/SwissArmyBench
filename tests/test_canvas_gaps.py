@@ -603,3 +603,17 @@ def test_the_viewers_email_id_and_roles_come_only_from_the_hosts_sign_in(
         "app.viewer_id": "str",
         "app.viewer_roles": "list[str]",
     }
+
+
+def test_a_text_in_takes_a_number_a_page_value_holds_as_its_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test app two (2026-11-22): an Event set a page value from its payload's work_order_id (a number); an
+    input_text's default_from (In[str]) wired to that page value handed st.text_input the number, which
+    refused it ("bad argument type for built-in operation") and the widget failed in its place."""
+    import datetime
+
+    runtime = _runtime(monkeypatch, {})
+    runtime["st"].session_state["last_visit"] = 1003
+    assert runtime["_source"]({"page": "last_visit"}, "str", None, "default_from") == "1003"
+    assert runtime["_coerce"](2.5, "str", "x") == "2.5"
+    assert runtime["_coerce"](datetime.date(2026, 11, 2), "str", "x") == "2026-11-02"
+    assert runtime["_coerce"]("text", "str", "x") == "text" and runtime["_coerce"](7, "int", "x") == 7
