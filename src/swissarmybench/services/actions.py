@@ -8,8 +8,10 @@ sandbox API (`local`) are read from their specifications only; each call is api_
   run       one call (inputs checked first); a call that writes, by the agent, waits for the user's Allow; the
             endpoint's shape kept (apis/<name>/shapes/<action>.json, types only), its change said once
   shape     the kept shape and the contract; answer a rename offered (taken or declined, remembered)
-  discover  the read-only probe, on the user's Allow once per API this session (the agent's too): each read
-            endpoint called once at its smallest page, the shapes kept, values not
+  discover  the read-only probe, on the user's Allow, asked once per API and remembered with the API (the
+            library's apis/<name>/discover.json; the local sandbox API's in the project's .sab), the agent's
+            too, until it is taken back (allow): each read endpoint called once at its smallest page, the
+            shapes kept, values not
   build     a notebook cell put into the project's data.ipynb, a script function put into a script the
             user picks (each opened there), or a widget on a canvas page (the Streamlit extension's,
             through hooks.canvas_put); nothing built until asked
@@ -45,6 +47,8 @@ class Files(Protocol):
     def read(self, path: str) -> str | None: ...
 
     def write(self, path: str, text: str) -> None: ...
+
+    def forget(self, path: str) -> bool: ...
 
 
 class Approvals(Protocol):
@@ -85,7 +89,8 @@ class Actions:
         self._adapter_text = adapter_text
         self._changed = changed
         self._show = show
-        self._allowed: set[str] = set()  # the APIs whose discovery the user allowed this session
+        # Discovery allowed with nowhere to keep it (the local sandbox API with no project open): memory.
+        self._allowed: set[str] = set()
         self._last: dict[tuple[str, str], dict[str, Any]] = {}  # the last call of each action (memory only)
 
     # ===== the actions, from each API's specification =====
@@ -248,6 +253,49 @@ class Actions:
                 {"type": "api_shape_changed", "api": api, "action": action, "words": words}
             )
 
+    # ===== Discover's Allow, remembered per API =====
+
+    def _allow_path(self, entry: dict[str, Any] | None) -> str | None:
+        if entry is not None:
+            return _join(str(entry["folder"]), rules.ALLOW_FILE)
+        folder = self._project()
+        return _join(folder, rules.LOCAL_ALLOW) if folder else None
+
+    def _allowed_since(self, name: str, entry: dict[str, Any] | None) -> str | None:
+        """The day the user allowed this API's discovery (None: not allowed, or taken back)."""
+        path = self._allow_path(entry)
+        if path is None:
+            return "this session" if name in self._allowed else None
+        return rules.allowed_since(self._files.read(path))
+
+    def _remember_allow(self, name: str, entry: dict[str, Any] | None) -> None:
+        path = self._allow_path(entry)
+        if path is None:
+            self._allowed.add(name)
+            return
+        text = rules.allow_text(self._today())
+        if rules.allowed_since(self._files.read(path)) is None:  # kept once: the day it was given
+            self._files.write(path, text)
+
+    async def allow(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"api", "allow": false}: Discover's Allow taken back (the user's, or the agent's: it only ever
+        narrows). Giving it is the user's answer to Discover's own question, never this call."""
+        given = body if isinstance(body, dict) else {}
+        name, _doc, entry = await self._spec(str(given.get("api") or ""))
+        if given.get("allow") is not False:
+            raise Refused('Discover asks for its Allow itself: this only takes it back ({"allow": false}).')
+        path = self._allow_path(entry)
+        had = self._allowed_since(name, entry) is not None
+        self._allowed.discard(name)
+        if path is not None:
+            self._files.forget(path)
+        if had:
+            self.ws.audit.write(who, "api_discover_allow", name, allowed=False)
+            await self.ws.live.broadcast(
+                {"type": "api_shape_changed", "api": name, "action": None, "words": ""}
+            )
+        return {"api": name, "allowed": False}
+
     # ===== list and describe =====
 
     async def list(self, body: Any = None, who: str = "user") -> dict[str, Any]:
@@ -283,8 +331,15 @@ class Actions:
                         "offers": len(learned["offers"]),
                     }
                 )
+            since = self._allowed_since(real, entry)
             apis.append(
-                {"api": real, "local": entry is None, "allowed": real in self._allowed, "actions": listed}
+                {
+                    "api": real,
+                    "local": entry is None,
+                    "allowed": since is not None,
+                    "allowed_since": since,
+                    "actions": listed,
+                }
             )
         return {"apis": apis}
 
@@ -390,20 +445,23 @@ class Actions:
     # ===== discover =====
 
     async def discover(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"api"}: the read-only probe on the user's Allow (asked once per API this session; the agent's
-        too), each read endpoint once at its smallest page; the shapes kept, values not; what each maps to."""
+        """{"api"}: the read-only probe on the user's Allow (asked once per API and remembered with it until
+        taken back; the agent's too), each read endpoint once at its smallest page; the shapes kept, values
+        not; what each maps to."""
         given = body if isinstance(body, dict) else {}
         name, doc, entry = await self._spec(str(given.get("api") or ""))
         found = self._actions_of(name, doc)
         reads = sum(1 for a in found.values() if not a.writes)
-        if name not in self._allowed:
+        if self._allowed_since(name, entry) is None:
             detail = (
                 f"Discover {name}: up to {min(reads, DISCOVER_CALLS)} read-only calls (one GET per read "
-                "endpoint, the smallest page). Nothing that writes is called; no value is kept."
+                "endpoint, the smallest page). Nothing that writes is called; no value is kept. Your "
+                "answer is remembered for this API until you take it back on the APIs page."
             )
             if not await self._approvals.ask(name, "discover the API", detail):
                 raise Refused("The user declined (or did not answer): nothing was called.")
-            self._allowed.add(name)
+            self._remember_allow(name, entry)
+            self.ws.audit.write(who, "api_discover_allow", name, allowed=True)
         known = {n: self._shape(self._shape_path(name, entry, n)) for n in found}
         if entry is None:
             loop = asyncio.get_running_loop()

@@ -43,7 +43,7 @@ import { errorHere, errorMark, errorNote, warningNote } from "./errorNote";
 import { APIS } from "./lazyPages";
 import { sandboxPanel } from "./dataSandbox";
 import { localApisSection } from "./localApis";
-import { discoverButton, learnedOf, learnedSection } from "./apiLearned";
+import { discoverAllowed, discoverButton, learnedOf, learnedSection } from "./apiLearned";
 
 /** The page's name, in one place. */
 
@@ -370,6 +370,7 @@ function drawPage(): void {
     foot.replaceChildren(
       button(`← ${APIS}`, () => void showCards(), { class: "ghost" }),
       discoverButton(got.name, () => body, () => void explore(got.name, current())),
+      discoverAllowed(got.name, () => void explore(got.name, current())),
     );
     const left = h("nav", { class: "api-ops", "aria-label": `${got.name}'s operations` });
     const right = h("div", { class: "api-detail" });

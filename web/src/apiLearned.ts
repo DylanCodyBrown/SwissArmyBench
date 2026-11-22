@@ -2,7 +2,8 @@
  * apiLearned.ts: what the APIs page shows of api_adapter (Plans/api-adapter.plan.md; the owner, 2026-11-22: "No
  * need for a discovery report, the API page is all we need"). [SHARED]
  *
- *   [DISCOVER] Discover: the read-only probe (the app asks Allow, once per API this session); each read
+ *   [DISCOVER] Discover: the read-only probe (the app asks Allow once per API and remembers it with the
+ *              API until it is taken back: "Discover allowed since <day>", Take it back); each read
  *              endpoint called once at its smallest page; what was learned shows on each endpoint.
  *   [LEARNED]  an endpoint's learned shape (else its declared one, marked so): its kind, what it maps to
  *              (a table, a detail card, a metric, a download, a form), each field's path and type with its
@@ -10,8 +11,8 @@
  *              envelope: kind, status, pages); Build: a notebook cell, a script function, a widget on a
  *              canvas page. Nothing is built until the user picks it.
  *
- * ROUTING: GET /actions?api=, /actions/{api}/{action}  ·  POST /actions/run, /actions/discover, /actions/offer,
- *          /actions/build
+ * ROUTING: GET /actions?api=, /actions/{api}/{action}  ·  POST /actions/run, /actions/discover, /actions/allow,
+ *          /actions/offer, /actions/build
  */
 import { api } from "./api";
 import { button, h, openDialog, toast } from "./dom";
@@ -60,10 +61,37 @@ const MAPS: Record<string, string> = {
 
 const at = (apiName: string, action: string): string => `/actions/${encodeURIComponent(apiName)}/${encodeURIComponent(action)}`;
 
+/** Since when each API's discovery is allowed (null: not), as learnedOf last read it. */
+const ALLOWED = new Map<string, string | null>();
+
+/**
+ * Discover's remembered Allow, beside its button: since when, and Take it back (asked again at the next
+ * Discover). Nothing while it is not allowed. `done` redraws.
+ */
+export function discoverAllowed(apiName: string, done: () => void): HTMLElement | string {
+  const since = ALLOWED.get(apiName);
+  if (!since) return "";
+  return h(
+    "span",
+    { class: "api-discover-allowed muted" },
+    `Discover allowed since ${since}`,
+    button("Take it back", busyClick("Taking it back…", async (b) => {
+      try {
+        await api("/actions/allow", "POST", { api: apiName, allow: false });
+        ALLOWED.set(apiName, null);
+        done();
+      } catch (e) {
+        errorHere(e, {}, b);
+      }
+    }), { class: "ghost api-discover-forget" }),
+  );
+}
+
 /** Each action's learned facts by name, for the operations' list (its drift mark). */
 export async function learnedOf(apiName: string): Promise<Map<string, Learned>> {
   try {
-    const got = await api<{ apis: { api: string; actions: Learned[] }[] }>(`/actions?api=${encodeURIComponent(apiName)}`);
+    const got = await api<{ apis: { api: string; allowed_since?: string | null; actions: Learned[] }[] }>(`/actions?api=${encodeURIComponent(apiName)}`);
+    ALLOWED.set(apiName, got.apis[0]?.allowed_since ?? null);
     return new Map((got.apis[0]?.actions ?? []).map((a) => [a.name, a]));
   } catch {
     return new Map();

@@ -66,7 +66,16 @@ def test_discover_learn_build_and_a_drift(
         expect(learned).to_contain_text("maps to a table or a grid")
         expect(learned.locator("[data-field='amount']")).to_contain_text("number")
         expect(apis.locator(".api-op[data-operation='get_order'] .api-op-kind")).to_have_text("record")
+        # Discover's Allow is remembered with the API (the library's apis/Shop/discover.json) and said
+        # beside the button, until it is taken back there.
+        allowed = apis.locator(".api-discover-allowed")
+        expect(allowed).to_contain_text("Discover allowed since", timeout=20000)
+        kept_allow = Path(call(server, "GET", "/library")["folder"]) / "apis" / "Shop" / "discover.json"
+        assert json.loads(kept_allow.read_text(encoding="utf-8"))["allowed"] is True
         shot(page, "api-learned.png")
+        allowed.get_by_role("button", name="Take it back").click()
+        expect(apis.locator(".api-discover-allowed")).to_have_count(0, timeout=20000)
+        assert not kept_allow.exists()
         # Build: a widget on the project's canvas page (its records as a table: [Shop].list_orders).
         learned.get_by_role("button", name="Widget on a canvas").click()
         expect(page.locator(".toast", has_text="Put data_table on")).to_be_visible()

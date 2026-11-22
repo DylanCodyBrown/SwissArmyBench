@@ -4260,7 +4260,7 @@ def api_command(a: dict[str, Any]) -> Any:
     return api.call(method, path, None if method == "GET" else given, timeout=900)
 
 
-_ACTIONS = ("list", "describe", "run", "shape", "discover", "offer", "build")
+_ACTIONS = ("list", "describe", "run", "shape", "discover", "allow", "offer", "build")
 
 
 @command(
@@ -4272,7 +4272,7 @@ _ACTIONS = ("list", "describe", "run", "shape", "discover", "offer", "build")
     opt("name", "The action's name (describe, run, shape, offer, build)."),
     opt(
         "args",
-        'run: {"inputs": {...}, "required"?: [paths]}; offer: {"from", "to", "take": bool}; build: {"as": '
+        'run: {"inputs": {...}, "required"?: [paths]}; allow: {"allow": false} (Discover\'s, taken back); offer: {"from", "to", "take": bool}; build: {"as": '
         'cell (into data.ipynb)|function ("path": its script)|widget, "inputs"?, "insert"?: false, "canvas"?, '
         '"page"?}.',
         "json",
@@ -4291,6 +4291,8 @@ def actions_command(a: dict[str, Any]) -> Any:
         return found if action == "describe" else {k: found[k] for k in ("api", "shape", "contract")}
     if action == "discover":
         return api.call("POST", "/actions/discover", {"api": which["api"]}, timeout=900)
+    if action == "allow":  # Discover's remembered Allow taken back (it is given only by the user's answer)
+        return api.call("POST", "/actions/allow", {"api": which["api"], "allow": given.get("allow")})
     posted = {"run": "/actions/run", "offer": "/actions/offer", "build": "/actions/build"}
     return api.call("POST", posted[action], given | which, timeout=900)
 

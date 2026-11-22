@@ -192,9 +192,70 @@ def test_discover_asks_once_probes_reads_only_and_keeps_shapes(
     ]
     files = sorted(p.name for p in (library(tmp_path) / "Orders" / "shapes").iterdir())
     assert files == ["get_order.json", "list_clients.json", "list_orders.json", "list_regions.json"]
-    # Allowed once: the second discovery this session asks nothing.
+    # Allowed once: the second discovery asks nothing.
     again = ask(live, "POST", "/actions/discover", {"api": "Orders"}, agent=True)
     assert again["calls"] == 4
+
+
+def test_discovers_allow_is_kept_with_the_api_until_it_is_taken_back(
+    live: int, service: Service, tmp_path: Path
+) -> None:
+    """The owner, 2026-11-22: Discover's Allow is remembered per API, kept with the API in the library (the
+    agent's too), until the user takes it back on the APIs page."""
+    from swissarmybench.domain import api_actions
+
+    add_orders(live, service)
+    kept = library(tmp_path) / "Orders" / "discover.json"
+    listed = ask(live, "GET", "/actions?api=Orders")["apis"][0]
+    assert listed["allowed"] is False and listed["allowed_since"] is None and not kept.exists()
+    thread, out = in_background(lambda: ask(live, "POST", "/actions/discover", {"api": "Orders"}, agent=True))
+    words = answer_next(live, True)
+    thread.join(120)
+    assert out["answer"]["calls"] == 4 and "remembered for this API until you take it back" in words
+    text = kept.read_text(encoding="utf-8")
+    since = json.loads(text)["since"]
+    assert json.loads(text) == {"allowed": True, "since": since} and text == api_actions.allow_text(since)
+    listed = ask(live, "GET", "/actions?api=Orders")["apis"][0]
+    assert listed["allowed"] is True and listed["allowed_since"] == since
+    # Remembered: the user's own discovery asks nothing, and the file's bytes do not change.
+    assert ask(live, "POST", "/actions/discover", {"api": "Orders"})["calls"] == 4
+    assert not ask(live, "GET", "/agent/approvals")["pending"] and kept.read_text(encoding="utf-8") == text
+    # It is given only by the answer to Discover's own question: never by this call, whoever makes it.
+    for agent in (True, False):
+        with pytest.raises(AssertionError, match="only takes it back"):
+            ask(live, "POST", "/actions/allow", {"api": "Orders", "allow": True}, agent=agent)
+    # Taken back (the agent may: it only narrows): the file goes, and the next discovery asks again.
+    assert ask(live, "POST", "/actions/allow", {"api": "Orders", "allow": False}, agent=True) == {
+        "api": "Orders",
+        "allowed": False,
+    }
+    assert not kept.exists() and ask(live, "GET", "/actions?api=Orders")["apis"][0]["allowed"] is False
+    thread, out = in_background(lambda: ask(live, "POST", "/actions/discover", {"api": "Orders"}))
+    answer_next(live, False)
+    thread.join(60)
+    assert "declined" in out["error"] and not kept.exists()
+    ask(live, "POST", "/actions/allow", {"api": "Orders", "allow": False})  # nothing to take back: no error
+    log = json.dumps(ask(live, "GET", "/session-log?who=both"))
+    assert "Allowed Discover for the API Orders" in log and "Took back Discover" in log
+
+
+def test_the_local_sandbox_apis_allow_is_kept_in_the_project(live: int, tmp_path: Path) -> None:
+    from tests.test_local_api import API_PY
+
+    folder = tmp_path / "shop"
+    ask(live, "POST", "/project/new", {"path": str(folder)})
+    (folder / "API.py").write_text(API_PY, encoding="utf-8")
+    ask(live, "POST", "/local-api/run", {})
+    thread, out = in_background(lambda: ask(live, "POST", "/actions/discover", {"api": "local"}))
+    answer_next(live, True)
+    thread.join(120)
+    assert "answer" in out, out
+    kept = folder / ".sab" / "api-discover.json"
+    assert json.loads(kept.read_text(encoding="utf-8"))["allowed"] is True
+    assert ask(live, "GET", "/actions?api=local")["apis"][0]["allowed"] is True
+    ask(live, "POST", "/actions/allow", {"api": "local", "allow": False})
+    assert not kept.exists()
+    ask(live, "POST", "/local-api/stop", {})
 
 
 def test_a_write_by_the_agent_waits_for_allow(live: int, service: Service) -> None:

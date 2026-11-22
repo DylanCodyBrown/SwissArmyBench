@@ -7,6 +7,7 @@ local sandbox API, as api_adapter's actions; Build's code and widget, by the end
             cannot be; ref(): an action as the canvas names it
   words     the drift note said once ("Orders list_orders: 2 fields new since 2026-11-20")
   tried     Try it's form filled from the learned shape (made-up values by learned type; no value kept)
+  allow     Discover's Allow remembered per API (allow_text, allowed_since: its small file)
   insert    Build's cell put at the end of a notebook (with_cell), its function at the end of a script the
             user picks (script_path, with_function)
 
@@ -28,6 +29,10 @@ LOCAL = "local"  # the project's local sandbox API among the actions (its own na
 BUILDS = ("cell", "function", "widget")
 SHAPES_FOLDER = "shapes"  # beside an API in the library: apis/<name>/shapes/<action>.json
 LOCAL_SHAPES = ".sab/api-shapes"  # the project's local sandbox API's, in its .sab
+# Discover's Allow, remembered per API until it is taken back: beside the API in the library
+# (apis/<name>/discover.json), the local sandbox API's in the project's .sab. Who allowed it is not kept.
+ALLOW_FILE = "discover.json"
+LOCAL_ALLOW = ".sab/api-discover.json"
 
 
 def ref(api: str, method: str, path: str) -> str:
@@ -258,6 +263,22 @@ def tried(
             if body[one["name"]] not in one["choices"]:
                 body[one["name"]], filled = one["choices"][0], True
     return out | {"learned": filled}
+
+
+def allow_text(since: str) -> str:
+    """Discover's Allow as its small file's text: the day it was given (same day, same bytes)."""
+    return json.dumps({"allowed": True, "since": since}, indent=2, sort_keys=True) + "\n"
+
+
+def allowed_since(text: str | None) -> str | None:
+    """The day Discover was allowed, read from its file (None: not allowed, or a file that does not read)."""
+    try:
+        found = json.loads(text) if text else None
+    except ValueError:
+        return None
+    if not isinstance(found, dict) or found.get("allowed") is not True:
+        return None
+    return str(found.get("since") or "") or "an earlier day"
 
 
 def drift_said(api: str, action: str, words: str) -> str:

@@ -108,6 +108,9 @@ class _NoFiles:
     def write(self, path: str, text: str) -> None:
         raise AssertionError("a built app's files are never written by carried()")
 
+    def forget(self, path: str) -> bool:
+        raise AssertionError("carried() removes nothing")
+
 
 def carried(api_py: str | None = API_PY) -> dict[str, str]:
     """What a built app carries to call APIs, as the app's own service makes it for a project's API.py."""
