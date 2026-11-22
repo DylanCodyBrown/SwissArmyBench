@@ -47,7 +47,7 @@ def shop(tmp_path: Path) -> str:
 
 def _statuses(source: Any) -> list[Any]:
     found = adapter.read(source, "tasks", adapter.Plan(columns=("status",), sort=(("id", False),)))[0]
-    return found.read_all().column("status").to_pylist()
+    return list(found.read_all().column("status").to_pylist())
 
 
 def _audit(source: Any) -> int:

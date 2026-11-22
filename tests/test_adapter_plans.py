@@ -269,8 +269,9 @@ def test_a_period_of_dates_held_as_text_is_read_as_dates_first(tmp_path: Path) -
     assert _answered(reader) == _expected("quarter")
 
     class Texts(Shelf):
-        def rows(self, table: str, **asked: Any) -> tuple[pa.Table, int]:
-            return texts.select(asked["columns"]), texts.num_rows
+        def rows(self, table: str, schema: str = "", limit: Any = None, columns: Any = None,
+                 filters: Any = None, frame: bool = False) -> tuple[pa.Table, int]:  # fmt: skip
+            return texts.select(columns), texts.num_rows
 
     reader, _ = adapter.read(adapter.Rows(Texts(), "Lake"), "sales", _period_plan("week"))
     assert _answered(reader) == _expected("week")

@@ -169,7 +169,7 @@ def test_the_sandbox_through_remote_writes_two_tables_all_or_none(two_tables: Te
         return list(adapter.read(source, "tasks", plan)[0].read_all().column("status").to_pylist())
 
     def audit() -> int:
-        return adapter.read(source, "audit")[0].read_all().num_rows
+        return int(adapter.read(source, "audit")[0].read_all().num_rows)
 
     done = pa.table({"id": [1, 2], "status": ["Done", "Done"]})
     taken = pa.table({"id": [9], "task_id": [1], "said": ["the id is taken"]})
