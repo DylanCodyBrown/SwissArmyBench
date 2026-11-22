@@ -232,9 +232,9 @@ class Workbench:
             return {"path": full, "kind": kind, "modified": modified} | opened
         return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python} | session
 
-    def save(self, body: Any) -> dict[str, Any]:
+    def save(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Save a notebook's cells or a script's text. A file changed on disk since it was opened is not
-        overwritten unless the body says to (`"force": true`)."""
+        overwritten unless the body says to (`"force": true`). `who`: user or agent (the change log)."""
         if not isinstance(body, dict) or not isinstance(body.get("path"), str):
             raise ValueError('Send {"path": "...", "cells": [...]} or {"path": "...", "text": "..."}.')
         path = body["path"]
@@ -277,7 +277,7 @@ class Workbench:
             if kind in ("notebook", "script")
             else {}
         )
-        self.ws.audit.write("user", "save_document", full, **change)
+        self.ws.audit.write(who, "save_document", full, **change)
         return {"path": full, "modified": modified}
 
     def _document_shape(self, kind: str, path: str) -> dict[str, Any] | None:
