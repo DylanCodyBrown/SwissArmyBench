@@ -180,7 +180,7 @@ def test_the_scaffold_grows_with_a_connection_and_a_hand_edit_is_kept_until_take
         and documents["connections.py"]["made"]
         and documents["data.py"]["made"]
     )
-    assert not documents["API.py"]["made"] and documents["data.ipynb"]["role"] == "data"
+    assert not documents["API.py"]["made"] and not documents["data.ipynb"]["made"]
 
 
 # ===== 2. The sandbox =====
@@ -1515,7 +1515,7 @@ def test_the_statistics_and_the_change_log_say_what_happened_never_a_value(app: 
     assert by_wizard["who"] == "agent" and by_wizard["before"] == "" and by_wizard["after"]
     canvas = agent("changes", action="history", object="canvas:field_service / Dispatch", n=200)["changes"]
     assert canvas and all(c["who"] == "agent" for c in canvas)
-    assert any("items added" in c["words"] and "visit_card" in c["words"] for c in canvas)
+    assert any(c["words"].startswith("Added visit_card") for c in canvas), [c["words"] for c in canvas][:5]
     last = agent("changes", action="last", object="canvas:field_service / Dispatch")
     assert last["change"]["object"] == {"kind": "canvas", "name": "field_service / Dispatch"}, last
     widget = agent("changes", action="search", kind="widget", n=50)["changes"]
