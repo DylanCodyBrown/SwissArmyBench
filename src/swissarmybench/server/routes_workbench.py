@@ -64,7 +64,7 @@ def routes(
         )
 
     async def save(request: Request) -> Response:
-        saved = workbench.save(await read_json(request))
+        saved = workbench.save(await read_json(request), actor(request))
         # Every window holding the file reloads it (services/code_files.py: the file_changed notice).
         digest = await code_files.touched(saved["path"], actor(request)) if code_files else None
         return json_response(saved | {"hash": digest})

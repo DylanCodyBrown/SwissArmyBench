@@ -2,9 +2,8 @@
 python automation where all connections, vault logic, and data transformations are bundled into one
 python script that is just downloadable"; and: "runnable as standalone from any Python terminal").
 
-A notebook or a script becomes ONE .py file that runs with plain `python <file>` in any Python 3.10 or
-later, with no Swiss Army Bench: unattended on a schedule, in an Azure Function's timer trigger, on
-any machine. Pure rules, no I/O:
+A notebook or a script becomes ONE .py file that runs with plain `python <file>` in any Python 3.10 or later,
+with no Swiss Army Bench: on a schedule, in an Azure Function's timer trigger, anywhere. Pure rules, no I/O:
 
   requirements  what its code imports, as pip requirements (REQUIREMENTS in the script, checked
                 before anything else is imported; `--install` installs the missing ones with pip,
@@ -30,10 +29,9 @@ any machine. Pure rules, no I/O:
                 the same (%pip, %env, %cd, %time) or refused, naming the cell
   check         the script compiles, holds no saved password's value and no row
 
-The script is laid out as: the header, REQUIREMENTS and their check, SETTINGS, the helpers the
-connections need, the vaults, the connections and blades, `run()` (the cells), and `main()`, which
-an Azure Function's timer trigger calls; `python <file>` runs `cli()`: logging to stdout, an exit
-code that is not 0 on failure.
+The script is laid out as: the header, REQUIREMENTS and their check, SETTINGS, the helpers the connections
+need, the vaults, the connections and blades, `run()` (the cells), and `main()`, which an Azure Function's
+timer trigger calls; `python <file>` runs `cli()`: logging to stdout, an exit code that is not 0 on failure.
 """
 
 from __future__ import annotations
@@ -56,6 +54,7 @@ from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
 SUFFIX: str = "_automation.py"
 REQUIRES_PYTHON: str = ">=3.10"
+_Imported = tuple[set[str], dict[str, str]]  # the package's names a document imported so far
 # What a cell's `sab.<name>(...)` becomes, or that it only shows something in the app.
 _CALLS: dict[str, str] = {"sql": "run_sql", "dax": "run_dax", "read": "read_table"}
 _MADE: frozenset[str] = frozenset({"blade", "connection"})
@@ -385,15 +384,18 @@ def _showing(node: ast.expr) -> bool:
     return False
 
 
-def _rewrite(cell: _Cell, source: str) -> str:
-    """The cell's Python with every package call written out, its imports of the package taken out,
-    and what only shows something left out."""
+def _rewrite(cell: _Cell, source: str, imported: _Imported) -> str:
+    """The cell's Python with every package call written out, its imports of it out, what only shows
+    something left out. `imported`: the names the cells above imported the package by (theirs, then its)."""
     try:
         tree = ast.parse(source)
     except SyntaxError as error:
         cell.problems.append(f"line {error.lineno}: not Python ({error.msg})")
         return source
     modules, functions = _aliases(tree)
+    imported[0].update(modules)  # the cells above imported it too (a script: above its first cell)
+    imported[1].update(functions)
+    modules, functions = set(imported[0]), dict(imported[1])
     starts = _byte_offsets(source)
     edits: list[tuple[int, int, str]] = []
 
@@ -777,6 +779,7 @@ def plan(
     blocks: list[Block] = []
     default: str | None = None
     made: set[str] = set()
+    imported: _Imported = (set(), {})
     usual = usual_name(tuple(c.source for c in cells if c.kind == "code"))
     script = (source or "").lower().endswith(".py")
 
@@ -868,7 +871,7 @@ def plan(
             stubs.append(cell.table or label)
             before = stub_text.split("\n")
         translated = _translate_magics(working, held)
-        rewritten = _rewrite(working, translated) if not working.problems else translated
+        rewritten = _rewrite(working, translated, imported) if not working.problems else translated
         working.problems += _top_level_problems(rewritten)
         if working.problems:
             for said in working.problems:
@@ -1324,8 +1327,9 @@ def render_notebook(made: Plan, file: str) -> Exported:
 def references(cells: Sequence[ExportCell], code_names: Mapping[str, str]) -> list[str]:
     """The connections and blades the document uses, by their names (the service looks each up)."""
     found: list[str] = []
-    default: str | None = None
     made: set[str] = set()
+    imported: _Imported = (set(), {})
+    default: str | None = None
     for cell in cells:
         if cell.kind in ("sql", "dax"):
             named, _ = sql_line(cell.connection)
@@ -1341,7 +1345,7 @@ def references(cells: Sequence[ExportCell], code_names: Mapping[str, str]) -> li
             if connect:
                 default = connect.group(1).strip().strip("'\"")
         working = _Cell("")
-        rewritten = _rewrite(working, _translate_magics(working, source))
+        rewritten = _rewrite(working, _translate_magics(working, source), imported)
         found += working.uses
         found += [code_names[v] for v in _connection_names(rewritten, code_names, made)]
         made.update(table_cells.facts(rewritten).made)

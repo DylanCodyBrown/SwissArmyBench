@@ -35,7 +35,8 @@ OLD_DASHBOARDS: str = f"{APP_FOLDER}/dashboards"
 KINDS: tuple[str, ...] = ("notebook", "script", "app", "structure")  # a structure: structures/<name>.json
 MAX_IMPORT: int = 200  # documents, connections or blades in one import
 # The project's own files the app writes from others: shown, marked, never imported on their own.
-_MADE = re.compile(r"^(data\.py|pages/[^/]+\.py)$")
+# data.py, pages/*.py, and the scaffold's own: adapter.py, connections.py, the sandbox mirror.
+_MADE = re.compile(r"^(data|adapter|connections|sandbox_data|sandbox_connections)\.py$|^pages/[^/]+\.py$")
 _FILE_NAME = re.compile(r"[^/]+\.json")
 
 

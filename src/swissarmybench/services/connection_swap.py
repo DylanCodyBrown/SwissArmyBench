@@ -116,6 +116,10 @@ class ConnectionSwap:
                             "sql": origin.sql, "dax": origin.dax}  # fmt: skip
                 return {"open": True, "connection": base, "how": "query", "sql": origin.sql or "",
                         "dax": origin.dax, "dataset": origin.connection.partition("/")[2]}  # fmt: skip
+            if origin.kind == "file" and origin.connection and origin.place is not None:
+                # A file connection's file (a folder's file, a workbook's sheet): its place there.
+                return {"open": True, "connection": origin.connection, "how": "table",
+                        "place": Place(*origin.place), "sql": None, "dax": False}  # fmt: skip
             if origin.kind == "query" and origin.sql:
                 return {"open": True, "connection": "", "how": "query", "sql": origin.sql, "dax": False}
             return {"open": True, "connection": "", "how": origin.kind}
@@ -140,7 +144,8 @@ class ConnectionSwap:
         found = self._from(name)
         names = self._names()
         current = found["connection"]
-        exists = bool(current) and current.casefold() in names
+        listed = {str(e["name"]).casefold() for e in self._connections.listing()["connections"]}
+        exists = bool(current) and current.casefold() in listed
         place = found.get("place")
         return {
             "table": name,

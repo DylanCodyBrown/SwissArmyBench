@@ -1,0 +1,8 @@
+# The same thresholds as YAML (opened when PyYAML is installed; the app says what it needs otherwise).
+thresholds:
+  - metric: revenue
+    warn: 0.9
+    alert: 0.8
+  - metric: orders
+    warn: 0.95
+    alert: 0.85

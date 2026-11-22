@@ -175,6 +175,8 @@ def test_a_saved_dashboard_reopens_as_drawn_and_relinks_when_its_table_is_back(c
     )
     assert chart.status_code == query.status_code == 200
     client.post("/cards", json={"kind": "note", "title": "Reading", "body": "North leads."}, headers=AUTH)
+    named = client.post("/dashboards", json={"name": "Weekly sales"}, headers=AUTH)
+    assert named.status_code == 400 and "A dashboard's name is 1 to 64" in named.json()["error"]
     first = client.post("/dashboards", json={"name": "weekly"}, headers=AUTH).json()
     assert first["version"] == 1 and first["cards"] == 3
     client.delete(f"/cards/{chart.json()['card']}", headers=AUTH)

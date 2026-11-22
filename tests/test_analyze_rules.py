@@ -183,6 +183,21 @@ def test_a_category_slot_refuses_identifiers_constants_and_blank_columns() -> No
     assert why["amount"].startswith("amount is a number column")
 
 
+def test_an_identifier_by_its_name_is_not_said_to_differ_on_every_row() -> None:
+    # Test app one (BI review): customers.region_id, 8 values over 503 rows, was refused as "every row has
+    # a different region_id"; its name makes it an identifier, its values repeat.
+    from swissarmybench.domain.analysis_facts import Facts, failed
+
+    named = Facts("region_id", "BIGINT", filled=503, distinct=8, identifier=True)
+    said = failed(C.Check("not_identifier"), named, 503)
+    assert said == "region_id is an identifier by its name: it names things, it does not measure them"
+    unique = Facts("order_id", "BIGINT", filled=503, distinct=503, identifier=True)
+    assert failed(C.Check("not_identifier"), unique, 503) == (
+        "every row has a different order_id: an identifier tells nothing"
+    )
+    assert failed(C.Check("not_identifier"), Facts("amount", "DOUBLE", 503, 400), 503) is None
+
+
 def test_the_only_column_that_fits_is_picked_and_said() -> None:
     p = plan_of("time_series", mixed(), "invoices")
     assert slot_of(p, "date")["value"] == "ordered"

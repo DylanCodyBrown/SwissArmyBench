@@ -274,7 +274,11 @@ def failed(check: Check, f: Facts, rows: int) -> str | None:
     passes the checks on ranges it cannot know yet."""
     n = check.n or 0
     if check.check == "not_identifier":
-        return f"every row has a different {f.name}: an identifier tells nothing" if f.identifier else None
+        if not f.identifier:
+            return None
+        if f.filled and f.distinct < f.filled:  # named as one (region_id), its values repeat
+            return f"{f.name} is an identifier by its name: it names things, it does not measure them"
+        return f"every row has a different {f.name}: an identifier tells nothing"
     if check.check == "distinct_min":
         if f.distinct >= n:
             return None

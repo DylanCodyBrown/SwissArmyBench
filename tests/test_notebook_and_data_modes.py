@@ -196,3 +196,31 @@ def test_the_agent_reads_a_projects_dictionary(live: Live, tmp_path: Path) -> No
     said = {"orders": {"description": "Made-up orders.", "columns": {}}}
     (folder / "data.ipynb").write_text(notebooks.write_notebook([], dictionary=said), encoding="utf-8")
     assert command("project_dictionary", folder=str(folder)) == {"tables": []}
+
+
+def test_a_sql_cells_result_name_and_grid_stay_outside_the_connections_quotes() -> None:
+    # Test app one (BI review): `%%sql 'Larkfield Warehouse' -> region_orders` was read back with the
+    # connection "Larkfield Warehouse -> region_orders" and written as one quoted name, which the kernel
+    # then read as a connection of that name (and `-> monthly` alone as a connection called "-> monthly").
+    from swissarmybench.client.sql_cell import parse_line
+    from swissarmybench.domain import notebooks as nb
+
+    for connection, line, said in (
+        (
+            "Larkfield Warehouse -> region_orders",
+            "%%sql 'Larkfield Warehouse' -> region_orders",
+            ("Larkfield Warehouse", "region_orders", False),
+        ),
+        ("-> monthly", "%%sql -> monthly", (None, "monthly", False)),
+        ("Warehouse -> late --grid", "%%sql Warehouse -> late --grid", ("Warehouse", "late", True)),
+        ("Larkfield Warehouse", "%%sql 'Larkfield Warehouse'", ("Larkfield Warehouse", None, False)),
+        (None, "%%sql", (None, None, False)),
+    ):
+        assert nb.sql_line(connection) == line
+        parsed = parse_line(line[len("%%sql") :].strip())
+        assert (parsed.name, parsed.target, parsed.grid) == said
+        # Read from the file and written again: the same line.
+        text = nb.write_notebook([nb.Cell("sql", "SELECT 1", connection)])
+        (cell,) = nb.read_notebook(text)
+        assert nb.sql_line(cell.connection) == line
+    assert nb.dax_line("Finance/Sales model -> by_region") == "%%dax 'Finance/Sales model' -> by_region"
