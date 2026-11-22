@@ -29,7 +29,6 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.adapters import api_adapter
 from swissarmybench.domain import api_targets as targets
 from tests.conftest import AUTH, make_client
 from tests.fake_keyring import memory_keyring
@@ -249,20 +248,25 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
         done = ok(client.post("/local-api/export", json={"target": target}, headers=AUTH))
         place = Path(done["folder"])
         assert place == folder / "exports" / "api" / target
-        assert {
-            "API.py",
-            "sab_api.py",
-            "adapter.py",
-            "api_adapter.py",
-            "connections.py",
-            "README.md",
-            "requirements.txt",
-        } <= set(done["files"])
+        # The fewest files (Plans/adapter.plan.md): the core files and the platform's own, sab_api folded into
+        # the framework file; api_adapter.py only when API.py calls another API (this one does not).
+        framework = {
+            "fastapi": {"main.py"},
+            "azure_functions": {"function_app.py", "host.json", ".funcignore"},
+            "aws_lambda": {"lambda_function.py", "template.yaml"},
+        }[target]
+        core = {"API.py", "adapter.py", "connections.py", "README.md", "requirements.txt"}
+        assert set(done["files"]) == core | framework
+        assert sorted(p.name for p in place.iterdir()) == sorted(core | framework)
         wanted = (place / "requirements.txt").read_text(encoding="utf-8").split()
         assert "duckdb>=1.1" in wanted and "pyarrow>=15" in wanted  # the adapter's
         assert (place / "API.py").read_text(encoding="utf-8") == API_PY  # the endpoints never change
-        made = Path(api_adapter.__file__).read_bytes()
-        assert (place / "api_adapter.py").read_bytes() == made  # the same bytes as the app's (12a)
+        from swissarmybench.adapters import adapter as the_adapter
+
+        made = Path(the_adapter.__file__).read_bytes()
+        assert (place / "adapter.py").read_bytes() == made  # the same bytes as the app's (12a)
+        sections = (place / "connections.py").read_text(encoding="utf-8")
+        assert "# ===== connection: Shop =====" in sections and "# ===== end of Shop =====" in sections
         assert "SHOP_PASSWORD" in done["variables"] and "SHOP_PASSWORD" in (place / "README.md").read_text(
             encoding="utf-8"
         )
@@ -295,7 +299,8 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
     arrow = _run(
         exported["aws_lambda"],
         """
-        import json, pyarrow as pa, adapter, sab_api
+        import json, pyarrow as pa, adapter, lambda_function
+        sab_api = lambda_function.sab_api
         @sab_api.endpoint("GET", "/arrow")
         def arrow() -> pa.Table:
             return pa.table({"n": [1, 2]})
@@ -334,12 +339,7 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
     assert az[1:] == [200, [{"customer_id": 2, "city": "Shelbyville"}]]
     host = json.loads((exported["azure_functions"] / "host.json").read_text(encoding="utf-8"))
     assert host["extensions"]["http"]["routePrefix"] == ""
-    assert (
-        json.loads((exported["azure_functions"] / "local.settings.json").read_text(encoding="utf-8"))[
-            "Values"
-        ]["SHOP_PASSWORD"]
-        == ""
-    )
+    assert not (exported["azure_functions"] / "local.settings.json").exists()  # the user's own
     # FastAPI: its app served (FastAPI itself when installed, else its few names stood in for).
     try:
         import fastapi  # type: ignore[import-not-found]  # noqa: F401

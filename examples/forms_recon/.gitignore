@@ -1,7 +1,8 @@
 # Swiss Army Bench: rows kept with "Keep its rows" stay on this computer (data is sensitive).
 # Remove this line to commit them on purpose.
 .sab/data/
-.sab/sandbox/
+# The sandbox's rows (Add to sandbox): test data for the local sandbox API.
+sandbox/
 
 __pycache__/
 .ipynb_checkpoints/

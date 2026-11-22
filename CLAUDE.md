@@ -170,7 +170,12 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   `server/security.py`), DuckDB locked (`adapters/database.py`),
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
-  project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
+  project's scaffold, `.sab/data/` only on the user's tick, the project scaffold's made files as the user works
+  (`adapter.py`, `connections.py`: names only, never a value; README.md's Variables block; data.py's structures;
+  `.sab/scaffold.json`, their hashes; services/scaffold.py), `sandbox/` at its top (moved once from an older
+  project's `.sab/sandbox/`, Git-ignored) only on the user's Add to sandbox or Make a sandbox variant (and its
+  grid's edits), and the sandbox mirror beside it (`sandbox_data.py`, `sandbox_connections.py`: names only; Remove
+  the sandbox deletes the three, nothing else),
   `.sab/api-shapes/` as its local sandbox API's endpoints are called (each one's learned shape: paths and
   types, never a value; Try it's Keep as its example and its `.sab/api_examples.json` went, the owner,
   2026-11-22: "No need to ever keep values"), `.sab/api-discover.json` on the user's Allow for its discovery
@@ -579,6 +584,14 @@ src/swissarmybench/
                          base word), the manifest's literals and REQUIRES read with ast before it loads, a load
                          error's one sentence with its file and line, the words; New extension's folder
                          (extension.py with one route, commands.py with one command, README.md, contract.json)
+    scaffold.py          the project scaffold as text (Plans/adapter.plan.md "The exported project"; 12a): connections.py
+                         (a marked section per connection the project uses, `# ===== connection: <name> =====` to its
+                         end mark; its variables named, SETTINGS without values), README.md's Variables block (name,
+                         source, uses; never a value; the rest of README.md byte for byte), data.py's structures read
+                         as grids (a stdlib _records line each), the sandbox mirror (sandbox_data.py: tables, where
+                         from, keys, baseline, checkpoints by name; sandbox_connections.py: each connection's stand-in
+                         over sandbox/sandbox.duckdb, never its code), what to write (plan: write, remove, same, edited
+                         by hand: kept, Take the new one; .sab/scaffold.json the hashes the app last wrote)
     project_contract.py  contract.json (FORMAT 1; Plans/adapter.plan.md): a project type as JSON (type, name,
                          deliverable, languages by pattern, cells, files: path, owner user or app, starter, made_from,
                          grows_on; requirements, canvas, export, areas, words); the one checker (one sentence naming
@@ -647,7 +660,7 @@ src/swissarmybench/
                          in plain words, a connection's access in one line; the Microsoft kinds it checks (Azure SQL,
                          Dataverse, SharePoint, OneLake, Data Lake: each one's scope, place, refusals in words) and a
                          connection's code made to sign in with a registration (signed_in_with: its place kept)
-    sandbox.py           the project's sandbox (2026-11-21): .sab/sandbox/ (sandbox.duckdb, baseline.duckdb,
+    sandbox.py           the project's sandbox (2026-11-21): sandbox/ at the project's top (sandbox.duckdb, baseline.duckdb,
                          checkpoints/, sandbox.json: each table's source and the client its rows are mocked as, the
                          baseline, checkpoints, the change log), names, the writes' SQL (checked names, bound values);
                          the Sandbox as a connection kind (CONNECTION_TYPE, its card's words, its indigo COLOUR), the
@@ -670,10 +683,12 @@ src/swissarmybench/
                          editor_problems (API.py's squiggles: its rules, a connection with no sandbox table, SQL the
                          mock would refuse, never run); agent_writes_words
     api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
-                         Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
-                         sab_api.py, adapter.py, connections.py: the real connections' own code; README with
-                         the deploy steps, the checklist and the variables; no secret), exports/api/<target>/ a made
-                         folder
+                         Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle, the fewest
+                         (API.py as it is, adapter.py, connections.py: the real connections' own code, a section
+                         each; requirements.txt; README with the deploy steps, the checklist and the variables; the
+                         framework file with sab_api folded in as a module of its own, its OpenAPI document inside
+                         for FastAPI; host.json and .funcignore, SAM's template.yaml; api_adapter.py only when
+                         API.py calls another API; no secret), exports/api/<target>/ a made folder
     api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
                          delete by a key; a TypedDict of the columns), one style for every source: the adapter's
                          connection(name).read and .write (2026-11-22); the imports it needs (a date's too)
@@ -770,6 +785,12 @@ src/swissarmybench/
                          (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
                          the session; api writes), log, address, scaffold (New endpoint from a table, appended to
                          API.py; its key kept by the sandbox); state brief (full: the OpenAPI document)
+    scaffold.py          the project scaffold kept as the user works: status, refresh (adapter.py once something
+                         reads through it, connections.py for the connections the project uses, README.md's
+                         Variables, data.py's structures, the sandbox mirror; only changed bytes; a hand edit kept),
+                         take (Take the new one), export_core (an export's adapter.py and connections.py), a refresh
+                         once the live notices settle; the type's deliverable from its contract.json (never named);
+                         `project_scaffold`
     api_export.py        Export for a target: the bundle, the made folder (only changed bytes, stale files gone,
                          a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
@@ -953,7 +974,10 @@ src/swissarmybench/
                          Azure SQL by mssql-python with the token, Dataverse's WhoAmI and roles, Graph's site, lists
                          and libraries, a lake path's listing)
     team.py              a team's local copy and this library as files: hashes, copy, the layout written, show
-    sandbox.py           a project's sandbox file: DuckDB with external access off, one lock, the baseline and the
+    scaffold.py          the project scaffold's made files read, written atomically (only changed bytes), removed
+    sandbox.py           a project's sandbox file (move_old: an older .sab/sandbox/ copied to sandbox/, checked file
+                         by file, then removed; gitignore: the top's `sandbox/` line; drop_all: Remove the sandbox):
+                         DuckDB with external access off, one lock, the baseline and the
                          checkpoints as whole-file copies (Reset is one copy; one table from the baseline read
                          alone), sandbox.json; a read's rest as Arrow (query_paged), keys (set_key: the file and
                          its baseline), definitions (define, kind_of); API.py's file (LocalApiFiles); an export's
@@ -1018,7 +1042,7 @@ src/swissarmybench/
                          processes, snapshots, connections, apis, folders, workbench, table_cells, lineage,
                          projects, project_scope, project_outline, navigation, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
-                         connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
+                         connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, scaffold, local_api,
                          explorer, library,
                          shared_catalog, team, found_connections, script_ide, debugger, sharing, actions). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
@@ -1132,7 +1156,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (282 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (283 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid
                          and Plotly (each loads when first needed; svgSafe cleans drawings);
@@ -1514,6 +1538,10 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          Play (the name only), else "unknown"; the app's Outs app.viewer, _email, _id, _roles; each
                          Out[Table]'s columns noted in Play and Launch, .sab_columns.json); a widget or a container
                          Hidden in the app (and a container of only such) taking no space; a container's title in the flow, its widgets in a box below it; the kernel's setup
+                         Export folds Play's files into the fewest (folded: app.py holds the pages as functions,
+                         the layout, the wiring and the runtime; widgets.py the widgets; sab_actions.json inside
+                         app.py, folded_actions reads it back); a `[Conn].table` in an export read through adapter.py
+                         and connections.py beside it (_connection_table, kept with cache_resource)
     domain/builds.py     Launch's builds (builds/<app>/<n>/ at the project's top: the files, canvas.json, build.json):
                          what changed between two canvases in words (canvas_changes), a build's widgets read back
                          with ast (widget_code), compare file by file

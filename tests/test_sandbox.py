@@ -182,9 +182,9 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
         assert by["orders"]["rows"] == 3 and by["notes"]["rows"] == 0
         assert by["notes"]["columns"][0] == {"name": "id", "type": "BIGINT", "key": True}
         assert by["orders"]["client"] == {"kind": "duckdb"}
-        assert (folder / ".sab" / "sandbox" / "sandbox.duckdb").exists()
+        assert (folder / "sandbox" / "sandbox.duckdb").exists()
         assert "sandbox/" in (folder / ".sab" / ".gitignore").read_text(encoding="utf-8")
-        assert ".sab/sandbox/" in (folder / ".gitignore").read_text(encoding="utf-8")
+        assert "sandbox/" in (folder / ".gitignore").read_text(encoding="utf-8")
         # Open in Grids: follows every write, where it is.
         opened = ok(client.post("/sandbox/tables/open", json={"table": "orders"}, headers=AUTH))
         box_grid = opened["grid"]

@@ -197,10 +197,16 @@ def test_play_launch_and_export_are_one_builder(
     exported = ok(
         client.post(f"/streamlit/canvases/{canvas}/export", headers=AUTH, json={"folder": str(out)})
     )
-    assert (out / "app_pages" / "page_1.py").read_text() == page
-    assert {"app.py", "sab_canvas.py", "sab_widgets.py", "requirements.txt", "data/orders.parquet"} <= set(
-        exported["files"]
-    )
+    # The export is the same builder's files folded into the fewest (Plans/adapter.plan.md): the page is a
+    # function of app.py, its code the page's, and the widgets are widgets.py.
+    from swissarmybench_streamlit.domain import canvas_build
+
+    app = (out / "app.py").read_text()
+    assert "def _page_page_1() -> None:" in app
+    assert canvas_build._indented(canvas_build._page_body(page)) in app
+    assert {"app.py", "widgets.py", "requirements.txt", "data/orders.parquet"} <= set(exported["files"])
+    assert not {"sab_canvas.py", "sab_widgets.py"} & set(exported["files"])
+    assert not (out / "app_pages").exists()
 
 
 def test_the_agents_export_waits_for_the_users_allow(

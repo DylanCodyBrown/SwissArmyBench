@@ -15,9 +15,10 @@ lose work or leave a broken page.
                    on disk (a pull, another app) is read again before anything is written
   play / check     the canvas's pages built (domain/canvas_build.py, the one builder) and run live, or
                    headless with AppTest
-  export           app.py, app_pages/*.py, sab_canvas.py, sab_widgets.py (the library's widgets inlined), the
-                   open tables it names as data/*.parquet, data.py when the project has one, requirements.txt;
-                   the agent's waits for the user's Allow
+  export           the fewest files (canvas_build.folded): app.py (the pages, the layout, the wiring and
+                   the runtime), widgets.py (the widgets inlined), data.py when the project has one,
+                   adapter.py and connections.py when a widget reads a connection's table, requirements.txt,
+                   README.md; the open tables it names as data/*.parquet; the agent's waits for Allow
 """
 
 from __future__ import annotations
@@ -76,6 +77,7 @@ class Canvases:
         real_path: Callable[[str], str] = lambda path: path,
         builds: Any = None,
         now: Callable[[], float] = time.time,
+        core_files: Callable[[list[str]], Awaitable[dict[str, Any]]] | None = None,
     ) -> None:
         self.ws = ws
         self._files = files  # adapters/widget_files.py CanvasFiles
@@ -88,6 +90,9 @@ class Canvases:
         self._list_folder = list_folder
         self._real = real_path
         self._builds = builds  # adapters/build_files.py BuildFiles (Launch's builds/ in the project)
+        # The base's project scaffold (services/scaffold.py export_core): adapter.py and connections.py for an
+        # export whose widgets read a connection's table.
+        self._core_files = core_files
         self._now = now
         self._open: dict[str, Open] = {}
         self.launches: Any = (
@@ -501,7 +506,23 @@ class Canvases:
         if not isinstance(folder, str) or not folder:
             raise ValueError('Send the folder to export into: {"folder": "..."}.')
         chosen = self._app_files.export_target(folder)
-        files, names = self._app(opened)
+        built, names = self._app(opened)
+        # The fewest files (Plans/adapter.plan.md): app.py (pages, layout, wiring, runtime), widgets.py,
+        # data.py, requirements.txt, README.md; adapter.py and connections.py when a widget reads a
+        # connection's table (read there on first use, never a copy of its rows); never a sandbox file.
+        named, in_code = _api_use(opened.canvas, built)
+        if not named and not in_code:  # it calls no API: api_adapter.py and the actions stay behind
+            built = {n: t for n, t in built.items() if n not in ("api_adapter.py", "sab_actions.json")}
+        files = build_rules.folded(opened.canvas, built)
+        read_live = sorted({n.split("]", 1)[0][1:] for n in names if n.startswith("[") and "]" in n})
+        core: dict[str, Any] = {"files": {}, "requirements": [], "variables": []}
+        if read_live and self._core_files is not None:
+            core = await self._core_files(read_live)
+        if core["files"]:
+            files |= core["files"]
+            names = {n for n in names if not n.startswith("[")}
+            wanted = [*build_rules.REQUIREMENTS, *core["requirements"]]
+            files["requirements.txt"] = "\n".join(dict.fromkeys(wanted)) + "\n"
         tables = await self._widgets.tables_for(names)
         if who == "agent":
             detail = f"Export the canvas {opened.path} into {chosen}" + (
@@ -512,17 +533,14 @@ class Canvases:
         # An app that calls the local sandbox API reads its address from these where it is deployed.
         # (sab_canvas.py always holds action and api_call: only a widget's, a page's or the wiring's use
         # counts; a wire that names only another API's action does not call the local one.)
-        wired = wiring.api_calls(opened.canvas)
-        named = [*wired, *_endpoint_values(opened.canvas)]
-        in_code = any(
-            _CALLS.search(t)
-            for n, t in files.items()
-            if n.endswith(".py") and n not in ("sab_canvas.py", "api_adapter.py") and not _client(n)
-        )
         local = any(not c.startswith("[") for c in named) or (in_code and not named)
         variables = list(API_VARIABLES) if local else []
         warnings = [f"Set {v} where it runs: {API_VARIABLES[v]}." for v in variables]
         lines = [f"- `{v}`: {API_VARIABLES[v]}\n" for v in variables]
+        for variable in core["variables"]:  # what connections.py reads (names only)
+            variables.append(variable)
+            warnings.append(f"Set {variable} where it runs: connections.py reads it.")
+            lines.append(f"- `{variable}`: connections.py reads it\n")
         # Another API's own client travels with the app (API_<name>.py): its sign-in's variables are named.
         for name in sorted(n for n in files if _client(n)):
             for variable in dict.fromkeys(_ENVIRON.findall(files[name])):
@@ -530,9 +548,11 @@ class Canvases:
                 warnings.append(f"Set {variable} where it runs: {name} reads it.")
                 lines.append(f"- `{variable}`: {name} reads it (its API's address or sign-in)\n")
         if variables:
-            files["README.md"] = API_README + "".join(lines)
-        # The project's own widgets the canvas uses go with it, as their files (widgets/<name>.widget.py).
-        files |= self._widgets.project_widgets(build_rules.used(opened.canvas))
+            calls = bool(named) or in_code
+            files["README.md"] = (API_README if calls else APP_README) + "".join(lines)
+        # The project's own widgets the canvas uses are in widgets.py, with the library's (never a sandbox
+        # file).
+        files = {n: t for n, t in files.items() if not n.startswith("sandbox")}
         where, written = self._app_files.export(chosen, files, tables)
         self.ws.audit.write(who, "export_canvas", f"{opened.path} -> {where}")
         return {"folder": where, "files": written, "variables": variables, "warnings": warnings}
@@ -555,6 +575,19 @@ _CALLS = re.compile(r"\b(?:api_call|action)\(|SAB_API_URL")
 _ENVIRON = re.compile(r"os\.environ\.get\(\s*\"([A-Za-z_][A-Za-z0-9_]*)\"")
 
 
+def _api_use(canvas: Mapping[str, Any], built: Mapping[str, str]) -> tuple[list[str], bool]:
+    """The API actions an app names (its wiring, its widgets' endpoint values), and whether its own code calls
+    one (sab_canvas.py always holds action and api_call: only a widget's, a page's or the wiring's use
+    counts)."""
+    named = [*wiring.api_calls(canvas), *_endpoint_values(canvas)]
+    in_code = any(
+        _CALLS.search(t)
+        for n, t in built.items()
+        if n.endswith(".py") and n not in ("sab_canvas.py", "api_adapter.py") and not _client(n)
+    )
+    return named, in_code
+
+
 def _client(name: str) -> bool:
     """A library API's own client file among an app's files (API_<name>.py, Add API's made file)."""
     return name.startswith("API_") and name.endswith(".py") and "/" not in name
@@ -566,6 +599,10 @@ def _endpoint_values(canvas: Mapping[str, Any]) -> list[str]:
     return [v for v in found if isinstance(v, str) and v]
 
 
+APP_README = (
+    "# The app\n\nRun it with `streamlit run app.py`.\n\n## Variables to set where it runs\n\nIts "
+    "connections are read through adapter.py and connections.py beside it: set these, never in a file.\n\n"
+)
 API_README = (
     "# The app\n\nRun it with `streamlit run app.py`.\n\n## Variables to set where it runs\n\nIt calls an "
     "API through api_adapter.py (the local sandbox API as it is deployed, or another API by its own client "

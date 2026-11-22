@@ -8,6 +8,24 @@ the Catalog's listing, file connections, the engine's first paths (the owner's a
 connection's Open as grid, the engine's cursor (the owner's answers after phase 3); phase 5 built (branch
 `adapter-5`, 2026-11-22): SQL Server's and Trino's writes in the adapter, so every write is the adapter's but
 the Excel sheet's; bootstrap() split by area over one typed record (the owner's answers after phase 4).
+The project scaffold built (branch `project-scaffold`, 2026-11-22): Order 4 (the export: the fewest files; a test
+that an exported app and API run with only them) and "Who writes what", "The sandbox lives in its own files".
+
+### What is built (the project scaffold)
+
+- The core files as the user works (domain/scaffold.py, services/scaffold.py): adapter.py (the app's own bytes, once
+  something reads through it), connections.py (a marked section per connection the project uses; names only),
+  README.md's Variables block, data.py's structures read as grids; nothing at New project beyond what it wrote
+  before; a section goes with its thing; a hand edit kept (Compare, Take the new one); `project_scaffold`. The
+  type's deliverable is listed from its contract.json; the base names none of an extension's files.
+- The sandbox mirror: sandbox/ at the project's top (moved once from .sab/sandbox/, checked, then removed),
+  sandbox_data.py, sandbox_connections.py (each connection's stand-in over the sandbox's file, never its code);
+  Remove the sandbox (`sandbox` drop) deletes the three and nothing else.
+- The export: a Streamlit app is app.py, widgets.py, data.py, adapter.py and connections.py (when a widget reads a
+  connection's table), requirements.txt, README.md; an API is API.py, adapter.py, connections.py, requirements.txt,
+  README.md and its framework file (sab_api folded in). tests/test_scaffold.py runs an exported app alone in a
+  fresh folder with AppTest; tests/test_api_export.py runs each exported API with only its files.
+- Decisions and what is open: docs/ideas.md "The project scaffold, the sandbox mirror and the fewest-files export".
 
 ### What is built (phase 5)
 

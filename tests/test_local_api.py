@@ -377,7 +377,7 @@ def test_new_endpoint_from_a_table_runs_its_crud_set_on_the_mocks(live: int, tmp
     _ask(port, "POST", "/sandbox/tables", {"from": "file", "path": str(csv)})
     _ask(port, "POST", "/sandbox/tables", {"from": "file", "path": str(csv), "name": "invoices"})
     # invoices as if read from a SQL Server connection: its mock speaks T-SQL.
-    meta_path = folder / ".sab" / "sandbox" / "sandbox.json"
+    meta_path = folder / "sandbox" / "sandbox.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     meta["tables"]["invoices"]["client"] = {
         "kind": "database",

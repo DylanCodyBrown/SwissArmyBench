@@ -269,6 +269,7 @@ def routes(services: Any) -> list[Any]:
         list_folder=folder_names,
         real_path=lambda path: os.path.realpath(os.path.expanduser(path)),
         builds=BuildFiles(),
+        core_files=getattr(getattr(services, "scaffold", None), "export_core", None),
     )
     # Launch, Builds and the Performance Analyzer (Visual Studio's F5, its history, its profiler).
     launches = Launches(canvases, live_runs, BuildFiles())

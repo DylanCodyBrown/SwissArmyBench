@@ -548,7 +548,8 @@ GITIGNORE: str = """\
 # Swiss Army Bench: rows kept with "Keep its rows" stay on this computer (data is sensitive).
 # Remove this line to commit them on purpose.
 .sab/data/
-.sab/sandbox/
+# The sandbox's rows (Add to sandbox): test data for the local sandbox API.
+sandbox/
 
 __pycache__/
 .ipynb_checkpoints/
@@ -568,9 +569,10 @@ in any editor. It is ordinary files, so it can be a Git repository.
 - `.sab/` is the app's own state: `project.json` (each table's source and steps, the tabs and windows),
   `visualizations.json` and `visualizations/` (Visualizations and its saved dashboards), `model.json`
   (the relationships).
-- `.sab/data/` holds a table's rows only when you ticked Keep its rows; `.sab/sandbox/` the sandbox's tables
-  (Add to sandbox), for the local sandbox APIs. Data is sensitive, so
-  `.gitignore` and `.sab/.gitignore` keep it out of Git; remove those lines to commit data on purpose.
+- `.sab/data/` holds a table's rows only when you ticked Keep its rows; `sandbox/` the sandbox's tables
+  (Add to sandbox), for the local sandbox APIs, described by `sandbox_data.py` and stood in for by
+  `sandbox_connections.py` (Remove the sandbox deletes those three, and nothing else). Data is sensitive, so
+  `.gitignore` and `.sab/.gitignore` keep the rows out of Git; remove those lines to commit data on purpose.
 - No password, token or secret is ever written here: a connection is named, and each computer finds its
   password in its own keyring, environment or key vault.
 - Export outline (the project's menu) writes `ARCHITECTURE.md`: the project for someone joining it.

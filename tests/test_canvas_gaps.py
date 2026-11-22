@@ -409,7 +409,7 @@ def test_the_projects_widgets_are_listed_first_and_win_over_the_librarys(
     assert (
         commands.COMMANDS["widgets_new"].run({"name": "mine_here", "where": "project"})["where"] == "project"
     )
-    # Export carries the project's own widgets the canvas uses, as their files
+    # Export carries the project's own widgets the canvas uses, inlined in widgets.py (the fewest files)
     canvas = ok(
         client.post("/streamlit/canvases", headers=AUTH, json={"name": "Sales", "folder": str(project)})
     )
@@ -424,9 +424,10 @@ def test_the_projects_widgets_are_listed_first_and_win_over_the_librarys(
     )
     out = tmp_path / "exported"
     done = ok(client.post(f"/streamlit/canvases/{cid}/export", headers=AUTH, json={"folder": str(out)}))
-    assert "widgets/orders_strip.widget.py" in done["files"]
-    assert "st.write(1)" in (out / "widgets" / "orders_strip.widget.py").read_text(encoding="utf-8")
-    assert "widgets/kpi_line.widget.py" not in done["files"]  # not on the canvas
+    inlined = (out / "widgets.py").read_text(encoding="utf-8")
+    assert "CODE['orders_strip']" in inlined and "st.write(1)" in inlined
+    assert "kpi_line" not in inlined  # not on the canvas
+    assert not any(f.startswith("widgets/") for f in done["files"])
     assert done["variables"] == []  # it calls no API
 
 

@@ -16,7 +16,7 @@ import sys
 import sysconfig
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import partial
@@ -57,6 +57,8 @@ from swissarmybench.adapters.project_explorer import ExplorerFiles, ExplorerSett
 from swissarmybench.adapters.projects import ProjectFiles
 from swissarmybench.adapters.sab_files import RecentProjects, SabArchive
 from swissarmybench.adapters.sandbox import ExportFolder, LocalApiFiles, SandboxFiles
+from swissarmybench.adapters.sandbox import gitignore as sandbox_gitignore
+from swissarmybench.adapters.scaffold import ScaffoldFiles
 from swissarmybench.adapters.script_ide import ScriptCode
 from swissarmybench.adapters.shared_catalog import CatalogFiles
 from swissarmybench.adapters.state_files import (
@@ -97,9 +99,12 @@ from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import sandbox as sandbox_rules
+from swissarmybench.domain import scaffold as scaffold_rules
 from swissarmybench.domain import variables as variable_rules
 from swissarmybench.domain.blades import Blade, env_settings
+from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connection_swap import Place
+from swissarmybench.domain.connections import connection_kind, opens_in_code
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
 from swissarmybench.domain.project_explorer import local_only_words as explorer_rules_words
@@ -178,6 +183,8 @@ from swissarmybench.services.relationship_scope import ProjectTables
 from swissarmybench.services.relationships import Compares, Finder, KeyFinder, Models
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.sandbox import Sandbox, SandboxAlias, SourcesFrom
+from swissarmybench.services.scaffold import Scaffold
+from swissarmybench.services.scaffold import Sources as ScaffoldSources
 from swissarmybench.services.script_export import ScriptExports
 from swissarmybench.services.script_ide import ScriptIde
 from swissarmybench.services.script_runs import ScriptRuns
@@ -273,6 +280,7 @@ class Services:
     sandbox: Sandbox
     local_api: LocalApi
     api_export: ApiExport
+    scaffold: Scaffold
     shared_catalog: SharedCatalog
     app_registrations: AppRegistrations
     script_runs: ScriptRuns
@@ -824,6 +832,7 @@ class Built:
     tie_out: TieOut
     script_exports: ScriptExports
     api_export: ApiExport
+    scaffold: Scaffold
 
     def has(self, name: str) -> bool:
         """Whether that part is built yet (a closure made before it asks, as the ready lists did)."""
@@ -1714,6 +1723,7 @@ def _sandbox_part(b: Built) -> None:
 
     def sandbox_ignore(folder: str) -> None:
         b.archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
+        sandbox_gitignore(folder)  # the rows' folder, sandbox/ at the project's top
 
     b.sandbox = sandbox = Sandbox(
         ws,
@@ -1735,6 +1745,14 @@ def _sandbox_part(b: Built) -> None:
         ignore=sandbox_ignore,
     )
     b.sandbox_alias = SandboxAlias(sandbox)
+
+    def sandbox_released(message: Mapping[str, Any]) -> None:
+        """A project closed: its sandbox's file let go (one process at a time holds a DuckDB file, so
+        sandbox_connections.py can run on it outside the app)."""
+        if message.get("type") == "project_changed" and sandbox.folder() is None:
+            sandbox.close()
+
+    b.live.listeners.append(sandbox_released)
     # The Sandbox as a connection (the owner, 2026-11-21): its card on the Connections page and its colour.
     b.connection_usage.extra_cards = lambda: [c for c in [sandbox.card()] if c is not None]
     b.connection_colours.fixed = lambda: (
@@ -2061,6 +2079,7 @@ def _exports(b: Built) -> None:
     for extension in b.on_extensions:
         for raw in getattr(extension, "API_TARGETS", ()) or ():
             api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
+    b.scaffold = _scaffold(b)
     local_api.target_ids = api_export.registry.ids
     local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]
     local_api.catalog = b.catalogs
@@ -2071,6 +2090,136 @@ def _exports(b: Built) -> None:
 
 
 # ----- what the doors are given -----
+
+
+def _scaffold(b: Built) -> Scaffold:
+    """The project scaffold kept as the user works (services/scaffold.py): what each made file is made of."""
+
+    def project() -> tuple[str, str] | None:
+        current = b.sab_projects.current
+        return (current.folder, current.name) if current is not None else None
+
+    def inside(path: str | None) -> bool:
+        found = project()
+        if found is None or not path:
+            return False
+        root = os.path.realpath(found[0]).replace("\\", "/").rstrip("/") + "/"
+        return os.path.realpath(path).replace("\\", "/").startswith(root)
+
+    def api_connections() -> list[str]:
+        found = project()
+        text = LocalApiFiles.read(str(Path(found[0]) / local_api_rules.FILE)) if found else None
+        if not text:
+            return []
+        try:
+            api = local_api_rules.parse(text)
+        except Exception:
+            return []
+        return [n for e in api.endpoints for n in e.connections]
+
+    def used() -> list[str]:
+        """The connections the open project uses: its documents' cells and canvases, its open tables, API.py's
+        endpoints; in the library's order (the order they were made), each once."""
+        named = {n.casefold() for n in api_connections()}
+        out: list[str] = []
+        for blade in b.blade_store.all():
+            if not opens_in_code(connection_kind(blade.kind, blade.template)):
+                continue
+            if blade.name.casefold() in named:
+                out.append(blade.name)
+                continue
+            try:
+                references, _ = b.connection_usage.references(blade.name)
+            except Exception:  # noqa: S112 (a connection that cannot be read is not counted)
+                continue
+            if any(r.kind == "grid" or inside(r.document) for r in references):
+                out.append(blade.name)
+        return out
+
+    def variables() -> dict[str, str]:
+        return {name: words for name, (words, _) in b.variables.sources().items()}
+
+    def documents_using(name: str) -> list[str]:
+        """The project's own documents that read the variable (never a file the scaffold made: its
+        connections.py reads what the connections read, said by their sections)."""
+        held = b.variables.sources().get(name)
+        found = project()
+        if held is None or found is None:
+            return []
+        out = []
+        for what, path in held[1]:
+            if not path or not inside(path):
+                continue
+            relative = os.path.relpath(os.path.realpath(path), os.path.realpath(found[0])).replace("\\", "/")
+            if relative not in scaffold_rules.MADE:
+                out.append(what)
+        return out
+
+    def structures() -> list[scaffold_rules.StructureGrid]:
+        found = project()
+        if found is None:
+            return []
+        out: list[scaffold_rules.StructureGrid] = []
+        for grid in b.ws.grids.all():
+            origin = b.datasets.origins.get(grid.dataset)
+            if origin is None or origin.kind != "structure" or not inside(origin.path):
+                continue
+            relative = os.path.relpath(str(origin.path), found[0]).replace("\\", "/")
+            if relative.lower().endswith(".json"):
+                out.append(
+                    scaffold_rules.StructureGrid(variable_name(grid.dataset), relative, origin.sql or "$")
+                )
+        return sorted(set(out), key=lambda s: s.variable)
+
+    def endpoints(text: str) -> int:
+        try:
+            return len(local_api_rules.parse(text).endpoints)
+        except Exception:
+            return 0
+
+    def contract(folder: str) -> dict[str, Any] | None:
+        """The project type's contract.json, from the extension (packaged or a folder) that adds the type."""
+        kind = b.projects.type_of(folder)
+        holders = [*extension_modules.enabled(), *(f.module for f in extension_modules.folders().values())]
+        for module in holders:
+            if module is None:
+                continue
+            try:
+                found = extension_modules.contract(module)
+            except Exception:  # noqa: S112 (a broken contract.json: said on the Extensions page)
+                continue
+            if found is not None and found["type"] == kind:
+                return found
+        return None
+
+    def names(folder: str) -> list[str]:
+        """The project top's files and folders (a folder as `name/`), for the contract's deliverable."""
+        try:
+            return sorted(e.name + ("/" if e.is_dir() else "") for e in os.scandir(folder))
+        except OSError:
+            return []
+
+    made = Scaffold(
+        b.ws,
+        project,
+        ScaffoldFiles(),
+        ScaffoldSources(
+            used=used,
+            connections=b.script_exports.connections_code,
+            adapter=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
+            variables=variables,
+            documents_using=documents_using,
+            sandbox=b.sandbox.mirror,
+            structures=structures,
+            edited=b.project_scope.edited_in,
+            touched=b.code_files.touched,
+            endpoints=endpoints,
+            contract=contract,
+            names=names,
+        ),
+    )
+    b.live.listeners.append(made.heard)
+    return made
 
 
 def _services(b: Built) -> Services:
@@ -2127,6 +2276,7 @@ def _services(b: Built) -> Services:
         sandbox=b.sandbox,
         local_api=b.local_api,
         api_export=b.api_export,
+        scaffold=b.scaffold,
         shared_catalog=b.shared_catalog,
         app_registrations=b.app_registrations,
         keys=b.key_finder,

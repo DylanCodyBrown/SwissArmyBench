@@ -5056,3 +5056,39 @@ Python 3.12.3, Starlette 1.9.0, uv 0.11.32, Chromium 1243 (Playwright's), on Lin
   Chromium here, not Edge.
 - Not verified: the system's trash on Windows and macOS for a folder extension (server/file_manager.trash, the same
   call a project's Delete makes); a folder extension's routes mounted while a request to them is in flight.
+
+## The project scaffold, the sandbox mirror and the fewest-files export (2026-11-22, branch project-scaffold)
+
+Python 3.12.3, DuckDB 1.x (the app's) and 2.0.0 with Streamlit 1.67.0 (the export's Python), Chromium 1243
+(Playwright's), on Linux.
+- An exported Streamlit app (app.py, widgets.py, adapter.py, connections.py, requirements.txt, README.md, data.py)
+  copied alone into a fresh folder and run by `python -I` in a Python that has never seen the app: AppTest of
+  app.py draws the data_table of `[Shop].customers`, read from a made-up SQLite file through connections.py's own
+  code and adapter.read, with no exception, warning or error (tests/test_scaffold.py). Streamlit's st.Page takes a
+  function (the folded pages), and AppTest runs app.py's st.navigation default page.
+- Streamlit runs app.py as the module `__main__` again on every rerun: the folded runtime's dicts start empty each
+  time, so a connection's table is kept with st.cache_resource (it survives reruns); a stand-in Streamlit without
+  cache_resource (the tests' own) gets the function as it is.
+- A module made from text with `types.ModuleType("sab_api")` must be in sys.modules BEFORE its code runs: its
+  dataclasses look themselves up there. Each exported API (FastAPI, Azure Functions, AWS Lambda) ran with only its
+  files in a fresh folder by `python -I` (tests/test_api_export.py, the stand-ins of FastAPI and azure.functions).
+- `python -I -c` leaves the working folder off sys.path: a script run that way inserts it first.
+- DuckDB lets one process hold a database file: sandbox_connections.py cannot open sandbox/sandbox.duckdb while the
+  app holds it ("Could not set lock on file"); the app now lets it go when its project closes, and the mirror then
+  reads the sandbox's tables through the adapter with no app.
+- The one-time move: `.sab/sandbox/` (a DuckDB file, sandbox.json, a checkpoint) copied, compared by size and
+  SHA-256, the old folder removed, the tables read again from sandbox/; a sandbox/ the user already had is never
+  moved over.
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`, PYTHONPATH pointing at this worktree's src):
+  5,133 passed, 41 skipped, 12 failed; of those, three were this branch's (the guide naming `sandbox_data` like a
+  command, two tests reading the old sab_actions.json and connections_code's answer) and were fixed and pass;
+  test_updater and test_script_export's fresh-Python test failed only because PYTHONPATH leaks into their child
+  Pythons and pass without it; test_cli's guide test, test_catalog's large catalog, test_project_outline,
+  test_intellisense_service, test_workbench's busy reader, test_desktop_shell and test_performance's million rows
+  failed under load and passed alone (or are the known load-flaky ones).
+- The browser tests in Chromium (test_canvas_page, test_canvas_gaps_page, test_sandbox, test_sandbox_gaps_page,
+  test_local_apis_page, test_forms_recon_app): 21 passed. ruff, ruff format, mypy, the page's typecheck and build:
+  clean.
+- Not checked: Edge; Windows and macOS (the move's replace and rmtree there); an exported app deployed on a hosted
+  Streamlit service or an API on a real Function App; a YAML, XML or TOML structure's line in data.py (not written
+  yet); the stress test.

@@ -373,6 +373,125 @@ def build(
     return files | dict(carried or {})
 
 
+# ===== the export: the fewest files (Plans/adapter.plan.md "The exported project: the fewest files") =====
+
+FOLDED_AWAY: tuple[str, ...] = ("sab_canvas.py", "sab_widgets.py", "sab_actions.json")
+WIDGETS_FILE = "widgets.py"
+
+
+def _indented(code: str) -> str:
+    """Code indented one level as a function's body, a line inside a multi-line string left as it is."""
+    import io
+    import tokenize
+
+    inside: set[int] = set()
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(code).readline):
+            if token.type == tokenize.STRING and token.end[0] > token.start[0]:
+                inside.update(range(token.start[0] + 1, token.end[0] + 1))
+    except (tokenize.TokenError, SyntaxError):
+        pass
+    lines = code.split("\n")
+    return "\n".join(
+        line if (at in inside or not line.strip()) else "    " + line for at, line in enumerate(lines, 1)
+    )
+
+
+def _page_body(text: str) -> str:
+    """A page file's code without its imports (the runtime is app.py itself in an export)."""
+    dropped = ("import streamlit as st", "import sab_canvas as sab")
+    lines = [line for line in text.rstrip("\n").split("\n") if line.strip() not in dropped]
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    return "\n".join(lines)
+
+
+def _folded_app(canvas: Mapping[str, Any], files: Mapping[str, str], first: str | None) -> str:
+    stems = page_files(canvas)
+    runtime = files["sab_canvas.py"].replace("\nimport sab_widgets\n", "\nimport widgets as sab_widgets\n", 1)
+    actions = files.get("sab_actions.json")
+    parts = [
+        f"# {canvas['name']}: made from its canvas (Swiss Army Bench). Run: streamlit run app.py",
+        "# Its pages, its layout and its wiring, and the canvas runtime every page calls (sab), in one file;",
+        "# its widgets are widgets.py. Edit the canvas, not this file.",
+        runtime.rstrip("\n"),
+        "",
+        "",
+        "# ===== the runtime as the pages and the widgets name it (sab, sab_canvas) =====",
+        "import sys as _sys  # noqa: E402",
+        "import types as _types  # noqa: E402",
+        "",
+        "sab = _types.SimpleNamespace(**{k: v for k, v in list(globals().items()) if k[:2] != '__'})",
+        "_sys.modules['sab_canvas'] = sab  # a widget's `from sab_canvas import table` finds it",
+    ]
+    if actions is not None:
+        parts += [
+            "import json as _json  # noqa: E402",
+            "",
+            "# Each API action the app calls, as it was when the app was built (types only).",
+            f"_KEPT['apis'] = _json.loads({_text(actions)!s})",
+        ]
+    for page in canvas["pages"]:
+        stem = stems[page["id"]]
+        body = _page_body(files[f"{PAGES}/{stem}.py"])
+        parts += ["", "", f"def _page_{stem}() -> None:", f'    """{page["name"]}: a page of the canvas."""',
+                  _indented(body)]  # fmt: skip
+    parts += ["", ""]
+    width = "wide"
+    parts.append(
+        f"st.set_page_config(page_title={json.dumps(canvas['name'], ensure_ascii=False)}, layout={width!r})"
+    )
+    parts.append("pages = [")
+    for page in canvas["pages"]:
+        stem = stems[page["id"]]
+        default = page["id"] == (first or canvas["pages"][0]["id"])
+        parts.append(
+            f"    st.Page(_page_{stem}, title={json.dumps(page['name'], ensure_ascii=False)}, "
+            f"url_path={stem!r}{', default=True' if default else ''}),"
+        )
+    parts.append("]")
+    position = "sidebar" if len(canvas["pages"]) > 1 else "hidden"
+    parts.append(f"st.navigation(pages, position={position!r}).run()")
+    return "\n".join(parts) + "\n"
+
+
+def folded(canvas: Mapping[str, Any], files: Mapping[str, str], first: str | None = None) -> dict[str, str]:
+    """The one builder's files (Play's and Launch's: app.py, app_pages/*.py, sab_canvas.py, sab_widgets.py,
+    sab_actions.json) folded into the fewest an export needs: app.py (the pages, the layout, the wiring and
+    the runtime) and widgets.py (the widgets the pages use); every other file (data.py, requirements.txt,
+    README.md, api_adapter.py, an API's own client) as it is. What runs is the same code: only where it sits
+    changes."""
+    out = {
+        n: t
+        for n, t in files.items()
+        if n not in FOLDED_AWAY and n != "app.py" and not n.startswith(PAGES + "/")
+    }
+    out["app.py"] = _folded_app(canvas, files, first)
+    out[WIDGETS_FILE] = files["sab_widgets.py"].replace(
+        "The canvas's widgets, from the library (Swiss Army Bench)",
+        "widgets.py: the canvas's widgets (Swiss Army Bench)",
+        1,
+    )
+    return out
+
+
+def folded_actions(app_py: str) -> str | None:
+    """The API actions' JSON an exported app.py carries (sab_actions.json's text, folded in; None: none)."""
+    import ast
+
+    for node in ast.parse(app_py).body:
+        if (
+            isinstance(node, ast.Assign)
+            and isinstance(node.targets[0], ast.Subscript)
+            and isinstance(node.value, ast.Call)
+            and node.value.args
+            and isinstance(node.value.args[0], ast.Constant)
+            and ast.unparse(node.targets[0]) == "_KEPT['apis']"
+        ):
+            return str(node.value.args[0].value)
+    return None
+
+
 def one_widget(name: str, built: Built, values: Mapping[str, Any], size: tuple[int, int]) -> dict[str, Any]:
     """A widget run alone (the Widgets window's Run, a preview): a canvas of one page, one container that
     has no border, one instance at its size (in both layouts)."""
@@ -699,6 +818,8 @@ def table(name: str = "") -> Any:
 
         return pd.read_parquet(path)
     if name.startswith("["):
+        if (_HERE / "connections.py").is_file() and (_HERE / "adapter.py").is_file():
+            return _connection_table(name).to_pandas()  # an export: through the project's adapter
         raise Missing(
             f"The table {name[:80]} was not read: its connection did not answer, or it is past the query "
             "limit. Check the connection on the Connections page."
@@ -711,6 +832,26 @@ def table(name: str = "") -> Any:
     if found is not None:
         return found
     raise Missing(f"The table {name} is not here: open it in Swiss Army Bench, or pick another table.")
+
+
+def _kept(fn: Any) -> Any:
+    """Kept across reruns (Streamlit's cache_resource; a stand-in Streamlit without it: as it is)."""
+    cache = getattr(st, "cache_resource", None)
+    return cache(show_spinner=False)(fn) if cache is not None else fn
+
+
+@_kept
+def _connection_table(name: str) -> Any:
+    """`[Conn].table` read once through adapter.py and connections.py beside the app (an exported project:
+    each connection's own code, its variables set where it runs), kept until the app restarts."""
+    import adapter
+    import connections  # noqa: F401  (adapter.use: each connection's name to its own client)
+
+    found = re.match(r"^\[([^\[\]]+)\]\.(.+)$", name)
+    if found is None:
+        raise Missing(f"{name[:80]} is not a connection's table: write it as [Connection].table.")
+    reader, _ = adapter.read(found.group(1), found.group(2).strip('"'))
+    return reader.read_all()
 
 
 LIMIT = 1000

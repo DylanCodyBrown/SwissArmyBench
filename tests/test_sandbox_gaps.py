@@ -448,6 +448,9 @@ def test_the_sandbox_is_never_exported_as_a_connection(tmp_path: Path) -> None:
         "text": "",
         "requirements": [],
         "variables": [],
+        "settings": [],
+        "readers": {},
+        "sections": [],
         "notes": [],
     }
 

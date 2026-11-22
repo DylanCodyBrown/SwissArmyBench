@@ -2,20 +2,22 @@
 the framework target, and get API code that is ready to go for that platform. Start with fast API, azure function app
 Linux python, or lambda Linux python; extensions can add new frameworks in the future").
 
-Every target is data: an id, its words, and `render(bundle)`: the project's files for that platform. They share
-API.py as it is (the endpoints never change), sab_api.py (server/api_runtime.py: the one request handler every
-target calls) and connections.py: each connection the endpoints use as its own portable code (the export's
+Every target is data: an id, its words, and `render(bundle)`: the project's files for that platform, the
+fewest that run it (Plans/adapter.plan.md "The exported project: the fewest files"): API.py as it is (the
+endpoints never change), adapter.py, connections.py, requirements.txt, README.md and the platform's one framework
+file, which carries sab_api (server/api_runtime.py: what API.py imports, the one request handler every target
+calls) folded in as a module of its own; api_adapter.py only when API.py calls another API. connections.py is each connection the endpoints use as its own portable code (the export's
 connections, as a script export writes them: its variables read from the environment, a vault's secrets by the
 platform's managed identity), so deploying is credentials, not a rewrite ("Export targets use the REAL client
 code"). `connection("Sandbox")` (a table from a file, or made empty) is a copy of the sandbox, bundled as
 data/sandbox.duckdb only on the user's tick, copied to the platform's temporary folder at start (their package
 folders are read-only). No secret goes in any file: README.md lists the variables to set.
 
-  fastapi          main.py (a route per endpoint, its OpenAPI document), requirements.txt, README.md
-  azure_functions  function_app.py (the Python v2 model: @app.route per endpoint), host.json (no route prefix),
-                   local.settings.json (the variables' names, empty), requirements.txt, README.md
-  aws_lambda       lambda_function.py (API Gateway's REST and HTTP events, Function URLs), template.yaml (SAM:
-                   an HTTP API, Python 3.12 on Linux), requirements.txt, README.md
+  fastapi          main.py (a route per endpoint, its OpenAPI document inside)
+  azure_functions  function_app.py (the Python v2 model: @app.route per endpoint), and the platform's own
+                   host.json (no route prefix) and .funcignore
+  aws_lambda       lambda_function.py (API Gateway's REST and HTTP events, Function URLs), and SAM's own
+                   template.yaml (an HTTP API, Python 3.12 on Linux)
 
 Pure text: standard library only.
 """
@@ -117,7 +119,7 @@ def connections_module(registry: str, uses_sandbox: bool, names: Sequence[str]) 
         '"""Written by Swiss Army Bench: each connection the API\'s endpoints use, as its own code (its passwords\n'
         "read from the environment or a key vault, never written here). Change the connections in the app and\n"
         'export again, not this file."""\n\n'
-        "from __future__ import annotations\n\nimport os\n\nimport adapter\nimport sab_api\n"
+        "from __future__ import annotations\n\nimport os\n\nimport adapter\n"
     )
     body = registry.strip("\n")
     hook = [
@@ -135,7 +137,8 @@ def connections_module(registry: str, uses_sandbox: bool, names: Sequence[str]) 
         hook += ["    return adapter.source_from(connection(name), name=name)"]
     else:
         hook += ['    raise RuntimeError(f"This export has no connection named {name}.")']
-    hook += ["", "", "adapter.use(_source)", "sab_api.use_clients(adapter.Connection)", ""]
+    # connection(name) in API.py is then the adapter's Connection over it (sab_api's own fallback).
+    hook += ["", "", "adapter.use(_source)", ""]
     return head + ("\n\n" + body if body else "") + (_SANDBOX_COPY if uses_sandbox else "") + "\n".join(hook)
 
 
@@ -211,23 +214,64 @@ def _readme(bundle: Bundle, title: str, files: str, run: str, deploy: str, where
 
 _COMMON_FILES = (
     "- `API.py`: the endpoints, as written in the app (never changed by an export).\n"
-    "- `sab_api.py`: `@endpoint`, `connection()`, `records()` and the one request handler.\n"
     "- `adapter.py`: the adapter every read, write and payload goes through (Arrow in and out).\n"
-    "- `api_adapter.py`: every API call in and out: `run(action, inputs)` and its one envelope.\n"
-    "- `connections.py`: each connection's own code; `connection(name)` is the adapter's calls on it.\n"
-    "- `openapi.json`: the API's OpenAPI document."
+    "- `connections.py`: each connection's own code, a section each; `connection(name)` is the adapter's calls\n"
+    "  on it."
 )
+_API_ADAPTER_FILE = "\n- `api_adapter.py`: every call API.py makes to another API: `run(action, inputs)` and its one envelope."
+
+
+def calls_apis(api: str) -> bool:
+    """API.py calls another API through api_adapter (only then does the export carry it)."""
+    return "api_adapter" in api
+
+
+def _files_words(bundle: Bundle, own: str) -> str:
+    return _COMMON_FILES + (_API_ADAPTER_FILE if bundle.api_adapter and calls_apis(bundle.api) else "") + own
 
 
 def _common(bundle: Bundle) -> dict[str, str]:
     return {
         "API.py": bundle.api,
-        "sab_api.py": bundle.runtime,
         **({"adapter.py": bundle.adapter} if bundle.adapter else {}),
-        **({"api_adapter.py": bundle.api_adapter} if bundle.api_adapter else {}),
+        **({"api_adapter.py": bundle.api_adapter} if bundle.api_adapter and calls_apis(bundle.api) else {}),
         "connections.py": bundle.connections,
-        "openapi.json": json.dumps(bundle.openapi, indent=2, sort_keys=True) + "\n",
     }
+
+
+def _literal(text: str) -> str:
+    """Text as a Python string that reads as the text: a raw triple-quoted string when it can be."""
+    if "'''" not in text and not text.endswith(("\\", "'")) and "\r" not in text:
+        return "r'''" + text + "'''"
+    return repr(text)
+
+
+def runtime_module(bundle: Bundle) -> str:
+    """sab_api folded into the framework file: what API.py imports (`from sab_api import endpoint, ...`) made a
+    module of its own from its text and registered before connections.py and API.py are imported, so the
+    export needs no sab_api.py and its names never meet the framework file's."""
+    return (
+        "# ===== sab_api: @endpoint, connection(), records(), ApiError and the one request handler, as API.py\n"
+        "# imports them (Swiss Army Bench's runtime, folded in so the export is the fewest files) =====\n"
+        "import sys as _sys\nimport types as _types\n\n"
+        f"_SAB_API = {_literal(bundle.runtime)}\n"
+        'sab_api = _types.ModuleType("sab_api")\n'
+        "sab_api.__file__ = __file__\n"
+        '_sys.modules["sab_api"] = sab_api\n'
+        'exec(compile(_SAB_API, "sab_api", "exec"), sab_api.__dict__)  # noqa: S102 (the runtime above)\n\n'
+    )
+
+
+_IMPORTS = (
+    "import connections  # noqa: F401  (connection() gives each connection's own client)\nimport sab_api\n"
+)
+
+
+def _with_runtime(text: str, bundle: Bundle) -> str:
+    assert _IMPORTS in text  # noqa: S101 (each target's own text)
+    return text.replace(
+        _IMPORTS, runtime_module(bundle) + "import connections  # noqa: F401,E402  (each connection)\n", 1
+    )
 
 
 def _python_name(name: str) -> str:
@@ -249,7 +293,7 @@ def render_fastapi(bundle: Bundle) -> dict[str, str]:
     main = (
         f'"""{bundle.name}: the FastAPI app (exported by Swiss Army Bench). Run: uvicorn main:app"""\n\n'
         "from __future__ import annotations\n\n"
-        "import json\nfrom pathlib import Path\n\n"
+        "import json\n\n"
         "from fastapi import FastAPI, Request, Response\n"
         "from starlette.concurrency import run_in_threadpool\n\n"
         "import connections  # noqa: F401  (connection() gives each connection's own client)\n"
@@ -257,7 +301,7 @@ def render_fastapi(bundle: Bundle) -> dict[str, str]:
         "import API  # noqa: F401  (its @endpoint functions register themselves)\n\n"
         f"sab_api.BASE_PATH = {bundle.base_path!r}\n"
         f"app = FastAPI(title={bundle.name!r}, description={bundle.description!r})\n"
-        'OPENAPI = json.loads((Path(__file__).resolve().parent / "openapi.json").read_text(encoding="utf-8"))\n'
+        f"OPENAPI = json.loads({_literal(json.dumps(bundle.openapi, indent=1, sort_keys=True))})\n"
         "app.openapi = lambda: OPENAPI  # type: ignore[method-assign]\n\n\n"
         "async def _answer(request: Request) -> Response:\n"
         "    body = await request.body()\n"
@@ -269,7 +313,10 @@ def render_fastapi(bundle: Bundle) -> dict[str, str]:
     readme = _readme(
         bundle,
         "FastAPI",
-        _COMMON_FILES + "\n- `main.py`: the FastAPI app, a route per endpoint.\n- `requirements.txt`.",
+        _files_words(
+            bundle,
+            "\n- `main.py`: the FastAPI app, a route per endpoint, its OpenAPI document.\n- `requirements.txt`.",
+        ),
         "```\npython -m venv .venv\n.venv/bin/pip install -r requirements.txt\n.venv/bin/uvicorn main:app --port 8000\n```\n"
         "Then http://127.0.0.1:8000/docs.",
         "Any host that runs a Python web app on Linux: Azure App Service (`az webapp up --runtime PYTHON:3.12`,\n"
@@ -279,7 +326,7 @@ def render_fastapi(bundle: Bundle) -> dict[str, str]:
         "host's application settings",
     )
     return _common(bundle) | {
-        "main.py": main,
+        "main.py": _with_runtime(main, bundle),
         "requirements.txt": requirements_txt(("fastapi>=0.110", "uvicorn>=0.29"), bundle),
         "README.md": readme,
     }
@@ -330,11 +377,14 @@ def render_azure(bundle: Bundle) -> dict[str, str]:
     readme = _readme(
         bundle,
         "Azure Functions (Linux, Python)",
-        _COMMON_FILES + "\n- `function_app.py`: one HTTP function per endpoint (`@app.route`).\n"
-        "- `host.json`: no route prefix, so the paths are API.py's.\n"
-        "- `local.settings.json`: the variables' names for `func start`, their values empty (it is not deployed).\n"
-        "- `requirements.txt`.",
-        "With Azure Functions Core Tools 4:\n\n```\npython -m venv .venv\n.venv/bin/pip install -r requirements.txt\n"
+        _files_words(
+            bundle,
+            "\n- `function_app.py`: one HTTP function per endpoint (`@app.route`).\n"
+            "- `host.json`: no route prefix, so the paths are API.py's.\n"
+            "- `requirements.txt`.",
+        ),
+        "With Azure Functions Core Tools 4 (set the variables below in your shell, or in a local.settings.json of\n"
+        "your own: it is never deployed):\n\n```\npython -m venv .venv\n.venv/bin/pip install -r requirements.txt\n"
         "func start\n```",
         "```\naz functionapp create --name <app> --resource-group <group> --storage-account <storage> \\\n"
         "  --consumption-plan-location <region> --runtime python --runtime-version 3.12 --functions-version 4 \\\n"
@@ -343,10 +393,10 @@ def render_azure(bundle: Bundle) -> dict[str, str]:
         "callers send the function key (`?code=` or `x-functions-key`), or put Easy Auth in front.",
         "function app's Application settings",
     )
+    del local  # the variables' names are README.md's list (a local.settings.json is the user's own)
     return _common(bundle) | {
-        "function_app.py": app,
+        "function_app.py": _with_runtime(app, bundle),
         "host.json": json.dumps(host, indent=2) + "\n",
-        "local.settings.json": json.dumps(local, indent=2) + "\n",
         "requirements.txt": requirements_txt(("azure-functions",), bundle),
         "README.md": readme,
         ".funcignore": ".venv\n__pycache__\nlocal.settings.json\n",
@@ -410,10 +460,12 @@ def render_lambda(bundle: Bundle) -> dict[str, str]:
     readme = _readme(
         bundle,
         "AWS Lambda (Linux, Python)",
-        _COMMON_FILES
-        + "\n- `lambda_function.py`: the one handler (API Gateway REST and HTTP events, function URLs).\n"
-        "- `template.yaml`: AWS SAM: the function (Python 3.12) and an HTTP API in front of it.\n"
-        "- `requirements.txt`.",
+        _files_words(
+            bundle,
+            "\n- `lambda_function.py`: the one handler (API Gateway REST and HTTP events, function URLs).\n"
+            "- `template.yaml`: AWS SAM: the function (Python 3.12) and an HTTP API in front of it.\n"
+            "- `requirements.txt`.",
+        ),
         "With the AWS SAM CLI and Docker:\n\n```\nsam build\nsam local start-api\n```",
         "```\nsam build\nsam deploy --guided\n```\n"
         "Give the function's role what the connections need (Secrets Manager or Parameter Store for a password, set\n"
@@ -421,7 +473,7 @@ def render_lambda(bundle: Bundle) -> dict[str, str]:
         "function's environment (template.yaml's Variables, or the console)",
     )
     return _common(bundle) | {
-        "lambda_function.py": handler,
+        "lambda_function.py": _with_runtime(handler, bundle),
         "template.yaml": template,
         "requirements.txt": requirements_txt((), bundle),
         "README.md": readme,

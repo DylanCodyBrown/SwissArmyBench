@@ -4,8 +4,9 @@ through the API. Not use the connectors that way we could transform scaffold cre
 and
 then reset the data changes and try again. It makes for the ultimate sandbox").
 
-The sandbox is the project's own DuckDB file, `.sab/sandbox/sandbox.duckdb`, kept out of Git like
-`.sab/data/`.
+The sandbox is the project's own DuckDB file, `sandbox/sandbox.duckdb` at the project's top (the owner,
+2026-11-22: "separate sandbox files ... dont mix them into the app scaffold"; moved once out of an older
+project's `.sab/sandbox/`), kept out of Git like `.sab/data/`.
 Tables get in on the user's action only (an open grid's view, a connection's table read once, a file, an empty
 table defined by its columns). Its **baseline** is a copy of the file (`baseline.duckdb`): Reset puts every
 table
@@ -30,7 +31,18 @@ from dataclasses import dataclass, field
 from typing import Any
 
 NAME = "Sandbox"  # its name in DuckDB SQL: [Sandbox].orders
-FOLDER = ".sab/sandbox"
+FOLDER = "sandbox"  # the rows, at the project's top (Git-ignored)
+OLD_FOLDER = ".sab/sandbox"  # where an older project kept them: moved once on open (adapters/sandbox.py)
+IGNORE_LINE = "sandbox/"  # the project's .gitignore line for the rows
+# The sandbox mirror's two files beside the app's (Plans/adapter.plan.md "The sandbox lives in its own
+# files"):
+# made by services/scaffold.py; Remove the sandbox deletes them and FOLDER, and nothing else.
+DATA_FILE = "sandbox_data.py"
+CONNECTIONS_FILE = "sandbox_connections.py"
+MOVED = (
+    "The sandbox moved to the project's sandbox/ folder (it was in .sab/sandbox/), beside its two files "
+    "sandbox_data.py and sandbox_connections.py; .gitignore keeps its rows out of Git."
+)
 DB_FILE = "sandbox.duckdb"
 BASELINE_FILE = "baseline.duckdb"
 CHECKPOINTS = "checkpoints"
@@ -720,3 +732,17 @@ def touched(meta: Meta, tables: Iterable[str], at: str) -> None:
     for table in tables:
         if table in meta.tables:
             meta.tables[table]["changed_at"] = at
+
+
+def ignored(gitignore: str | None) -> str | None:
+    """The project's .gitignore with the sandbox's rows kept out (None: already there). An older project's
+    `.sab/sandbox/` line stays (harmless); only the missing line is added, at the end."""
+    lines = (gitignore or "").splitlines()
+    if any(
+        line.strip() in (IGNORE_LINE, "/" + IGNORE_LINE, IGNORE_LINE.rstrip("/"), "/sandbox")
+        for line in lines
+    ):
+        return None
+    head = (gitignore or "").rstrip("\n")
+    note = "# Swiss Army Bench: the sandbox's rows (made-up or copied test data) stay out of Git."
+    return (head + "\n\n" if head else "") + note + "\n" + IGNORE_LINE + "\n"

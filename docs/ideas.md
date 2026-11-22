@@ -8258,3 +8258,72 @@ An extension can be a plain folder in the library, `library/extensions/<id>/`, t
   scaffold); moving MODE into the contract is the next step. Copilot and Git add no project type and have none.
 - Not built: a folder's `starters/`, the Scripts page listing the library's extensions, a change to a folder's files
   noticed by itself (Load again is the user's or the agent's), `sources.py`, Turn off / Turn on.
+
+## The project scaffold, the sandbox mirror and the fewest-files export (the owner, 2026-11-22): built (branch project-scaffold)
+
+Plans/adapter.plan.md "The exported project: the fewest files that build the app" through its Power BI mock-up,
+design principles 12a and 12b. What was decided while building it (each the builder's call, sensible, open to the
+owner's word):
+
+- **When the core files appear.** Nothing is written at New project beyond what it wrote before. adapter.py comes
+  the first time something reads through it: a connection the project uses, an API.py with at least one endpoint
+  (New project's API.py has only a commented example, so it does not count), or a sandbox table. connections.py
+  comes with the first connection the project uses and goes with the last (its file removed, unless edited by
+  hand). "Uses" is what the Connections page already counts (connection_usage.references): a cell or canvas of the
+  project's own documents that names it, an open grid read from it, and API.py's endpoints' connection("...").
+- **A section per connection.** connections.py is the script export's own code for those connections (the same
+  pieces a script export and an API export carry), with each piece between `# ===== connection: <name> =====` and
+  `# ===== end of <name> =====` (a key vault a password comes from: `# ===== key vault: <name> =====`), its
+  variables named on the line under the mark. The shared helpers (settings, the vault helpers, the registry) stay
+  once, above and below the sections. SETTINGS holds names only: a plain value a script export keeps as its default
+  is taken out (None), in the project's connections.py and in the API export's alike (a behaviour change for an
+  exported API: a plain value is now set where it runs, like a secret; README.md lists it).
+- **README.md stays the user's.** Only a marked block (`<!-- swissarmybench: variables ... -->` to its close) is the
+  app's: each variable the project's connections or documents read, where it comes from in words (Key vault
+  <name>, This computer's keyring, Plain value, ...) and what uses it; never a value. The rest of README.md is left
+  byte for byte; the last variable gone takes the block away. The app's own made files are never counted as
+  documents that use a variable (connections.py read its own secret("...") calls back the first time: a loop).
+- **Hand edits.** `.sab/scaffold.json` keeps the SHA-256 of each made file as the app last wrote it (hashes only).
+  A file whose bytes are not that (or that the app never wrote, or that .sab/hand-edited.json marks) is the user's
+  from then on: never written over nor removed; status and refresh answer `kept` with both texts for Compare, and
+  take ({"file"}) writes the app's over it. adapter.py follows the same rule: a hand-edited adapter.py stays until
+  Take the new one.
+- **When it refreshes.** On the agent's or the page's call (`project_scaffold`: status, refresh, take; GET and POST
+  /project/scaffold, /project/scaffold/take), and by itself 1.5 s after a burst of the live notices that can change
+  a made file settles (blades_changed, sandbox_changed, variables_changed, project_changed, a file saved, ...).
+- **data.py's structures.** A structure opened as a grid from a JSON file in the project gets one line in data.py,
+  in a marked part with a small standard-library reader (`_records(file, path)`: the same nested keys dotted as
+  Open as grid). A YAML, XML or TOML structure is not written yet (its reader would need PyYAML or more code):
+  open. data.py's own export (Export data.py) does not carry the part yet: the next refresh puts it back.
+- **The sandbox mirror.** sandbox/ at the project's top (was .sab/sandbox/), moved once as the sandbox is first
+  opened: copied whole, each file compared by size and SHA-256, then the old folder removed (a failed check takes
+  the copy away and leaves the old one); never moved over a sandbox/ that already holds something; the project's
+  .gitignore gets `sandbox/` (only that line, added once); the sandbox's listing says it once (`notice`).
+  sandbox_data.py and sandbox_connections.py are written beside it, names only: a file source by its own name,
+  never its path or a query's text. sandbox_connections.py opens sandbox/sandbox.duckdb with DuckDB and points the
+  adapter at it for each connection it stands in for, the same names as connections.py, so `import
+  sandbox_connections` runs API.py and the app on the sandbox with no app. DuckDB lets one process hold the file:
+  the app now lets it go when the project closes (it held it until another project opened), and the mirror says
+  "The sandbox is open in Swiss Army Bench: close the project there" when it cannot. The local sandbox API run here
+  keeps its door through the app (adapter.Remote), as before: which side the adapter loads is decided where it
+  runs. Remove the sandbox (`sandbox` action drop, POST /sandbox/drop; the agent's on Allow) deletes sandbox/ and
+  the two files, nothing else.
+- **The fewest-files export (Streamlit).** Export folds the one builder's files: app.py holds the runtime
+  (sab_canvas, as it is, made a namespace `sab` and registered as `sab_canvas` for a widget's own import), each
+  page as a function (its code the page file's, indented, a line inside a multi-line string left alone), the
+  layout and st.navigation over st.Page(function); widgets.py is sab_widgets.py; sab_actions.json is a literal
+  inside app.py. adapter.py and connections.py join when a widget reads a connection's `[Conn].table`: the app
+  then reads it there on first use through the adapter (kept with Streamlit's cache_resource), so no copy of its
+  rows is exported for it. api_adapter.py (12b's file, carried as is) and an API's own client API_<name>.py come
+  only when the app calls an API; with them the export can be ten files (open: fold the client into app.py too?).
+  The project's own widget files no longer travel as widgets/<name>.widget.py: they are inlined in widgets.py with
+  the library's. An open table (not a connection's) still travels as data/<name>.parquet, as before: the plan's
+  "Keep a snapshot" tick is not built (open).
+- **The fewest-files export (an API).** API.py, adapter.py, connections.py, requirements.txt, README.md and the
+  target's framework file, which carries sab_api's text and makes it the module `sab_api` before connections.py
+  and API.py are imported (its names never meet the framework file's). FastAPI's main.py holds its OpenAPI document;
+  openapi.json, sab_api.py and local.settings.json are gone (the variables are README.md's list; a
+  local.settings.json is the user's own). Azure keeps host.json and .funcignore, Lambda template.yaml (the
+  platforms' own config, not code). api_adapter.py only when API.py calls another API. The sandbox's rows still go
+  as data/sandbox.duckdb only on the export's own tick (the user's choice, kept; open: does the owner's "an export
+  never includes a sandbox file" mean that copy too?). No sandbox_*.py and no sandbox/ in any export.

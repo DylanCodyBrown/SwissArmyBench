@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import hashlib
 import shutil
 import threading
 from collections.abc import Callable, Iterator, Sequence
@@ -95,10 +96,69 @@ class _Gate:
                     self._condition.notify_all()
 
 
+def _digest(path: Path) -> str:
+    found = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1 << 20), b""):
+            found.update(block)
+    return found.hexdigest()
+
+
+def move_old(project: str | Path) -> bool:
+    """An older project's `.sab/sandbox/` moved once to `sandbox/` at its top (Plans/adapter.plan.md): copied
+    whole, each file checked against its copy (size and SHA-256), and only then the old folder removed; a
+    check that fails leaves the old folder as it was and the copy is taken away again. Nothing moves when
+    `sandbox/` already holds something (the user's own folder, or a move done before). True: it moved."""
+    top = Path(project)
+    old, new = top / rules.OLD_FOLDER, top / rules.FOLDER
+    if not (old / rules.DB_FILE).is_file() and not (old / rules.META_FILE).is_file():
+        return False
+    if new.exists() and (not new.is_dir() or any(new.iterdir())):
+        return False
+    staging = top / (rules.FOLDER + ".moving")
+    shutil.rmtree(staging, ignore_errors=True)
+    shutil.copytree(old, staging)
+    copied = [p for p in old.rglob("*") if p.is_file()]
+    for source in copied:
+        twin = staging / source.relative_to(old)
+        if (
+            not twin.is_file()
+            or twin.stat().st_size != source.stat().st_size
+            or _digest(twin) != _digest(source)
+        ):
+            shutil.rmtree(staging, ignore_errors=True)
+            return False
+    if new.exists():
+        new.rmdir()
+    staging.replace(new)
+    shutil.rmtree(old, ignore_errors=True)
+    return True
+
+
+def gitignore(project: str | Path) -> None:
+    """The project's .gitignore keeps `sandbox/` out of Git (the line added once, the rest left)."""
+    path = Path(project) / ".gitignore"
+    try:
+        held = path.read_text(encoding="utf-8") if path.is_file() else None
+    except (OSError, UnicodeDecodeError):
+        return
+    made = rules.ignored(held)
+    if made is not None:
+        write_atomic(path, made.encode("utf-8"))
+
+
 class SandboxFiles:
-    """One project's sandbox: `folder` is the project's top."""
+    """One project's sandbox: `folder` is the project's top. An older project's `.sab/sandbox/` is moved to
+    `sandbox/` as it is first opened here (`moved`: said once by the service)."""
 
     def __init__(self, project: str) -> None:
+        self.top = Path(project)
+        try:
+            self.moved = move_old(project)
+        except OSError:
+            self.moved = False
+        if self.moved:
+            gitignore(project)
         self.root = Path(project) / rules.FOLDER
         self.db = self.root / rules.DB_FILE
         self.baseline = self.root / rules.BASELINE_FILE
@@ -136,6 +196,23 @@ class SandboxFiles:
     def close(self) -> None:
         with self._gate.exclusive():
             self._shut()
+
+    def drop_all(self) -> list[str]:
+        """Remove the sandbox: its folder (the rows, the baseline, the checkpoints, sandbox.json) and its two
+        files at the project's top, and nothing else. The paths removed, relative to the project."""
+        removed: list[str] = []
+        with self._gate.exclusive():
+            self._shut()
+            self._meta = None
+            if self.root.is_dir():
+                shutil.rmtree(self.root)
+                removed.append(rules.FOLDER + "/")
+            for name in (rules.DATA_FILE, rules.CONNECTIONS_FILE):
+                path = self.top / name
+                if path.is_file():
+                    path.unlink()
+                    removed.append(name)
+        return removed
 
     def _all(self, sql: str, params: Sequence[Any] = ()) -> list[tuple[Any, ...]]:
         """A statement's whole answer, on a cursor of its own (DuckDB wants each result finished)."""
