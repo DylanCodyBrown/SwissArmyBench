@@ -79,3 +79,11 @@ to the existing tables. Grids is just the visualization layer, not duplicate dat
 - **Is it in a grid:** a mark on the row ("In 2 grids", a click lists and opens them); a grid is a view, never a copy,
   so its memory is the table's.
 - **Made in the app:** From says so (Pasted, New query, Save as table from a grid, Add table), like a connection's.
+
+## Tabs by kind (the owner, 2026-11-22)
+"Should be grouped by type with a tab at the top to move between them instead of all one table." So the page has a
+tab for each kind (Tables, Values, Structures, Settings and secrets), each with its own columns (Tables: rows by
+columns, columns, grids, used in, from; Values: type, value, used in, from; Structures: format, size, paths, used in,
+file; Settings: kind, value, comes from, used in). The one search runs over every tab: each tab's count lights up
+with its matches, and a line names the other tabs that match ("Also matches in Values (1)"). Mockup: the published
+Environment Mockup, version 6.
