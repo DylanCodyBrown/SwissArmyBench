@@ -122,6 +122,31 @@ def test_a_sandbox_api_reaches_its_data_only_through_the_adapter() -> None:
     assert not _client_calls(example.read_text(encoding="utf-8"))
 
 
+ENGINE_MOVED = {
+    "adapters/export.py": ("batches",),  # every export's rows (CSV, Excel, Parquet, Markdown)
+    "adapters/datasets.py": ("query_table", "query_to_arrow_stream"),  # "+" tab, SQL box, a kernel's view
+}
+DIRECT_ROWS = {"to_arrow_reader", "to_arrow_table", "fetch_arrow_table", "fetchall", "fetchmany", "fetchone"}
+
+
+def test_the_engine_paths_that_moved_read_rows_only_through_the_adapter() -> None:
+    """Phase 3, step 5 (the rule covers the engine too): an export's rows, a query made a table (the "+" tab,
+    the SQL box) and a kernel's DuckDB SQL naming an open table are the adapter's query over the app's own
+    DuckDB session, never a cursor's rows read directly."""
+    for name, functions in ENGINE_MOVED.items():
+        tree = ast.parse((PACKAGE / name).read_text(encoding="utf-8"))
+        bodies = {f.name: f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef)}
+        for function in functions:
+            called = {
+                n.func.attr for n in ast.walk(bodies[function])
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            }  # fmt: skip
+            assert "query" in called, f"{name} {function} reads through sab_adapter.query"
+            assert not called & DIRECT_ROWS, (
+                f"{name} {function} reads rows itself: {sorted(called & DIRECT_ROWS)}"
+            )
+
+
 def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None:
     """Phase 2: a database connection's Open as grid is the adapter's read for DuckDB and each SQL dialect it
     folds a plan into (the old SELECT and COUNT text stays only for the dialects it does not know)."""

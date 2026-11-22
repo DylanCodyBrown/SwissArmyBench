@@ -33,6 +33,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.domain.datasets import Column
 from swissarmybench.domain.export import (
     FORMULA_STARTS,
@@ -76,8 +77,9 @@ _BATCH_ROWS: int = 50_000
 
 
 def batches(cursor: duckdb.DuckDBPyConnection, sql: str) -> pa.RecordBatchReader:
-    reader: pa.RecordBatchReader = cursor.sql(sql).to_arrow_reader(_BATCH_ROWS)
-    return reader
+    """The rows to export, read through the adapter (Plans/adapter.plan.md, phase 3): its query over the
+    app's own DuckDB session, streamed a batch at a time."""
+    return sab_adapter.query(sab_adapter.DuckDB.session(cursor, "the open tables"), sql)
 
 
 def _text_value(value: Any, options: ExportOptions, is_text: bool) -> str:

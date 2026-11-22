@@ -370,6 +370,17 @@ class DuckDB:
         return cls(opened, str(path))
 
     @classmethod
+    def session(cls, connection: Any, name: str = "DuckDB") -> DuckDB:
+        """A connection used as it is (its views and registered tables seen, never closed here): the app's
+        engine session, a query's own cursor."""
+
+        @contextlib.contextmanager
+        def same(writing: bool) -> Iterator[Any]:
+            yield connection
+
+        return cls(same, name)
+
+    @classmethod
     def over(cls, connection: Any, name: str = "DuckDB") -> DuckDB:
         @contextlib.contextmanager
         def cursor(writing: bool) -> Iterator[Any]:
@@ -1737,7 +1748,7 @@ class Files:
             return {self.path.stem: self.path}
         if not self.path.is_dir():
             raise AdapterError(f"{self.name} reaches no file or folder ({self.path}).")
-        found = {}
+        found: dict[str, Any] = {}
         for file in sorted(self.path.rglob("*")):
             if file.is_file() and file.suffix.lower() in FILE_FORMATS and not file.name.startswith("."):
                 relative = file.relative_to(self.path).with_suffix("").as_posix()
