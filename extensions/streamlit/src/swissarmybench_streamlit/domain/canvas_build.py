@@ -611,6 +611,13 @@ try:  # the Performance Analyzer's helper: beside a launched app's pages only (a
 except Exception:
     _perf = None
 
+# Play's stamp of the tables it reads (beside a played or launched app only, never an export's): rewritten
+# when one changes, so Streamlit's own file watcher runs the open pages again by itself.
+try:
+    import sab_live  # noqa: F401
+except Exception:
+    pass
+
 _HERE = Path(__file__).resolve().parent
 _INSTANCE: contextvars.ContextVar[str] = contextvars.ContextVar("sab_instance", default="w")
 _COMPILED: dict[tuple[str, str], Any] = {}
@@ -807,16 +814,39 @@ def as_table(found: Any, name: str = "") -> Any:
     raise Missing(f"{name or 'The value'} is not a table: wire it to a table, or an Out that holds one.")
 
 
+_READ: dict[str, tuple[tuple[int, int], Any]] = {}
+
+
+def _parquet(path: Path) -> Any:
+    """A table's Parquet as a DataFrame of the caller's own: read again only when its file changed (Play
+    writes it again when the table changes), else the frame read before, copied (a widget may change it)."""
+    import pandas as pd
+
+    try:
+        stat = path.stat()
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        kept = _READ.get(str(path))
+        if kept is None or kept[0] != stamp:
+            import io
+
+            # Its bytes in one read: a file written again meanwhile (a whole new file put in its place)
+            # is never read half from the one and half from the other.
+            kept = (stamp, pd.read_parquet(io.BytesIO(path.read_bytes())))
+            _READ[str(path)] = kept
+    except OSError:
+        return None
+    return kept[1].copy()
+
+
 def table(name: str = "") -> Any:
-    """A table by its name: the canvas's own copy (data/<name>.parquet; a connection's `[Conn].table` read
-    by the app as it ran), else data.py's, else none: said. No name: the made-up sample."""
+    """A table by its name: the canvas's own copy (data/<name>.parquet; in Play an open table, a sandbox
+    table or a connection's `[Conn].table` as it is now: written again when it changes), else data.py's,
+    else none: said. No name: the made-up sample."""
     if not name:
         return sample()
-    path = _HERE / "data" / f"{_stem(name)}.parquet"
-    if path.is_file():
-        import pandas as pd
-
-        return pd.read_parquet(path)
+    found = _parquet(_HERE / "data" / f"{_stem(name)}.parquet")
+    if found is not None:
+        return found
     if name.startswith("["):
         if (_HERE / "connections.py").is_file() and (_HERE / "adapter.py").is_file():
             return _connection_table(name).to_pandas()  # an export: through the project's adapter

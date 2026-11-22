@@ -131,6 +131,7 @@ class Launches:
             tables,
             self._canvases._widgets.python(body),
             analyzer=bool(body.get("analyzer")),
+            names=names,
         )
         return answer | {"changed": changed, "folder": build}
 
@@ -144,6 +145,7 @@ class Launches:
         tables: dict[str, bytes],
         python: str,
         analyzer: bool,
+        names: set[str] | None = None,
     ) -> dict[str, Any]:
         run_files = dict(files)
         if "app.py" in run_files:
@@ -151,7 +153,7 @@ class Launches:
         run_files[rules.PERF_HELPER] = self._builds.perf_helper()
         key = self._key(canvas)
         started = clock.perf_counter()
-        answer: dict[str, Any] = await self._live.run(key, run_files, tables, python)
+        answer: dict[str, Any] = await self._live.run(key, run_files, tables, python, names=names or ())
         first = (clock.perf_counter() - started) * 1000
         problem = answer.get("problem") if not answer.get("ok") else None
         text = self._builds.read_one(build, rules.BUILD_FILE)
@@ -199,7 +201,15 @@ class Launches:
         tables = await self._canvases._widgets.tables_for(names)
         self.ws.audit.write(who, "build_relaunch", f"{name}: build {n}")
         return await self._run(
-            canvas, name, n, build, code, tables, self._canvases._widgets.python(body), analyzer=False
+            canvas,
+            name,
+            n,
+            build,
+            code,
+            tables,
+            self._canvases._widgets.python(body),
+            analyzer=False,
+            names=names,
         )
 
     async def stop(self, canvas: str, who: str = "user") -> dict[str, Any]:

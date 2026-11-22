@@ -1,6 +1,12 @@
 """Live Streamlit runs: a widget run alone (the Widgets window's Run) and a canvas's Play, each a process of
 its own started by server/streamlit_apps.py's Runner in a temporary folder of the app's, passed through the
 Streamlit proxy at /streamlit/run/<key>-<secret>/; and the same pages run headless with AppTest (`check`).
+
+A run follows live data (the owner, 2026-11-22: "yea live changes"): the tables it names are remembered, and
+when one changes (services/live_tables.py hears it) `follow` writes that table's data/<stem>.parquet again,
+only when its bytes changed, and then sab_live.py's stamp: a module the runtime imports, so Streamlit's own
+file watcher (poll, runOnSave) runs every open page again by itself. The runtime reads a table's Parquet again
+only when its file changed (its time and size).
 """
 
 from __future__ import annotations
@@ -10,13 +16,29 @@ import contextlib
 import json
 import os
 import secrets
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from swissarmybench.adapters.atomic_files import write_atomic
+from swissarmybench_streamlit.domain.canvas_build import table_stem
+from swissarmybench_streamlit.domain.widget_properties import connection_of
+
 RUN_PATH = "/streamlit/run/"
 CHECK_SECONDS = 90.0
+FOLLOWED_FILES = ("data.py",)  # a run's files that follow the project's own (data.ipynb's export)
+LIVE_FILE = "sab_live.py"  # the stamp the runtime imports: rewritten, the open pages run again
+
+
+def live_text(version: int) -> str:
+    """sab_live.py: the stamp of the tables a run reads (never a value, a name or a row)."""
+    return (
+        '"""Swiss Army Bench rewrites this stamp when a table this app reads changes: '
+        'its pages run again."""\n'
+        f"VERSION = {int(version)}\n"
+    )
+
 
 # The headless check (AppTest), run in the app's own Python in its run folder: each page's exceptions, errors
 # (a widget's own error panel), warnings and how many of a few kinds of element it drew.
@@ -63,6 +85,10 @@ class Live:
     process: Any = None
     python: str = ""
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # What it follows: the table names its pages read, the followed files it was given (data.py), the stamp.
+    names: frozenset[str] = frozenset()
+    followed: frozenset[str] = frozenset()
+    version: int = 0
 
     @property
     def base(self) -> str:
@@ -109,12 +135,21 @@ class LiveRuns:
         return None
 
     async def run(
-        self, key: str, files: Mapping[str, str], tables: Mapping[str, bytes], python: str, page: str = ""
+        self,
+        key: str,
+        files: Mapping[str, str],
+        tables: Mapping[str, bytes],
+        python: str,
+        page: str = "",
+        names: Iterable[str] = (),
     ) -> dict[str, Any]:
         """The files written (only what changed: Streamlit runs its open pages again) and the process
-        started when it is not running. Its address, or the problem."""
+        started when it is not running. Its address, or the problem. `names`: the tables its pages read,
+        followed while it runs (`follow`)."""
         live = self._runs.setdefault(key, Live(key))
         async with live.lock:
+            live.names = frozenset(names)
+            live.followed = frozenset(FOLLOWED_FILES) & frozenset(files)
             if live.process is not None and (not live.process.alive() or live.python != python):
                 await live.process.stop()
                 live.process = None
@@ -125,6 +160,8 @@ class LiveRuns:
             if live.folder is None:
                 live.folder = self._files.folder()
             self._write(live.folder, files, tables)
+            stamp = Path(live.folder) / LIVE_FILE
+            write_atomic(stamp, live_text(live.version), if_changed=True, newline="\n")
             if live.process is None:
                 try:
                     live.process = await self._runner.start(python, live.folder, live.base)
@@ -137,9 +174,43 @@ class LiveRuns:
                 self._files.touch(live.folder, "app.py")
         return {"ok": True, "url": f"{live.base}/{page}" if page else f"{live.base}/", "base": live.base}
 
-    def _write(self, folder: str, files: Mapping[str, str], tables: Mapping[str, bytes]) -> None:
-        from swissarmybench.adapters.atomic_files import write_atomic
+    async def follow(
+        self,
+        wanted: Callable[[str], bool],
+        read: Callable[[set[str]], Awaitable[Mapping[str, bytes]]] | None,
+        files: Mapping[str, str | None] | None = None,
+    ) -> list[str]:
+        """The running runs that read a changed table brought up to date: the tables `wanted` picks among
+        each run's names read once (`read`: their Parquet by stem), each run's file written only when its
+        bytes changed (an open table no longer open: its file taken away, so the page says so), a followed
+        file (data.py) the same; then its stamp, so its open pages run again. The runs' keys that changed."""
+        lives = [live for live in self._runs.values() if live.running() and live.folder]
+        names = {n for live in lives for n in live.names if wanted(n)}
+        found: Mapping[str, bytes] = {}
+        if names and read is not None:
+            found = await read(names)
+        changed: list[str] = []
+        for live in lives:
+            async with live.lock:
+                if not live.running() or not live.folder:
+                    continue
+                moved = False
+                for name in sorted(n for n in live.names if n in names):
+                    stem = table_stem(name)
+                    if stem in found:
+                        moved |= self._files.write_table(live.folder, stem, found[stem]) is not False
+                    elif connection_of(name) is None:  # an open table closed: no copy of it stays
+                        moved |= self._files.drop_table(live.folder, stem)
+                for name, text in (files or {}).items():
+                    if name in live.followed and text is not None:
+                        moved |= write_atomic(Path(live.folder) / name, text, if_changed=True, newline="\n")
+                if moved:
+                    live.version += 1
+                    write_atomic(Path(live.folder) / LIVE_FILE, live_text(live.version), newline="\n")
+                    changed.append(live.key)
+        return changed
 
+    def _write(self, folder: str, files: Mapping[str, str], tables: Mapping[str, bytes]) -> None:
         root = Path(folder)
         for name, text in files.items():
             write_atomic(root / name, text, if_changed=True, newline="\n")

@@ -254,7 +254,7 @@
                   ]
                 },
                 "orders": {
-                  "endpoint": "GET /work_orders"
+                  "table": "[Sandbox].work_orders"
                 },
                 "technician": {
                   "out": "w2.value"

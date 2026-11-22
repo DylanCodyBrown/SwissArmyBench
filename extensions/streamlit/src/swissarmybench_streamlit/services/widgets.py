@@ -631,10 +631,11 @@ class Widgets:
         the editor holds it, saved or not)."""
         files, canvas = self._one_app(name, body)
         context = self.context((body or {}).get("values") if isinstance(body, dict) else None)
-        tables = await self.tables_for(self.named_tables(canvas, self._built_one(name, body), context))
+        names = self.named_tables(canvas, self._built_one(name, body), context)
+        tables = await self.tables_for(names)
         key = f"widget{_key((body or {}).get('window') if isinstance(body, dict) else None)}"
         started = time.monotonic()
-        answer: dict[str, Any] = await self.live.run(key, files, tables, self.python(body))
+        answer: dict[str, Any] = await self.live.run(key, files, tables, self.python(body), names=names)
         self.ws.audit.write(who, "run_widget", name)
         return answer | {"widget": name, "seconds": round(time.monotonic() - started, 2), "key": key}
 

@@ -17,6 +17,7 @@ import functools
 import hashlib
 import json
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -26,7 +27,11 @@ _HERE = Path(__file__).resolve().parent
 _ON = _HERE / "sab_perf.on"
 _LOG = _HERE / "sab_perf.jsonl"
 _LOCK = threading.Lock()
-_STATE: dict[str, Any] = {"run": None, "values": {}, "page": None, "patched": False, "caches": {}}
+# Kept in sys, not in this module: Streamlit loads the app's own modules again when one changes (Play's live
+# data stamp, sab_live.py), and a fresh copy of this state would patch the readers a second time.
+_STATE: dict[str, Any] = sys.__dict__.setdefault(
+    "_sab_perf_state", {"run": None, "values": {}, "page": None, "patched": False, "caches": {}}
+)
 
 
 def _on() -> bool:

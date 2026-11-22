@@ -5870,3 +5870,34 @@ The checks, on the final tree:
   old one); neither touches this branch's changes.
 - In Chromium (the e2e conftest's browser pointed at this machine's Chromium for the run only, never committed):
   test_field_service_app, test_forms_recon_app and test_canvas_page: 6 passed.
+
+## Play follows live data, 2026-11-22 (branch play-live)
+
+The owner's call ("yea live changes"): a table a playing page reads follows its changes. How it was checked:
+- `tests/test_play_live.py` (7 tests, about 8 s; the Streamlit process stood in for, the files real): which
+  table names a notice reads again (an open table after a grid's notice; only the `[Sandbox].x` tables a write
+  names; never another connection's); the runtime's `_parquet` (run from RUNTIME's own text) reads a file again
+  only when its time or size changed and hands out a copy; the stamp holds a number only; on a playing canvas a
+  sandbox grid edit, then a second one, shows in the run's Parquet and moves sab_live.py's stamp without
+  playing again, the open table it did not touch left unwritten; an open table's sort step shows, the same step
+  again writes nothing, closing it takes its copy away; a stopped run follows nothing; data.py written again
+  (its file_changed) is copied into the run, another file's change is not. Run three times: the same.
+- In a browser (Chromium; the e2e conftest pointed at this machine's Chromium for the run only, never
+  committed): tests/e2e/test_field_service_app.py with the visit card wired to `[Sandbox].work_orders` again:
+  Mark done shows the next visit; then the next visit marked done from outside the page (POST /visits/done
+  through /local-api/call, no click on the page) and the page ran again by itself and moved on. With the
+  listener taken out for one run, it failed at Mark done already (the card stayed on the visit just done, 1003,
+  for 60 s instead of moving to 1010): the table followed is what moves it.
+- tests/test_field_service_app.py (17 tests): the example written again with `SAB_FIELD_SERVICE_KEEP=1` (one
+  change: the card's `orders` wire, `{"table": "[Sandbox].work_orders"}` for `{"endpoint": "GET /work_orders"}`),
+  then compared byte for byte: passed.
+- Found on the way: Streamlit's poll watcher compares a changed file's content hash, so touching app.py (what a
+  second Play did "so Streamlit runs its open pages again") runs nothing by itself; the stamp is rewritten with a
+  new number instead. Reading a Parquet file by path while it is replaced could read two files ("Page was
+  smaller than expected" once in the test's own reader): the runtime reads its bytes in one go.
+- Streamlit loads the app's own modules again when a watched one changes, so sab_perf.py's state moved into
+  `sys` (its readers are not patched twice on a launch with the analyzer).
+- The checks, on the final tree: ruff, ruff format, mypy (1,045 files), the page's typecheck: clean. The quick
+  suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,383 passed, 40 skipped, 1 failed
+  (test_desktop_shell's Ctrl+W under the run's load; it passes alone, 2 of 2). In Chromium: the canvas, canvas
+  gaps, widgets, widget packs, widget wiring, forms recon and field service pages, 19 passed.

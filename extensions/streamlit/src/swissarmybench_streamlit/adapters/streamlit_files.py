@@ -47,8 +47,18 @@ class AppFiles:
         if target.is_file():
             os.utime(target)
 
-    def write_table(self, folder: str, name: str, data: bytes) -> None:
-        write_atomic(Path(folder) / "data" / f"{name}.parquet", data)
+    def write_table(self, folder: str, name: str, data: bytes) -> bool:
+        """A table's Parquet in the run's data/, written only when its bytes changed (so the page, which
+        reads it again only when its file changed, keeps what it read): whether it was written."""
+        return write_atomic(Path(folder) / "data" / f"{name}.parquet", data, if_changed=True)
+
+    def drop_table(self, folder: str, name: str) -> bool:
+        """A table's Parquet taken away (its table is no longer open): whether there was one."""
+        target = Path(folder) / "data" / f"{name}.parquet"
+        if not target.is_file():
+            return False
+        target.unlink(missing_ok=True)
+        return True
 
     def read(self, folder: str, name: str) -> str | None:
         """A small file the live app wrote in its folder (its session's state); None: not there yet."""

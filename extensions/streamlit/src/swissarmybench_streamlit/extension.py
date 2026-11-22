@@ -285,6 +285,28 @@ def routes(services: Any) -> list[Any]:
     services.launches = launches
     services.live_runs = live_runs
     services.previewer = previewer
+    # Play follows live data: a table a playing page reads, written again into its run when it changes (a
+    # sandbox write, a grid's steps, a reload, data.py), and its open pages run again by themselves.
+    from swissarmybench_streamlit.services.live_tables import LiveTables
+
+    def project_data_py() -> str | None:
+        folder = project_folder()
+        return read_text(str(Path(folder) / "data.py")) if folder else None
+
+    def is_data_py(path: str) -> bool:
+        folder = project_folder()
+        if not folder or not path:
+            return False
+        try:
+            return Path(path).resolve() == (Path(folder) / "data.py").resolve()
+        except (OSError, ValueError):
+            return False
+
+    live_tables = LiveTables(live_runs, widgets.tables_for, project_data_py, is_data_py)
+    listeners = getattr(getattr(services.ws, "live", None), "listeners", None)
+    if isinstance(listeners, list):
+        listeners.append(live_tables.heard)
+    services.live_tables = live_tables
 
     hooks = services.hooks
     hooks.app_document = GoneApp()  # an old .stapp.json: said in one line
