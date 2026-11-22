@@ -153,7 +153,12 @@ def test_share_a_launched_canvas_app_from_plays_menu(
     expect(dialog.locator("h2")).to_have_text("Share regional_sales")
     if dialog.locator(".share-install").count():
         dialog.locator(".share-install").click()
-    dialog.locator(".share-device-code").click()
+    # Signed in already when the test before it signed in to the same stand-in (its sign-in is devtunnel's,
+    # kept beside it): then Share comes straight away, as it does for a person who signed in earlier.
+    signed_in_or_not = dialog.locator(".share-device-code, .share-start")
+    expect(signed_in_or_not.first).to_be_visible(timeout=20_000)
+    if dialog.locator(".share-device-code").is_visible():
+        dialog.locator(".share-device-code").click()
     expect(dialog.locator(".share-start")).to_be_visible(timeout=20_000)
     dialog.locator(".share-start").click()
     expect(dialog).to_have_attribute("data-state", "sharing", timeout=120_000)
