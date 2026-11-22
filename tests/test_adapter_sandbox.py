@@ -1,6 +1,6 @@
 """A local sandbox API's data through the adapter (Plans/adapter.plan.md, phases 1 and 3): the sandbox is its
-one backend (sab_adapter.Remote, Arrow IPC both ways through the app's data door), connection(name) is the
-adapter's calls on it, and API.py itself may call `sab_adapter` by name in its own process. Made-up data
+one backend (adapter.Remote, Arrow IPC both ways through the app's data door), connection(name) is the
+adapter's calls on it, and API.py itself may call `adapter` by name in its own process. Made-up data
 only."""
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
 from tests.conftest import AUTH, TOKEN, make_client
@@ -42,32 +42,30 @@ def boxed(tmp_path: Path) -> Iterator[TestClient]:
 
 def test_the_sandbox_through_the_adapter_lists_reads_with_a_plan_and_writes(boxed: TestClient) -> None:
     source = TestRemote(boxed, "Sandbox")
-    listed = {t.name: t for t in sab_adapter.tables(source)}
+    listed = {t.name: t for t in adapter.tables(source)}
     assert [c.name for c in listed["tasks"].columns] == ["id", "title", "status", "hours"]
-    plan = sab_adapter.Plan(
-        filters=(sab_adapter.Filter("status", "=", "Open"),), sort=(("hours", True),), limit=2
-    )
-    reader, folded = sab_adapter.read(source, "TASKS", plan)
+    plan = adapter.Plan(filters=(adapter.Filter("status", "=", "Open"),), sort=(("hours", True),), limit=2)
+    reader, folded = adapter.read(source, "TASKS", plan)
     assert folded.parts == ("filters", "sort", "limit")
     assert reader.read_all().column("title").to_pylist() == ["Mend the fence", "Count the shed"]
-    done = sab_adapter.write(
+    done = adapter.write(
         source, "tasks", pa.table({"id": [2, 9], "status": ["Open", "Open"]}), ("id",), "update"
     )
-    assert done == sab_adapter.Counts(updated=1)
+    assert done == adapter.Counts(updated=1)
     log = boxed.get("/sandbox", headers=AUTH).json()["log"]
     assert log["tasks"]["updated"] == 1  # counted as any API write (Reset undoes it)
-    with pytest.raises(sab_adapter.AdapterError, match="has no table invoices"):
-        sab_adapter.read(source, "invoices")
+    with pytest.raises(adapter.AdapterError, match="has no table invoices"):
+        adapter.read(source, "invoices")
 
 
 def test_a_truncate_reaches_the_sandbox_through_the_adapter(boxed: TestClient) -> None:
     source = TestRemote(boxed, "Sandbox")
     fresh = pa.table({"id": [7], "title": ["Sow beans"], "status": ["Open"], "hours": [2.0]})
-    done = sab_adapter.write(source, "tasks", fresh, mode="truncate")
-    assert done == sab_adapter.Counts(inserted=1, deleted=4)
-    assert sab_adapter.read(source, "tasks")[0].read_all().column("id").to_pylist() == [7]
-    assert sab_adapter.write(source, "tasks", mode="truncate") == sab_adapter.Counts(deleted=1)
-    left = sab_adapter.read(source, "tasks")[0].read_all()
+    done = adapter.write(source, "tasks", fresh, mode="truncate")
+    assert done == adapter.Counts(inserted=1, deleted=4)
+    assert adapter.read(source, "tasks")[0].read_all().column("id").to_pylist() == [7]
+    assert adapter.write(source, "tasks", mode="truncate") == adapter.Counts(deleted=1)
+    left = adapter.read(source, "tasks")[0].read_all()
     assert left.num_rows == 0 and left.column_names == ["id", "title", "status", "hours"]
     log = boxed.get("/sandbox", headers=AUTH).json()["log"]
     assert (log["tasks"]["inserted"], log["tasks"]["deleted"]) == (1, 5)
@@ -79,7 +77,7 @@ API_PY = '''# /// swissarmybench-api
 """Made-up garden tasks, read and written through the adapter by name."""
 
 import pyarrow as pa
-from sab_adapter import Filter, Plan, read, tables, write
+from adapter import Filter, Plan, read, tables, write
 from sab_api import connection, endpoint, records
 
 
@@ -127,6 +125,10 @@ def test_api_py_reads_and_writes_the_sandbox_through_the_adapter_in_its_own_proc
     )
     _ask(live, "POST", "/sandbox/tables", {"from": "file", "path": str(csv)})
     (folder / "API.py").write_text(API_PY, encoding="utf-8")
+    # A file of the project's own called adapter.py never stands in for the app's: the host registers the
+    # app's adapter before API.py runs, and `python -I` keeps the project's folder off the import path.
+    own = 'raise ImportError("the project\'s own adapter.py")\n'
+    (folder / "adapter.py").write_text(own, encoding="utf-8")
     ran = _ask(live, "POST", "/local-api/run", {})
     assert ran["running"]["port"], ran.get("failed")
     opened = _ask(live, "POST", "/local-api/call", {"method": "GET", "path": "/open"})

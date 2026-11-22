@@ -36,7 +36,7 @@ import pyarrow.ipc as ipc
 import pyarrow.json as pajson
 import pyarrow.parquet as pq
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.domain.datasets import (
     RESERVED_PREFIX,
     SOURCE_KINDS,
@@ -116,7 +116,7 @@ def query_to_arrow_stream(cursor: duckdb.DuckDBPyConnection, sql: str) -> bytes:
     SQL), read through the adapter (Plans/adapter.plan.md, phase 3). The session may hold an earlier
     execute's unfinished result, so the read takes a cursor of its own on the same database (the view's
     cache tables are the database's)."""
-    reader = sab_adapter.query(sab_adapter.DuckDB.over(cursor, "the open tables"), sql)
+    reader = adapter.query(adapter.DuckDB.over(cursor, "the open tables"), sql)
     sink = pa.BufferOutputStream()
     with ipc.new_stream(sink, reader.schema) as writer:
         for batch in reader:
@@ -128,14 +128,14 @@ def planned_arrow_stream(
     cursor: duckdb.DuckDBPyConnection, relation: str, plan: Any
 ) -> tuple[bytes, tuple[str, ...]]:
     """The adapter's plan (its JSON) over `relation` (an open table's grid view) as an Arrow IPC stream, batch
-    by batch, and the parts folded: DuckDB folds the whole plan (sab_adapter.plan_sql, its values bound)."""
-    from swissarmybench.adapters import sab_adapter
+    by batch, and the parts folded: DuckDB folds the whole plan (adapter.plan_sql, its values bound)."""
+    from swissarmybench.adapters import adapter
 
-    asked = sab_adapter.plan_from(plan)
-    sql, params = sab_adapter.plan_sql(f"({relation}) AS rows", asked)
+    asked = adapter.plan_from(plan)
+    sql, params = adapter.plan_sql(f"({relation}) AS rows", asked)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Arrow output on a DB-API result")
-        reader: Any = cursor.execute(sql, params).to_arrow_reader(sab_adapter.BATCH_ROWS)
+        reader: Any = cursor.execute(sql, params).to_arrow_reader(adapter.BATCH_ROWS)
     sink = pa.BufferOutputStream()
     with ipc.new_stream(sink, reader.schema) as writer:
         for batch in reader:
@@ -462,16 +462,16 @@ ADAPTED_SUFFIXES: frozenset[str] = frozenset(
 def load_adapted(path_text: str, max_bytes: int, sheet: str | None = None) -> tuple[pa.Table, str]:
     """A file connection's file for Open as grid, read through the adapter's Files (DuckDB's readers and
     types, streamed, the size limit kept); a workbook or an Arrow file as load_file reads it."""
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
 
     path = _checked_path(path_text)
     if path.suffix.lower() not in ADAPTED_SUFFIXES:
         return load_file(path_text, max_bytes, sheet)
     what = f"'{path.name}'"
     try:
-        reader, _ = sab_adapter.read(sab_adapter.Files(str(path), path.stem), path.stem)
+        reader, _ = adapter.read(adapter.Files(str(path), path.stem), path.stem)
         table = _collect(reader, reader.schema, max_bytes, what)
-    except (duckdb.Error, sab_adapter.AdapterError, pa.ArrowInvalid, OSError) as error:
+    except (duckdb.Error, adapter.AdapterError, pa.ArrowInvalid, OSError) as error:
         raise DatasetError(f"Could not read {what}: {str(error).splitlines()[0]}") from error
     return check_table(table), SUFFIXES[path.suffix.lower()]
 
@@ -741,7 +741,7 @@ def parse_pasted(text: str, max_bytes: int) -> pa.Table:
 def query_table(cursor: duckdb.DuckDBPyConnection, sql: str, params: list[str] | None = None) -> pa.Table:
     """A query's whole result as a table (the "+" tab and the SQL box's CREATE TABLE); `params`: the values
     of its $1, $2 (a ${NAME}'s, bound, 12.7)."""
-    found = sab_adapter.query(sab_adapter.DuckDB.session(cursor, "the open tables"), sql, params or [])
+    found = adapter.query(adapter.DuckDB.session(cursor, "the open tables"), sql, params or [])
     return found.read_all()  # through the adapter (Plans/adapter.plan.md, phase 3)
 
 

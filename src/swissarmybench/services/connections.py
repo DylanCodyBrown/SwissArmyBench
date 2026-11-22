@@ -840,7 +840,7 @@ class CodeCheck(Protocol):
 
 
 # The connections the adapter reads itself (Plans/adapter.plan.md): DuckDB, and each SQL dialect it folds a
-# plan into (sab_adapter.DIALECTS). Sybase speaks T-SQL without OFFSET ... FETCH, so it keeps its own SQL.
+# plan into (adapter.DIALECTS). Sybase speaks T-SQL without OFFSET ... FETCH, so it keeps its own SQL.
 ADAPTER_DIALECTS = ("duckdb", "postgres", "mysql", "sqlserver", "oracle", "sqlite", "snowflake", "trino")
 NOT_ADAPTED = ("sybase",)  # starters whose dialect is shared but whose SQL is older
 

@@ -12,7 +12,7 @@
                           typed with a TypedDict, a dataclass, dict or list is the JSON body; the others are
                           the
                           query's (str, int, float, bool, date, datetime; a default makes one optional)
-  connection(name)        the adapter's calls on that connection (sab_adapter.Connection): tables(),
+  connection(name)        the adapter's calls on that connection (adapter.Connection): tables(),
                           columns(table), read(table, columns=, filters=, sort=, limit=), query(sql, params)
                           in its own SQL, write(table, rows, key, mode). Here in Swiss Army Bench (the local
                           sandbox API) over the project's sandbox, never the connection itself; in an export
@@ -178,11 +178,11 @@ _DUCK = {str: "VARCHAR", int: "BIGINT", float: "DOUBLE", bool: "BOOLEAN", dateti
 
 
 def _adapter() -> Any:
-    """sab_adapter, beside this file (the app's host gives it; an export copies it); None without it."""
+    """adapter, beside this file (the app's host gives it; an export copies it); None without it."""
     import importlib
 
     try:
-        return importlib.import_module("sab_adapter")
+        return importlib.import_module("adapter")
     except ImportError:
         return None
 
@@ -193,7 +193,7 @@ def _arrow_body(value: Any, model: Any, at: str) -> Any:
     rows = checked(value, list[model], at)
     adapter = _adapter()
     if adapter is None:
-        raise ApiError(500, "A table body needs sab_adapter.py beside sab_api.py.")
+        raise ApiError(500, "A table body needs adapter.py beside sab_api.py.")
     fields, _ = _model_fields(model)
     columns = {}
     for name, kind in fields.items():

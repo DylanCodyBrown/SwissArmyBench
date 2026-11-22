@@ -629,7 +629,7 @@ src/swissarmybench/
                          mock would refuse, never run); agent_writes_words
     api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
                          Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
-                         sab_api.py, sab_adapter.py, connections.py: the real connections' own code; README with
+                         sab_api.py, adapter.py, connections.py: the real connections' own code; README with
                          the deploy steps, the checklist and the variables; no secret), exports/api/<target>/ a made
                          folder
     api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
@@ -825,7 +825,7 @@ src/swissarmybench/
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
-    sab_adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `sab_adapter`)
+    adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `adapter`)
                          and an export share, standard library + duckdb + pyarrow only: tables(source),
                          read(source, table, plan) -> (Arrow batches, Folded), query(source, sql, params) (its own
                          SQL: joins, CTEs; a write's count), write(source, table, batches, key, mode: insert,
@@ -856,7 +856,7 @@ src/swissarmybench/
     datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders; load_adapted
                          (a file connection's file through the adapter's Files: DuckDB's types)
     views.py             the view cache and windows; Adapted (the engine's cursor: every grid query's execute is
-                         sab_adapter.query over the app's session, its values as DuckDB's fetch gives them)
+                         adapter.query over the app's session, its values as DuckDB's fetch gives them)
     catalogs.py          loaded catalogs: tree queries and search in the locked DuckDB
     found_connections.py Find connections on this computer: each tool's files found per system (a stand-in home and
                          system for tests: SWISSARMYBENCH_FIND_HOME, _FIND_SYSTEM), the registry read through a

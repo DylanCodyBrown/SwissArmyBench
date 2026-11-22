@@ -8,8 +8,8 @@ import datetime
 
 import pytest
 
-from swissarmybench.adapters import sab_adapter as sab
-from swissarmybench.adapters.sab_adapter import Filter, Plan, Total
+from swissarmybench.adapters import adapter as sab
+from swissarmybench.adapters.adapter import Filter, Plan, Total
 from tests import dataverse_standin as made_up
 from tests import test_dataverse as dataverse_tests
 from tests.test_dataverse import connect

@@ -4734,7 +4734,7 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   RecordBatchReader is scanned once (a merge stages it in a temp table). Registering Arrow works on the sandbox's
   connection with external access off.
 - pyarrow's memory pool does not see DuckDB's Arrow batches (DuckDB allocates them): memory is measured as the
-  process's RSS (tests/test_sab_adapter.py, in a process of its own, Linux only).
+  process's RSS (tests/test_adapter.py, in a process of its own, Linux only).
 - Larkfield Goods large (10,001,903 order lines, generated straight into a 274 MB DuckDB file in 14.7 s), read
   through the adapter on this container (4 cores), RSS growth over the read: a filter and a limit folded (1,000
   rows) 0.06 s, 39 MB; one product range (639,667 rows) 0.11 s, 135 MB; totals by product (12,000 rows) 0.10 s,
@@ -4869,6 +4869,10 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   clear of the scrollbar) passes alone; the eight real-world ones failed because the PostgreSQL Write test had
   left a second orders table in the test bed (sab_writes.orders: fixed, the write tests now clean up), and
   then pass: test_real_world 14 passed alone, use cases 11 and 11a among them.
+- After the rename to adapter.py: the quick suite 4,986 passed, 38 skipped, 1 failed under load (test_sharing:
+  21 passed alone); in Chromium test_local_apis_page, test_forms_recon_app, test_sandbox_gaps_page,
+  test_write_starters_page and test_catalog_page 19 passed; a project's own adapter.py (one that fails on
+  import) beside API.py never stands in for the app's (tests/test_adapter_sandbox.py).
 
 ## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
 - Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite

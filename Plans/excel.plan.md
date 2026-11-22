@@ -5,7 +5,7 @@ Status: decided; build after the adapter's first phase merges (the Excel source 
 ## The owner's answers
 - **Reading and writing a workbook's rows is the adapter's, like every connection** (the owner: "All connection
   transformations are in the adapter"). An Excel workbook (a path, an upload's bytes, a SharePoint document) is one
-  more source in `sab_adapter.py`: `tables` lists its sheets and named tables, `read` gives Arrow batches (one set of
+  more source in `adapter.py`: `tables` lists its sheets and named tables, `read` gives Arrow batches (one set of
   type rules, replacing the three readers today: the datasets loader, sab.sql over sheets, the upload widget),
   `write` puts rows into a sheet (inserted or replaced, the other sheets kept, by safe file replacement). Nothing
   else in the app reads or writes a sheet's rows.
@@ -29,7 +29,7 @@ Status: decided; build after the adapter's first phase merges (the Excel source 
 - An uploaded file becomes a grid like any table (read through the adapter).
 
 ## The export of a project that makes a workbook
-sab_adapter.py, connections.py (used ones only), data.py, workbook.py, templates/<name>.xlsx (only if bound),
+adapter.py, connections.py (used ones only), data.py, workbook.py, templates/<name>.xlsx (only if bound),
 requirements.txt, README.md; API.py only with endpoints.
 
 Design survey (the Fable agent, 2026-11-21): five writers and three readers today; about 1,100 lines move and 1,500

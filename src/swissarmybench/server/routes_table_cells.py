@@ -8,7 +8,7 @@ POST   /workbench/tables/arrange      {"kind": "notebook", "cells", "tables", "n
 GET    /workbench/tables/{name}/arrow  an open table's grid view (its steps applied) as an Arrow IPC
                                       stream: a kernel's DuckDB SQL naming it (client/sql_cell.py)
 POST   /workbench/tables/adapter/tables  the open tables as a source of the adapter: {"tables": [{name,
-                                      columns: [{name, type}]}]} (sab_adapter.Remote's tables)
+                                      columns: [{name, type}]}]} (adapter.Remote's tables)
 POST   /workbench/tables/adapter/read  {"table", "plan"}: the plan over its grid view as an Arrow IPC stream,
                                       X-Sab-Folded the parts folded (a kernel's sab.table(name))
 """

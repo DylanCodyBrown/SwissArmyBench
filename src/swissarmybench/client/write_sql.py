@@ -694,13 +694,13 @@ class SqlWrite(Write):
     # ===== the write, by the adapter =====
 
     def by_adapter(self, keys: Sequence[str] = ()) -> SqlWrite:
-        """The write by the adapter's Sql (sab_adapter.write: one transaction, its own INSERT, UPDATE and
+        """The write by the adapter's Sql (adapter.write: one transaction, its own INSERT, UPDATE and
         DELETE; Plans/adapter.plan.md), the dry run its planned(): the rows checked against the table first,
         what it would run said, then, with dry_run False, written (a failure rolls every row back and names
         its batch). Modes: append, create (the table made from the rows' types first), replace, upsert,
         delete."""
         from swissarmybench.adapters import (
-            sab_adapter,
+            adapter,
         )  # imported when a write runs: this module stays stdlib
 
         keys = [k for k in keys if k]
@@ -711,17 +711,17 @@ class SqlWrite(Write):
         if mode == "delete":
             data = data.select([columns.get(k.casefold(), k) for k in keys])
         names = [columns.get(k.casefold(), k) for k in keys]
-        dialect = sab_adapter.DIALECTS.get(self.engine.key) or sab_adapter.Dialect(self.engine.key)
+        dialect = adapter.DIALECTS.get(self.engine.key) or adapter.Dialect(self.engine.key)
         if isinstance(self.conn, sqlite3.Connection):
             self.conn.isolation_level = "DEFERRED"  # the adapter's one transaction, begun by the first write
-        source = sab_adapter.Sql(self.conn, dialect, self.connection, self._paramstyle, self._value)
+        source = adapter.Sql(self.conn, dialect, self.connection, self._paramstyle, self._value)
         target = ".".join(self._bare(p) for p in self._parts())
         create = f"CREATE TABLE {self.table} (\n{self.column_types()}\n)" if self.what == "create" else ""
         if create:
             planned: dict[str, int | None] = {"inserted": data.num_rows}
         else:
             try:
-                counted = sab_adapter.planned(source, target, data, names, mode)
+                counted = adapter.planned(source, target, data, names, mode)
             except Exception as error:
                 raise WriteError(
                     f"{self.target} cannot be read on {self.connection}: {self._said(error)}"
@@ -730,16 +730,14 @@ class SqlWrite(Write):
         self.would(*self._statements(create, mode, keys), **planned)
         if self.dry_run:
             return self
-        done = sab_adapter.Counts()
+        done = adapter.Counts()
         try:
             if create:
-                sab_adapter.query(source, create).read_all()
+                adapter.query(source, create).read_all()
                 self.on_failure(f"DROP TABLE {self.table}")  # a write that fails takes its new table away
-            done = sab_adapter.write(
-                source, target, data.to_reader(max_chunksize=self.batch_size), names, mode
-            )
+            done = adapter.write(source, target, data.to_reader(max_chunksize=self.batch_size), names, mode)
         except Exception as error:
-            batch = sab_adapter.batch_of(error)
+            batch = adapter.batch_of(error)
             said = f"{batch.where()} failed: {self._said(error)}" if batch else self._said(error)
             self._failed(said, batch.before if batch else 0)
         finally:

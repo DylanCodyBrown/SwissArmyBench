@@ -251,7 +251,7 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
         assert {
             "API.py",
             "sab_api.py",
-            "sab_adapter.py",
+            "adapter.py",
             "connections.py",
             "README.md",
             "requirements.txt",
@@ -291,12 +291,12 @@ def test_each_target_runs_with_the_real_connection_and_answers_as_the_mock(
     arrow = _run(
         exported["aws_lambda"],
         """
-        import json, pyarrow as pa, sab_adapter, sab_api
+        import json, pyarrow as pa, adapter, sab_api
         @sab_api.endpoint("GET", "/arrow")
         def arrow() -> pa.Table:
             return pa.table({"n": [1, 2]})
         status, _, body = sab_api.handle("GET", "/arrow")
-        print(json.dumps([status, json.loads(body), sab_adapter.__file__.endswith("sab_adapter.py")]))
+        print(json.dumps([status, json.loads(body), adapter.__file__.endswith("adapter.py")]))
         """,
     )
     assert arrow == [200, [{"n": 1}, {"n": 2}], True]

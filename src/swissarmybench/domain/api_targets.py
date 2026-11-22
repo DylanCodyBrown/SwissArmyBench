@@ -56,7 +56,7 @@ class Bundle:
     notes: tuple[dict[str, Any], ...] = ()  # what only works on this computer (domain/portability.py)
     sandbox: bool = False  # data/sandbox.duckdb bundled
     uses_sandbox: bool = False  # an endpoint asks for connection("Sandbox")
-    adapter: str = ""  # sab_adapter.py (Plans/adapter.plan.md): every data call and payload goes through it
+    adapter: str = ""  # adapter.py (Plans/adapter.plan.md): every data call and payload goes through it
 
 
 @dataclass(frozen=True)
@@ -110,13 +110,13 @@ def _sandbox():
 def connections_module(registry: str, uses_sandbox: bool, names: Sequence[str]) -> str:
     """connections.py: the connections' code (`registry`: the script export's pieces and their MADE and
     connection()), then the adapter pointed at it: each name's own client wrapped in its backend
-    (sab_adapter.source_from), so connection(name) in API.py is the adapter's calls on the real source, the
+    (adapter.source_from), so connection(name) in API.py is the adapter's calls on the real source, the
     same code that ran on the sandbox."""
     head = (
         '"""Written by Swiss Army Bench: each connection the API\'s endpoints use, as its own code (its passwords\n'
         "read from the environment or a key vault, never written here). Change the connections in the app and\n"
         'export again, not this file."""\n\n'
-        "from __future__ import annotations\n\nimport os\n\nimport sab_adapter\nimport sab_api\n"
+        "from __future__ import annotations\n\nimport os\n\nimport adapter\nimport sab_api\n"
     )
     body = registry.strip("\n")
     hook = [
@@ -128,13 +128,13 @@ def connections_module(registry: str, uses_sandbox: bool, names: Sequence[str]) 
     if uses_sandbox:
         hook += [
             '    if name.strip().casefold() == "sandbox":',
-            '        return sab_adapter.source_from(_sandbox(), name="Sandbox")',
+            '        return adapter.source_from(_sandbox(), name="Sandbox")',
         ]
     if names:
-        hook += ["    return sab_adapter.source_from(connection(name), name=name)"]
+        hook += ["    return adapter.source_from(connection(name), name=name)"]
     else:
         hook += ['    raise RuntimeError(f"This export has no connection named {name}.")']
-    hook += ["", "", "sab_adapter.use(_source)", "sab_api.use_clients(sab_adapter.Connection)", ""]
+    hook += ["", "", "adapter.use(_source)", "sab_api.use_clients(adapter.Connection)", ""]
     return head + ("\n\n" + body if body else "") + (_SANDBOX_COPY if uses_sandbox else "") + "\n".join(hook)
 
 
@@ -211,7 +211,7 @@ def _readme(bundle: Bundle, title: str, files: str, run: str, deploy: str, where
 _COMMON_FILES = (
     "- `API.py`: the endpoints, as written in the app (never changed by an export).\n"
     "- `sab_api.py`: `@endpoint`, `connection()`, `records()` and the one request handler.\n"
-    "- `sab_adapter.py`: the adapter every read, write and payload goes through (Arrow in and out).\n"
+    "- `adapter.py`: the adapter every read, write and payload goes through (Arrow in and out).\n"
     "- `connections.py`: each connection's own code; `connection(name)` is the adapter's calls on it.\n"
     "- `openapi.json`: the API's OpenAPI document."
 )
@@ -221,7 +221,7 @@ def _common(bundle: Bundle) -> dict[str, str]:
     return {
         "API.py": bundle.api,
         "sab_api.py": bundle.runtime,
-        **({"sab_adapter.py": bundle.adapter} if bundle.adapter else {}),
+        **({"adapter.py": bundle.adapter} if bundle.adapter else {}),
         "connections.py": bundle.connections,
         "openapi.json": json.dumps(bundle.openapi, indent=2, sort_keys=True) + "\n",
     }

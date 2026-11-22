@@ -23,7 +23,7 @@ from typing import Any
 from swissarmybench.domain.connection_tables import TABLE_KINDS
 
 WRITE_FAMILY: str = "Write"
-# sab.write's and the agent's connections_write modes: the adapter's (sab_adapter.MODES; a test holds them).
+# sab.write's and the agent's connections_write modes: the adapter's (adapter.MODES; a test holds them).
 WRITE_MODES: tuple[str, ...] = ("insert", "update", "merge", "delete", "truncate")
 KEYED_MODES: tuple[str, ...] = ("update", "merge", "delete")
 

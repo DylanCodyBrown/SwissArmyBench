@@ -11,8 +11,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from swissarmybench.adapters import sab_adapter as sab
-from swissarmybench.adapters.sab_adapter import Counts, Filter, Plan, Total
+from swissarmybench.adapters import adapter as sab
+from swissarmybench.adapters.adapter import Counts, Filter, Plan, Total
 
 
 @pytest.fixture

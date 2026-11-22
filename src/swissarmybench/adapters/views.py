@@ -38,7 +38,7 @@ from swissarmybench.services.ports import SqlSession
 
 class Adapted:
     """The engine's cursor with its rows only through the adapter (Plans/adapter.plan.md: "everything, the
-    engine too"): `execute` is sab_adapter.query over this DuckDB session (the open tables, the view cache's
+    engine too"): `execute` is adapter.query over this DuckDB session (the open tables, the view cache's
     tables, the steps' SQL), its answer Arrow; `fetchall`, `fetchone`, `fetchmany` and `fetch_arrow_table`
     read that answer, each value as DuckDB's own fetch gives it (a HUGEINT an int, an INTERVAL a timedelta,
     a MAP a dict), so a window, a profile and an analysis see what they saw. Anything else (register,
@@ -53,9 +53,9 @@ class Adapted:
         self.description: list[tuple[Any, ...]] | None = None
 
     def execute(self, sql: str, parameters: Any = None) -> Adapted:
-        from swissarmybench.adapters import sab_adapter
+        from swissarmybench.adapters import adapter
 
-        self._reader = sab_adapter.query(sab_adapter.DuckDB.session(self._raw), sql, parameters or ())
+        self._reader = adapter.query(adapter.DuckDB.session(self._raw), sql, parameters or ())
         self._answer, self._rows, self._at = None, None, 0
         self.description = [(f.name, str(f.type), None, None, None, None, None) for f in self._reader.schema]
         return self

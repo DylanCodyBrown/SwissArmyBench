@@ -27,7 +27,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import sandbox as rules
 
@@ -336,38 +336,38 @@ class SandboxFiles:
             finally:
                 cursor.close()
 
-    def source(self) -> sab_adapter.DuckDB:
-        return sab_adapter.DuckDB(self._cursor, f"The {rules.NAME.lower()}")
+    def source(self) -> adapter.DuckDB:
+        return adapter.DuckDB(self._cursor, f"The {rules.NAME.lower()}")
 
     def arrow(self, name: str) -> pa.Table:
         """A sandbox table as a grid's Arrow table: read whole through the adapter."""
-        return sab_adapter.make_table(sab_adapter.TableSource(self.source(), name))
+        return adapter.make_table(adapter.TableSource(self.source(), name))
 
     def read(self, name: str, plan: Any) -> tuple[pa.RecordBatchReader, tuple[str, ...]]:
         """A table read with a plan (its JSON): the batches as DuckDB makes them, and what was folded."""
-        reader, folded = sab_adapter.read(self.source(), name, sab_adapter.plan_from(plan))
+        reader, folded = adapter.read(self.source(), name, adapter.plan_from(plan))
         return reader, folded.parts
 
     def write_arrow(self, name: str, data: bytes, key: Sequence[str], mode: str) -> dict[str, int]:
         """An Arrow IPC stream's rows into a table (insert; update, merge or delete by key; truncate)."""
         reader = pa.ipc.open_stream(pa.BufferReader(data))
-        done = sab_adapter.write(self.source(), name, reader, key, mode)
+        done = adapter.write(self.source(), name, reader, key, mode)
         return {"inserted": done.inserted, "updated": done.updated, "deleted": done.deleted}
 
     def query_arrow(self, sql: str, params: Any) -> pa.RecordBatchReader:
         """The adapter's query for a read (DuckDB SQL, the source's made so): streamed under the gate."""
-        return sab_adapter.query(self.source(), sql, params)
+        return adapter.query(self.source(), sql, params)
 
     def change_arrow(self, sql: str, params: Any) -> tuple[pa.Table, int]:
         """A write: its answer (RETURNING rows, else its count) and the rows it changed."""
-        answer = sab_adapter.query(self.source(), sql, params).read_all()
-        if answer.column_names == [sab_adapter.COUNT]:
+        answer = adapter.query(self.source(), sql, params).read_all()
+        if answer.column_names == [adapter.COUNT]:
             return answer, int(answer.column(0)[0].as_py() or 0) if answer.num_rows else 0
         return answer, answer.num_rows
 
     @staticmethod
     def counted(rows: int) -> pa.RecordBatchReader:
-        return sab_adapter.counted(rows)
+        return adapter.counted(rows)
 
     # ===== an API's reads and writes =====
 

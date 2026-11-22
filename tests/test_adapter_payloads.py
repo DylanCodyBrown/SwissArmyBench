@@ -1,5 +1,5 @@
 """API payloads through the adapter (Plans/adapter.plan.md: "every api payload in and out should travel
-through the adapter"): an endpoint's Arrow answer made JSON records by sab_adapter.to_json (the same JSON
+through the adapter"): an endpoint's Arrow answer made JSON records by adapter.to_json (the same JSON
 plain gives) or an Arrow IPC stream for a caller that accepts one (a widget); a body typed
 Annotated[pa.Table, Model] checked against its model, then made Arrow by from_json with the model's types.
 Other endpoints answer as before. Made-up data only."""
@@ -17,7 +17,7 @@ import pyarrow as pa
 import pyarrow.ipc as ipc
 import pytest
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.domain import local_api
 from swissarmybench.server import api_runtime
 
@@ -41,7 +41,7 @@ ORDERS = pa.table(
 
 @pytest.fixture
 def endpoints(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[Any]]:
-    monkeypatch.setitem(sys.modules, "sab_adapter", sab_adapter)  # as the host (and an export) has it
+    monkeypatch.setitem(sys.modules, "adapter", adapter)  # as the host (and an export) has it
     api_runtime.ENDPOINTS.clear()
     seen: list[Any] = []
 

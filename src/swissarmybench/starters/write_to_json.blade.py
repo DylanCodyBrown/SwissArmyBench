@@ -16,7 +16,7 @@ dry_run=False writes. An agent sets dry_run=False only after the user said to wr
 words, in this conversation. Returns the write's report.
 
 Written to a new file beside the target, then put in its place: a failure leaves the old file as it was.
-The rows are written by the adapter (sab_adapter.write on its Files: DuckDB's COPY, Plans/adapter.plan.md).
+The rows are written by the adapter (adapter.write on its Files: DuckDB's COPY, Plans/adapter.plan.md).
 
 Laid out top to bottom: the imports, then `write_json`, the one function, which you call.
 """

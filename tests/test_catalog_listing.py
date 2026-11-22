@@ -36,9 +36,9 @@ def test_the_adapter_lists_an_unedited_listing_and_never_an_edited_one() -> None
         == "postgres"
     )
     # Phase 4: every dialect the adapter knows (test_each_dialects_listing_is_its_starters_own_text).
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
 
-    assert set(blade_tables.ADAPTER_LISTED) == {"duckdb", *sab_adapter.DIALECTS}
+    assert set(blade_tables.ADAPTER_LISTED) == {"duckdb", *adapter.DIALECTS}
 
 
 def _shop_sqlite(path: Path) -> None:
@@ -121,7 +121,7 @@ def test_a_refresh_lists_through_the_adapter_unless_the_listing_is_the_users(
 def test_each_dialects_listing_is_its_starters_own_text() -> None:
     """The adapter's listing for a dialect is its Connections starter's List the tables, whitespace aside,
     so a connection with its starter's listing is listed by the adapter (and an edited one never)."""
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
 
     def flat(text: object) -> str:
         return " ".join(str(text).split())
@@ -168,7 +168,7 @@ class _Listing:
 
 
 def test_sql_servers_listing_keeps_its_descriptions_and_keys_row_for_row() -> None:
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
 
     rows = [
         ("Shop", "dbo", "orders", "BASE TABLE", "", "", "YES", 0, "1,204 rows · Each order once"),
@@ -189,7 +189,7 @@ def test_sql_servers_listing_keeps_its_descriptions_and_keys_row_for_row() -> No
 
 
 def test_oracles_listing_reads_its_own_shape() -> None:
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
 
     rows = [
         ("SALES", "ORDERS", "TABLE", "ORDER_ID", "NUMBER", "N", 1),

@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 import swissarmybench as sab
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.client import sql_cell, table_cells
 from tests.test_cli import Live, live  # noqa: F401 (the running server)
 
@@ -52,18 +52,18 @@ def test_sab_table_reads_the_grid_view_through_the_adapter(live: Live) -> None:
 
 def test_the_adapter_lists_and_folds_the_whole_plan(live: Live) -> None:
     _with_filter(live)
-    door = sab_adapter.Remote(
+    door = adapter.Remote(
         f"http://127.0.0.1:{live.port}/workbench/tables/adapter", "Open tables",
         {"Authorization": f"Bearer {live.token}"},
     )  # fmt: skip
-    totals = sab_adapter.Plan(group=("region",), totals=(sab_adapter.Total("sum", "amount", "total"),),
+    totals = adapter.Plan(group=("region",), totals=(adapter.Total("sum", "amount", "total"),),
                               sort=(("total", True),))  # fmt: skip
-    reader, folded = sab_adapter.read(door, "orders", totals)
+    reader, folded = adapter.read(door, "orders", totals)
     assert folded.parts == ("group", "totals", "sort")
     assert reader.read_all().to_pylist()[0] == {"region": "East", "total": 40.0}
-    assert "orders" in [t.name for t in sab_adapter.tables(door)]
-    with pytest.raises(sab_adapter.AdapterError, match="No table named nothing_open"):
-        sab_adapter.read(door, "nothing_open")
+    assert "orders" in [t.name for t in adapter.tables(door)]
+    with pytest.raises(adapter.AdapterError, match="No table named nothing_open"):
+        adapter.read(door, "nothing_open")
 
 
 def test_a_kernels_duckdb_sql_reads_an_open_table_through_it(live: Live) -> None:

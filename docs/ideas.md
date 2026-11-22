@@ -7748,16 +7748,16 @@ Decisions:
 
 
 ## One adapter (the owner, 2026-11-21)
-The owner's model replaces the per-feature data paths: API -> sab_adapter.py -> tables; Connections -> sab_adapter.py
+The owner's model replaces the per-feature data paths: API -> adapter.py -> tables; Connections -> adapter.py
 -> Grids; Grids -> Notebooks; Grids, Blades, Variables, Structures -> Widgets -> Canvas. The adapter streams reads and
 writes and holds nothing; grids (named Arrow tables) are the only data kept; an export is the fewest files that build
 the app. The per-source mock clients are dropped (the owner: "use my model"). Plan: Plans/adapter.plan.md.
 
 **Phase 1 built (2026-11-21, branch adapter).** Decisions:
-- Where it lives: `src/swissarmybench/adapters/sab_adapter.py`. It is a driven adapter (DuckDB and Arrow), so the
+- Where it lives: `src/swissarmybench/adapters/adapter.py`. It is a driven adapter (DuckDB and Arrow), so the
   layers test allows its imports there and the wheel ships it; it imports nothing of `swissarmybench` (a test holds
   it to the standard library, duckdb and pyarrow, and runs a copy of it alone), so an export copies its bytes as they
-  are. The API's process names it `sab_adapter` (`from sab_adapter import read, Plan`).
+  are. The API's process names it `adapter` (`from adapter import read, Plan`).
 - The contract: `tables(source)`, `read(source, table, plan) -> (RecordBatchReader, Folded)`, `write(source, table,
   batches, key, mode) -> Counts` (insert, update, merge, delete; all or none), `grid(name)`, `refresh(name)`;
   `from_json(pages, columns, strict)` (DuckDB's json_transform a page at a time; the first page's types when none
@@ -7773,7 +7773,7 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   for a kernel, the API's process and an export.
 - Moved: the sandbox's Open in Grids and [Sandbox].table; a DuckDB file connection's Open as grid (its child process
   reads the user's own connection through the adapter: the limit folded, the count a total, DuckDB's own types); a
-  local sandbox API's sandbox (sab_adapter.Remote: /sandbox/data/<key>/tables, /read as an Arrow IPC stream with
+  local sandbox API's sandbox (adapter.Remote: /sandbox/data/<key>/tables, /read as an Arrow IPC stream with
   X-Sab-Folded, /write an Arrow IPC stream in; /sandbox/adapter/* with the token); every SQL mock's tables() and
   columns(); the SharePoint mock's rows(), read(), create(), update(), delete() (its rows typed by the list's
   columns, strict).
@@ -7784,7 +7784,7 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
 - Not built, and what each needs: contract.json loading (a JSON schema, the base reading MODE from it); folder
   extensions; the endpoint wizard; the other connection kinds as backends (each kind's tables, read folding its
   plan into its dialect by sqlglot or OData/Graph, write by its Write starter's statements); the export's file list
-  (sab_adapter.py beside sab_api.py: an API.py that imports sab_adapter is not exportable until then); a kernel's
+  (adapter.py beside sab_api.py: an API.py that imports adapter is not exportable until then); a kernel's
   `sab.grid` (the client importing the adapter lazily: the plain client stays standard library); the answer path
   (Arrow to JSON for an endpoint's answer, a request body through from_json and its model); streaming the child
   process's answer (today one Arrow IPC base64 in its JSON line) and a write's body (Starlette reads it whole).
@@ -7826,11 +7826,11 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   as the sandbox's door; `Remote` takes headers for the token). `sab.table(name, columns, filters, sort, limit)`
   reads it (Arrow; the plain client without duckdb or pyarrow reads the whole view as before). A kernel's DuckDB SQL
   naming an open table reads it through `sab.table`.
-- API payloads: sab_api reaches sab_adapter only when it is beside it. Arrow results are answered by `to_json`
+- API payloads: sab_api reaches adapter only when it is beside it. Arrow results are answered by `to_json`
   (written a batch at a time; the same JSON as plain) or `to_ipc` for `Accept: application/vnd.apache.arrow.stream`
   (a widget); a body `Annotated[pa.Table, Model]` is checked as `list[Model]` then made Arrow by from_json, strict;
   API.py's reader shows it as `list[Model]`.
-- Export: every API target has `sab_adapter.py` and duckdb, pyarrow in its requirements. The canvas and script
+- Export: every API target has `adapter.py` and duckdb, pyarrow in its requirements. The canvas and script
   exports do not yet: nothing in them reads through the adapter, and a file nothing uses is not exported.
 - Left of the simplicity pass: renamed.py and `%%sag` are gone; the five route modules lost their catch-all guards
   (routes_connection_tables keeps its two own answers, narrowed to their types). bootstrap()'s split by area is not
@@ -7868,8 +7868,8 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   or by name as a dict); a read is streamed, a write runs in its own transaction and answers its RETURNING rows,
   else one `count` column (DuckDB's own `Count` renamed, so every source says it alike). A source with no SQL
   (OData, Rows) refuses in one sentence; the sandbox's Dataverse is SELECT only, as the SQL endpoint.
-- `Connection` is in the adapter (sab_adapter.py), not sab_api: an export copies it with the rest, and sab_api's
-  `connection(name)` gives it when sab_adapter is beside it. `read` takes a Plan or its parts by name; `write`
+- `Connection` is in the adapter (adapter.py), not sab_api: an export copies it with the rest, and sab_api's
+  `connection(name)` gives it when adapter is beside it. `read` takes a Plan or its parts by name; `write`
   takes Arrow or a list of dicts; `records()` takes Arrow (and a cursor, as before).
 - The JSON op door (`/sandbox/data`, `/sandbox/data/{key}`: query, table, insert/update/delete, sql, sql_many,
   odata, fetchxml, list, client, more) went with the mocks: the adapter's door is tables, read, query and write
@@ -7900,7 +7900,7 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
 - The engine: exports, the "+" tab's and SQL box's tables and a kernel's view read through `query` over the app's
   DuckDB session (`DuckDB.session` uses a connection as it is; a kernel's view takes a cursor of its own, as the
   session may hold an unfinished execute). The window reads stay rowid ranges over the view cache.
-- sab_adapter.py is allowed 2,400 lines in tests/test_architecture.py (one file by design: an export copies it).
+- adapter.py is allowed 2,400 lines in tests/test_architecture.py (one file by design: an export copies it).
 - bootstrap(): six more module-level helpers (extensions and the update helper, the Team box, sharing, updates,
   catalog_of, used_in), the code as it was.
 
@@ -7933,7 +7933,7 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   powerapps' ts_notebook, powerbi's pbix readers.
 
 **Phase 4 built (2026-11-22, branch adapter-4).** Each change says which of the two concepts it is about (the
-owner, 2026-11-22, design principle 12a): the project scaffold (sab_adapter.py and the Write starters it calls,
+owner, 2026-11-22, design principle 12a): the project scaffold (adapter.py and the Write starters it calls,
 what an export carries) or the app (sab.write, connections_write, the Catalog, the engine). Decisions:
 - The adapter only grows (12b): every change to it is its own commit and adds (Files' format, options and
   partitions; a write's Batch; Sql's value; arrow_of; listed; Column.description and position;
@@ -7973,6 +7973,15 @@ what an export carries) or the app (sab.write, connections_write, the Catalog, t
   (docs/verified.md): a window 1 to 2 ms slower (5 to 7 ms, the budget is 300); pyarrow loads its pandas
   bridge the first time a table is made in Python (about 300 ms), so the view engine loads it in a background
   thread at start, off the first step change's way.
+- Renamed (the owner, 2026-11-22: "Just call it adapter.py not sab_adapter"), the phase's last commit: the app's
+  src/swissarmybench/adapters/adapter.py, the module the scaffold and exports carry `adapter` (`from adapter
+  import read, Plan`; the API host's sys.modules; every API export's adapter.py), every import, test and doc
+  (this note's earlier phases too). No alias for the old name (never released). Its version (1.0.0) and what
+  each phase added open its docstring. A project's own adapter.py never stands in for it: the API host
+  registers the app's module before API.py runs and runs `python -I` (the project's folder is not on the path;
+  tests/test_adapter_sandbox.py runs one beside API.py that fails on import); an export writes adapter.py as a
+  made file and copies no project file of that name. A PyPI package called adapter installed in a deployed
+  app is shadowed by the export's own file (its folder is first on the path).
 - bootstrap()'s split by area (step 5, no behaviour change): three more module-level helpers, the code as it
   was: _explorer (the Data Explorer's sources), _app_registrations (with each registration's connections) and
   _variables_once (the one-time password move and the ${NAME} listing). bootstrap() is 1,168 lines (was

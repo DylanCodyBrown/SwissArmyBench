@@ -9,7 +9,7 @@ connection's Open as grid, the engine's cursor (the owner's answers after phase 
 
 ### What is built (phase 4)
 
-Two concepts (the owner, 2026-11-22): **the project scaffold** (what an export carries: sab_adapter.py, the
+Two concepts (the owner, 2026-11-22): **the project scaffold** (what an export carries: adapter.py, the
 Write starters it calls) and **the app** (sab.write, the agent's command, the Catalog, the engine).
 
 - The scaffold's adapter, added to only (each change its own commit; tables() answers as before):
@@ -30,11 +30,12 @@ Write starters it calls) and **the app** (sab.write, the agent's command, the Ca
 - A file connection's Open as grid is the adapter's Files read (DuckDB's types; Reload and the project read it
   the same way again).
 - The engine: every grid query gets the adapted cursor (adapters/views.py `Adapted`: `execute` is
-  `sab_adapter.query` over the app's DuckDB session; windows, the steps' counts and view cache, the SQL box,
+  `adapter.query` over the app's DuckDB session; windows, the steps' counts and view cache, the SQL box,
   profiles, analyses, regression, time series), its values as DuckDB's own fetch gives them.
 - Not yet (docs/ideas.md "One adapter", what each needs): contract.json, the eight-file export, folder
-  extensions, the Environment page, the API adapter, the Excel module, the endpoint wizard; the rename to
-  adapter.py (the owner, 2026-11-22: the last step of this phase).
+  extensions, the Environment page, the API adapter, the Excel module, the endpoint wizard.
+- Renamed (the owner, 2026-11-22: "Just call it adapter.py not sab_adapter"): src/swissarmybench/adapters/adapter.py,
+  the module `adapter` in the scaffold and exports; version 1.0.0, its change list in its docstring.
 
 ### What is built (phase 3)
 
@@ -78,7 +79,7 @@ Write starters it calls) and **the app** (sab.write, the agent's command, the Ca
   kernel's DuckDB SQL naming an open table reading through it.
 - API payloads: an Arrow answer as JSON records (`to_json`) or Arrow IPC for a caller that accepts it; a body
   `Annotated[pa.Table, Model]` checked, then made Arrow by `from_json`.
-- The API export carries `sab_adapter.py` (duckdb and pyarrow in requirements.txt).
+- The API export carries `adapter.py` (duckdb and pyarrow in requirements.txt).
 - Not yet (phase 3): the mock clients and sandbox_dialects.py (an endpoint's SQL in its source's dialect needs a
   decision: docs/ideas.md "One adapter"), the writes of Dataverse, SharePoint and the lakes through the adapter
   (each kind's Write starter still writes), the app's Catalog listing through `tables()`, the steps, SQL box,
@@ -87,26 +88,26 @@ Write starters it calls) and **the app** (sab.write, the agent's command, the Ca
 
 ### What is built (phase 1)
 
-- `src/swissarmybench/adapters/sab_adapter.py`: the contract (tables, read with a plan and what was folded, write by
+- `src/swissarmybench/adapters/adapter.py`: the contract (tables, read with a plan and what was folded, write by
   mode, grid, refresh), the plan (columns, filters, sort, limit, offset, group, totals; the unfolded rest done by
   DuckDB over the stream), JSON pages to Arrow by DuckDB with given types, grids. Standard library, duckdb and
   pyarrow only: an export copies it as it is. Sources: `DuckDB` (a file, a connection given, a gated connection)
   and `Remote` (the sandbox through the app's data door, Arrow IPC both ways).
 - Through it: the sandbox's Open in Grids and [Sandbox].table; a DuckDB file connection's Open as grid; a local
-  sandbox API's sandbox (its one backend; API.py may `from sab_adapter import read, Plan`); every SQL mock's
+  sandbox API's sandbox (its one backend; API.py may `from adapter import read, Plan`); every SQL mock's
   tables() and columns(); the SharePoint mock's reads and writes.
-- Tests: tests/test_sab_adapter.py (memory stays flat: a streamed read grows the process far less than the rows
+- Tests: tests/test_adapter.py (memory stays flat: a streamed read grows the process far less than the rows
   held), test_adapter_grids.py, test_adapter_sandbox.py, test_adapter_boundary.py (every place outside the adapter
   that opens a driver or turns JSON into rows, listed; enforced for what moved). Larkfield's 10M order lines:
   docs/verified.md. Decisions and what each later step needs: docs/ideas.md "One adapter".
 - Not yet: contract.json, folder extensions, the endpoint wizard, the other connection kinds as backends, the
-  export's file list (sab_adapter.py beside sab_api.py), a kernel's grid, the answer path (Arrow to JSON), an Excel
+  export's file list (adapter.py beside sab_api.py), a kernel's grid, the answer path (Arrow to JSON), an Excel
   workbook as a source (Plans/excel.plan.md: it needs a `replace` write mode).
 
 ## The owner's words
 
-> API -> sab_adapter.py (duckdb adapter) -> SAB_Tables
-> Connections -> sab_adapter.py -> Grids
+> API -> adapter.py (duckdb adapter) -> SAB_Tables
+> Connections -> adapter.py -> Grids
 > Grids -> Notebooks
 > Grids -> Widgets -> Canvas
 > Blades -> Widgets
@@ -125,7 +126,7 @@ Write starters it calls) and **the app** (sab.write, the agent's command, the Ca
 
 ```
 Connections ─┐                     ┌─> Grids (Arrow tables, the only data kept) ─┬─> Notebooks
-Sandbox ─────┼─> sab_adapter.py ───┤                                             └─> Widgets ─> Canvas
+Sandbox ─────┼─> adapter.py ───┤                                             └─> Widgets ─> Canvas
 Structures ──┘   (read and write,  └─> API.py (endpoints)                 Blades, Variables ─┘
                   holds nothing)
 ```
@@ -136,7 +137,7 @@ Structures ──┘   (read and write,  └─> API.py (endpoints)             
 - **A grid is the only data that stays:** a named Arrow table, made from one source and one DuckDB SQL (its steps).
   Notebooks, widgets and endpoints read grids by name; they never hold their own copy of a source.
 - **Same code here and exported.** In the app, the backends are the open connections, the sandbox and structures;
-  in an exported project, the same `sab_adapter.py` with the real connections behind it. A local sandbox API's
+  in an exported project, the same `adapter.py` with the real connections behind it. A local sandbox API's
   backend is the sandbox only (never live data: unchanged).
 
 ## The one rule
@@ -146,10 +147,10 @@ make everything else simple." So no code reads or writes data any other way: a g
 widget's table, a blade that returns rows, a connection's Test and Preview, the Catalog's listing, an export's data,
 an Add API web call, a local sandbox API's request body and its answer, a write back to a source. A request body
 comes in through the adapter (JSON to Arrow, checked against its model); an answer goes out through it (Arrow to
-JSON or Arrow). A test enforces it, like the layers test: outside sab_adapter.py and the sources it calls, nothing
+JSON or Arrow). A test enforces it, like the layers test: outside adapter.py and the sources it calls, nothing
 imports a database driver, opens a source's HTTP client, or turns JSON into rows.
 
-## The adapter's contract (sab_adapter.py)
+## The adapter's contract (adapter.py)
 
 Three calls, the same for every source:
 
@@ -179,7 +180,7 @@ files on top, and never reshapes the core:
 
 | Always the same structure (every type) | Each type's own |
 |---|---|
-| `sab_adapter.py`, `connections.py`, `API.py`, `data.py` (the grids) | its app or deliverable: Streamlit's `app.py` and `widgets.py`; Power BI's `.pbip`; Accounting's `workbook.py`; a code app's `src/`; Databricks' to be designed |
+| `adapter.py`, `connections.py`, `API.py`, `data.py` (the grids) | its app or deliverable: Streamlit's `app.py` and `widgets.py`; Power BI's `.pbip`; Accounting's `workbook.py`; a code app's `src/`; Databricks' to be designed |
 
 ## The exported project: the fewest files that build the app
 
@@ -190,7 +191,7 @@ For a Streamlit project:
 
 | File | What it is | Made or yours |
 |---|---|---|
-| `sab_adapter.py` | the adapter: the contract, the Arrow conversion, the grids | made (the same in every project) |
+| `adapter.py` | the adapter: the contract, the Arrow conversion, the grids | made (the same in every project) |
 | `connections.py` | the connections the app uses: each one's own list, read and write | made from the library |
 | `data.py` | the grids: each one's source and its one DuckDB SQL | made from data.ipynb |
 | `API.py` | the endpoints, if the app has any | yours |
@@ -245,7 +246,7 @@ the two never import each other:
 `API.py`, `app.py` and the widgets are not mirrored: the same code runs on both sides, because it only ever calls
 the adapter.
 
-- The app's own files (`sab_adapter.py`, `connections.py`, `API.py`, `data.py`, the deliverable) never name the
+- The app's own files (`adapter.py`, `connections.py`, `API.py`, `data.py`, the deliverable) never name the
   sandbox. Which backend the adapter uses is decided where it runs: a local sandbox API run here gets the sandbox,
   always; an exported project gets its connections. Endpoint code is the same in both.
 - **Find and clean up in one place:** Remove the sandbox deletes `sandbox_data.py` and `sandbox/`, and nothing else
@@ -269,7 +270,7 @@ back end always remains python based with the duckdb adapter being the entry for
 - **What may vary:** anything in the JSON: the files, the IDE's languages (a code app's TypeScript and TSX, a
   Databricks project's PySpark and Databricks SQL), the canvas, the deliverable.
 - **What never varies:** the back end is Python; data and API payloads go in and out only through the DuckDB
-  adapter (`sab_adapter.py`); the core files are the base's. A JSON contract can add, never replace, them.
+  adapter (`adapter.py`); the core files are the base's. A JSON contract can add, never replace, them.
 - Today's `MODE` value in each extension.py moves into this file (one source, not two). A test checks each
   installed contract against the shared JSON schema, and that no base file names an extension's file.
 
@@ -302,7 +303,7 @@ A sketch (the Power BI type):
 
 ```
 sales-report/
-  sab_adapter.py          made   the same adapter as every project
+  adapter.py          made   the same adapter as every project
   connections.py          made   the report's sources (the warehouse, Dataverse ...) and the Power BI dataset
   data.py                 made   the grids: each table from its source + its DuckDB SQL, and the same table
                                  as Power BI has it (read with DAX through the dataset's connection)

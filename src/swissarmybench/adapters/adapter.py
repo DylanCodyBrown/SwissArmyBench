@@ -1,9 +1,9 @@
-"""sab_adapter: every data call in and out of a project, the same file wherever it runs (the app, a Workbench
+"""adapter: every data call in and out of a project, the same file wherever it runs (the app, a Workbench
 kernel, a local sandbox API's process, an exported project). It holds nothing: a read streams Arrow record
 batches from its source, a write streams them into it, and only tables (named Arrow tables) stay: a grid is
 only a view of one.
 
-    from sab_adapter import Filter, Plan, query, read, table, tables, write
+    from adapter import Filter, Plan, query, read, table, tables, write
 
     reader, folded = read("Warehouse", "orders", Plan(columns=("id", "amount"), filters=(Filter("region",
                           "=", "North"),), limit=100))
@@ -31,7 +31,19 @@ It reads top to bottom in the order a call runs:
   5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
                     and kept; refresh(name) reads it again
 
-The standard library, duckdb and pyarrow only: an export copies this file as it is.
+The standard library, duckdb and pyarrow only: an export copies this file as it is. Its contract only grows
+(design principle 12b): a version adds, never breaks a caller.
+
+Version 1.0.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+  phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
+           delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
+  phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
+           to_ipc (an endpoint's answer)
+  phase 3  query (a source's own SQL); Connection; source_from; OData's and Rows' writes; planned (a write's
+           dry run by reads); catalog_rows; Files
+  1.0.0    Files' format, COPY options and partitioned folders; a failed SQL batch beside its error (Batch,
+           batch_of); Sql's value; arrow_of; listed() and each dialect's listing; columns' and tables'
+           descriptions and positions; the file and module named adapter (was sab_adapter)
 """
 
 from __future__ import annotations
@@ -51,6 +63,8 @@ from typing import Any, Protocol
 import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
+
+VERSION = "1.0.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")

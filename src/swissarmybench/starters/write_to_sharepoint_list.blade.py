@@ -19,7 +19,7 @@ looked up); dry_run=False writes. An agent sets dry_run=False only after the use
 own words, in this conversation. It signs in through the connection's own sign-in (sab.connection: its
 own way to sign in): no secret here. Returns the write's report.
 
-The write is the adapter's (sab_adapter.write on the connection, Plans/adapter.plan.md), by the
+The write is the adapter's (adapter.write on the connection, Plans/adapter.plan.md), by the
 connection's own calls: Microsoft Graph's $batch, 20 changes a request; a throttled one (429) waits as Graph
 asks, then goes again. A lookup or a person is written by its id: a column <name>_id. A failure says how
 many were refused (the changes before it stay made: SharePoint has no transaction).
@@ -29,7 +29,7 @@ from typing import Any
 
 import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
 MODES = {"create": "insert", "update": "update", "delete": "delete", "truncate": "truncate"}
@@ -65,5 +65,5 @@ def write_sharepoint_list(
     if keyed and key not in w.need_rows().names:
         raise WriteError(f"The rows have no {key} column: it finds each item.")
     said = _SAID[mode].format(list=list_name, key=key)
-    source = sab_adapter.Rows(conn, name)
+    source = adapter.Rows(conn, name)
     return by_adapter(w, source, list_name, MODES[mode], [key] if keyed else [], said=said)

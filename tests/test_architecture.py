@@ -202,7 +202,7 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
         "server/desktop.py",
         "server/desktop_shell.py",
         "server/blade_runner.py",
-        # A local sandbox API's own process (2026-11-21, Plans/adapter.plan.md): sab_adapter, its one door.
+        # A local sandbox API's own process (2026-11-21, Plans/adapter.plan.md): adapter, its one door.
         "server/api_host.py",
         "client/blades_client.py",
         "client/standalone.py",
@@ -236,11 +236,11 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
     assert long == {}
 
 
-# 2026-11-22 (adapter phase 3): sab_adapter.py is one file by design (Plans/adapter.plan.md: an export copies
+# 2026-11-22 (adapter phase 3): adapter.py is one file by design (Plans/adapter.plan.md: an export copies
 # it as it is, standard library + duckdb + pyarrow only), so it is allowed more than the others.
 # 3,000 (2026-11-22, phase 4): the file writes' formats and options, a partitioned folder, a write's batch,
 # rows of any shape (arrow_of), the widened catalogs and the open tables' view as a source.
-ONE_FILE = {"sab_adapter.py": 3000}
+ONE_FILE = {"adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

@@ -21,7 +21,7 @@ the write's report.
 Azure and OneLake: the ADLS Gen2 API's create, append and flush (the file appears whole, at the flush);
 a folder here: a new file put in the old one's place.
 
-The write is the adapter's (sab_adapter.write on the connection, truncate: the file written whole,
+The write is the adapter's (adapter.write on the connection, truncate: the file written whole,
 Plans/adapter.plan.md).
 """
 
@@ -29,7 +29,7 @@ from typing import Any
 
 import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
 FORMATS = ("parquet", "csv")
@@ -56,4 +56,4 @@ def write_lake_file(
     w = Write(name, path, f"{kind} file", rows, dry_run=dry_run)
     target = path if path.lower().endswith("." + kind) else f"{path}.{kind}"
     said = f"PUT {path} ({kind}, one file: created, written, flushed)"
-    return by_adapter(w, sab_adapter.Rows(conn, name), target, "truncate", said=said, written=True)
+    return by_adapter(w, adapter.Rows(conn, name), target, "truncate", said=said, written=True)

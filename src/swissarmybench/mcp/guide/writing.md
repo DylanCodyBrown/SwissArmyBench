@@ -3,7 +3,7 @@
 One write for every source: `sab.write(connection, table, rows, mode, key=None, dry_run=False)` in a cell,
 `connections_write` for you. `rows`: a DataFrame, Arrow, a list of dicts, or an open table's name (its
 grid's rows; for you `from_table`). `mode`: insert, update, merge, delete (by `key`) or truncate (cleared,
-then the rows; none: only cleared). It is the adapter's write (sab_adapter.write on the connection's own
+then the rows; none: only cleared). It is the adapter's write (adapter.write on the connection's own
 client), the same an exported API.py's `connection(name).write(...)` makes.
 
 The Write starters are the same write with each target's words: a Write function (`Write to PostgreSQL`,

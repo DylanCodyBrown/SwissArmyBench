@@ -1,8 +1,8 @@
 """sab.write (Plans/simplify-decisions.plan.md, "one sab.write through the adapter"): the app's client's one
 write, `sab.write(connection, table, rows, mode, key=None, dry_run=False)`, for every source the adapter
 writes. The connection is the kernel's own (sab.connection, signed in its own way), wrapped in its backend by
-sab_adapter.source_from; rows are a DataFrame, an Arrow table, a list of dicts or an open table's name; a
-dry run counts by reads (sab_adapter.planned) and writes nothing. Made-up data only."""
+adapter.source_from; rows are a DataFrame, an Arrow table, a list of dicts or an open table's name; a
+dry run counts by reads (adapter.planned) and writes nothing. Made-up data only."""
 
 from __future__ import annotations
 
@@ -165,8 +165,8 @@ def test_the_agents_write_waits_for_the_users_allow(tmp_path: Path) -> None:
 
 
 def test_the_agents_modes_are_the_adapters() -> None:
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
     from swissarmybench.domain import write_capability
 
-    assert write_capability.WRITE_MODES == sab_adapter.MODES
-    assert write_capability.KEYED_MODES == sab_adapter.KEYED
+    assert write_capability.WRITE_MODES == adapter.MODES
+    assert write_capability.KEYED_MODES == adapter.KEYED

@@ -19,7 +19,7 @@ through the connection's own sign-in (sab.connection): no password here. Returns
 
 One transaction: a failure rolls every row back and says which batch failed.
 
-Written by the adapter (sab_adapter.write on its Sql source: its own INSERT, UPDATE and DELETE in one
+Written by the adapter (adapter.write on its Sql source: its own INSERT, UPDATE and DELETE in one
 transaction; an upsert updates the rows whose keys are there and inserts the others; Plans/adapter.plan.md),
 the dry run its planned() (counted by reads). Laid out top to bottom: the modes, then `write_sqlite`, the one you
 call: the rows checked against the table, what it would run said, then written.

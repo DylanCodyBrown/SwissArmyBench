@@ -1,4 +1,4 @@
-"""sab_adapter (src/swissarmybench/adapters/sab_adapter.py), the one adapter every data call goes through
+"""adapter (src/swissarmybench/adapters/adapter.py), the one adapter every data call goes through
 (Plans/adapter.plan.md): the plan, the DuckDB source (a file, a connection), what a source could not fold done
 over the stream, writes by mode, JSON pages made Arrow with given types, grids as named Arrow tables, and the
 file being one an export can copy as it is. Made-up data only."""
@@ -18,8 +18,8 @@ import duckdb
 import pyarrow as pa
 import pytest
 
-from swissarmybench.adapters import sab_adapter as sab
-from swissarmybench.adapters.sab_adapter import Filter, Plan, Total
+from swissarmybench.adapters import adapter as sab
+from swissarmybench.adapters.adapter import Filter, Plan, Total
 
 ADAPTER = Path(sab.__file__)
 
@@ -343,9 +343,9 @@ def test_the_adapter_runs_copied_alone(tmp_path: Path, shop: str) -> None:
     import subprocess
     import sys
 
-    (tmp_path / "sab_adapter.py").write_bytes(ADAPTER.read_bytes())
+    (tmp_path / "adapter.py").write_bytes(ADAPTER.read_bytes())
     probe = (
-        f"import sab_adapter as a; r, f = a.read(a.DuckDB.file({shop!r}), 'orders', a.Plan(limit=2)); "
+        f"import adapter as a; r, f = a.read(a.DuckDB.file({shop!r}), 'orders', a.Plan(limit=2)); "
         "print(r.read_all().num_rows, f.parts)"
     )
     done = subprocess.run(  # noqa: S603 (this Python, a made-up file)
@@ -359,7 +359,7 @@ def test_the_adapter_runs_copied_alone(tmp_path: Path, shop: str) -> None:
 MEASURE = """
 import sys
 import duckdb
-import sab_adapter as sab
+import adapter as sab
 
 def rss():
     with open("/proc/self/status") as f:
@@ -397,7 +397,7 @@ def test_a_read_streams_and_never_holds_the_table(tmp_path: Path) -> None:
     import subprocess
     import sys
 
-    (tmp_path / "sab_adapter.py").write_bytes(ADAPTER.read_bytes())
+    (tmp_path / "adapter.py").write_bytes(ADAPTER.read_bytes())
     done = subprocess.run(  # noqa: S603 (this Python, made-up rows)
         [sys.executable, "-c", MEASURE, str(tmp_path / "lines.duckdb")],
         cwd=tmp_path,

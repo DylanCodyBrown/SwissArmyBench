@@ -229,13 +229,13 @@ def run_catalog(
 def adapter_catalog(
     value: Any, dialect: str, secrets: dict[str, str], label: str
 ) -> tuple[list[str], list[list[Any]]]:
-    """A connection's tables listed by the adapter (sab_adapter.listed on its own client, in its dialect), as
+    """A connection's tables listed by the adapter (adapter.listed on its own client, in its dialect), as
     a catalog's column names and rows, the columns its starter's listing has."""
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
 
     try:
-        source = sab_adapter.source_from(value, "" if dialect == "duckdb" else dialect, label)
-        return sab_adapter.catalog_rows(sab_adapter.listed(source))
+        source = adapter.source_from(value, "" if dialect == "duckdb" else dialect, label)
+        return adapter.catalog_rows(adapter.listed(source))
     except BaseException as error:
         if isinstance(error, KeyboardInterrupt | SystemExit):
             raise

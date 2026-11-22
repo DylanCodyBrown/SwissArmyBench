@@ -1,5 +1,5 @@
 """The adapter's one rule, read like the layers test (Plans/adapter.plan.md: "every single data call and every
-api payload in and out should travel through the adapter"): every place outside sab_adapter.py that opens a
+api payload in and out should travel through the adapter"): every place outside adapter.py that opens a
 database driver or turns JSON into rows, found with ast.
 
 Enforced for what moved: a local sandbox API's own process (api_host.py, sab_api) opens no driver and reaches
@@ -15,7 +15,7 @@ from typing import Any
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench"
 ROOTS = [PACKAGE, *sorted((PACKAGE.parents[1] / "extensions").glob("*/src/*"))]
-ADAPTER = PACKAGE / "adapters" / "sab_adapter.py"
+ADAPTER = PACKAGE / "adapters" / "adapter.py"
 
 DRIVERS = {
     "duckdb", "sqlite3", "psycopg", "psycopg2", "pymysql", "mysql", "pyodbc", "mssql_python", "pytds",
@@ -76,7 +76,7 @@ def test_the_places_outside_the_adapter_are_listed() -> None:
         said = ", ".join(sorted(found["drivers"])) or "-"
         rows = ", ".join(sorted(found["rows"])) or "-"
         print(f"{name}: drivers {said}; JSON to rows {rows}; in SQL {', '.join(sorted(found['sql'])) or '-'}")
-    assert "swissarmybench/adapters/sab_adapter.py" not in listed
+    assert "swissarmybench/adapters/adapter.py" not in listed
     assert listed, "the scan finds the places the later steps move"
 
 
@@ -144,7 +144,7 @@ def test_the_engine_paths_that_moved_read_rows_only_through_the_adapter() -> Non
                 n.func.attr for n in ast.walk(bodies[function])
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
             }  # fmt: skip
-            assert "query" in called, f"{name} {function} reads through sab_adapter.query"
+            assert "query" in called, f"{name} {function} reads through adapter.query"
             assert not called & DIRECT_ROWS, (
                 f"{name} {function} reads rows itself: {sorted(called & DIRECT_ROWS)}"
             )
@@ -185,10 +185,10 @@ def test_a_file_connections_open_as_grid_reads_through_the_adapter() -> None:
 def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None:
     """Phase 2: a database connection's Open as grid is the adapter's read for DuckDB and each SQL dialect it
     folds a plan into (the old SELECT and COUNT text stays only for the dialects it does not know)."""
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
     from swissarmybench.services import connections
 
-    known = set(sab_adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
+    known = set(adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
     assert known | {"duckdb"} == set(connections.ADAPTER_DIALECTS)
 
 
@@ -202,7 +202,7 @@ STATEMENTS = {"execute", "executemany", "copy", "each_batch", "each_values", "ea
 
 def test_the_write_starters_write_only_through_the_adapter() -> None:
     """Phase 4, step 1: every Write function but the three above is a thin caller of the adapter's write
-    (by_adapter: its planned() for the dry run, then sab_adapter.write); none runs a statement itself."""
+    (by_adapter: its planned() for the dry run, then adapter.write); none runs a statement itself."""
     functions = sorted((PACKAGE / "starters").glob("write_to_*.blade.py"))
     assert len(functions) == 16
     for path in functions:

@@ -3,7 +3,7 @@ services/local_api.py).
 
 What it reads from its environment, and nothing else: SAB_API_FILE (the project's API.py), SAB_API_KEY (every
 request carries it: `Authorization: Bearer <key>`), SAB_API_BASE (the base path), SAB_SANDBOX_DATA (the app's
-/sandbox/data/<key> address: the adapter's only door here, sab_adapter.Remote). Its environment has no
+/sandbox/data/<key> address: the adapter's only door here, adapter.Remote). Its environment has no
 connection's code, variable or secret (the server builds it from scratch), and the app's own client functions
 are taken over before API.py is imported: `connection(name)` is the adapter's Connection over the sandbox's
 tables read from that connection; `swissarmybench.blade`, `.read`, `.sql`, `.dax` and `.load` refuse, so
@@ -30,7 +30,7 @@ import traceback
 from pathlib import Path
 from typing import Any
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.server import api_runtime as sab_api
 
 LOG_SIZE = 200
@@ -72,7 +72,7 @@ def _guard(connection: Any) -> None:
 
 def _load(path: Path) -> None:
     sys.modules["sab_api"] = sab_api
-    sys.modules["sab_adapter"] = sab_adapter  # `from sab_adapter import read, Plan`: the sandbox, by name
+    sys.modules["adapter"] = adapter  # `from adapter import read, Plan`: the sandbox, by name
     sys.path.insert(0, str(path.parent))
     spec = importlib.util.spec_from_file_location("API", path)
     if spec is None or spec.loader is None:
@@ -178,10 +178,10 @@ def main() -> int:
     door = os.environ[URL_VARIABLE]
     # The adapter's one backend here: every name is the sandbox's tables mocked as that connection, and
     # connection(name) is the adapter's calls on it (the same code an export runs against the real one).
-    sab_adapter.use(lambda name: sab_adapter.Remote(door, str(name or "Sandbox").strip() or "Sandbox"))
+    adapter.use(lambda name: adapter.Remote(door, str(name or "Sandbox").strip() or "Sandbox"))
 
     def connection(name: str) -> Any:
-        return sab_adapter.Connection(str(name or "Sandbox").strip() or "Sandbox")
+        return adapter.Connection(str(name or "Sandbox").strip() or "Sandbox")
 
     sab_api.use_clients(connection)
     _guard(connection)

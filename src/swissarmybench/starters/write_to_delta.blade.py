@@ -21,7 +21,7 @@ to write, in their own words, in this conversation. It signs in through the conn
 (sab.connection): no secret here. Returns the write's report.
 
 Each write is one Delta commit (all of it or none of it), made by the deltalake package. append,
-overwrite and merge are the adapter's write (sab_adapter.write on the connection: insert, truncate, merge,
+overwrite and merge are the adapter's write (adapter.write on the connection: insert, truncate, merge,
 Plans/adapter.plan.md); delete by a condition, optimize and vacuum are the lake's own calls. A vacuum keeps
 at least 168 hours (7 days): less is refused unless allow_shorter=True is set here, in the cell.
 """
@@ -30,7 +30,7 @@ from typing import Any
 
 import duckdb  # noqa: F401 (the package this needs: the rows are staged in DuckDB)
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
 MODES = ("append", "overwrite", "merge", "delete", "optimize", "vacuum")
@@ -68,9 +68,9 @@ def write_delta(
                 raise WriteError('A merge finds each row by its key columns: keys=["order_id"].')
             given.check_keys(keys, unique=True)
             said = f"MERGE INTO {path} ON {' AND '.join(keys)}: update when matched, insert when not"
-            return by_adapter(w, sab_adapter.Rows(conn, name), table, "merge", keys, said=said)
+            return by_adapter(w, adapter.Rows(conn, name), table, "merge", keys, said=said)
         said = f"{mode.upper()} {given.count:,} rows to {path}"
-        return by_adapter(w, sab_adapter.Rows(conn, name), table, _ADAPTER[mode], said=said, written=True)
+        return by_adapter(w, adapter.Rows(conn, name), table, _ADAPTER[mode], said=said, written=True)
     if mode == "delete":
         if not condition.strip():
             raise WriteError("A delete names its rows: condition=\"region = 'West'\".")

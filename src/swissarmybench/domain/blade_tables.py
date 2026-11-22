@@ -167,7 +167,7 @@ def listing_for(
 # The adapter lists a connection's tables (Plans/adapter.plan.md: "The Catalog lists through the adapter's
 # tables()"; a user's edited listing still wins) at its starter's scope, row for row (the same schemas, table
 # types, nullability, positions and SQL Server's descriptions and keys: tests/test_catalog_listing.py):
-# phase 3 DuckDB, PostgreSQL, SQLite; phase 4 every other dialect the adapter knows (sab_adapter.listed: its
+# phase 3 DuckDB, PostgreSQL, SQLite; phase 4 every other dialect the adapter knows (adapter.listed: its
 # starter's own listing text in the adapter; a test holds the two the same).
 ADAPTER_LISTED: tuple[str, ...] = (
     "duckdb", "postgres", "sqlite", "mysql", "oracle", "snowflake", "sqlserver", "trino", "databricks",

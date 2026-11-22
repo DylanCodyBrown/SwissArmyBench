@@ -18,7 +18,7 @@ read from the table as it is); dry_run=False writes. An agent sets dry_run=False
 to write, in their own words, in this conversation. It signs in through the connection's own sign-in
 (sab.connection): no secret here. Returns the write's report.
 
-The write is the adapter's (sab_adapter.write on the connection, Plans/adapter.plan.md): each batch is one
+The write is the adapter's (adapter.write on the connection, Plans/adapter.plan.md): each batch is one
 $batch change set, all of its rows or none (a failure names the batch; the batches before it stay
 written); a throttled request (429) waits as Dataverse asks, then goes again; a choice column takes its
 labels (Won, not 1); a lookup is a column named <column>@odata.bind. truncate deletes every record, then
@@ -27,7 +27,7 @@ makes the rows.
 
 from typing import Any
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.client.writes import Write, WriteError, by_adapter, live
 
 # The starter's words for each mode, and the adapter's mode it is.
@@ -76,11 +76,11 @@ def write_dataverse(
     w.fact("Table", f"{found['table']} (the Web API's {found['set']})")
     kinds = {str(c["name"]).lower(): str(c["type"]) for c in conn.described(found["table"])}
     named = [] if w.rows is None else w.rows.names
-    choices = [n for n in named if kinds.get(n.lower()) in sab_adapter.DV_CHOICES]
+    choices = [n for n in named if kinds.get(n.lower()) in adapter.DV_CHOICES]
     if choices:
         w.fact("Choices", f"{', '.join(choices)}: labels sent as their numbers")
     keys = [key] if key and _MODES[mode] in ("update", "merge", "delete") else []
     if keys:
         w.fact("Key", key)
-    source = sab_adapter.OData(conn, name, batch_size=batch_size)
+    source = adapter.OData(conn, name, batch_size=batch_size)
     return by_adapter(w, source, table, _MODES[mode], keys, said=_SAID[mode].format(set=found["set"]))

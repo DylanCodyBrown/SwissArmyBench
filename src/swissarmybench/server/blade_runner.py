@@ -476,7 +476,7 @@ def _adapter_rows(
     DB-API connection in its dialect; its plan folded into the read, the batches made the table and nothing
     else kept; its row count when asked (SQL Server's from its system views, as before). None: a connection
     the adapter does not read (its SQL is sent instead)."""
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
     from swissarmybench.adapters.blade_run import _sql_rows
 
     dialect = str(read.get("dialect") or "duckdb")
@@ -631,7 +631,7 @@ def _adapter_read(
     """A Dataverse table (OData) or a lake's or SharePoint's (Rows) through the adapter: the limit, and the
     columns and filters a DuckDB query sends, folded into the connection's own read; the count it gave and,
     for the lakes, how it read the files (the table's sab_read)."""
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
 
     source: Any = sab.OData(connection) if adapter == "odata" else sab.Rows(connection)
     table = str(place.get("table") or "")

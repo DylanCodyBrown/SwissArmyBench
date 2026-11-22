@@ -14,7 +14,7 @@ POST  /sandbox/baseline              the sandbox as it is now made the baseline 
 POST  /sandbox/checkpoints           {"name", "action": save | delete}                      sandbox_checkpoint
 POST  /sandbox/checkpoints/restore   {"name"}                                                 sandbox_restore
 POST  /sandbox/adapter/{tables|read|query|write}  the four below with the token (an in-app caller, a test)
-POST  /sandbox/data/{key}/tables     sab_adapter.Remote's tables(source): {"connection"}; a running local
+POST  /sandbox/data/{key}/tables     adapter.Remote's tables(source): {"connection"}; a running local
                                      sandbox API's own key in the path instead of the token
                                      (server/security.py's secret paths)
 POST  /sandbox/data/{key}/read       its read: {"connection", "table", "plan"}; an Arrow IPC stream
@@ -61,7 +61,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         return json_response(await sandbox.source_tables(await read_json(request)))
 
     async def adapter_read(request: Request) -> Response:
-        """sab_adapter.Remote's read: the batches streamed as an Arrow IPC stream, as DuckDB makes them."""
+        """adapter.Remote's read: the batches streamed as an Arrow IPC stream, as DuckDB makes them."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
         reader, folded = await sandbox.read_arrow(await read_json(request))
@@ -70,14 +70,14 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         )
 
     async def adapter_query(request: Request) -> Response:
-        """sab_adapter.Remote's query: the connection's own SQL, its answer an Arrow IPC stream."""
+        """adapter.Remote's query: the connection's own SQL, its answer an Arrow IPC stream."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
         reader = await sandbox.query_arrow(await read_json(request), "api")
         return StreamingResponse(_ipc(reader), media_type=ARROW_STREAM)
 
     async def adapter_write(request: Request) -> Response:
-        """sab_adapter.Remote's write: an Arrow IPC stream's rows; the names in the query string."""
+        """adapter.Remote's write: an Arrow IPC stream's rows; the names in the query string."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
         given = {k: str(v) for k, v in request.query_params.items()}
