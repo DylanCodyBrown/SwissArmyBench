@@ -168,3 +168,33 @@ def test_a_projects_files_open_data_first() -> None:
     for bad in ("", "a/b", "..", "x" * 61, "what?"):
         with pytest.raises(rules.ProjectError):
             rules.check_folder_name(bad)
+
+
+def test_a_sql_cell_that_keeps_its_result_is_in_data_py_as_sab_sql(tmp_path: Path) -> None:
+    # Test app one (BI review, 2026-11-22): data.ipynb's `%%sql -> monthly` cell was left out of data.py, and
+    # the next cell's `monthly` was a name no line of data.py made (the import failed).
+    cells = [
+        DataCell(
+            "code",
+            "import pandas as pd\nsales = pd.DataFrame({'region': ['E', 'W', 'E'], 'amount': [1, 2, 3]})",
+            number=1,
+        ),
+        DataCell(
+            "sql",
+            "SELECT region, sum(amount) AS total\nFROM sales GROUP BY region ORDER BY region",
+            number=2,
+            connection="-> totals",
+        ),
+        DataCell("code", "# uses totals @cell2\nbest = totals.iloc[-1]['region']", number=3),
+        DataCell("sql", "SELECT 1", number=4, connection="Warehouse"),  # no result kept: left out
+    ]
+    made = rules.data_module("sales", cells)
+    assert 'totals = sab.sql("""\nSELECT region' in made.text and "SELECT 1" not in made.text
+    assert [s.split(":")[0] for s in made.skipped] == ["cell 4"]
+    assert made.names == ("sales", "totals", "best")
+    named = rules.data_module(
+        "x", [DataCell("sql", "SELECT 1", number=1, connection="Larkfield Warehouse -> one")]
+    )
+    assert 'one = sab.sql("Larkfield Warehouse", """\nSELECT 1\n""")' in named.text
+    (tmp_path / "data.py").write_text(made.text)
+    assert _import(tmp_path / "data.py", "[data.best, list(data.totals['total'])]") == ["W", [4, 2]]

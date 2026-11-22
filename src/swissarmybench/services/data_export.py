@@ -54,7 +54,7 @@ class DataExport:
             sent = {"kind": "notebook", "cells": [c.to_json() for c in cells], "tables": tables}
             arranged = await self._arrange(sent | {"next_cell": following, "move": False})
             cells = notebooks.read_cells(arranged["cells"])
-        return [DataCell(c.kind, c.source, c.role, c.table, c.number) for c in cells]
+        return [DataCell(c.kind, c.source, c.role, c.table, c.number, c.connection) for c in cells]
 
     async def data(self, folder: str, title: str, replace: bool = False) -> projects.DataModule | None:
         """data.py written again from the folder's data.ipynb (None: the folder has no data.ipynb). One edited
