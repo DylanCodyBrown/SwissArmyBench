@@ -443,6 +443,7 @@ function ask<T>(question: string, options: AskOptions, none: T, build: (parts: D
     const shown = heading === paragraphs[0] ? paragraphs.slice(1) : paragraphs;
     parts.body.append(...shown.map((p) => h("p", { class: "ask-words", style: "white-space: pre-line" }, p)));
     const first = build(parts, answer);
+    if (!parts.body.childElementCount) parts.body.remove(); // the heading said it all: no empty strip under it
     parts.dialog.addEventListener("close", () => {
       resolve(said);
       if (before?.isConnected) before.focus();
