@@ -145,7 +145,8 @@ def cell_value(value: Any) -> tuple[Any, bool]:
     if isinstance(value, int):
         return (value, False) if abs(value) < 10**EXACT_DIGITS else (str(value), True)
     if isinstance(value, float):
-        return (value, False) if value == value and abs(value) != float("inf") else (repr(value), True)
+        number = float(value)  # numpy's float64 as Python's own
+        return (number, False) if number == number and abs(number) != float("inf") else (repr(number), True)
     if isinstance(value, str):
         return cell_text(value), True
     if isinstance(value, decimal.Decimal):
