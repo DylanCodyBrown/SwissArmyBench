@@ -20,7 +20,8 @@ It reads top to bottom in the order a call runs:
                     its source folded
   2. Sources        a source is three functions (tables, read, write), and query when it speaks SQL; DuckDB (a
                     file, or a connection given), Remote (the project's sandbox through the app, for a local
-                    sandbox API's process), Sql, OData, Rows; source_from(client) wraps a real client
+                    sandbox API's process), Sql, OData, Rows, Files; source_from(client) wraps a
+                    connection's own client (or its file's path) in its backend
   3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
                     table, batches, key, mode): by a source's name (use() says how a name is found) or
                     the source itself; what a source could not fold is finished here, in DuckDB, over the
@@ -1710,6 +1711,133 @@ def _lake_written(source: Rows, table: str, data: pa.Table, key: list[str], mode
     )
 
 
+# ----- files: a file connection's CSV, Parquet and JSON files (one, or a folder of them) -----
+
+FILE_FORMATS = {".csv": "csv", ".tsv": "csv", ".txt": "csv", ".parquet": "parquet", ".json": "json",
+                ".jsonl": "json", ".ndjson": "json"}  # fmt: skip
+_READERS = {"csv": "read_csv", "parquet": "read_parquet", "json": "read_json"}
+_COPY = {"csv": "(FORMAT csv, HEADER)", "parquet": "(FORMAT parquet)", "json": "(FORMAT json)"}
+
+
+class Files:
+    """A file connection as a source: one CSV, Parquet or JSON file, or a folder of them, each a table named
+    by its path below the folder without its suffix (sales/orders). A read is DuckDB over the file (the whole
+    plan folded, streamed); query is DuckDB SQL with every file a view by its name; a write puts a file
+    in its place whole (truncate) or adds to it (insert, the file read and written again), in its suffix's
+    format: a new name takes a suffix (orders.parquet)."""
+
+    def __init__(self, path: str, name: str = "") -> None:
+        import pathlib
+
+        self.path = pathlib.Path(path)
+        self.name = name or self.path.name
+
+    def _files(self) -> dict[str, Any]:
+        if self.path.is_file():
+            return {self.path.stem: self.path}
+        if not self.path.is_dir():
+            raise AdapterError(f"{self.name} reaches no file or folder ({self.path}).")
+        found = {}
+        for file in sorted(self.path.rglob("*")):
+            if file.is_file() and file.suffix.lower() in FILE_FORMATS and not file.name.startswith("."):
+                relative = file.relative_to(self.path).with_suffix("").as_posix()
+                found.setdefault(relative, file)
+        return found
+
+    def _file(self, table: str) -> Any:
+        files = self._files()
+        wanted = str(table).replace("\\", "/").casefold()
+        stem, _, suffix = wanted.rpartition(".")
+        for name, file in files.items():
+            if name.casefold() in (wanted, stem if "." + suffix in FILE_FORMATS else wanted):
+                return file
+        raise AdapterError(f"{self.name} has no table {table!r}.")
+
+    @staticmethod
+    def _relation(file: Any) -> str:
+        reader = _READERS[FILE_FORMATS[file.suffix.lower()]]
+        return f"{reader}('{str(file).replace(chr(39), chr(39) * 2)}')"
+
+    @contextlib.contextmanager
+    def _duck(self, writing: bool = False) -> Iterator[Any]:
+        con = duckdb.connect()
+        try:
+            yield con
+        finally:
+            con.close()
+
+    def tables(self) -> list[Table]:
+        listed = []
+        with self._duck() as con:
+            for name, file in self._files().items():
+                described = con.sql(f"DESCRIBE SELECT * FROM {self._relation(file)}").fetchall()  # noqa: S608
+                columns = tuple(Column(str(c[0]), str(c[1]), nullable=True) for c in described)
+                schema = name.rpartition("/")[0]
+                listed.append(Table(name, columns, schema, FILE_FORMATS[file.suffix.lower()]))
+        return listed
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        relation = self._relation(self._file(table))
+
+        def run(con: Any, _table: str, asked: Plan) -> tuple[str, Any]:
+            return plan_sql(f"(SELECT * FROM {relation})", asked)  # noqa: S608 (the path quoted)
+
+        return _stream(self._duck, run, table, plan), Folded(plan.parts())
+
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """DuckDB SQL over the files, each a view named by its table name ("sales/orders" as sales_orders)."""
+        if not reads_only(sql):
+            raise AdapterError(f"{self.name}'s files are read by query: write a file with write().")
+        views = {re.sub(r"\W", "_", n): f for n, f in self._files().items()}
+
+        def run(con: Any, _table: str, _plan: Plan) -> tuple[str, Any]:
+            for view, file in views.items():
+                con.execute(f"CREATE TEMP VIEW {quote(view)} AS SELECT * FROM {self._relation(file)}")  # noqa: S608
+            return sql, _given(params)
+
+        return _stream(self._duck, run, "", Plan())
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        import os
+        import pathlib
+
+        _checked_write(mode, key)
+        try:
+            file = self._file(table)
+        except AdapterError:
+            if mode not in ("insert", "truncate"):
+                raise
+            base = self.path if self.path.is_dir() else self.path.parent
+            file = base / pathlib.Path(str(table).replace("\\", "/"))
+            if file.suffix.lower() not in FILE_FORMATS:
+                raise AdapterError(
+                    f"A new file is named with its format: {table}.parquet, .csv or .json."
+                ) from None
+        if mode not in ("insert", "truncate"):
+            raise AdapterError(
+                f"{table} is one file: it is written whole (truncate) or added to (insert), not {mode}d."
+            )
+        data = batches.read_all()
+        before = 0
+        with self._duck(True) as con:
+            existing = file.exists()
+            if existing:
+                before = int(con.sql(f"SELECT count(*) FROM {self._relation(file)}").fetchall()[0][0])  # noqa: S608
+            if not data.num_columns and existing:  # a truncate with no rows: the file's own columns
+                data = con.sql(f"SELECT * FROM {self._relation(file)} LIMIT 0").to_arrow_table()  # noqa: S608
+            con.register("sab_incoming", data)
+            rows = "SELECT * FROM sab_incoming"
+            if mode == "insert" and existing:
+                rows = f"SELECT * FROM {self._relation(file)} UNION ALL BY NAME SELECT * FROM sab_incoming"  # noqa: S608
+            file.parent.mkdir(parents=True, exist_ok=True)
+            partial = file.with_name(f".{file.name}.sab-writing")
+            target = str(partial).replace("'", "''")
+            fmt = _COPY[FILE_FORMATS[file.suffix.lower()]]
+            con.execute(f"COPY ({rows}) TO '{target}' {fmt}")
+            os.replace(partial, file)
+        return Counts(inserted=data.num_rows, deleted=before if mode == "truncate" else 0)
+
+
 # ===== 3. The calls =====
 
 _find: Callable[[str], Source] | None = None
@@ -1996,11 +2124,14 @@ _DRIVERS = {
 
 
 def source_from(client: Any, dialect: str = "", name: str = "") -> Source:
-    """A connection's own client (what its code made) as the adapter's source: a DuckDB connection; a
-    client that reads a table with OData (Dataverse: rows, described, catalog) or by its own rows (the lakes,
-    SharePoint); a DB-API connection in its dialect (`dialect`, else its `dbms`, else its driver's)."""
-    if isinstance(client, DuckDB | Sql | OData | Rows | Remote):
+    """A connection's own client (what its code made) as the adapter's source: a DuckDB connection; a file
+    connection's path (a file or folder of CSV, Parquet, JSON); a client that reads a table with OData
+    (Dataverse: rows, described, catalog) or by its own rows (the lakes, SharePoint); a DB-API connection
+    in its dialect (`dialect`, else its `dbms`, else its driver's)."""
+    if isinstance(client, DuckDB | Sql | OData | Rows | Remote | Files):
         return client
+    if isinstance(client, str) or hasattr(client, "__fspath__"):  # a file connection: the file it reaches
+        return Files(str(client), name)
     if isinstance(client, duckdb.DuckDBPyConnection):
         return DuckDB.over(client, name or "DuckDB")
     if callable(getattr(client, "rows", None)) and callable(getattr(client, "catalog", None)):
@@ -2213,6 +2344,7 @@ __all__ = [
     "Counts",
     "Dialect",
     "DuckDB",
+    "Files",
     "Filter",
     "Folded",
     "OData",
