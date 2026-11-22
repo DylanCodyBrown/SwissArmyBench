@@ -25,7 +25,8 @@ It reads top to bottom in the order a call runs:
                     imported only when one is used); source_from(client) wraps a connection's own client
                     (or its file's path, or a workbook's bytes) in its backend
   3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
-                    table, batches, key, mode): by a source's name (use() says how a name is found) or
+                    table, batches, key, mode), write_all(source, writes) (several, all or none): by a
+                    source's name (use() says how a name is found) or
                     the source itself; what a source could not fold is finished here, in DuckDB, over the
                     stream; Connection(name): the same calls on one source (API.py's connection(name));
                     observe(hook): each call's facts as it ends, for the statistics (never a value)
@@ -38,7 +39,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.5.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.6.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -70,6 +71,10 @@ Version 1.5.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            time, a time or a decimal as {"sab_type", "value"} (typed_value), plan_from gives the same type
            (untyped); Remote's read sends its plan so (a date filter is a date on the sandbox's side); Sql's
            read binds its plan's values as the driver takes them (Sql.value: SQLite's a date as its text)
+  1.6.0    write_all(source, writes) and Connection.write_all: several writes on one source in one
+           transaction, all of them or none, each one's counts (Write; OneWrite; a source's own write_all:
+           DuckDB's, Sql's (SQL Server's run whole again on a passing error), Remote's through the door's
+           write_all); Trino, Dataverse's Web API, Rows, Files and Excel refuse two or more in one sentence
 """
 
 from __future__ import annotations
@@ -93,7 +98,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.5.0"  # the docstring's change list says what each version added
+VERSION = "1.6.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -391,7 +396,11 @@ class Source(Protocol):
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts: ...
 
     # and, for a source that speaks SQL: query(self, sql: str, params: Sequence[Any]) -> pa.RecordBatchReader
+    # and, with a transaction across writes: write_all(self, writes: Sequence[OneWrite]) -> list[Counts]
 
+
+# one of write_all's writes: (table, batches, key, mode)
+OneWrite = tuple[str, pa.RecordBatchReader, Sequence[str], str]
 
 READS = ("SELECT", "WITH", "FROM", "VALUES", "TABLE", "SHOW", "DESCRIBE", "SUMMARIZE", "EXPLAIN", "PRAGMA")
 COUNT = "count"  # the one column a statement that returns no rows answers: the rows it changed
@@ -549,26 +558,30 @@ class DuckDB:
         raise AdapterError(f"{self.name} has no table {table!r}.")
 
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
-        if mode not in MODES:
-            raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
-        if mode in KEYED and not key:
-            raise AdapterError(f"A {mode} names the key its rows are matched by.")
-        names = [str(n) for n in batches.schema.names]
+        return self.write_all([(table, batches, key, mode)])[0]
+
+    def write_all(self, writes: Sequence[OneWrite]) -> list[Counts]:
+        """Each (table, batches, key, mode) in turn on one connection, in one transaction: all or none."""
+        for _, _, key, mode in writes:
+            _checked_write(mode, key)
         with self._connect(True) as con:
-            schema, name = self._place(con, table)
-            target = f"{quote(schema)}.{quote(name)}"
-            if names:  # a truncate with no rows has no columns to register
-                con.register("sab_incoming", batches)
+            places = [self._place(con, table) for table, _, _, _ in writes]
             con.execute("BEGIN TRANSACTION")
+            done: list[Counts] = []
             try:
-                done = _written(con, target, names, list(key), mode)
+                for (schema, name), (_, batches, key, mode) in zip(places, writes, strict=True):
+                    names = [str(n) for n in batches.schema.names]
+                    if names:  # a truncate with no rows has no columns to register
+                        con.register("sab_incoming", batches)
+                    done.append(_written(con, f"{quote(schema)}.{quote(name)}", names, list(key), mode))
+                    if names:
+                        con.unregister("sab_incoming")
                 con.execute("COMMIT")
             except BaseException:
                 con.execute("ROLLBACK")
-                raise
-            finally:
-                if names:
+                with contextlib.suppress(Exception):  # after the rollback: an aborted one refuses it
                     con.unregister("sab_incoming")
+                raise
             return done
 
     def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
@@ -727,6 +740,21 @@ class Remote:
         )
         answer = json.loads(self._post("/write?" + query, sink.getvalue().to_pybytes()).read())
         return Counts(int(answer["inserted"]), int(answer["updated"]), int(answer["deleted"]))
+
+    def write_all(self, writes: Sequence[OneWrite]) -> list[Counts]:
+        """Several writes in one request, applied in one transaction on the far side: a JSON line naming each
+        ({"connection", "writes": [{"table", "key", "mode", "bytes"}]}), then each one's Arrow IPC stream."""
+        streams, said = [], []
+        for table, batches, key, mode in writes:
+            sink = pa.BufferOutputStream()
+            with ipc.new_stream(sink, batches.schema) as stream:
+                for batch in batches:
+                    stream.write_batch(batch)
+            streams.append(sink.getvalue().to_pybytes())
+            said.append({"table": table, "key": list(key), "mode": mode, "bytes": len(streams[-1])})
+        head = json.dumps({"connection": self.connection, "writes": said}).encode() + b"\n"
+        answer = json.loads(self._post("/write_all", head + b"".join(streams)).read())
+        return [Counts(int(a["inserted"]), int(a["updated"]), int(a["deleted"])) for a in answer["counts"]]
 
     def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
         """The source's own SQL, answered as Arrow (the sandbox makes it DuckDB SQL over its tables)."""
@@ -1169,6 +1197,33 @@ class Sql:
         cursor = self.connection.cursor()
         try:
             done = _sql_written(self, cursor, target, names, list(key), mode, batches)
+            self.connection.commit()
+            return done
+        except BaseException:
+            _quietly(self.connection.rollback)
+            raise
+        finally:
+            _quietly(cursor.close)
+
+    def write_all(self, writes: Sequence[OneWrite]) -> list[Counts]:
+        """Several writes in one transaction: all of them or none (SQL Server's run whole again on a passing
+        error, as one write is); Trino, with no transaction, refuses before anything is sent."""
+        for _, _, key, mode in writes:
+            _checked_write(mode, key)
+        if self.dialect.name == "trino" or not self.dialect.transactional:
+            why = "it writes row batches without a transaction" if self.dialect.name == "trino" else (
+                "it takes no transactions"
+            )  # fmt: skip
+            raise AdapterError(f"{self.name} cannot make several writes all or none ({why}).")
+        if self.dialect.name == "sqlserver":
+            return _server_written_all(self, [(t, b.read_all(), list(k), m) for t, b, k, m in writes])
+        cursor = self.connection.cursor()
+        try:
+            done = [
+                _sql_written(self, cursor, table_name(self.dialect, table), [str(n) for n in b.schema.names],
+                             list(key), mode, b)
+                for table, b, key, mode in writes
+            ]  # fmt: skip
             self.connection.commit()
             return done
         except BaseException:
@@ -1810,15 +1865,22 @@ def _distinct(rows: pa.Table) -> pa.Table:
 def _server_written(db: Sql, table: str, batches: pa.RecordBatchReader, key: list[str], mode: str) -> Counts:
     """A SQL Server write in one transaction, run WHOLE again (never half) on a passing error, on a fresh
     connection after 1, 2, 4 seconds. The rows are kept for that (they are in memory already: no copy)."""
-    data = batches.read_all()
-    size = max((b.num_rows for b in data.to_batches()), default=BATCH_ROWS) or BATCH_ROWS
+    return _server_written_all(db, [(table, batches.read_all(), key, mode)])[0]
+
+
+def _server_written_all(db: Sql, writes: Sequence[tuple[str, pa.Table, list[str], str]]) -> list[Counts]:
+    """SQL Server's writes, in turn, in one transaction, run WHOLE again (every one of them) on a passing
+    error; each one's counts carry the notes."""
     notes: list[str] = []
     for attempt in range(1, TRIES + 1):
         cursor = db.connection.cursor()
         try:
-            done = _ServerWrite(db, cursor, table, data, size, notes).written(key, mode)
+            done = []
+            for table, data, key, mode in writes:
+                size = max((b.num_rows for b in data.to_batches()), default=BATCH_ROWS) or BATCH_ROWS
+                done.append(_ServerWrite(db, cursor, table, data, size, notes).written(key, mode))
             db.connection.commit()
-            return replace(done, notes=tuple(notes))
+            return [replace(d, notes=tuple(notes)) for d in done]
         except Exception as error:
             _quietly(db.connection.rollback)
             if attempt == TRIES or not transient(error):
@@ -3607,6 +3669,83 @@ def write(
     return counts
 
 
+@dataclass(frozen=True)
+class Write:
+    """One of several writes write_all makes all or none: rows (Arrow, a DataFrame, a list of dicts; None: a
+    truncate that only clears) into a table by mode, matched by key."""
+
+    table: str
+    rows: Any = None
+    key: tuple[str, ...] = ()
+    mode: str = "insert"
+
+
+_ONE_AT_A_TIME = {
+    "OData": "Dataverse's Web API keeps all or none to one change set of one table",
+    "Rows": "each write is its service's own call",
+    "Files": "each file is replaced on its own",
+    "Excel": "each sheet is written on its own",
+}  # the sources with no transaction across writes, and why
+
+
+def write_all(
+    source: str | Source, writes: Sequence[Write | Mapping[str, Any] | Sequence[Any]]
+) -> list[Counts]:
+    """Several writes on one source in one transaction: all of them or none (a status set and its audit row
+    added). Each is a Write, or its parts ({"table", "rows", "key", "mode"}, or (table, rows, key, mode)).
+    Each write's counts, in order. A source without a transaction across writes (Trino, Dataverse's Web API,
+    the lakes and SharePoint, files, a workbook) refuses two or more in one sentence, nothing written."""
+    given = [_write_of(w) for w in writes]
+    if not given:
+        return []
+    for w in given:
+        _checked_write(w.mode, w.key)
+        if w.rows is None and w.mode != "truncate":
+            raise AdapterError(f"A {w.mode} takes the rows it writes.")
+    shown = ", ".join(dict.fromkeys(w.table for w in given))
+    timed = _Timed.start("write", source, shown, 0, " + ".join(w.mode for w in given))
+    try:
+        found = _found(source, timed)
+        prepared: list[OneWrite] = [(w.table, _reader_of(w.rows), w.key, w.mode) for w in given]
+        if len(prepared) == 1:
+            counts = [found.write(*prepared[0])]
+        elif callable(getattr(found, "write_all", None)):
+            counts = list(found.write_all(prepared))  # type: ignore[attr-defined]
+        else:
+            said = getattr(found, "name", "") or type(found).__name__
+            why = _ONE_AT_A_TIME.get(type(found).__name__, "it has no transaction across writes")
+            raise AdapterError(f"{said} cannot make several writes all or none ({why}).")
+    except Exception as error:
+        _Timed.failed(timed, error)
+        raise
+    if timed is not None:
+        timed.wrote(Counts(*(sum(getattr(c, n) for c in counts) for n in ("inserted", "updated", "deleted"))))
+    return counts
+
+
+def _reader_of(rows: Any) -> pa.RecordBatchReader:
+    """A write's rows as a stream: a reader as it is, anything else made Arrow (none: no rows, no columns)."""
+    if rows is None:
+        return pa.table({}).to_reader()
+    return rows if isinstance(rows, pa.RecordBatchReader) else arrow_of(rows).to_reader()
+
+
+def _write_of(item: Write | Mapping[str, Any] | Sequence[Any]) -> Write:
+    if isinstance(item, Mapping):
+        parts = [item.get("table"), item.get("rows"), item.get("key"), item.get("mode")]
+    elif isinstance(item, Write):
+        parts = [item.table, item.rows, item.key, item.mode]
+    elif isinstance(item, Sequence) and not isinstance(item, str) and 1 <= len(item) <= 4:
+        parts = [*item, None, None, None][:4]
+    else:
+        raise AdapterError("A write is a Write, {table, rows, key, mode}, or (table, rows, key, mode).")
+    table, rows, key, mode = parts
+    if not table:
+        raise AdapterError("A write names its table.")
+    keys = ((key,) if key else ()) if isinstance(key, str) else tuple(str(k) for k in key or ())
+    return Write(str(table), rows, keys, str(mode or "insert"))
+
+
 def planned(
     source: str | Source,
     table: str,
@@ -3786,6 +3925,11 @@ class Connection:
                 else pa.Table.from_pylist([dict(r) for r in rows])
             )
         return write(self.source, table, given, key, mode)
+
+    def write_all(self, writes: Sequence[Write | Mapping[str, Any] | Sequence[Any]]) -> list[Counts]:
+        """Several writes in one transaction, all or none (write_all): each a Write, {table, rows, key, mode}
+        or (table, rows, key, mode); each one's counts."""
+        return write_all(self.source, writes)
 
     def __getattr__(self, name: str) -> Any:
         if name in GONE_CALLS:
