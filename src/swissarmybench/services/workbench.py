@@ -497,6 +497,9 @@ class Workbench:
         session = self.session_kernel()
         if session and any(d.replace("\\", "/").casefold() == wanted for d in self._session_documents):
             return session
+        project = self.project()
+        if session and project is not None and project_python.in_project(path, project[0]):
+            return session  # one session a project: any of its documents, whether or not it joined yet
         found = [
             k
             for k, d in self._documents_of.items()

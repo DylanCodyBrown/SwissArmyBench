@@ -184,6 +184,12 @@ def test_the_run_says_which_document_it_is_for(client: TestClient, project: Path
         "Script load.py",
     )
     assert workbench.kernel_for(notebook) == kernel and workbench.kernel_for(script) == kernel
+    # One session a project: a document of the project that never started it is still its (the sweep,
+    # 2026-11-22: the debugger refused a project's script with "run it once first" while the session ran);
+    # a file outside the project is not.
+    other = str(project / "scripts" / "pricing.py")
+    assert workbench.kernel_for(other) == kernel
+    assert workbench.kernel_for(str(project.parent / "loose.py")) is None
     assert workbench.running_documents() == sorted([notebook, script])
     assert workbench.kernel_count() == 1
 
