@@ -40,7 +40,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.8.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.9.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -84,6 +84,10 @@ Version 1.8.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            made dates (dated); OData and Rows read only the columns a plan with totals needs (Plan.needed)
            and DuckDB groups them over the stream; to_json says periods only when there are some; OData's
            $orderby built only when sent (a sort by a total's name failed)
+  1.9.0    a filter's op "contains": its text in any case, taken literally (no wildcard): DuckDB's
+           contains(lower(...), lower(?)); each dialect's LOWER(column) LIKE ? ESCAPE '!' with the text
+           escaped (contains_pattern; SQL Server's [ too); Dataverse's contains(field,'text') (its strings
+           compared in any case), a text with one of its wildcards left to DuckDB; Rows' by DuckDB
 """
 
 from __future__ import annotations
@@ -107,10 +111,10 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.8.0"  # the docstring's change list says what each version added
+VERSION = "1.9.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
-OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
+OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null", "contains")
 TOTALS = ("count", "count_distinct", "sum", "avg", "min", "max")
 PERIODS = (
     "year",
@@ -154,7 +158,8 @@ def batch_of(error: BaseException) -> Batch | None:
 
 @dataclass(frozen=True)
 class Filter:
-    """One condition: column op value (`in` takes a list, `between` two values, `is null` none)."""
+    """One condition: column op value (`in` takes a list, `between` two values, `is null` none, `contains`
+    text, matched in any case)."""
 
     column: str
     op: str = "="
@@ -339,6 +344,8 @@ def check_plan(plan: Plan) -> None:
             raise AdapterError(f"The filter on {f.column} with in takes a list of values.")
         if f.op == "between" and not (isinstance(f.value, (list, tuple)) and len(f.value) == 2):
             raise AdapterError(f"The filter on {f.column} with between takes two values.")
+        if f.op == "contains" and not isinstance(f.value, str):
+            raise AdapterError(f"The filter on {f.column} with contains takes text.")
     for t in plan.totals:
         if t.fn not in TOTALS:
             raise AdapterError(f"A total is one of {', '.join(TOTALS)}, not {t.fn!r}.")
@@ -577,7 +584,16 @@ def _condition(f: Filter, params: list[Any]) -> str:
     params.append(f.value)
     if f.op == "like":
         return f"CAST({name} AS VARCHAR) LIKE ?"
+    if f.op == "contains":  # in any case, the text taken literally (no wildcard)
+        return f"contains(lower(CAST({name} AS VARCHAR)), lower(?))"
     return f"{name} {'<>' if f.op == '!=' else f.op} ?"
+
+
+def contains_pattern(text: str, dialect: str = "") -> str:
+    """contains' text as a LIKE pattern for LOWER(column) LIKE ? ESCAPE '!': lowered, its own %, _ and ! (and,
+    in SQL Server's, [) escaped with !, so they are matched as themselves; wrapped in %."""
+    said = str(text).lower().replace("!", "!!").replace("%", "!%").replace("_", "!_")
+    return "%" + (said.replace("[", "![") if dialect == "sqlserver" else said) + "%"
 
 
 def _total(t: Total) -> str:
@@ -1104,6 +1120,10 @@ def dialect_sql(dialect: Dialect, table: str, plan: Plan, style: str = "qmark") 
             return f"{name} IN ({', '.join(mark(v) for v in f.value)})"
         if f.op == "between":
             return f"{name} BETWEEN {mark(f.value[0])} AND {mark(f.value[1])}"
+        if (
+            f.op == "contains"
+        ):  # in any case, its text escaped (a pyformat driver's marks keep % in the value)
+            return f"LOWER({name}) LIKE {mark(contains_pattern(f.value, dialect.name))} ESCAPE '!'"
         return f"{name} {'<>' if f.op == '!=' else f.op.upper()} {mark(f.value)}"
 
     def total(t: Total) -> str:
@@ -2356,6 +2376,10 @@ def odata_filter(filters: Sequence[Filter], fields: Mapping[str, str]) -> str | 
         elif f.op == "between":
             low, high = f.value
             said.append(f"({field} ge {odata_literal(low)} and {field} le {odata_literal(high)})")
+        elif f.op == "contains":  # Dataverse compares every string in any case; its wildcards are DuckDB's
+            if any(c in str(f.value) for c in "%_[]"):
+                return None
+            said.append(f"contains({field},{odata_literal(str(f.value))})")
         else:  # like: a leading and/or trailing % only
             text = str(f.value)
             inner = text.strip("%")

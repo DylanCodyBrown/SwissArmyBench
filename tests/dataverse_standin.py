@@ -264,6 +264,15 @@ def _matches(row: dict[str, Any], text: str) -> bool:
     if re.search(r"\s+or\s+", text):  # a or b or c (the Write starters ask about a few keys at once)
         return any(_matches(row, part) for part in re.split(r"\s+or\s+", text.strip()))
     for part in re.split(r"\s+and\s+", text.strip()):
+        # contains(field,'text'), startswith, endswith: in any case, as Dataverse compares every string
+        called = re.fullmatch(r"(contains|startswith|endswith)\((\w+),('.*')\)", part.strip())
+        if called is not None:
+            fn, name, value = called.groups()
+            said, wanted = str(row.get(name) or "").casefold(), str(_literal(value)).casefold()
+            test = {"contains": said.__contains__, "startswith": said.startswith, "endswith": said.endswith}
+            if not test[fn](wanted):
+                return False
+            continue
         found = re.fullmatch(r"(\w+)\s+(eq|ne|gt|ge|lt|le)\s+(.+)", part.strip())
         if found is None:
             raise ODataError(f"Could not find a property named '{part.strip().split(' ')[0]}'.")

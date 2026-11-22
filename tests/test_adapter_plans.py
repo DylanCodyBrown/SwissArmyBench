@@ -299,3 +299,92 @@ def test_rows_and_odata_read_only_the_columns_a_period_needs_and_duckdb_groups_t
     assert sum(found.column("count").to_pylist()) == made_up.OPPORTUNITIES
     asked = next(r for r in reversed(standin.gets()) if r["path"].endswith("/opportunities"))["query"]
     assert asked["$select"] == "estimatedclosedate"
+
+
+# ----- 1.9.0: contains, in any case -----
+
+GARDENS = pa.table(
+    {
+        "id": [1, 2, 3, 4, 5, 6],
+        "name": ["Rose Bed", "Herb Patch", "rose arch", "Pond", "50% off_cuts", "OLD ROSE"],
+    }
+)
+
+
+def _found(source: Any, text: str, table: str = "gardens") -> list[int]:
+    plan = Plan(columns=("id",), filters=(Filter("name", "contains", text),), sort=(("id", False),))
+    return list(adapter.read(source, table, plan)[0].read_all().column("id").to_pylist())
+
+
+def test_contains_matches_in_any_case_and_takes_its_text_literally(tmp_path: Path) -> None:
+    path = str(tmp_path / "gardens.duckdb")
+    con = duckdb.connect(path)
+    con.register("given", GARDENS)
+    con.execute("CREATE TABLE gardens AS SELECT * FROM given")
+    con.close()
+    lite = sqlite3.connect(tmp_path / "gardens.db")
+    lite.execute("CREATE TABLE gardens (id INTEGER, name TEXT)")
+    lite.executemany("INSERT INTO gardens VALUES (?, ?)", [(r["id"], r["name"]) for r in GARDENS.to_pylist()])
+    lite.commit()
+    for source in (adapter.DuckDB.file(path), adapter.Sql(lite, "sqlite")):
+        assert _found(source, "rose") == [1, 3, 6]
+        assert _found(source, "ROSE A") == [3]
+        assert _found(source, "0% off_") == [5]  # % and _ are the text's own, never a wildcard
+        assert _found(source, "%") == [5] and _found(source, "_") == [5]
+        assert _found(source, "") == [1, 2, 3, 4, 5, 6]
+        assert _found(source, "!") == []
+    with pytest.raises(adapter.AdapterError, match="contains takes text"):
+        adapter.check_plan(Plan(filters=(Filter("name", "contains", 5),)))
+
+
+@pytest.mark.parametrize("dialect", sorted(SQLGLOT))
+def test_each_dialect_says_contains_as_a_lowered_like_with_its_text_escaped(dialect: str) -> None:
+    plan = Plan(filters=(Filter("name", "contains", "50% Off_[x]!"),))
+    sql, params = adapter.dialect_sql(adapter.DIALECTS[dialect], "gardens", plan)
+    assert sql.endswith("WHERE LOWER(" + adapter.DIALECTS[dialect].quote("name") + ") LIKE ? ESCAPE '!'"), sql
+    bracket = "![" if dialect == "sqlserver" else "["  # T-SQL's LIKE reads [ as a set of characters
+    assert params == [f"%50!% off!_{bracket}x]!!%"]
+    sqlglot.parse_one(sql.replace("?", "'x'"), read=SQLGLOT[dialect])
+
+
+def test_postgresql_contains_in_any_case_when_the_test_bed_runs(postgres: Any) -> None:
+    postgres.execute("CREATE TEMP TABLE gardens (id integer, name text)")
+    with postgres.cursor() as cursor:
+        cursor.executemany(
+            "INSERT INTO gardens VALUES (%s, %s)", [(r["id"], r["name"]) for r in GARDENS.to_pylist()]
+        )
+    postgres.commit()
+    source = adapter.Sql(postgres, "postgres", "Shop")
+    assert _found(source, "rose", "pg_temp.gardens") == [1, 3, 6]
+    assert _found(source, "0% off_", "pg_temp.gardens") == [5]
+    assert _found(source, "_", "pg_temp.gardens") == [5]
+
+
+def test_contains_through_the_sandbox_rows_and_odata(tmp_path: Path, standin: made_up.StandIn) -> None:
+    with memory_keyring(), make_client(tmp_path) as client:
+        made = client.post("/project/new", json={"path": str(tmp_path / "garden")}, headers=AUTH)
+        assert made.status_code == 200, made.text
+        _put(client, tmp_path, "gardens", GARDENS)
+        assert _found(TestRemote(client, "Sandbox"), "ROSE") == [1, 3, 6]
+
+    class Shelf:
+        def catalog(self) -> list[dict[str, str]]:
+            return [{"table_name": "gardens", "column_name": "name", "data_type": "VARCHAR"}]
+
+        def rows(self, table: str, **asked: Any) -> tuple[pa.Table, int]:
+            assert asked["filters"] is None  # contains is DuckDB's here, over the answer
+            return GARDENS, GARDENS.num_rows
+
+    assert _found(adapter.Rows(Shelf(), "Lake"), "rose") == [1, 3, 6]
+    source = adapter.OData(dataverse_connect(standin))
+    plan = Plan(columns=("name",), filters=(Filter("name", "contains", "ER"),), sort=(("name", False),))
+    reader, folded = adapter.read(source, "account", plan)
+    wanted = sorted(n for n in made_up._ACCOUNT_NAMES if "er" in n.casefold())
+    assert (
+        folded.parts == ("filters", "columns", "sort")
+        and reader.read_all().column("name").to_pylist() == wanted
+    )
+    asked = next(r for r in reversed(standin.gets()) if r["path"].endswith("/accounts"))["query"]
+    assert asked["$filter"] == "contains(name,'ER')"  # Dataverse compares every string in any case
+    wild = Plan(columns=("name",), filters=(Filter("name", "contains", "5_%"),))  # its wildcards: DuckDB's
+    assert adapter.read(source, "account", wild)[1].parts == ()
