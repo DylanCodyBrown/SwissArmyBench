@@ -261,11 +261,21 @@ class Scaffold:
         made = await asyncio.to_thread(self._sources.connections, wanted)
         if not made.get("text"):
             return {"files": {}, "requirements": [], "variables": []}
+        # An API's connection loads its client (API_<name>.py) from this computer's library: an export
+        # carries the file and loads it from beside connections.py.
+        text, clients = rules.clients_beside(str(made["text"]))
+        carried: dict[str, str] = {}
+        for module, path in clients.items():
+            folder, _, name = path.replace("\\", "/").rpartition("/")
+            found = await asyncio.to_thread(self._files.read, folder, name)
+            if found is not None:
+                carried[f"{module}.py"] = found
         return {
             "files": {
                 rules.ADAPTER: self._sources.adapter(),
-                rules.CONNECTIONS: rules.connections_py(str(made["text"])),
-            },
+                rules.CONNECTIONS: rules.connections_py(text),
+            }
+            | carried,
             "requirements": [*made.get("requirements", []), "duckdb>=1.1", "pyarrow>=15"],
             "variables": list(made.get("variables", [])),
         }

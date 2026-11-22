@@ -487,3 +487,104 @@ def test_the_deliverable_is_read_from_the_types_contract(
     ).read_text(encoding="utf-8")
     for named in ("canvas.json", "builds/", "workbook", "powerbi/", "power.config.json", "app.py"):
         assert named not in base, named
+
+
+def test_an_exports_api_client_is_loaded_from_beside_connections_py() -> None:
+    """An API's connection loads its client from where this computer's library keeps it; an export
+    carries the file and loads it from beside connections.py (found building the field service test app,
+    2026-11-22: the exported app named a path of the computer it was made on)."""
+    here = "C:\\\\Users\\\\dana\\\\library\\\\apis\\\\Orders\\\\API_Orders.py"
+    code = (
+        "import importlib.util\nimport os\n"
+        f'spec = importlib.util.spec_from_file_location("API_Orders", "{here}")\n'
+        "API_Orders = importlib.util.module_from_spec(spec)\n"
+    )
+    text, clients = rules.clients_beside(code)
+    assert clients == {"API_Orders": "C:\\Users\\dana\\library\\apis\\Orders\\API_Orders.py"}
+    assert "dana" not in text and 'os.path.abspath(__file__)), "API_Orders.py"))' in text
+    compile(text, "connections.py", "exec")
+    assert rules.clients_beside("conn = 1\n") == ("conn = 1\n", {})
+
+
+@needs_streamlit
+def test_an_export_reading_a_connection_and_the_sandbox_keeps_both(
+    shop: tuple[int, Path, Path], tmp_path: Path
+) -> None:
+    """A canvas reading a connection's table and a sandbox table: the export reads the first through
+    connections.py and carries the second as its own copy. The sandbox's table was dropped with the
+    connection's (no copy, and connections.py never names the sandbox), so its widget failed where it
+    ran (found building the field service test app, 2026-11-22)."""
+    port, folder, _ = shop
+    ask(port, "POST", "/sandbox/tables", {"from": "connection", "connection": "Shop", "table": "customers"})
+    canvas = ask(port, "POST", "/streamlit/canvases", {"name": "Both", "folder": str(folder)})["canvas"]
+    path = f"/streamlit/canvases/{canvas}/command"
+    for table in ("[Shop].customers", "[Sandbox].customers"):
+        ask(
+            port,
+            "POST",
+            path,
+            {"kind": "insert_widget", "widget": "data_table", "values": {"table_name": table}},
+        )
+    out = tmp_path / "exported"
+    done = ask(port, "POST", f"/streamlit/canvases/{canvas}/export", {"folder": str(out)})
+    files = set(done["files"])
+    copies = [f for f in files if f.startswith("data/")]
+    assert {"adapter.py", "connections.py"} <= files and len(copies) == 1 and "Sandbox_customers" in copies[0]
+    fresh = tmp_path / "fresh"
+    for name in files:
+        (fresh / name).parent.mkdir(parents=True, exist_ok=True)
+        (fresh / name).write_bytes((out / name).read_bytes())
+    ran = subprocess.run(  # noqa: S603 (a Python with Streamlit, the test's own script)
+        [str(PYTHON), "-I", "-c", RUN_APP], cwd=fresh, capture_output=True, text=True, timeout=600,
+        check=False,
+        env={"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "SHOP_PASSWORD": "made-up-from-the-host"},
+    )  # fmt: skip
+    line = next((x for x in reversed(ran.stdout.splitlines()) if x.startswith("SAB-RUN ")), None)
+    assert line, ran.stdout[-2000:] + ran.stderr[-2000:]
+    found = json.loads(line[len("SAB-RUN ") :])
+    assert not found["exceptions"] and not found["said"], found
+    assert [len(frame) for frame in found["frames"]] == [3, 3]
+
+
+def test_connections_py_reads_a_connection_by_its_own_read_a_table(tmp_path: Path) -> None:
+    """A connection of your own Python (an API's tables too) is read by its own Read a table, not by a
+    client the adapter knows: connections.py handed the adapter that client and the read failed ("The
+    adapter cannot tell what Orders is"; found building the field service test app, 2026-11-22). Its READERS
+    are the adapter's source now: the table read whole by its code, the plan done by DuckDB over it."""
+    parts = (
+        "def connect_notes():\n"
+        "    def read(schema, table, limit):\n"
+        "        rows = [{'id': 1, 'city': 'Springfield'}, {'id': 2, 'city': 'Ogdenville'}]\n"
+        "        return rows, len(rows)\n"
+        "    return object(), read\n\n\n"
+        "MADE = {'Notes': lambda: connect_notes()[0]}\n"
+        "READERS = {'Notes': connect_notes}\n\n\n"
+        "def connection(name):\n"
+        "    return MADE[name]()\n"
+    )
+    (tmp_path / "connections.py").write_text(rules.connections_py(parts), encoding="utf-8")
+    (tmp_path / "adapter.py").write_bytes(Path(the_adapter.__file__).read_bytes())
+    script = HERE + (
+        "import json, connections, adapter\n"
+        "plan = adapter.plan_from({'filters': [['city', '=', 'Ogdenville']], 'columns': ['id']})\n"
+        "some, folded = adapter.read('Notes', 'cities', plan)\n"
+        "every, _ = adapter.read('Notes', 'cities')\n"
+        "try:\n"
+        "    adapter.write('Notes', 'cities', adapter.arrow_of([{'id': 3}]))\n"
+        "    refused = ''\n"
+        "except adapter.AdapterError as error:\n"
+        "    refused = str(error)\n"
+        "found = [some.read_all().to_pylist(), list(folded.parts), every.read_all().num_rows, refused]\n"
+        "print(json.dumps(found))\n"
+    )
+    ran = subprocess.run(  # noqa: S603 (this Python, the test's own script)
+        [sys.executable, "-I", "-c", script], cwd=tmp_path, capture_output=True, text=True, timeout=120,
+        check=False,
+    )  # fmt: skip
+    assert ran.returncode == 0, ran.stderr
+    assert json.loads(ran.stdout) == [
+        [{"id": 2}],
+        [],
+        2,
+        "Notes takes no writes here: it is read by its own Read a table.",
+    ]

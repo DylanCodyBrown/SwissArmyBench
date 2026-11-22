@@ -139,7 +139,32 @@ CONNECTIONS_FOOT = """
 # ===== the adapter: a connection's name to its own client, in its backend =====
 
 
+class _OwnRead:
+    \"\"\"A connection read by its own Read a table (your own Python, an API's tables), as the adapter's
+    source: the whole table read by its code, the plan (columns, filters, sort, a limit) done by DuckDB
+    over what it answered.\"\"\"
+
+    def __init__(self, made, name: str) -> None:
+        self._made, self.name = made, name
+
+    def tables(self):
+        return []
+
+    def read(self, table: str, plan):
+        _, read = self._made()
+        schema, _, one = str(table).rpartition("/")
+        found = read(schema or None, one, None)
+        rows = found[0] if isinstance(found, tuple) and len(found) == 2 else found
+        return adapter.arrow_of(rows).to_reader(), adapter.Folded(())
+
+    def write(self, table: str, batches, key, mode: str):
+        raise adapter.AdapterError(f"{self.name} takes no writes here: it is read by its own Read a table.")
+
+
 def _source(name: str):
+    own = globals().get("READERS") or {}
+    if name in own:
+        return _OwnRead(own[name], name)
     return adapter.source_from(connection(name), name=name)
 
 
@@ -151,6 +176,25 @@ def connections_py(parts: str) -> str:
     """connections.py from the connections' code (`parts`: the shared settings and helpers, the marked
     sections, the registry, as services/script_export.py connections_code gives them)."""
     return CONNECTIONS_HEAD + "\n" + parts.strip("\n") + "\n" + CONNECTIONS_FOOT
+
+
+_CLIENT_AT = re.compile(r'spec_from_file_location\(\s*"(API_[A-Za-z0-9_]+)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)')
+
+
+def clients_beside(parts: str) -> tuple[str, dict[str, str]]:
+    """An export's connections: each Add API client (API_<name>.py, which the app loads from where this
+    computer's library keeps it) loaded from beside connections.py instead, where the export carries it: a
+    path on this computer would not be there. The text, and each module with the path it is read from here
+    (its file is the export's to carry)."""
+    found: dict[str, str] = {}
+
+    def beside(match: re.Match[str]) -> str:
+        module = match.group(1)
+        found[module] = json.loads(f'"{match.group(2)}"')
+        here = "os.path.dirname(os.path.abspath(__file__))"
+        return f'spec_from_file_location("{module}", os.path.join({here}, "{module}.py"))'
+
+    return _CLIENT_AT.sub(beside, parts), found
 
 
 # ===== README.md's Variables =====

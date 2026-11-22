@@ -471,6 +471,12 @@ def test_payload_shapes_flag_a_widget_whose_endpoint_answers_otherwise(tmp_path:
                             "widget": "api_button",
                             "values": {"endpoint": "GET /gone"},
                         },
+                        {
+                            "id": "w6",
+                            "kind": "widget",
+                            "widget": "api_metric",
+                            "values": {"endpoint": "[Orders] GET /orders/{order_id}", "field": "amount"},
+                        },
                     ],
                 }
             ],
@@ -483,6 +489,9 @@ def test_payload_shapes_flag_a_widget_whose_endpoint_answers_otherwise(tmp_path:
         assert by["w3"] == ["one_order's answer has no field total (it has order_id, region, amount)."]
         assert by["w4"] == ["add_order's body has no field colour."]
         assert by["w5"] == ["API.py has no endpoint GET /gone."]
+        # Another API's action (through the API adapter) is not API.py's to check: it was said to be an
+        # endpoint API.py does not have (found building the field service test app, 2026-11-22).
+        assert "w6" not in by
         assert not found["ok"]
         first = next(u for u in found["uses"] if u["instance"] == "w1")
         assert first["answers"]["fields"] == {"order_id": "int", "region": "str", "amount": "float"}

@@ -688,6 +688,11 @@ def shapes(api: Api, uses: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     by = {f"{e.method} {e.path}": e for e in api.endpoints}
     out = []
     for use in uses:
+        # Another API's action ("[Orders] GET /orders", through the API adapter) is not API.py's to check:
+        # it was said to be an endpoint API.py does not have.
+        named = (use.get("action") or use.get("values") or {}).get("endpoint")
+        if isinstance(named, str) and named.startswith("["):
+            continue
         if use.get("action") is not None:
             out.append(_event_shape(api, by, use))
             continue
