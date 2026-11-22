@@ -29,7 +29,7 @@ from tests.streamlit_helpers import needs_streamlit
 
 SHOTS = os.environ.get("SAB_APP_SHOTS")
 # The first visit to do (scheduled) in the work orders' own order: the one the visit card picks first.
-FIRST = next(o for o in data.work_orders() if o["status"] == "scheduled")
+FIRST, SECOND = [o for o in data.work_orders() if o["status"] == "scheduled"][:2]
 
 
 def shot(page: Page, name: str) -> None:
@@ -119,10 +119,17 @@ def test_dispatch_marks_a_visit_done_and_the_other_pages_follow(
     # The Event called POST /visits/done: the sandbox's work order is done, its note in the summary.
     until(lambda: api(server, "GET", f"/work_orders/{key}")["status"], "done", 60)
     assert api(server, "GET", f"/work_orders/{key}")["summary"].endswith("(filter swapped)")
-    # ... then reran: the visit is no longer one to do.
-    expect(visit).not_to_have_value(str(key), timeout=60000)
+    # ... then reran: the visit is no longer one to do (the next one is picked).
+    expect(visit).to_have_value(str(SECOND["work_order_id"]), timeout=60000)
     no_failures(frame)
     shot(page, "play-dispatch-done")
+    # Play follows live data: the next visit marked done from elsewhere (no click on the page) and the page
+    # runs again by itself, its visit card reading the sandbox's work orders as they are now.
+    done = {"work_order_id": SECOND["work_order_id"], "technician": "All", "note": "by phone"}
+    said = call(server, "POST", "/local-api/call", {"method": "POST", "path": "/visits/done", "body": done})
+    assert int(said["status"]) < 300, said
+    expect(visit).not_to_have_value(str(SECOND["work_order_id"]), timeout=60000)
+    expect(frame.get_by_text("technician: All")).to_be_visible(timeout=60000)
     # 2. Work order: the page value the Event set (last_visit), shown in its read-only box.
     to_page(frame, "Work order")
     expect(frame.get_by_label("Last visit marked done")).to_have_value(str(key), timeout=60000)

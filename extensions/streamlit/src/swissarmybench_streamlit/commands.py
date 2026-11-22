@@ -299,8 +299,8 @@ def canvas_undo(a: dict[str, Any]) -> Any:
 
 @command(
     "canvas_play",
-    "Play a canvas: its pages built and run live (its address); with check: every page headless, each widget's "
-    "errors",
+    "Play a canvas: its pages built and run live (its address; the tables they read follow their changes, the "
+    "pages running again by themselves); with check: every page headless, each widget's errors",
     req("canvas", "The canvas's id."),
     opt("page", "The page's id to show."),
     opt("check", "true: run headless (AppTest) and say each page's errors.", "bool"),

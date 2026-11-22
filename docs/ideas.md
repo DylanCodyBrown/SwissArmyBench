@@ -8812,19 +8812,18 @@ Decisions made while building examples/field_service (confirm or change):
 - **The app's data is its own source/ files** (six CSVs from tests/field_service_data.py, deterministic, no
   clock) plus a made-up SQLite Depot as a real connection (its password in the keyring in the build test; the
   browser test's server has no keyring, so its Depot has none).
-- **The visit card reads the work orders through the API** (`GET /work_orders`), not as `[Sandbox].work_orders`:
-  a table property in Play is the table as Play read it, so the card's own Mark done (an Event calling
-  `POST /visits/done`) did not show until the next Play. See the open note.
+- ~~**The visit card reads the work orders through the API** (`GET /work_orders`), not as
+  `[Sandbox].work_orders`~~: since "Play follows live data, 2026-11-22" it reads `[Sandbox].work_orders` as a
+  table, and its own Mark done shows on its next run.
 - **The KPI row has no margin column** (work orders have none): the builder first picked `amount`, which drew
   "17221%". A dash is right.
 - The bug fixes are listed in docs/verified.md under the same heading.
 
 Open notes:
-- **A table property is a snapshot in Play and Launch** (data/<name>.parquet written as the run starts) and is
-  kept with cache_resource in an export: an app whose Event writes the sandbox (or the source) and whose other
-  widget reads the same table as a table property shows the old rows until the next Play. Wiring the reader to
-  a GET endpoint works today; a "read again after an Event" (or a short cache in the export) would make the
-  table property follow writes. The owner's call.
+- ~~**A table property is a snapshot in Play and Launch**~~ Decided by the owner (2026-11-22, "yea live
+  changes"): Play and Launch follow live data, see "Play follows live data, 2026-11-22". The visit card reads
+  `[Sandbox].work_orders` as a table again. An export still keeps a connection's table with cache_resource
+  (open).
 - **The headless check (AppTest) has a 60 s budget per page**: on a loaded machine (several leftover preview
   photographers of other runs) the field service's third page (14 widgets) once timed out; it passed again
   once the load was gone. A budget that grows with the page's widgets, or the check's time said, may help.
@@ -8837,3 +8836,46 @@ Decided (closing the sweep's open item): Copy project to, Share and Make a local
 sandbox's DuckDB files, its rows) behind unless "Keep its rows" is ticked, the same tick as `.sab/data/`; the
 agent's copy with rows still waits for Allow. The sandbox mirror (sandbox_data.py, sandbox_connections.py: names
 only) always goes. A copy without the tick opens with an empty sandbox; Add to sandbox fills it again.
+
+## Play follows live data, 2026-11-22
+
+The owner (2026-11-22, "yea live changes"): in the Canvas's Play and a widget run alone, a widget whose table
+property (or a table wire) names a table follows its live changes, never a snapshot taken when Play started.
+
+Decided (confirm or change):
+- **A snapshot the server rewrites, not a route the page calls.** The run's data/<stem>.parquet stays the one
+  place a page reads a table (the runtime and the builder unchanged in shape); the server writes it again when
+  the table changes, only when its bytes changed. No token, secret or address goes into the Streamlit process;
+  nothing new is written anywhere but the run's own temporary folder (the Parquet it already had, and
+  `sab_live.py`: a stamp, a number only).
+- **The page runs again by itself through Streamlit's own file watcher**: after a change, the run's
+  `sab_live.py` (a module sab_canvas imports, so Streamlit watches it) gets a new number; with the poll watcher
+  and runOnSave already on for Play, every open page runs again within a fraction of a second. No new
+  dependency, no timer fragment, no message through the proxy. (Touching a file does not do it: Streamlit
+  compares a changed file's content hash, so a touch alone runs nothing; app.py's touch on a Play again was
+  never what ran the pages, the rewritten pages were.)
+- **Cheap when nothing changed**: the runtime's table() reads a Parquet again only when its file's time or size
+  changed; otherwise it hands each widget a copy of the frame it read before (a widget may change its own frame).
+  It reads the file's bytes in one go, so a file replaced meanwhile is never read half and half.
+- **Only what a notice names is read again**: a sandbox write (`sandbox_changed`: an API's or an Event's write,
+  a grid edit, Reset, a restore) reads again the `[Sandbox].x` tables it names; an open table's notices
+  (`dataset_updated`, `grid_updated`, closed, renamed, shown) read again the open tables (local DuckDB, after
+  each one's grid steps); data.py written (`file_changed` on the open project's data.py) is copied into the
+  run. Another connection's `[Conn].table` is not read again by a notice: it stays the session's read (the
+  connection-tables contract keeps it; Refresh on its card reads it again on the next Play), so a playing page
+  never queries a source by itself. A burst of notices settles for 0.15 s first.
+- **An open table that closes takes its copy away**: the page then says the table is not here, as it would on
+  a new Play.
+- **Launch follows the same way** (its run is a LiveRuns run too); a shared launch (Share…) has no file watcher,
+  so a change shows on its next interaction there. The headless check and the previews do not follow (a run that
+  ends at once). Export is unchanged: open and sandbox tables as Parquet copies, a connection's read through
+  adapter.py and connections.py.
+- **The Performance Analyzer's state survives the page's modules being loaded again** (Streamlit unloads the
+  app's own modules when a watched one changes): sab_perf keeps its state in `sys`, so its readers are never
+  patched twice.
+
+Open:
+- An export's `[Conn].table` is still kept with cache_resource until the app restarts; a short time-to-live
+  would make a hosted app follow its source too. The owner's call.
+- A table changed in a Workbench kernel only (never opened in Grids) is not a table property's choice, so it has
+  nothing to follow.

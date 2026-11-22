@@ -517,7 +517,7 @@ class Canvases:
         # The played page is the app's default (built so): its address is the app's own, never a page's
         # path (a path Streamlit has not yet heard of says "Page not found" before the first run).
         answer: dict[str, Any] = await self._live.run(
-            f"canvas-{opened.id}", files, tables, self._widgets.python(body)
+            f"canvas-{opened.id}", files, tables, self._widgets.python(body), names=names
         )
         self.ws.audit.write(who, "canvas_play", opened.path)
         return answer | {

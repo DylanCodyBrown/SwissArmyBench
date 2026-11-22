@@ -152,6 +152,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   values its properties with masks; the Widgets window writes and runs one; the Canvas lays pages out from
   containers and widget instances in pixels, rule-checked and undoable; Play, Launch, Export from one builder;
   Launch with the Performance Analyzer, Builds' Compare and Restore; a table property takes `[Conn].table`;
+  Play and Launch follow live data (2026-11-22: a table changed is read again, the pages run again by themselves);
   app notebooks, `.stapp.json` canvases, live cells and controllers went),
   projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
@@ -1663,7 +1664,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
                          of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
                          place, its failure there, its Ins, Outs and Events wired; table, sample(kind), var, key, choices,
-                         marked, problem, api_call, File and as_file, viewer (name, email, id, roles): App Service's
+                         marked, problem, api_call, File and as_file (table: its Parquet read again only when
+                         Play wrote it again), viewer (name, email, id, roles): App Service's
                          sign-in headers on App Service (X-MS-CLIENT-PRINCIPAL's claims), st.user, SAB_LOCAL_VIEWER in
                          Play (the name only), else "unknown"; the app's Outs app.viewer, _email, _id, _roles; each
                          Out[Table]'s columns noted in Play and Launch, .sab_columns.json); a widget or a container
@@ -1698,9 +1700,17 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          load), Relaunch, Stop, builds (list, files, compare two or with now, Restore), the analyzer
                          (attach, the proxy's tap, session, hints, save into the build, a saved one)
     services/open_tables.py  the open tables' names and columns (the pickers, a value's check) and Parquet
+    services/live_tables.py  Play follows live data (the owner, 2026-11-22: "yea live changes"): the notices heard
+                         (a sandbox write: an API's, an Event's, a grid edit, Reset; an open table's steps, reload,
+                         close; data.py written), settled, and only what they name read again into every running
+                         Play, Launch and widget run (another connection's [Conn].table stays the session's read)
     server/live_runs.py  LiveRuns: a widget run alone and a canvas's Play, each a Streamlit process passed through
                          at /streamlit/run/<key>-<secret>/; check: the pages headless with AppTest (CHECK_RUNNER);
-                         `ended` (a run stopped or written again: a share of a launch ends), `launched` (its folder)
+                         `ended` (a run stopped or written again: a share of a launch ends), `launched` (its folder);
+                         follow: a run's tables (data/<stem>.parquet) and data.py written again only when their bytes
+                         changed, then its sab_live.py stamp (a module the runtime imports: Streamlit's own file
+                         watcher runs the open pages again by itself); the runtime's table() reads a Parquet again
+                         only when its file changed
     services/sharing_target.py  Share… for a launched canvas app (the base's ShareTarget): a shared run of the
                          launch's folder on its own port at the root (SHARED_FLAGS), closed when the launch ends
     server/previews.py   each widget rendered once off screen (Play's builder and run, Qt WebEngine photographing its

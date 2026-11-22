@@ -1000,9 +1000,9 @@ def test_the_canvas_is_built_paired_and_wired(app: Built) -> None:
     )
     put("pie", "cs_status_pie", parent=charts, x=610, y=8, values={"title": "Share by status"})
     # ----- wiring: an In from a table, from another widget's Out, from an endpoint; app.viewer itself -----
-    # The visits to do read through the API each rerun (a [Conn].table property is the table as Play read
-    # it, so a write by the card's own Event would not show until the next Play; found in the browser test).
-    wire("card", "orders", {"endpoint": "GET /work_orders"})
+    # The visits to do: the sandbox's work orders as a table. Play follows live data, so the card's own Mark
+    # done (its Event's write through POST /visits/done) shows on its next run without playing again.
+    wire("card", "orders", SANDBOX_ORDERS)
     wire("card", "technicians", {"table": "[Sandbox].technicians"})
     wire("card", "technician", {"out": f"{ids['select']}.value"})
     wire("bars", "table_name", {"endpoint": "GET /work_orders/summary/status"})
