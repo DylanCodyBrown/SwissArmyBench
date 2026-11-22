@@ -9164,3 +9164,26 @@ Open:
 - Run from a worktree with `PYTHONPATH` set (the environment's editable install points at the main checkout),
   `test_script_export`'s fresh-Python test and `test_updater`'s uv test fail because the new Python inherits
   the path; both pass without it.
+
+
+## White screen after an update, 2026-11-22 (decisions and open notes)
+
+- The owner: "after an update restart it opens to a white screen and I have to restart again". The cause was
+  2026-11-19's own fix: `clearHttpCache()` at start on a new version, which runs in the background while the
+  first page loads (docs/verified.md has the reproduction). Decision: never ask Chromium to clear; each version
+  gets a cache folder of its own (`desktop/profile/cache-<version>`), made before the profile, the others removed
+  as far as the system lets. A version never sees another's saved copies, and nothing is cleared under a page.
+- A page of the app that did not load is loaded again (20 s, a failure, its page's process ended), three times
+  at most, then left as Chromium shows it (its own error page). No page of the shell's own says so: a window that
+  gave up is rare enough that the error page and F5 are enough; worth a "This page did not load: Try again" page
+  if the beta log ever shows one.
+- The hashed chunks are kept for ever (`immutable`); the HTML never (`no-store`); the entry scripts and everything
+  else checked each time, against an ETag that carries the version. A module script that 404s after a load
+  finished (a chunk missing from a broken install) is not looked for: the cache can no longer cause it, and a
+  reload would not mend an install.
+- Open: the update's restart still has three starts in a row (the helper, the server, the app). Starting the app
+  directly (`swissarmybench`, which starts its server) would show Starting… sooner on a slow first import; not
+  changed here, since the helper checks the version by the server's connection file.
+- Open: an extension brought back at the first start after an update (extensions.json) restarts the app once
+  more; its first window is closed by the helper's quit and the next start shows the app. Not seen to leave a
+  white window; not changed.

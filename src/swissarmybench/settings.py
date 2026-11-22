@@ -56,6 +56,15 @@ def _state_dir() -> Path:
     return Path(override) if override else (Path.home() / ".swissarmybench")
 
 
+def _web_root() -> Path:
+    """The pages' files: the wheel's web_static, else this checkout's web/static; SWISSARMYBENCH_WEB_ROOT
+    names another (tests: an update's new build beside the old one)."""
+    override = os.environ.get("SWISSARMYBENCH_WEB_ROOT", "")
+    if override:
+        return Path(override)
+    return _PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB
+
+
 def _workbench_dir() -> Path:
     """The user's own folder for notebooks and scripts: SwissArmyBench in the home folder (made the first
     time it is needed); SWISSARMYBENCH_WORKBENCH_DIR overrides it (tests, so none lands in a real home)."""
@@ -242,7 +251,7 @@ class Settings:
     # agent work in the queue (adapters/database.py).
     worker_threads: int = 4
     # The browser files: index.html and build/ from `npm run build` (the pages load build/grid.css).
-    web_root: Path = field(default=_PACKAGED_WEB if _PACKAGED_WEB.is_dir() else _REPO_WEB)
+    web_root: Path = field(default_factory=_web_root)
     # Where the audit log and the other state files live (plan section 18, question 5: user folder for now).
     state_dir: Path = field(default_factory=_state_dir)
     # Exports requested by an agent (MCP) land only here, never as a browser download.

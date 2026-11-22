@@ -383,3 +383,71 @@ def test_a_windows_title_never_shows_an_address() -> None:
         assert rules.window_title(loading) == "Swiss Army Bench", loading
     assert rules.window_title("Orders: 3 rows") == "Orders: 3 rows"
     assert rules.window_title("Sales 2026") == "Sales 2026"
+
+
+# ===== White screen after an update, 2026-11-22 =====
+
+
+def test_each_version_has_a_cache_folder_of_its_own_and_the_others_go() -> None:
+    assert rules.cache_folder("0.0.33") == "cache-0.0.33"
+    assert rules.cache_folder("1.0.0+local/x") == "cache-1.0.0+local_x"
+    assert rules.cache_folder("") == "cache-unknown" and rules.cache_folder("..") == "cache-unknown"
+    names = ["Cookies", "Local Storage", "cache", "cache-0.0.31", "cache-0.0.32", "cache-0.0.33", "cached"]
+    assert rules.stale_caches(names, "0.0.33") == ["cache", "cache-0.0.31", "cache-0.0.32"]
+    assert rules.stale_caches(["cache-0.0.33"], "0.0.33") == []
+
+
+def test_a_page_that_did_not_load_is_loaded_again_a_few_times() -> None:
+    assert rules.after_load(True, 1, True) == rules.DONE
+    assert rules.after_load(False, 1, True) == rules.RETRY
+    assert rules.after_load(None, 2, True) == rules.RETRY  # not finished in time
+    assert rules.after_load(False, rules.LOAD_TRIES, True) == rules.GIVE_UP
+    assert rules.after_load(False, 1, False) == rules.DONE  # not the app's page: never loaded again
+
+
+def test_the_record_says_the_version_that_runs() -> None:
+    said = rules.record(42, 5000, "k" * 43, "0.0.33")
+    assert said["version"] == "0.0.33" and rules.read_record(said) == (42, 5000, "k" * 43)
+    assert "version" not in rules.record(42, 5000, "k" * 43)
+
+
+def test_the_profiles_cache_is_made_fresh_for_a_new_version(tmp_path: Path) -> None:
+    storage = tmp_path / "profile"
+    (storage / "Local Storage").mkdir(parents=True)
+    (storage / "Cookies").write_text("kept", encoding="utf-8")
+    (storage / "cache" / "Cache_Data").mkdir(parents=True)  # before 2026-11-22: one cache for every version
+    (storage / "cache" / "Cache_Data" / "data_1").write_text("old main.js", encoding="utf-8")
+    (storage / "version.txt").write_text("0.0.32", encoding="utf-8")
+    cache = channel.fresh_cache(storage, "0.0.33")
+    assert cache == storage / "cache-0.0.33"
+    assert not (storage / "cache").exists() and (storage / "Local Storage").is_dir()
+    assert (storage / "Cookies").read_text(encoding="utf-8") == "kept"
+    assert (storage / "version.txt").read_text(encoding="utf-8") == "0.0.33"
+    cache.mkdir()
+    (cache / "data_1").write_text("this version's", encoding="utf-8")
+    stamp = (storage / "version.txt").stat().st_mtime_ns
+    assert channel.fresh_cache(storage, "0.0.33") == cache  # the same version again: its cache kept
+    assert (cache / "data_1").is_file() and (storage / "version.txt").stat().st_mtime_ns == stamp
+    assert channel.fresh_cache(storage, "0.0.34") == storage / "cache-0.0.34"
+    assert not cache.exists()
+    assert channel.fresh_cache(tmp_path / "new" / "profile", "0.0.34").parent.is_dir()  # a first start
+
+
+def test_a_stale_record_never_takes_the_page(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """desktop.json left by an app that was ended (an update's helper ends one that does not quit): its
+    process gone, or its process id taken by another program whose channel is not there. The page starts
+    a new app, never sent to the dead channel."""
+    import socket
+
+    info = tmp_path / "server.json"
+    monkeypatch.setattr(launch, "can_run", lambda: True)
+    started: list[Any] = []
+    monkeypatch.setattr(launch, "start_app", started.append)
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        closed = probe.getsockname()[1]  # nothing listens here once the probe is closed
+    channel.RecordFile(tmp_path / rules.RECORD).write(rules.record(os.getpid(), closed, "k" * 43, "0.0.32"))
+    assert launch.running_app(info) is not None  # the process id answers (another program's, here ours)
+    assert launch.tell({"open": "/workspace"}, info) is None
+    assert launch.open_page(f"{OURS}/workspace#token=secret", info)
+    assert started == ["/workspace"]
