@@ -856,6 +856,11 @@ def test_an_add_that_is_refused_leaves_nothing_behind(
     added = client.post("/apis", json=keyed, headers=AGENT)
     assert added.status_code == 200, added.text
     assert (folder / "openapi.json").is_file() and len(added.json()["web_calls"]) == 5
+    # The change log hears a new API (Plans/changes.plan.md: "an API's specification"), once.
+    asked = {"action": "history", "object": "api:Orders"}
+    history = client.get("/changes", params=asked, headers=AUTH).json()["changes"]
+    assert [c["words"] for c in history] == ["Added the API Orders"] and history[0]["who"] == "agent"
+    assert history[0]["diff"]["operations"]["added"][0] == "GET /clients"
     # An API that is there keeps everything when an add over it is refused.
     again = client.post("/apis", json=body | {"secrets": {"NOT_ITS_KEY": "made-up"}}, headers=AGENT)
     assert again.status_code in (400, 409)

@@ -25,6 +25,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import api_clients, api_explorer, apis, web_calls
 from swissarmybench.domain.apis import ApiError, Names, Spec
+from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
@@ -317,8 +318,18 @@ class Apis:
             connection["library_folder"] = self._library_relative(plan.folder)
         saved = await self._connections.save(connection, previous, who)
         self._write_description(plan, body.get("check") is True)
+        # The change log (services/changes.py): a new API, its operations by method and path (a
+        # re-import's difference is the APIs page's Refresh's to say: services/api_explorer.py).
+        operations = {f"{op.method} {op.path}": {"name": op.name} for op in plan.spec.operations}
+        change = (
+            raised("api", plan.names.connection, None, {"operations": operations}) if previous is None else {}
+        )
         self.ws.audit.write(
-            who, "add_api", f"{plan.names.connection}: {plan.path}", connection=plan.names.connection
+            who,
+            "add_api",
+            f"{plan.names.connection}: {plan.path}",
+            connection=plan.names.connection,
+            **change,
         )
         return {"saved": saved, "written": plan.path, "web_calls": [c["name"] for c in calls]}
 
