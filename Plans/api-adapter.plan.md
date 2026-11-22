@@ -93,6 +93,10 @@ endpoint was called and a def will then scan that struct and expose to the widge
   kept** (the owner: "No need to ever keep values"): no example payloads, no tick, nothing of an answer's or a request's
   values on disk, in the library or in the project.
 ## Discover an API (the owner, 2026-11-22)
+"The spec file is the front door." An API enters the app only through its specification (an OpenAPI 3.x or Swagger
+2.0 document, uploaded or fetched, or written by Add API's form); every endpoint, input and declared shape comes from
+it, and what is learned only refines it, never replaces the specification.
+
 "This is about learning an API. We should have a def that can run on an API after we upload its specs and it will
 discover and map the payloads to build widgets, scripts and notebooks etc." So `discover(api)`, in api_adapter.py:
 1. **Read the specification:** every endpoint, its inputs and its declared answers (a first guess).
