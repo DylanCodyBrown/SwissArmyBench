@@ -104,8 +104,8 @@ discover and map the payloads to build widgets, scripts and notebooks etc." So `
    detail card or an edit form; a single value to a metric; a file to a download; a request body to an input form
    (each field's type picks its box: a closed set of values a dropdown, a date a date picker); ids shared between
    endpoints to a master and detail pair.
-4. **A discovery report first:** each endpoint, what was learned, what is proposed; the user ticks what to build, then
-   it writes into the project scaffold: a notebook (one cell per endpoint reading into a table), a script (one
-   function per action), widgets wired onto a starter canvas page. Endpoints that change data stay actions with
-   their forms; discovery never calls them.
-The agent runs the same discovery and gets the same report (`actions(action="discover")`).
+4. **No separate report** (the owner: "No need for a discovery report, the API page is all we need"): what was
+   learned shows on the APIs page itself, on each endpoint (its learned shape, what it maps to, Build: a notebook cell,
+   a script function, a widget on a canvas page); nothing is built until the user picks it there. Endpoints that change
+   data stay actions with their forms; discovery never calls them.
+The agent runs the same discovery (`actions(action="discover")`) and reads the same endpoints' learned shapes.
