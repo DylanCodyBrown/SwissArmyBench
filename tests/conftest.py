@@ -66,6 +66,9 @@ for _name in ("GRACE", "START_GRACE", "IDLE"):
     os.environ.setdefault(f"SWISSARMYBENCH_LIFE_{_name}", "86400")
 # Nor a system file dialog (domain/file_dialogs.py): the page's own picker, on every system a test runs on.
 os.environ["SWISSARMYBENCH_SYSTEM_DIALOGS"] = "off"
+# Nor a project's own .venv made as it opens (services/project_python.py: a download and a minute): a test
+# about it asks (Settings(project_venv=True)) and stands the making in (tests/libraries_standin.py).
+os.environ.setdefault("SWISSARMYBENCH_PROJECT_VENV", "off")
 
 PORT = 8765
 TOKEN = "test-token"

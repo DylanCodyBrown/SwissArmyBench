@@ -8139,15 +8139,15 @@ what stays, and the connection colour as the card's highlight, not a dot).
 One module, sab_excel, behind the adapter; openpyxl only (xlsxwriter goes; large plain exports get slower: accepted);
 the twelve cell-level starters removed (three remain); any project type may deliver a workbook. Plan: Plans/excel.plan.md.
 
-## The Environment (the owner, 2026-11-21): built in part (2026-11-22, branch environment)
+## The Environment (the owner, 2026-11-21): built (2026-11-22, branches environment and environment-2)
 Built: the one list and its agent tool, the page and the Workbench's pane, Remove, Rename, Clear, Keep, Libraries
 (Pin, Update, Install), the watcher's trigger, the Settings and secrets tab. Decisions made while building: a
 table's From says its connection, file or document; the index is PyPI's JSON (SWISSARMYBENCH_PACKAGE_INDEX names a
 mirror); a pinned library updated by name is pinned at its new version; Update all never moves a pinned one; a
 library nobody chose (pip, a dependency) is not listed unless requirements.txt names it or code imports it; Clear
-never takes a kept table, a sandbox table, a setting or a library. Open for the owner: one kernel for the whole
-project and the app making the project's .venv (step 5), the key vaults on the Settings and secrets tab and the
-old Variables address redirected (step 6); Plans/environment.plan.md "What is built" has the list.
+never takes a kept table, a sandbox table, a setting or a library. The rest (one session a project, the
+project's .venv, the key vaults on the Settings and secrets tab, the old Variables address) was built on branch
+environment-2: "The Environment, finished" below.
 
 "One shared space for all tables at the env level ... each project should have its own env ... a simple trigger and
 watcher for any tables, vars, structures ... easy to browse on one screen ... RStudio handles this concept
@@ -8181,6 +8181,76 @@ thing now sees:
   bootstrap's split and cleanup 4 (after the adapter).
 
 ## The API adapter (the owner, 2026-11-22): built (branches api-adapter, api-adapter-2)
+## The Environment, finished (2026-11-22, branch environment-2)
+Built: one Python session per project and the project's own `.venv`, a table read by name without a grid, the key
+vaults on the Settings and secrets tab with `open=variables` landing there, the dead CSS gone. The decisions made
+while building (none asked; each is the owner's to turn round):
+- **Which documents are the project's:** a file inside the open project's folder, and a document not saved yet in
+  a Notebooks or Scripts window while a project is open. A file anywhere else (a loose file) keeps a kernel of its
+  own, as before, and so does the Widgets window's editor.
+- **One kernel id for every document.** Start answers the same kernel for each document of the project, so
+  everything that names a kernel (runs, completion, the debugger, table cells, pop-out windows, Run file) works on
+  the one session with no second code path. Closing a document or its window leaves the session running; it ends
+  when the project closes or another opens, when the app stops, or on Stop the Python session (the palette; the
+  agent's `workbench_kernel stop_session`). It does not stop a minute after its window closed, as a loose file's
+  kernel does: the Environment page on the home window lists its variables.
+- **The session's working folder is the project's top**, whichever document started it (as RStudio's). A script in
+  a subfolder that read a relative path from its own folder reads it from the project's top now.
+- **Which document a run is for:** the page (and the agent's `workbench_run document=`) says so with each run; a
+  table the run sends goes into that document's Tables group and a connection's slot is counted as that
+  document's. With no word: the last document that ran there.
+- **Interrupt and Restart are the session's and say so:** the status bar reads Python session, the menu "Interrupt
+  the project's Python session" and "Restart the project's Python session"; Restart asks first ("for every notebook
+  and script of the project") and every other window is told once. A document shows "running another document's
+  code…" while its session is busy with another document of the same window. Not built: that word across two
+  windows (the Notebooks page does not show that the Scripts page's run is under way; its own run simply waits).
+- **The `.venv`:** made in the background on New project and on opening a project with none (uv when it is here,
+  else Python's own venv and pip), with the kernel (ipykernel), the Excel readers and each plain line of
+  requirements.txt (a line with an option or a path is left for the user). One line says it started, one that it is
+  ready ("Restart the Python session to use it") or why it failed (Try again on the Libraries tab). A session
+  started meanwhile runs in the app's own Python and moves to the `.venv` at its next Restart. A `.venv` whose
+  Python does not run (half made, or without ipykernel) does not block: the session starts in the app's own Python
+  and says so. Git never takes it: the scaffold's .gitignore names `.venv/`, and the app writes a `.gitignore` of
+  its own inside the `.venv` for a project whose .gitignore does not (the user's file is never edited).
+  `SWISSARMYBENCH_PROJECT_VENV=off` stops the making by itself (the tests; Make it now still works).
+  Making it asks the package index for its libraries (uv or pip), on New project and Open project, with no
+  click of its own: the owner asked for the app to make it; CLAUDE.md's "Data is sensitive" says so now.
+- **A notebook that had its own environment** (a Python remembered for that file alone): read once as it opens in
+  a project. "The libraries it chose" are the ones no other library there needs (pandas, not the numpy it brought),
+  without pip, setuptools, wheel and ipykernel; the ones requirements.txt does not name and the project's Python
+  does not have are offered in one line (Add them: one install, into requirements.txt; Not now). The file's own
+  choice is forgotten then, so it is said once; the offer waits on the Environment until answered.
+- **The per-notebook New environment… and the Python picker stay for a loose file only.** A project's document shows
+  "The project's Python" (a click opens the Libraries tab).
+- **A table is shared at once, in one direction so far:** every table in the Environment (one a grid shows: as the
+  grid shows it; one with no grid: as it is) is read by name through the open tables' door (`sab.table`, a DuckDB
+  SQL cell, a canvas's table property), and no grid is made for it. Not built: a table only Python holds read by
+  name by another process (the canvas's Play) without Open; in the one session it is a plain variable already.
+- **The agent starts in the project's session too:** `workbench_kernel_start` with no document joins it while a
+  project is open (`own: true` for a kernel of its own); its `stop` leaves the session for the user's documents.
+- **The Settings and secrets tab took the whole Variables page:** the vault cards, Read again and Add key vault moved
+  as they were (web/src/keyVaults.ts); the page's own list, search, form and source chips went with it, since the
+  tab already lists, searches, adds, changes, shows, renames and removes settings. A vault's setting says "key vault
+  · the vault · the secret's name"; a connection's use says the box it fills ("Warehouse · Password"). The source
+  chips are the one search now (type "key vault"). Messages that sent the user to "the Variables page" say "the
+  Environment's Settings and secrets tab". The address accepts the tab's word as well as its kind (at=settings).
+- **A table a session sends names its document:** the document the run was for is kept as the table arrives
+  (services/table_cells.py's Origins), and the page puts the table's read-only cell in that document; the kernel
+  alone named it before, and one kernel now runs every document. The Environment's From says that document too.
+- **The app's own Python is told by its place, not by what its link points to.** A real `.venv` made by uv links
+  its Python to the one it was made from; the first build compared the links' targets and would have listed the
+  app's libraries for the project. Found by making a real `.venv` once by hand; tested with a link.
+- **A session that ended is started again by the next run** (the page tries once more instead of saying the
+  kernel was gone), since a document can hold the id of a session that another window stopped.
+- **Open for the owner:** whether a document not saved yet should join the project's session (it does); whether
+  the session should stop when every Notebooks and Scripts window has been closed for a while (it does not: it
+  lives with the project); whether opening a project should fetch libraries with no click (it does, as asked,
+  and says so in one line).
+- **Removed CSS:** `.wb-sort`, `.wb-vars h3`, `.wb-vars-table`, `.wb-vars-type`, `.wb-vars-value` (the Variables
+  pane's) and the Variables page's own rules (31 rules: `.variables-page`, `.variable-row` and the rest); the vault
+  cards', the form's and the `${NAME}` box's rules stay.
+
+## The API adapter (the owner, 2026-11-22): built (branch api-adapter)
 api_adapter.py: any API's answer in, one envelope out, with active payload detection (format, envelope, paging, types)
 and drift handling (fields bound by path; added, missing, retyped and moved fields adapt; an unsure rename offered once,
 never guessed). Plan: Plans/api-adapter.plan.md.

@@ -42,6 +42,7 @@ HEARD: frozenset[str] = frozenset(
         "grid_closed",
         "grid_shown",
         "processes_changed",
+        "project_python",
         "structures_changed",
         "variables_changed",
         "blades_changed",
@@ -99,6 +100,9 @@ class Sources:
     # A table's origin (domain/table_cells.py's Origin) and the document a kernel was started for.
     origin_of: Callable[[str], Any]
     kernel_document: Callable[[str | None], str | None] = lambda kernel: None
+    # The document whose code made a table, as said when it arrived (a project's one session: the kernel
+    # alone does not name the document).
+    table_document: Callable[[str], str | None] = lambda name: None
     # The open project ({"folder", "name", "tables": [{"name", "keep_rows"}]}) or None.
     project: Callable[[], Mapping[str, Any] | None] = lambda: None
     # The running kernels' ids, and one's variables (client/kernel_variables.py's snapshot; busy: True).
@@ -146,6 +150,9 @@ class Environment:
         self._latest: dict[str, str] = {}  # the index's newest versions, by a library's key (memory only)
         self._checked = False
         self._settling: asyncio.TimerHandle | None = None
+        # One Python per project (services/project_python.py; the composition root hands it over): the
+        # project's own .venv as it is made, the one session's words, a notebook's older environment offered.
+        self.project_python: Any = None
         self._tasks: set[asyncio.Task[None]] = set()
 
     # ===== the notice =====
@@ -191,7 +198,9 @@ class Environment:
         if kind == "file" and getattr(origin, "path", None):
             return "File · " + str(origin.path).replace("\\", "/").rsplit("/", 1)[-1]
         if kind == "python":
-            document = self._s.kernel_document(getattr(origin, "kernel", None))
+            document = self._s.table_document(name) or self._s.kernel_document(
+                getattr(origin, "kernel", None)
+            )
             return _title(document) if document else "Python"
         return ORIGIN_WORDS.get(kind, "")
 
@@ -416,7 +425,30 @@ class Environment:
     def python(self) -> dict[str, Any]:
         """The Python the project's code runs in: its path, its version, whether it is the project's own."""
         python, own = self._libraries.python_of(self._folder())
-        return {"python": python, "version": self._libraries.version_of(python), "own": own}
+        state = self.project_python.state() if self.project_python is not None else {}
+        return state | {"python": python, "version": self._libraries.version_of(python), "own": own}
+
+    async def set_python(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """The project's Python changed on request: {"make": true} makes its `.venv` now (Try again; it is
+        made by itself as a project opens); {"offer": a document, "add": true | false} answers what a
+        notebook's older environment offered (add: its libraries installed and written to requirements.txt,
+        the agent's on Allow; false: Not now). The Python as it is now."""
+        if self.project_python is None or not isinstance(body, dict):
+            raise ValueError('Send {"make": true} or {"offer": "the document", "add": true}.')
+        if body.get("make"):
+            await self.project_python.make(body, who)
+        elif isinstance(body.get("offer"), str):
+            offers = self.project_python.state()["offers"]
+            offer = next((o for o in offers if o["document"] == body["offer"]), None)
+            if offer is None:
+                raise NotFound("That offer is no longer there (it was added, or declined).")
+            if body.get("add"):
+                await self.install({"names": offer["libraries"]}, who)
+            await self.project_python.settle_offer({"document": offer["document"]}, who)
+        else:
+            raise ValueError('Send {"make": true} or {"offer": "the document", "add": true}.')
+        await self.changed()
+        return self.python()
 
     def _library_items(self, documents: list[Document]) -> list[Item]:
         python, _ = self._libraries.python_of(self._folder())
@@ -785,14 +817,20 @@ class Environment:
     async def install(self, body: Any, who: str = "user") -> dict[str, Any]:
         """Install a library…: {"name"} (as pip knows it) into the project's Python, and into
         requirements.txt so a teammate gets it. The agent's waits for the user's Allow."""
-        name = rules.check_library(_field(body, "name"))
+        several = body.get("names") if isinstance(body, dict) else None
+        if isinstance(several, list) and several:  # several at once: one install, one Allow
+            names = [rules.check_library(n) for n in several[:60]]
+        else:
+            names = [rules.check_library(_field(body, "name"))]
         folder = self._own_folder()
-        await self._change([name], False, who, f"Install {name}")
+        await self._change(names, False, who, f"Install {', '.join(names)}")
         text = await asyncio.to_thread(self._libraries.read_requirements, folder)
-        await self._write(folder, rules.with_library(text, name))
-        self.ws.audit.write(who, "environment_install", name)
+        for name in names:
+            text = rules.with_library(text, name)
+        await self._write(folder, text)
+        self.ws.audit.write(who, "environment_install", ", ".join(names))
         await self.changed()
-        return {"installed": name}
+        return {"installed": names[0]} if len(names) == 1 else {"installed": names}
 
     async def update(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{"name"}: that library to its newest version; {"all": true}: every one not pinned that has a newer
@@ -930,6 +968,7 @@ def sources_from(
     return Sources(
         origin_of=datasets.origins.get,
         kernel_document=workbench.document_of,
+        table_document=datasets.origins.document,
         project=project,
         kernels=workbench.running_kernels,
         kernel_variables=workbench.variables,

@@ -217,8 +217,9 @@ NOT_COMMANDS = {
     "/claude/launch": "Launch Claude starts a process on the user's computer: the user's click only (an "
     "agent does not start another agent); 403 for the agent. app_claude reads what was found",
     "/claude/context/prompt": "the prompt hook's question (plumbing): app_context reads context.md itself",
-    "/variables/reveal": "Show on the Variables page: a keyring secret's value, the user's click only; 403 "
-    "for the agent (no answer the app gives it holds a password's value). variables_list reads the rest",
+    "/variables/reveal": "Show on the Environment's Settings and secrets tab: a keyring secret's value, the "
+    "user's click only; 403 for the agent (no answer the app gives it holds a password's value). "
+    "variables_list reads the rest",
     "/session-log/follow": "Follow the agent is the user's switch (an agent that could turn it off could "
     "work unseen); 403 for the agent. app_session reads it",
     "/connections/rewrite": "the Workbench window's helper for its open documents: connections_repoint does"

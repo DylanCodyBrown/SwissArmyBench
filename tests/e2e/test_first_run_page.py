@@ -17,7 +17,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.environment_helpers import open_variables
+from tests.e2e.environment_helpers import open_settings
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_FEEL_SHOTS")
@@ -51,11 +51,11 @@ def test_empty_pages_lead_somewhere_and_the_sample_opens(browser: Browser, serve
     expect(empty).to_contain_text("DuckDB SQL can read them by name")
     expect(empty.get_by_role("button", name="Add connection")).to_be_visible()
     shot(page, "empty-connections")
-    # Variables: its sentence and Add variable (no sample: tables are not variables).
-    open_variables(page)
-    variables = page.locator(".area-page[data-page='variables'] .empty-state")
+    # Settings and secrets (the Environment): its sentence and Add a setting (no sample: tables are not
+    # settings).
+    variables = open_settings(page).locator(".empty-state")
     expect(variables).to_be_visible(timeout=20000)
-    expect(variables.get_by_role("button", name="Add variable")).to_be_visible()
+    expect(variables.get_by_role("button", name="Add a setting…")).to_be_visible()
     expect(variables.get_by_role("button", name="Try it with sample data")).to_have_count(0)
     shot(page, "empty-variables")
     # Session: nothing yet, and a way to start.

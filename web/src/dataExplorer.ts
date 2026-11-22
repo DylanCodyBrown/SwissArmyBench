@@ -533,7 +533,7 @@ export function mountExplorer(host: ExplorerHost): Explorer {
       }
       case "variables":
         return [
-          { label: "Open in Variables", icon: "variables", run: () => host.openVariable(r.name) },
+          { label: "Open in the Environment", icon: "variables", run: () => host.openVariable(r.name) },
           { label: "Copy name", icon: "copy", run: () => copyText(r.name, r.name) },
           ...into,
         ];

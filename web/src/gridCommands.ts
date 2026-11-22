@@ -33,7 +33,7 @@ import { api } from "./api";
 import { mountExplorer } from "./dataExplorer";
 import { openData } from "./dataPage";
 import { button, h, openDialog, toast } from "./dom";
-import { openVariables } from "./variablesPage";
+import { openEnvironment } from "./environmentPage";
 import { mountShortcutKeys, openPalette, openShortcuts, setCommandSource, type Command } from "./workbenchCommands";
 import { errorHere } from "./errorNote";
 
@@ -247,7 +247,7 @@ export function openFindData(): void {
     },
     openVariable: () => {
       close();
-      openVariables();
+      openEnvironment("setting");
     },
   });
   body.append(explorer.element);

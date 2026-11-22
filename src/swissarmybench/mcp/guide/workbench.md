@@ -7,14 +7,17 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
 - `workbench_home` (default folder, recent files), `workbench_open`, `workbench_save` (refused if the
   file changed on disk since, unless `force`).
 - `workbench_pythons`, `workbench_kernel_start(python, path)`: each connection is a variable by its
-  name in it, and each key vault's secrets are environment variables.
+  name in it, and each key vault's secrets are environment variables. With a project open, every document
+  of the project (and a start with no document) gets the project's ONE Python session, in the project's own
+  Python: the same kernel id each time, `session.shared` true (the environment guide: One Python per project).
 - `workbench_run(kernel, code, kind)`: kind code (default), sql (a SQL cell on `connection`), dax (on
   `connection="Finance/Sales model"`), file (a script as python runs it), table (a table's cell), html.
   A run that stopped on an import says `missing` {feature, packages, python, command} in its error:
   run `%pip install <packages>` in that kernel, then the code again (the user gets a prompt).
 - `workbench_run_notebook`: run every cell, save with the outputs. `workbench_input` answers input().
 - `workbench_variables`, `workbench_inspect`, `workbench_is_complete`, `workbench_statement`,
-  `workbench_kernel` (interrupt, restart, stop).
+  `workbench_kernel` (interrupt, restart, stop; the project's session: interrupt and restart act on it for
+  every document, stop leaves it running, stop_session stops it).
 - What the editors know (no window needed), at `code`, `line`, `column` (1-based; `kernel` for its live
   names, `path` for its project's modules, `notebook` for IPython's lines): `workbench_complete` (the
   member list: kind, signature, docs; connections, variables and blades inside strings; a project

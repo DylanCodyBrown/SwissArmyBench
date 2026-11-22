@@ -191,7 +191,8 @@ def test_a_secret_setting_never_carries_its_value() -> None:
         },
         [],
     )
-    assert vault.origin == "key vault · larkfield-vault" and not vault.more["showable"]
+    # The vault and the secret's name, never a value.
+    assert vault.origin == "key vault · larkfield-vault · api-key" and not vault.more["showable"]
     assert vault.kids[0] == ("comes from", "source", "key vault larkfield-vault, entry api-key")
     plain = rules.setting_item(
         {"name": "WAREHOUSE_HOST", "from": "value", "set": True, "value": "sql.example"}, []
@@ -200,11 +201,13 @@ def test_a_secret_setting_never_carries_its_value() -> None:
     uses = rules.setting_uses(
         [
             {"kind": "connection", "name": "Warehouse"},
+            {"kind": "connection", "name": "Warehouse", "how": "password"},  # the box it fills
             {"kind": "notebook", "name": "data.ipynb", "path": "/p/d", "cell": 3},
         ]
     )
     assert [(u.kind, u.words) for u in uses] == [
         ("connection", "Warehouse"),
+        ("connection", "Warehouse · Password"),
         ("cell", "data.ipynb · cell 3"),
     ]
 

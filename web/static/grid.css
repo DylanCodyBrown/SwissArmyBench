@@ -6830,10 +6830,6 @@ dialog .field > .field-row > select {
   background: var(--bg);
 }
 
-.wb-sort {
-  font-weight: 600;
-}
-
 .wb-vars[hidden] {
   display: none;
 }
@@ -6848,73 +6844,6 @@ dialog .field > .field-row > select {
   flex: 1;
   margin: 0;
   font-size: 1em;
-}
-
-.wb-vars h3 {
-  margin: 10px 0 4px;
-  color: var(--muted);
-  font-size: 0.8em;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-/* Fixed columns: a long value wraps inside its cell, so the row's buttons stay in the panel. */
-.wb-vars-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.wb-vars-table.small td {
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-.wb-vars-table th,
-.wb-vars-table td {
-  padding: 3px 6px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  vertical-align: top;
-}
-
-.wb-vars-table td.num {
-  text-align: right;
-}
-
-.wb-vars-table.small td.num,
-.wb-vars-table.small td.wb-vars-type {
-  overflow-wrap: break-word; /* whole words: "2 rows by 2 columns", never "column s" */
-}
-
-/* Name, type and size get room of their own; the value takes what is left (the review's D5: the
-   type ran into the size at 1024 pixels). */
-.wb-vars-table th:nth-child(1) {
-  width: 24%;
-}
-
-.wb-vars-table:has(th:nth-child(4)) th:nth-child(2) {
-  width: 24%;
-}
-
-.wb-vars-table:has(th:nth-child(4)) th:nth-child(3) {
-  width: 18%;
-}
-
-/* The Environment table: the variable's name gets the room ("WAREHOUSE_PASSWORD" on one line). */
-.wb-vars-table:not(:has(th:nth-child(3))) th:nth-child(1) {
-  width: 62%;
-}
-
-.wb-vars-type {
-  color: var(--muted);
-  font-size: 0.9em;
-}
-
-.wb-vars-value {
-  font-family: "Cascadia Code", Consolas, monospace;
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 /* The error panel (workbenchErrors.ts): Visual Studio's Exception Helper, in a run's output. */
@@ -10611,177 +10540,7 @@ body.sql-window dialog[open] textarea.code-input {
   }
 }
 
-/* The Variables page (variablesPage.ts): grouped by source, a row each (name, value, uses, tools). */
-.area-page-actions .variables-search {
-  width: min(280px, 40vw);
-}
-
-.variables-page {
-  display: grid;
-  align-content: start;
-  gap: 14px;
-  max-width: 1180px;
-}
-
-.variables-sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.variables-sources .btn {
-  border-radius: 14px;
-}
-
-.variables-group h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 6px 0 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.variables-group h2 .icon-svg {
-  width: 16px;
-  height: 16px;
-}
-
-.variables-group h2 .count {
-  padding: 0 7px;
-  border-radius: 9px;
-  background: var(--surface-2);
-  color: var(--fg);
-  font-size: 11px;
-  letter-spacing: 0;
-}
-
-.variable-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 1.1fr) minmax(160px, 1.2fr) minmax(0, 2fr) auto;
-  align-items: center;
-  gap: 12px;
-  min-height: 40px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-.variable-row:hover {
-  background: var(--row-hover);
-}
-
-/* The variable a link went to (the canvas pane's Uses). */
-.variable-row.found {
-  box-shadow: inset 3px 0 0 var(--accent);
-  background: var(--row-hover);
-}
-
-.variable-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.variable-badge {
-  padding: 0 7px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 400;
-}
-
-.variable-value {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.variable-plain,
-.variable-value .mono {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.variable-vault {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.variable-vault .icon-svg {
-  flex: none;
-  width: 14px;
-  height: 14px;
-  color: var(--muted);
-}
-
-.variable-missing {
-  color: var(--warn);
-}
-
-.variables-page .muted {
-  color: var(--muted);
-}
-
-.variable-uses {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  min-width: 0;
-}
-
-.variable-use {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 260px;
-  padding: 1px 8px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--fg);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.variable-use span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.variable-use .icon-svg {
-  flex: none;
-  width: 13px;
-  height: 13px;
-}
-
-.variable-use:hover {
-  border-color: var(--accent);
-}
-
-.variable-use:focus-visible {
-  outline: var(--focus-width) solid var(--focus);
-  outline-offset: 2px;
-}
-
-.variable-tools {
-  display: flex;
-  gap: 2px;
-}
-
+/* Add variable's form (variableLinks.ts) and Add key vault's kinds (keyVaults.ts). */
 .variables-form {
   display: flex;
   flex-wrap: wrap;
@@ -10800,27 +10559,6 @@ body.sql-window dialog[open] textarea.code-input {
 
 .variables-form-value {
   flex: 1 1 260px;
-}
-
-.variables-form-buttons {
-  display: flex;
-  gap: 6px;
-}
-
-.variables-remove,
-.variables-still {
-  align-items: center;
-}
-
-@media (max-width: 720px) {
-  .variable-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .variable-value,
-  .variable-uses {
-    grid-column: 1 / -1;
-  }
 }
 
 /* Follow the agent: what it just made pulses softly in the theme's accent. */
@@ -12582,7 +12320,26 @@ dialog.find-data .dialog-body {
   text-overflow: ellipsis;
 }
 
-/* The Variables page's key vaults (variablesPage.ts): a card each, its detail the Connections page's. */
+/* The key vaults on the Environment's Settings and secrets tab (keyVaults.ts): a card each, its detail the
+   Connections page's. */
+.env-vaults {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.env-vaults[hidden],
+.env-vaults:not(:has(.variables-vault-types, .variables-vault-cards)) {
+  display: none;
+}
+
+.env-vaults .variables-form-slot:empty {
+  display: none;
+}
+
 .variables-vaults h2 {
   display: flex;
   align-items: center;
@@ -12984,11 +12741,6 @@ dialog.find-data .dialog-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-
-.variable-note {
-  display: block;
-  font-size: 12px;
 }
 
 .variables-vault-stale {
@@ -19695,6 +19447,53 @@ body.wb-full .wb-col-right {
 
 .env-session:empty {
   display: none;
+}
+
+/* One Python per project (projectSession.ts): the project's .venv as it is made, the one session's words,
+   a notebook's older environment offered. */
+.env-project-lines {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+
+.env-project-lines:empty {
+  display: none;
+}
+
+.env-project-python,
+.env-offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.env-project-python.failed .env-project-python-words {
+  color: var(--error);
+}
+
+.env-project-session {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.env-offer > span {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.toast .env-offer {
+  padding: 0;
+  border-bottom: 0;
+  font-size: inherit;
+}
+
+.wb-env-project {
+  font-size: 12px;
 }
 
 .env-grow {

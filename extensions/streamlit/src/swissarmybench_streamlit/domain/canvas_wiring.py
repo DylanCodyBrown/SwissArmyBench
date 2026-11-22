@@ -163,7 +163,8 @@ def check_in(port: Port, wire: Any, context: Context) -> None:
             raise ContractError(f"{str(value)[:40]!r} is not a variable's name.", "Pick a variable.")
         if context.variables is not None and value not in context.variables:
             raise ContractError(
-                f"{value} is not set on this computer.", f"Set {value} on the Variables page."
+                f"{value} is not set on this computer.",
+                f"Set {value} on the Environment's Settings and secrets tab.",
             )
         if wanted not in ("str", "int", "float", "bool", "date", "datetime"):
             raise ContractError(f"{port.name} takes {contract.words(wanted)}: a variable is text.")

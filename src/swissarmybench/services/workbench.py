@@ -5,6 +5,7 @@ audit log names who did each."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
@@ -16,6 +17,7 @@ from swissarmybench.domain import (
     errors,
     html_cells,
     notebook_flow,
+    project_python,
     workbench_pages,
 )
 from swissarmybench.domain import environments as envs
@@ -49,6 +51,8 @@ class Documents(Protocol):
     def environment(self, path: str) -> str | None: ...
 
     def remember_environment(self, path: str, python: str) -> None: ...
+
+    def forget_environment(self, path: str) -> None: ...
 
     def scratch(self, text: str) -> str: ...
 
@@ -136,8 +140,19 @@ class Workbench:
         self._vault_names: set[str] = set()
         # Told when a kernel stops (set_kernel_stopped: its connection slots go back).
         self._kernel_stopped: Callable[[str], Awaitable[None]] | None = None
-        # Each kernel's runs still going, in order, by who started them ("user" or "agent").
-        self._runs: dict[str, list[str]] = {}
+        # Each kernel's runs still going, in order: who started each ("user" or "agent") and the document
+        # it runs for (the project's one session runs every document's).
+        self._runs: dict[str, list[tuple[str, str | None]]] = {}
+        # One Python per project (the owner, 2026-11-21; domain/project_python.py): the open project's
+        # folder and its Python (services/project_python.py's session; None: no project), the ONE kernel
+        # every document of the project runs in, and the documents that joined it.
+        self.project: Callable[[], tuple[str, str] | None] = lambda: None
+        # A document opened with a Python remembered for it alone, in a project: read once and offered
+        # (services/project_python.py's moved); None: nothing to say.
+        self.moved_environment: Callable[[str, str], dict[str, Any] | None] | None = None
+        self._session: str | None = None
+        self._session_documents: list[str] = []
+        self._session_start = asyncio.Lock()
         # An extension's part (services/hooks.py): which cells are shown live, an app's own file.
         self._hooks = hooks or Hooks()
         self._running: dict[str, Kernel] = {}
@@ -188,6 +203,16 @@ class Workbench:
         self.ws.audit.write("user", "open_document", full)
         # Its environment: the one chosen for it before, else a .venv beside it.
         python = self._documents.environment(full) or self._kernels.beside(self._folder_of(full))
+        # A document of the open project runs in the project's one Python session: a Python remembered for
+        # it alone is read once, its libraries offered to the project, and said in one line.
+        moved: dict[str, Any] | None = None
+        project = self.project()
+        if project is not None and project_python.in_project(full, project[0]) and kind != "app":
+            own = self._documents.environment(full)
+            if own and self.moved_environment is not None:
+                moved = self.moved_environment(full, own)
+            python = project[1]
+        session = {"session": self.session_of(full)} | ({"moved_environment": moved} if moved else {})
         if kind == "notebook":
             read, next_cell = rules.read_document(text)
             cells = [c.to_json() for c in read]
@@ -200,12 +225,12 @@ class Workbench:
                 "dictionary": dictionary.of_notebook(text),
                 "python": python,
                 "next_cell": next_cell,  # the number the next new cell gets (never one used before)
-            }
+            } | session
         if kind == "app":
             # An app's canvas (the Streamlit extension's): its pages and blocks, as the extension reads them.
             opened: dict[str, Any] = self._app_document().open(text, full)
             return {"path": full, "kind": kind, "modified": modified} | opened
-        return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python}
+        return {"path": full, "kind": kind, "modified": modified, "text": text, "python": python} | session
 
     def save(self, body: Any) -> dict[str, Any]:
         """Save a notebook's cells or a script's text. A file changed on disk since it was opened is not
@@ -306,6 +331,11 @@ class Workbench:
         ):
             raise ValueError('Send {"path": "the document", "python": "its Python"}.')
         checked = self._kernels.check_python(body["python"])
+        project = self.project()
+        if project is not None and project_python.in_project(body["path"], project[0]):
+            return (
+                checked  # a project's document runs in the project's one Python: nothing of its own to keep
+            )
         self._documents.remember_environment(body["path"], str(checked["python"]))
         return checked
 
@@ -327,10 +357,15 @@ class Workbench:
         if not isinstance(body, dict):
             body = {}
         await self._prune()
+        path = body.get("path")
+        project = self.project()
+        if project is not None and (
+            project_python.in_project(path, project[0]) or (not path and body.get("project") is True)
+        ):
+            return await self._join(project, path if isinstance(path, str) and path else None)
         if len(self._running) >= MAX_KERNELS:
             raise Conflict(f"{MAX_KERNELS} kernels are running: close a notebook or script first.")
         python = body.get("python") or self.pythons()["pythons"][0]["python"]
-        path = body.get("path")
         # A document not saved yet runs where Save as puts it first (the app's own folder), so a relative
         # path in its code names the same file in the Workbench and in a scheduled run of the saved file.
         folder = (
@@ -357,16 +392,111 @@ class Workbench:
             self.ws.audit.write("user", "vault_variables", ", ".join(sorted(from_vaults)))
         # Names only: which variables the vaults set, and why a vault could not.
         vaults = {"set": sorted(from_vaults), "problems": problems}
-        return {"kernel": kernel_id, "python": kernel.python, "vaults": vaults}
+        return {"kernel": kernel_id, "python": kernel.python, "vaults": vaults, "session": None}
+
+    # ===== one Python session per project (the owner, 2026-11-21) =====
+
+    def session_of(self, path: str | None) -> dict[str, Any] | None:
+        """What a document's session is, for the page's words: None for a loose file (a kernel of its own),
+        else {"shared": True, "words", "kernel"} (Interrupt and Restart are the whole project's)."""
+        project = self.project()
+        if project is None or (path and not project_python.in_project(path, project[0])):
+            return None
+        return {"shared": True, "words": project_python.SESSION_WORDS, "kernel": self.session_kernel()}
+
+    def session_kernel(self) -> str | None:
+        """The project's one session's kernel, while it runs."""
+        return self._session if self._session in self._running else None
+
+    async def _session_environ(self, kernel_id: str) -> tuple[dict[str, str], dict[str, Any]]:
+        from_vaults: dict[str, str] = {}
+        problems: list[str] = []
+        if self._vault_environment is not None:
+            from_vaults, problems = await self._vault_environment()
+        self._vault_names |= set(from_vaults)
+        if from_vaults:
+            self.ws.audit.write("user", "vault_variables", ", ".join(sorted(from_vaults)))
+        environ = dict(self._environ) | from_vaults | {"SWISSARMYBENCH_KERNEL": kernel_id}
+        return environ, {"set": sorted(from_vaults), "problems": problems}
+
+    async def _start_session(self, kernel_id: str, folder: str, python: str) -> tuple[Kernel, dict[str, Any]]:
+        """The project's session started in the project's Python; in the app's own, said, when the
+        project's does not run (a `.venv` half made, or without the kernel's library)."""
+        environ, vaults = await self._session_environ(kernel_id)
+        own = str(self.pythons()["pythons"][0]["python"])
+        try:
+            kernel = await self._kernels.start(python, folder, environ)
+        except ValueError:
+            if python == own:
+                raise
+            kernel = await self._kernels.start(own, folder, environ)
+            vaults["problems"] = [*vaults["problems"], project_python.FALLBACK_WORDS]
+        self.ws.audit.write("user", "start_kernel", kernel.python)
+        return kernel, vaults
+
+    async def _join(self, project: tuple[str, str], path: str | None) -> dict[str, Any]:
+        """A document of the open project joins the project's one session (started by the first)."""
+        folder, python = project
+        async with self._session_start:
+            kernel_id = self.session_kernel()
+            vaults: dict[str, Any] = {"set": [], "problems": []}
+            if kernel_id is None:
+                if len(self._running) >= MAX_KERNELS:
+                    raise Conflict(f"{MAX_KERNELS} kernels are running: close a notebook or script first.")
+                kernel_id = tokens.token_hex(6)
+                kernel, vaults = await self._start_session(kernel_id, folder, python)
+                self._running[kernel_id] = kernel
+                self._session = kernel_id
+                self._session_documents = []
+            if path and path not in self._session_documents:
+                self._session_documents.append(path)
+            if path and kernel_id not in self._documents_of:
+                self._documents_of[kernel_id] = path
+        session = {"shared": True, "words": project_python.SESSION_WORDS, "kernel": kernel_id}
+        return {
+            "kernel": kernel_id,
+            "python": self._running[kernel_id].python,
+            "vaults": vaults,
+            "session": session,
+        }
+
+    async def end_session(self) -> None:
+        """The project's session ends (the project closed, or another opened)."""
+        kernel_id, self._session, self._session_documents = self._session, None, []
+        if kernel_id is not None:
+            await self.stop(kernel_id)
+            await self.ws.live.broadcast(
+                {"type": "session_ended", "kernel": kernel_id, "words": project_python.STOPPED_WORDS}
+            )
+
+    async def leave(self, kernel_id: str, everything: bool = False) -> dict[str, Any]:
+        """A document closed (or its window): its own kernel stops; the project's session goes on for the
+        other documents, unless `everything` says to stop it (Stop the session; a run starts a new one)."""
+        if kernel_id == self._session and kernel_id in self._running and not everything:
+            return {"ok": True, "stopped": False, "session": True}
+        if kernel_id == self._session:
+            await self.end_session()
+            return {"ok": True, "stopped": True, "session": True}
+        await self.stop(kernel_id)
+        return {"ok": True, "stopped": True, "session": False}
 
     def document_of(self, kernel_id: str | None) -> str | None:
-        """The document a kernel was started for (None: not known, or no kernel)."""
-        return self._documents_of.get(kernel_id) if kernel_id else None
+        """The document a kernel's code runs for: the run going now says (the project's session runs every
+        document's), else the last one that ran there, else the one it was started for (None: not known)."""
+        if not kernel_id:
+            return None
+        runs = self._runs.get(kernel_id) or []
+        if runs and runs[0][1]:
+            return runs[0][1]
+        return self._documents_of.get(kernel_id)
 
     def kernel_for(self, path: str) -> str | None:
         """The running kernel started for a document (the newest; None: none). Lineage's values come from
         it when no extension holds the document (live cells went, 2026-11-21: nothing else says)."""
         wanted = path.replace("\\", "/").casefold()
+        session = self.session_kernel()
+        if session and any(d.replace("\\", "/").casefold() == wanted for d in self._session_documents):
+            return session
         found = [
             k
             for k, d in self._documents_of.items()
@@ -376,7 +506,8 @@ class Workbench:
 
     def running_documents(self) -> list[str]:
         """The documents a running kernel was started for (context.md's Windows)."""
-        return sorted({d for k, d in self._documents_of.items() if k in self._running and d})
+        joined = set(self._session_documents) if self.session_kernel() else set()
+        return sorted({d for k, d in self._documents_of.items() if k in self._running and d} | joined)
 
     def kernel_count(self) -> int:
         """How many kernels are running (the question before an update)."""
@@ -426,8 +557,8 @@ class Workbench:
         kernel runs its cells one at a time) and its document's words (Notebook sales.ipynb, Script
         load.py): what a connection's slot is counted as (services/connection_slots.py)."""
         runs = self._runs.get(kernel_id) or []
-        role = runs[0] if runs else "user"
-        path = self._documents_of.get(kernel_id) or ""
+        role = runs[0][0] if runs else "user"
+        path = self.document_of(kernel_id) or ""
         name = path.replace("\\", "/").rsplit("/", 1)[-1]
         words = (
             (("Notebook " if name.endswith(".ipynb") else "Script ") + name) if name else "A Workbench kernel"
@@ -481,16 +612,23 @@ class Workbench:
         kernel = self._kernel(kernel_id)
 
         stdin = body.get("stdin") is not False
+        # The document the code runs for (the page says; a file run is its own): a table the run sends
+        # goes into that document's Tables group, and a connection's slot is counted as its.
+        document = body.get("document") if isinstance(body.get("document"), str) else None
+        if kind == "file" and isinstance(body.get("path"), str) and body["path"]:
+            document = body["path"]
 
         async def run() -> AsyncIterator[dict[str, Any]]:
             runs = self._runs.setdefault(kernel_id, [])
-            runs.append("agent" if actor == "agent" else "user")
+            runs.append(("agent" if actor == "agent" else "user", document))
             try:
                 async for item in outputs():
                     yield item
             finally:
                 if runs:
                     runs.pop(0)
+                if document and kernel_id in self._running:
+                    self._documents_of[kernel_id] = document  # the last to run there
 
         async def outputs() -> AsyncIterator[dict[str, Any]]:
             usage = ""  # a SQL cell's error is IPython's usage error, written to stderr
@@ -513,7 +651,7 @@ class Workbench:
                             {"chain": [entry]}, open_tables=self.open_tables()
                         )
                     }
-                if item.get("done", {}).get("dead"):
+                if item.get("done", {}).get("dead") and self._running.get(kernel_id) is kernel:
                     await self.stop(kernel_id)  # gone: it no longer counts against the limit
                 yield item
 
@@ -598,7 +736,8 @@ class Workbench:
                 raise Conflict(wrong)
         held["taken"] = True
         kernel = held["kernel"] if held["kernel"] in self._running else None
-        if kernel is not None:
+        if kernel is not None and kernel != self._session:
+            # (The project's one session is no window's: it lives with the project, whichever window left.)
             self._owner[kernel] = window
             self._gone_since.pop(kernel, None)
         return {"document": held["document"], "kernel": kernel}
@@ -786,10 +925,36 @@ class Workbench:
         await self._kernel(kernel_id).interrupt()
 
     async def restart(self, kernel_id: str) -> None:
-        await self._kernel(kernel_id).restart()
+        """A fresh Python. The project's session restarts for every document of the project (each window
+        is told), in the project's Python as it is now: a `.venv` made since it started is used."""
+        kernel = self._kernel(kernel_id)
+        if kernel_id != self._session:
+            await kernel.restart()
+            return
+        project = self.project()
+        if project is not None and project[1] != kernel.python:
+            try:
+                fresh, _ = await self._start_session(kernel_id, project[0], project[1])
+            except ValueError:
+                await kernel.restart()
+            else:
+                self._running[kernel_id] = fresh
+                await kernel.shutdown()
+        else:
+            await kernel.restart()
+        await self.ws.live.broadcast(
+            {
+                "type": "session_restarted",
+                "kernel": kernel_id,
+                "python": self._running[kernel_id].python,
+                "words": project_python.RESTARTED_WORDS,
+            }
+        )
 
     async def stop(self, kernel_id: str) -> None:
         kernel = self._running.pop(kernel_id, None)
+        if kernel_id == self._session:
+            self._session, self._session_documents = None, []
         if kernel is not None:
             await kernel.shutdown()
             if self._kernel_stopped is not None:

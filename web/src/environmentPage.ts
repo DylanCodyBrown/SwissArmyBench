@@ -28,6 +28,9 @@ import { append, button, h, icon, openDialog, plural, recall, remember, toast } 
 import { errorHere, errorNote, showError } from "./errorNote";
 import { busyButton, loadingBlock } from "./loading";
 import { promptInstall, type Missing } from "./missingPackages";
+import { offerRow, pythonLine, type ProjectPython } from "./projectSession";
+import { emptyState } from "./emptyState";
+import { mountKeyVaults } from "./keyVaults";
 import { dismissDialog, go, layerOpened, registerLayer, setOverTitle, visit, watchLayerDialog, withParams } from "./nav";
 import { openMenu, type MenuEntry } from "./workbenchMenu";
 
@@ -77,7 +80,7 @@ export interface Item {
 interface Listing {
   items: Item[];
   counts: Record<Kind, number>;
-  python: { python: string; version: string; own: boolean };
+  python: ProjectPython & { version: string };
   project: { name: string; folder: string } | null;
   memory: string;
   checked: boolean;
@@ -173,9 +176,12 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
   const tools = h("span", { class: "env-tools" });
   const tabs = h("div", { class: "env-tabs", role: "tablist", "aria-label": "Kinds" });
   const session = h("div", { class: "env-session" });
+  const projectHost = h("div", { class: "env-project-lines" });
+  const vaults = mountKeyVaults();
+  vaults.element.hidden = true;
   const list = h("div", { class: "env-list", role: "tree", "aria-label": "Everything the project holds", tabindex: -1 });
   const viewer = h("aside", { class: "env-side", "aria-label": "Viewer" });
-  const main = h("div", { class: "env-main" }, h("section", { class: "env-page", "aria-label": "Environment list" }, session, tabs, h("div", { class: "env-find" }, search, hint, tools), list), viewer);
+  const main = h("div", { class: "env-main" }, h("section", { class: "env-page", "aria-label": "Environment list" }, session, tabs, h("div", { class: "env-find" }, search, hint, tools), projectHost, vaults.element, list), viewer);
   const element = h("div", { class: `env${compact ? " env-compact" : ""}` }, main);
   const foldKey = compact ? "env.viewer.pane" : "env.viewer.page";
   let folded = recall(foldKey) === "1";
@@ -260,6 +266,7 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
       if (mine !== asked || disposed) return;
       listing = got;
       failed = null;
+      if (tab === "setting") void vaults.refresh(); // a vault saved, renamed or read again: its card follows
     } catch (e) {
       if (mine !== asked || disposed) return;
       failed = e;
@@ -307,13 +314,19 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
   };
 
   const drawSession = (): void => {
+    // One Python per project (projectSession.ts): on the Libraries tab, its .venv as it is made, Try again
+    // and what one session means; on every tab, a notebook's older environment offered until answered.
+    const project = listing && tab === "library" ? pythonLine(listing.python, () => void load()) : null;
+    projectHost.replaceChildren(...(project ? [project] : []), ...(listing?.python.offers ?? []).map((o) => offerRow(o, () => void load())));
+    // The key vaults, on the Settings and secrets tab (they give settings; keyVaults.ts).
+    vaults.element.hidden = tab !== "setting";
     if (!listing || compact) {
       session.replaceChildren();
       return;
     }
     const python = listing.python;
     session.replaceChildren(
-      h("span", { class: "env-python", title: python.python }, `Python ${python.version} · ${python.own ? "the project's environment" : listing.project ? "this app's own (the project has no .venv yet)" : "this app's own"}`),
+      h("span", { class: "env-python", title: python.python }, `Python ${python.version} · ${python.own ? "the project's own (.venv)" : python.status === "making" ? "this app's own (the project's is being made)" : listing.project ? "this app's own (the project has no .venv yet)" : "this app's own"}`),
       h("span", {}, `tables in memory ${listing.memory} · nothing is saved unless you tick Keep`),
       h("span", { class: "env-grow" }),
       h("span", {}, "Updates by itself as your code runs · tables are added on the ", h("button", { type: "button", class: "env-link", onclick: () => visit(withParams({ open: "connections", at: null, type: null, name: null })) }, "Connections"), " page"),
@@ -332,9 +345,9 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
       made.push(button("New, open or paste…", () => void import("./structuresPage").then((m) => m.openStructures()), { icon: "plus", class: "env-structures" }));
     }
     if (tab === "setting") {
-      made.push(button("Add a setting…", () => void import("./variableLinks").then((m) => m.addVariable("", () => void load())), { icon: "plus", class: "primary env-add-setting" }));
-      // The key vaults (added, listed, read again) and every setting by its source: their own page.
-      made.push(button("Key vaults and more…", () => visit(withParams({ open: "variables", at: null, type: null, name: null })), { icon: "key", class: "env-vaults" }));
+      // A key vault gives settings: added here, listed above the settings (keyVaults.ts).
+      made.push(button("Add key vault", () => void vaults.add(), { icon: "key", class: "variables-add-vault" }));
+      made.push(button("Add a setting…", () => addSetting(), { icon: "plus", class: "primary env-add-setting" }));
     }
     if (!options.actions) made.push(button("Clear…", () => void clearDialog(), { class: "ghost env-clear", title: "Clear what is not kept…" }));
     tools.replaceChildren(...made);
@@ -386,6 +399,16 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
     return out;
   };
 
+  const addSetting = (): void => void import("./variableLinks").then((m) => m.addVariable("", () => void load()));
+
+  /** An empty tab: one line; an empty Settings and secrets tab leads somewhere (emptyState.ts). */
+  const emptyRow = (): HTMLElement => {
+    if (tab === "setting" && !query) {
+      return emptyState({ icon: "variables", line: "A setting is a value typed once, such as a server's name or a password, then written ${NAME} in any box.", action: { label: "Add a setting…", icon: "plus", run: () => addSetting() }, sample: false });
+    }
+    return h("div", { class: "env-empty" }, emptyWords());
+  };
+
   const emptyWords = (): string => {
     if (query) return `Nothing in ${TAB_WORDS[tab]} matches “${query}”.`;
     if (tab === "table") return "No tables yet. Add one on the Connections page, or make one in code.";
@@ -424,7 +447,7 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
       compact ? h("span", {}) : h("button", { type: "button", class: "env-columns", "aria-label": "Columns", title: "Show or hide columns", onclick: (e: MouseEvent) => columnsMenu(e.currentTarget as HTMLElement) }, icon("more")),
     );
     const rows = shown.flatMap((item) => row(item, columns));
-    list.replaceChildren(head, ...(rows.length ? rows : [h("div", { class: "env-empty" }, emptyWords())]));
+    list.replaceChildren(head, ...(rows.length ? rows : [emptyRow()]));
     list.scrollTop = top;
     if (focused) list.querySelector<HTMLElement>(".env-row.sel")?.focus({ preventScroll: true });
     const others = KINDS.filter((k) => k !== tab && (listing?.counts[k] ?? 0) > 0);
@@ -575,6 +598,7 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
     options.moved?.(tab, name ?? null);
     draw();
     if (kind === "library") void check();
+    if (kind === "setting") void vaults.refresh();
   };
 
   const select = (id: string, reveal = false): void => {
@@ -925,17 +949,35 @@ export function environmentPane(onClose: () => void, insert: (code: { python?: s
 let shownPage: PageElement | null = null;
 let view: EnvironmentView | null = null;
 const isKind = (word: string | null | undefined): word is Kind => KINDS.includes(word as Kind);
+/** A tab named in an address: its kind, or the word the tab shows (at=settings, at=libraries). */
+const TAB_NAMES: Record<string, Kind> = { tables: "table", variables: "variable", structures: "structure", settings: "setting", secrets: "setting", libraries: "library" };
+const asKind = (word: string | null | undefined): Kind | undefined => (isKind(word) ? word : TAB_NAMES[String(word ?? "").toLowerCase()]);
 
 registerLayer("environment", {
   isOpen: () => Boolean(shownPage?.open),
   open: (url) => drawPage(url?.searchParams.get("at"), url?.searchParams.get("name")),
   show: (url) => {
-    const at = url.searchParams.get("at");
-    if (isKind(at)) view?.show(at, url.searchParams.get("name") ?? undefined);
+    const at = asKind(url.searchParams.get("at"));
+    if (at) view?.show(at, url.searchParams.get("name") ?? undefined);
   },
   dismiss: () => {
     if (shownPage) dismissDialog(shownPage);
   },
+});
+
+// The Variables page folded in (2026-11-22): its old address lands on the Settings and secrets tab, at the
+// setting it named (open=variables&name=REGION_DEFAULT), with the address put right.
+registerLayer("variables", {
+  isOpen: () => false,
+  open: (url) => {
+    const name = url?.searchParams.get("name") ?? undefined;
+    void go(withParams({ open: "environment", at: "settings", name: name ?? null, type: null }), "replace").then(() => {
+      if (shownPage?.open) view?.show("setting", name);
+      else drawPage("setting", name);
+    });
+  },
+  show: () => undefined,
+  dismiss: () => undefined,
 });
 
 /** The Environment page, opened by the user (the rail's icon) or a link: on `tab`, at the row `name`. */
@@ -956,7 +998,7 @@ function drawPage(at?: string | null, name?: string | null): void {
   const project = h("span", { class: "env-project" });
   setHeading("Environment", project);
   view = mountEnvironment({
-    tab: isKind(at) ? at : undefined,
+    tab: asKind(at),
     name: name ?? undefined,
     actions,
     // The tab and the row in the address, replaced (a row is a place, not a step back).

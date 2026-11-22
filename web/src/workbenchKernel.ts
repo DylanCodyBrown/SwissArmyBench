@@ -7,6 +7,12 @@
  *
  *          [INPUT] POST /workbench/kernels/{id}/input {value}: the line input() asked for
  *
+ * ONE SESSION A PROJECT (the owner, 2026-11-21; domain/project_python.py): a document of the open project
+ * does not get a kernel of its own. START answers the project's one session (the same id for every
+ * document: `session.shared`), so each document's Kernel here holds that id; Interrupt and Restart act on
+ * the session for all of them, closing a document leaves it running, and the `session_restarted` and
+ * `session_ended` notices reach every document (sessionHeard). A loose file keeps a kernel of its own.
+ *
  * Outputs are nbformat's own records (drawn by workbenchOutputs.ts). The state is "running" from the
  * first Run until the last queued run ends (two runs sent at once run one after the other).
  */
@@ -47,15 +53,88 @@ export type RunItem = Output & { input_request?: { prompt: string; password: boo
 /** This window, for this page load: its kernels stop a minute after it is gone (closed or reloaded). */
 export const WINDOW_ID: string = Math.random().toString(36).slice(2, 12);
 
+/** What START says of a document's session: the project's one (shared), with the words the screen says. */
+export interface Session {
+  shared: boolean;
+  words: string;
+  kernel: string | null;
+}
+
+/** Every document's Kernel of this window (a project's documents share one session: each is told). */
+const all = new Set<Kernel>();
+
+/** A `session_restarted` or `session_ended` notice: every document of that session follows. True when
+ *  one of this window's documents was in it. */
+export function sessionHeard(notice: { type: string; kernel?: string; python?: string }): boolean {
+  let any = false;
+  for (const kernel of all) any = kernel.heard(notice) || any;
+  return any;
+}
+
 export class Kernel {
   id: string | null = null;
   python = "";
   state: "off" | "starting" | "idle" | "busy" = "off";
   /** Runs sent and not yet ended (a second Run waits behind the first). */
   running = 0;
+  /** The project's one Python session (every notebook and script of the project runs in it); false: a
+   *  kernel of this document's own (a loose file). */
+  shared = false;
+  /** What Interrupt and Restart mean for a shared session, in the server's words. */
+  sessionWords = "";
+  /** This document asked for the restart under way (the others are told by the notice). */
+  private restarting = false;
   private listeners: (() => void)[] = [];
 
-  constructor(private readonly path: () => string | null, private readonly chosenPython: () => string | null) {}
+  /** `project`: a document of a Workbench window (one not saved yet joins the open project's session);
+   *  the Widgets window's kernel is always its own. */
+  constructor(private readonly path: () => string | null, private readonly chosenPython: () => string | null, private readonly project = false) {
+    all.add(this);
+  }
+
+  /** Runs under way in this window's other documents of the same shared session. */
+  othersRunning(): number {
+    if (!this.shared || !this.id) return 0;
+    let n = 0;
+    for (const other of all) if (other !== this && other.id === this.id) n += other.running;
+    return n;
+  }
+
+  /** The others of the same session draw again (their status says the session is busy). */
+  private tellOthers(): void {
+    if (!this.shared || !this.id) return;
+    for (const other of all) if (other !== this && other.id === this.id) for (const l of other.listeners) l();
+  }
+
+  /** The project's session as the server said it when the document opened: taken at once while it runs
+   *  (its variables and completions are live before this document's first Run). */
+  join(session: Session | null | undefined, python: string | null): void {
+    if (!session?.shared) return;
+    this.shared = true;
+    this.sessionWords = session.words;
+    if (session.kernel && !this.id && this.state === "off") this.adopt(session.kernel, python ?? "");
+  }
+
+  heard(notice: { type: string; kernel?: string; python?: string }): boolean {
+    if (!this.id || notice.kernel !== this.id) return false;
+    if (notice.type === "session_restarted") {
+      if (notice.python) this.python = notice.python;
+      const mine = this.restarting;
+      this.set(this.running ? "busy" : "idle");
+      return !mine;
+    }
+    if (notice.type === "session_ended") {
+      this.id = null;
+      this.set("off");
+      return true;
+    }
+    return false;
+  }
+
+  /** The document closed for good: no notice reaches it any more. */
+  forget(): void {
+    all.delete(this);
+  }
 
   onState(listener: () => void): void {
     this.listeners.push(listener);
@@ -86,11 +165,13 @@ export class Kernel {
   private async start(): Promise<string> {
     this.set("starting");
     try {
-      const started = await api<{ kernel: string; python: string; vaults?: { set: string[]; problems: string[] } }>("/workbench/kernels", "POST", { python: this.chosenPython(), path: this.path(), window: WINDOW_ID });
-      // A vault that could not be read: the kernel started without its variables.
-      problemsHere(started.vaults?.problems ?? [], "Some key vaults could not be read: the kernel started without their variables.", { level: "warning" });
+      const started = await api<{ kernel: string; python: string; vaults?: { set: string[]; problems: string[] }; session?: Session | null }>("/workbench/kernels", "POST", { python: this.chosenPython(), path: this.path(), window: WINDOW_ID, project: this.project });
+      // A vault that could not be read, or a project's Python that does not run: said, and the code runs.
+      problemsHere(started.vaults?.problems ?? [], "The Python session started, with something to know.", { level: "warning" });
       this.id = started.kernel;
       this.python = started.python;
+      this.shared = !!started.session?.shared;
+      this.sessionWords = started.session?.words ?? "";
       this.set("idle");
       return started.kernel;
     } catch (e) {
@@ -101,15 +182,26 @@ export class Kernel {
 
   /** Run code; each output as it arrives; the run's end. */
   async run(body: RunBody, onOutput: (o: RunItem) => void): Promise<Done> {
-    const id = await this.ensure();
+    let id = await this.ensure();
     this.running++;
     this.set("busy");
+    this.tellOthers();
     try {
-      const response = await fetch(`/workbench/kernels/${id}/execute`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const send = (kernel: string): Promise<Response> =>
+        fetch(`/workbench/kernels/${kernel}/execute`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          // The document this code runs for: a project's one session runs every document's.
+          body: JSON.stringify({ ...body, document: this.path() }),
+        });
+      let response = await send(id);
+      if (response.status === 404 && this.shared) {
+        // The project's session ended since this document took it (the project closed and opened, the
+        // session was stopped from another window): the run starts the new one, as a first Run does.
+        this.id = null;
+        id = await this.ensure();
+        response = await send(id);
+      }
       if (response.status === 404) {
         this.id = null; // the server restarted or the kernel was stopped: start a new one next time
         throw new ApiError(404, "The kernel was gone: run again.");
@@ -138,6 +230,7 @@ export class Kernel {
     } finally {
       this.running = Math.max(0, this.running - 1);
       this.set(!this.id ? "off" : this.running ? "busy" : "idle");
+      this.tellOthers();
     }
   }
 
@@ -189,9 +282,11 @@ export class Kernel {
   async restart(): Promise<boolean> {
     if (!this.id) return false;
     this.set("starting");
+    this.restarting = true;
     try {
       await api(`/workbench/kernels/${this.id}/restart`, "POST");
     } finally {
+      this.restarting = false;
       this.set(this.running ? "busy" : "idle");
     }
     return true;
@@ -210,12 +305,14 @@ export class Kernel {
     this.set("off");
   }
 
-  /** Stop it (the document closed). `leaving`: the window is closing, so the request must outlive it. */
-  stop(leaving = false): void {
+  /** Stop it (the document closed). `leaving`: the window is closing, so the request must outlive it.
+   *  The project's one session is left running for its other documents (the server keeps it; `session`:
+   *  stop it for all of them, the next Run starts a new one). */
+  stop(leaving = false, session = false): void {
     if (!this.id) return;
     const id = this.id;
     this.id = null;
-    void fetch(`/workbench/kernels/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` }, keepalive: leaving }).catch(() => undefined);
+    void fetch(`/workbench/kernels/${id}${session ? "?session=1" : ""}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` }, keepalive: leaving }).catch(() => undefined);
     this.set("off");
   }
 }

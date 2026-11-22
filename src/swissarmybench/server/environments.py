@@ -147,9 +147,14 @@ async def uninstall(python: str, names: list[str]) -> tuple[int | None, str]:
 
 
 async def make_venv(folder: str, packages: list[str]) -> tuple[int | None, str]:
-    """A project's `.venv` at its top, with the kernel and the libraries its requirements.txt names."""
+    """A project's `.venv` at its top (uv when it is here, else Python's own venv and pip), with the kernel
+    and the libraries its requirements.txt names. Git never takes it: its own .gitignore says so, whatever
+    the project's .gitignore holds."""
     target = Path(folder) / ".venv"
     python = python_in(target)
+    standin = os.environ.get(STANDIN)
+    if standin:  # tests only: a made-up .venv (tests/libraries_standin.py)
+        return await _run([sys.executable, standin, "venv", folder, *packages])
     uv = _uv()
     made = (
         [uv, "venv", str(target), "--python", sys.executable, "--seed"]
@@ -157,7 +162,12 @@ async def make_venv(folder: str, packages: list[str]) -> tuple[int | None, str]:
         else [sys.executable, "-m", "venv", str(target)]
     )
     code, out = await _run(made)
-    if code != 0 or not packages:
+    if code != 0:
+        return code, out
+    ignore = target / ".gitignore"
+    if not ignore.exists():
+        ignore.write_text("*\n", encoding="utf-8")
+    if not packages:
         return code, out
     code, more = await install(str(python), packages)
     return code, out + more

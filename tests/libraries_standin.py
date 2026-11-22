@@ -4,6 +4,7 @@ their newest versions on 127.0.0.1. Standard library only; nothing is downloaded
 
   python libraries_standin.py install <python> [--upgrade] name[==version] ...
   python libraries_standin.py uninstall <python> name ...
+  python libraries_standin.py venv <project folder> name[==version] ...   (the project's own .venv made)
 
 `make_venv(project, libraries)` lays the environment out as the app reads it (a Python's place, pyvenv.cfg,
 each library's metadata folder); `Index(versions)` is the package index.
@@ -90,6 +91,18 @@ class Index:
 
 def main(argv: list[str]) -> int:
     action, python, *rest = argv
+    if action == "venv":  # python is the project's folder here: its made-up .venv, as the app makes one
+        folder = Path(python)
+        if (folder / "venv-fails.txt").exists():  # a test's way to say: this computer cannot make one
+            print("error: No interpreter found for the made-up project")
+            return 2
+        chosen = {}
+        for spec in rest:
+            name = spec.split("==")[0].split("[")[0]
+            chosen[name] = spec.partition("==")[2] or NEWEST.get(name.lower(), "1.0.0")
+        make_venv(folder, chosen)
+        print(f"Made {folder / '.venv'}")
+        return 0
     project = Path(python).parent.parent.parent
     site = site_packages(project)
     for spec in [r for r in rest if not r.startswith("-")]:

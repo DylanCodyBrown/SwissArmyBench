@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from tests.e2e.environment_helpers import open_variables
+from tests.e2e.environment_helpers import add_setting, open_settings
 from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
 from tests.e2e.test_workbench_page import add_cell, open_workbench, start
 
@@ -36,17 +36,15 @@ def test_typing_a_dollar_brace_or_right_clicking_any_box_inserts_a_variable(
     browser: Browser, orders_url: str, region: str
 ) -> None:
     page = open_grid(browser, orders_url)
-    open_variables(page)
-    variables = page.locator('.area-page[data-page="variables"]')
+    variables = open_settings(page)
     # A list's search box: no list.
-    search = variables.get_by_label("Search variables")
+    search = variables.get_by_label("Search the environment")
     search.press_sequentially("${")
     page.wait_for_timeout(300)
     expect(floating(page)).to_have_count(0)
     search.fill("")
     # A plain box: typing a dollar-brace lists the variables, the name and its source, filtered as typed.
-    variables.get_by_role("button", name="Add variable").click()
-    value = variables.locator(".variables-form").get_by_label("Value")
+    value = add_setting(page).get_by_label("Value")
     value.press_sequentially("eu-${SHOP")
     offered = page.get_by_role("listbox", name="Variables")
     expect(offered.get_by_role("option").first).to_have_text(f"{NAME}Plain value")
@@ -131,11 +129,9 @@ def test_a_vault_saved_after_the_page_opened_offers_its_variables_at_once(
     dollar-brace, they don't show up": the list was read once per window and never again. Now a vault saved
     anywhere shows in an open window's list, and the boxes have no {x} button any more."""
     page = open_grid(browser, orders_url)
-    open_variables(page)
-    variables = page.locator('.area-page[data-page="variables"]')
-    variables.get_by_role("button", name="Add variable").click()
-    value = variables.locator(".variables-form").get_by_label("Value")
-    expect(variables.locator(".variable-insert")).to_have_count(0)
+    open_settings(page)
+    value = add_setting(page).get_by_label("Value")
+    expect(page.locator(".variable-insert")).to_have_count(0)
     # The list read once (the plain variable only)...
     value.press_sequentially("${")
     offered = page.get_by_role("listbox", name="Variables")

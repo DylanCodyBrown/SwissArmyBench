@@ -14,6 +14,10 @@ GET   /environment/libraries            ?check=1: the project's libraries (check
 POST  /environment/libraries/install    {"name"} (agent: on Allow)  install
 POST  /environment/libraries/update     {"name"} or {"all": true} (agent: on Allow)  update
 POST  /environment/libraries/pin        {"name", "pinned"} (agent: on Allow)                              pin
+GET   /environment/python               the project's Python (its .venv: making, ready, failed), its one
+                                        session's words, what a notebook's older environment offers     python
+POST  /environment/python               {"make": true} (its .venv made now) or {"offer": document, "add"}
+                                        (the offered libraries installed: agent on Allow; or not) set_python
 """
 
 from __future__ import annotations
@@ -43,7 +47,12 @@ def routes(environment: Environment) -> list[BaseRoute]:
     async def libraries(request: Request) -> Response:
         return json_response(await environment.libraries(request.query_params.get("check") in ("1", "true")))
 
+    async def python(request: Request) -> Response:
+        return json_response(environment.python())
+
     return [
+        Route("/environment/python", python, methods=["GET"]),
+        Route("/environment/python", with_body(environment.set_python), methods=["POST"]),
         Route("/environment", listing, methods=["GET"]),
         Route("/environment/show", show, methods=["GET"]),
         Route("/environment/columns", columns, methods=["GET"]),

@@ -555,7 +555,8 @@ def password_move_words(moves: Sequence[PasswordMove], backup: str) -> str:
     more = f" and {len(moves) - 6} more" if len(moves) > 6 else ""
     count = "1 password is" if len(moves) == 1 else f"{len(moves)} passwords are"
     kept = f" Their connections as they were: {backup}." if backup else ""
-    return f"{count} now variables on the Variables page, in this computer's keyring: {listed}{more}.{kept}"
+    where = "the Environment's Settings and secrets tab"
+    return f"{count} now settings on {where}, in this computer's keyring: {listed}{more}.{kept}"
 
 
 def holding_words(found: Sequence[Mapping[str, Any]]) -> str:

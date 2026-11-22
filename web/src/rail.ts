@@ -55,7 +55,6 @@ import { APIS, CODE_APP, codeAppOn, EXTENSIONS, SCM, scmOn } from "./lazyPages";
 import { canvasOn } from "./modes";
 import { PAGE_WINDOW as PAGE_WINDOWS, pageOfKind, thisPage } from "./workbenchPages";
 import "./environmentPage"; // the Environment page's layer, on every page with the rail
-import "./variablesPage"; // the key vaults' and settings' manager (open=variables): a layer, off the rail
 import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail

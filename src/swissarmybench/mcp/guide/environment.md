@@ -37,11 +37,35 @@ tool, `environment(action, args)`. Five kinds, a tab each:
 Tables are added on the Connections page (`connections_open_table`), by `datasets_load` / `datasets_paste`, or
 by code; there is no add here. Interrupt and Restart are the Notebooks and Scripts pages' (`workbench_*`).
 
+## One Python per project
+- Every notebook and script of the open project runs in ONE Python session (as RStudio): one set of variables,
+  one cell at a time. `workbench_kernel_start` answers that session (`session.shared`: true) for every document
+  of the project, and with no document at all (`own: true` asks for a kernel of its own); a file outside the
+  project's folder gets a kernel of its own, as before.
+- `workbench_kernel` `interrupt` and `restart` act on the session for every document (Restart clears every
+  variable, and each window is told); `stop` leaves it running for the user's documents; `stop_session` stops it
+  (the next run starts a new one). `workbench_run` takes `document`: the document the code is for.
+- Every table here is read by name from that session without opening it as a grid first: `sab.table("orders")`,
+  or a DuckDB SQL cell naming it. One a grid shows is read as the grid shows it (its steps applied).
+- `environment(action="python")`: the project's own Python: `status` (`making`, `ready`, `missing`, `failed`,
+  or `none` with no project), `words`, `python`, `own`, `problem`, the session's `kernel` while it runs, and
+  `offers` (a notebook that had its own environment: the libraries it chose that the project lacks).
+- The app makes the project's `.venv` (in its folder, Git-ignored) as a project is made or opened; the app's own
+  Python runs the code until it is ready, and the session uses it from its next restart.
+  `environment(action="set_python", args={"make": true})` makes it now (after a failure);
+  `args={"offer": "<document>", "add": true}` installs an offer's libraries (waits for Allow), `"add": false`
+  declines it.
+
+## Settings and secrets, and key vaults
+- The `${NAME}` settings are this tab (`variables_list`, `variables_set`, `variables_rename`,
+  `variables_remove`); a key vault that gives settings is listed above them and added there
+  (`connections_create` with a vault type from `connections_types`). The old Variables page is this tab (`app_navigate variables` goes here).
+
 ## Libraries
 - `environment(action="libraries")`: the project's Python (`own`: its `.venv`) and each library: `version`,
   `pinned`, `latest` (a newer version, once checked), what it is for, where it is imported.
 - `args={"check": true}` asks the package index for newer versions (only then: never in the background).
-- `install` `{"name"}`, `update` `{"name"}` or `{"all": true}` (never a pinned one), `pin` `{"name",
-  "pinned"}` (`name==version` in requirements.txt). Each waits for the user's Allow.
+- `install` `{"name"}` (or `{"names": [...]}`: one install), `update` `{"name"}` or `{"all": true}` (never a
+  pinned one), `pin` `{"name", "pinned"}` (`name==version` in requirements.txt). Each waits for the user's Allow.
 
 The list follows the app by itself: `agent_events` says when it changed (read it again then).

@@ -154,8 +154,9 @@ def test_settings_boxes_and_the_variables_search(browser: Browser, server: dict[
         assert first and third and third["y"] - first["y"] < 60, (first, third)  # rows, not a tall spread
         expect(page.locator(".mcp-prompt")).to_contain_text("Swiss Army Bench MCP server")
         expect(page.locator(".mcp-prompt")).not_to_contain_text("grid MCP server")
-        page.locator(".nav-rail [data-area='variables']").click()
-        box = page.locator(".variables-search")
+        # The settings' search is the Environment's one search (the Variables page folded in, 2026-11-22).
+        page.locator(".nav-rail [data-area='environment']").click()
+        box = page.locator(".area-page[data-page='environment'] .env-search")
         expect(box).to_be_visible(timeout=20000)
         assert box.evaluate("e => getComputedStyle(e).borderTopLeftRadius") == "6px"
     finally:

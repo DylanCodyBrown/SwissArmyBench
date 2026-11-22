@@ -331,6 +331,7 @@ def create_app(
         checker.cancel()
         await ctx.local_api.stop_all()  # no local sandbox API outlives the server
         await ctx.sharing.stop_all()  # no share outlives the server (before the apps it tunnels to stop)
+        await ctx.project_python.stop()  # a project's .venv being made is left as far as it got
         await ctx.workbench.stop_all()  # no kernel outlives the server
         await ctx.sab_projects.stop()
         for extension in ctx.switched_on:  # nor an extension's processes (a code app's dev server)

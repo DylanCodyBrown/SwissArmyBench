@@ -25,7 +25,9 @@ from swissarmybench.domain.python_connections import TEMPLATE as PYTHON_TEMPLATE
 from swissarmybench.services.changes import raised
 from swissarmybench.services.workspace import Refused, Workspace
 
-AGENT_REFUSED = "A secret's value is shown to the user only (Show on the Variables page)."
+AGENT_REFUSED = (
+    "A secret's value is shown to the user only (Show on the Environment's Settings and secrets tab)."
+)
 
 
 class Kept(Protocol):

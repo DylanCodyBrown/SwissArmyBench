@@ -219,7 +219,7 @@ def test_tables_columns_and_variables_are_checked_against_what_is_here() -> None
     assert "month" in error.value.fix
     with pytest.raises(props.PropertyError, match="not set on this computer") as error:
         props.check(found["key"], "MISSING_KEY", context)
-    assert "Variables page" in error.value.fix
+    assert "Settings and secrets tab" in error.value.fix
 
 
 def test_an_instances_values_fall_back_to_the_default_when_they_no_longer_fit() -> None:
