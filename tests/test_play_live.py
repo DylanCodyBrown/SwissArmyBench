@@ -8,7 +8,6 @@ browser. Made-up data only."""
 
 from __future__ import annotations
 
-import ast
 import io
 import os
 import time
@@ -23,6 +22,7 @@ from starlette.testclient import TestClient
 from swissarmybench_streamlit.domain import canvas_build
 from swissarmybench_streamlit.server.live_runs import LIVE_FILE, live_text
 from swissarmybench_streamlit.services.live_tables import LiveTables
+from tests import canvas_runtime
 from tests.conftest import AUTH, make_client
 from tests.streamlit_helpers import FakeRunner
 
@@ -62,12 +62,8 @@ def test_the_runtime_reads_a_tables_parquet_again_only_when_its_file_changed(
 ) -> None:
     import pandas as pd
 
-    tree = ast.parse(canvas_build.RUNTIME)
-    source = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_parquet")
-    namespace: dict[str, Any] = {"_READ": {}}
-    exec(  # noqa: S102 (our own runtime's one function)
-        "from pathlib import Path\nfrom typing import Any\n" + ast.unparse(source), namespace
-    )
+    runtime = canvas_runtime.load(monkeypatch)
+    namespace: dict[str, Any] = {"_parquet": runtime._parquet}
     path = tmp_path / "orders.parquet"
     pd.DataFrame({"a": [1, 2]}).to_parquet(path)
     first = namespace["_parquet"](path)
@@ -94,7 +90,7 @@ def test_the_stamp_holds_no_name_or_value() -> None:
         'its pages run again."""\n'
         "VERSION = 3\n"
     )
-    assert "import sab_live" in canvas_build.RUNTIME
+    assert "import sab_live" in canvas_build.RUNTIME  # the built app's own import, read as its text
 
 
 # ===== a playing page =====

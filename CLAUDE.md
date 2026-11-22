@@ -1683,7 +1683,7 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          `carried`; the runtime's action(endpoint, inputs) is api_adapter's run, its envelope;
                          said, data, takes; api_call the older form)
                          app_pages/<page>.py (each box an st.container placed absolutely by its key's CSS: fractions
-                         of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (RUNTIME: render each widget in its
+                         of its parent's width, pixels down; the phone's places under a 767 px media query), sab_widgets.py (the widgets inlined), sab_canvas.py (server/sab_canvas.py's text, read once: render each widget in its
                          place, its failure there, its Ins, Outs and Events wired; table, sample(kind), var, key, choices,
                          marked, problem, api_call, File and as_file (table: its Parquet read again only when
                          Play wrote it again), viewer (name, email, id, roles): App Service's
@@ -1738,6 +1738,9 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          box), one at a time in the background, kept by its file's hash and the theme
     server/streamlit_apps.py  a Streamlit process: `streamlit run` in the project's Python, 127.0.0.1 only, ended
                          with the server (Streamlit is never the app's dependency); install
+    server/sab_canvas.py the canvas runtime as a real module (linted, typed, formatted; 2026-11-22): the builder
+                         carries its text into every played, launched and exported app; it runs there, beside
+                         Streamlit, never in the app (tests import it with stand-ins: tests/canvas_runtime.py)
     server/sab_perf.py   copied beside a launch's pages only: each rerun's trigger, each widget's time (sab_canvas.render
                          calls it), calls, caches; one JSON line a rerun, only while sab_perf.on is there
     server/routes_widgets.py, routes_canvases.py, routes_launch.py  /streamlit/widget (the window),

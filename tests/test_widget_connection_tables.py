@@ -6,7 +6,6 @@ top-level names (read with ast). A value naming no connection here is said with 
 
 from __future__ import annotations
 
-import ast
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -18,6 +17,7 @@ from starlette.testclient import TestClient
 
 from swissarmybench_streamlit.domain import canvas_build
 from swissarmybench_streamlit.domain import widget_properties as props
+from tests import canvas_runtime
 from tests.conftest import AUTH, make_client
 from tests.streamlit_helpers import FakeRunner
 from tests.test_connection_tables import sqlite_connection
@@ -30,16 +30,11 @@ def test_a_connections_table_is_named_as_sql_names_it() -> None:
     assert props.connection_of("[Shop]") is None and props.connection_of(3) is None
 
 
-def test_its_file_name_is_the_runtimes_too() -> None:
+def test_its_file_name_is_the_runtimes_too(monkeypatch: pytest.MonkeyPatch) -> None:
     """canvas_build.table_stem and the runtime's _stem are one rule: the page finds the run's Parquet."""
-    tree = ast.parse(canvas_build.RUNTIME)
-    source = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_stem")
-    namespace: dict[str, Any] = {}
-    exec(  # noqa: S102 (our own runtime's one function, standard library only)
-        "import hashlib, re\n" + ast.unparse(source), namespace
-    )
+    runtime = canvas_runtime.load(monkeypatch)
     for name in ("orders", "[Shop].segments", "[Finance Captive].Sales model", "[x].a/b..c", "_t1"):
-        assert namespace["_stem"](name) == canvas_build.table_stem(name)
+        assert runtime._stem(name) == canvas_build.table_stem(name)
     assert canvas_build.table_stem("orders") == "orders"
     made = canvas_build.table_stem("[Shop].segments")
     assert made.startswith("Shop_segments_") and len(made) == len("Shop_segments_") + 8

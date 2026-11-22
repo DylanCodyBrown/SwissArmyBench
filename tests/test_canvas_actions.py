@@ -7,6 +7,7 @@ own client file; the prebuilt API widgets read the envelope. A library API here 
 
 from __future__ import annotations
 
+import inspect
 import json
 import subprocess
 from collections.abc import Iterator
@@ -21,6 +22,7 @@ from swissarmybench_streamlit.domain import canvas_build as build
 from swissarmybench_streamlit.domain import canvas_wiring as wiring
 from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain.widget_contract import ContractError, Port
+from tests import canvas_runtime
 from tests.api_standins import Service
 from tests.conftest import TOKEN
 from tests.fake_keyring import memory_keyring
@@ -82,12 +84,12 @@ def test_an_endpoint_property_takes_another_apis_action() -> None:
     assert props.path_names("[Finance API] GET /a/{b}/{c}") == ["b", "c"]
 
 
-def test_the_runtime_has_one_call_and_the_wiring_uses_it() -> None:
-    runtime = build.RUNTIME
-    compile(runtime, "sab_canvas.py", "exec")
-    assert runtime.count("urllib.request") == 0  # no request of its own: api_adapter sends
-    source = runtime.split("def _source(", 1)[1].split("\nclass _Fire", 1)[0]
-    fire = runtime.split("class _Fire", 1)[1].split("\ndef var(", 1)[0]
+def test_the_runtime_has_one_call_and_the_wiring_uses_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    runtime = canvas_runtime.load(monkeypatch)
+    assert not hasattr(runtime, "urllib")  # no request of its own: api_adapter sends
+    assert "urllib.request" not in inspect.getsource(runtime)
+    source = inspect.getsource(runtime._source)
+    fire = inspect.getsource(runtime._Fire)
     assert 'action(str(wire["endpoint"]))' in source and "action(ref, filled" in fire
     assert "api_call(" not in source and "api_call(" not in fire
     files = build.build({"name": "A", "pages": []}, {}, carried={"api_adapter.py": "# the adapter\n"})

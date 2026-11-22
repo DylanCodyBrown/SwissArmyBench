@@ -106,6 +106,12 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
+# The canvas runtime (the Streamlit extension's server/sab_canvas.py: a built app's own file, checked here as a
+# real module) imports what sits beside it in the app it is copied into, and Streamlit, never the app's own.
+module = ["swissarmybench_streamlit.server.sab_canvas"]
+disable_error_code = ["import-not-found"]
+
+[[tool.mypy.overrides]]
 # The Write starters' drivers: imported by the functions for the notebook's own environment, not the app's.
 module = ["pyodbc", "pyodbc.*", "mssql_python", "mssql_python.*", "pytds", "pytds.*", "oracledb", "oracledb.*", "trino", "trino.*", "psycopg", "psycopg.*"]
 ignore_missing_imports = true
@@ -141,6 +147,9 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "src/swissarmybench/domain/api_targets.py" = ["E501"]
 # The workbook builder's DuckDB queries: a block's own query (the designer's), names quoted by _quote.
 "src/swissarmybench/sab_excel.py" = ["S608"]
+# The canvas runtime: its bookkeeping (the analyzer's marks, the viewer's values, Play's stamp) must never
+# stop a page, and a built app has nowhere to log to.
+"extensions/streamlit/src/swissarmybench_streamlit/server/sab_canvas.py" = ["S110"]
 # New endpoint from a table: the CRUD set's code as text, its SQL the user's own to read (checked names).
 "src/swissarmybench/domain/api_scaffold.py" = ["E501", "S608"]
 "src/swissarmybench/adapters/views.py" = ["S608"]
