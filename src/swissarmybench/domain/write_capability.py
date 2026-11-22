@@ -24,14 +24,16 @@ say both lists. Standard library only; no I/O.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
-from swissarmybench.domain.connection_tables import TABLE_KINDS
+from swissarmybench.domain import connection_kinds
+from swissarmybench.domain.connection_kinds import WHOLE_MODES as WHOLE_MODES
+from swissarmybench.domain.connection_kinds import WRITE_MODES as WRITE_MODES
+from swissarmybench.domain.connection_kinds import Writable as Writable
 
 WRITE_FAMILY: str = "Write"
-# sab.write's and the agent's connections_write modes: the adapter's (adapter.MODES; a test holds them).
-WRITE_MODES: tuple[str, ...] = ("insert", "update", "merge", "delete", "truncate")
+# sab.write's and the agent's connections_write modes are the adapter's (adapter.MODES; a test holds them):
+# WRITE_MODES, and WHOLE_MODES for a file or a sheet (written whole or added to; nothing matched by a key).
 KEYED_MODES: tuple[str, ...] = ("update", "merge", "delete")
 
 
@@ -69,102 +71,15 @@ OPERATION_MODES: dict[str, str] = {
 }
 # The operations no adapter mode does: a Delta table's upkeep, the lake's own calls in its starter.
 STARTER_ONLY: tuple[str, ...] = ("optimize", "vacuum")
-# A file or a sheet is written whole or added to; nothing in it is matched by a key.
-WHOLE_MODES: tuple[str, ...] = ("insert", "truncate")
 
-
-@dataclass(frozen=True)
-class Writable:
-    operations: tuple[str, ...]  # its Write starters' words
-    how: str  # in plain words: native SQL in one transaction, the Web API's change sets...
-    note: str = ""  # a limit worth saying beside the starters
-    modes: tuple[str, ...] = WRITE_MODES  # the adapter's modes sab.write takes on it
-
-
-_SQL = ("append", "create", "replace", "upsert", "delete")
-_DELTA = ("append", "overwrite", "merge", "delete", "optimize", "vacuum")
-
-WRITABLE: dict[str, Writable] = {
-    "sqlserver": Writable(_SQL, "T-SQL in one transaction: staged, MERGE, retried on passing errors"),
-    "azuresql": Writable(_SQL, "T-SQL in one transaction: staged, MERGE, retried on Azure's passing errors"),
-    "postgres": Writable(_SQL, "SQL in one transaction (COPY, ON CONFLICT)"),
-    "mysql": Writable(_SQL, "SQL in one transaction (ON DUPLICATE KEY UPDATE)"),
-    "mariadb": Writable(_SQL, "SQL in one transaction (ON DUPLICATE KEY UPDATE)"),
-    "oracle": Writable(_SQL, "SQL in one transaction (MERGE)"),
-    "sqlite": Writable(_SQL, "SQL in one transaction (the file opened again to write)"),
-    "trino": Writable(
-        ("append", "create", "replace", "upsert", "delete"),
-        "SQL, row batches without a transaction (replace one statement where the catalog has it: Iceberg)",
-        "depends on the catalog's connector: Iceberg, Delta Lake and Hive write; a connector that cannot is "
-        "refused in Trino's own words",
-    ),
-    "odbc": Writable(("append", "create", "replace", "delete"), "SQL, where the source's driver writes"),
-    "dataverse": Writable(
-        ("create", "update", "upsert", "delete", "truncate"),
-        "the Web API's $batch change sets (its SQL endpoint is read-only)",
-    ),
-    "csv": Writable(("create", "replace"), "a new file, then put in its place", modes=WHOLE_MODES),
-    "excel": Writable(
-        ("create", "replace", "append"),
-        "a sheet written, the workbook's other sheets kept",
-        modes=WHOLE_MODES,
-    ),
-    "parquet": Writable(("create", "replace"), "a new file, then put in its place", modes=WHOLE_MODES),
-    "json": Writable(("create", "replace"), "a new file, then put in its place", modes=WHOLE_MODES),
-    "folder": Writable(
-        ("create", "replace", "append"),
-        "files in the folder, partitioned Parquet among them",
-        modes=WHOLE_MODES,
-    ),
-    # Lakes and SharePoint (domain/lakes.py): the connection's own code writes (domain/lake_code.py
-    # LakeWrites, domain/sharepoint.py SharePointLists).
-    "delta": Writable(
-        _DELTA,
-        "a Delta commit a write (the deltalake package): merge by keys, delete by a condition",
-        "vacuum keeps 7 days unless the cell says otherwise",
-    ),
-    "onelake": Writable(
-        (*_DELTA, "create"),
-        "a lakehouse's Delta tables (the deltalake package) and its Files/ (Parquet, CSV)",
-        "a warehouse is written with T-SQL in its own tools",
-    ),
-    "datalake": Writable(
-        (*_DELTA, "create"),
-        "its Delta tables (the deltalake package), and Parquet or CSV files through the ADLS Gen2 API",
-    ),
-    "sharepoint": Writable(
-        ("create", "update", "delete", "truncate"),
-        "Microsoft Graph's $batch, retried on 429 (a list has no transaction)",
-    ),
-}
-
-_LOADERS = (
-    "a warehouse takes rows through its own bulk loads (its stage or storage), not from a notebook's rows"
-)
-READ_ONLY: dict[str, str] = {
-    # The project's sandbox writes only by itself (a local sandbox API's mock clients, its grid's edits).
-    "sandbox": "the sandbox is written by its local sandbox API and its grid's edits, not a Write starter",
-    "powerbi": "a semantic model takes no rows: write its source, then refresh it (Power BI refresh dataset)",
-    "duckdb": "the connection opens the file read-only: DuckDB lets one program write a file at a time",
-    "snowflake": _LOADERS,
-    "bigquery": _LOADERS,
-    "redshift": _LOADERS,
-    "databricks": _LOADERS,
-    "db2": "the app reads Db2; it has no write starters for it",
-    "teradata": "the app reads Teradata; it has no write starters for it",
-    "clickhouse": "the app reads ClickHouse; it has no write starters for it",
-    "saphana": "the app reads SAP HANA; it has no write starters for it",
-    "vertica": "the app reads Vertica; it has no write starters for it",
-    "sybase": "the app reads SAP ASE; it has no write starters for it",
-    "access": "the app reads Access files; it has no write starters for it",
-    "python": "a connection made of your own Python reads tables: write in a cell of your own code",
-    "api": "an API writes through the APIs page's Write rows with this call",
-    "sharepoint_docs": "its tables are its documents: upload a file with the SharePoint upload file starter",
-}
+# What each kind writes (Writable: its Write starters' operations, how, a note, the adapter's modes it takes)
+# or why it is read-only: each kind's own record says it (domain/connection_kinds.py); these are its views.
+WRITABLE: dict[str, Writable] = connection_kinds.writable()
+READ_ONLY: dict[str, str] = connection_kinds.read_only()
 # The tables kinds whose writes are their template's (a database's engine, a file's format); every other
 # tables kind is one kind here. dataverse_web is the same Dataverse (its Web API writes either way).
-BY_TEMPLATE: frozenset[str] = frozenset({"database", "file"})
-_SAME: dict[str, str] = {"dataverse_web": "dataverse"}
+BY_TEMPLATE: frozenset[str] = connection_kinds.writes_by_template()
+_SAME: dict[str, str] = connection_kinds.writes_same()
 
 
 def kind_of(tables_kind: str | None, template: str | None) -> str:
@@ -179,7 +94,7 @@ def tables_kinds_covered() -> dict[str, str]:
     """Each of connection_tables' kinds and how its writes are decided: "template", "writable",
     "read-only", or "" (not decided: the tests refuse that)."""
     out: dict[str, str] = {}
-    for kind in TABLE_KINDS:
+    for kind in connection_kinds.tables_contract():
         key = kind_of(kind, None)
         if kind in BY_TEMPLATE:
             out[kind] = "template"
