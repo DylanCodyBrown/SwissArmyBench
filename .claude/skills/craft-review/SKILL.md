@@ -22,7 +22,11 @@ no finding. Run ruff, mypy and the tests separately; do not repeat what they alr
    defines, and `bootstrap.py` (the composition root) wires the real one. `tests/test_architecture.py` checks the
    imports; look for what it cannot see: a service doing I/O through a lambda, domain rules living in a route or
    in `web/`, an extension reaching into a base service's internals instead of `hooks.py`, the front end deciding
-   what the backend should.
+   what the backend should. Start from the architecture map, docs/architecture-map.md (`python
+   tools/architecture_map.py` makes it again from the real imports): its picture of the components and their
+   arrows, each component's couplings (Ca, Ce, instability, abstractness, distance) and the import cycles; an
+   arrow listed as pointing outward, a new cycle or a number that moved a lot since the last review is where to
+   look first. tests/test_extension_layers.py holds every extension to the same layers.
 2. **The five SOLID principles, only where they bite.**
    - Single responsibility: one reason to change, one person or role asking for the change. A file or class that
      changes for two unrelated features is two things.
