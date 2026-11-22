@@ -145,12 +145,14 @@ def test_the_picker_lists_every_apis_actions_and_a_built_app_carries_what_it_cal
         out,
         [("api_table", {"endpoint": "[Orders] GET /orders"}), ("metric", {"label": "Orders"})],
     )
-    assert {"api_adapter.py", "sab_actions.json", "API_Orders.py", "sab_canvas.py"} <= {
+    # The fewest files: app.py carries the runtime and the actions it calls (sab_actions.json folded in).
+    assert {"api_adapter.py", "API_Orders.py", "app.py", "widgets.py"} <= {
         Path(f).name for f in done["files"]
     }
+    assert not {"sab_actions.json", "sab_canvas.py", "sab_widgets.py"} & set(done["files"])
     adapter = Path(__file__).resolve().parents[1] / "src/swissarmybench/adapters/api_adapter.py"
     assert (out / "api_adapter.py").read_bytes() == adapter.read_bytes()  # the same file, as it is
-    text = (out / "sab_actions.json").read_text(encoding="utf-8")
+    text = build.folded_actions((out / "app.py").read_text(encoding="utf-8")) or ""
     kept = json.loads(text)
     orders = kept["Orders"]
     # Only what the app calls travels with it.
@@ -184,8 +186,8 @@ def test_a_built_app_reads_another_apis_action_through_api_adapter(
                             "field": "amount", "label": "Gone"}),
         ],
     )  # fmt: skip
-    pages = sorted(str(p.relative_to(out)) for p in (out / "app_pages").glob("*.py"))
-    (out / "check.json").write_text(json.dumps({"pages": pages}), encoding="utf-8")
+    # The export's one app.py runs its default page (the canvas has one).
+    (out / "check.json").write_text(json.dumps({"pages": ["app.py"]}), encoding="utf-8")
     assert PYTHON is not None
     done = subprocess.run(  # noqa: S603 (this machine's Python with Streamlit)
         [PYTHON, "-I", "-c", RUNNER, str(out)],

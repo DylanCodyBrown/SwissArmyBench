@@ -523,6 +523,18 @@ class Variables:
         ]
         return shown
 
+    def sources(self) -> dict[str, tuple[str, list[tuple[str, str | None]]]]:
+        """Each variable's source in words and what uses it ((kind name, its document's path)): names only,
+        never a value (the project scaffold's README.md Variables list)."""
+        found, _ = self._collect()
+        out: dict[str, tuple[str, list[tuple[str, str | None]]]] = {}
+        for v in found:
+            words = rules.SOURCE_WORDS.get(v.source, v.source)
+            if v.source == "vault" and v.vault:
+                words = f"Key vault {v.vault}"
+            out[v.name] = (words, [(f"{u.kind} {u.name}", u.path) for u in v.uses])
+        return out
+
     def uses(self, name: Any = None) -> dict[str, Any]:
         """What reads each variable (connections' fields by setting, notebooks, scripts, Run settings), or
         one variable's."""

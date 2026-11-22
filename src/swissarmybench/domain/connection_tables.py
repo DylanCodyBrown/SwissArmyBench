@@ -78,7 +78,7 @@ TABLE_KINDS: dict[str, tuple[str, str]] = {
     # The open project's sandbox (domain/sandbox.py): local test data, never live; never exported as a
     # connection (an export names the real connection a table is Mocked as, or none).
     "sandbox": (
-        "the project's sandbox's tables (its own DuckDB file, .sab/sandbox/)",
+        "the project's sandbox's tables (its own DuckDB file, sandbox/)",
         "the table whole, from the sandbox (following every write)",
     ),
     "sharepoint_docs": (

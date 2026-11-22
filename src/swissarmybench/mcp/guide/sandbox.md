@@ -1,6 +1,6 @@
 # The sandbox and local sandbox APIs
 
-The project's sandbox is its own DuckDB file (`.sab/sandbox/`, Git-ignored): the only data a local sandbox API
+The project's sandbox is its own DuckDB file (`sandbox/` at the project's top, Git-ignored; its mirror beside it, the two `sandbox_*.py` files: its tables by name, and each connection's stand-in; `sandbox` action drop removes the folder and both files, nothing else): the only data a local sandbox API
 reads and writes. A real connection is never reached from one ("No never run against live data ever").
 
 ## The sandbox: `sandbox(action, args)`

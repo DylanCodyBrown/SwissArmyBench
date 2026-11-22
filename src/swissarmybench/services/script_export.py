@@ -22,7 +22,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Iterable
 from typing import Any, Protocol
 
-from swissarmybench.domain import dataverse, notebooks, portability
+from swissarmybench.domain import dataverse, notebooks, portability, scaffold
 from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import script_export as rules
 from swissarmybench.domain import script_runtime as runtime
@@ -196,7 +196,15 @@ class ScriptExports:
         # The project's Sandbox is never exported as a connection: it is local test data, never live.
         wanted = [w for w in wanted if not sandbox_rules.is_sandbox(w)]
         if not wanted:
-            return {"text": "", "requirements": [], "variables": [], "notes": []}
+            return {
+                "text": "",
+                "requirements": [],
+                "variables": [],
+                "settings": [],
+                "readers": {},
+                "sections": [],
+                "notes": [],
+            }
         source = "import swissarmybench as sab\n" + "\n".join(
             f"_c{i} = sab.connection({name!r})" for i, name in enumerate(wanted)
         )
@@ -205,13 +213,24 @@ class ScriptExports:
         pieces, values = self._pieces(wanted)
         made = rules.plan("API", "API.py", cells, pieces, names)
         shared = rules.shared_parts(made)
+        # One marked section per connection (and per key vault it reads), in the order asked: the project's
+        # connections.py grows and shrinks by them (domain/scaffold.py); names only, never a value.
+        sections = [
+            scaffold.Section(
+                piece.name,
+                code,
+                tuple(dict.fromkeys(s.variable for s in piece.secrets)),
+                "key vault" if piece.kind == "vault" else "connection",
+            )
+            for piece, code in zip(made.pieces, shared.pieces, strict=True)
+        ]
         text = "\n\n".join(
             [
                 runtime.IMPORTS,
                 'log = logging.getLogger("connections")',
-                shared.settings_text,
+                scaffold.without_values(shared.settings_text),
                 shared.helpers,
-                *shared.pieces,
+                scaffold.marked(sections),
                 shared.registry,
             ]
         )
@@ -219,10 +238,19 @@ class ScriptExports:
         if stopped:
             raise Refused("connections.py was not written: " + "; ".join(dict.fromkeys(stopped)) + ".")
         _, listed = runtime.settings_block(made.settings)
+        readers: dict[str, list[str]] = {}
+        for section in sections:
+            for variable in section.variables:
+                readers.setdefault(variable, []).append(f"{section.kind} {section.name}")
         return {
             "text": text,
             "requirements": list(shared.requirements.values()),
             "variables": [str(v.get("variable")) for v in listed],
+            "settings": [
+                {"variable": str(v.get("variable")), "where": str(v.get("where") or "")} for v in listed
+            ],
+            "readers": readers,
+            "sections": [s.name for s in sections],
             "notes": self.local_notes(wanted),
         }
 

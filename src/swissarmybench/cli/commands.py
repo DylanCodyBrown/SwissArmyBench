@@ -4368,12 +4368,13 @@ _SANDBOX = {
     "mock": ("POST", "/sandbox/tables/mock"),
     "key": ("POST", "/sandbox/tables/key"),
     "edit": ("POST", "/sandbox/edit"),
+    "drop": ("POST", "/sandbox/drop"),
 }
 
 
 @command(
     "sandbox",
-    "The project's sandbox (guide: sandbox); reset waits for Allow",
+    "The project's sandbox (guide: sandbox); reset and drop (Remove the sandbox) wait for Allow",
     req("action", ", ".join(_SANDBOX) + "."),
     opt(
         "args",
@@ -4679,6 +4680,24 @@ def project_private(a: dict[str, Any]) -> Any:
 def project_documents(a: dict[str, Any]) -> Any:
     kind = a.get("kind")
     return api.call("GET", "/project/documents" + (f"?kind={_q(kind)}" if kind else ""))
+
+
+@command(
+    "project_scaffold",
+    "The open project's made files (adapter.py, connections.py, README.md's Variables, data.py's structures, "
+    "the sandbox mirror): status, refresh, or take the new one over a hand edit",
+    req("action", "status, refresh or take."),
+    opt("file", "take: the made file (connections.py, adapter.py, ...)."),
+)
+def project_scaffold(a: dict[str, Any]) -> Any:
+    action = str(a["action"])
+    if action == "status":
+        return api.call("GET", "/project/scaffold")
+    if action == "refresh":
+        return api.call("POST", "/project/scaffold", {})
+    if action == "take":
+        return api.call("POST", "/project/scaffold/take", {"file": a.get("file")})
+    raise CommandError("action is status, refresh or take.")
 
 
 @command(

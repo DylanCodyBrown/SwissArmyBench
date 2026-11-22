@@ -90,6 +90,8 @@ class Files(Protocol):
 
     def reset(self) -> bool: ...
 
+    def drop_all(self) -> list[str]: ...
+
     def reset_table(self, name: str) -> bool: ...
 
     def save_checkpoint(self, name: str) -> None: ...
@@ -217,7 +219,8 @@ class Sandbox:
         self._sources = sources
         self._approvals = approvals
         self._parse = parse
-        self._ignore = ignore  # the project's .gitignore lines for .sab/sandbox/ (written once)
+        self._ignore = ignore  # the project's .gitignore line for sandbox/ (written once)
+        self._moved = ""  # an older project's .sab/sandbox/ moved to sandbox/: said once (listing's notice)
         self._now = now
         self._open: tuple[str, Files] | None = None
         self._lock = asyncio.Lock()
@@ -238,6 +241,9 @@ class Sandbox:
             if self._open is not None:
                 self._open[1].close()
             self._open = (folder, self._files_for(folder))
+            if getattr(self._open[1], "moved", False):
+                self._moved = rules.MOVED
+                self.ws.audit.write("app", "sandbox_moved", rules.FOLDER)
         files = self._open[1]
         if create and not files.exists():
             self._ignore(folder)
@@ -316,7 +322,50 @@ class Sandbox:
             "log_words": rules.log_words(meta.log),
             "version": self.version,
             "mock_choices": self._mock_choices(),
+            **({"notice": self._said_moved()} if self._moved else {}),
         }
+
+    async def mirror(self) -> dict[str, Any] | None:
+        """What the sandbox mirror's files are made of (services/scaffold.py): each table's record (its
+        source, the client it is mocked as, its key), the baseline's time, the checkpoints' names. None: no
+        project, or it has no sandbox (nothing is made for one that was never used). An older project's
+        .sab/sandbox/ is
+        moved here first (once)."""
+        if self._project() is None:
+            return None
+        files = self._files()
+        if not files.exists():
+            return None
+        meta = files.read_meta()
+        names = set(await self._run(files.table_names))
+        return {
+            "tables": {n: r for n, r in meta.tables.items() if n in names},
+            "baseline_at": meta.baseline_at,
+            "checkpoints": [c.name for c in meta.checkpoints],
+        }
+
+    def _said_moved(self) -> str:
+        said, self._moved = self._moved, ""
+        return said
+
+    async def drop(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Remove the sandbox: sandbox/ (its rows, baseline, checkpoints) and its two files, sandbox_data.py
+        and sandbox_connections.py, and nothing else (the app's files never name it). The agent's waits for
+        Allow."""
+        files = self._files()
+        tables = await self._run(files.table_names) if files.exists() else []
+        if who == "agent" and not await self._approvals.ask(
+            rules.NAME,
+            "remove the sandbox",
+            f"Remove the project's sandbox: {len(tables)} table{'s' if len(tables) != 1 else ''}, its "
+            "baseline "
+            f"and checkpoints ({rules.FOLDER}/, {rules.DATA_FILE}, {rules.CONNECTIONS_FILE})",
+        ):
+            raise Refused("The user declined (or did not answer): the sandbox stays.")
+        async with self._lock:
+            removed = await self._run(files.drop_all)
+        await self._told(list(tables), who, "sandbox_drop", removed=len(removed))
+        return {"removed": removed, "tables": list(tables)}
 
     @staticmethod
     def _mockable(info: dict[str, Any]) -> bool:

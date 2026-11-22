@@ -26,6 +26,10 @@ _MADE_FROM: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"^data\.py$"), "data.ipynb"),
     (re.compile(r"^pages/[^/]+\.py$"), "the app's canvas"),
     (re.compile(r"^exports/api/[^/]+/"), "API.py"),  # a local sandbox API's export (domain/api_targets.py)
+    # The project scaffold's core files and the sandbox mirror (domain/scaffold.py MADE).
+    (re.compile(r"^adapter\.py$"), "Swiss Army Bench's adapter"),
+    (re.compile(r"^connections\.py$"), "the library's connections"),
+    (re.compile(r"^sandbox_(data|connections)\.py$"), "the sandbox"),
 )
 _SKIP = re.compile(r"(^|/)(\.[^/]*|__pycache__|\.venv|venv|node_modules|builds)(/|$)")
 _CONSTANT = re.compile(r"^[A-Z][A-Z0-9_]*$")

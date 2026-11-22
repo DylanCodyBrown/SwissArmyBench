@@ -44,6 +44,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
   routes_local_api.py      the project's local sandbox API: API.py, Run, Stop, calls, its log
   routes_sandbox.py        the project's sandbox: tables, Reset, checkpoints, an API's data calls
+  routes_scaffold.py       the project scaffold's made files: their state, a refresh, Take the new one
   routes_sharing.py        Share a running app with your organization (Microsoft Dev Tunnels)
   routes_shared_catalog.py the shared catalog: the library's catalog/ (tables, keys, used_by), refreshed
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
@@ -133,6 +134,7 @@ from swissarmybench.server import (
     routes_relationships,
     routes_sab_projects,
     routes_sandbox,
+    routes_scaffold,
     routes_script_export,
     routes_script_ide,
     routes_script_runs,
@@ -406,6 +408,7 @@ def create_app(
                 *routes_team.routes(ctx.team),
                 *routes_sharing.routes(ctx.sharing),
                 *routes_sandbox.routes(ctx.sandbox, ctx.local_api.data_keys),
+                *routes_scaffold.routes(ctx.scaffold),
                 *routes_local_api.routes(ctx.local_api, ctx.api_export),
                 *routes_app_registrations.routes(ctx.app_registrations),
                 *routes_shared_catalog.routes(ctx.shared_catalog),

@@ -733,7 +733,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     setHeading("Sandbox");
     listActions(false);
     clear(foot);
-    clear(body, h("p", { class: "sandbox-never-live" }, icon("sandbox"), " Local test data, never live: the project's own copy in .sab/sandbox/, written only by the sandbox. Never exported as a connection."), sandboxPanel());
+    clear(body, h("p", { class: "sandbox-never-live" }, icon("sandbox"), " Local test data, never live: the project's own copy in sandbox/, written only by the sandbox. Never exported as a connection."), sandboxPanel());
   };
 
   // ===== DETAIL: where it is used, its configuration, its calls =====

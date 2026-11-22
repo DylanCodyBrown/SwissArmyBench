@@ -79,7 +79,7 @@ def arrow_rows(answer: Any) -> list[dict[str, Any]]:
 
 def _mock_as(folder: Path, table: str, connection: str, dialect: str, kind: str = "database") -> None:
     """A sandbox table as if read from `connection` (its sandbox.json record, as Add to sandbox writes it)."""
-    path = folder / ".sab" / "sandbox" / "sandbox.json"
+    path = folder / "sandbox" / "sandbox.json"
     meta = json.loads(path.read_text(encoding="utf-8"))
     meta["tables"][table]["client"] = {"kind": kind, "connection": connection, "dialect": dialect}
     path.write_text(json.dumps(meta), encoding="utf-8")

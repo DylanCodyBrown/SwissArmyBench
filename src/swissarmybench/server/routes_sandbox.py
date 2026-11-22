@@ -10,6 +10,7 @@ POST  /sandbox/tables/variant        {"from": grid|structure, "table"|"structure
 POST  /sandbox/tables/mock           {"table", "connection"|null}: Mocked as a connection       sandbox(mock)
 POST  /sandbox/edit                  {"table", "op": update|insert|delete, ...}: its grid's edit sandbox(edit)
 POST  /sandbox/reset                 every table back to the baseline (agent: on Allow)       sandbox_reset
+POST  /sandbox/drop                  Remove the sandbox: sandbox/, its two files (Allow)      sandbox(drop)
 POST  /sandbox/baseline              the sandbox as it is now made the baseline     sandbox_checkpoint
 POST  /sandbox/checkpoints           {"name", "action": save | delete}                      sandbox_checkpoint
 POST  /sandbox/checkpoints/restore   {"name"}                                                 sandbox_restore
@@ -96,6 +97,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         Route("/sandbox/tables/key", with_body(sandbox.set_key), methods=["POST"]),
         Route("/sandbox/edit", with_body(sandbox.edit), methods=["POST"]),
         Route("/sandbox/reset", with_body(sandbox.reset), methods=["POST"]),
+        Route("/sandbox/drop", with_body(sandbox.drop), methods=["POST"]),
         Route("/sandbox/baseline", with_body(sandbox.set_baseline), methods=["POST"]),
         Route("/sandbox/checkpoints", with_body(sandbox.checkpoint), methods=["POST"]),
         Route("/sandbox/checkpoints/restore", with_body(sandbox.restore), methods=["POST"]),
