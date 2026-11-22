@@ -451,6 +451,31 @@ def load_file(path_text: str, max_bytes: int, sheet: str | None = None) -> tuple
     return _load(_from_path(_checked_path(path_text)), max_bytes, sheet)
 
 
+# A file connection's files the adapter reads (Plans/adapter.plan.md, phase 4: DuckDB's own types; the
+# loader's text and encoding fallbacks are not carried over: the owner, 2026-11-22). A workbook and Arrow:
+# the loader.
+ADAPTED_SUFFIXES: frozenset[str] = frozenset(
+    {".csv", ".tsv", ".txt", ".parquet", ".json", ".jsonl", ".ndjson"}
+)
+
+
+def load_adapted(path_text: str, max_bytes: int, sheet: str | None = None) -> tuple[pa.Table, str]:
+    """A file connection's file for Open as grid, read through the adapter's Files (DuckDB's readers and
+    types, streamed, the size limit kept); a workbook or an Arrow file as load_file reads it."""
+    from swissarmybench.adapters import sab_adapter
+
+    path = _checked_path(path_text)
+    if path.suffix.lower() not in ADAPTED_SUFFIXES:
+        return load_file(path_text, max_bytes, sheet)
+    what = f"'{path.name}'"
+    try:
+        reader, _ = sab_adapter.read(sab_adapter.Files(str(path), path.stem), path.stem)
+        table = _collect(reader, reader.schema, max_bytes, what)
+    except (duckdb.Error, sab_adapter.AdapterError, pa.ArrowInvalid, OSError) as error:
+        raise DatasetError(f"Could not read {what}: {str(error).splitlines()[0]}") from error
+    return check_table(table), SUFFIXES[path.suffix.lower()]
+
+
 def load_bytes(data: bytes, filename: str, max_bytes: int, sheet: str | None = None) -> tuple[pa.Table, str]:
     """The same, from a file's bytes (a file dropped on the page); `filename` gives its kind. Nothing is
     written to disk: the bytes are read in memory."""

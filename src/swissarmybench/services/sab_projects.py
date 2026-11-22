@@ -562,7 +562,8 @@ class SabProjects:
                 if there is None:
                     problem = "no_file"
                 else:
-                    await self._datasets.load_file(table.name, there, source.sheet, True, who)
+                    adapted = source.extra.get("reader") == "adapter"  # a file connection's file
+                    await self._datasets.load_file(table.name, there, source.sheet, True, who, adapted)
             elif source.kind == "query" and source.sql:
                 await self._datasets.build_from_query(table.name, source.sql, False, who)
             elif source.kind == "cell":

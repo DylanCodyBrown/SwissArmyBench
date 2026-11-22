@@ -696,6 +696,31 @@ def test_a_file_connection_and_a_folders_file_open_as_grids(client: TestClient, 
     assert bad.status_code == 400
 
 
+def test_a_file_connections_file_opens_through_the_adapter_with_duckdbs_types(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """Phase 4 (the owner, 2026-11-22): a file connection's Open as grid is the adapter's Files read, so its
+    types are DuckDB's (its sniffer finds the semicolons; a date is a DATE, as DuckDB SQL over the file
+    reads it), and a Reload reads it the same way again; Open file of the same file keeps the app's loader."""
+    file = tmp_path / "orders.csv"
+    file.write_text("order_id;placed;amount\n1;2026-01-03;10.5\n2;2026-01-04;7\n", encoding="utf-8")
+    assert client.post("/connections", json=csv_connection(file), headers=AUTH).status_code == 200
+    opened = client.post("/connections/Orders%20file/open", json={}, headers=AUTH)
+    assert opened.status_code == 200, opened.text
+    grid = opened.json()["grid"]
+
+    def typed() -> dict[str, str]:
+        found = client.get(f"/grids/{grid}", headers=AUTH).json()["columns"]
+        return {str(c["name"]): str(c["type"]) for c in found}
+
+    assert typed() == {"order_id": "BIGINT", "placed": "DATE", "amount": "DOUBLE"}
+    file.write_text("order_id;placed;amount\n1;2026-01-03;10.5\n", encoding="utf-8")
+    again = client.post("/datasets/Orders_file/reload", json={}, headers=AUTH)
+    assert again.status_code == 200, again.text
+    assert client.get("/datasets", headers=AUTH).json()["datasets"][0]["rows"] == 1
+    assert typed()["placed"] == "DATE"  # read again through the adapter
+
+
 # ===== a file connection: named after its file, and Test shows what is in it =====
 
 

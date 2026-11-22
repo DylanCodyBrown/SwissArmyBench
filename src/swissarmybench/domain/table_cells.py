@@ -929,6 +929,8 @@ class Origin:
     # reads it again by these: domain/sab_files.py).
     place: tuple[str, str, str] | None = None
     whole: bool = True
+    # A file connection's file, read through the adapter's Files (DuckDB's types): read the same way again.
+    adapted: bool = False
 
     def to_json(self) -> dict[str, Any]:
         return {"kind": self.kind, "kernel": self.kernel}
