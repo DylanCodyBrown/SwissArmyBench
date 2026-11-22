@@ -35,12 +35,10 @@ def test_the_adapter_lists_an_unedited_listing_and_never_an_edited_one() -> None
         listed("sql", "postgres", "postgres", "sql", BY_ID["postgres"].catalog_command, TEMPLATES)
         == "postgres"
     )
-    for template in ("mysql", "oracle", "snowflake", "sql_server"):
-        if template in BY_ID:
-            found = BY_ID[template]
-            assert listed("sql", template, found.dialect, "sql", found.catalog_command, TEMPLATES) == "", (
-                template
-            )
+    # Phase 4: every dialect the adapter knows (test_each_dialects_listing_is_its_starters_own_text).
+    from swissarmybench.adapters import sab_adapter
+
+    assert set(blade_tables.ADAPTER_LISTED) == {"duckdb", *sab_adapter.DIALECTS}
 
 
 def _shop_sqlite(path: Path) -> None:
@@ -115,3 +113,112 @@ def test_a_refresh_lists_through_the_adapter_unless_the_listing_is_the_users(
     assert saved.status_code == 200, saved.text
     again = client.post("/blades/Shop/refresh", json={}, headers=AUTH).json()
     assert again["catalog"]["tables"] == 1
+
+
+# ===== phase 4: every database lists through the adapter, at its starter's scope =====
+
+
+def test_each_dialects_listing_is_its_starters_own_text() -> None:
+    """The adapter's listing for a dialect is its Connections starter's List the tables, whitespace aside,
+    so a connection with its starter's listing is listed by the adapter (and an edited one never)."""
+    from swissarmybench.adapters import sab_adapter as sab
+
+    def flat(text: object) -> str:
+        return " ".join(str(text).split())
+
+    for template, dialect in (
+        ("mysql", "mysql"), ("mariadb", "mysql"), ("oracle", "oracle"), ("snowflake", "snowflake"),
+        ("sqlserver", "sqlserver"), ("azuresql", "sqlserver"), ("trino", "trino"),
+        ("databricks", "databricks"),
+    ):  # fmt: skip
+        starter = BY_ID[template]
+        assert flat(sab.DIALECTS[dialect].listing) == flat(starter.catalog_command), template
+        listed = blade_tables.listed_by_adapter(
+            "sql", template, starter.dialect, "sql", starter.catalog_command, TEMPLATES
+        )
+        assert listed == dialect, template
+        edited = str(starter.catalog_command).replace("ORDER BY", "WHERE 1 = 1 ORDER BY", 1)
+        assert (
+            blade_tables.listed_by_adapter("sql", template, starter.dialect, "sql", edited, TEMPLATES) == ""
+        )
+
+
+class _Listing:
+    """A DB-API connection stood in for: each statement's rows as given (made-up), the rest none."""
+
+    def __init__(self, answers: dict[str, list[tuple[Any, ...]]]) -> None:
+        self.answers = answers
+
+    def cursor(self) -> Any:
+        connection = self
+
+        class Cursor:
+            rows: tuple[tuple[Any, ...], ...] = ()
+
+            def execute(self, sql: str, *_: Any) -> None:
+                self.rows = tuple(connection.answers.get(" ".join(sql.split()), []))
+
+            def fetchall(self) -> list[tuple[Any, ...]]:
+                return list(self.rows)
+
+            def close(self) -> None:
+                pass
+
+        return Cursor()
+
+
+def test_sql_servers_listing_keeps_its_descriptions_and_keys_row_for_row() -> None:
+    from swissarmybench.adapters import sab_adapter as sab
+
+    rows = [
+        ("Shop", "dbo", "orders", "BASE TABLE", "", "", "YES", 0, "1,204 rows · Each order once"),
+        ("Shop", "dbo", "orders", "BASE TABLE", "order_id", "int", "NO", 1, "Primary key. Identity."),
+        ("Shop", "dbo", "orders", "BASE TABLE", "amount", "decimal(10,2)", "YES", 3, None),
+        ("Shop", "sales", "regions", "VIEW", "region", "nvarchar(40)", "YES", 1, None),
+    ]
+    listing = " ".join(sab.DIALECTS["sqlserver"].listing.split())
+    source = sab.Sql(_Listing({listing: rows}), "sqlserver")
+    listed = sab.listed(source)
+    assert [t.name for t in listed] == ["orders", "sales.regions"]
+    orders = listed[0]
+    assert orders.description == "1,204 rows · Each order once" and orders.columns[0].key
+    assert orders.columns[0].description == "Primary key. Identity." and orders.columns[1].position == 3
+    names, made = sab.catalog_rows(listed)
+    assert names[0] == "table_catalog" and names[-1] == "description"
+    assert [tuple(r) for r in made] == rows  # row for row: what the starter's own listing gave
+
+
+def test_oracles_listing_reads_its_own_shape() -> None:
+    from swissarmybench.adapters import sab_adapter as sab
+
+    rows = [
+        ("SALES", "ORDERS", "TABLE", "ORDER_ID", "NUMBER", "N", 1),
+        ("HR", "STAFF", "VIEW", "NAME", "VARCHAR2", "Y", 1),
+    ]
+    listed = sab.listed(sab.Sql(_Listing({" ".join(sab.DIALECTS["oracle"].listing.split()): rows}), "oracle"))
+    assert [(t.schema, t.name, t.kind) for t in listed] == [
+        ("SALES", "ORDERS", "TABLE"),
+        ("HR", "STAFF", "VIEW"),
+    ]
+    assert [c.nullable for t in listed for c in t.columns] == [False, True]
+
+
+def test_mariadbs_listing_through_the_adapter_is_its_starters_row_for_row() -> None:
+    """The test bed's MariaDB (skipped without it): every schema the reader sees, as the starter lists it."""
+    pymysql = pytest.importorskip("pymysql")
+    from tools.testbed import testbed
+
+    state = (testbed.read_state() or {}).get("mariadb") or {}
+    if "port" not in state:
+        pytest.skip("The test bed is not up (python tools/testbed/testbed.py up).")
+    conn = pymysql.connect(
+        host=state["host"], port=state["port"], user=state["user"], password=state["password"],
+        database=state["database"],
+    )  # fmt: skip
+    try:
+        own = run_catalog(conn, {}, "sql", str(BY_ID["mariadb"].catalog_command), {}, "Warehouse")
+        adapted = adapter_catalog(conn, "mysql", {}, "Warehouse")
+    finally:
+        conn.close()
+    assert own[1] and [list(r) for r in adapted[1]] == [list(r) for r in own[1]]
+    assert adapted[0] == [c.lower() for c in own[0]]

@@ -164,13 +164,16 @@ def listing_for(
     return found.catalog_language, found.catalog_command
 
 
-# The adapter lists a connection's tables (Plans/adapter.plan.md, phase 3: "The Catalog lists through the
-# adapter's tables()") for the dialects whose adapter listing is its starter's, row for row (the same
-# schemas, table types, nullability and positions: tests/test_catalog_listing.py). MySQL, Oracle and
-# Snowflake list a wider scope with their starters than the adapter's catalog query (every schema but the
-# system's), and SQL Server's carries descriptions and keys: their starters' listings stay until the adapter's
-# say the same.
-ADAPTER_LISTED: tuple[str, ...] = ("duckdb", "postgres", "sqlite")
+# The adapter lists a connection's tables (Plans/adapter.plan.md: "The Catalog lists through the adapter's
+# tables()"; a user's edited listing still wins) at its starter's scope, row for row (the same schemas, table
+# types, nullability, positions and SQL Server's descriptions and keys: tests/test_catalog_listing.py):
+# phase 3 DuckDB, PostgreSQL, SQLite; phase 4 every other dialect the adapter knows (sab_adapter.listed: its
+# starter's own listing text in the adapter; a test holds the two the same).
+ADAPTER_LISTED: tuple[str, ...] = (
+    "duckdb", "postgres", "sqlite", "mysql", "oracle", "snowflake", "sqlserver", "trino", "databricks",
+)  # fmt: skip
+# A starter whose dialect word is not the adapter's (Databricks' form says "other").
+TEMPLATE_DIALECTS: dict[str, str] = {"databricks": "databricks"}
 
 
 def listed_by_adapter(
@@ -180,6 +183,7 @@ def listed_by_adapter(
     """The dialect the adapter lists this connection's tables in ("": its own List the tables runs): a
     database the adapter lists as its starter does, whose List the tables the user has not edited (it is its
     starter's, whitespace aside, or empty)."""
+    dialect = TEMPLATE_DIALECTS.get(template or "", dialect)
     if dialect not in ADAPTER_LISTED:
         return ""
     starter = listing_for(kind, template, dialect, templates)
