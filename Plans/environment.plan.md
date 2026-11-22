@@ -106,3 +106,8 @@ the agent's waits for Allow). Its columns: name, version, what it is for, import
   when a newer one exists (checked when the tab opens, never in the background), a click updates that one; Update all
   not pinned updates the rest in one go; a pinned library is never updated by Update all. Updating and installing go
   through the one install prompt and the agent's wait for Allow.
+
+The owner approved the mockup (version 10, 2026-11-22: "This looks good ... it's still pretty dense but a screen like
+this has to be"). It is the brief for building this page. To keep the density calm: the yellow note is the mockup's
+only; the viewer folds away (Ctrl+B) to give the list the whole width; less-used columns (From) can be hidden from the
+column headings' menu and the choice is kept per tab.
