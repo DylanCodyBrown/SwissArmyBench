@@ -841,6 +841,8 @@ def editor_problems(
             continue  # which mock sends it is not known here
         dialect, tables = mine[0]
         for sql in e.sql:
+            if sql.get("formatted"):
+                continue  # an f-string: its text is made at run time (the wizard's reconcile), not read here
             try:
                 dialects.to_duckdb(sql.get("text"), dialect, None, tables)
             except SandboxError as error:

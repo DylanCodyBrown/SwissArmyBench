@@ -21,6 +21,7 @@ import io
 import json
 import keyword
 import re
+import sys
 import tokenize
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -161,7 +162,42 @@ def with_imports(text: str, needs: str) -> tuple[str, str]:
     if last < 0:
         return text, needs
     added = [n.replace("  # noqa: E402", "") for n in needs.strip("\n").split("\n")]
-    return "\n".join(lines[: last + 1] + added + lines[last + 1 :]), ""
+    # A standard library module's line goes among the file's first import block (the standard library's, as
+    # isort orders a file), in its place by module name; any other after the file's last import.
+    standard = [n for n in added if _module(n).split(".")[0] in sys.stdlib_module_names]
+    others = [n for n in added if n not in standard]
+    lines = lines[: last + 1] + others + lines[last + 1 :]
+    for line in standard:
+        lines.insert(_place(lines, line), line)
+    return "\n".join(lines), ""
+
+
+_IMPORT = re.compile(r"(from\s+([\w.]+)\s+import|import\s+([\w.]+))\s?")
+
+
+def _module(line: str) -> str:
+    found = _IMPORT.match(line)
+    return (found.group(2) or found.group(3) or "") if found else ""
+
+
+def _place(lines: list[str], line: str) -> int:
+    """Where a standard library import line goes: in the first block of top-level imports, plain `import x`
+    lines first, then `from x import` lines by module name (isort's order); its end when none sorts after."""
+    start = end = 0
+    while True:  # the first block that is not `from __future__` alone (that one stands by itself)
+        start = next((i for i in range(end, len(lines)) if _IMPORT.match(lines[i])), -1)
+        if start < 0:
+            return end
+        end = start
+        while end < len(lines) and _IMPORT.match(lines[end]):
+            end += 1
+        if any(_module(text) != "__future__" for text in lines[start:end]):
+            break
+    key = (line.startswith("from "), _module(line).casefold())
+    for at in range(start, end):
+        if (lines[at].startswith("from "), _module(lines[at]).casefold()) > key:
+            return at
+    return end
 
 
 def model_name(table: str) -> str:
