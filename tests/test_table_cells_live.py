@@ -43,6 +43,20 @@ def version_of(live: Live, name: str) -> int:
     return int(next(d["version"] for d in live.user("GET", "/datasets")["datasets"] if d["name"] == name))
 
 
+def settled_version(live: Live, name: str, seconds: float = 20) -> int:
+    """The open table's version once the kernel's watcher has stopped sending it: the same over two of its
+    scans (every 0.5 s) and a margin, waited for at most `seconds`."""
+    deadline = time.monotonic() + seconds
+    seen = version_of(live, name)
+    while time.monotonic() < deadline:
+        time.sleep(1.2)
+        now = version_of(live, name)
+        if now == seen:
+            return now
+        seen = now
+    return seen
+
+
 def open_when_seen(live: Live, kernel: str, name: str, seconds: float = 20) -> dict[str, Any]:
     """Open a kernel's variable as a grid once the kernel's watcher has reported it (asked again until
     then, instead of a fixed wait for its first scan)."""
@@ -226,7 +240,7 @@ def test_in_a_real_kernel_the_cell_runs_twice_and_the_grid_is_not_sent_its_resul
         steps = [{"kind": "filter", "params": {"column": "amount", "op": "gt", "value": 15}}]
         live.user("POST", f"/grids/{grid}/steps", {"steps": steps})
         code = table(live, "orders")["code"]
-        version = version_of(live, "orders")
+        version = settled_version(live, "orders")  # the maker's own sends done (a slow machine's last scan)
         for _ in range(2):
             done = lines(live, execute, {"kind": "table", "table": "orders", "code": code})
             assert done[-1]["done"]["ok"] is True, done
