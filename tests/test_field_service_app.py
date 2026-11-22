@@ -1487,6 +1487,7 @@ def test_share_a_launched_app_with_the_organization(app: Built) -> None:
 # ===== 11. The statistics and the change log, read back =====
 
 
+@needs_streamlit  # it reads what the Streamlit steps before it made (the widget copied, Play's calls)
 def test_the_statistics_and_the_change_log_say_what_happened_never_a_value(app: Built) -> None:
     agent, folder = app.agent, app.folder
     summary = agent("stats")
@@ -1562,6 +1563,7 @@ def _unversioned(name: str, content: bytes) -> bytes:
     return json.dumps(raw, sort_keys=True).encode()
 
 
+@needs_streamlit  # it reads what the Streamlit steps before it made (the widget copied, Play's calls)
 def test_the_finished_project_is_the_example_folder_and_the_sandbox_is_removed_last(app: Built) -> None:
     agent, folder = app.agent, app.folder
     agent("api", action="stop")
