@@ -27,8 +27,8 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
+from swissarmybench.domain import catalogs, dataverse, lakes, powerbi, web_calls
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, lakes, powerbi, web_calls
 from swissarmybench.domain.connection_swap import Place
 from swissarmybench.domain.datasets import quote
 
@@ -414,24 +414,15 @@ def target_name(number: int) -> str:
 # a value), in the source's own SQL; DuckDB applies them again, so a source that compares text without
 # case only reads more. A LIMIT goes too, only when nothing else in the query needs more rows.
 
-# The dialects a filter is written in (sqlglot's names); any other is read without one.
-_FILTER_DIALECTS: dict[str, str] = {
-    "sqlserver": "tsql",
-    "dataverse": "tsql",
-    "postgres": "postgres",
-    "mysql": "mysql",
-    "sqlite": "sqlite",
-    "duckdb": "duckdb",
-    "snowflake": "snowflake",
-    "oracle": "oracle",
-    "trino": "trino",
-    # The lake and SharePoint kinds: the conditions as (column, op, value), applied by their own code.
-    "onelake": "structured",
-    "datalake": "structured",
-    "delta": "structured",
-    "sharepoint": "structured",
-    "sharepoint_docs": "structured",
-}
+# The lake and SharePoint kinds take their conditions as (column, op, value), applied by their own code;
+# every other dialect's filter is written in its own SQL (catalogs.sqlglot_name), or not sent at all.
+_STRUCTURED: tuple[str, ...] = ("onelake", "datalake", "delta", "sharepoint", "sharepoint_docs")
+
+
+def _filter_dialect(dialect: str) -> str | None:
+    return "structured" if dialect in _STRUCTURED else catalogs.sqlglot_name(dialect)
+
+
 _COMPARE = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE)
 _DATES = {"DATE", "TIMESTAMP", "DATETIME"}
 
@@ -574,7 +565,7 @@ def pushdown(text: str, names: Iterable[str], ref: Reference, known: Sequence[st
         columns: tuple[str, ...] = ()
     else:
         columns = tuple(dict.fromkeys(wanted)) or (known[0],)
-    target = _FILTER_DIALECTS.get(dialect)
+    target = _filter_dialect(dialect)
     if target is None or len(found) != 1 or not _filterable(root, found[0]):
         return Pushed(columns)
     alias = _alias(found[0], ref)

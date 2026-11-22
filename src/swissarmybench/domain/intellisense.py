@@ -34,6 +34,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import catalogs
+
 # ===== docstrings =====
 
 _GOOGLE_PARAMS = (
@@ -827,9 +829,9 @@ def sql_problems(text: str, dialect: str | None) -> list[Problem]:
     if not text.strip():
         return []
     cleaned = re.sub(r"\[([^\]\n]*)\]", lambda m: '"' + m.group(1).replace('"', "'") + '"', text)
-    read = {"tsql": "tsql", "mssql": "tsql", "postgresql": "postgres", "pg": "postgres"}.get(
-        (dialect or "").lower(), (dialect or "duckdb").lower()
-    )
+    read = catalogs.sqlglot_name(dialect or "duckdb")
+    if read is None:  # DAX, SharePoint, a dialect sqlglot does not know: nothing said
+        return []
     if read == "tsql":
         cleaned = text  # brackets are T-SQL's own quotes
     try:

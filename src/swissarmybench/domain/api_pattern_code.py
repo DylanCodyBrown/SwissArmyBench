@@ -29,6 +29,7 @@ import sqlglot
 from sqlglot import exp
 
 from swissarmybench.domain import api_scaffold as scaffold
+from swissarmybench.domain import catalogs
 from swissarmybench.domain import local_api as api_rules
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.api_scaffold import ScaffoldError, Source, py
@@ -476,7 +477,7 @@ def _table_sql(place: str) -> exp.Table:
 
 def _dialect(source: Source) -> str:
     name = dialects.dialect_of(source.dialect)
-    return {"sqlserver": "tsql"}.get(name, name)
+    return catalogs.sqlglot_name(name) or name
 
 
 def _in_dialect(tree: exp.Expr, source: Source) -> str:

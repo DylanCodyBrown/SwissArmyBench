@@ -52,12 +52,34 @@ _DIALECT_ALIASES: dict[str, str] = {
     "sql server": "sqlserver",
     "azuresql": "sqlserver",
     "postgresql": "postgres",
+    "pg": "postgres",
     "redshift": "postgres",
     "mariadb": "mysql",
     "presto": "trino",
     "powerbi": "dax",
     "power bi": "dax",
 }
+
+# A dialect's name in sqlglot: THE one table (connection_tables' filters, query_text's formatting, the
+# sandbox's mock, the endpoint patterns' SQL and the editors' syntax check all ask sqlglot_name). The lake
+# kinds' SQL is DuckDB's (every table a view); tests/test_dialect_names.py refuses a dialect nobody decided.
+_SQLGLOT_NAMES: dict[str, str] = {
+    "sqlserver": "tsql",
+    "dataverse": "tsql",
+    "postgres": "postgres",
+    "mysql": "mysql",
+    "sqlite": "sqlite",
+    "duckdb": "duckdb",
+    "snowflake": "snowflake",
+    "oracle": "oracle",
+    "trino": "trino",
+    "onelake": "duckdb",
+    "datalake": "duckdb",
+    "delta": "duckdb",
+}
+# The dialects whose text sqlglot never reads: DAX, SharePoint (its lists and files are read by the
+# connection's own code) and a dialect nobody named.
+NO_SQLGLOT: tuple[str, ...] = ("dax", "sharepoint", "sharepoint_docs", "other")
 
 # Normalized column -> the source column names it is read from, in order of preference.
 ALIASES: dict[str, tuple[str, ...]] = {
@@ -112,6 +134,19 @@ class CatalogInfo:
             "views": self.views,
             "columns": self.columns,
         }
+
+
+def dialect_word(dialect: str | None) -> str:
+    """A dialect as this module's word (lower case, another name for it made its own: tsql is sqlserver,
+    pg is postgres); a word nobody knows comes back as typed, nothing as ""."""
+    key = (dialect or "").strip().lower()
+    return _DIALECT_ALIASES.get(key, key)
+
+
+def sqlglot_name(dialect: str | None) -> str | None:
+    """The dialect's name in sqlglot, by any of its names; None for one whose text sqlglot never reads
+    (DAX, SharePoint, other, an unknown word, nothing)."""
+    return _SQLGLOT_NAMES.get(dialect_word(dialect))
 
 
 def normalize_dialect(dialect: str | None) -> str:
