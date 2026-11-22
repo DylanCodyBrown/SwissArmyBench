@@ -1524,7 +1524,6 @@ def test_the_statistics_and_the_change_log_say_what_happened_never_a_value(app: 
     assert {c["object"]["name"] for c in tables} >= {"technicians", "customers"}
     since = agent("changes", action="since", since="2020-01-01T00:00:00+00:00", n=500)["changes"]
     assert len(since) > 40 and {c["who"] for c in since} <= {"agent", "user", "app"}
-    assert agent("changes", action="search", word="page_size")["changes"] or True
     # Both files are the project's own, Git-ignored, and hold names, types and fingerprints: never a value.
     log = (folder / ".sab" / "changes.jsonl").read_text(encoding="utf-8")
     assert log.count("\n") >= len(since)

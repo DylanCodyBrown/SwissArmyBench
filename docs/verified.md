@@ -5668,3 +5668,116 @@ The checks, on the final tree:
   test_project_outline_page, test_environment_page, test_sab_projects, test_table_cells_page,
   test_variables_page, test_sandbox_dashboards, test_query_from_page, test_project_session_page,
   test_rail_pages): 27 passed.
+
+## Test app two: field service, 2026-11-22 (branch test-app-streamlit)
+
+The app: `examples/field_service/`, Brightline Field Services' work orders (made up: tests/field_service_data.py,
+six tables, 120 work orders, a few deliberate problems: two invoices 10.00 over, two done work orders with no
+invoice, an invoice with no work order, a price list in three versions), a Streamlit project.
+`tests/test_field_service_app.py` builds it one agent command at a time (cli/commands.py and the Streamlit
+extension's commands: the MCP tools) on a live server (tests/live_server.py), a user answering each Allow
+(tests/field_service_app.py's Approver); 17 tests in order on one project, about 70 to 90 s, run five times with
+the same result; the kept folder is examples/field_service byte for byte (`SAB_FIELD_SERVICE_KEEP=1` writes it;
+.sab/project.json without its app_version). `tests/e2e/test_field_service_app.py` copies the example, fills its
+sandbox and plays it in a browser.
+
+What was walked, and what it said:
+- Project: New project of the Streamlit type (data.ipynb, the canvas, API.py, data.py, README.md, .gitignore with
+  sandbox/); project_scaffold: nothing to write until something reads a connection; a SQL cell on the Depot
+  (a made-up SQLite, its password in the keyring) made adapter.py (the adapter's own bytes), connections.py (one
+  marked section, DEPOT_PASSWORD named, no value) and README's Variables row; a refresh with nothing new wrote no
+  byte; connections.py edited by hand was kept (said with both texts), refresh never took it, Take the new one did.
+- Sandbox: work_orders, parts_used, invoices, price_lists from the project's source/ CSVs; technicians and
+  customers from open grids (the grid's column removal kept); the Depot's stock read once ("Read once from
+  Depot", its origin "A sandbox variant of stock from Depot"); keys (one set later; a column with repeats refused
+  in one sentence; a second key refused); a variant (customers_sandbox, "customers · sandbox"); Mocked as Depot
+  and back; DuckDB SQL naming `[Sandbox].work_orders`; the mirror (sandbox_data.py, sandbox_connections.py: names
+  only). Its grid's edits (a cell by place, a row by values, a value checked by type: "'lots' is not a number",
+  an insert, a duplicate key refused, a delete), its open grid following each write, a checkpoint, Reset waiting
+  for the user's Allow (nothing changed until then), Restore, one table reset alone keeping its key, the
+  baseline, a checkpoint deleted; Remove the sandbox last of all (its folder and two files, nothing else).
+- Local sandbox API: the nine patterns listed, ranked for work_orders and price_lists (each with its sentence:
+  "has a key", "no version number column"), each planned and dry-run (nothing written), then scaffolded (17
+  endpoints, each marked with its pattern, each paired: the choices with select_box and input_select, the create
+  with api_form, the action with api_button, the reconciliation with api_metric); two endpoints of the app's own
+  added by hand (POST /visits/done with a TypedDict body, GET /stock/low in the Depot's own SQL); the editor's
+  problems: none. Run; every GET answered (a page, by key, a 404 in words, the choices' search, the search's
+  text, filters and dates, two summaries, the versions and the current one, the reconciliation's counts 47 / 2 /
+  71 / 1 and its rows, a 422 for a bad `show`, the CSV export, the Depot's low stock through its mock); the first
+  write waited for Allow ("never live data") and that Allow covered the session; 422s naming the field; a PUT, an
+  action through the API adapter, an all-or-none action refused, a bulk upload's dry run and its problem, a new
+  version, a DELETE; the request log never holds a body; the action's learned shape types only; nothing of a
+  value in .sab/; Reset undoes every write.
+- Will this work for real?: each endpoint's SQL against the Depot's catalog ("works") or the sandbox; Export for
+  FastAPI, Azure Functions and AWS Lambda, each run alone in a fresh Python (the FastAPI export imported and its
+  handle called: the same answers as the sandbox).
+- Another API: Add API from tests/api_standins.py's orders service (preview writes nothing, Try it, add); its
+  actions listed beside `local`; run (two pages followed, `$.items` found), the shape kept (types only), get one,
+  inputs checked first; the local API's actions through the same envelope (the CSV export read as records);
+  Discover on the user's Allow (four GETs, the write skipped in words, the master and detail pair found), the
+  Allow taken back; a write waiting for Allow; Build as a cell (data.ipynb), as a function (scripts/orders.py)
+  and as a widget (a data_table on `[Orders].list_orders`, and an api_metric on another API's action).
+- Widgets: the project's own visit_card (In[Table], In[str], Out[int], Event[Visit] with a TypedDict payload,
+  masked properties: number with a range, switch, dropdown from a Literal, colour, column of a table), checked,
+  run alone, Copy to project; a copy of a prebuilt one renamed; prebuilt widgets from all eight packs on the
+  canvas (sales_kpi_row, ops_low_stock_table, cs_ticket_detail and cs_status_pie, de_record_form,
+  admin_user_list, input_select and input_text, excel_download, form_picker, form_fill and form_submissions).
+- Canvas: three pages (Dispatch, Work order, Parts and billing), containers holding widgets, widgets paired with
+  the wizard's endpoints when dropped, wiring of every kind (a table, another widget's Out, a page value, a GET
+  endpoint, several tables, an Event calling POST /visits/done then setting last_visit and rerunning; a wrong
+  type and an unknown endpoint refused in words; a typed payload's wrong part refused naming its fields), the
+  viewer by itself (an In[str] called viewer), a wire across pages (the picked visit on Work order), Desktop and
+  Phone layouts, Hidden in the app, the layout's rules (a widget too small refused), undo and redo of a delete
+  with its wires; the headless check (AppTest, every page), Play, Launch with the Performance Analyzer (its
+  session, hints, saved into the build), a second Launch, Builds compared (two builds and a build with now),
+  Restore and its undo; Export (the fewest files: app.py, widgets.py, adapter.py, connections.py, the sandbox's
+  copies, the other API's client) run headless with AppTest in a fresh folder: every page drawn.
+- Share…: the devtunnel stand-in (tests/devtunnel_standin.py): refused until signed in (the user's own), shared
+  with the organization (an https *.devtunnels.ms link, never this server's port; who: Your organization),
+  stopping the launch ends the share, shared again and Stop sharing; the Session log names the app, never the
+  link.
+- Read back: the statistics (the sandbox the busiest connection, Orders and the Depot there, no error on the
+  action or the export endpoint) and the change log (the tables, API.py's endpoints, the canvas; no value of a
+  row, a payload or a password); the Environment's technicians with where it is used.
+- In Chromium (tests/e2e/test_field_service_app.py): the example copied, its Depot and the other API set up,
+  its sandbox filled, the API run; the canvas's three tabs, Desktop and Phone; Play: Dispatch's visits to do for
+  everyone (the viewer named), the first scheduled visit (1003) marked done with a note: the sandbox's work order
+  done with "(filter swapped)" in its summary, the card no longer offering it; Work order: last_visit in its
+  read-only box; Parts and billing: 2 invoices that differ; no widget failed on any page.
+
+Bugs found on the way, each fixed with a test (one commit each; the first six by the builder before this one):
+1. Local sandbox API: a call sent right after API.py was saved was answered by the process started before the
+   save (a new endpoint 404'd); an action of the local API run through the API adapter learned Try it's summary
+   of a file to save instead of the file (services/local_api.py, services/actions.py).
+2. Sandbox: one table reset alone lost its primary key; a table read once from a connection said "A sandbox
+   variant of  from Depot" (domain/sandbox.py, services/sandbox.py).
+3. API export with the sandbox's rows: its working copy had one fixed name, so a second export answered an older
+   export's rows (domain/api_targets.py).
+4. The wizard's code had squiggles in its own editor: datetime's import written after API.py's last import
+   (Ruff's I001), and the reconcile pattern's f-string read as SQL (domain/api_scaffold.py, domain/local_api.py).
+5. A typed payload's body mapping that names a part the payload lacks was taken (the call sent nothing);
+   widgets_header took no size; adapter.py, connections.py, the mirror and an API export were listed as the
+   user's scripts; the guide described an export's older files (domain/canvas_wiring.py, commands.py,
+   domain/project_scope.py, the guide).
+6. A canvas export reading a connection, the sandbox and another API failed where it ran in four places: the
+   sandbox's copies dropped, the API's client loaded from this computer's library, a Read-a-table connection
+   unknown to the adapter, a variable named twice in the README (domain/scaffold.py, services/scaffold.py,
+   services/canvas.py, domain/local_api.py).
+7. An input_text whose starting value was wired to a page value an Event set from a number failed in its place
+   ("bad argument type for built-in operation"): a number or a date given to a text In is now its text
+   (the Streamlit extension's domain/canvas_build.py, RUNTIME's _coerce; tests/test_canvas_gaps.py).
+8. Widget preview photographers outlived their server: once the server that asked was gone, the answer printed
+   to a closed pipe raised inside Qt's slot, app.quit() never ran, and the child spun for hours (several from
+   earlier runs were still at a quarter of a core each). It now ends all the same (os._exit after the loop), and
+   the server's stop or a cancelled preview kills one still at work (server/previews.py;
+   tests/test_widget_previews.py, which hung before the fix).
+
+The checks, on the final tree:
+- ruff, ruff format, mypy (1,043 files), the page's typecheck: clean.
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,370 passed, 40 skipped, 4 failed: two
+  pass alone (test_sharing's refusal, test_intellisense_service's live names: under the run's load) and two are
+  this run's set-up (the worktree's sources put on PYTHONPATH, which a fresh venv and the updater's new install
+  inherit: test_script_export's fresh Python imports swissarmybench, test_updater's new version starts as the
+  old one); neither touches this branch's changes.
+- In Chromium (the e2e conftest's browser pointed at this machine's Chromium for the run only, never committed):
+  test_field_service_app, test_forms_recon_app and test_canvas_page: 6 passed.
