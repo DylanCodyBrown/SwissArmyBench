@@ -5980,3 +5980,59 @@ The craft review's items 4, 5 and 7 (docs/reviews/craft-review-2026-11-22.md; de
   test_script_export's fresh Python and test_updater's uv tool (the run's PYTHONPATH, as recorded before), the
   desktop shell's (fails the same on the branch's base, 7a551dc), and test_performance's million-row targets and
   an intellisense kernel test, which pass alone (load under four workers).
+## Review fixes A, 2026-11-22 (branch review-a)
+
+Part A of the craft review's fixes (docs/reviews/craft-review-2026-11-22.md; decisions in docs/ideas.md "Review
+fixes A"). Made-up data only.
+
+- **The copies tied, and what each test showed before its fix.**
+  - tests/test_dialect_names.py (39 tests): every dialect of catalogs.DIALECTS is decided once (a name in sqlglot,
+    or listed as one sqlglot never reads); each name is one sqlglot knows; every alias is its dialect in
+    catalogs, the sandbox's mock, the formatter, the editors' check and the endpoint patterns; no other domain
+    file keeps a table of its own. Before: `pg`, `mariadb`, `azuresql`, `redshift` and `presto` were each known
+    in one or two of five places, and the editors' check said nothing for a `sqlserver` connection.
+  - tests/test_cell_value_copies.py (54 tests): 51 plain values, 16 of numpy's and 6 of pandas' through
+    `sab_excel.cell_value` and `adapter.sheet_value`, the same type, words and text flag asked of both; the
+    limits the same numbers. Before the fix two failed: a numpy whole number (the adapter wrote text "7") and
+    pandas' missing time (the adapter kept NaT, the builder a blank).
+  - tests/test_write_vocabulary.py (38 tests): every operation of `write_capability.WRITABLE` is an adapter mode
+    (OPERATION_MODES) or a starter's own (STARTER_ONLY); each of the 16 Write functions' own modes, read from its
+    file with ast, are its kinds' operations; each call starter's mode comment names operations; the adapter's
+    file source takes insert and truncate and refuses update, merge and delete, as WHOLE_MODES says.
+- **Every extension's layers**: tests/test_extension_layers.py (38 tests) over accounting, copilot, git,
+  powerapps, powerbi and streamlit. Before the fixes it failed for five layer checks, 16 imports in all: Power
+  BI's project service (the server's templates; pathlib), Copilot's service (its adapter; os) and domain
+  (urllib), Git's two services (pathlib), Accounting's service (its files module). After: all pass, and the
+  extensions' own suites (281 tests: accounting, copilot, powerbi, scm, team, streamlit's and powerapps' rules)
+  pass. Copilot's own percent-encoding was compared with urllib.parse.quote on five names (spaces, accents, `%`,
+  `#?&=+`, CJK): the same.
+- **Inside the project**: tests/test_project_paths.py (33 tests): 21 cases of the rule (separators, case with
+  the path's own spelling kept, a neighbour that starts with the folder's name, the folder itself, a path that
+  climbs out, things that are not paths), a link stood in for (the disk asked only when the text says no), a
+  real link on disk through `SabArchive.real` and `os.path.realpath`, each of the eight former copies now asking
+  the rule (by ast), and no domain or service file writing it out again.
+- **errors.explain as a table**: the old function (from the commit before) and the new were run over 19,575
+  made-up entries (29 types by 15 messages by 15 sets of facts by 3 hints, and four odd ones): the same answer
+  for every one. tests/test_errors.py and the Workbench's error tests pass unchanged.
+- **api_adapter 1.0.2**: its 37 tests and the Actions, canvas actions and call statistics tests (376 with the
+  architecture tests) pass unchanged; the only test edit is the version pin.
+- **adapter.py and api_adapter.py**: no function over 80 lines in either (the longest about 60; `_call` was 89
+  before its split); adapter.py 4,443 lines, api_adapter.py 2,078.
+- **blade_settings.py**: blades.py 1,499 lines before, 925 after; blade_settings.py 610. Every public name is the
+  same object by either import (a test), and the 14 blade, connection and export test files (707 tests) pass.
+- **client/write_sql.py**: 991 lines before, 922 after; the gone helpers answer in one line on every SQL write
+  (a test); the Write starters' tests (450) pass.
+- **The architecture map**: `python tools/architecture_map.py` twice gives the same bytes; `--check` says
+  current. Today: 10 components of the base and 6 extensions, 463 modules (368 the base's); no import cycle
+  while loading; three groups that close only through an import inside a function; one arrow drawn outward
+  (the server's app starting the composition root; nothing from the domain or the services).
+  tests/test_architecture_map.py: 7 tests.
+- **The checks**: ruff, ruff format, mypy (1,057 files) and the page's typecheck: clean.
+- **The quick suite** (`--ignore=tests/e2e -n 4 --dist loadfile`, the worktree's own source by PYTHONPATH, other
+  builders' suites running on the same machine): 5,603 passed, 60 skipped, 7 failed, none of them a failure of
+  the code. Two see the run's PYTHONPATH, which this worktree needs (test_script_export's fresh Python,
+  test_updater's uv tool): both pass with the source put on the path inside the test's process only. One needs
+  the page's build, which a worktree does not have (test_desktop_shell's first window): it passes with
+  web/static/build copied in. Four failed under the load and passed alone (test_connections' catalog taken
+  away, test_workbench's busy reader, test_sharing's refusal, test_adapter's streamed read). The browser suite
+  was not run: nothing in web/ changed.

@@ -17,7 +17,6 @@ GitHub sync of services/sync.py. No local Git: what needs one (stash, local comm
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 from typing import Any
 
 from swissarmybench.services.workspace import Conflict
@@ -40,11 +39,7 @@ class SourceControl(GitHubSync):
             scope = None
             project = self._project() if which == "shared" else None
             if project:
-                try:
-                    rel = self._files.full(project).relative_to(Path(folder)).as_posix()
-                    scope = None if rel == "." else rel
-                except ValueError:
-                    scope = None
+                scope = self._files.inside(project, folder) or None
             out.append((which, folder, link, scope))
         return out
 

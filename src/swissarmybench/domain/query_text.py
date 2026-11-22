@@ -8,21 +8,8 @@ import re
 
 import sqlglot
 
-_SQLGLOT_DIALECTS: dict[str, str] = {
-    "sqlserver": "tsql",
-    "dataverse": "tsql",
-    "postgres": "postgres",
-    "mysql": "mysql",
-    "sqlite": "sqlite",
-    "duckdb": "duckdb",
-    "snowflake": "snowflake",
-    "oracle": "oracle",
-    "trino": "trino",
-    "onelake": "duckdb",
-    "datalake": "duckdb",
-    "delta": "duckdb",
-    "": "duckdb",
-}
+from swissarmybench.domain import catalogs
+
 _VARIABLE = re.compile(r"\$\$?\{[^}\n]*\}")
 
 
@@ -31,9 +18,9 @@ def format_sql(text: str, dialect: str = "") -> str:
     own dialect). DAX, an unknown dialect, and text that does not parse come back as written; `${NAME}`
     stays as written, never resolved."""
     key = (dialect or "").strip().lower()
-    if key in ("dax", "other", "sharepoint", "sharepoint_docs") or not text.strip():
+    if not text.strip():
         return text
-    target = _SQLGLOT_DIALECTS.get(key)
+    target = catalogs.sqlglot_name(key or "duckdb")  # a query with no dialect is DuckDB's
     if target is None:
         return text
     found: list[str] = []

@@ -67,6 +67,15 @@ class SabArchive:
             raise FileNotFoundError(f"{path[:200]} is not a place this computer can use ({error}).") from None
 
     @staticmethod
+    def real(path: str) -> str:
+        """A path with its links resolved (as written when this computer cannot say): what
+        domain/project_paths.py asks when a path is not inside a folder as written."""
+        try:
+            return os.path.realpath(path)
+        except (OSError, ValueError):
+            return path
+
+    @staticmethod
     def join(folder: str, name: str) -> str:
         return str(Path(folder).expanduser() / name)
 

@@ -33,6 +33,25 @@ from swissarmybench_powerbi.domain import power_query as pq
 
 FORMAT = 1
 STATE_PATH = ".sab/powerbi.json"
+
+
+def file_name(path: str) -> str:
+    """A path's last part, by either separator (text only: the domain never touches the disk)."""
+    return re.split(r"[\\/]", str(path).rstrip("\\/"))[-1]
+
+
+def file_stem(path: str) -> str:
+    """A file's name without its last suffix (Sales.pbix: Sales; a dot first is part of the name)."""
+    name = file_name(path)
+    return name[: name.rindex(".")] if "." in name[1:] else name
+
+
+def joined(folder: str, name: str) -> str:
+    """A file inside a folder, by the folder's own separator."""
+    separator = "\\" if "\\" in folder and "/" not in folder else "/"
+    return str(folder).rstrip("\\/") + separator + name.replace("/", separator)
+
+
 # Each M kind -> the connection template made for it (server/blade_templates.py ids).
 TEMPLATES: dict[str, str] = {
     "sqlserver": "sqlserver",

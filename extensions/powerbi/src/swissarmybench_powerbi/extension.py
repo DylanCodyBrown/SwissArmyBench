@@ -146,6 +146,7 @@ def routes(services: Any) -> list[Any]:
         read_report=report_files.read,
     )
     services.powerbi_export = service  # tests
+    from swissarmybench.server.blade_templates import BY_ID
     from swissarmybench_powerbi.adapters import pbix_reader
     from swissarmybench_powerbi.adapters.files import StateFiles
     from swissarmybench_powerbi.server import routes_project
@@ -157,6 +158,7 @@ def routes(services: Any) -> list[Any]:
         StateFiles(),
         services.agent.approvals,
         registrations=services.app_registrations.names,
+        starters=BY_ID,
     )
     from pathlib import Path
 

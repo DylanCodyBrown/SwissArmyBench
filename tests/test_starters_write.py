@@ -250,7 +250,10 @@ def test_every_writable_kind_has_a_starter_and_every_starter_names_writable_kind
     for kind in write_capability.READ_ONLY:
         assert write_capability.starters_for(kind, blades) == []
     words = write_capability.capability("postgres", blades)["words"]
-    assert words == "Writes: append, create, replace, upsert, delete"
+    assert words == (
+        "Writes: append, create, replace, upsert, delete with its Write starters; "
+        "insert, update, merge, delete, truncate with sab.write"
+    )
 
 
 def test_the_connections_page_says_what_each_connection_writes(client: TestClient) -> None:
@@ -1094,6 +1097,20 @@ def test_a_copy_of_the_old_sql_server_starter_is_told_what_to_do_in_one_line(
         w.in_transaction(lambda: {})
     with pytest.raises(AttributeError):
         _ = w.not_a_method
+    # And the helpers every SQL starter ran its own statements with (gone once the adapter wrote them all).
+    for name in ("each_batch", "each_values", "each_where", "copy", "transaction", "found", "where_keys"):
+        with pytest.raises(WriteError, match=rf"w\.{name} went: every SQL write is the adapter's now"):
+            getattr(w, name)
+
+
+def test_the_gone_helpers_are_gone_from_every_sql_write() -> None:
+    from swissarmybench.client import write_sql
+
+    for name in write_sql.GONE_METHODS:
+        assert not hasattr(write_sql.SqlWrite, name) and not hasattr(write_sql.SqlServerWrite, name), name
+    assert write_sql.SERVER_GONE < write_sql.GONE_METHODS
+    assert "each_batch(upsert)" not in (write_sql.__doc__ or "")  # the opening example is how it works now
+    assert "by_adapter" in (write_sql.__doc__ or "")
 
 
 # ===== Dataverse: the Web API's change sets =====

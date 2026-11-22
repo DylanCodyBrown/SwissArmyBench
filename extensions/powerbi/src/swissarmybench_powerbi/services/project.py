@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping
-from pathlib import Path
 from typing import Any, Protocol
 
+from swissarmybench.domain.blade_templates import Template
 from swissarmybench.domain.blades import detect_settings
 from swissarmybench.domain.connection_tables import Pushed
 from swissarmybench.domain.relationships import Model
@@ -74,8 +74,11 @@ class PowerBIProject:
         approvals: Approvals,
         live: LiveSource | None = None,
         registrations: Callable[[], list[str]] = list,
+        starters: Mapping[str, Template] | None = None,
     ) -> None:
         self.base = base
+        # The starter connections by their template (server/blade_templates.py BY_ID: the root hands it in).
+        self.starters: Mapping[str, Template] = starters or {}
         self.reader = reader
         self.files = files
         self.approvals = approvals
@@ -228,7 +231,7 @@ class PowerBIProject:
             plan_.dataset
         )
         await asyncio.to_thread(
-            self.files.write_text, str(Path(folder) / rules.STATE_PATH), rules.write_state(state)
+            self.files.write_text, rules.joined(folder, rules.STATE_PATH), rules.write_state(state)
         )
         await base.sab_projects.set_setting(SOURCE_KEY, "published", who)
         # 5. relationships into the model and the ERD
@@ -241,7 +244,7 @@ class PowerBIProject:
         # 6. the data notebook: its %%dax cells name the project's one dataset connection (E resolves it)
         cells = rules.notebook_cells(plan_, rules.dataset_name(state))
         await asyncio.to_thread(
-            self.files.write_text, str(Path(folder) / "data.ipynb"), rules.notebook_json(cells)
+            self.files.write_text, rules.joined(folder, "data.ipynb"), rules.notebook_json(cells)
         )
         # 7. every table as two grids
         grids = await self._open_pairs(state, plan_.tables, who, problems)
@@ -265,20 +268,19 @@ class PowerBIProject:
         a variable); its password and sign-in asked on this computer as usual."""
         from swissarmybench.domain import sql_server
         from swissarmybench.domain.blades import apply_settings
-        from swissarmybench.server.blade_templates import BY_ID
 
         template = rules.TEMPLATES[c.kind]
+        template_ = self.starters[template]
         if c.kind == "sqlserver":
             code = sql_server.code("sql_login", "my-server")
         else:
-            code = BY_ID[template].code
+            code = template_.code
         values = dict(c.settings) | ({"database": c.database} if c.database else {})
         found = {s.name: s.id for s in detect_settings(code)}
         filled = {found[k]: {"text": v} for k, v in values.items() if k in found and v}
         if filled:
             code = apply_settings(code, filled)
         kind = "sql" if c.kind in pq.DIALECTS else "file"
-        template_ = BY_ID[template]
         return {
             "name": c.name,
             "kind": template_.kind or kind,
@@ -356,7 +358,7 @@ class PowerBIProject:
             raise NotFound("Open a Power BI project first.")
         import json
 
-        text = self.files.read_text(str(Path(current.folder) / rules.STATE_PATH))
+        text = self.files.read_text(rules.joined(current.folder, rules.STATE_PATH))
         if not text:
             raise NotFound("This project was not made from a .pbix (it has no .sab/powerbi.json).")
         return dict(json.loads(text))
@@ -371,18 +373,18 @@ class PowerBIProject:
             state = self._state()
         except NotFound:
             return None, None
-        return state, self.files.read_text(str(Path(current.folder) / "data.ipynb"))
+        return state, self.files.read_text(rules.joined(current.folder, "data.ipynb"))
 
     def _write_state(self, state: Mapping[str, Any]) -> None:
         current = self.base.sab_projects.current
-        self.files.write_text(str(Path(current.folder) / rules.STATE_PATH), rules.write_state(state))
+        self.files.write_text(rules.joined(current.folder, rules.STATE_PATH), rules.write_state(state))
 
     def source(self) -> dict[str, Any]:
         """Which source In Power BI reads: the project's choice, and what answers it now."""
         state = self._state()
         chosen = str(self.base.sab_projects.setting(SOURCE_KEY) or "published")  # the file: only a fallback
         effective, note = self._effective(state, chosen)
-        model = (state.get("dataset") or {}).get("dataset") or Path(str(state.get("target", ""))).stem
+        model = (state.get("dataset") or {}).get("dataset") or rules.file_stem(str(state.get("target", "")))
         return {
             "source": chosen,
             "effective": effective,
@@ -400,7 +402,7 @@ class PowerBIProject:
                 return "local", ""
             return (
                 "file",
-                f"Open {Path(str(state.get('target', ''))).name} in Power BI Desktop. "
+                f"Open {rules.file_name(str(state.get('target', '')))} in Power BI Desktop. "
                 + self._file_note(state),
             )
         if chosen == "published" and state.get("dataset"):
@@ -723,7 +725,7 @@ class PowerBIProject:
             }
             for r in page["to_finish"]
         ]
-        lines = [{"text": f"{Path(str(page['target'])).name} · {page['status']}", "tone": "ok"}]
+        lines = [{"text": f"{rules.file_name(str(page['target']))} · {page['status']}", "tone": "ok"}]
         if source["note"]:
             lines.append({"text": source["note"], "tone": "warn"})
         if page["registration"] in (None, "none"):
@@ -777,7 +779,7 @@ class PowerBIProject:
         Import its model or Use its pages on our model."""
         if not self.pending:
             return {"lines": [], "actions": []}
-        name = Path(self.pending).name
+        name = rules.file_name(self.pending)
         pbix = self.pending.lower().endswith(".pbix")
         if not project:
             actions = (
@@ -799,7 +801,7 @@ class PowerBIProject:
                 done = await self.import_project({"path": path}, who)
                 return [{"text": f"Made the Power BI project {done['project']}.", "tone": "ok"}]
             if action == "open:model":
-                name = f"{Path(path).stem} file"
+                name = f"{rules.file_stem(path)} file"
                 await self.add_file_connection({"name": name, "path": path}, who)
                 joined = await self.file_relationships(name, who)
                 return [

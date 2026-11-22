@@ -21,7 +21,7 @@ import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
-from swissarmybench.domain import beta_log
+from swissarmybench.domain import beta_log, project_paths
 from swissarmybench.domain import claude as claude_rules
 from swissarmybench.domain import context_md as rules
 from swissarmybench.domain.connection_colours import PALETTE
@@ -141,12 +141,7 @@ class ContextMd:
 
     def _relative(self, path: str, folder: str | None) -> str:
         """A path as the project's own (relative to its folder); outside it, the file's name only."""
-        clean = path.replace("\\", "/")
-        if folder:
-            root = folder.replace("\\", "/").rstrip("/") + "/"
-            if clean.casefold().startswith(root.casefold()):
-                return clean[len(root) :]
-        return posixpath.basename(clean)
+        return project_paths.relative_in(path, folder) or posixpath.basename(path.replace("\\", "/"))
 
     async def _connection(self, card: Mapping[str, Any], folder: str | None) -> rules.ConnectionFacts:
         name = str(card["name"])

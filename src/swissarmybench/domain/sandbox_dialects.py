@@ -25,20 +25,11 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
+from swissarmybench.domain import catalogs
 from swissarmybench.domain.sandbox import SandboxError, check_table_name
 
-# A connection's dialect (domain/catalogs.py's words) as sqlglot reads it, and its driver's parameter marks.
-SQLGLOT: dict[str, str] = {
-    "sqlserver": "tsql",
-    "dataverse": "tsql",
-    "postgres": "postgres",
-    "mysql": "mysql",
-    "sqlite": "sqlite",
-    "duckdb": "duckdb",
-    "snowflake": "snowflake",
-    "oracle": "oracle",
-    "trino": "trino",
-}
+# A connection's driver's parameter marks, by its dialect (domain/catalogs.py's words): the dialects the
+# mock reads. Each one's name in sqlglot is catalogs.sqlglot_name's (SQLGLOT, below).
 # qmark ?, format %s, pyformat %(name)s, named :name, numeric :1, dollar $1
 PARAMSTYLE: dict[str, str] = {
     "sqlserver": "qmark",
@@ -62,16 +53,14 @@ WORDS: dict[str, str] = {
     "oracle": "Oracle SQL",
     "trino": "Trino SQL",
 }
+SQLGLOT: dict[str, str] = {word: str(catalogs.sqlglot_name(word)) for word in PARAMSTYLE}
 _SENTINEL = "__sabp_{}__"
 _SENTINEL_RE = re.compile(r"^__sabp_(\d+)__$")
 
 
 def dialect_of(dialect: str | None) -> str:
     """A connection's dialect word as this module knows it (duckdb for a file or an empty table)."""
-    key = (dialect or "duckdb").strip().lower()
-    return {"tsql": "sqlserver", "mssql": "sqlserver", "postgresql": "postgres", "mariadb": "mysql"}.get(
-        key, key
-    )
+    return catalogs.dialect_word(dialect) or "duckdb"
 
 
 def line_of(text: str, at: int) -> int:

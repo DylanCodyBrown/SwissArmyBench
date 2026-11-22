@@ -27,14 +27,14 @@ import secrets
 import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from swissarmybench.domain.datasets import quote
 from swissarmybench.domain.grids import POS
 from swissarmybench.services.ports import INTERACTIVE, Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 from swissarmybench_accounting import design as rules
-from swissarmybench_accounting import exporter, files
+from swissarmybench_accounting import exporter
 from swissarmybench_accounting import templates as binding_rules
 from swissarmybench_accounting.design import DesignError
 
@@ -58,6 +58,36 @@ def _key(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 
+class Files(Protocol):
+    """The files this service reads and writes, and the workbooks built from them (files.py: the module
+    itself is handed in by the extension's root)."""
+
+    def runtime_text(self) -> str: ...
+    def read_json(self, path: str) -> Any: ...
+    def write_text(self, path: str, text: str) -> str: ...
+    def write_json(self, path: str, value: Any) -> str: ...
+    def exists(self, path: str) -> bool: ...
+    def is_folder(self, path: str) -> bool: ...
+    def mtime(self, path: str) -> float | None: ...
+    def copy_template(self, source: str, target: str) -> str: ...
+    def templates_in(self, folder: str) -> list[str]: ...
+    def folder_of(self, path: str) -> str: ...
+    def join(self, folder: str, *parts: str) -> str: ...
+    def build(self, design: dict[str, Any], tables: dict[str, Any]) -> bytes: ...
+    def preview(self, source: Any) -> dict[str, Any]: ...
+    def build_statements(
+        self,
+        template: str,
+        data: Any,
+        lines: Any,
+        args: dict[str, Any],
+        bindings: list[dict[str, Any]],
+        dry_run: bool,
+    ) -> list[dict[str, Any]]: ...
+    def read_register(self, folder: str) -> tuple[list[str], list[tuple[Any, ...]]]: ...
+    def check_place(self, xlsx: str, place: str) -> None: ...
+
+
 class Accounting:
     def __init__(
         self,
@@ -65,9 +95,11 @@ class Accounting:
         approvals: Approvals,
         store_table: Callable[..., Any],
         project_folder: Callable[[], str | None],
+        files: Files,
     ) -> None:
         self.ws = ws
         self._approvals = approvals  # the user's Allow (services/ports.py Approvals)
+        self._files = files  # the designs', templates' and workbooks' files (files.py, handed in by the root)
         self._store_table = store_table  # a table opened as a grid (services/datasets.py)
         self._project = project_folder  # the open project's folder, if any
         self._open: dict[str, OpenDesign] = {}
@@ -118,7 +150,7 @@ class Accounting:
                 if d.path == path:
                     return self.state(d.id)
             try:
-                raw = await asyncio.to_thread(files.read_json, path)
+                raw = await asyncio.to_thread(self._files.read_json, path)
             except FileNotFoundError:
                 raise NotFound(f"There is no design at {path}.") from None
             except ValueError:
@@ -201,10 +233,10 @@ class Accounting:
             raise DesignError('Send {"path": where workbook.design.json goes}.')
         if not path.lower().endswith(".json"):
             path += ".design.json"
-        d.path = await asyncio.to_thread(files.write_json, path, d.design)
+        d.path = await asyncio.to_thread(self._files.write_json, path, d.design)
         d.kept = _key(d.design)
         self.ws.audit.write(who, "workbook_save", d.path)
-        return self.state(design_id) | {"modified": files.mtime(d.path)}
+        return self.state(design_id) | {"modified": self._files.mtime(d.path)}
 
     # ===== the data: the open tables, each with its grid's steps =====
 
@@ -246,8 +278,8 @@ class Accounting:
         design = d.design
         try:
             data = await self.tables(rules.tables_read(design))
-            built = await asyncio.to_thread(files.build, design, data)
-            d.preview = await asyncio.to_thread(files.preview, built)
+            built = await asyncio.to_thread(self._files.build, design, data)
+            d.preview = await asyncio.to_thread(self._files.preview, built)
         except (NotFound, ValueError) as error:
             d.problem = str(error)
             raise
@@ -272,12 +304,12 @@ class Accounting:
         d = self._get(design_id)
         folder = body.get("folder") if isinstance(body, dict) and body.get("folder") else None
         if folder is None:
-            folder = files.folder_of(d.path) if d.path else self._project()
-        if not folder or not files.is_folder(folder):
+            folder = self._files.folder_of(d.path) if d.path else self._project()
+        if not folder or not self._files.is_folder(folder):
             raise DesignError('Save the design first (workbook.py goes beside it), or send {"folder"}.')
         tables = rules.tables_read(d.design)
-        text = exporter.workbook_py(d.design, files.runtime_text(), tables)
-        path = await asyncio.to_thread(files.write_text, files.join(folder, exporter.FILE), text)
+        text = exporter.workbook_py(d.design, self._files.runtime_text(), tables)
+        path = await asyncio.to_thread(self._files.write_text, self._files.join(folder, exporter.FILE), text)
         self.ws.audit.write(who, "workbook_export", path)
         return {
             "path": path,
@@ -294,13 +326,13 @@ class Accounting:
         folder = folder or self._project()
         if not isinstance(folder, str) or not folder.strip():
             raise DesignError('No project is open: send {"folder": the project\'s folder}.')
-        if not files.is_folder(folder):
+        if not self._files.is_folder(folder):
             raise NotFound(f"There is no folder {folder}.")
         return folder
 
     def _template_paths(self, folder: str, name: str) -> tuple[str, str]:
         name = binding_rules.check_name(name)
-        return files.join(folder, "templates", f"{name}.xlsx"), files.join(
+        return self._files.join(folder, "templates", f"{name}.xlsx"), self._files.join(
             folder, "templates", f"{name}.bind.json"
         )
 
@@ -313,28 +345,28 @@ class Accounting:
         source = body["source"]
         stem = source.replace("\\", "/").rsplit("/", 1)[-1].rsplit(".", 1)[0]
         xlsx, bind = self._template_paths(folder, body.get("name") or stem)
-        if files.exists(xlsx) and not body.get("overwrite"):
+        if self._files.exists(xlsx) and not body.get("overwrite"):
             raise Conflict(
                 f"There is a template {binding_rules.check_name(body.get('name') or stem)} already."
             )
         try:
-            await asyncio.to_thread(files.copy_template, source, xlsx)
+            await asyncio.to_thread(self._files.copy_template, source, xlsx)
         except FileNotFoundError as error:
             raise NotFound(str(error)) from None
         except Exception as error:
             if isinstance(error, ValueError):
                 raise
             raise DesignError(f"{stem} does not open as a workbook: {str(error)[:200]}") from None
-        if not files.exists(bind) or body.get("overwrite"):
+        if not self._files.exists(bind) or body.get("overwrite"):
             await asyncio.to_thread(
-                files.write_json, bind, {"format": 1, "template": f"{stem}.xlsx", "bindings": []}
+                self._files.write_json, bind, {"format": 1, "template": f"{stem}.xlsx", "bindings": []}
             )
         self.ws.audit.write(who, "template_import", xlsx)
         return await self.template({"folder": folder, "name": body.get("name") or stem})
 
     def templates(self, body: Any) -> dict[str, Any]:
         folder = self._folder(body)
-        return {"folder": folder, "templates": files.templates_in(folder)}
+        return {"folder": folder, "templates": self._files.templates_in(folder)}
 
     async def template(self, body: Any) -> dict[str, Any]:
         """A template: its preview (sheets, cells, merged, named ranges), its bindings, what they need."""
@@ -342,14 +374,14 @@ class Accounting:
             raise DesignError('Send {"name": the template\'s name}.')
         folder = self._folder(body)
         xlsx, bind = self._template_paths(folder, str(body["name"]))
-        if not files.exists(xlsx):
+        if not self._files.exists(xlsx):
             raise NotFound(f"There is no template {body['name']} in {folder}.")
         bindings = (
-            binding_rules.check_bindings(files.read_json(bind))
-            if files.exists(bind)
+            binding_rules.check_bindings(self._files.read_json(bind))
+            if self._files.exists(bind)
             else {"format": 1, "template": "", "bindings": []}
         )
-        shown = await asyncio.to_thread(files.preview, xlsx)
+        shown = await asyncio.to_thread(self._files.preview, xlsx)
         data, lines = binding_rules.columns_needed(bindings)
         return {
             "name": binding_rules.check_name(str(body["name"])),
@@ -368,11 +400,11 @@ class Accounting:
             )
         folder = self._folder(body)
         xlsx, bind = self._template_paths(folder, str(body["name"]))
-        if not files.exists(xlsx):
+        if not self._files.exists(xlsx):
             raise NotFound(f"There is no template {body['name']}.")
         current = (
-            binding_rules.check_bindings(files.read_json(bind))
-            if files.exists(bind)
+            binding_rules.check_bindings(self._files.read_json(bind))
+            if self._files.exists(bind)
             else {"format": 1, "template": "", "bindings": []}
         )
         if body.get("unbind"):
@@ -380,8 +412,8 @@ class Accounting:
         else:
             changed = binding_rules.bind(current, body.get("binding"))
             # The place is the template's: a named range or a cell on one of its sheets.
-            await asyncio.to_thread(_check_place, xlsx, changed["bindings"][-1]["place"])
-        await asyncio.to_thread(files.write_json, bind, changed)
+            await asyncio.to_thread(self._files.check_place, xlsx, changed["bindings"][-1]["place"])
+        await asyncio.to_thread(self._files.write_json, bind, changed)
         self.ws.audit.write(who, "template_bind", xlsx)
         return await self.template({"folder": folder, "name": body["name"]})
 
@@ -395,14 +427,16 @@ class Accounting:
         args = binding_rules.check_build(body)
         folder = self._folder(body)
         xlsx, bind = self._template_paths(folder, args["template"])
-        if not files.exists(xlsx):
+        if not self._files.exists(xlsx):
             raise NotFound(f"There is no template {args['template']}: import one first.")
         bindings = (
-            binding_rules.check_bindings(files.read_json(bind)) if files.exists(bind) else {"bindings": []}
+            binding_rules.check_bindings(self._files.read_json(bind))
+            if self._files.exists(bind)
+            else {"bindings": []}
         )
         if not bindings["bindings"]:
             raise DesignError(f"{args['template']} has no bindings yet: bind its places to the data first.")
-        args["out_folder"] = args.get("out_folder") or files.join(folder, "statements")
+        args["out_folder"] = args.get("out_folder") or self._files.join(folder, "statements")
         key = _key({k: v for k, v in args.items() if k != "overwrite"} | {"bindings": bindings["bindings"]})
         tables = await self.tables([args["data"], *([args["lines"]] if args.get("lines") else [])])
         if not dry_run:
@@ -424,7 +458,7 @@ class Accounting:
                 otherwise="nothing was built",
             )
         plan = await asyncio.to_thread(
-            files.build_statements,
+            self._files.build_statements,
             xlsx,
             tables[args["data"]],
             tables.get(args["lines"]) if args.get("lines") else None,
@@ -455,8 +489,8 @@ class Accounting:
         """What was built in a folder ({"folder"}: default the project's statements/): register.csv's
         rows; {"open": true} opens it as a grid named register."""
         body = body if isinstance(body, dict) else {}
-        target = body.get("out_folder") or files.join(self._folder(body), "statements")
-        header, rows = await asyncio.to_thread(files.read_register, target)
+        target = body.get("out_folder") or self._files.join(self._folder(body), "statements")
+        header, rows = await asyncio.to_thread(self._files.read_register, target)
         out: dict[str, Any] = {"folder": target, "columns": header, "rows": [list(r) for r in rows]}
         if body.get("open"):
             if not rows:
@@ -467,11 +501,3 @@ class Accounting:
             opened = await self._store_table("register", table, "file", True, who)
             out["grid"] = opened.get("grid") if isinstance(opened, dict) else None
         return out
-
-
-def _check_place(xlsx: str, place: str) -> None:
-    from openpyxl import load_workbook
-
-    from swissarmybench import sab_excel
-
-    sab_excel.place_of(load_workbook(xlsx), place)

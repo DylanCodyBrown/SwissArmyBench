@@ -15,6 +15,8 @@ import re
 from collections.abc import Mapping
 from typing import Any
 
+from swissarmybench.domain import project_paths
+
 MAX_MATCHES = 2000
 MADE_WHY = "made by the app: edit its source, or Edit by hand"
 
@@ -268,4 +270,4 @@ def library_file(path: Any, roots: tuple[str, ...]) -> bool:
         return False
     if _LIBRARY_PARTS & set(parts[:-1]):
         return True
-    return any(given.startswith(r.replace("\\", "/").rstrip("/") + "/") for r in roots if r)
+    return any(project_paths.inside(given, r) for r in roots if r)

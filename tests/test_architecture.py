@@ -242,24 +242,30 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
     assert long == {}
 
 
-# 2026-11-22 (adapter phase 3): adapter.py is one file by design (Plans/adapter.plan.md: an export copies
-# it as it is, standard library + duckdb + pyarrow only), so it is allowed more than the others.
-# 3,000 (2026-11-22, phase 4): the file writes' formats and options, a partitioned folder, a write's batch,
-# rows of any shape (arrow_of), the widened catalogs and the open tables' view as a source.
-# 3,500 (2026-11-22, phase 5): SQL Server's write (staged, MERGE, retried; about 420 lines) and Trino's (about
-# 160) moved in from the Write starters (the owner: "then every write is the adapter's").
-# 3,650 (2026-11-22, 1.2.0): observe(), each call's facts for the statistics (about 140 lines), and Trino's
-# replace as one CREATE OR REPLACE TABLE ... AS (Plans/stats.plan.md; phase 5's open decision).
-# 4,075 (2026-11-22, 1.4.0): Excel, a workbook as a source (its sheets and named tables, the one set of type
-# rules, a sheet's write; about 420 lines; Plans/excel.plan.md: "the Excel source lives in the adapter").
-# 4,100 (2026-11-22, 1.5.0): a plan's values keep their type through JSON (typed_value, untyped; about 40).
-# 4,250 (2026-11-22, 1.6.0): write_all, several writes all or none on every source (about 140 lines).
-# 4,275 (2026-11-22, 1.7.0): Connection.planned, a write's dry run through the connection (about 15).
-# 4,400 (2026-11-22, 1.8.0): a plan grouped by a date's period in every dialect (period_sql; about 125).
-# 4,425 (2026-11-22, 1.9.0): a filter's op contains, in any case, folded where it can be (about 20).
-# 4,450 (2026-11-22, 1.9.1): a period groups a date as it is, a text date cast first (about 10).
-# api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
-ONE_FILE = {"adapter.py": 4450, "api_adapter.py": 3000}
+# adapter.py and api_adapter.py are each one file by design (Plans/adapter.plan.md, Plans/api-adapter.plan.md;
+# design principle 12b: an export copies the file as it is), so they are allowed more than the others.
+#
+# How their size is held (the owner's decision, delegated and made 2026-11-22 after the craft review; recorded
+# in docs/ideas.md "Review fixes A"): adapter.py's ceiling had been raised by hand ten times in one day
+# (3,000 to 4,450), each feature costing a ceiling edit, so the number told nobody anything. Now:
+#   1. no function or method in either file is over ONE_FILE_FUNCTION lines (the test below): the file may
+#      grow by sections and sources, never by a function nobody can hold in the head;
+#   2. one generous ceiling a file. IT IS THE OWNER'S TO RAISE: reaching it means the one-file design itself
+#      is due a look (the file built from parts, a source moved out), not that the number wants another bump.
+ONE_FILE = {"adapter.py": 6000, "api_adapter.py": 3000}
+ONE_FILE_FUNCTION = 80
+
+
+@pytest.mark.parametrize("name", sorted(ONE_FILE))
+def test_no_function_of_a_one_file_module_is_over_80_lines(name: str) -> None:
+    tree = ast.parse((PACKAGE / "adapters" / name).read_text(encoding="utf-8"))
+    long = {
+        f"{node.name} (line {node.lineno})": (node.end_lineno or node.lineno) - node.lineno + 1
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef)
+        and (node.end_lineno or node.lineno) - node.lineno + 1 > ONE_FILE_FUNCTION
+    }
+    assert long == {}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

@@ -21,7 +21,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from typing import Any
-from urllib.parse import quote
 
 from swissarmybench_copilot.domain.lsp import change_between, notification
 
@@ -42,6 +41,14 @@ def _key(value: Any) -> str:
     if not text:
         raise DocumentError("A document needs its key.")
     return text
+
+
+_UNRESERVED = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-~/")
+
+
+def quote(text: str) -> str:
+    """Text percent-encoded for an address, as urllib.parse.quote does it (the domain imports no urllib)."""
+    return "".join(c if c in _UNRESERVED else "".join(f"%{b:02X}" for b in c.encode("utf-8")) for c in text)
 
 
 def _name(value: Any, default: str) -> str:

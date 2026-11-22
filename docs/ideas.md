@@ -8990,3 +8990,86 @@ Open:
   left in adapters/blades.py: they are not save rules. They could join the domain's the same way.
 - tests/test_server_caches.py still ages a secret's kept status through `store.secrets._saved_status`; a clock
   handed to BladeSecrets would make that public too.
+## Review fixes A, 2026-11-22 (decisions and open notes)
+
+The owner said "fix it all" for the craft review of 2026-11-22 (docs/reviews/craft-review-2026-11-22.md). This
+is part A (branch review-a): the tests that tie the hand copies together and what they showed, a layers test for
+every extension, one "inside the project" rule, the domain and adapter clean-ups of ranking item 13, and the
+architecture map. Other parts were done at the same time on review-b1, review-b2 and review-c.
+
+Decided (each a disagreement a new test showed, or a choice the task left open):
+
+- **A dialect's name in sqlglot is one table** (domain/catalogs.py: `sqlglot_name`, `dialect_word`, one alias
+  list). Three full tables and two inline ones had drifted. Decided: the lake kinds' SQL is DuckDB's
+  (`onelake`, `datalake`, `delta`: every table a view), which is what the formatter already said; their filters
+  stay structured, as (column, op, value) their own code applies, and that stays connection_tables' one small
+  exception. Every other name for a dialect now works everywhere (`pg` was known only to the editors' check,
+  `mariadb` only to catalogs and the sandbox, `azuresql`, `redshift`, `presto` only to catalogs). DAX,
+  SharePoint and `other` are listed as dialects sqlglot never reads, so a new dialect must be put in one list
+  or the other.
+- **The editors' syntax check now reads a SQL Server or Dataverse connection's query as T-SQL.** It was
+  asking sqlglot for a dialect called `sqlserver`, which sqlglot does not know, and the failure was swallowed:
+  nothing was ever said for those connections. A behaviour change, and the right one; if T-SQL that sqlglot
+  misreads shows as a false squiggle, the fix is in that one function.
+- **A workbook cell's value: the adapter follows the builder.** `adapter.sheet_value` wrote a numpy whole number
+  as text and pandas' missing time as itself; `sab_excel.cell_value` wrote the number and a blank. The builder's
+  answers are the ones a person expects in a sheet, so the adapter changed (1.9.2). Both now answer Python's own
+  float for a numpy float (a number that is not one reads `nan`, not `np.float64(nan)`). Both files stay
+  standalone; the rule stays written twice and tests/test_cell_value_copies.py holds the copies equal.
+- **A write's three vocabularies.** Kept all three, tied: a kind's `operations` are its Write starters' own
+  words; its `modes` are the adapter's, which is what sab.write and connections_write take; `OPERATION_MODES`
+  says which mode does each operation and `STARTER_ONLY` (optimize, vacuum) the ones no mode does. The table
+  followed the starters where they disagreed: Delta says overwrite and merge (the table said replace and upsert),
+  Dataverse and a SharePoint list also truncate, OneLake and Data Lake carry Delta's six. A file or a sheet takes
+  insert and truncate only (checked against the adapter's file source). A connection's `writes` answers both
+  lists and its words say both ("... with its Write starters; ... with sab.write"). Not done here: the
+  Connections page's detail (web/, review-c's) still draws `operations` and the starters' names, which is now
+  true to the starters; showing `modes` beside them is one line there.
+- **The layers test for extensions is the base's rule, whole.** Lifting Streamlit's test over all six found more
+  than the two breaches the review named: Git's services used pathlib and made a folder themselves, Power BI's
+  used pathlib for path text, Copilot's service read the process id and its domain imported urllib, Accounting's
+  service imported its files module and opened a workbook. All fixed rather than excused: a port method or a
+  small text function each. Accounting stays flat (the owner's layout for a small package) and the test declares
+  its files by layer; a new file there must be declared.
+- **Inside the project: letters are compared without case, always.** The domain cannot ask which system it runs
+  on, and half the copies folded while half did not, which was the disagreement. Windows' and macOS's disks keep
+  no case apart; on Linux two folders that differ only by case would be taken as one, which the app never makes.
+  Links are the caller's: a caller that has a port for the disk hands it in (`real`), asked only when the text
+  says no. The scaffold (os.path.realpath in the composition root), the outline and the made-file mark (the
+  archive's `real`) do; context.md and the API export compare text only, since both compare paths the app
+  itself built from the project's folder.
+- **client/write_sql.py's helpers that ran statements are gone** (each_batch, each_values, each_where, copy,
+  transaction, found, where_keys). This reverses the note of 0.0.32 ("the SQL helpers SqlWrite documents for a
+  user's own cells stay"): nothing called them, the starters may not, and the module's first page taught the old
+  way. A copy of an old starter that still calls one is answered in one line (GONE_METHODS), never an
+  AttributeError.
+- **adapter.py's size (the owner's decision, delegated).** The ceiling had been raised by hand ten times in a
+  day. Now: no function or method over 80 lines in adapter.py or api_adapter.py (the longest today are about 60;
+  api_adapter's `_call` was 89 and is split), and one generous ceiling a file (adapter.py 6,000, api_adapter.py
+  3,000) that is the owner's to raise. Reaching it means the one-file design is due a look, not another bump.
+- **api_adapter's call path** carries one private record of the request (`_Call`) and one of the answer (`_Got`)
+  instead of ten to twelve arguments through five functions. Internal; the contract and every envelope are the
+  same (1.0.2).
+- **errors.explain is a table** (`RULES`: a test and its words, tried in order). The same answers: the old and
+  new functions were compared over 19,575 made-up entries.
+- **blades.py's settings detection is domain/blade_settings.py**, re-exported from blades.py. `parse_code` and
+  `BladeCodeError` went with it, because both modules read code and blades.py imports the new one.
+- **The architecture map** counts modules, not classes, for Martin's couplings (the domain here is functions and
+  frozen records), draws `settings` and `bootstrap` as boxes of their own, and tells an import met while a
+  module loads from one made inside a function: the first kind of cycle is refused by a test (there is none),
+  the second is listed (three groups today).
+
+Open:
+
+- **The map must be made again when imports change** (`python tools/architecture_map.py`); the test refuses a
+  stale page. After the other review branches merge it will be stale once: run the tool on the merged tree.
+- **The three import rings through a function** (the package's face and its client modules; blades and
+  blade_suggestions; server/desktop and desktop_shell) are listed, not fixed.
+- **The adapter still tells a connection's kind by its client's methods** (the review's domain finding 3) and a
+  connection kind still has no one record (finding 1, refactor 6): not part of A.
+- **`arrange`, `_detect` and `script_export.plan`** (the review's finding 8) are as they were; only `explain` was
+  made a table.
+- **sab.write on an ODBC connection**: the capability table says all five modes, as for every SQL kind; its
+  starter still offers no upsert. Nobody has tried a merge through a generic ODBC driver.
+- The agent's `connections_show` description in cli/commands.py still says "'Writes: <the Write starters>'"; the
+  words are longer now. Left for the branch that is splitting that file.

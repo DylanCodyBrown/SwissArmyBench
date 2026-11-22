@@ -1,15 +1,18 @@
 """The SQL Write starters' helper: the database a connection is, and what its SQL needs (docs/ideas.md,
-"Writing data"). The statements themselves are written out in each starter's cell.
+"Writing data"). The write itself is the adapter's (adapters/adapter.py, Plans/adapter.plan.md): a starter
+checks the rows against the table here, then hands them over.
 
     w = SqlWrite("Warehouse", "sales.orders", "upsert", orders, dry_run=dry_run, engine="postgres")
-    w.check_columns()                       # every column of the rows is one of the table's
-    w.check_keys(["order_id"], unique=True)
-    upsert = f"INSERT INTO {w.table} ({w.columns}) VALUES ({w.marks()}) ON CONFLICT ..."
-    w.would(upsert, updated=w.found(["order_id"]))      # the dry run's plan (then it closes)
-    if not dry_run:
-        with w.transaction():               # one transaction: a failure rolls back, naming its batch
-            w.each_batch(upsert)
-        w.done(...)
+    return w.by_adapter(["order_id"])       # the rows checked against the table (its columns, its keys),
+                                            # then the dry run's plan (what the adapter would run and how
+                                            # many rows it finds) or the write, in one transaction where
+                                            # the database has them; its counts come back on w
+
+What is left here is what the adapter does not know about a starter's own words: the checks before a write
+(check_columns, check_keys, check_new for a create), a new table's column types from the rows' DuckDB types
+(column_types), each database's quoting (name, names, qualified) and what its refusals usually mean.
+The helpers that ran statements themselves (each_batch, each_values, each_where, copy, transaction, found,
+where_keys) went with the old starters: a copy that still calls one is answered in one line (GONE_METHODS).
 
 It knows each database by its driver: PostgreSQL (psycopg), SQLite (sqlite3: the connection opens
 read-only, so the same file is opened again to write), MySQL and MariaDB (pymysql, mariadb), SQL Server
@@ -31,14 +34,12 @@ import decimal
 import re
 import sqlite3
 import sys
-from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Self
 
-from swissarmybench.client.writes import Failed, Rows, Write, WriteError, each_batch, live, words
+from swissarmybench.client.writes import Rows, Write, WriteError, live, words
 
-COUNT_UP_TO: int = 200_000  # a dry run counts the rows the keys find up to this many keys
 _PLAIN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _DECIMAL = re.compile(r"DECIMAL\((\d+),\s*(\d+)\)")
 _ROOM = (50, 100, 255, 500, 1000, 2000, 4000)
@@ -551,27 +552,6 @@ class SqlWrite(Write):
         """The rows in the target table now."""
         return int(self.query(f"SELECT COUNT(*) FROM {self.table}")[0][0])
 
-    def found(self, keys: Sequence[str], size: int = 100) -> int | None:
-        """How many of the table's rows the rows' keys find (None: more keys than a dry run counts)."""
-        rows = self.need_rows()
-        if rows.distinct(keys) > COUNT_UP_TO:
-            return None
-        found = 0
-        for batch in rows.batches(keys, size, self._value, distinct=True):
-            where, values = self.where_keys(batch, keys)
-            found += int(self.query(f"SELECT COUNT(*) FROM {self.table} WHERE {where}", values)[0][0])
-        return found
-
-    def where_keys(self, batch: Sequence[Sequence[Any]], keys: Sequence[str]) -> tuple[str, list[Any]]:
-        """A batch of keys as one condition, (k1 = ? AND k2 = ?) OR (...), and its values in order."""
-        clauses, at = [], 0
-        for _ in batch:
-            clauses.append(
-                "(" + " AND ".join(f"{self.name(k)} = {self.mark(at + i)}" for i, k in enumerate(keys)) + ")"
-            )
-            at += len(keys)
-        return " OR ".join(clauses), [v for row in batch for v in row]
-
     # ===== the plan, then the write =====
 
     def would(self, *statements: str, **counts: int | None) -> None:
@@ -581,73 +561,10 @@ class SqlWrite(Write):
             self._rollback()
             self.conn.close()
 
-    def each_batch(self, sql: str, columns: Sequence[str] | None = None, distinct: bool = False) -> int:
-        """`sql` run for every row (or distinct row of `columns`), a batch of rows at a time."""
-        rows = self.need_rows()
-        names = list(columns or rows.names)
-        batches = rows.batches(names, self.batch_size, self._value, distinct)
-        return each_batch(batches, lambda batch: self.cursor.executemany(sql, batch))
-
-    def each_values(self, head: str, tail: str = "", columns: Sequence[str] | None = None) -> int:
-        """`head` + VALUES (...), (...) + `tail`: a batch of rows in one statement (Trino's way)."""
-        rows = self.need_rows()
-        names = list(columns or rows.names)
-
-        def run(batch: list[Any]) -> None:
-            groups = [f"({self.marks(len(names), i * len(names))})" for i in range(len(batch))]
-            self.execute(head + ", ".join(groups) + tail, [v for row in batch for v in row])
-
-        return each_batch(rows.batches(names, self.batch_size, self._value), run)
-
-    def each_where(self, head: str, keys: Sequence[str], size: int = 100) -> int:
-        """`head` + (k1 = ? AND ...) OR (...): the distinct keys, a batch at a time (a delete)."""
-        batches = self.need_rows().batches(keys, size, self._value, distinct=True)
-
-        def run(batch: list[Any]) -> None:
-            where, values = self.where_keys(batch, keys)
-            self.execute(head + where, values)
-
-        return each_batch(batches, run)
-
-    def copy(self, sql: str) -> int:
-        """PostgreSQL's COPY ... FROM STDIN: each batch of rows streamed in (psycopg)."""
-        rows = self.need_rows()
-
-        def run(batch: list[Any]) -> None:
-            with self.cursor.copy(sql) as copy:
-                for row in batch:
-                    copy.write_row(row)
-
-        return each_batch(rows.batches(rows.names, self.batch_size, self._value), run)
-
     def on_failure(self, sql: str) -> None:
         """A statement that undoes what a database commits by itself (MySQL's and Oracle's CREATE TABLE),
         run when the write fails."""
         self._undo.append(sql)
-
-    @contextmanager
-    def transaction(self) -> Iterator[SqlWrite]:
-        """The write in one transaction: committed when all of it went in; on a failure rolled back,
-        and a WriteError says which batch (Trino: which batches were written before it)."""
-        if isinstance(self.conn, sqlite3.Connection):
-            self.conn.execute("BEGIN")
-        try:
-            yield self
-        except Failed as failed:
-            self._failed(f"{failed.where()} failed: {self._said(failed.error)}", failed.before)
-        except WriteError:
-            self._failed("", 0)
-            raise
-        except Exception as error:
-            self._failed(self._said(error), 0)
-        else:
-            if self.engine.transactional:
-                self.conn.commit()
-        finally:
-            try:
-                self.conn.close()
-            except Exception:  # noqa: S110 (closing after a failure: the failure is what is said)
-                pass
 
     def _failed(self, why: str, before: int) -> None:
         self._rollback()
@@ -691,6 +608,14 @@ class SqlWrite(Write):
         said = words(error)
         hint = next((h for found, h in self.engine.hints if found.lower() in str(error).lower()), "")
         return f"{said} {hint}".strip()
+
+    def __getattr__(self, name: str) -> Any:
+        if name in GONE_METHODS:
+            raise WriteError(
+                f"w.{name} went: every SQL write is the adapter's now. Copy the Write starter as your own "
+                "again, or end your cell with return w.by_adapter(keys)."
+            )
+        raise AttributeError(name)
 
     # ===== the write, by the adapter =====
 
@@ -817,7 +742,8 @@ class SqlWrite(Write):
         return [s for s in (create, f"DELETE FROM {self.table}" if mode == "truncate" else "", insert) if s]
 
 
-# A starter's mode -> the adapter's (create: the table made, then an insert).
+# A starter's mode -> the adapter's (create: the table made, then an insert); the same words as
+# domain/write_capability.py's OPERATION_MODES (this module is standard library only: a test holds them).
 ADAPTER_MODES: dict[str, str] = {
     "append": "insert",
     "create": "insert",
@@ -971,21 +897,26 @@ class SqlServerWrite(SqlWrite):
     def __getattr__(self, name: str) -> Any:
         """A copy of the SQL Server starter made before the adapter wrote it (its own in_transaction, stage,
         merge...): refused in one line that says what to do."""
-        if name in GONE_METHODS:
+        if name in SERVER_GONE:
             raise WriteError(
                 f"w.{name} went in 0.0.32: SQL Server's write is the adapter's now. Copy the Write to SQL "
                 "Server starter as your own again, or end your cell with return w.by_adapter(keys)."
             )
-        raise AttributeError(name)
+        return super().__getattr__(name)
 
 
 # What the SQL Server starter called before the adapter wrote for it (a copy made then names them).
-GONE_METHODS: frozenset[str] = frozenset(
+SERVER_GONE: frozenset[str] = frozenset(
     {
         "in_transaction", "insert", "insert_into", "stage", "matching", "merge", "merge_sql",
         "update_then_insert_sql", "delete_staged", "joined", "identity", "input_sizes", "rows_a_batch",
     }
 )  # fmt: skip
+# And what every SQL starter called to run its own statements (gone 2026-11-22, the craft review: nothing
+# called them once the writes were the adapter's).
+GONE_METHODS: frozenset[str] = SERVER_GONE | frozenset(
+    {"each_batch", "each_values", "each_where", "copy", "transaction", "found", "where_keys"}
+)
 
 
 __all__ = ["ENGINES", "Rows", "SqlServerWrite", "SqlWrite", "WriteError", "detect"]

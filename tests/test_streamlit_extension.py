@@ -25,7 +25,6 @@ from swissarmybench.domain.updates import install_command
 from swissarmybench.services.agent import Approvals
 from swissarmybench.services.extensions import Extensions
 from tests.conftest import AGENT, AUTH, make_client
-from tests.test_architecture import DOMAIN_FORBIDDEN, SERVICES_FORBIDDEN, _imports
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "extensions" / "streamlit" / "src" / "swissarmybench_streamlit"
@@ -87,41 +86,8 @@ def test_its_starters_moved_with_it() -> None:
     ]
 
 
-def test_the_package_keeps_the_layers() -> None:
-    """Cosmic Python inside the package, as in the base: its domain does no I/O and knows no service, its
-    services touch nothing themselves, its adapters do not know its doors; nothing deeper than a folder."""
-    assert all(len(p.relative_to(PACKAGE).parts) <= 2 for p in PACKAGE.rglob("*.py"))
-    for path in (PACKAGE / "domain").glob("*.py"):
-        found = _imports(path)
-        assert not {m for m in found if m.split(".")[0] in DOMAIN_FORBIDDEN}, path.name
-        assert not [
-            m
-            for m in found
-            if m.startswith(("swissarmybench.", "swissarmybench_streamlit."))
-            and m.split(".")[1] not in ("domain",)
-        ], path.name
-    for path in (PACKAGE / "services").glob("*.py"):
-        found = _imports(path)
-        assert not {m for m in found if m.split(".")[0] in SERVICES_FORBIDDEN}, path.name
-        assert not [
-            m
-            for m in found
-            if m.split(".")[0].startswith("swissarmybench")
-            and m.split(".")[1] in ("adapters", "server", "cli")
-        ], path.name
-    for path in (PACKAGE / "adapters").glob("*.py"):
-        assert not [
-            m
-            for m in _imports(path)
-            if m.split(".")[0].startswith("swissarmybench") and m.split(".")[1] == "server"
-        ], path.name
-    # And the base knows none of it: no module of the base imports the package.
-    base = ROOT / "src" / "swissarmybench"
-    assert not [
-        str(p.relative_to(base))
-        for p in base.rglob("*.py")
-        if any(m.startswith("swissarmybench_streamlit") for m in _imports(p))
-    ]
+# Its layers (domain, services, adapters, the base knowing none of it) are held with every other extension's:
+# tests/test_extension_layers.py.
 
 
 def test_a_streamlit_project_is_its_scaffold(client: TestClient, tmp_path: Path) -> None:

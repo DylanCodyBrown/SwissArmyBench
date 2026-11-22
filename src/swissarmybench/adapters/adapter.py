@@ -40,7 +40,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.9.1 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.9.2 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -91,6 +91,9 @@ Version 1.9.1 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   1.9.1    a period in DuckDB groups a date column as it is (no cast first: 59 ms, not 96, on 3.3M rows),
            a column held as text read as a date and time first (plan_sql's texts: DuckDB's own table's
            VARCHAR columns, a stream's string ones)
+  1.9.2    sheet_value agrees with sab_excel.cell_value on every value (tests/test_cell_value_copies.py holds
+           the two copies equal): numpy's scalars as their Python values (a numpy whole number was written
+           as text), pandas' missing time a blank cell, a number that is not one as its plain word (nan)
 """
 
 from __future__ import annotations
@@ -114,7 +117,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.9.1"  # the docstring's change list says what each version added
+VERSION = "1.9.2"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null", "contains")
@@ -3268,18 +3271,24 @@ def sheet_value(value: Any) -> tuple[Any, bool]:
     if isinstance(value, int):
         return (value, False) if abs(value) < 10**EXCEL_DIGITS else (str(value), True)
     if isinstance(value, float):
-        return (value, False) if value == value and abs(value) != float("inf") else (repr(value), True)
+        number = float(value)  # numpy's float64 as Python's own
+        return (number, False) if number == number and abs(number) != float("inf") else (repr(number), True)
     if isinstance(value, str):
         return _sheet_text(value), True
     if hasattr(value, "as_tuple"):  # a decimal: a number while Excel keeps its digits
         fits = value.is_finite() and len(value.as_tuple().digits) <= EXCEL_DIGITS
         return (float(value), False) if fits else (str(value), True)
     if hasattr(value, "year"):  # a date, or a date and time
+        if value != value:  # pandas' missing time: a blank cell
+            return None, False
         zoned = getattr(value, "tzinfo", None) is not None
         early = (value.year, value.month, value.day) < EXCEL_FIRST_DAY
         return (value.isoformat(), True) if zoned or early else (value, False)
     if hasattr(value, "hour") or hasattr(value, "total_seconds"):  # a time of day, a duration
         return value, False
+    if hasattr(value, "item") and not isinstance(value, bytes | dict | list | tuple):  # numpy's scalars
+        with contextlib.suppress(TypeError, ValueError):
+            return sheet_value(value.item())
     return _sheet_text(str(_as_text(value))), True
 
 

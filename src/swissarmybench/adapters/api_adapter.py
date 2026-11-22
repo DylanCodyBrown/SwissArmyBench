@@ -40,12 +40,15 @@ It reads top to bottom in the order a call runs:
 The standard library only (adapter is imported by table() alone): an export copies this file as it is. Its
 contract only grows (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.0.1 (2026-11-22). What each version added (Plans/api-adapter.plan.md):
+Version 1.0.2 (2026-11-22). What each version added (Plans/api-adapter.plan.md):
   1.0.0    actions from a specification; inputs checked; http, from_client, retries; detection of format,
            envelope, paging and types; shapes, drift, renames offered; run and its envelope; keep, learn;
            discover and the mapping; table; each call's facts and observe() (the statistics' seam)
   1.0.1    an integer input given as a whole float (3.0, as a form's number box gives it) is taken as 3;
            one with a fraction (3.5) is refused as before
+  1.0.2    inside only, nothing a caller sees: run's call path carries one private record of the request
+           (_Call) and one of the answer (_Got) instead of ten to twelve arguments through five functions;
+           the paging loop is a function of its own (_paged). The same envelopes, byte for byte
 """
 
 from __future__ import annotations
@@ -68,7 +71,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from xml.etree import ElementTree
 
-VERSION = "1.0.1"  # the docstring's change list says what each version added
+VERSION = "1.0.2"  # the docstring's change list says what each version added
 
 KINDS = ("records", "record", "value", "file", "empty", "text")
 READS = ("GET", "HEAD", "OPTIONS")  # the methods that change nothing; every other method writes
@@ -1536,7 +1539,7 @@ def run(
         return sleep(seconds)
 
     answer = _call(
-        action, inputs, api, known, renames, required, max_pages, max_records, retries, paused, tally
+        _Call(action, inputs, api, known, renames, required, max_pages, max_records, retries, paused, tally)
     )
     answer["facts"] = _facts(answer, tally, who)
     for hook in list(_OBSERVERS):
@@ -1584,146 +1587,135 @@ def _facts(answer: Mapping[str, Any], tally: Mapping[str, Any], who: str) -> dic
     }
 
 
-def _call(
-    action: Action,
-    inputs: Mapping[str, Any] | None,
-    api: Api | str | None,
-    known: Mapping[str, Any] | None,
-    renames: Mapping[str, str] | None,
-    required: Sequence[str],
-    max_pages: int,
-    max_records: int,
-    retries: int,
-    sleep: Callable[[float], Any],
-    tally: dict[str, Any],
-) -> dict[str, Any]:
-    name = f"{action.method} {action.path}"
+@dataclass
+class _Call:
+    """One run as it travels down the call path (internal: what run() was asked, in one record, so the
+    functions below take it instead of a dozen arguments; never part of the contract)."""
+
+    action: Action
+    inputs: Mapping[str, Any] | None
+    api: Api | str | None
+    known: Mapping[str, Any] | None
+    renames: Mapping[str, str] | None
+    required: Sequence[str]
+    max_pages: int
+    max_records: int
+    retries: int
+    sleep: Callable[[float], Any]
+    tally: dict[str, Any]
+    parts: dict[str, Any] = field(default_factory=dict)  # the inputs once checked, by where they go
+
+
+@dataclass
+class _Got:
+    """What the API answered, as the envelope is made from it (internal): the last status, the first
+    page's format and raw answer, where the records were found, the paging's account, and the answer's
+    kind with its records (every page's) or its one value."""
+
+    status: int = 0
+    fmt: str = "empty"
+    raw: Any = None
+    at: str = "$"
+    paging: dict[str, Any] | None = None
+    kind: str = "empty"
+    records: list[Any] = field(default_factory=list)
+    value: Any = None
+    error: dict[str, Any] | None = None  # the first page refused: the call's refusal
+
+
+def _call(call: _Call) -> dict[str, Any]:
+    action = call.action
     try:
-        parts = checked(action, inputs)
+        call.parts = checked(action, call.inputs)
     except ActionError as error:
-        return _envelope(action, 0, "empty", error=refusal(str(error), error.where or action.name))
+        return _envelope(call, _Got(), "empty", error=refusal(str(error), error.where or action.name))
     try:
-        target = _api_of(api, action)
+        target = _api_of(call.api, action)
     except ActionError as error:
-        return _envelope(action, 0, "empty", error=refusal(str(error), "api"))
-    request = _request(action, target.base_url, parts)
-    pager = Pager(action, target.base_url, parts)
-    pages, records, raw, first_fmt, value, kind, at = 0, [], None, "empty", None, "empty", "$"
-    response = Response(0)
-    retried, stopped, more = 0, "", False
+        call.parts = {}  # as before: a call with no API says nothing of what it would have sent
+        return _envelope(call, _Got(), "empty", error=refusal(str(error), "api"))
+    got = _paged(call, target)
+    if got.error is not None:
+        return _envelope(call, got, "empty", error=got.error)
+    if got.kind == "records":
+        return _records_envelope(call, got)
+    data = got.value
+    if got.kind == "record":
+        data = dict(envelope(got.value)[2])
+    return _single_envelope(call, got, data)
+
+
+def _paged(call: _Call, target: Api) -> _Got:
+    """The request sent, and every page after it while the answer is records and the limits allow."""
+    action, tally = call.action, call.tally
+    request = _request(action, target.base_url, call.parts)
+    pager = Pager(action, target.base_url, call.parts)
+    got = _Got()
+    pages, retried, stopped, more = 0, 0, "", False
     seen: set[str] = set()
     url: str | None = request.url
     while url:
         response, tries = sent(
-            target, Request(request.method, url, request.headers, request.body), retries, sleep
+            target, Request(request.method, url, request.headers, request.body), call.retries, call.sleep
         )
         retried += tries
         if tally["first"] is None:
             tally["first"] = round((time.perf_counter() - tally["started"]) * 1000, 1)
         tally["bytes"] += len(response.body)
-        fmt, value = detected(response)
+        fmt, got.value = detected(response)
+        got.status = response.status
         if pages == 0:
-            first_fmt, raw = (
-                fmt,
-                {"status": response.status, "headers": _shown_headers(response.headers), "body": value},
-            )
+            got.fmt = fmt
+            got.raw = {
+                "status": response.status,
+                "headers": _shown_headers(response.headers),
+                "body": got.value,
+            }
         if not 200 <= response.status < 300:
             if pages == 0:
-                return _envelope(
-                    action,
-                    response.status,
-                    "empty",
-                    raw=raw,
-                    fmt=fmt,
-                    error=_failed(action, response, fmt, value),
-                    parts=parts,
-                )
+                got.error = _failed(action, response, fmt, got.value)
+                return got
             stopped, more = f"page {pages + 1} answered {response.status}", True
             break
         pages += 1
-        page_kind, page_at, data = (fmt, "$", value) if fmt in ("file", "empty") else envelope(value)
+        page_kind, page_at, data = (fmt, "$", got.value) if fmt in ("file", "empty") else envelope(got.value)
         if pages == 1:
-            kind, at = page_kind, page_at
-        if page_kind != "records" or kind != "records":
+            got.kind, got.at = page_kind, page_at
+        if page_kind != "records" or got.kind != "records":
             break
         mark = hashlib.sha256(json.dumps(data, default=str, sort_keys=True).encode()).hexdigest()
         if mark in seen:
             stopped = "the same page came back"
             break
         seen.add(mark)
-        records.extend(data)
-        if len(records) >= max_records:
-            records, more, stopped = (
-                records[:max_records],
-                True,
-                f"the call's limit of {max_records:,} records",
-            )
+        got.records.extend(data)
+        if len(got.records) >= call.max_records:
+            got.records, more = got.records[: call.max_records], True
+            stopped = f"the call's limit of {call.max_records:,} records"
             break
-        url = pager.next(value, response.headers, len(data))
-        if url and pages >= max_pages:
-            more, stopped, url = True, f"the call's limit of {max_pages} pages", None
-    paging = {"pages": pages, "by": pager.by, "more": more, "stopped": stopped, "retried": retried}
-    if kind == "records":
-        return _records_envelope(
-            action, response.status, records, at, first_fmt, raw, paging, known, renames, required, parts
-        )
-    data = value if kind != "records" else None
-    if kind == "record":
-        data = dict(envelope(value)[2])
-    return _single_envelope(
-        action, response.status, kind, data, at, first_fmt, raw, paging, known, required, parts, name
-    )
+        url = pager.next(got.value, response.headers, len(data))
+        if url and pages >= call.max_pages:
+            more, stopped, url = True, f"the call's limit of {call.max_pages} pages", None
+    got.paging = {"pages": pages, "by": pager.by, "more": more, "stopped": stopped, "retried": retried}
+    return got
 
 
-def _records_envelope(
-    action: Action,
-    status: int,
-    records: list[Any],
-    at: str,
-    fmt: str,
-    raw: Any,
-    paging: dict[str, Any],
-    known: Mapping[str, Any] | None,
-    renames: Mapping[str, str] | None,
-    required: Sequence[str],
-    parts: Mapping[str, Any],
-) -> dict[str, Any]:
-    rows = [flat(r) for r in records]
-    shape = shape_of("records", records, at, fmt, status)
-    rows, marks = adapted(rows, known, renames)
+def _records_envelope(call: _Call, got: _Got) -> dict[str, Any]:
+    rows = [flat(r) for r in got.records]
+    shape = shape_of("records", got.records, got.at, got.fmt, got.status)
+    rows, marks = adapted(rows, call.known, call.renames)
     return _envelope(
-        action,
-        status,
-        "records",
-        records=rows,
-        raw=raw,
-        fmt=fmt,
-        paging=paging,
-        shape=_with_drift(shape, known, marks),
-        required=required,
-        parts=parts,
+        call, got, "records", records=rows, shape=_with_drift(shape, call.known, marks), check=True
     )
 
 
-def _single_envelope(
-    action: Action,
-    status: int,
-    kind: str,
-    data: Any,
-    at: str,
-    fmt: str,
-    raw: Any,
-    paging: dict[str, Any],
-    known: Mapping[str, Any] | None,
-    required: Sequence[str],
-    parts: Mapping[str, Any],
-    name: str,
-) -> dict[str, Any]:
-    shape = shape_of(kind, data, at, fmt, status)
+def _single_envelope(call: _Call, got: _Got, data: Any) -> dict[str, Any]:
+    kind = got.kind
+    shape = shape_of(kind, data, got.at, got.fmt, got.status)
     more: dict[str, Any] = {}
     marks: dict[str, str] = {}
     if kind == "record":
-        rows, marks = adapted([flat(data)], known)
+        rows, marks = adapted([flat(data)], call.known)
         more["record"] = data
         more["flat"] = rows[0]
     elif kind == "file":
@@ -1732,18 +1724,7 @@ def _single_envelope(
         more["text"] = data
     elif kind == "value":
         more["value"] = data
-    return _envelope(
-        action,
-        status,
-        kind,
-        raw=raw,
-        fmt=fmt,
-        paging=paging,
-        shape=_with_drift(shape, known, marks),
-        required=required,
-        parts=parts,
-        **more,
-    )
+    return _envelope(call, got, kind, shape=_with_drift(shape, call.known, marks), check=True, **more)
 
 
 def _with_drift(
@@ -1755,19 +1736,19 @@ def _with_drift(
 
 
 def _envelope(
-    action: Action,
-    status: int,
+    call: _Call,
+    got: _Got,
     kind: str,
     *,
-    raw: Any = None,
-    fmt: str = "empty",
-    paging: Mapping[str, Any] | None = None,
     shape: Mapping[str, Any] | None = None,
     error: Mapping[str, Any] | None = None,
-    required: Sequence[str] = (),
-    parts: Mapping[str, Any] | None = None,
+    check: bool = False,
     **answer: Any,
 ) -> dict[str, Any]:
+    """The one envelope every call answers with. `check`: an answer that came (not a refusal) is held to
+    the call's required paths."""
+    action, status, fmt = call.action, got.status, got.fmt
+    required = call.required if check else ()
     shape = dict(
         shape
         or shape_of(kind, None, "$", fmt, status) | {"drift": compare(None, {}), "marks": {}, "words": ""}
@@ -1790,10 +1771,10 @@ def _envelope(
         "api": action.api,
         "kind": kind,
         "format": fmt,
-        "paging": dict(paging or {"pages": 0, "by": "", "more": False, "stopped": "", "retried": 0}),
+        "paging": dict(got.paging or {"pages": 0, "by": "", "more": False, "stopped": "", "retried": 0}),
         "shape": shape,
-        "sent": sent_shape(parts or {}),
-        "raw": raw,
+        "sent": sent_shape(call.parts),
+        "raw": got.raw,
         "error": dict(error) if error else None,
     }
     return out | answer

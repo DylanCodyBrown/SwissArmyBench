@@ -396,3 +396,9 @@ def build_statements(
 
 def read_register(folder: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     return sab_excel.read_register(folder)
+
+
+def check_place(xlsx: str, place: str) -> None:
+    """A binding's place is the template's own: a named range or a cell on one of its sheets (else
+    sab_excel says which is wrong)."""
+    sab_excel.place_of(load_workbook(xlsx), place)

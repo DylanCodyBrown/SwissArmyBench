@@ -289,7 +289,7 @@ def test_a_whole_float_is_an_integer_input_and_a_fraction_is_refused() -> None:
     for bad in (3.5, float("nan"), float("inf"), True):
         with pytest.raises(aa.ActionError, match="on_hand is a whole number"):
             aa.checked(counted, {"item": 7, "on_hand": bad})
-    assert aa.VERSION == "1.0.1"
+    assert tuple(int(n) for n in aa.VERSION.split(".")) >= (1, 0, 1)
 
 
 def test_inputs_are_checked_first_naming_the_one() -> None:
