@@ -271,6 +271,18 @@ does.
   Parquet beside the export (Git-ignored, like `.sab/data/`); without the tick no row is ever written.
 - **When to build:** now, in parallel with other work; 0.0.32 is not released yet.
 
+## Tables and grids: the words (the owner, 2026-11-22)
+
+"Grids are just links to the existing tables. Grids is just the visualization layer, not duplicate data. Tables can
+be created in app." So, everywhere in this plan and the code:
+- **A table** is the data: a named Arrow table in the project's environment, made by a read through the adapter, by
+  code in the session, or in the app (paste, a query, Save as table from a grid's steps, Add table). It is the one
+  copy; the read it came from is thrown away.
+- **A grid** is a view of a table: the page that shows it, with its steps applied as a view (DuckDB SQL over the
+  table), never a copy. Closing a grid leaves the table; several grids may show one table.
+- Read "grid(name)" and "grids, the only data kept" above as **table(name)** and **tables, the only data kept**; the
+  adapter's call is `table(name)` (refresh(name) re-reads a table from its source).
+
 ## The owner's answers after phase 1 (2026-11-21)
 - **A fifth write mode, `truncate`** (the owner: "Truncate is better terminology. Truncate and insert" / "Sometimes
   you just wanna clear a table. So truncate is a much more flexible command"): with no rows it clears the table (or
