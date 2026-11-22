@@ -84,7 +84,7 @@ def test_magics_are_left_and_non_ascii_text_keeps_its_place() -> None:
 
 def test_a_sql_cells_line_and_a_dax_cells_line() -> None:
     assert swap.repoint_line("%%sql EDP", "EDP", "Trino") == "%%sql Trino"
-    assert swap.repoint_line("%%sql EDP -> orders", "EDP", "Trino") == "%%sql 'Trino -> orders'"
+    assert swap.repoint_line("%%sql EDP -> orders", "EDP", "Trino") == "%%sql Trino -> orders"
     assert swap.repoint_line("%%sql Warehouse", "EDP", "Trino") == "%%sql Warehouse"
     assert (
         swap.repoint_line("%%dax 'Old BI/Sales model'", "Old BI", "Power BI")
