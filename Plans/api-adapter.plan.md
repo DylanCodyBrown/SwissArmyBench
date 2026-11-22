@@ -1,6 +1,6 @@
 # The API adapter: any payload in, one shape out (the owner, 2026-11-22)
 
-Status: proposed; not built. Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
+Status: decided; not built. Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
 
 > "How do we handle API actions. They don't have to go through the adapter but I feel like they need their own to
 > standardize outputs. Kinda like how Power Automate online standardizes" / "api_adapter.py and we should think more
@@ -66,7 +66,7 @@ last **shape fingerprint** (paths and types). On every answer:
 - The agent: one grouped tool, actions(action): list, describe, run (anything that changes something outside the app
   waits for the user's Allow), shape (the fingerprint and drift).
 
-## Open questions for the owner
-- Should the local sandbox API's own endpoints be actions too (a widget calls your API exactly as an outside one)?
-  Recommended: yes.
-- Is a field the user marks "required" the only thing that may fail a call on drift? Recommended: yes.
+## The owner's answers (2026-11-22)
+- **Your own local sandbox API's endpoints are actions too:** every API, yours or outside, goes through api_adapter;
+  the canvas has one action picker and one envelope.
+- **Only a field marked required may fail a call on drift;** everything else adapts with a note.
