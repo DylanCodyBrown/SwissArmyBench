@@ -146,6 +146,59 @@ def _hints(fn: Callable[..., Any]) -> dict[str, Any]:
         return dict(getattr(fn, "__annotations__", {}))
 
 
+def _marked(fn: Callable[..., Any]) -> dict[str, Any]:
+    """The function's annotations with their extras (Annotated[pa.Table, Order] kept whole)."""
+    try:
+        return typing.get_type_hints(fn, include_extras=True)
+    except Exception:
+        return dict(getattr(fn, "__annotations__", {}))
+
+
+def _rows_model(kind: Any) -> Any:
+    """The model of a body the adapter makes Arrow (`Annotated[pa.Table, Order]`: Order); None for another."""
+    if typing.get_origin(kind) is not typing.Annotated:
+        return None
+    args = typing.get_args(kind)
+    table = args[0]
+    if getattr(table, "__name__", "") == "Table" and str(getattr(table, "__module__", "")).startswith(
+        "pyarrow"
+    ):
+        return args[1] if len(args) > 1 else None
+    return None
+
+
+_DUCK = {str: "VARCHAR", int: "BIGINT", float: "DOUBLE", bool: "BOOLEAN", datetime.date: "DATE",
+         datetime.datetime: "TIMESTAMP", decimal.Decimal: "DOUBLE"}  # fmt: skip
+
+
+def _adapter() -> Any:
+    """sab_adapter, beside this file (the app's host gives it; an export copies it); None without it."""
+    import importlib
+
+    try:
+        return importlib.import_module("sab_adapter")
+    except ImportError:
+        return None
+
+
+def _arrow_body(value: Any, model: Any, at: str) -> Any:
+    """A body of records checked against `model` (a 422 naming the field), then made an Arrow table by the
+    adapter's from_json with the model's types (strict: a value not of its type is refused)."""
+    rows = checked(value, list[model], at)
+    adapter = _adapter()
+    if adapter is None:
+        raise ApiError(500, "A table body needs sab_adapter.py beside sab_api.py.")
+    fields, _ = _model_fields(model)
+    columns = {}
+    for name, kind in fields.items():
+        inner = [a for a in typing.get_args(kind) if a is not type(None)] or [kind]
+        columns[name] = _DUCK.get(inner[0], "VARCHAR")
+    try:
+        return adapter.from_json([plain(rows)], columns, strict=True).read_all()
+    except ValueError as error:
+        raise ApiError(422, f"{at}: {error}") from None
+
+
 def _is_body(kind: Any) -> bool:
     origin = typing.get_origin(kind)
     if origin is typing.Union or str(origin) == "types.UnionType":
@@ -365,6 +418,9 @@ def describe() -> list[dict[str, Any]]:
         body: dict[str, str] = {}
         for p in inspect.signature(e.fn).parameters.values():
             kind = hints.get(p.name, p.annotation)
+            model = _rows_model(_marked(e.fn).get(p.name))
+            if model is not None:  # a table body: sent as a list of its model
+                kind = list[model]  # type: ignore[valid-type]
             if p.name in e.names:
                 params.append({"name": p.name, "in": "path"})
             elif _is_body(kind):
@@ -414,11 +470,19 @@ def find(method: str, path: str) -> tuple[Endpoint | None, dict[str, str], bool]
 def call(e: Endpoint, path_values: Mapping[str, str], query: Mapping[str, Any], body: Any) -> Any:
     """The endpoint's function called with its parameters from the path, the query and the body."""
     hints = _hints(e.fn)
+    marked = _marked(e.fn)
     given: dict[str, Any] = {}
     for p in inspect.signature(e.fn).parameters.values():
         kind = hints.get(p.name, p.annotation)
+        model = _rows_model(marked.get(p.name))
         if p.name in path_values:
             given[p.name] = _convert(path_values[p.name], kind, p.name)
+        elif model is not None:
+            if body is None:
+                if p.default is inspect.Parameter.empty:
+                    raise ApiError(422, f"{p.name} is the request's JSON body: send one.")
+                continue
+            given[p.name] = _arrow_body(body, model, p.name)
         elif _is_body(kind):
             if body is None:
                 if p.default is inspect.Parameter.empty:
@@ -432,10 +496,29 @@ def call(e: Endpoint, path_values: Mapping[str, str], query: Mapping[str, Any], 
     return e.fn(**given)
 
 
+ARROW = "application/vnd.apache.arrow.stream"
+
+
+def answered(status: int, result: Any, accept: str = "") -> tuple[int, dict[str, str], bytes]:
+    """An endpoint's result as its answer: Arrow (a table or a reader) through the adapter, as JSON records
+    or, when the caller accepts it (a widget), an Arrow IPC stream; anything else as JSON (plain)."""
+    adapter = _adapter()
+    if adapter is not None and adapter.is_arrow(result):
+        if ARROW in accept:
+            return status, {"Content-Type": ARROW}, adapter.to_ipc(result)
+        return status, {"Content-Type": "application/json"}, b"".join(adapter.to_json(result))
+    return status, {"Content-Type": "application/json"}, json.dumps(plain(result)).encode()
+
+
 def handle(
-    method: str, path: str, query: Mapping[str, Any] | None = None, body: bytes | str | None = None
+    method: str,
+    path: str,
+    query: Mapping[str, Any] | None = None,
+    body: bytes | str | None = None,
+    accept: str = "",
 ) -> tuple[int, dict[str, str], bytes]:
-    """One request through the API: its status, headers and JSON body. A refusal is {"error": words}."""
+    """One request through the API: its status, headers and JSON body (an Arrow table's rows through the
+    adapter; an Arrow IPC stream when `accept` asks for one). A refusal is {"error": words}."""
     headers = {"Content-Type": "application/json"}
     e, values, other = find(method, path)
     if e is None:
@@ -461,4 +544,4 @@ def handle(
         return 500, headers, json.dumps({"error": f"{type(error).__name__}: {error}"}).encode()
     if result is None and e.method == "DELETE":
         return 204, {}, b""
-    return e.status, headers, json.dumps(plain(result)).encode()
+    return answered(e.status, result, accept)

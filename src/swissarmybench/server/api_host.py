@@ -112,9 +112,11 @@ def build(key: str, log: collections.deque[dict[str, Any]], api_file: Path | Non
 
     sab_api.on_failure = note
 
-    def handled(method: str, path: str, query: dict[str, str], body: bytes) -> tuple[Any, ...]:
+    def handled(
+        method: str, path: str, query: dict[str, str], body: bytes, accept: str = ""
+    ) -> tuple[Any, ...]:
         failed.line = None
-        return (*sab_api.handle(method, path, query, body), failed.line)
+        return (*sab_api.handle(method, path, query, body, accept), failed.line)
 
     async def one(request: Request) -> Response:
         if not allowed(request):
@@ -125,7 +127,7 @@ def build(key: str, log: collections.deque[dict[str, Any]], api_file: Path | Non
         body = await request.body()
         query = dict(request.query_params)
         status, headers, payload, line = await run_in_threadpool(
-            handled, request.method, request.url.path, query, body
+            handled, request.method, request.url.path, query, body, request.headers.get("accept", "")
         )
         rows = None
         said = None

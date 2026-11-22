@@ -1249,6 +1249,51 @@ def _structure(con: Any, first: str, columns: Mapping[str, str] | None) -> str |
     return found.replace("'", "''")
 
 
+def _json_value(value: Any) -> Any:
+    """A value as JSON carries it (sab_api's rules): dates and times as ISO text, decimals as numbers, an id
+    as text, bytes as hex; lists and records as they nest."""
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, bytes | bytearray):
+        return value.hex()
+    if isinstance(value, Mapping):
+        return {str(k): _json_value(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_json_value(v) for v in value]
+    if type(value).__name__ == "Decimal":
+        return float(value)
+    return str(value)
+
+
+def to_json(data: pa.Table | pa.RecordBatchReader) -> Iterator[bytes]:
+    """Arrow as a JSON array of records, a batch at a time (an endpoint's answer): the text comes as the
+    batches are read, never the whole answer held as Python objects at once."""
+    reader = data if isinstance(data, pa.RecordBatchReader) else data.to_reader()
+    yield b"["
+    first = True
+    for batch in reader:
+        for row in batch.to_pylist():
+            yield (b"" if first else b",") + json.dumps(_json_value(row)).encode()
+            first = False
+    yield b"]"
+
+
+def to_ipc(data: pa.Table | pa.RecordBatchReader) -> bytes:
+    """Arrow as an Arrow IPC stream (an endpoint's answer to a widget that asks for Arrow)."""
+    reader = data if isinstance(data, pa.RecordBatchReader) else data.to_reader()
+    sink = pa.BufferOutputStream()
+    with ipc.new_stream(sink, reader.schema) as stream:
+        for batch in reader:
+            stream.write_batch(batch)
+    return bytes(sink.getvalue().to_pybytes())
+
+
+def is_arrow(value: Any) -> bool:
+    return isinstance(value, pa.Table | pa.RecordBatchReader)
+
+
 # ===== 5. Tables =====
 
 
@@ -1317,21 +1362,29 @@ TABLES = Tables()  # this process's tables
 define, table, refresh = TABLES.define, TABLES.table, TABLES.refresh
 
 __all__ = [
+    "DIALECTS",
     "AdapterError",
     "Column",
     "Counts",
+    "Dialect",
     "DuckDB",
     "Filter",
     "Folded",
+    "OData",
     "Plan",
     "Remote",
+    "Rows",
     "Source",
+    "Sql",
     "Table",
     "TableSource",
     "Tables",
     "Total",
+    "cursor_batches",
     "define",
+    "dialect_sql",
     "from_json",
+    "is_arrow",
     "make_table",
     "plan_from",
     "plan_sql",
@@ -1339,6 +1392,8 @@ __all__ = [
     "refresh",
     "table",
     "tables",
+    "to_ipc",
+    "to_json",
     "use",
     "write",
 ]
