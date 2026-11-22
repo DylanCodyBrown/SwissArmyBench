@@ -82,7 +82,6 @@ from swissarmybench.client.push_client import ServerNotRunningError
 from swissarmybench.client.writes import quote
 from swissarmybench.domain import dataverse, lakes, variable_refs
 from swissarmybench.domain.errors import missing_table
-from swissarmybench.renamed import env
 
 # The file kinds a cell reads, by suffix (DuckDB's readers; a workbook through pandas).
 FILE_READERS: dict[str, str] = {
@@ -878,8 +877,8 @@ def _connections_magic(_line: str) -> None:
 
 
 _registered: list[Any] = []
-# The magics that are always this package's: its own name, and the old one (sag) for one release.
-OWN: tuple[str, ...] = ("sab", "sag")
+# The magics that are always this package's: its own name.
+OWN: tuple[str, ...] = ("sab",)
 
 
 def register(shell: Any) -> list[str]:
@@ -895,14 +894,13 @@ def register(shell: Any) -> list[str]:
     def dax_cell(line: str, cell_text: str) -> Any:
         return _cell(shell, line, cell_text, dax=True)
 
-    # %%sag and %sag_*: the names before the rename to Swiss Army Bench, for old notebooks (renamed.py).
-    for name in ("sab", "sag", "sql", "dax"):
+    for name in ("sab", "sql", "dax"):
         if name in OWN or shell.find_cell_magic(name) is None:
             shell.register_magic_function(
                 dax_cell if name == "dax" else cell, magic_kind="cell", magic_name=name
             )
             names.append(f"%%{name}")
-    for prefix in ("sab", "sag", "sql"):
+    for prefix in ("sab", "sql"):
         for suffix, fn in (("connect", _connect), ("connections", _connections_magic)):
             name = f"{prefix}_{suffix}"
             if prefix in OWN or shell.find_line_magic(name) is None:
@@ -914,7 +912,7 @@ def register(shell: Any) -> list[str]:
 
 def autostart() -> None:
     """On import in Jupyter or IPython, unless SWISSARMYBENCH_SQL_CELL=0."""
-    if env("SWISSARMYBENCH_SQL_CELL", "") == "0":
+    if os.environ.get("SWISSARMYBENCH_SQL_CELL", "") == "0":
         return
     module = sys.modules.get("IPython")
     get = getattr(module, "get_ipython", None) if module is not None else None

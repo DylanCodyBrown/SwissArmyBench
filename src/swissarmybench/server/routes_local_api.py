@@ -32,7 +32,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import error_response, json_response, with_actor, with_body
+from swissarmybench.server.http import json_response, with_actor, with_body
 from swissarmybench.services.api_export import ApiExport
 from swissarmybench.services.local_api import LocalApi
 
@@ -43,11 +43,8 @@ async def _answered(value: Any) -> Any:
 
 def routes(api: LocalApi, export: ApiExport) -> list[BaseRoute]:
     async def openapi(request: Request) -> Response:
-        try:
-            state = await api.state(full=True)
-            return json_response(state.get("openapi") or {})
-        except Exception as error:
-            return error_response(error)
+        state = await api.state(full=True)
+        return json_response(state.get("openapi") or {})
 
     async def state(request: Request) -> Response:
         full = request.query_params.get("full", "").lower() in ("1", "true", "yes")

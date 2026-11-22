@@ -169,13 +169,10 @@ def test_the_magics_run_a_cell_keep_the_result_and_choose_a_default(
     shell = Shell()
     assert sql_cell.register(shell) == [
         "%%sab",
-        "%%sag",  # the old name: still in sql_cell.py until the adapter branch merges
         "%%sql",
         "%%dax",
         "%sab_connect",
         "%sab_connections",
-        "%sag_connect",
-        "%sag_connections",
         "%sql_connect",
         "%sql_connections",
     ]

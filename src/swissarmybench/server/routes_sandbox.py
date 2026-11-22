@@ -37,7 +37,6 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import (
     error_as,
-    error_response,
     json_response,
     read_json,
     with_body,
@@ -54,10 +53,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         key = str(request.path_params["key"])
         if not any(secrets.compare_digest(key, k) for k in keys()):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        try:
-            return json_response(await sandbox.data(await read_json(request), "api"))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await sandbox.data(await read_json(request), "api"))
 
     def allowed(request: Request) -> bool:
         """A key'd path: a running local sandbox API's own key; the token's path: the guard checked it."""
@@ -67,19 +63,13 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
     async def adapter_tables(request: Request) -> Response:
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        try:
-            return json_response(await sandbox.source_tables(await read_json(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await sandbox.source_tables(await read_json(request)))
 
     async def adapter_read(request: Request) -> Response:
         """sab_adapter.Remote's read: the batches streamed as an Arrow IPC stream, as DuckDB makes them."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        try:
-            reader, folded = await sandbox.read_arrow(await read_json(request))
-        except Exception as error:
-            return error_response(error)
+        reader, folded = await sandbox.read_arrow(await read_json(request))
         return StreamingResponse(
             _ipc(reader), media_type=ARROW_STREAM, headers={"X-Sab-Folded": ",".join(folded)}
         )
@@ -88,17 +78,11 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         """sab_adapter.Remote's write: an Arrow IPC stream's rows; the names in the query string."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        try:
-            given = {k: str(v) for k, v in request.query_params.items()}
-            return json_response(await sandbox.write_arrow(given, await request.body(), "api"))
-        except Exception as error:
-            return error_response(error)
+        given = {k: str(v) for k, v in request.query_params.items()}
+        return json_response(await sandbox.write_arrow(given, await request.body(), "api"))
 
     async def listing(request: Request) -> Response:
-        try:
-            return json_response(await sandbox.listing(dict(request.query_params)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await sandbox.listing(dict(request.query_params)))
 
     return [
         Route("/sandbox", listing),
