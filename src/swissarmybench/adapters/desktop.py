@@ -12,6 +12,7 @@ from __future__ import annotations
 import contextlib
 import json
 import secrets
+import shutil
 import socket
 import socketserver
 import threading
@@ -116,3 +117,23 @@ class JsonState(JsonFile):
     def write_text(self, text: str) -> None:
         with contextlib.suppress(OSError):
             super().write_text(text)
+
+
+def fresh_cache(storage: Path, version: str) -> Path:
+    """The profile's HTTP cache folder for `version` (domain/desktop.py cache_folder), before the profile is
+    made: every other version's cache folder removed (as far as the system lets: a file another process still
+    holds stays, and is never read again), and the version that runs written in the profile's version.txt.
+    Nothing here asks Chromium to clear anything (White screen after an update, 2026-11-22)."""
+    with contextlib.suppress(OSError):
+        storage.mkdir(parents=True, exist_ok=True)
+    try:
+        names = [p.name for p in storage.iterdir() if p.is_dir()]
+    except OSError:
+        names = []
+    for name in rules.stale_caches(names, version):
+        shutil.rmtree(storage / name, ignore_errors=True)
+    mark = storage / rules.VERSION_MARK
+    with contextlib.suppress(OSError):
+        if not mark.is_file() or mark.read_text(encoding="utf-8").strip() != version:
+            mark.write_text(version, encoding="utf-8")
+    return storage / rules.cache_folder(version)

@@ -326,10 +326,13 @@ def place(
 RECORD = "desktop.json"  # beside the server's connection file: the app's pid and channel
 
 
-def record(pid: int, port: int, key: str) -> dict[str, Any]:
-    """desktop.json while the app runs: its process id (the update's helper ends it by it) and its
-    channel."""
-    return {"pid": pid, "shell": {"port": port, "key": key}}
+def record(pid: int, port: int, key: str, version: str = "") -> dict[str, Any]:
+    """desktop.json while the app runs: its process id (the update's helper ends it by it), its channel and
+    the version that runs (said, never relied on)."""
+    said: dict[str, Any] = {"pid": pid, "shell": {"port": port, "key": key}}
+    if version:
+        said["version"] = version
+    return said
 
 
 def read_record(data: Any) -> tuple[int, int, str] | None:
@@ -341,6 +344,47 @@ def read_record(data: Any) -> tuple[int, int, str] | None:
     if not pid or not port or not 0 < port < 65536 or not isinstance(key, str) or len(key) < 16:
         return None
     return pid, port, key
+
+
+# ===== the profile's saved copies, a page that did not load (White screen after an update, 2026-11-22) =====
+#
+# The profile's HTTP cache is a folder of each version's own (cache-<version>): an update starts with an empty
+# one, made before the profile exists, and the older ones are removed then (cookies and local storage are
+# kept: they are the profile's, not the cache's). Never QWebEngineProfile.clearHttpCache(): it runs in the
+# background, and a page loaded while it ran stayed white (reproduced: tests/desktop_update_drive.py).
+
+CACHE_PREFIX = "cache"
+VERSION_MARK = "version.txt"  # the profile's: the version that last ran it
+LOAD_WAIT_SECONDS = 20.0  # a page of the app not loaded by then is loaded again
+LOAD_TRIES = 3  # loads of one page before the window leaves it as it is
+_VERSION_WORD = re.compile(r"[^A-Za-z0-9._+-]+")
+
+
+def cache_folder(version: str) -> str:
+    """The profile's cache folder's name for `version` (a folder name on every system)."""
+    word = _VERSION_WORD.sub("_", version.strip())[:60].strip("._") or "unknown"
+    return f"{CACHE_PREFIX}-{word}"
+
+
+def stale_caches(names: list[str], version: str) -> list[str]:
+    """The profile's folders that are another version's cache (the older `cache` among them): removed."""
+    mine = cache_folder(version)
+    return sorted(n for n in names if n != mine and (n == CACHE_PREFIX or n.startswith(f"{CACHE_PREFIX}-")))
+
+
+RETRY = "retry"
+DONE = "done"
+GIVE_UP = "give up"
+
+
+def after_load(ok: bool | None, tries: int, ours: bool) -> str:
+    """What a window does after a load of one of the app's pages: `ok` True (it loaded: done), False (it
+    failed, or its page's process ended), None (not finished in LOAD_WAIT_SECONDS). Not the app's page (an
+    address that went to the browser, a page of the shell's own): done. Else loaded again until LOAD_TRIES
+    loads were made."""
+    if ok is True or not ours:
+        return DONE
+    return RETRY if tries < LOAD_TRIES else GIVE_UP
 
 
 def shell_command(python: str, page: str | None = None) -> list[str]:

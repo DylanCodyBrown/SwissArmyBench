@@ -6097,3 +6097,68 @@ Browser files in Chromium (two workers): 51 files on the final build (the Workbe
 Canvas, widgets, the two test apps, connections, structures, the Data page, navigation, the Environment, the
 grid page's test_ui.py, and every file whose question or menu changed): 250 passed, 0 failed.
 tests/e2e/test_ask_page.py is new (the question's focus, Escape, Cancel, Enter; no browser dialog opens).
+
+
+## White screen after an update, 2026-11-22 (branch update-restart)
+
+The owner: "after an update restart it opens to a white screen and I have to restart again".
+
+**The cause, reproduced here (Linux, Qt WebEngine 6.12 off screen).** Since 0.0.28 (above, 2026-11-19) the desktop
+app called `QWebEngineProfile.clearHttpCache()` at start whenever `desktop/profile/version.txt` named another
+version (or none). That call runs in the background, and Qt's own note says no navigation may start while it does.
+After an update the server is up before the app (the helper starts the server, the server starts the app), so the
+first window's page was loaded at once, while the clear ran: the page never committed (its address stayed empty,
+`loadFinished` never came): a white window. The next start found the mark already written, did not clear, and
+drew, which is why a second restart fixed it. Measured with a scratch driver against a running server, the
+profile's cache filled (1.7 MB) and the mark set to another version: 2 of 3 starts stayed white for 40 s; with the
+mark equal to the version, every start drew in about 0.5 s. tests/desktop_update_drive.py (driven by
+tests/test_desktop_shell.py `test_the_first_window_after_an_update_shows_the_app`) runs the update as it happens:
+one start with the old pages, then the build's every chunk renamed (`build/chunks/<page>-<hash>u.js`, each
+reference rewritten, the old names gone), a newer version, the server up first, the same profile folder. With the
+old desktop_shell.py it failed 3 runs of 3 (already at its first start: no mark yet, so the old code cleared there
+too); with the fix it passed 4 of 4 (about 6 s each).
+
+**What was not the cause, checked.** The pages (`/workspace`, `/g/<id>`, `/notebooks`, `/scripts`, and the
+Streamlit extension's canvas, widget and perf pages) already answered `Cache-Control: no-store`, `/static` already
+`no-cache`; no service worker is registered; the per-start cookie is not needed by a window the shell opens (its
+address carries the token, and the port is read from the connection file each time); a stale desktop.json (its
+process gone, or its process id answering but no channel) already started a new app (now tested: `ask` fails, so
+`open_page` starts one); the update's helper waits for the old server and the old app to end (ending the app after
+5 s) before it installs, and on Windows stops every program run from the tool's folder (QtWebEngineProcess.exe
+among them) first.
+
+**The fixes.**
+- The profile's HTTP cache is a folder of each version's own (`desktop/profile/cache-<version>`), named before the
+  profile is made; every other version's folder (and the older `cache`) is removed then, as far as the system lets
+  (adapters/desktop.py `fresh_cache`; domain/desktop.py `cache_folder`, `stale_caches`). Nothing asks Chromium to
+  clear anything any more. Cookies and local storage stay. version.txt still says which version last ran the
+  profile, and desktop.json now carries the running version too.
+- A page of the app that did not load is loaded again (AppWindow.load_app): not finished in 20 s, failed (looked at
+  again a second later, so a load stopped by the next one is not counted), or its page's process ended (a crash):
+  loaded again with the connection file's port and token, three loads at most, three crash reloads at most
+  (domain/desktop.py `after_load`). tests/desktop_update_drive.py `retry`: nothing answers the first load (failed),
+  a stand-in page answers the next (loaded); the page's process killed (page process ended, loaded).
+- `/static`'s ETag carries the app's version and Last-Modified is no longer sent, so another version's saved copy
+  never answers a 304 even when an install gives a file the same time and size; `build/chunks/` (named for their
+  content) are `public, max-age=31536000, immutable`, everything else `no-cache` (server/app.py `cache_header`,
+  `versioned_etag`; tests/test_static_cache.py).
+- `SWISSARMYBENCH_WEB_ROOT` names another folder of pages (tests: the update's new build).
+
+**Windows only, reasoned and not run here.** The owner's machine runs the released app as a uv tool on Windows:
+the same Qt WebEngine call and the same order (server first, then the app) apply, so the cause is the same. On
+Windows a file another process still holds cannot be removed: an old cache folder a straggling
+QtWebEngineProcess.exe holds is left (ignore_errors) and removed at a later start; the new version never reads it,
+since its cache is a new folder. The helper's `stop_in` (PowerShell, the tool's folder) stops such stragglers before
+the install in any case. A window whose page's process is ended by the system is loaded again as on Linux
+(`renderProcessTerminated`).
+
+**Checks.** `ruff check .`, `ruff format --check .`, `mypy` (1,116 files), `npm run typecheck`: clean.
+tests/test_desktop_shell.py (4, the two new among them), test_updater, test_updates, test_server_life,
+test_lifecycle, test_desktop, test_desktop_rules, test_desktop_wins, test_static_cache, test_architecture at four
+workers: 492 passed; the updater's real uv upgrade fails only with this worktree's PYTHONPATH (the new tool's
+Python takes the checkout's 0.0.32 and so "did not start", as noted on other branches) and passes without it.
+
+**For the owner.** Nothing to do once the fix ships: the update to it is carried out by the old version's
+helper, but the app it starts is the new one, which never clears its cache, so its first window draws (and it
+removes the old `desktop\profile\cache` folder itself). Until then, after an update shows a white window: close
+it and open Swiss Army Bench again (the second start always drew).

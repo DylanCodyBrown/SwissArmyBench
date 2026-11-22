@@ -78,13 +78,15 @@ from typing import Any
 from urllib.parse import urlencode
 
 from starlette.applications import Starlette
+from starlette.datastructures import Headers
 from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import BaseRoute, Mount, Route, WebSocketRoute
-from starlette.staticfiles import StaticFiles
+from starlette.staticfiles import NotModifiedResponse, StaticFiles
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from swissarmybench import __version__
 from swissarmybench.bootstrap import bootstrap
 from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.domain import workbench_pages
@@ -185,14 +187,39 @@ def not_installed(name: str, ident: str) -> Callable[[Request], Awaitable[Respon
     return answer
 
 
+# A page's split parts are named for their content (web/build.mjs: build/chunks/<page>-<hash>.js): a saved
+# copy is good for ever. Every other file is checked first (a 304 when it has not changed).
+FOREVER = "public, max-age=31536000, immutable"
+
+
+def cache_header(path: str) -> str:
+    """The Cache-Control of a page's file (`path` under /static/): the hashed chunks kept for ever, the rest
+    checked before a saved copy is used again."""
+    return FOREVER if path.replace("\\", "/").startswith("build/chunks/") else "no-cache"
+
+
+def versioned_etag(etag: str, version: str) -> str:
+    """The file's ETag with the app's version in it: another version's saved copy never answers a 304, even
+    when its file's time and size happen to be the same (an update's install sets both)."""
+    inner = etag.strip().removeprefix("W/").strip('"')
+    return f'"{inner}-{version}"'
+
+
 class CheckedStaticFiles(StaticFiles):
     """The page's files, each checked before a saved copy is used again (`Cache-Control: no-cache`; a 304 when
-    it has not changed). Without it the desktop app's browser kept an update's old scripts (the owner,
-    2026-11-19: the {x} buttons still showing in 0.0.27)."""
+    it has not changed and is this version's). Without it the desktop app's browser kept an update's old
+    scripts (the owner, 2026-11-19: the {x} buttons still showing in 0.0.27). The hashed chunks are kept for
+    ever (their names change with them)."""
 
-    def file_response(self, *args: Any, **kwargs: Any) -> Response:
-        answer = super().file_response(*args, **kwargs)
-        answer.headers["Cache-Control"] = "no-cache"
+    def file_response(self, full_path: Any, stat_result: Any, scope: Any, status_code: int = 200) -> Response:
+        answer = FileResponse(full_path, status_code=status_code, stat_result=stat_result)
+        answer.headers["etag"] = versioned_etag(answer.headers.get("etag", ""), __version__)
+        # Only the ETag says whether a saved copy is good: an update's files may keep their old times.
+        if "last-modified" in answer.headers:
+            del answer.headers["last-modified"]
+        answer.headers["Cache-Control"] = cache_header(self.get_path(scope))
+        if self.is_not_modified(answer.headers, Headers(scope=scope)):
+            return NotModifiedResponse(answer.headers)
         return answer
 
 

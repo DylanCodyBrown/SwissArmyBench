@@ -18,6 +18,9 @@ the state folder's desktop/profile (cookies: the sab_<port> cookie the token buy
                      in the app (window.sabApp): Ctrl+W a tab, Ctrl+T and Ctrl+N new, Ctrl+Tab, Ctrl+Shift+T
   files              `swissarmybench open <file>` ({"file": path} on the channel), a file dropped from the
                      system (its real path), macOS's Open with (FileOpen): server/desktop.py file_page
+  a page that did not load  not finished in 20 s, failed, or its page's process ended: loaded again (with the
+                     connection file's token), three times at most; the HTTP cache a folder of each version's
+                     own, made empty before the profile exists (never cleared under a loading page)
   the server's life  no server running: it is started (`swissarmybench start --no-window`, off the window
                      thread; the first window says Starting… meanwhile); the last window closed: the server is
                      told (POST /lifecycle/closed, services/lifecycle.py, from a thread) and the app ends. A
@@ -67,7 +70,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from swissarmybench.adapters.desktop import JsonState, Listener, RecordFile, new_key
+from swissarmybench.adapters.desktop import JsonState, Listener, RecordFile, fresh_cache, new_key
 from swissarmybench.domain import desktop as rules
 from swissarmybench.server.lifecycle import post_json, process_alive, read_info, running_server
 from swissarmybench.server.updater import detached
@@ -312,6 +315,17 @@ class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy
         page.printRequested.connect(lambda: shell.print_page(self))
         page.printRequestedByFrame.connect(lambda _frame: shell.print_page(self))
         page.pdfPrintingFinished.connect(self._printed)
+        # A page of the app that did not load (not finished in time, failed, or its page's process ended)
+        # is loaded again, a few times (White screen after an update, 2026-11-22).
+        self.loading: str | None = None  # the app's address being loaded, watched until it loads
+        self.load_tries = 0
+        self.crashes = 0  # the page's process ended: loaded again a few times only
+        self.load_results: list[str] = []  # each watched load's outcome (the real run checks them)
+        self._load_timer = QTimer(self)
+        self._load_timer.setSingleShot(True)
+        self._load_timer.timeout.connect(lambda: self._load_ended(None))
+        page.loadFinished.connect(self._load_ended)
+        page.renderProcessTerminated.connect(self._page_process_ended)
         self._status_label = QLabel()
         self._status_button = QPushButton("Show in folder")
         self._status_button.hide()
@@ -337,6 +351,60 @@ class AppWindow(QMainWindow):  # type: ignore[misc,unused-ignore]  # Any to mypy
             ("Ctrl+Shift+B", lambda: shell.open_in_browser(self)),
         ):
             QShortcut(QKeySequence(keys), self, action)
+
+    # ----- loading the app's page, again when it did not load -----
+
+    def load_app(self, address: str) -> None:
+        """A page of the app loaded in this window, watched until it has loaded (else loaded again)."""
+        self.load_tries = 0
+        self._load(address)
+
+    def _load(self, address: str) -> None:
+        self.loading = address
+        self.load_tries += 1
+        self._load_timer.start(int(rules.LOAD_WAIT_SECONDS * 1000))
+        self.page.load(QUrl(address))
+
+    def _load_ended(self, ok: bool | None) -> None:
+        """loadFinished (True, False), or the time ran out (None)."""
+        address = self.loading
+        if address is None:
+            return
+        if ok is False:
+            # Also what a load stopped by the next one says: looked at again in a moment.
+            QTimer.singleShot(1000, self._failed_still)
+            return
+        self._decide(ok, address)
+
+    def _failed_still(self) -> None:
+        if self.loading is not None and not self.page.isLoading():
+            self._decide(False, self.loading)
+
+    def _decide(self, ok: bool | None, address: str) -> None:
+        verdict = rules.after_load(ok, self.load_tries, rules.is_ours(address, self.shell.port))
+        self.load_results.append("loaded" if ok else ("failed" if ok is False else "timed out"))
+        if verdict == rules.RETRY:
+            self._load(self.shell.fresh_address(address))
+            return
+        self._load_timer.stop()
+        self.loading = None
+        if verdict == rules.GIVE_UP:
+            print(f"A page of Swiss Army Bench did not load ({self.load_tries} tries).", file=sys.stderr)
+
+    def _page_process_ended(self, status: Any, code: int) -> None:
+        """The page's process ended (a crash, killed, out of memory): its page loaded again (not while the
+        app closes)."""
+        normal = QWebEnginePage.RenderProcessTerminationStatus.NormalTerminationStatus
+        if self.shell.closing or status == normal:
+            return
+        address = self.page.url().toString()
+        if not rules.is_ours(address, self.shell.port):
+            address = self.loading or ""
+        self.crashes += 1
+        self.load_results.append("page process ended")
+        if address and self.crashes <= rules.LOAD_TRIES:
+            self.load_tries = 0
+            QTimer.singleShot(0, lambda: self._load(self.shell.fresh_address(address)))
 
     def watch_drops(self) -> None:
         """The drop filter on the view and on its child that draws the page (made with the page)."""
@@ -596,8 +664,12 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
     def _profile(self) -> QWebEngineProfile:
         profile = QWebEngineProfile("swissarmybench", self)
         storage = self.folder / "profile"
+        # The cache is each version's own folder, made empty before the profile exists (an update never
+        # shows the old version's screens, nor clears a cache under a loading page: 2026-11-22).
+        from swissarmybench import __version__
+
         profile.setPersistentStoragePath(str(storage))
-        profile.setCachePath(str(storage / "cache"))
+        profile.setCachePath(str(fresh_cache(storage, __version__)))
         profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.AllowPersistentCookies)
         # Each permission is asked of the shell every time (it grants the clipboard to the app only).
         profile.setPersistentPermissionsPolicy(QWebEngineProfile.PersistentPermissionsPolicy.AskEveryTime)
@@ -624,28 +696,7 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         script.setRunsOnSubFrames(False)
         profile.scripts().insert(script)
         profile.downloadRequested.connect(self.download)
-        self._fresh_after_update(profile, storage)
         return profile
-
-    @staticmethod
-    def _fresh_after_update(profile: QWebEngineProfile, storage: Path) -> None:
-        """A new version clears the saved copies of the pages' files once (cookies and local storage kept),
-        so an update never shows the old version's screens (the owner, 2026-11-19)."""
-        from swissarmybench import __version__
-
-        mark = storage / "version.txt"
-        try:
-            last = mark.read_text(encoding="utf-8").strip()
-        except OSError:
-            last = ""
-        if last == __version__:
-            return
-        profile.clearHttpCache()
-        try:
-            storage.mkdir(parents=True, exist_ok=True)
-            mark.write_text(__version__, encoding="utf-8")
-        except OSError:
-            pass  # cleared again at the next start: harmless
 
     # ----- the server -----
 
@@ -710,6 +761,17 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
             page = rules.HOME_PAGE
         self.open_outside(QUrl(rules.address_of(page, int(info["port"]), str(info["token"]))))
 
+    def fresh_address(self, address: str) -> str:
+        """`address`'s page with the running server's port and token as its connection file has them now
+        (a page loaded again after a failure); `address` itself when there is none."""
+        info = read_info(self.info_file)
+        if info is None:
+            return address
+        try:
+            return rules.address_of(rules.page_of(address), int(info["port"]), str(info["token"]))
+        except (rules.ShellError, KeyError, TypeError, ValueError):
+            return address
+
     # ----- opening pages -----
 
     def open_page(self, page: str) -> None:
@@ -760,7 +822,7 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
             # The first page goes into the window that said Starting….
             starting.starting = False
             starting.kind = rules.kind_of(address)
-            starting.page.load(QUrl(address))
+            starting.load_app(address)
             starting.bring_forward()
             self.changed()
             return starting
@@ -769,12 +831,12 @@ class Shell(QObject):  # type: ignore[misc,unused-ignore]  # Any to mypy without
         if ident is not None:
             window = self.windows[ident]
             if load:
-                window.page.load(QUrl(address))
+                window.load_app(address)
             window.bring_forward()
             return window
         window = self.new_window()
         window.kind = rules.kind_of(address)
-        window.page.load(QUrl(address))
+        window.load_app(address)
         window.place()
         self.changed()
         return window
@@ -957,7 +1019,9 @@ def serve(shell: Shell, record: RecordFile) -> Listener:
     """The shell's channel, its port and a fresh key in desktop.json (with the app's process id)."""
     key = new_key()
     listener = Listener(key, shell.heard)
-    record.write(rules.record(os.getpid(), listener.port, key))
+    from swissarmybench import __version__
+
+    record.write(rules.record(os.getpid(), listener.port, key, __version__))
     return listener
 
 

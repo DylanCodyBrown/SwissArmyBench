@@ -11,6 +11,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import time
@@ -218,3 +220,117 @@ def test_the_app_process_one_at_a_time_told_by_the_server_and_its_server_follows
                 os.environ[key] = value
         first.terminate()
         first.wait(30)
+
+
+# ===== White screen after an update, 2026-11-22 =====
+
+
+def _web_copy(target: Path) -> Path:
+    """This checkout's pages (web/static, its build) copied, without source maps."""
+    shutil.copytree(ROOT / "web" / "static", target, ignore=shutil.ignore_patterns("*.map"))
+    return target
+
+
+def _new_hashes(web: Path) -> list[str]:
+    """An update's new build, in place: every split part (build/chunks/<page>-<hash>.js) under a new name and
+    each reference to it rewritten, so the old names are no longer there (what an update's install does).
+    The old names."""
+    chunks = web / "build" / "chunks"
+    old = sorted(p.name for p in chunks.glob("*.js"))
+    renamed = {name: name[:-3] + "u.js" for name in old}
+    pattern = re.compile("|".join(re.escape(n) for n in sorted(old, key=len, reverse=True)))
+    for file in [*web.rglob("*.js"), *web.glob("*.html")]:
+        text = file.read_text(encoding="utf-8")
+        changed = pattern.sub(lambda m: renamed[m.group(0)], text)
+        if changed != text:
+            file.write_text(changed, encoding="utf-8")
+    for name, new in renamed.items():
+        (chunks / name).rename(chunks / new)
+    return old
+
+
+def _serve(env: dict[str, str], info: Path) -> subprocess.Popen[bytes]:
+    """The server, up before the app (an update's helper starts it, and it starts the app)."""
+    from swissarmybench.server.lifecycle import running_server
+
+    server = subprocess.Popen(
+        [sys.executable, "-m", "swissarmybench.server", "start", "--no-window"],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + 90
+    while running_server(info) is None:
+        assert time.monotonic() < deadline and server.poll() is None, "the server did not start"
+        time.sleep(0.2)
+    return server
+
+
+def _stop(server: subprocess.Popen[bytes], info: Path) -> None:
+    from swissarmybench.server.lifecycle import request_stop
+
+    request_stop(info)
+    try:
+        server.wait(30)
+    except subprocess.TimeoutExpired:
+        server.kill()
+        server.wait(10)
+
+
+def _app_start(env: dict[str, str], folder: Path, name: str, version: str) -> dict[str, Any]:
+    result = folder / f"{name}.json"
+    subprocess.run(  # noqa: S603 (this Python, this checkout's driver)
+        [sys.executable, str(ROOT / "tests" / "desktop_update_drive.py"), str(result), version],
+        env=env,
+        capture_output=True,
+        timeout=180,
+        check=False,
+    )
+    said: dict[str, Any] = json.loads(result.read_text(encoding="utf-8"))
+    assert "error" not in said, said["error"]
+    return said
+
+
+def test_the_first_window_after_an_update_shows_the_app(tmp_path: Path) -> None:
+    """The app run once (its profile's cache filled), then an update: a new version with new chunk names, its
+    server up first, the same profile folder. The first window shows the app, and each version has its own
+    cache folder (the older one gone). Before the fix the shell cleared the cache in the background as the
+    first page loaded, and the window stayed white (it drew on the next start)."""
+    from swissarmybench import __version__
+    from swissarmybench.domain import desktop as rules
+
+    env = environment(tmp_path)
+    info = tmp_path / "state" / "server.json"
+    old_web = _web_copy(tmp_path / "web-old")
+    server = _serve(env | {"SWISSARMYBENCH_WEB_ROOT": str(old_web)}, info)
+    try:
+        before = _app_start(env, tmp_path, "before", __version__)
+    finally:
+        _stop(server, info)
+    assert before["drew"], before
+    assert rules.cache_folder(__version__) in before["profile"] and before["mark"] == __version__
+    new_web = tmp_path / "web-new"
+    old_web.rename(new_web)
+    gone = _new_hashes(new_web)
+    assert gone and not (new_web / "build" / "chunks" / gone[0]).exists()
+    newer = f"{__version__}.post1"
+    server = _serve(env | {"SWISSARMYBENCH_WEB_ROOT": str(new_web)}, info)
+    try:
+        after = _app_start(env, tmp_path, "after", newer)
+    finally:
+        _stop(server, info)
+    assert after["drew"], after
+    assert after["loads"][-1] == "loaded" and after["address"].endswith("/workspace")
+    assert rules.cache_folder(newer) in after["profile"]
+    assert rules.cache_folder(__version__) not in after["profile"] and after["mark"] == newer
+    assert {"Cookies", "Local Storage"} <= set(after["profile"])  # kept across the update
+
+
+def test_a_page_that_did_not_load_is_loaded_again(tmp_path: Path) -> None:
+    """A load that failed (nothing answered yet) is loaded again until it loads; a page whose process ended
+    is loaded again too."""
+    env = environment(tmp_path)
+    said = _app_start(env, tmp_path, "retry", "retry")
+    assert said["drew"], said
+    assert said["first"][0] == "failed" and said["first"][-1] == "loaded"
+    assert said["page_process"] and said["after_kill"][-2:] == ["page process ended", "loaded"]
