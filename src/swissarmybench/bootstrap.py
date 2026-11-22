@@ -92,14 +92,12 @@ from swissarmybench.domain import api_targets as api_target_rules
 from swissarmybench.domain import blade_tables, python_connections
 from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import connection_tables as connection_table_rules
-from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import context_md as context_rules
 from swissarmybench.domain import extensions as extension_rules
 from swissarmybench.domain import library as library_rules
 from swissarmybench.domain import library_setup as setup_rules
 from swissarmybench.domain import local_api as local_api_rules
-from swissarmybench.domain import portability as portability_rules
 from swissarmybench.domain import projects as project_rules
 from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import scaffold as scaffold_rules
@@ -107,10 +105,8 @@ from swissarmybench.domain import variables as variable_rules
 from swissarmybench.domain.blades import Blade, env_settings
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connection_swap import Place
-from swissarmybench.domain.connections import connection_kind, opens_in_code
 from swissarmybench.domain.context_md import CatalogTable
 from swissarmybench.domain.grids import GridRegistry
-from swissarmybench.domain.project_explorer import local_only_words as explorer_rules_words
 from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
@@ -170,7 +166,7 @@ from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.library import Library
-from swissarmybench.services.library_setup import LibrarySetup
+from swissarmybench.services.library_setup import LibrarySetup, SharedProjects
 from swissarmybench.services.lifecycle import Lifecycle
 from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.local_api import LocalApi
@@ -182,7 +178,7 @@ from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
 from swissarmybench.services.project_outline import BothTables, CardPortability, ProjectOutline
 from swissarmybench.services.project_python import ProjectPython
-from swissarmybench.services.project_scope import ProjectScope
+from swissarmybench.services.project_scope import ProjectScope, ProjectUse, UseSources
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.regression import Regression
 from swissarmybench.services.relationship_scope import ProjectTables
@@ -598,19 +594,12 @@ async def _catalog_of(catalogs: Any, name: str) -> Any:
     )
 
 
-def _used_in(sab_projects: Any, connection_usage: Any, name: str) -> list[tuple[str, str]]:
-    """The project's documents and the open grids that use a connection (kind, path or table)."""
-    folder = (sab_projects.state().get("project") or {}).get("folder")
-    found, _ = connection_usage.references(name)
-    out = []
-    for ref in found:
-        if ref.kind == "grid":
-            out.append(("grid", ref.title))
-        elif folder and ref.document.replace("\\", "/").casefold().startswith(
-            str(folder).replace("\\", "/").rstrip("/").casefold() + "/"
-        ):
-            out.append((ref.kind, ref.document))
-    return out
+def _inside(path: str | None, folder: str) -> bool:
+    """Whether a path is inside a project folder, by their real paths (what the project uses)."""
+    if not path or not folder:
+        return False
+    root = os.path.realpath(folder).replace("\\", "/").rstrip("/") + "/"
+    return os.path.realpath(path).replace("\\", "/").startswith(root)
 
 
 def _explorer(
@@ -805,6 +794,7 @@ class Built:
     api_explorer: ApiExplorer
     connection_tables: ConnectionTablesService
     connection_swap: ConnectionSwap
+    project_use: ProjectUse
     project_documents: Callable[[], tuple[set[str], list[tuple[str, str]]] | None]
     project_tables: ProjectTables
     connections_here: Callable[[], list[Here]]
@@ -814,6 +804,7 @@ class Built:
     variables: Variables
     found_connections: FoundConnections
     app_registrations: AppRegistrations
+    shared_projects: SharedProjects
     library_setup: LibrarySetup
     explorer: Explorer
     sandbox: Sandbox
@@ -1405,29 +1396,28 @@ def _structures_and_apis(b: Built) -> None:
         open_documents=lambda: hooks.documents(),
         ask_window=lambda command, args: b.workbench_window.ask(command, args, "app"),
     )
-    # The tables the open project uses: the ERD draws only those by default (the owner, 2026-11-17).
-    b.project_documents = partial(_project_documents, b)
+    # What the open project uses, one answer (services/project_scope.py ProjectUse): its tables and documents,
+    # the connections it uses and where; the ERD draws only its tables by default (the owner, 2026-11-17).
+    b.project_use = ProjectUse(
+        UseSources(
+            project=lambda: sab_projects.state().get("project"),
+            documents=lambda: usage_documents(documents, hooks, sab_projects, b.project_files),
+            read=documents.read,
+            open_tables=lambda: {i.name for i in b.store.all()},
+            connections=b.blade_store.all,
+            references=b.connection_usage.references,
+            api_text=lambda folder: LocalApiFiles.read(str(Path(folder) / local_api_rules.FILE)),
+            inside=_inside,
+            code_texts=ProjectFiles.code_texts,
+            known=lambda: [h.name for h in b.connections_here()] + list(b.shared_catalog.catalogs()),
+        )
+    )
+    b.project_documents = b.project_use.documents
     b.project_tables = ProjectTables(b.models, b.project_documents)
     # A connection deleted: the relationships its tables held go from the ones in use (saved sets stay).
     b.blades.connection_removed.append(
         lambda name, who: b.models.forget_connection(name, set(b.connection_swap.tables_of(name)), who)
     )
-
-
-def _project_documents(b: Built) -> tuple[set[str], list[tuple[str, str]]] | None:
-    """The open project's tables and its documents' texts (none open: None)."""
-    project = b.sab_projects.state().get("project")
-    if not project:
-        return None
-    names = {str(t["name"]) for t in project.get("tables", [])}
-    texts: list[tuple[str, str]] = []
-    for path in usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files):
-        try:
-            text, full, _ = b.documents.read(path)
-        except (OSError, ValueError):
-            continue
-        texts.append((full, text))
-    return names, texts
 
 
 # ----- the shared catalog, code files that follow a change, the project's scope -----
@@ -1447,18 +1437,6 @@ def _connections_here(b: Built) -> list[Here]:
     return found
 
 
-def _project_use(b: Built) -> tuple[str, set[str], list[tuple[str, str]]] | None:
-    """The open project's name, the tables it uses and its documents' texts (the shared catalog's used_by)."""
-    project = b.sab_projects.state().get("project")
-    found = b.project_documents()
-    if not project or found is None:
-        return None
-    folder = str(project.get("folder") or "")
-    name = Path(folder).name if folder else str(project.get("name") or "")
-    names, texts = found
-    return name, names | {i.name for i in b.store.all()}, texts
-
-
 def _shared_catalog_part(b: Built) -> None:
     """The shared catalog (the owner, 2026-11-17): the library's catalog/<connection>.json, kept by what
     happens here and read again when the user's pulls change it. The app never runs git."""
@@ -1472,7 +1450,7 @@ def _shared_catalog_part(b: Built) -> None:
         lambda: models.model,
         today=lambda: datetime.now(UTC).date().isoformat(),
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
-        project=partial(_project_use, b),
+        project=b.project_use.catalog_use,
     )
     shared_catalog.load()
     b.library.catalog_info = shared_catalog.info
@@ -1615,6 +1593,17 @@ def _variables_part(b: Built) -> None:
     )  # fmt: skip
     b.environment.project_python = project_python
     b.live.listeners.append(b.environment.heard)
+    # Shared projects: each one's connections that do not work here, and one opened that only works here.
+    b.shared_projects = SharedProjects(
+        b.project_explorer.shared_folder,
+        b.project_explorer.where,
+        ExplorerFiles.scan,
+        b.project_use.named_in,
+        lambda: [h.name for h in b.connections_here()],
+        blade_store.get,
+        blade_store.secret_status,
+        partial(_project_notice, b),
+    )
     # Set up from the meta store: what this computer needs before the team's connections work.
     b.library_setup = LibrarySetup(
         ws,
@@ -1622,73 +1611,24 @@ def _variables_part(b: Built) -> None:
         blade_store.secret_status,
         lambda: variables.listing()["variables"],
         b.connections,
+        b.shared_projects.listing,
     )
 
 
 # ----- shared projects on the checklist, and the Data Explorer -----
 
 
-def _connections_named_in(b: Built, folder: str) -> list[str]:
-    """The connections a project folder's notebooks and scripts name (Shared projects, 2026-11-18)."""
-    names = list(dict.fromkeys([h.name for h in b.connections_here()] + list(b.shared_catalog.catalogs())))
-    texts = []
-    for path in sorted(Path(folder).glob("*")):
-        if path.suffix.lower() in (".ipynb", ".py") and path.is_file():
-            try:
-                texts.append((str(path), path.name, path.read_text(encoding="utf-8")))
-            except (OSError, UnicodeDecodeError):
-                continue
-    found = []
-    for name in names:
-        for full, title, text in texts:
-            try:
-                if usage_rules.document_references(full, title, text, name):
-                    found.append(name)
-                    break
-            except ValueError:
-                continue
-    return found
-
-
-async def _shared_projects(b: Built, not_working: set[str]) -> list[setup_rules.SharedProject]:
-    """Each shared project and the connections it names that do not work here (the checklist's)."""
-    folder = b.project_explorer.shared_folder()
-    if not folder:
-        return []
-    here = {h.name.casefold() for h in b.connections_here()}
-    out = []
-    for path in await asyncio.to_thread(ExplorerFiles.scan, folder):
-        named = await asyncio.to_thread(_connections_named_in, b, path)
-        missing = [n for n in named if n.casefold() not in here or n.casefold() in not_working]
-        out.append(setup_rules.SharedProject(Path(path).name, path, tuple(missing)))
-    return out
-
-
-async def _shared_opened(b: Built, folder: str, _extra: Any) -> None:
-    """A shared project opened (or made): its connections that only work on this machine, said once."""
-    if b.project_explorer.where(folder) != "shared":
-        return
-    local = 0
-    for name in await asyncio.to_thread(_connections_named_in, b, folder):
-        try:
-            blade = b.blade_store.get(name)
-            status = b.blade_store.secret_status(blade)
-        except Exception:  # noqa: S112 (a teammate's connection not here: the checklist says so)
-            continue
-        sources = ["keyring" if status.get(s) else "" for s in blade.secrets]
-        local += bool(portability_rules.check(blade.code, blade.template, sources))
-    said = explorer_rules_words(local)
-    if said:
-        b.library.notice("project", said)
-        await b.live.broadcast({"type": "library_notice", "text": said})
+async def _project_notice(b: Built, said: str) -> None:
+    """A notice about the open project, said once on the page (the library's notices)."""
+    b.library.notice("project", said)
+    await b.live.broadcast({"type": "library_notice", "text": said})
 
 
 def _setup_and_explorer(b: Built) -> None:
     """Shared projects (said once when one's connections only work here, on the checklist when not set up
     here), and the Data Explorer: one search over the connections and their catalogs, the open tables, the
     variables and the blades, Structures' documents and paths, APIs' web calls that return a table."""
-    b.library_setup.shared_projects = partial(_shared_projects, b)
-    b.sab_projects.opened.append(partial(_shared_opened, b))
+    b.sab_projects.opened.append(b.shared_projects.opened)
     b.explorer = _explorer(
         b.ws, b.datasets, b.connections, b.connection_tables, b.catalogs, b.catalog_loading, b.shared_catalog,
         b.variables, b.blades, b.structures,
@@ -1909,7 +1849,7 @@ def _editors_and_claude(b: Built) -> None:
     b.claude_files = ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if b.audit_log else None)
     b.agent = AgentService(ws, b.approvals, b.tickets)
     catalog_of = partial(_catalog_of, b.catalogs)
-    used_in = partial(_used_in, sab_projects, b.connection_usage)
+    used_in = b.project_use.places
     # One Jedi world and one set of linters: the editors' intelligence's, and the Scripts IDE's (never a
     # second).
     jedi_world = JediWorld()
@@ -2166,40 +2106,7 @@ def _scaffold(b: Built) -> Scaffold:
 
     def inside(path: str | None) -> bool:
         found = project()
-        if found is None or not path:
-            return False
-        root = os.path.realpath(found[0]).replace("\\", "/").rstrip("/") + "/"
-        return os.path.realpath(path).replace("\\", "/").startswith(root)
-
-    def api_connections() -> list[str]:
-        found = project()
-        text = LocalApiFiles.read(str(Path(found[0]) / local_api_rules.FILE)) if found else None
-        if not text:
-            return []
-        try:
-            api = local_api_rules.parse(text)
-        except Exception:
-            return []
-        return [n for e in api.endpoints for n in e.connections]
-
-    def used() -> list[str]:
-        """The connections the open project uses: its documents' cells and canvases, its open tables, API.py's
-        endpoints; in the library's order (the order they were made), each once."""
-        named = {n.casefold() for n in api_connections()}
-        out: list[str] = []
-        for blade in b.blade_store.all():
-            if not opens_in_code(connection_kind(blade.kind, blade.template)):
-                continue
-            if blade.name.casefold() in named:
-                out.append(blade.name)
-                continue
-            try:
-                references, _ = b.connection_usage.references(blade.name)
-            except Exception:  # noqa: S112 (a connection that cannot be read is not counted)
-                continue
-            if any(r.kind == "grid" or inside(r.document) for r in references):
-                out.append(blade.name)
-        return out
+        return found is not None and _inside(path, found[0])
 
     def variables() -> dict[str, str]:
         return {name: words for name, (words, _) in b.variables.sources().items()}
@@ -2269,7 +2176,7 @@ def _scaffold(b: Built) -> Scaffold:
         project,
         ScaffoldFiles(),
         ScaffoldSources(
-            used=used,
+            used=b.project_use.connections,
             connections=b.script_exports.connections_code,
             adapter=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
             variables=variables,

@@ -19,11 +19,15 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from swissarmybench.domain import code_tree
+from swissarmybench.domain import connection_usage as usage_rules
+from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import project_scope as rules
 from swissarmybench.domain.blades import Blade
+from swissarmybench.domain.connections import connection_kind, opens_in_code
 from swissarmybench.domain.library import saved_json
 from swissarmybench.domain.sab_files import SabError
 from swissarmybench.services.connections import ConnectionService
@@ -345,3 +349,131 @@ class ProjectScope:
 
 def _listed(record: dict[str, Any]) -> dict[str, Any]:
     return {k: record[k] for k in ("name", "kind", "template", "connection", "description")}
+
+
+# ===== what the project uses: one answer (craft review 2026-11-22, item 8) =====
+
+
+@dataclass(frozen=True)
+class UseSources:
+    """What ProjectUse reads, each a port the composition root hands in (no file is read here).
+
+    project      the open project's state ({"folder", "name", "tables"}; None: none open)
+    documents    the documents a connection's references are looked for in (whole paths)
+    read         a document's (text, whole path, _) (OSError or ValueError: skipped)
+    open_tables  the tables open in Grids
+    connections  this computer's saved blades (their name, kind and template are read)
+    references   a connection's references (services/connection_usage.py: (found, unread))
+    api_text     a project folder's API.py text (None: there is none)
+    inside       whether a path is inside a folder (the caller's rule: it resolves links)
+    code_texts   a folder's top notebooks and scripts as (whole path, file name, text)
+    known        the connection names a shared project may name (this computer's and the shared catalog's)
+    """
+
+    project: Callable[[], dict[str, Any] | None]
+    documents: Callable[[], list[str]]
+    read: Callable[[str], tuple[str, str, Any]]
+    open_tables: Callable[[], set[str]]
+    connections: Callable[[], list[Blade]]
+    references: Callable[[str], tuple[list[Any], list[str]]]
+    api_text: Callable[[str], str | None]
+    inside: Callable[[str, str], bool]
+    code_texts: Callable[[str], list[tuple[str, str, str]]] = lambda folder: []
+    known: Callable[[], list[str]] = lambda: []
+
+
+class ProjectUse:
+    """What the open project uses, asked one way by every reader: its tables and documents (the ERD's scope),
+    its name with those (the shared catalog's used_by), the places a connection is used in (context.md), the
+    connections it uses (the scaffold's connections.py), and the connections a project folder names (a
+    shared project's checklist)."""
+
+    def __init__(self, sources: UseSources) -> None:
+        self._s = sources
+
+    def _folder(self) -> str:
+        return str((self._s.project() or {}).get("folder") or "")
+
+    def documents(self) -> tuple[set[str], list[tuple[str, str]]] | None:
+        """The open project's tables and its documents' texts as (whole path, text); None: none open."""
+        project = self._s.project()
+        if not project:
+            return None
+        names = {str(t["name"]) for t in project.get("tables", [])}
+        texts: list[tuple[str, str]] = []
+        for path in self._s.documents():
+            try:
+                text, full, _ = self._s.read(path)
+            except (OSError, ValueError):
+                continue
+            texts.append((full, text))
+        return names, texts
+
+    def catalog_use(self) -> tuple[str, set[str], list[tuple[str, str]]] | None:
+        """The open project's name, the tables it uses (its own and the open ones), its documents' texts."""
+        project = self._s.project()
+        found = self.documents()
+        if not project or found is None:
+            return None
+        folder = str(project.get("folder") or "")
+        name = folder.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] if folder else ""
+        names, texts = found
+        return name or str(project.get("name") or ""), names | self._s.open_tables(), texts
+
+    def places(self, name: str) -> list[tuple[str, str]]:
+        """The project's documents and the open grids that use a connection: (kind, path or table)."""
+        folder = self._folder()
+        found, _ = self._s.references(name)
+        out = []
+        for ref in found:
+            if ref.kind == "grid":
+                out.append(("grid", ref.title))
+            elif folder and self._s.inside(ref.document, folder):
+                out.append((ref.kind, ref.document))
+        return out
+
+    def api_connections(self) -> list[str]:
+        """The connections the open project's API.py endpoints read ([]: none, or one that does not parse)."""
+        folder = self._folder()
+        text = self._s.api_text(folder) if folder else None
+        if not text:
+            return []
+        try:
+            api = local_api_rules.parse(text)
+        except Exception:
+            return []
+        return [n for e in api.endpoints for n in e.connections]
+
+    def connections(self) -> list[str]:
+        """The connections the open project uses: its documents' cells and canvases, its open tables, API.py's
+        endpoints; in the library's order (the order they were made), each once."""
+        folder = self._folder()
+        named = {n.casefold() for n in self.api_connections()}
+        out: list[str] = []
+        for blade in self._s.connections():
+            if not opens_in_code(connection_kind(blade.kind, blade.template)):
+                continue
+            if blade.name.casefold() in named:
+                out.append(blade.name)
+                continue
+            try:
+                references, _ = self._s.references(blade.name)
+            except Exception:  # noqa: S112 (a connection that cannot be read is not counted)
+                continue
+            if any(r.kind == "grid" or (folder and self._s.inside(r.document, folder)) for r in references):
+                out.append(blade.name)
+        return out
+
+    def named_in(self, folder: str) -> list[str]:
+        """The connections a project folder's notebooks and scripts name (Shared projects, 2026-11-18)."""
+        texts = self._s.code_texts(folder)
+        found = []
+        for name in dict.fromkeys(self._s.known()):
+            for full, title, text in texts:
+                try:
+                    if usage_rules.document_references(full, title, text, name):
+                        found.append(name)
+                        break
+                except ValueError:
+                    continue
+        return found
