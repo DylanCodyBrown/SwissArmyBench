@@ -162,6 +162,7 @@ from swissarmybench.services.file_watch import FileWatch
 from swissarmybench.services.folders import Folders
 from swissarmybench.services.found_connections import FoundConnections
 from swissarmybench.services.grids import GridService
+from swissarmybench.services.grids import view_rows as grid_view_rows
 from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
@@ -172,7 +173,6 @@ from swissarmybench.services.lineage import Lineage
 from swissarmybench.services.local_api import LocalApi
 from swissarmybench.services.modes import Modes
 from swissarmybench.services.navigation import Navigation
-from swissarmybench.services.ports import INTERACTIVE as PRIORITY_INTERACTIVE
 from swissarmybench.services.processes import ProcessRegistry, Sessions
 from swissarmybench.services.profile import Profiles
 from swissarmybench.services.project_explorer import ProjectExplorer
@@ -938,21 +938,7 @@ def _connection_runs(b: Built) -> None:
         # the Connections page counts (services/connection_usage.py; memory only); each waits for one of the
         # connection's slots first (services/connection_slots.py), and gives it back however it ends.
         try:
-            if blade.kind in ("sql", "other") and mode in slot_rules.KINDS:
-                more = extra or {}
-                place: dict[str, Any] = more["place"] if isinstance(more.get("place"), dict) else {}
-                sql = more.get("sql") or "\n;\n".join(";\n".join(a) for a in more.get("attempts") or [])
-                answer = await b.slots.run(
-                    blade.name,
-                    work,
-                    kind=mode,
-                    targets=(str(place.get("table") or ""),),
-                    sql=str(sql or ""),
-                    dialect=str(blade.dialect or ""),
-                )
-            else:
-                answer = await work()
-                answer.pop("facts", None)  # the statistics' (only a connection's run is counted)
+            answer = await b.slots.run_blade(blade.name, blade.kind, blade.dialect, mode, extra, work)
         except Exception as error:
             b.connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
@@ -1676,23 +1662,6 @@ def _sandbox_part(b: Built) -> None:
         origin = TableOrigin("sandbox", connection=sandbox_rules.NAME, sql=sql, filename=words)
         return await datasets.store_table(name, table, "sandbox", False, "user", follow=follow, origin=origin)
 
-    async def sandbox_view_rows(name: str, places: list[int]) -> tuple[list[str], list[list[Any] | None]]:
-        """An open sandbox grid's view rows at these places (its steps applied): what an edit names."""
-        grid, info = ws.grids.first_for(name), ws.store.get(name)
-        if grid is None or info is None:
-            raise LookupError(f"{name} is not open in Grids.")
-
-        def read(cursor: Any) -> tuple[list[str], list[list[Any] | None]]:
-            shown: list[str] = []
-            out: list[list[Any] | None] = []
-            for place in places:
-                window = ws.views.window(cursor, info, grid.steps, grid.settings, place, place + 1, None)
-                shown = [c.name for c in window.columns]
-                out.append(list(window.rows[0]) if window.rows else None)
-            return shown, out
-
-        return await ws.grid_query(grid, None, PRIORITY_INTERACTIVE, read)
-
     def sandbox_connections() -> list[str]:
         """Mocked as's choices: the saved connections that have tables."""
         out = []
@@ -1728,7 +1697,7 @@ def _sandbox_part(b: Built) -> None:
             sandbox_show,
             sandbox_client,
             structure_fn=b.structures.records_table,
-            view_rows_fn=sandbox_view_rows,
+            view_rows_fn=partial(grid_view_rows, ws),
             connections_fn=sandbox_connections,
             key_fn=sandbox_key,
         ),

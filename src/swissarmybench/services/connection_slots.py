@@ -141,6 +141,34 @@ class ConnectionSlots:
             self._cancelled.discard(ticket.id)
             self._leave(ticket.id, outcome, reason, rows, facts)
 
+    async def run_blade(
+        self,
+        name: str,
+        blade_kind: str,
+        dialect: str,
+        mode: str,
+        extra: dict[str, Any] | None,
+        work: Callable[[], Awaitable[dict[str, Any]]],
+    ) -> dict[str, Any]:
+        """A blade's run through the app (bootstrap's run_blade): a connection's run (a database's or other
+        code's catalog load, table read, query or test) waits in line for one of its slots and is counted; any
+        other run goes straight through, its facts dropped (only a connection's run is counted)."""
+        if blade_kind in ("sql", "other") and mode in rules.KINDS:
+            more = extra or {}
+            place: dict[str, Any] = more["place"] if isinstance(more.get("place"), dict) else {}
+            sql = more.get("sql") or "\n;\n".join(";\n".join(a) for a in more.get("attempts") or [])
+            return await self.run(
+                name,
+                work,
+                kind=mode,
+                targets=(str(place.get("table") or ""),),
+                sql=str(sql or ""),
+                dialect=str(dialect or ""),
+            )
+        answer = await work()
+        answer.pop("facts", None)  # the statistics' (only a connection's run is counted)
+        return answer
+
     def _ticket(
         self, connection: str, caller: Caller, kind: str, targets: tuple[str, ...], sql: str, dialect: str
     ) -> Ticket:

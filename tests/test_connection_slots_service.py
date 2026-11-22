@@ -206,3 +206,27 @@ def test_outside_a_workbench_kernel_or_with_no_app_there_is_no_gate(monkeypatch:
         ran.append("no app")
     assert ran == ["plain Python", "no app"]
     assert connection_slot.kernel_headers() == {"X-Kernel": "abc123", "X-Sab-Client": "kernel-abc123"}
+
+
+def test_only_a_connection_s_run_waits_in_its_line_and_is_counted() -> None:
+    """run_blade (the composition root's run_blade passes it): a database's or other code's read, query or
+    test takes a slot and is counted; an analysis's run, or a mode the gate does not count, goes straight
+    through with its statistics' facts dropped."""
+
+    async def scenario() -> None:
+        slots = gate()
+        seen: list[str] = []
+        slots.on_finished = lambda ticket, facts: seen.append(str(ticket["connection"]))
+
+        async def work() -> dict[str, Any]:
+            return {"rows": [], "facts": [{"made": "up"}]}
+
+        place = {"sql": "SELECT 1", "place": {"table": "orders"}}
+        kept = await slots.run_blade("Warehouse", "sql", "postgres", "query", place, work)
+        assert "facts" not in kept and seen == ["Warehouse"]
+        plain = await slots.run_blade("Odds", "analysis", "other", "query", None, work)
+        assert plain == {"rows": []} and seen == ["Warehouse"]
+        other = await slots.run_blade("Warehouse", "sql", "postgres", "install", None, work)
+        assert other == {"rows": []} and seen == ["Warehouse"]
+
+    asyncio.run(scenario())
