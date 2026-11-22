@@ -25,34 +25,15 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
-from swissarmybench.domain import catalogs
+from swissarmybench.domain import catalogs, connection_kinds
 from swissarmybench.domain.sandbox import SandboxError, check_table_name
 
 # A connection's driver's parameter marks, by its dialect (domain/catalogs.py's words): the dialects the
-# mock reads. Each one's name in sqlglot is catalogs.sqlglot_name's (SQLGLOT, below).
+# mock reads, each with its SQL in words (their records say both: domain/connection_kinds.py). Each one's
+# name in sqlglot is catalogs.sqlglot_name's (SQLGLOT, below).
 # qmark ?, format %s, pyformat %(name)s, named :name, numeric :1, dollar $1
-PARAMSTYLE: dict[str, str] = {
-    "sqlserver": "qmark",
-    "dataverse": "qmark",
-    "postgres": "format",
-    "mysql": "format",
-    "sqlite": "qmark",
-    "duckdb": "dollar",
-    "snowflake": "format",
-    "oracle": "named",
-    "trino": "qmark",
-}
-WORDS: dict[str, str] = {
-    "sqlserver": "T-SQL",
-    "dataverse": "T-SQL",
-    "postgres": "PostgreSQL",
-    "mysql": "MySQL",
-    "sqlite": "SQLite",
-    "duckdb": "DuckDB SQL",
-    "snowflake": "Snowflake SQL",
-    "oracle": "Oracle SQL",
-    "trino": "Trino SQL",
-}
+PARAMSTYLE: dict[str, str] = connection_kinds.paramstyles()
+WORDS: dict[str, str] = connection_kinds.sql_words()
 SQLGLOT: dict[str, str] = {word: str(catalogs.sqlglot_name(word)) for word in PARAMSTYLE}
 _SENTINEL = "__sabp_{}__"
 _SENTINEL_RE = re.compile(r"^__sabp_(\d+)__$")
