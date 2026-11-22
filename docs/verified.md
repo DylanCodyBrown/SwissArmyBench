@@ -5180,3 +5180,19 @@ are files of both.
   refused; examples/forms_recon/workbook.py run under `python -I` in a folder holding only it, adapter.py, sab_excel.py
   and a made-up sandbox: the month's latest run of each reconciliation, the totals as formulas, a chart, a colour
   rule, a key starting with = as text, and a month with no run said in one sentence.
+- **The quick suite** (`-n 4 --dist loadfile tests --ignore=tests/e2e`, the main checkout's Python with this branch's
+  sources on PYTHONPATH): 5,173 passed, 38 skipped, 3 failed, none of them this work: test_performance's million
+  rows (its sort target, under the machine's load; passes alone) and the two the PYTHONPATH way leaks into, since a
+  child Python then sees Swiss Army Bench (test_updater's upgrade, test_script_export's fresh Python); both files
+  pass with no PYTHONPATH (34 passed). An earlier run under a load average over 60 also failed, and passed alone,
+  test_adapter's streaming, test_sharing's refusal, test_agent_index's resources and test_desktop_shell.
+  `ruff check`, `ruff format --check`, `mypy` (1,016 files), `npm run typecheck` and `npm run build`: clean.
+- **In Chromium** (one at a time): the Accounting canvas (Play, templates, statements), the grid's Excel export and its
+  cell limit, Open file and a dropped workbook, the Excel upload feeding a table widget, the widget packs, the forms
+  and reconciliation app (its Excel upload), the starters page and the Write starters page: 19 passed.
+- **Not checked:** Edge; Windows and macOS (a workbook open in Excel while it is written; .xlsm with macros through a
+  write); the test bed's real-world use cases 4 and 6 (no PostgreSQL or MariaDB here: use case 4's new code, the
+  statements by Fill a template, was run on made-up frames and a template made as the test bed makes it); Larkfield
+  large through the adapter's other sources (unchanged code); a workbook of a million rows read through the
+  adapter (200,000 measured); the plain export's time on Windows; LibreOffice or Excel itself opening the files
+  (read back with openpyxl only); a SharePoint document's bytes through adapter.Excel against a real site.
