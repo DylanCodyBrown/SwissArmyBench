@@ -197,3 +197,39 @@ def test_a_named_instance_backslash_is_written_escaped_and_found_again() -> None
     assert again["Server"].value == "db01\\SQLEXPRESS"
     back = apply(changed, {again["Server"].id: "db02"})
     assert '"Server=db02;"' in back
+
+
+def test_the_settings_rules_are_their_own_module_and_blades_still_gives_them() -> None:
+    """domain/blade_settings.py holds the settings detection (moved out of blades.py, 2026-11-22: it sat at
+    the ceiling); every public name is the same object by either import, and neither imports the other
+    back."""
+    from pathlib import Path
+
+    from swissarmybench.domain import blade_settings, blades
+
+    for name in (
+        "detect_settings",
+        "apply_settings",
+        "env_settings",
+        "is_placeholder",
+        "Setting",
+        "FillError",
+        "KEYWORDS",
+        "CONNECTION_KEYS",
+        "FLAGS",
+        "parse_code",
+        "BladeCodeError",
+    ):
+        assert getattr(blades, name) is getattr(blade_settings, name), name
+    from tests.test_architecture import _imports
+
+    assert not [m for m in _imports(Path(blade_settings.__file__)) if m.endswith("domain.blades")]
+    assert len(Path(blades.__file__).read_text(encoding="utf-8").splitlines()) < 1000  # room again
+    found = blades.detect_settings('conn = connect(server="<server>", database="sales")\n')
+    assert [s.name for s in found] == ["server", "database"]
+    try:
+        blades.detect_settings("conn = connect(")
+    except blades.BladeCodeError as error:
+        assert "not valid Python" in str(error)
+    else:
+        raise AssertionError("code that is not Python is said so")
