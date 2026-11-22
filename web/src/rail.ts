@@ -51,17 +51,18 @@ import { onUnseen } from "./sessionPage";
 // The APIs, Structures, Code App (a plug-in: shown while it is on), Source Control (a plug-in: shown while the
 // backend names its area) and Extensions pages' layers, on every page with the rail; each page loads when first
 // opened (lazyPages.ts).
-import { APIS, CODE_APP, codeAppOn, EXTENSIONS, SCM, scmOn, STRUCTURES } from "./lazyPages";
+import { APIS, CODE_APP, codeAppOn, EXTENSIONS, SCM, scmOn } from "./lazyPages";
 import { canvasOn } from "./modes";
 import { PAGE_WINDOW as PAGE_WINDOWS, pageOfKind, thisPage } from "./workbenchPages";
-import "./variablesPage"; // the Variables page's layer, on every page with the rail
+import "./environmentPage"; // the Environment page's layer, on every page with the rail
+import "./variablesPage"; // the key vaults' and settings' manager (open=variables): a layer, off the rail
 import { openMenu } from "./workbenchMenu";
 import { errorHere } from "./errorNote";
 import { DATA } from "./dataPage"; // the Data page's layer, on every page with the rail
 import { panelAreas } from "./extensionArea"; // an extension's area drawn from its data (GET /app/areas)
 import { firstOpen, isClosed, loadGates, onGates, removeGateCover, showGateLine } from "./gates";
 
-export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "canvas" | "widgets" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "extensions" | "codeapp" | "scm" | "settings" | "data";
+export type Area = "projects" | "grids" | "analyze" | "erd" | "notebooks" | "scripts" | "canvas" | "widgets" | "blades" | "connections" | "session" | "variables" | "apis" | "structures" | "environment" | "extensions" | "codeapp" | "scm" | "settings" | "data";
 
 /** The rail's order (domain/navigation.py AREAS holds the same); the last one is pinned at the bottom.
  *  The code areas' icons are their documents' (kindColours.ts kindIcon). */
@@ -76,9 +77,10 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "connections", name: "Connections", icon: "plug" },
   // The library's APIs, their explorer (apisPage.ts): beside Connections (the owner, 2026-11-18).
   { area: "apis", name: APIS, icon: "apis" },
-  // Structures beside APIs (the owner, 2026-11-21: "Apis and Structure should be side by side").
-  { area: "structures", name: STRUCTURES, icon: "structures" }, // nested data as documents (structuresPage.ts)
-  { area: "variables", name: "Variables", icon: "variables" }, // this computer's variables (variablesPage.ts)
+  // The Environment (the owner, 2026-11-21/22): everything the project holds (tables, variables, structures,
+  // settings and secrets, libraries), in the Structures and Variables places (environmentPage.ts). The
+  // Structures page stays as the viewer a structure's row opens into (open=structures).
+  { area: "environment", name: "Environment", icon: "environment" },
   { area: "data", name: DATA, icon: "data" }, // the one place to browse and find tables (dataPage.ts)
   { area: "grids", name: "Grids", icon: "grids" },
   { area: "erd", name: "ERD", icon: "diagram" },
@@ -104,7 +106,9 @@ const AREAS: { area: Area; name: string; icon: string; kind?: Kind; plugin?: () 
   { area: "settings", name: "Settings", icon: "cog" },
 ];
 /** The areas that are a page of the rail's over any page (areaPage.ts), each its own layer (open=<area>). */
-const LAYERS: readonly Area[] = ["projects", "settings", "connections", "session", "variables", "apis", "structures", "extensions", "codeapp", "scm", "data"];
+const LAYERS: readonly Area[] = ["projects", "settings", "connections", "session", "environment", "variables", "apis", "structures", "extensions", "codeapp", "scm", "data"];
+// The pages a row of the Environment opens into: the rail marks Environment while one shows.
+const UNDER_ENVIRONMENT: readonly string[] = ["structures", "variables"];
 // The areas an on extension names with a page drawn from data (extensionArea.ts), each its own layer.
 const DATA_AREAS = new Set<string>();
 const isLayer = (name: string | null): name is Area => LAYERS.includes(name as Area) || DATA_AREAS.has(name ?? "");
@@ -120,6 +124,7 @@ let items: HTMLButtonElement[] = [];
 /** The area the address names on this page (null: none, a Workbench with no document of a kind). */
 function currentArea(url: URL): Area | null {
   const open = url.searchParams.get("open");
+  if (open && UNDER_ENVIRONMENT.includes(open)) return "environment";
   if (isLayer(open)) return open;
   if (kind === "catalog") return "blades";
   if (kind === "canvas") return "canvas";

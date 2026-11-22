@@ -206,6 +206,8 @@ const ICONS: Record<string, string> = {
   upload: '<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
   // The Session page (2026-11-16): a log, a dot for each thing made.
   // The Variables page's (rail.ts): braces round an x.
+  // The Environment: layers (everything the project holds, one on another).
+  environment: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12l9 5 9-5M3 16l9 5 9-5"/>',
   variables: '<path d="M8 4c-2 0-3 1-3 3v2c0 1.5-1 3-2 3 1 0 2 1.5 2 3v2c0 2 1 3 3 3"/><path d="M16 4c2 0 3 1 3 3v2c0 1.5 1 3 2 3-1 0-2 1.5-2 3v2c0 2-1 3-3 3"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/>',
   // The Extensions page's: a puzzle piece (what plugs into the base).
   extensions: '<path d="M4 8h4a2 2 0 114 0h4v4a2 2 0 110 4v4h-4a2 2 0 10-4 0H4v-4a2 2 0 100-4z"/>',
