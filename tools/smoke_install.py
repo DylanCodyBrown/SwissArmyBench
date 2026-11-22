@@ -69,7 +69,7 @@ def pages_load_whole(info: dict[str, Any]) -> None:
     base = f"http://127.0.0.1:{info['port']}"
     headers = {"Authorization": f"Bearer {info['token']}"}
     linked: set[str] = {"/static/build/lazy/codeEditor.css"}
-    for page in ("/workbench", "/catalog", "/g/smoke"):  # /g/<any id> serves the grid page
+    for page in ("/notebooks", "/scripts", "/g/smoke"):  # /g/<any id> serves the grid page
         request = urllib.request.Request(base + page, headers=headers)  # noqa: S310 (fixed local URL)
         with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 (fixed local URL)
             html = response.read().decode("utf-8")
@@ -118,7 +118,7 @@ def workbench(info: dict[str, Any]) -> None:
 
 def streamlit_preinstalled(info: dict[str, Any]) -> None:
     """The installers put the Streamlit extension in beside the base: it is installed, its mode is offered,
-    and its routes answer (an empty list of apps). SWISSARMYBENCH_SMOKE_BASE_ONLY=1: a base-only install."""
+    and its routes answer (the list of canvases). SWISSARMYBENCH_SMOKE_BASE_ONLY=1: a base-only install."""
     listed = {e["id"]: e for e in get(info, "/extensions")["extensions"]}
     if os.environ.get("SWISSARMYBENCH_SMOKE_BASE_ONLY") == "1":
         if listed["streamlit"]["status"] != "available":
@@ -130,7 +130,7 @@ def streamlit_preinstalled(info: dict[str, Any]) -> None:
     modes = [m["type"] for m in get(info, "/app/modes")["modes"]]
     if "streamlit" not in modes:
         sys.exit(f"The Streamlit project type is missing: {modes}")
-    if get(info, "/streamlit/apps") != {"apps": []}:
+    if "canvases" not in get(info, "/streamlit/canvases"):
         sys.exit("The Streamlit extension's routes do not answer.")
     print("The Streamlit extension is installed (preinstalled): its project type and its routes answer.")
 
@@ -237,10 +237,10 @@ def main() -> None:
         if [c["column"] for c in found] != ["crust"]:
             sys.exit(f"sab.load's catalog cannot be searched: {found}")
         with urllib.request.urlopen(
-            f"http://127.0.0.1:{info['port']}/static/build/catalog.js", timeout=30
+            f"http://127.0.0.1:{info['port']}/static/build/workbench.js", timeout=30
         ) as page:
             if page.status != 200 or len(page.read()) < 5_000:
-                sys.exit("The blades page's script is missing from the install.")
+                sys.exit("The Scripts page's script is missing from the install.")
         print("Blades refresh, run with sab.blade, and sab.load fills a catalog.")
 
         pages_load_whole(info)
