@@ -255,8 +255,9 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # 4,100 (2026-11-22, 1.5.0): a plan's values keep their type through JSON (typed_value, untyped; about 40).
 # 4,250 (2026-11-22, 1.6.0): write_all, several writes all or none on every source (about 140 lines).
 # 4,275 (2026-11-22, 1.7.0): Connection.planned, a write's dry run through the connection (about 15).
+# 4,400 (2026-11-22, 1.8.0): a plan grouped by a date's period in every dialect (period_sql; about 125).
 # api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
-ONE_FILE = {"adapter.py": 4275, "api_adapter.py": 3000}
+ONE_FILE = {"adapter.py": 4400, "api_adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

@@ -17,8 +17,8 @@ only a view of one.
 
 It reads top to bottom in the order a call runs:
 
-  1. The plan       what a read asks for (columns, filters, sort, limit, offset, group, totals), and what
-                    its source folded
+  1. The plan       what a read asks for (columns, filters, sort, limit, offset, group, periods, totals),
+                    and what its source folded
   2. Sources        a source is three functions (tables, read, write), and query when it speaks SQL; DuckDB (a
                     file, or a connection given), Remote (the project's sandbox through the app, for a local
                     sandbox API's process), Sql (SQL Server's writes and Trino's in sections of their
@@ -40,7 +40,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.7.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.8.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -78,6 +78,12 @@ Version 1.7.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            write_all); Trino, Dataverse's Web API, Rows, Files and Excel refuse two or more in one sentence
   1.7.0    Connection.planned(table, rows, key, mode): a write's dry run through the connection object, as
            planned() is (rows as write takes them; a key as one name or several)
+  1.8.0    a plan groups by a date's period (Plan.periods: Period(column, unit, name), PERIODS: year, quarter,
+           month, week from Monday, day; the period's first day as a date), part of the plan's group: folded
+           into DuckDB's and each dialect's own SQL (period_sql; no % but SQLite's), a SQL answer's periods
+           made dates (dated); OData and Rows read only the columns a plan with totals needs (Plan.needed)
+           and DuckDB groups them over the stream; to_json says periods only when there are some; OData's
+           $orderby built only when sent (a sort by a total's name failed)
 """
 
 from __future__ import annotations
@@ -101,11 +107,18 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.7.0"  # the docstring's change list says what each version added
+VERSION = "1.8.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
 TOTALS = ("count", "count_distinct", "sum", "avg", "min", "max")
+PERIODS = (
+    "year",
+    "quarter",
+    "month",
+    "week",
+    "day",
+)  # a date's periods a plan groups by (a week from Monday)
 MODES = ("insert", "update", "merge", "delete", "truncate")
 KEYED = ("update", "merge", "delete")  # the modes that match rows by a key
 PARTS = ("filters", "group", "totals", "columns", "sort", "offset", "limit")  # in the order SQL applies them
@@ -162,10 +175,24 @@ class Total:
 
 
 @dataclass(frozen=True)
+class Period:
+    """A group by a date's period: its column's year, quarter, month, week (from Monday) or day, answered as
+    the period's first day (a date)."""
+
+    column: str
+    unit: str = "month"
+    name: str = ""  # its column in the answer; column_unit by default
+
+    @property
+    def label(self) -> str:
+        return self.name or f"{self.column}_{self.unit}"
+
+
+@dataclass(frozen=True)
 class Plan:
     """What a read asks for. Applied as SQL is: filters, then group and totals (or the columns), then sort,
-    offset and limit. With totals, the answer is the group's columns and the totals; with none, the columns
-    (every column when none are named)."""
+    offset and limit. With totals, the answer is the periods' and the group's columns and the totals; with
+    none, the columns (every column when none are named). A period is part of the group."""
 
     columns: tuple[str, ...] = ()
     filters: tuple[Filter, ...] = ()
@@ -174,13 +201,14 @@ class Plan:
     offset: int = 0
     group: tuple[str, ...] = ()
     totals: tuple[Total, ...] = ()
+    periods: tuple[Period, ...] = ()  # grouped by first, before the group's columns
 
     def parts(self) -> tuple[str, ...]:
         """The parts this plan asks for."""
         asked = {
             "columns": bool(self.columns),
             "filters": bool(self.filters),
-            "group": bool(self.group),
+            "group": bool(self.group or self.periods),
             "totals": bool(self.totals),
             "sort": bool(self.sort),
             "offset": bool(self.offset),
@@ -193,7 +221,7 @@ class Plan:
         `typed`: a date, a date and time, a time or a decimal as {"sab_type", "value"} (typed_value), so
         plan_from on the far side gives back the same type; else each value as it is."""
         said = typed_value if typed else _as_is
-        return {
+        made = {
             "columns": list(self.columns),
             "filters": [[f.column, f.op, said(f.value)] for f in self.filters],
             "sort": [[c, "desc" if d else "asc"] for c, d in self.sort],
@@ -202,6 +230,18 @@ class Plan:
             "group": list(self.group),
             "totals": [{"fn": t.fn, "column": t.column, "name": t.name} for t in self.totals],
         }
+        if self.periods:  # said only when there are some: a plan without one says what it always did
+            made["periods"] = [{"column": p.column, "unit": p.unit, "name": p.name} for p in self.periods]
+        return made
+
+    def needed(self) -> tuple[str, ...]:
+        """The table's columns the plan names (the columns, filters, periods, group, totals and sort), once
+        each: what a source that cannot group reads for DuckDB to do the rest."""
+        labels = {t.label.casefold() for t in self.totals} | {p.label.casefold() for p in self.periods}
+        named = [*self.columns, *(f.column for f in self.filters), *(p.column for p in self.periods)]
+        named += [*self.group, *(t.column for t in self.totals if t.column)]
+        named += [c for c, _ in self.sort if c.casefold() not in labels]
+        return tuple(dict.fromkeys(named))
 
 
 def plan_from(raw: Mapping[str, Any] | None) -> Plan:
@@ -232,6 +272,13 @@ def plan_from(raw: Mapping[str, Any] | None) -> Plan:
         offset=_whole(given.get("offset") or 0, "offset"),
         group=tuple(str(c) for c in given.get("group") or []),
         totals=tuple(totals),
+        periods=tuple(
+            Period(
+                str(p.get("column") or ""), str(p.get("unit") or "month").lower(), str(p.get("name") or "")
+            )
+            for p in given.get("periods") or []
+            if isinstance(p, Mapping)
+        ),
     )
     check_plan(plan)
     return plan
@@ -297,7 +344,12 @@ def check_plan(plan: Plan) -> None:
             raise AdapterError(f"A total is one of {', '.join(TOTALS)}, not {t.fn!r}.")
         if t.fn != "count" and not t.column:
             raise AdapterError(f"A {t.fn} total names its column.")
-    if plan.group and not plan.totals:
+    for p in plan.periods:
+        if p.unit not in PERIODS:
+            raise AdapterError(f"A period is one of {', '.join(PERIODS)}, not {p.unit!r}.")
+        if not p.column:
+            raise AdapterError("A period names its date column.")
+    if (plan.group or plan.periods) and not plan.totals:
         raise AdapterError("A plan that groups names its totals.")
 
 
@@ -318,6 +370,7 @@ class Folded:
             offset=0 if "offset" in done else plan.offset,
             group=() if "group" in done else plan.group,
             totals=() if "totals" in done else plan.totals,
+            periods=() if "group" in done else plan.periods,
         )
 
 
@@ -438,15 +491,19 @@ def plan_sql(relation: str, plan: Plan) -> tuple[str, list[Any]]:
     check_plan(plan)
     params: list[Any] = []
     wheres = [_condition(f, params) for f in plan.filters]
+    grouped = [period_sql("duckdb", p.unit, quote(p.column)) for p in plan.periods]
+    grouped += [quote(c) for c in plan.group]
     if plan.totals:
-        picked = [quote(c) for c in plan.group] + [_total(t) for t in plan.totals]
+        labels = [quote(p.label) for p in plan.periods] + [quote(c) for c in plan.group]
+        picked = [g if g == n else f"{g} AS {n}" for g, n in zip(grouped, labels, strict=True)]
+        picked += [_total(t) for t in plan.totals]
     else:
         picked = [quote(c) for c in plan.columns] or ["*"]
     sql = f"SELECT {', '.join(picked)} FROM {relation}"  # noqa: S608 (names quoted, values bound)
     if wheres:
         sql += " WHERE " + " AND ".join(wheres)
-    if plan.group:
-        sql += " GROUP BY " + ", ".join(quote(c) for c in plan.group)
+    if grouped:
+        sql += " GROUP BY " + ", ".join(grouped)
     if plan.sort:
         sql += " ORDER BY " + ", ".join(f"{quote(c)} {'DESC' if d else 'ASC'}" for c, d in plan.sort)
     if plan.limit is not None:
@@ -454,6 +511,55 @@ def plan_sql(relation: str, plan: Plan) -> tuple[str, list[Any]]:
     if plan.offset:
         sql += f" OFFSET {int(plan.offset)}"
     return sql, params
+
+
+_ORACLE_UNITS = {
+    "year": "YYYY",
+    "quarter": "Q",
+    "month": "MM",
+    "week": "IW",
+    "day": "DD",
+}  # TRUNC's (IW: Monday)
+
+
+def period_sql(dialect: str, unit: str, column: str) -> str:
+    """A date's period's first day as a date, in one database's SQL (`column` already quoted): DuckDB's and
+    PostgreSQL's, Snowflake's, Trino's and Databricks' DATE_TRUNC; SQL Server's DATEFROMPARTS (every version,
+    a week from Monday whatever its DATEFIRST); MySQL's and SQLite's date functions; Oracle's TRUNC. No % in
+    the text but SQLite's (its driver's marks are ?, a pyformat driver's %s would misread one)."""
+    if dialect in ("duckdb", "postgres", "snowflake", "trino", "databricks"):
+        given = f"CAST({column} AS TIMESTAMP)" if dialect == "duckdb" else column  # DuckDB: text dates too
+        return f"CAST(DATE_TRUNC('{unit}', {given}) AS DATE)"
+    if dialect == "sqlserver":
+        weekday = f"(DATEPART(weekday, {column}) + @@DATEFIRST - 2)"  # 0 on a Monday, +7 at most
+        return {
+            "year": f"DATEFROMPARTS(YEAR({column}), 1, 1)",
+            "quarter": f"DATEFROMPARTS(YEAR({column}), (DATEPART(quarter, {column}) - 1) * 3 + 1, 1)",
+            "month": f"DATEFROMPARTS(YEAR({column}), MONTH({column}), 1)",
+            "week": f"DATEADD(day, -({weekday} - 7 * ({weekday} / 7)), CAST({column} AS DATE))",
+            "day": f"CAST({column} AS DATE)",
+        }[unit]
+    if dialect == "mysql":
+        return {
+            "year": f"MAKEDATE(YEAR({column}), 1)",
+            "quarter": f"(MAKEDATE(YEAR({column}), 1) + INTERVAL (QUARTER({column}) - 1) QUARTER)",
+            "month": f"DATE_SUB(DATE({column}), INTERVAL (DAYOFMONTH({column}) - 1) DAY)",
+            "week": f"DATE_SUB(DATE({column}), INTERVAL WEEKDAY({column}) DAY)",
+            "day": f"DATE({column})",
+        }[unit]
+    if dialect == "oracle":
+        return f"TRUNC({column}, '{_ORACLE_UNITS[unit]}')"
+    if dialect == "sqlite":
+        return {
+            "year": f"date({column}, 'start of year')",
+            "quarter": f"date({column}, 'start of month', '-' || ((CAST(strftime('%m', {column}) AS INTEGER)"
+            " - 1) % 3) || ' months')",
+            "month": f"date({column}, 'start of month')",
+            "week": f"date({column}, '-' || ((CAST(strftime('%w', {column}) AS INTEGER) + 6) % 7)"
+            " || ' days')",
+            "day": f"date({column})",
+        }[unit]
+    raise AdapterError(f"{dialect} has no period of its own here: read the dates and group them in DuckDB.")
 
 
 def _condition(f: Filter, params: list[Any]) -> str:
@@ -545,10 +651,7 @@ class DuckDB:
     def _query(self, con: Any, table: str, plan: Plan) -> tuple[str, list[Any]]:
         schema, name = self._place(con, table)
         known = {c[0].casefold() for c in _columns(con, schema, name)}
-        named = [*plan.columns, *plan.group, *(f.column for f in plan.filters)]
-        named += [t.column for t in plan.totals if t.column]
-        named += [c for c, _ in plan.sort if c.casefold() not in {t.label.casefold() for t in plan.totals}]
-        for column in named:
+        for column in plan.needed():
             if column.casefold() not in known:
                 raise AdapterError(f"{table} has no column {column!r}.")
         return plan_sql(f"{quote(schema)}.{quote(name)}", plan)
@@ -1012,8 +1115,12 @@ def dialect_sql(dialect: Dialect, table: str, plan: Plan, style: str = "qmark") 
             what = f"{t.fn.upper()}({q(t.column)})"
         return f"{what} AS {q(t.label)}"
 
+    grouped = [period_sql(dialect.name, p.unit, q(p.column)) for p in plan.periods] + [
+        q(c) for c in plan.group
+    ]
     if plan.totals:
-        picked = [q(c) for c in plan.group] + [total(t) for t in plan.totals]
+        picked = [f"{g} AS {q(p.label)}" for g, p in zip(grouped, plan.periods, strict=False)]
+        picked += [q(c) for c in plan.group] + [total(t) for t in plan.totals]
     else:
         picked = [q(c) for c in plan.columns] or ["*"]
     wheres = [condition(f) for f in plan.filters]
@@ -1025,8 +1132,8 @@ def dialect_sql(dialect: Dialect, table: str, plan: Plan, style: str = "qmark") 
     sql = f"SELECT {top}{', '.join(picked)} FROM {table_name(dialect, table)}"  # noqa: S608 (quoted, bound)
     if wheres:
         sql += " WHERE " + " AND ".join(wheres)
-    if plan.group:
-        sql += " GROUP BY " + ", ".join(q(c) for c in plan.group)
+    if grouped:
+        sql += " GROUP BY " + ", ".join(grouped)
     if plan.sort:
         sql += " ORDER BY " + ", ".join(f"{q(c)} {'DESC' if d else 'ASC'}" for c, d in plan.sort)
     elif paged and dialect.order_needed:
@@ -1170,9 +1277,10 @@ class Sql:
     def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
         sql, params = dialect_sql(self.dialect, table, plan, self.style)
         params = [self.value(v) for v in params]  # as the driver takes it (SQLite: a date as its text)
+        periods = [p.label for p in plan.periods]
         typed = getattr(self.connection, "read_arrow", None)  # a connection typing its own Arrow (SQL Server)
         if callable(typed) and not params:
-            return typed(sql).to_reader(), Folded(plan.parts())
+            return dated(typed(sql).to_reader(), periods), Folded(plan.parts())
         cursor = self.connection.cursor()
         try:
             if params:
@@ -1182,7 +1290,7 @@ class Sql:
         except Exception:
             _quietly(cursor.close)
             raise
-        return cursor_batches(cursor), Folded(plan.parts())
+        return dated(cursor_batches(cursor), periods), Folded(plan.parts())
 
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
         if mode not in MODES:
@@ -1422,6 +1530,25 @@ def _present(
         cursor.execute(f"SELECT {picked} FROM {target} WHERE {' OR '.join(ors)}", _bound(db.style, values))  # noqa: S608
         found.update(tuple(row) for row in cursor.fetchall())
     return found
+
+
+def dated(reader: pa.RecordBatchReader, names: Sequence[str]) -> pa.RecordBatchReader:
+    """A read's columns `names` (its periods) as dates, batch by batch, whatever the driver answered them
+    as (SQLite's text, Oracle's date and time); the reader as it is when they are dates already."""
+    wanted = set(names)
+    schema = pa.schema([f.with_type(pa.date32()) if f.name in wanted else f for f in reader.schema])
+    if schema.equals(reader.schema):
+        return reader
+
+    def batches() -> Iterator[pa.RecordBatch]:
+        for batch in reader:
+            arrays = [
+                c.cast(pa.date32()) if f.name in wanted else c for f, c in zip(reader.schema, batch.columns,
+                                                                                strict=True)
+            ]  # fmt: skip
+            yield pa.RecordBatch.from_arrays(arrays, schema=schema)
+
+    return pa.RecordBatchReader.from_batches(schema, batches())
 
 
 def cursor_batches(cursor: Any, size: int = BATCH_ROWS) -> pa.RecordBatchReader:
@@ -2281,8 +2408,13 @@ class OData:
                 break
             folded.append(part)
         by_name = {n.casefold(): n for n in types}
-        picked = [by_name.get(c.casefold(), c) for c in plan.columns] if "columns" in folded else []
-        order = ", ".join(f"{plain[c.casefold()]}{' desc' if d else ''}" for c, d in plan.sort)
+        asked = plan.columns if "columns" in folded else plan.needed() if plan.totals else ()
+        picked = [by_name.get(c.casefold(), c) for c in asked]  # with totals: the columns DuckDB groups
+        order = (
+            ", ".join(f"{plain[c.casefold()]}{' desc' if d else ''}" for c, d in plan.sort)
+            if "sort" in folded
+            else ""
+        )  # only when sent: a sort by a total's or a period's name is DuckDB's
         records, self.total = self.connection.rows(
             table,
             columns=picked or None,
@@ -2345,7 +2477,9 @@ class Rows:
             name,
             schema=schema,
             limit=plan.limit if "limit" in folded else None,
-            columns=list(plan.columns) if "columns" in folded else None,
+            columns=(
+                list(plan.columns) if "columns" in folded else list(plan.needed()) if plan.totals else None
+            ),  # with totals (never folded here): only the columns DuckDB groups
             filters=filters,
             frame=False,
         )
