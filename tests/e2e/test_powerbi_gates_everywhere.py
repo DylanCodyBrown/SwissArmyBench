@@ -58,20 +58,24 @@ def test_gates_reach_the_palette_new_entries_an_address_and_the_tour(
             work.goto(f"{base}/scripts#token={server['token']}")  # the Scripts page (2026-11-21)
             expect(work.locator(".nav-rail")).to_be_visible(timeout=20000)
             expect(work.locator('.nav-rail-item[data-area="scripts"]')).to_be_hidden()  # the gates are known
+            # An earlier test on the shared server may have left a script open (the page's session restore):
+            # count what is there first, and check New script adds nothing to it.
+            scripts = work.locator(".wb-tab", has_text=re.compile(r"\.py\b|script", re.I))
+            work.wait_for_load_state("networkidle")
+            before, address = scripts.count(), work.url  # the page's own address once settled
             work.keyboard.press("Control+Shift+P")
             work.locator(".wb-palette-input").fill("New script")
             work.keyboard.press("Enter")
             line = work.locator(".gate-line")
             expect(line).to_contain_text("This Power BI project keeps Scripts closed.", timeout=15000)
-            scripts = work.locator(".wb-tab", has_text=re.compile(r"\.py\b|script", re.I))
-            expect(scripts).to_have_count(0)  # nothing was made
-            assert "kind=script" not in work.url
+            expect(scripts).to_have_count(before)  # nothing was made
+            assert work.url == address  # New script moved nowhere
             line.get_by_role("button", name="Close").click()
             expect(line).to_have_count(0)
             work.get_by_role("button", name="Workbench menu").first.click()
             work.get_by_role("menuitem", name="New script").click()
             expect(line).to_contain_text("keeps Scripts closed", timeout=15000)
-            expect(scripts).to_have_count(0)
+            expect(scripts).to_have_count(before)
             if SHOTS:
                 work.screenshot(path=str(Path(SHOTS) / "powerbi-gate-new-entry.png"))
             work.close()
