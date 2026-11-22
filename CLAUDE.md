@@ -171,7 +171,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
   project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
-  `.sab/api_examples.json` only on Try it's Keep as its example:
+  `.sab/api-shapes/` as its local sandbox API's endpoints are called (each one's learned shape: paths and
+  types, never a value; Try it's Keep as its example and its `.sab/api_examples.json` went, the owner,
+  2026-11-22: "No need to ever keep values"):
   the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
   sandbox API never touches live data, its process gets only the sandbox, through the adapter's door, and no
   connection's code, variable or secret), the audit log and, in beta mode,

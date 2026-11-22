@@ -4224,7 +4224,6 @@ _API = {
     "scaffold": ("POST", "/local-api/scaffold"),
     "check": ("POST", "/local-api/check"),
     "shapes": ("GET", "/local-api/shapes"),
-    "example": ("POST", "/local-api/example"),
 }
 
 
@@ -4235,18 +4234,23 @@ _API = {
     req(
         "action",
         "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, scaffold, "
-        "check, shapes, example.",
+        "check, shapes.",
     ),
     opt(
         "args",
         'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
         'writes: {"allow": bool} (the agent writing this session); settings: {"name", '
-        '"target", "base_path"}; example: {"endpoint": "POST /orders", "body"}.',
+        '"target", "base_path"}.',
         "json",
     ),
 )
 def api_command(a: dict[str, Any]) -> Any:
     action = str(a["action"])
+    if action == "example":
+        raise CommandError(
+            "Keep as its example went (2026-11-22): no value is kept. Try it starts from the endpoint's "
+            "learned shape: api(state) gives each endpoint's `try`."
+        )
     if action not in _API:
         raise CommandError(f"action is one of: {', '.join(_API)}.")
     method, path = _API[action]

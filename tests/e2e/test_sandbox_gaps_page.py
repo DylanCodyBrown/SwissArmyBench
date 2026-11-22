@@ -131,23 +131,18 @@ def test_the_sandbox_list_sorts_mocks_and_the_connections_page_shows_the_sandbox
     call(server, "DELETE", "/blades/CRM")
 
 
-def test_try_its_body_kept_as_its_example(browser: Browser, server: dict[str, Any], shop: Path) -> None:
+def test_try_it_has_no_keep_as_its_example(browser: Browser, server: dict[str, Any], shop: Path) -> None:
+    """Values are never kept (the owner, 2026-11-22): Try it has Send only, its body made up from the
+    endpoint's definition and learned shape; nothing is written beside API.py."""
     call(server, "POST", "/sandbox/tables", {"from": "grid", "table": "orders"})
     (shop / "API.py").write_text(API_PY, encoding="utf-8")
     page = open_workspace(browser, server)
     page.locator(".nav-rail [data-area='apis']").click()
     post = page.locator(".local-api-endpoint[data-endpoint='add_order']")
     post.get_by_role("button", name="Try it").click()
-    kept = {"order_id": 77, "region": "South", "amount": 5.5}
-    post.get_by_label("Body").fill(json.dumps(kept))
-    post.get_by_role("button", name="Keep as its example").click()
-    expect(page.locator(".toast", has_text="Kept as POST /orders's example")).to_be_visible(timeout=20000)
-    stored = json.loads((shop / ".sab" / "api_examples.json").read_text(encoding="utf-8"))
-    assert stored["examples"]["POST /orders"] == kept
-    shot(page, "try-it-keep-as-example", ".local-apis")
-    # Opened again, Try it starts from it.
-    page.reload()
-    expect(page.locator(".local-api-endpoint[data-endpoint='add_order']")).to_be_visible(timeout=30000)
-    post = page.locator(".local-api-endpoint[data-endpoint='add_order']")
-    post.get_by_role("button", name="Try it").click()
-    expect(post.get_by_label("Body")).to_contain_text('"order_id": 77')
+    expect(post.get_by_label("Body")).to_be_visible(timeout=20000)
+    assert set(json.loads(post.get_by_label("Body").input_value())) == {"order_id", "region", "amount"}
+    expect(post.get_by_role("button", name="Send")).to_be_visible()
+    expect(post.get_by_role("button", name="Keep as its example")).to_have_count(0)
+    shot(page, "try-it-from-the-learned-shape", ".local-apis")
+    assert not (shop / ".sab" / "api_examples.json").exists()

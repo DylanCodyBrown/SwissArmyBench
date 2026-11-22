@@ -161,6 +161,16 @@ class Actions:
             for ref, api, one, _ in self._every()
         ]
 
+    def local_learned(self) -> dict[str, dict[str, Any]]:
+        """Each of the local sandbox API's endpoints ("POST /orders") with its learned contract and the shape
+        of what it was last sent (paths and types, never a value): what Try it fills its form from."""
+        found: dict[str, dict[str, Any]] = {}
+        for ref, _api, one, entry in self._every():
+            if entry is None:
+                kept = self._shape(self._shape_path(LOCAL, None, one.name))
+                found[ref] = {"contract": self._aa.learn(kept, one), "sent": kept.get("sent") or {}}
+        return found
+
     def carried(self, used: str) -> dict[str, str]:
         """What a built app carries beside its pages: api_adapter.py (always), and sab_actions.json: the local
         sandbox API's actions and each library API's action that `used` (the app's canvas and code as text)

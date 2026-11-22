@@ -6,6 +6,7 @@ local sandbox API, as api_adapter's actions; Build's code and widget, by the end
             text), a widget on a canvas page (which prebuilt widget, its values and its wire); why one
             cannot be; ref(): an action as the canvas names it
   words     the drift note said once ("Orders list_orders: 2 fields new since 2026-11-20")
+  tried     Try it's form filled from the learned shape (made-up values by learned type; no value kept)
 
 Standard library only; no I/O.
 """
@@ -124,6 +125,68 @@ def widget(api: str, action: Mapping[str, Any], kind: str, local: bool) -> dict[
     if not kind:
         raise BuildError("Its shape is not learned yet: run it once, or Discover the API.")
     raise BuildError(f"A {kind} answer has no widget: build a notebook cell or a script function.")
+
+
+_MADE_UP: dict[str, Any] = {
+    "integer": 1,
+    "number": 12.5,
+    "boolean": True,
+    "date": "2026-01-15",
+    "datetime": "2026-01-15T09:30:00",
+    "list": [],
+    "object": {},
+}
+
+
+def made_up(kind: str, name: str) -> Any:
+    """A made-up value of a learned type (never a request's or an answer's own: no value is ever kept)."""
+    return _MADE_UP.get(kind, f"made-up {name.rsplit('.', 1)[-1]}")
+
+
+def tried(
+    start: Mapping[str, Any], contract: Mapping[str, Any] | None, sent: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """Try it's form filled from the learned shape (the owner, 2026-11-22: values are never kept, so there is
+    no kept example). `start`: the endpoint's made-up request as its definition gives it ({"path", "query",
+    "body"}); over it, what the endpoint was last sent (`sent`: a shape's own paths and types, as query.status
+    and body.customer.id): a query input or a body field the definition does not name gets a made-up value of
+    its learned type; and the contract's closed sets: an input or a body field with choices starts from the
+    first one. Answers the request, and `learned`: whether a learned shape filled any of it."""
+    out: dict[str, Any] = {
+        "path": dict(start.get("path") or {}),
+        "query": dict(start.get("query") or {}),
+        "body": json.loads(json.dumps(start.get("body"), default=str)),
+    }
+    filled = False
+    for path, known in sorted(((sent or {}).get("fields") or {}).items()):
+        place, _, name = str(path).partition(".")
+        kind = str((known or {}).get("type") or "text")
+        if place == "query" and name and name not in out["query"]:
+            out["query"][name], filled = made_up(kind, name), True
+        elif place == "body" and name and (out["body"] is None or isinstance(out["body"], dict)):
+            holder = out["body"] = out["body"] if isinstance(out["body"], dict) else {}
+            *parents, last = name.split(".")
+            for part in parents:
+                inner = holder.get(part)
+                if not isinstance(inner, dict):
+                    if part in holder:
+                        break
+                    inner = holder[part] = {}
+                holder = inner
+            else:
+                if last not in holder:
+                    holder[last], filled = made_up(kind, name), True
+    for one in (contract or {}).get("inputs") or []:
+        spot = out.get(str(one.get("in") or "query"))
+        if one.get("choices") and isinstance(spot, dict) and spot.get(one["name"]) not in one["choices"]:
+            if one["name"] in spot or one.get("required"):
+                spot[one["name"]], filled = one["choices"][0], True
+    for one in (contract or {}).get("body") or []:
+        body = out["body"]
+        if one.get("choices") and isinstance(body, dict) and one["name"] in body:
+            if body[one["name"]] not in one["choices"]:
+                body[one["name"]], filled = one["choices"][0], True
+    return out | {"learned": filled}
 
 
 def drift_said(api: str, action: str, words: str) -> str:

@@ -268,6 +268,40 @@ def test_the_local_sandbox_apis_endpoints_are_actions_too(live: int, tmp_path: P
     ask(live, "POST", "/local-api/stop", {})
 
 
+def test_try_it_fills_its_form_from_the_learned_shape(live: int, tmp_path: Path) -> None:
+    """A body the definition does not spell out (a plain dict): once the endpoint was called, Try it's form
+    names the fields it was sent, with made-up values of their learned types. No value is kept anywhere."""
+    from tests.test_local_api import API_PY
+
+    folder = tmp_path / "shop"
+    ask(live, "POST", "/project/new", {"path": str(folder)})
+    noted = API_PY + (
+        '\n\n@endpoint("POST", "/notes")\ndef add_note(note: dict) -> dict:\n'
+        '    """A note, kept nowhere."""\n    return {"fields": len(note)}\n'
+    )
+    (folder / "API.py").write_text(noted, encoding="utf-8")
+    before = next(e for e in ask(live, "GET", "/local-api")["endpoints"] if e["name"] == "add_note")
+    assert before["try"]["body"] == {} and before["try"]["learned"] is False
+    ask(live, "POST", "/local-api/run", {})
+    body = {"subject": "fragile parcel", "pieces": 3, "due": "2026-12-24", "to": {"store": "Larkfield"}}
+    done = ask(live, "POST", "/actions/run", {"api": "local", "action": "add_note", "inputs": {"body": body}})
+    assert done["ok"], done
+    state = ask(live, "GET", "/local-api")
+    after = next(e for e in state["endpoints"] if e["name"] == "add_note")
+    assert after["try"]["learned"] is True
+    assert after["try"]["body"] == {
+        "due": "2026-01-15",
+        "pieces": 1,
+        "subject": "made-up subject",
+        "to": {"store": "made-up store"},
+    }
+    kept = (folder / ".sab" / "api-shapes" / "add_note.json").read_text(encoding="utf-8")
+    for value in ("fragile", "Larkfield", "2026-12-24"):
+        assert value not in kept and value not in json.dumps(state)
+    assert not (folder / ".sab" / "api_examples.json").exists()
+    ask(live, "POST", "/local-api/stop", {})
+
+
 def test_build_a_widget_on_the_projects_canvas(live: int, service: Service, tmp_path: Path) -> None:
     add_orders(live, service)
     ask(live, "POST", "/project/new", {"path": str(tmp_path / "shop"), "type": "streamlit"})

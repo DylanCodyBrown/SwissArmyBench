@@ -1508,6 +1508,7 @@ def bootstrap(
         api_adapter=api_adapter,
         adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
     )
+    local_api.learned = actions.local_learned  # Try it fills its form from the learned shape
 
     async def open_work() -> dict[str, Any]:
         """What is open and what an update would lose: the tables, the Workbench

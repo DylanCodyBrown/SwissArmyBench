@@ -1889,8 +1889,9 @@ data.
    they read and write the sandbox's tables from Warehouse, never the real one; the exported API runs the same
    code against Warehouse itself.
 3. **Run** it (127.0.0.1, its own key): **Try it** on each endpoint; the request log under it; the change log
-   counts every row it inserted, updated or deleted. **Keep as its example** keeps the body you edited as the
-   endpoint's example (Try it starts from it next time), in `.sab/api_examples.json` beside API.py.
+   counts every row it inserted, updated or deleted. Try it's form starts from what the endpoint has
+   learned it is sent (its fields and their types, with made-up values): nothing you type there is kept.
+   (Keep as its example is gone: the app never keeps a request's or an answer's values.)
    - **When an endpoint refuses**, Try it shows the error where you pressed Send: what happened, the line of
      API.py it happened on, **Go to line**, the answer itself behind Details. The request log says the same
      beside the status; **Output** under it is what API.py printed.

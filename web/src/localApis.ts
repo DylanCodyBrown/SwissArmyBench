@@ -43,9 +43,7 @@ interface Endpoint {
   returns: string;
   data: string[];
   writes: boolean;
-  /** Try it's body kept as its example (.sab/api_examples.json beside API.py), or null. */
-  example?: Value | null;
-  /** A made-up request from the endpoint's own definition (the server's; the kept example's body first). */
+  /** A made-up request from the endpoint's definition and its learned shape (the server's; no kept value). */
   try?: { path: Record<string, Value>; query: Record<string, Value>; body: Value };
 }
 interface State {
@@ -267,28 +265,9 @@ function drawTry(box: HTMLElement, ref: TryRef): void {
     return h("label", { class: "field-inline" }, h("span", { class: "muted" }, `${p.name} (${p.where})`), input);
   });
   const bodyParam = e.params.find((p) => p.where === "body");
-  const first = e.example ?? e.try?.body ?? null;
+  // The form starts from the endpoint's learned shape (the server's `try`: made-up values by learned type).
+  const first = e.try?.body ?? null;
   const body = bodyParam ? (h("textarea", { "aria-label": "Body", rows: 6, class: "mono", spellcheck: false, "data-no-variables": "" }, JSON.stringify(first, null, 2)) as HTMLTextAreaElement) : null;
-  // Keep as its example: the edited body becomes the endpoint's example payload (Try it starts from it; the
-  // OpenAPI document shows it), kept beside API.py in .sab/api_examples.json.
-  const keep = body
-    ? button("Keep as its example", busyClick("Keeping…", async (b) => {
-        let sent: unknown;
-        try {
-          sent = JSON.parse(body.value || "null");
-        } catch {
-          errorHere("The body is not JSON.", {}, b);
-          return;
-        }
-        try {
-          await api("/local-api/example", "POST", { endpoint: `${e.method} ${e.path}`, body: sent });
-          ref.e.example = sent as Value;
-          toast(`Kept as ${e.method} ${e.path}'s example (.sab/api_examples.json).`);
-        } catch (err) {
-          errorHere(err, {}, b);
-        }
-      }), { icon: "save", class: "local-api-keep" })
-    : "";
   const answer = h("div", { class: "local-api-answer" });
   box.append(
     h("div", { class: "local-api-fields" }, ...fields),
@@ -328,7 +307,7 @@ function drawTry(box: HTMLElement, ref: TryRef): void {
       } catch (err) {
         errorHere(err, {}, b);
       }
-    }), { class: "primary" }), keep),
+    }), { class: "primary" })),
     answer,
   );
 }

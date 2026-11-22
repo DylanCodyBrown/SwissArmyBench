@@ -84,7 +84,8 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
 - `state` (brief): settings, endpoints (each one's `data`: "Mock of Warehouse (sqlserver)"), models, problems
   with their lines, whether it runs, the `targets`, whether the agent may write this session; `{"full": true}` adds the OpenAPI document
   (or `openapi`). Each endpoint's `fields` (its body model's, with
-  `type` and `required`) and `try` (a made-up request: `path`, `query`, `body`; the kept example first): the one
+  `type` and `required`) and `try` (a made-up request: `path`, `query`, `body`, filled from the endpoint's
+  learned shape: the fields it was last sent, made-up values by their types; `learned` says whether): the one
   definition Try it, the Canvas's Event mapping and Payload shapes read. `settings` `{name, description, target, base_path}`.
 - `run` (127.0.0.1, a key of its own; started again when API.py changes), `stop`, `log` (method, path, status,
   ms, rows; a refusal's `error` and its API.py `line`; `output`: the last lines API.py printed), `openapi`, `address` (its URL and key, for this computer's callers).
@@ -93,9 +94,7 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   `writes` with `{"allow": false}` stops it (each write asks again); `{"allow": true}` asks for it. A refusal
   (400 and up) also has `error` (its sentence) and, when the endpoint itself failed, `line` and `where`
   ("API.py line 45"). A path no endpoint answers is the API's own 404 (`{"error"}`).
-- `example` `{"endpoint": "POST /orders", "body": {...}}`: Try it's body kept as the endpoint's example (Try it
-  starts from it; the OpenAPI document shows it), in its examples file in `.sab/` beside API.py (API.py is never
-  written); `"body": null` forgets it.
+- `example` is gone (2026-11-22): no request's or answer's value is ever kept; `try` is made up from types.
 - From a kernel: `sab.api().get("/orders/West")`, `.post(path, json=...)`, `.put`, `.patch`, `.delete`.
 - In its editor (the Scripts page) API.py's own problems are squiggles (the same rules, a `connection("X")` with no
   sandbox table, SQL in a `query` the sandbox would refuse: `workbench_problems`); `sab_api`'s names and the sandbox's tables
