@@ -17,6 +17,7 @@ import { api } from "./api";
 import { button, h, openDialog, toast } from "./dom";
 import { busy, busyClick } from "./loading";
 import { errorHere, errorNote, warningNote } from "./errorNote";
+import { type Figures, figuresLine } from "./callFigures";
 
 export interface Learned {
   name: string;
@@ -124,6 +125,8 @@ export function learnedSection(apiName: string, action: string, writes: boolean,
   const section = h("section", { class: "api-learned", "data-action": action }, h("h3", {}, "What it answers"));
   const draw = async (): Promise<void> => {
     let got: { contract: Contract };
+    const endpoint = `${apiName} ${action}`; // its running figures (services/call_stats.py), small
+    const figures = api<{ figures: Record<string, Figures> }>(`/stats/figures?kind=endpoint&names=${encodeURIComponent(endpoint)}`).catch(() => ({ figures: {} as Record<string, Figures> }));
     try {
       got = await api<{ contract: Contract }>(at(apiName, action));
     } catch (e) {
@@ -140,6 +143,7 @@ export function learnedSection(apiName: string, action: string, writes: boolean,
         h("span", { class: `api-learned-kind ${c.learned ? "learned" : "declared"}` }, c.kind || "not known yet"),
         c.learned ? ` · seen ${c.seen}` : " · as its specification declares it",
         maps ? ` · maps to ${maps}` : "",
+        figuresLine((await figures).figures[endpoint]),
       ),
       c.drift ? warningNote({ what: c.drift }) : "",
       ...c.offers.map((o) =>

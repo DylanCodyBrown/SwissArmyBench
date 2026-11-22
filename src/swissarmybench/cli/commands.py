@@ -3927,6 +3927,19 @@ def app_session(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "stats",
+    "Every call's statistics (connections' reads, queries and writes; APIs' actions): time in parts (wait in "
+    "line, connect, first row or byte, total), size, folded vs DuckDB, outcome, who and where, the shape's "
+    "fingerprint; the running figures per table, connection and endpoint; hints. Never a value",
+    opt("action", "summary (default), slowest, errors, table, connection, endpoint or hints."),
+    opt("name", "The table (Connection.table), connection or endpoint (API action) for those views."),
+    opt("n", "How many calls (default 20).", "int"),
+)
+def stats(a: dict[str, Any]) -> Any:
+    return api.call("GET", "/stats", params={k: a.get(k) for k in ("action", "name", "n")})
+
+
+@command(
     "variables_list",
     "Every variable: its source (vault, value, keyring, env, missing), what uses it, a plain value's "
     "value; a keyring's, a secret's or a vault's value never",
@@ -5209,6 +5222,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
+    ("stats", "Every call's statistics: times, sizes and outcomes per table, connection and endpoint; hints"),
     ("app", "The page itself: snapshots"),
     ("desktop", "The desktop app: its windows, a page opened in one"),
     ("extensions", "Extensions: what plugs into the base (Streamlit, Accounting, Power Apps)"),

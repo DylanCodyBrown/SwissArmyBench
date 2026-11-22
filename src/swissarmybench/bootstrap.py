@@ -36,6 +36,7 @@ from swissarmybench.adapters.app_registrations import MicrosoftProbe, Registrati
 from swissarmybench.adapters.beta_log import BetaFiles, BetaSwitch
 from swissarmybench.adapters.beta_log import listen as listen_for_crashes
 from swissarmybench.adapters.blades import BladeStore
+from swissarmybench.adapters.call_stats import StatsFiles
 from swissarmybench.adapters.catalogs import CatalogStore
 from swissarmybench.adapters.claude import ClaudeFiles
 from swissarmybench.adapters.codegen import Verifier
@@ -127,6 +128,7 @@ from swissarmybench.services.apis import Apis
 from swissarmybench.services.app_registrations import AppRegistrations
 from swissarmybench.services.beta_log import BetaLog
 from swissarmybench.services.blades import BladeService
+from swissarmybench.services.call_stats import CallStats
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.charts import Cards
@@ -226,6 +228,7 @@ class Services:
     found_connections: FoundConnections
     connection_usage: ConnectionUsage
     connection_slots: ConnectionSlots
+    call_stats: CallStats
     apis: Apis
     structures: Structures
     api_explorer: ApiExplorer
@@ -744,6 +747,7 @@ class Built:
     tickets: ExportTickets
     approvals: Approvals
     slots: ConnectionSlots
+    call_stats: CallStats
     datasets: DatasetService
     file_watch: FileWatch
     catalogs: CatalogService
@@ -925,6 +929,7 @@ def _connection_runs(b: Built) -> None:
                 )
             else:
                 answer = await work()
+                answer.pop("facts", None)  # the statistics' (only a connection's run is counted)
         except Exception as error:
             b.connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
@@ -1017,6 +1022,16 @@ def _data(b: Built) -> None:
         save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
         ask=b.approvals.ask,
     )
+    # Every call's statistics (Plans/stats.plan.md): the slots' finished calls, the adapter's and the API
+    # adapter's facts in this process; the running figures in the open project's .sab/stats.json. No value.
+    b.call_stats = CallStats(
+        StatsFiles(),
+        lambda: b.sab_projects.current.folder if b.has("sab_projects") and b.sab_projects.current else None,
+        lambda: datetime.now(UTC).isoformat(timespec="seconds"),
+    )
+    b.slots.on_finished = b.call_stats.finished
+    adapter.observe(b.call_stats.adapter)
+    api_adapter.observe(b.call_stats.api_observed)
     b.datasets = datasets = DatasetService(
         ws,
         table_reader,
@@ -1173,6 +1188,7 @@ def _connections(b: Built) -> None:
         environ=os.environ,
         now=time.time,
     )
+    b.connection_usage.figures_of = lambda name: b.call_stats.figures_of("connection", [name]).get(name)
     # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
     b.api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
     b.apis = Apis(
@@ -1732,6 +1748,7 @@ def _sandbox_part(b: Built) -> None:
         lambda: datetime.now(UTC).date().isoformat(),
         hooks=b.hooks,
         api_adapter=api_adapter,
+        stats=b.call_stats,
     )
 
 
@@ -2066,6 +2083,7 @@ def _services(b: Built) -> Services:
         found_connections=b.found_connections,
         connection_usage=b.connection_usage,
         connection_slots=b.slots,
+        call_stats=b.call_stats,
         apis=b.apis,
         structures=b.structures,
         api_explorer=b.api_explorer,

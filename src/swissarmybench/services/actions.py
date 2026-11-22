@@ -21,6 +21,7 @@ writes). Values are never written anywhere: a shape holds paths and types only; 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
@@ -61,6 +62,7 @@ class Actions:
         to_thread: Callable[..., Awaitable[Any]] = asyncio.to_thread,
         hooks: Any = None,  # services/hooks.py Hooks: canvas_put (a widget on a canvas page)
         api_adapter: Any = None,  # adapters/api_adapter.py, the module (the composition root hands it in)
+        stats: Any = None,  # services/call_stats.py CallStats: each envelope's facts (own(), api)
     ) -> None:
         self.ws = ws
         self._explorer = explorer
@@ -72,8 +74,13 @@ class Actions:
         self._thread = to_thread
         self._hooks = hooks
         self._aa = api_adapter
+        self._stats = stats
         self._allowed: set[str] = set()  # the APIs whose discovery the user allowed this session
         self._last: dict[tuple[str, str], dict[str, Any]] = {}  # the last call of each action (memory only)
+
+    def _own(self) -> Any:
+        """Runs said here from their envelopes: api_adapter's observe hook leaves them (call_stats.own)."""
+        return self._stats.own() if self._stats is not None else contextlib.nullcontext()
 
     # ===== the actions, from each API's specification =====
 
@@ -244,10 +251,13 @@ class Actions:
             "required": [str(p) for p in given.get("required") or []],
             "who": who,
         }
-        if entry is None:
-            answer = await self._run_local(one, inputs, options, who)
-        else:
-            answer = await self._run_library(name, one, inputs, options)
+        with self._own():
+            if entry is None:
+                answer = await self._run_local(one, inputs, options, who)
+            else:
+                answer = await self._run_library(name, one, inputs, options)
+        if self._stats is not None:  # its facts, and where it came from (a widget and its page, a cell)
+            self._stats.api(answer, given.get("where") if isinstance(given.get("where"), dict) else {})
         await self._kept(name, entry, one.name, answer, who)
         self._last[(name, one.name)] = {
             "at": self._today(),
@@ -314,7 +324,8 @@ class Actions:
         if entry is None:
             loop = asyncio.get_running_loop()
             api = self._aa.Api("", _local_send(self._aa, self._local, loop, who), LOCAL)
-            learned = await self._thread(lambda: self._aa.discover(found, api, known, DISCOVER_CALLS))
+            with self._own():
+                learned = await self._thread(lambda: self._aa.discover(found, api, known, DISCOVER_CALLS))
         else:
             actions = {n: a.to_json() for n, a in found.items()}
             found_text, known_text = json.dumps(json.dumps(actions)), json.dumps(json.dumps(known))
@@ -324,6 +335,8 @@ class Actions:
             )
             learned = await self._in_child(name, command)
         for action, answer in learned["answers"].items():
+            if self._stats is not None:
+                self._stats.api(answer, {})
             await self._kept(name, entry, action, answer, who)
         self.ws.audit.write(who, "api_discovered", name, calls=learned["calls"])
         await self.ws.live.broadcast({"type": "api_shape_changed", "api": name, "action": None, "words": ""})

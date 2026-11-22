@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import hashlib
 import importlib
 import io
 import json
@@ -145,6 +146,8 @@ def payload(
         "dataset": (extra or {}).get("dataset"),
         # mode "write": sab.write's request ({"table", "mode", "key", "dry_run", "records"? or "ipc"?}).
         "write": (extra or {}).get("write"),
+        # mode "rows" in a SQL source's own SQL: what it sent to the source (the call statistics' folded).
+        "folded": (extra or {}).get("folded"),
     }
 
 
@@ -440,7 +443,9 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
 
     from swissarmybench.adapters.blade_run import _sql_rows, close_quietly, run_code
 
+    began = time.perf_counter()
     value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
+    _CONNECTED["ms"] = round((time.perf_counter() - began) * 1000, 1)
     try:
         if not job.get("sql"):
             return {"path": str(value)}
@@ -449,8 +454,11 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         if adapted is not None:
             return adapted
         typed = getattr(source, "read_arrow", None)  # a connection that reads typed Arrow itself (SQL Server)
+        began = time.perf_counter()
         table = typed(job["sql"]) if callable(typed) else None
         columns, rows = ([], []) if table is not None else _sql_rows(source, job["sql"])
+        if job.get("folded") is not None:  # a table's read in its own SQL: one fact for the statistics
+            _FACTS.append(_sql_fact(job, began, table, columns, rows))
         total = None
         if job.get("count_sql"):
             _, counted = _sql_rows(source, job["count_sql"])
@@ -479,6 +487,7 @@ def _adapter_rows(
     from swissarmybench.adapters import adapter as sab
     from swissarmybench.adapters.blade_run import _sql_rows
 
+    sab.observe(_FACTS.append)
     dialect = str(read.get("dialect") or "duckdb")
     source: Any
     if type(connection).__module__.split(".")[0] in ("duckdb", "_duckdb"):
@@ -591,7 +600,9 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     if not python.get("read"):
         raise BladeRunError(f"{job['label']} has no Read a table: open the connection and fill it in.")
     place = python.get("place") or {}
+    began = time.perf_counter()
     value, names = run_code(job["code"], job["variable"], secrets, job["label"])
+    _CONNECTED["ms"] = round((time.perf_counter() - began) * 1000, 1)
     adapter = python.get("adapter")
     if (adapter == "odata" and callable(getattr(value, "described", None))) or (
         adapter == "rows" and callable(getattr(value, "rows", None))
@@ -633,6 +644,7 @@ def _adapter_read(
     for the lakes, how it read the files (the table's sab_read)."""
     from swissarmybench.adapters import adapter as sab
 
+    sab.observe(_FACTS.append)
     source: Any = sab.OData(connection) if adapter == "odata" else sab.Rows(connection)
     table = str(place.get("table") or "")
     if adapter == "rows" and place.get("schema"):
@@ -1045,6 +1057,42 @@ def _ide_result(value: Any, made_by: str | None) -> dict[str, Any]:
     return {"kind": "value", "type": type_name(value), "made_by": made_by, "text": _scrub(text[:_TEXT_CHARS])}
 
 
+# The adapter's facts of this run (adapter.observe: times, sizes, folded, fingerprint; never a value), sent
+# back beside the answer for the server's call statistics (services/call_stats.py), with the connect's time.
+_FACTS: list[dict[str, Any]] = []
+_CONNECTED: dict[str, float | None] = {"ms": None}
+
+
+def _sql_fact(
+    job: dict[str, Any], began: float, table: Any, columns: list[str], rows: list[Any]
+) -> dict[str, Any]:
+    """A table read in its source's own SQL as the adapter's facts say a read: its time (all of it at once,
+    so the first row is the total), its rows and columns, what its SQL sent to the source. Never a value."""
+    ms = round((time.perf_counter() - began) * 1000, 1)
+    names = list(table.column_names) if table is not None else list(columns)
+    count = int(table.num_rows) if table is not None else len(rows)
+    bytes_ = int(table.get_total_buffer_size()) if table is not None else 0
+    shape = "|".join(names)
+    return {
+        "call": "read",
+        "source": job["label"],
+        "table": "",
+        "ms": {"connect": None, "first_row": ms, "total": ms},
+        "size": {"rows": count, "bytes": bytes_, "batches": 1, "columns": len(names), "asked": 0},
+        "folded": [str(p) for p in job.get("folded") or []],
+        "by_duckdb": [],
+        "outcome": {"ok": True, "error": ""},
+        "fingerprint": hashlib.sha1(shape.encode(), usedforsecurity=False).hexdigest()[:12],
+    }
+
+
+def _facts_sent() -> list[dict[str, Any]]:
+    for facts in _FACTS:
+        if facts["ms"].get("connect") is None:
+            facts["ms"]["connect"] = _CONNECTED["ms"]
+    return _FACTS
+
+
 def main() -> None:
     job = json.loads(sys.stdin.buffer.read())
     real_stdout = sys.stdout
@@ -1057,6 +1105,8 @@ def main() -> None:
         return
     with contextlib.redirect_stdout(sys.stderr):  # a blade's prints must not break the answer
         answer = _child(job)
+    if _FACTS and isinstance(answer, dict):
+        answer["facts"] = _facts_sent()
     json.dump(answer, real_stdout, default=str)
     real_stdout.flush()
 

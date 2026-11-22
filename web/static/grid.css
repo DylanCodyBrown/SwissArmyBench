@@ -11905,6 +11905,17 @@ g.follow-pulse > path:first-of-type {
   color: var(--muted);
 }
 
+/* An endpoint's running figures (callFigures.ts): small, out of the way. */
+.call-figures {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.call-figures::before {
+  content: "· ";
+}
+
 .api-learned-kind {
   padding: 1px 6px;
   border: 1px solid var(--border);

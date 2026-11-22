@@ -22,7 +22,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `steps_` | a grid's steps, SQL, code | `steps_add`, `steps_kinds`, `steps_python` |
 | `analyze_` | Analyze: analyses, board | `analyze_contracts`, `analyze_run`, `analyze_add` |
 | `key_finder_`, `relationships_`, `erd_` | keys, joins, the ERD | `key_finder_run`, `relationships_find`, `erd_draw` |
-| `compare_` | two grids | `compare_create` |
+| `compare_`, `stats_` | two grids; call statistics | `compare_create`, `stats` |
 | `connections_`, `variables_` | connections; variables; access | `connections_list`, `variables_resolve`, `app_registration_check` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
 | `apis_`, `actions_`; `sandbox_`, `api_` | APIs, any API call; local APIs | `actions`, `apis_call`; `sandbox`, `api` |
