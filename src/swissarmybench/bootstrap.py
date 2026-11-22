@@ -701,6 +701,121 @@ def _variables_once(state_dir: Path, library: Any, variables: Any) -> None:
         refs_seen.write({"listed": today})
 
 
+class Built:
+    """What bootstrap() has built so far (adapter phase 5, 2026-11-22: the smallest typed record that works).
+    Each area's part below reads what it needs from it and adds what it makes, in bootstrap's order; a
+    closure reads a later one when it runs (a service made after it: the sandbox, the variables, the
+    structures), as the closures inside bootstrap() did. The doors get Services, made from it at the end."""
+
+    # ----- given -----
+    port: int
+    token: str
+    settings: Settings
+    on_shutdown: Callable[[], None] | None
+    audit_log: bool
+    state_dir: Path
+    export_dir: Path
+    on_extensions: list[Any]
+    # ----- the adapters, the workspace, the beta log -----
+    connection: Any
+    workers: PriorityWorkers
+    store: DatasetStore
+    live: LiveUpdates
+    library_folder: LibraryFolder
+    kept_vault_names: KeptVaultNames
+    blade_store: BladeStore
+    verifier: Verifier
+    session_log: SessionLog
+    ws: Workspace
+    beta: BetaLog
+    # ----- a connection's runs (each through its slots) -----
+    process_event: Callable[..., None]
+    run_blade: Callable[..., Any]
+    stream_blade: Callable[..., Any]
+    vault_environment: Callable[[], Any]
+    given_out: Callable[[dict[str, Any]], None]
+    vault_values: Callable[..., Any]
+    secrets_of: Callable[[str], list[str] | None]
+    files_of: Callable[[str], list[str]]
+    # ----- the services, in the order they are made -----
+    processes: ProcessRegistry
+    tickets: ExportTickets
+    approvals: Approvals
+    slots: ConnectionSlots
+    datasets: DatasetService
+    file_watch: FileWatch
+    catalogs: CatalogService
+    blades: BladeService
+    catalog_loading: CatalogLoading
+    vault_names_at_start: VaultNamesAtStart
+    compares: Compares
+    models: Models
+    documents: Documents
+    script_runs: ScriptRuns
+    table_cells: TableCells
+    project_files: ProjectFiles
+    hooks: Hooks
+    data_export: DataExport
+    workbench: Workbench
+    connection_colours: ConnectionColours
+    connections: ConnectionService
+    connection_usage: ConnectionUsage
+    api_library: ApiLibrary
+    apis: Apis
+    workbench_window: WorkbenchWindow
+    dashboards: DashboardFiles
+    cards: Cards
+    projects: Projects
+    archive: SabArchive
+    library: Library
+    recent_projects: RecentProjects
+    sab_projects: SabProjects
+    project_explorer: ProjectExplorer
+    structures: Structures
+    api_explorer: ApiExplorer
+    connection_tables: ConnectionTablesService
+    connection_swap: ConnectionSwap
+    project_documents: Callable[[], tuple[set[str], list[tuple[str, str]]] | None]
+    project_tables: ProjectTables
+    connections_here: Callable[[], list[Here]]
+    shared_catalog: SharedCatalog
+    code_files: CodeFiles
+    project_scope: ProjectScope
+    variables: Variables
+    found_connections: FoundConnections
+    app_registrations: AppRegistrations
+    library_setup: LibrarySetup
+    explorer: Explorer
+    sandbox: Sandbox
+    sandbox_alias: SandboxAlias
+    local_api: LocalApi
+    update_helper: UpdateHelper
+    extensions: Extensions
+    team: Team
+    sharing: Sharing
+    updates: Updates
+    claude_files: ClaudeFiles
+    agent: AgentService
+    intellisense: Intellisense
+    script_ide: ScriptIde
+    context_md: ContextMd
+    claude: Claude
+    modes: Modes
+    project_outline: ProjectOutline
+    file_dialogs: FileDialogs
+    lifecycle: Lifecycle
+    grid_service: GridService
+    analysis: Analysis
+    key_finder: KeyFinder
+    tie_out: TieOut
+    script_exports: ScriptExports
+    api_export: ApiExport
+
+    def has(self, name: str) -> bool:
+        """Whether that part is built yet (a closure made before it asks, as the ready lists did)."""
+        return name in vars(self)
+
+
 def bootstrap(
     port: int,
     token: str,
@@ -708,35 +823,74 @@ def bootstrap(
     on_shutdown: Callable[[], None] | None = None,
     audit_log: bool = True,
 ) -> Services:
-    """Build everything for a server listening on 127.0.0.1:`port` that accepts `token`."""
-    settings = settings or Settings()
-    state_dir, export_dir = settings.state_dir, settings.export_dir
-    on_extensions = extension_modules.enabled()
+    """Build everything for a server listening on 127.0.0.1:`port` that accepts `token`: the adapters, the
+    workspace, then each area's services, in this order (each part reads what it needs from what is built)."""
+    b = Built()
+    b.port, b.token, b.on_shutdown, b.audit_log = port, token, on_shutdown, audit_log
+    b.settings = settings or Settings()
+    b.state_dir, b.export_dir = b.settings.state_dir, b.settings.export_dir
+    b.on_extensions = extension_modules.enabled()
+    for part in (
+        _adapters,
+        _connection_runs,
+        _workspace_and_beta,
+        _data,
+        _models_and_cells,
+        _workbench_part,
+        _connections,
+        _projects,
+        _structures_and_apis,
+        _shared_catalog_part,
+        _variables_part,
+        _setup_and_explorer,
+        _sandbox_part,
+        _app_life,
+        _editors_and_claude,
+        _outline_dialogs_and_life,
+        _exports,
+    ):
+        part(b)
+    return _services(b)
 
-    # ===== the adapters =====
-    connection = open_database(settings.duckdb_memory_limit)
-    workers = PriorityWorkers(settings.worker_threads)
-    store = DatasetStore(
-        connection, settings.max_dataset_bytes, settings.max_total_bytes, settings.max_datasets
+
+# ----- the adapters: DuckDB, the dataset store, the live updates, the library's files -----
+
+
+def _adapters(b: Built) -> None:
+    settings, state_dir = b.settings, b.state_dir
+    b.connection = open_database(settings.duckdb_memory_limit)
+    b.workers = PriorityWorkers(settings.worker_threads)
+    b.store = DatasetStore(
+        b.connection, settings.max_dataset_bytes, settings.max_total_bytes, settings.max_datasets
     )
-    live = LiveUpdates()
+    b.live = LiveUpdates()
     # The library (Plans/library.plan.md): this computer's connections, APIs, vaults, blades, relationship
     # sets, variables and colours, in one folder made to be a Git repository, whatever project is open;
     # Settings points it elsewhere (library.json: the path only). README.md and .gitignore made on first use.
-    library_folder = LibraryFolder(settings.library_dir, state_dir / "library.json" if audit_log else None)
+    b.library_folder = LibraryFolder(
+        settings.library_dir, state_dir / "library.json" if b.audit_log else None
+    )
+    library_folder = b.library_folder
     # A key vault's secret names as last read here (the library's local/vault-names/: names only, never a
     # value): a vault that loads every secret gives its variables from the first second after a start.
-    kept_vault_names = KeptVaultNames(
-        VaultNameFiles((lambda: library_folder.root) if audit_log else None, library_folder.ensure),
+    b.kept_vault_names = KeptVaultNames(
+        VaultNameFiles((lambda: library_folder.root) if b.audit_log else None, library_folder.ensure),
         lambda: datetime.now(UTC).isoformat(timespec="seconds"),
     )
-    blade_store = _blade_store(settings, library_folder, on_extensions)
-    verifier = Verifier(settings.duckdb_memory_limit)
+    b.blade_store = _blade_store(settings, library_folder, b.on_extensions)
+    b.verifier = Verifier(settings.duckdb_memory_limit)
+
+
+# ----- a connection's runs: a blade's child process, through the connection's slots, counted -----
+
+
+def _connection_runs(b: Built) -> None:
+    settings, blade_store = b.settings, b.blade_store
 
     def process_event(
         kind: str, event: str, code: int | None, seconds: float | None, reason: str = ""
     ) -> None:
-        beta.process(kind, event, code, seconds, reason)
+        b.beta.process(kind, event, code, seconds, reason)
 
     async def run_blade(
         blade: Blade, mode: str, typed: dict[str, str], extra: dict[str, Any] | None = None
@@ -758,7 +912,7 @@ def bootstrap(
                 more = extra or {}
                 place: dict[str, Any] = more["place"] if isinstance(more.get("place"), dict) else {}
                 sql = more.get("sql") or "\n;\n".join(";\n".join(a) for a in more.get("attempts") or [])
-                answer = await slots.run(
+                answer = await b.slots.run(
                     blade.name,
                     work,
                     kind=mode,
@@ -769,10 +923,10 @@ def bootstrap(
             else:
                 answer = await work()
         except Exception as error:
-            connection_usage.record(blade.name, mode, ok=False, error=str(error))
+            b.connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
         about = answer.get("about") if isinstance(answer, dict) else None
-        connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
+        b.connection_usage.record(blade.name, mode, ok=True, about=about if isinstance(about, dict) else None)
         return answer
 
     async def stream_blade(
@@ -795,15 +949,12 @@ def bootstrap(
             started,
             report=lambda *e: process_event("blade", *e),
         )
-        connection_usage.record(
+        b.connection_usage.record(
             blade.name, "test", ok=bool(answer.get("ok")), error=str(answer.get("failed") or "")
         )
         return answer
 
-    given_out = partial(_given_out, kept_vault_names, blade_store)
-    vault_values = partial(_vault_values, blade_store, settings.vault_timeout_seconds)
-    secrets_of = partial(_secrets_of, blade_store)
-    files_of = partial(_files_of, blade_store)
+    given_out = partial(_given_out, b.kept_vault_names, blade_store)
 
     async def vault_environment() -> tuple[dict[str, str], list[str]]:
         """Every vault's entries for a Workbench kernel about to start, and the vaults that failed."""
@@ -823,81 +974,99 @@ def bootstrap(
         # A vault that loads every secret: the names it listed, kept (names only).
         for vault, listed in dict(answer.get("names") or {}).items():
             if isinstance(listed, list):
-                await blades.keep_names(str(vault), connection_rules.vault_names(listed))
+                await b.blades.keep_names(str(vault), connection_rules.vault_names(listed))
         return values, [str(p) for p in answer.get("problems") or []]
 
-    # ===== the workspace: the ports every use case shares =====
-    session_log = SessionLog(live, JsonFile(state_dir / "follow.json" if audit_log else None))
-    ws = _workspace(settings, port, token, store, connection, live, workers, session_log, audit_log)
+    b.process_event, b.run_blade, b.stream_blade = process_event, run_blade, stream_blade
+    b.given_out, b.vault_environment = given_out, vault_environment
+    b.vault_values = partial(_vault_values, blade_store, settings.vault_timeout_seconds)
+    b.secrets_of = partial(_secrets_of, blade_store)
+    b.files_of = partial(_files_of, blade_store)
 
-    # ===== the beta log: errors, slow requests, processes, page errors and notes, redacted =====
-    # (written only where the audit log is; beta mode on or off is beta.json, SWISSARMYBENCH_BETA wins)
-    # Read each time: the Variables page's values join the environment as they are added.
-    beta = _beta_log(ws, settings, store, token, audit_log)
 
-    # ===== the services =====
-    processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
-    tickets = ExportTickets()  # the agent exports the user approved, not yet written
+def _workspace_and_beta(b: Built) -> None:
+    """The workspace (the ports every use case shares) and the beta log (errors, slow requests, processes,
+    page errors and notes, redacted; written only where the audit log is; beta mode on or off is beta.json,
+    SWISSARMYBENCH_BETA wins; read each time: the Variables page's values join the environment as added)."""
+    b.session_log = SessionLog(b.live, JsonFile(b.state_dir / "follow.json" if b.audit_log else None))
+    b.ws = _workspace(
+        b.settings, b.port, b.token, b.store, b.connection, b.live, b.workers, b.session_log, b.audit_log
+    )
+    b.beta = _beta_log(b.ws, b.settings, b.store, b.token, b.audit_log)
+
+
+# ----- the data: the open tables, the catalogs, the blades -----
+
+
+def _data(b: Built) -> None:
+    ws, settings, state_dir, blade_store = b.ws, b.settings, b.state_dir, b.blade_store
+    b.processes = ProcessRegistry()  # the Python sessions offering tables to the Open list
+    b.tickets = ExportTickets()  # the agent exports the user approved, not yet written
     # The questions for the user that the agent's requests wait on (the page's approval prompt): one
     # for every use case that writes the user's rows to disk for the agent.
-    approvals = Approvals(live)
+    b.approvals = Approvals(b.live)
     # How many queries run at once on each connection, the agent's share and the line (the owner,
     # 2026-11-21): the one gate run_blade passes through; a kernel's slot is leased by its routes.
-    slots = ConnectionSlots(
-        live,
+    b.slots = ConnectionSlots(
+        b.live,
         ws.audit,
         limits_of=lambda name: slot_rules.limits_of_header(blade_store.get(name).queries),
         save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
-        ask=approvals.ask,
+        ask=b.approvals.ask,
     )
-    datasets = DatasetService(
+    b.datasets = datasets = DatasetService(
         ws,
         table_reader,
-        processes,
-        own_file=lambda path: is_own_file(path, state_dir, export_dir),
-        on_shutdown=on_shutdown or (lambda: None),
+        b.processes,
+        own_file=lambda path: is_own_file(path, state_dir, b.export_dir),
+        on_shutdown=b.on_shutdown or (lambda: None),
     )
     # A table read from a file is watched: changed on disk, the page says so (Reload, Not now).
-    file_watch = FileWatch(ws, datasets.origins.get, file_stamp, settings.file_watch_seconds)
-    datasets.changed_on_disk = file_watch.changed
-    datasets.not_now = file_watch.not_now
-    catalogs = CatalogService(
-        ws, CatalogStore(connection, settings.max_catalogs, settings.max_catalog_rows), table_reader
+    b.file_watch = FileWatch(ws, datasets.origins.get, file_stamp, settings.file_watch_seconds)
+    datasets.changed_on_disk = b.file_watch.changed
+    datasets.not_now = b.file_watch.not_now
+    b.catalogs = CatalogService(
+        ws, CatalogStore(b.connection, settings.max_catalogs, settings.max_catalog_rows), table_reader
     )
-    blades = BladeService(
+    b.blades = blades = BladeService(
         ws,
         blade_store,
-        catalogs,
+        b.catalogs,
         TEMPLATES,
         blade_run.needed,
-        run_blade,
+        b.run_blade,
         blade_runner.install_packages,
         python=sys.executable,
         environ=os.environ,
         reveal=lambda path: file_manager.reveal(path),  # Show its file (looked up when clicked)
-        kept_names=kept_vault_names,
-        stream_blade=stream_blade,
+        kept_names=b.kept_vault_names,
+        stream_blade=b.stream_blade,
     )
     # The blade IDE's Open as grid: a run's table in a tab of its own.
     blades.open_table = lambda name, table, who: datasets.store_table(
         datasets.free_name(name), table, "blade", True, who
     )
-    catalog_loading = CatalogLoading(
-        ws, blades, catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, live.windows
+    b.catalog_loading = CatalogLoading(
+        ws, blades, b.catalogs, settings.auto_load_catalogs, settings.catalogs_at_once, b.live.windows
     )
     # A vault that loads every secret: its names read again once the first window is open (kept meanwhile).
-    vault_names_at_start = VaultNamesAtStart(
+    b.vault_names_at_start = VaultNamesAtStart(
         blades,
-        kept_vault_names,
-        live.broadcast,
+        b.kept_vault_names,
+        b.live.broadcast,
         settings.auto_read_vaults,
         settings.catalogs_at_once,
-        live.windows,
+        b.live.windows,
     )
+
+
+def _models_and_cells(b: Built) -> None:
+    """Relationships, a script's run settings, every table's read-only cell, what extensions hand back."""
+    ws, state_dir, library_folder, blade_store = b.ws, b.state_dir, b.library_folder, b.blade_store
     # Relationship sets come from the person's own folder and the shared folders, which are the blade
     # folders: one team folder carries blades and sets alike.
-    compares = Compares(ws)
-    models = Models(
+    b.compares = Compares(ws)
+    b.models = Models(
         ws,
         ModelFiles(
             state_dir,
@@ -905,43 +1074,47 @@ def bootstrap(
             library=lambda: library_folder.root,
             made=library_folder.ensure,
         ),
-        approvals,
+        b.approvals,
     )
-    datasets.renamed.append(models.rename_table)
-    documents = Documents(state_dir / "recent.json", settings.workbench_dir)
-    script_runs = ScriptRuns(
+    b.datasets.renamed.append(b.models.rename_table)
+    b.documents = Documents(state_dir / "recent.json", b.settings.workbench_dir)
+    b.script_runs = ScriptRuns(
         ws,
-        JsonFile(state_dir / "run_settings.json" if audit_log else None),
-        documents,
-        secrets_of=secrets_of,
-        files_of=files_of,
+        JsonFile(state_dir / "run_settings.json" if b.audit_log else None),
+        b.documents,
+        secrets_of=b.secrets_of,
+        files_of=b.files_of,
     )
-    table_cells = TableCells(
+    b.table_cells = TableCells(
         ws,
-        datasets.origins,
+        b.datasets.origins,
         table_reader.query_to_arrow_stream,  # type: ignore[arg-type]
         table_reader.planned_arrow_stream,  # type: ignore[arg-type]
     )
-    project_files = ProjectFiles()
+    b.project_files = ProjectFiles()
     # What the extensions that are on hand back once they are built (services/hooks.py): the documents the
     # Workbench windows hold, what stops with a kernel or a window, a canvas, an app's file.
-    hooks = Hooks()
-    data_export = DataExport(
-        project_files,
-        table_cells.arrange,
+    b.hooks = hooks = Hooks()
+    b.data_export = DataExport(
+        b.project_files,
+        b.table_cells.arrange,
         lambda path: hooks.held(path),
-        lambda folder: project_scope.edited_in(folder),  # data.py edited by hand: kept (Scripts IDE)
+        lambda folder: b.project_scope.edited_in(folder),  # data.py edited by hand: kept (Scripts IDE)
     )
-    workbench = Workbench(
-        ws,
-        documents,
-        Launcher(report=lambda *e: process_event("kernel", *e)),
+
+
+def _workbench_part(b: Built) -> None:
+    """The Workbench and its kernels: each kernel's queries through its connection's slots."""
+    b.workbench = workbench = Workbench(
+        b.ws,
+        b.documents,
+        Launcher(report=lambda *e: b.process_event("kernel", *e)),
         os.environ,
         now=time.time,
         folder_of=lambda path: str(Path(path).expanduser().parent),
-        secret_names=blades.environment_names,
-        vault_environment=vault_environment,
-        hooks=hooks,
+        secret_names=b.blades.environment_names,
+        vault_environment=b.vault_environment,
+        hooks=b.hooks,
     )
 
     def kernel_caller(kernel: str) -> Caller:
@@ -951,138 +1124,149 @@ def bootstrap(
         return Caller(role, "The agent" if role == "agent" else words, kernel=kernel, source=source)
 
     async def kernel_ended(kernel: str) -> None:
-        slots.kernel_stopped(kernel)  # its slots go back at once
+        b.slots.kernel_stopped(kernel)  # its slots go back at once
 
-    slots.kernel_caller = kernel_caller
-    slots.interrupt_kernel = workbench.interrupt
+    b.slots.kernel_caller = kernel_caller
+    b.slots.interrupt_kernel = workbench.interrupt
     workbench.set_kernel_stopped(kernel_ended)
+
+
+# ----- connections, APIs, cards and projects -----
+
+
+def _connections(b: Built) -> None:
+    ws, blades, library_folder, state_dir = b.ws, b.blades, b.library_folder, b.state_dir
     # Each connection's colour: the library's colours.toml, the same in every project; never one of the
     # rail's (the kind colours, the accent).
-    connection_colours = ConnectionColours(
+    b.connection_colours = ConnectionColours(
         ws,
         blades,
         ColoursFile(
-            (lambda: library_folder.root / library_rules.COLOURS_FILE) if audit_log else None,
+            (lambda: library_folder.root / library_rules.COLOURS_FILE) if b.audit_log else None,
             library_folder.ensure,
         ),
     )
-    connections = ConnectionService(
+    b.connections = connections = ConnectionService(
         blades,
         TEMPLATES,
-        on_saved=catalog_loading.saved,
-        catalog_state=catalog_loading.state,
-        tables=ConnectionTables(datasets),
-        models=models,
-        catalogs=catalogs,
-        colours=connection_colours,
+        on_saved=b.catalog_loading.saved,
+        catalog_state=b.catalog_loading.state,
+        tables=ConnectionTables(b.datasets),
+        models=b.models,
+        catalogs=b.catalogs,
+        colours=b.connection_colours,
     )
     # sab.write for the agent (connections_write): its Allow, and an open table's grid view as rows.
-    connections.approvals = approvals
-    connections.open_view = table_cells.view
+    connections.approvals = b.approvals
+    connections.open_view = b.table_cells.view
     # The Connections page: each connection's references, configuration and calls this session.
-    connection_usage = ConnectionUsage(
+    b.connection_usage = ConnectionUsage(
         ws,
         blades,
         connections,
-        documents=lambda: usage_documents(documents, hooks, sab_projects, project_files),
-        read=documents.read,
-        origin_of=datasets.origins.get,
+        documents=lambda: usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files),
+        read=b.documents.read,
+        origin_of=b.datasets.origins.get,
         environ=os.environ,
         now=time.time,
     )
     # Add API: the library's apis/<name>/: API_<name>.py, its API blade and web call blades.
-    api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
-    apis = Apis(
+    b.api_library = ApiLibrary(lambda: library_folder.root / library_rules.APIS, library_folder.ensure)
+    b.apis = Apis(
         ws,
         ApiFiles(),
         SpecSource(),
         connections,
-        api_library,
+        b.api_library,
         blades,
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
     )
-    workbench_window = WorkbenchWindow(ws)
-    dashboards = DashboardFiles(state_dir / "dashboards")
-    cards = Cards(ws, dashboards, ThemeFiles(state_dir / "themes"))
-    projects = Projects(
+    b.workbench_window = WorkbenchWindow(ws)
+    b.dashboards = DashboardFiles(state_dir / "dashboards")
+    b.cards = Cards(ws, b.dashboards, ThemeFiles(state_dir / "themes"))
+    b.projects = Projects(
         ws,
-        project_files,
-        table_cells.group_cells,
-        export_data=data_export.export_data,
-        project_app=lambda name: hooks.project_app(name),
-        remember=lambda path: documents.remember(path, time.time()),
-        approvals=approvals,
+        b.project_files,
+        b.table_cells.group_cells,
+        export_data=b.data_export.export_data,
+        project_app=lambda name: b.hooks.project_app(name),
+        remember=lambda path: b.documents.remember(path, time.time()),
+        approvals=b.approvals,
         scaffold=_scaffold_of,
     )
     # A project is a folder: its .sab/ state written beside its files.
-    archive = SabArchive(settings.max_project_entries, settings.max_project_read_bytes)
+    b.archive = SabArchive(b.settings.max_project_entries, b.settings.max_project_read_bytes)
 
-    async def use_project(folder: str | None) -> None:
-        """The open project's saved dashboards (its .sab/visualizations), or this computer's with none open.
-        Connections, APIs, vaults, blades and variables are the library's, whatever is open."""
-        app = Path(folder) / APP_FOLDER if folder else None
-        dashboards.folder = app / "visualizations" if app else state_dir / "dashboards"
-        await catalog_loading.rescope()
-        await variables.rescope()
-        await live.broadcast({"type": "blades_changed"})
-        if structures_ready:
-            await structures_ready[0].project_changed(folder)  # the closed project's structures go with it
 
-    structures_ready: list[Structures] = []  # set once built (below): use_project is made before it
+async def _use_project(b: Built, folder: str | None) -> None:
+    """The open project's saved dashboards (its .sab/visualizations), or this computer's with none open.
+    Connections, APIs, vaults, blades and variables are the library's, whatever is open."""
+    app = Path(folder) / APP_FOLDER if folder else None
+    b.dashboards.folder = app / "visualizations" if app else b.state_dir / "dashboards"
+    await b.catalog_loading.rescope()
+    await b.variables.rescope()
+    await b.live.broadcast({"type": "blades_changed"})
+    if b.has("structures"):
+        await b.structures.project_changed(folder)  # the closed project's structures go with it
 
-    async def library_moved() -> None:
-        """Settings' Library folder changed: every store reads the new folder (the pages told)."""
-        blade_store.use(library_folder.root)
-        await catalog_loading.rescope()
-        await variables.rescope()
-        await live.broadcast({"type": "blades_changed"})
-        await live.broadcast({"type": "connection_colours_changed"} | connection_colours.get())
-        if shared_ready:
-            shared_ready[0].load()  # the new folder's catalog/
-            await live.broadcast({"type": "catalog_changed", "from": "folder", "changed": 0})
-        if setup_ready:
-            setup_ready[0].forget()
-        counts = library_folder.counts()
-        said = setup_rules.setup_notice(counts["connections"], counts["vaults"])
-        if said:  # a team's meta store, pointed at: what this computer needs is on Settings' checklist
-            await live.broadcast({"type": "library_notice", "text": said})
 
-    setup_ready: list[LibrarySetup] = []  # set once built (below)
+async def _library_moved(b: Built) -> None:
+    """Settings' Library folder changed: every store reads the new folder (the pages told)."""
+    live = b.live
+    b.blade_store.use(b.library_folder.root)
+    await b.catalog_loading.rescope()
+    await b.variables.rescope()
+    await live.broadcast({"type": "blades_changed"})
+    await live.broadcast({"type": "connection_colours_changed"} | b.connection_colours.get())
+    if b.has("shared_catalog"):
+        b.shared_catalog.load()  # the new folder's catalog/
+        await live.broadcast({"type": "catalog_changed", "from": "folder", "changed": 0})
+    if b.has("library_setup"):
+        b.library_setup.forget()
+    counts = b.library_folder.counts()
+    said = setup_rules.setup_notice(counts["connections"], counts["vaults"])
+    if said:  # a team's meta store, pointed at: what this computer needs is on Settings' checklist
+        await live.broadcast({"type": "library_notice", "text": said})
 
-    shared_ready: list[SharedCatalog] = []  # set once built (below)
 
-    library = Library(ws, library_folder, blade_store, approvals, library_moved)
-
-    recent_projects = RecentProjects(state_dir / "recent_projects.json" if audit_log else None)
-    explorer_ready: list[ProjectExplorer] = []  # set once built (below): the projects folder New uses
-    sab_projects = SabProjects(
+def _projects(b: Built) -> None:
+    """The library, a project as a folder, and the Project Explorer (the home page)."""
+    ws, settings, state_dir = b.ws, b.settings, b.state_dir
+    b.library = library = Library(
+        ws, b.library_folder, b.blade_store, b.approvals, partial(_library_moved, b)
+    )
+    b.recent_projects = RecentProjects(state_dir / "recent_projects.json" if b.audit_log else None)
+    b.sab_projects = sab_projects = SabProjects(
         ws,
-        archive,
-        recent_projects,
-        datasets,
-        connections,
-        cards,
-        models,
-        projects,
+        b.archive,
+        b.recent_projects,
+        b.datasets,
+        b.connections,
+        b.cards,
+        b.models,
+        b.projects,
         table_reader,
-        approvals,
+        b.approvals,
         version=__version__,
         now=time.time,
-        kernel_document=workbench.document_of,
-        ask_workbench=lambda command, args: workbench_window.ask(command, args, "app"),
-        scope=use_project,
+        kernel_document=b.workbench.document_of,
+        ask_workbench=lambda command, args: b.workbench_window.ask(command, args, "app"),
+        scope=partial(_use_project, b),
         adopt=library.adopt_project,
         autosave_seconds=settings.autosave_seconds,
-        projects_folder=lambda: explorer_ready[0].folder() if explorer_ready else str(settings.projects_dir),
+        # the projects folder New uses
+        projects_folder=lambda: (
+            b.project_explorer.folder() if b.has("project_explorer") else str(settings.projects_dir)
+        ),
     )
     # The Project Explorer (the home page): every project in one place, sortable, the types explained.
-    project_explorer = ProjectExplorer(
+    b.project_explorer = ProjectExplorer(
         ws,
         ExplorerFiles(file_manager.show, file_manager.trash),
-        ExplorerSettings(state_dir / "projects.json" if audit_log else None),
-        recent_projects,
+        ExplorerSettings(state_dir / "projects.json" if b.audit_log else None),
+        b.recent_projects,
         sab_projects,
-        approvals,
+        b.approvals,
         default_folder=str(settings.projects_dir),
         modes=extension_modules.modes,
         streamlit=extension_modules.STREAMLIT_KIND,
@@ -1091,10 +1275,15 @@ def bootstrap(
             for e in extension_rules.off_project_types(extension_rules.CATALOG, extension_modules.modes())
         },
     )
-    explorer_ready.append(project_explorer)
-    sab_projects.shared_folder = project_explorer.shared_folder
+    sab_projects.shared_folder = b.project_explorer.shared_folder
+
+
+def _structures_and_apis(b: Built) -> None:
+    """Structures, the APIs page, what a connection's tables are, a table's connection swapped, and the
+    tables the open project uses."""
+    ws, datasets, documents, hooks, sab_projects = b.ws, b.datasets, b.documents, b.hooks, b.sab_projects
     # Structures: nested data (JSON, YAML, XML, TOML) as documents; the project's own in structures/.
-    structures = Structures(
+    b.structures = structures = Structures(
         ws,
         StructureFiles(),
         StructureCodecs(),
@@ -1102,27 +1291,26 @@ def bootstrap(
         rows_to_table,
         project_folder=lambda: sab_projects.current.folder if sab_projects.current else None,
         default_folder=documents.made_default_folder,
-        documents=lambda: usage_documents(documents, hooks, sab_projects, project_files),
+        documents=lambda: usage_documents(documents, hooks, sab_projects, b.project_files),
         read_document=documents.read,
     )
-    structures_ready.append(structures)
     # The APIs page: the library's APIs explored; a call sent opens in Structures, its origin the call.
-    api_explorer = ApiExplorer(
+    b.api_explorer = api_explorer = ApiExplorer(
         ws,
-        apis,
-        api_library,
+        b.apis,
+        b.api_library,
         SpecSource(),
-        blades,
-        connections,
-        connection_usage,
+        b.blades,
+        b.connections,
+        b.connection_usage,
         structures,
-        approvals,
+        b.approvals,
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
         to_thread=asyncio.to_thread,
         reader=table_reader,
     )
     structures.rerun = api_explorer.run_again
-    blades.web_call_saved.append(api_explorer.tables_changed)
+    b.blades.web_call_saved.append(api_explorer.tables_changed)
     structures.grid_steps = lambda table: (
         describe_steps(grid.steps) if (grid := ws.grids.first_for(table)) is not None else []
     )
@@ -1130,91 +1318,103 @@ def bootstrap(
     sab_projects.opened.append(structures.project_changed)
     # A table's connection swapped for another (its steps kept), and the code that named the old one.
     # What a connection is: its tables, listed and read one way for every kind; DuckDB SQL names them.
-    connection_tables = ConnectionTablesService(
+    b.connection_tables = ConnectionTablesService(
         ws,
-        connections,
-        catalogs,
-        catalog_loading,
+        b.connections,
+        b.catalogs,
+        b.catalog_loading,
         table_reader.table_to_arrow_stream,
         aliases=lambda: (
-            hooks.dataset_aliases() | ({sandbox_rules.NAME: sandbox_alias} if sandbox.folder() else {})
+            hooks.dataset_aliases() | ({sandbox_rules.NAME: b.sandbox_alias} if b.sandbox.folder() else {})
         ),
     )
-    datasets.connection_sql = connection_tables
-    connection_swap = ConnectionSwap(
+    datasets.connection_sql = b.connection_tables
+    b.connection_swap = ConnectionSwap(
         ws,
         datasets,
-        connections,
-        catalogs,
-        catalog_loading,
+        b.connections,
+        b.catalogs,
+        b.catalog_loading,
         sab_projects,
-        connection_usage,
+        b.connection_usage,
         table_reader,
         read_document=documents.read,
         write_document=lambda path, text: documents.write(path, text, True),
         open_documents=lambda: hooks.documents(),
-        ask_window=lambda command, args: workbench_window.ask(command, args, "app"),
+        ask_window=lambda command, args: b.workbench_window.ask(command, args, "app"),
     )
-
     # The tables the open project uses: the ERD draws only those by default (the owner, 2026-11-17).
-    def project_documents() -> tuple[set[str], list[tuple[str, str]]] | None:
-        project = sab_projects.state().get("project")
-        if not project:
-            return None
-        names = {str(t["name"]) for t in project.get("tables", [])}
-        texts: list[tuple[str, str]] = []
-        for path in usage_documents(documents, hooks, sab_projects, project_files):
-            try:
-                text, full, _ = documents.read(path)
-            except (OSError, ValueError):
-                continue
-            texts.append((full, text))
-        return names, texts
-
-    project_tables = ProjectTables(models, project_documents)
+    b.project_documents = partial(_project_documents, b)
+    b.project_tables = ProjectTables(b.models, b.project_documents)
     # A connection deleted: the relationships its tables held go from the ones in use (saved sets stay).
-    blades.connection_removed.append(
-        lambda name, who: models.forget_connection(name, set(connection_swap.tables_of(name)), who)
+    b.blades.connection_removed.append(
+        lambda name, who: b.models.forget_connection(name, set(b.connection_swap.tables_of(name)), who)
     )
 
-    # The shared catalog (the owner, 2026-11-17): the library's catalog/<connection>.json, kept by what
-    # happens here and read again when the user's pulls change it. The app never runs git.
-    def connections_here() -> list[Here]:
-        found = []
-        for blade in blade_store.all():
-            if blade.web_call or connection_rules.connection_kind(blade.kind, blade.template) is None:
-                continue
-            kind = connection_table_rules.tables_kind(
-                blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
-            )
-            if kind is not None:  # never a key vault: it has no tables
-                found.append(Here(blade.name, kind, str(blade.template or "")))
-        return found
 
-    def project_use() -> tuple[str, set[str], list[tuple[str, str]]] | None:
-        project = sab_projects.state().get("project")
-        found = project_documents()
-        if not project or found is None:
-            return None
-        folder = str(project.get("folder") or "")
-        name = Path(folder).name if folder else str(project.get("name") or "")
-        names, texts = found
-        return name, names | {i.name for i in store.all()}, texts
+def _project_documents(b: Built) -> tuple[set[str], list[tuple[str, str]]] | None:
+    """The open project's tables and its documents' texts (none open: None)."""
+    project = b.sab_projects.state().get("project")
+    if not project:
+        return None
+    names = {str(t["name"]) for t in project.get("tables", [])}
+    texts: list[tuple[str, str]] = []
+    for path in usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files):
+        try:
+            text, full, _ = b.documents.read(path)
+        except (OSError, ValueError):
+            continue
+        texts.append((full, text))
+    return names, texts
 
-    shared_catalog = SharedCatalog(
-        ws,
-        CatalogFiles((lambda: library_folder.root) if audit_log else None, library_folder.ensure),
-        connections_here,
-        catalogs.listing_rows,
+
+# ----- the shared catalog, code files that follow a change, the project's scope -----
+
+
+def _connections_here(b: Built) -> list[Here]:
+    """This computer's connections that have tables (never a key vault), for the shared catalog."""
+    found = []
+    for blade in b.blade_store.all():
+        if blade.web_call or connection_rules.connection_kind(blade.kind, blade.template) is None:
+            continue
+        kind = connection_table_rules.tables_kind(
+            blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
+        )
+        if kind is not None:  # never a key vault: it has no tables
+            found.append(Here(blade.name, kind, str(blade.template or "")))
+    return found
+
+
+def _project_use(b: Built) -> tuple[str, set[str], list[tuple[str, str]]] | None:
+    """The open project's name, the tables it uses and its documents' texts (the shared catalog's used_by)."""
+    project = b.sab_projects.state().get("project")
+    found = b.project_documents()
+    if not project or found is None:
+        return None
+    folder = str(project.get("folder") or "")
+    name = Path(folder).name if folder else str(project.get("name") or "")
+    names, texts = found
+    return name, names | {i.name for i in b.store.all()}, texts
+
+
+def _shared_catalog_part(b: Built) -> None:
+    """The shared catalog (the owner, 2026-11-17): the library's catalog/<connection>.json, kept by what
+    happens here and read again when the user's pulls change it. The app never runs git."""
+    library_folder, blades, sab_projects, models = b.library_folder, b.blades, b.sab_projects, b.models
+    b.connections_here = partial(_connections_here, b)
+    b.shared_catalog = shared_catalog = SharedCatalog(
+        b.ws,
+        CatalogFiles((lambda: library_folder.root) if b.audit_log else None, library_folder.ensure),
+        b.connections_here,
+        b.catalogs.listing_rows,
         lambda: models.model,
         today=lambda: datetime.now(UTC).date().isoformat(),
         now=lambda: datetime.now(UTC).isoformat(timespec="seconds"),
-        project=project_use,
+        project=partial(_project_use, b),
     )
-    shared_ready.append(shared_catalog)
     shared_catalog.load()
-    library.catalog_info = shared_catalog.info
-    project_tables.shared = shared_catalog.model
+    b.library.catalog_info = shared_catalog.info
+    b.project_tables.shared = shared_catalog.model
 
     async def connection_saved(blade: Any) -> None:
         await shared_catalog.saved(blade.name)
@@ -1231,159 +1431,184 @@ def bootstrap(
     sab_projects.opened.append(project_opened)
     # Code files that update themselves everywhere (services/code_files.py): the open project's and the
     # library's.
-    code_files = CodeFiles(
-        ws,
+    b.code_files = CodeFiles(
+        b.ws,
         lambda: (
             sab_projects.current.folder if sab_projects.current else None,
-            str(library_folder.root) if audit_log else None,
+            str(library_folder.root) if b.audit_log else None,
         ),
         code_file_disk.stamp,
         code_file_disk.file_hash,
         code_file_disk.code_files_in,
         code_file_disk.resolve,
-        settings.file_watch_seconds,
+        b.settings.file_watch_seconds,
     )
-    project_scope = ProjectScope(sab_projects, archive, library, connections, on_saved=catalog_loading.saved)
-    code_files.listeners.append(project_scope.saw)  # a made file saved by hand is marked so
-    # The Variables page: this computer's variables (never a project's): the shareable file and the local
-    # values; their values given to this server's environment, so what it runs and starts reads them.
+    b.project_scope = ProjectScope(
+        sab_projects, b.archive, b.library, b.connections, on_saved=b.catalog_loading.saved
+    )
+    b.code_files.listeners.append(b.project_scope.saw)  # a made file saved by hand is marked so
+
+
+# ----- the variables, Find connections, app registrations, Set up this computer -----
+
+
+def _variables_part(b: Built) -> None:
+    """The Variables page: this computer's variables (never a project's): the shareable file and the local
+    values; their values given to this server's environment, so what it runs and starts reads them."""
+    ws, state_dir, library_folder, blade_store, blades = (
+        b.ws,
+        b.state_dir,
+        b.library_folder,
+        b.blade_store,
+        b.blades,
+    )
     variables_file = VariableFiles(
-        (lambda: library_folder.root) if audit_log else None, library_folder.ensure
+        (lambda: library_folder.root) if b.audit_log else None, library_folder.ensure
     )
-    if audit_log:
+    if b.audit_log:
         # Once: this computer's stores from before the library, written as library files (said on the page).
         moved = library_folder.migrate(
             state_dir, blade_store, variables_file, datetime.now(UTC).date().isoformat()
         )
-        library.notice("computer", library_rules.computer_migration_words(moved["moved"], moved["backup"]))
+        b.library.notice("computer", library_rules.computer_migration_words(moved["moved"], moved["backup"]))
         # Once: the library's tangs/ (the old name, 2026-11-17) as relationship-sets/ (said on the page).
         sets = library_folder.move_relationship_sets(state_dir, datetime.now(UTC).date().isoformat())
-        library.notice("computer", library_rules.sets_migration_words(sets["moved"], sets["backup"]))
+        b.library.notice("computer", library_rules.sets_migration_words(sets["moved"], sets["backup"]))
 
     async def save_variable_blade(data: dict[str, Any], previous: str, who: str) -> Any:
         saved = await blades.save(data, previous, who)
-        catalog_loading.saved(str(saved["name"]))
+        b.catalog_loading.saved(str(saved["name"]))
         return saved
 
-    variables = Variables(
+    b.variables = variables = Variables(
         ws,
         variables_file,
         VariableKeyring(),
         ProcessEnvironment(),
         blade_store,
         save_variable_blade,
-        documents=lambda: usage_documents(documents, hooks, sab_projects, project_files),
-        read=documents.read,
-        run_settings=script_runs,
-        kernels=workbench.kernel_count,
-        vault_values=vault_values,
+        documents=lambda: usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files),
+        read=b.documents.read,
+        run_settings=b.script_runs,
+        kernels=b.workbench.kernel_count,
+        vault_values=b.vault_values,
         remembered=blades.remembered,
-        renamed_notes=kept_vault_names.notes,
+        renamed_notes=b.kept_vault_names.notes,
     )
     # One name, one variable: the vaults' names given out around the user's own variables.
-    kept_vault_names.vaults = blade_store.all
-    kept_vault_names.defined = variables.defined_names
-    connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
+    b.kept_vault_names.vaults = blade_store.all
+    b.kept_vault_names.defined = variables.defined_names
+    b.connections.variable_check = variables  # a Test's ${NAME} checked first (12.7)
     # Find connections on this computer (the owner, 2026-11-20): the known tools' files and the hint scan of
     # the app settings folders, read-only, on the user's click; never this app's own state folder or library.
-    found_connections = FoundConnections(
+    b.found_connections = FoundConnections(
         ws,
         ConnectionFinder(
-            home=settings.find_home,
-            system=settings.find_system,
+            home=b.settings.find_home,
+            system=b.settings.find_system,
             skip=lambda: (state_dir, library_folder.root),
         ),
         TEMPLATES,
         blades,
-        lambda data, who: connections.save(data, None, who),
+        lambda data, who: b.connections.save(data, None, who),
         variables,
-        approvals,
+        b.approvals,
     )
-
-    app_registrations = _app_registrations(ws, connections, blade_store, library_folder, variables)
-    app_registrations.tables_of = catalogs.places  # Azure SQL's SELECT TOP 0 on its catalog's tables
-    datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
-    structures.variables = variables
-    api_explorer.variables = variables
-    if audit_log:
-        _variables_once(state_dir, library, variables)
-
+    b.app_registrations = _app_registrations(ws, b.connections, blade_store, library_folder, variables)
+    b.app_registrations.tables_of = b.catalogs.places  # Azure SQL's SELECT TOP 0 on its catalog's tables
+    b.datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
+    b.structures.variables = variables
+    b.api_explorer.variables = variables
+    if b.audit_log:
+        _variables_once(state_dir, b.library, variables)
     # Set up from the meta store: what this computer needs before the team's connections work.
-    library_setup = LibrarySetup(
+    b.library_setup = LibrarySetup(
         ws,
         blades,
         blade_store.secret_status,
         lambda: variables.listing()["variables"],
-        connections,
+        b.connections,
     )
-    setup_ready.append(library_setup)
 
-    # Shared projects (the owner, 2026-11-18: "local projects and shared projects"): the connections a
-    # project's documents name, said once when a shared one's only work here, and on the checklist when not
-    # set up here.
-    def connections_named_in(folder: str) -> list[str]:
-        names = list(dict.fromkeys([h.name for h in connections_here()] + list(shared_catalog.catalogs())))
-        texts = []
-        for path in sorted(Path(folder).glob("*")):
-            if path.suffix.lower() in (".ipynb", ".py") and path.is_file():
-                try:
-                    texts.append((str(path), path.name, path.read_text(encoding="utf-8")))
-                except (OSError, UnicodeDecodeError):
-                    continue
-        found = []
-        for name in names:
-            for full, title, text in texts:
-                try:
-                    if usage_rules.document_references(full, title, text, name):
-                        found.append(name)
-                        break
-                except ValueError:
-                    continue
-        return found
 
-    async def shared_projects(not_working: set[str]) -> list[setup_rules.SharedProject]:
-        folder = project_explorer.shared_folder()
-        if not folder:
-            return []
-        here = {h.name.casefold() for h in connections_here()}
-        out = []
-        for path in await asyncio.to_thread(ExplorerFiles.scan, folder):
-            named = await asyncio.to_thread(connections_named_in, path)
-            missing = [n for n in named if n.casefold() not in here or n.casefold() in not_working]
-            out.append(setup_rules.SharedProject(Path(path).name, path, tuple(missing)))
-        return out
+# ----- shared projects on the checklist, and the Data Explorer -----
 
-    library_setup.shared_projects = shared_projects
 
-    async def shared_opened(folder: str, _extra: Any) -> None:
-        """A shared project opened (or made): its connections that only work on this machine, said once."""
-        if project_explorer.where(folder) != "shared":
-            return
-        local = 0
-        for name in await asyncio.to_thread(connections_named_in, folder):
+def _connections_named_in(b: Built, folder: str) -> list[str]:
+    """The connections a project folder's notebooks and scripts name (Shared projects, 2026-11-18)."""
+    names = list(dict.fromkeys([h.name for h in b.connections_here()] + list(b.shared_catalog.catalogs())))
+    texts = []
+    for path in sorted(Path(folder).glob("*")):
+        if path.suffix.lower() in (".ipynb", ".py") and path.is_file():
             try:
-                blade = blade_store.get(name)
-                status = blade_store.secret_status(blade)
-            except Exception:  # noqa: S112 (a teammate's connection not here: the checklist says so)
+                texts.append((str(path), path.name, path.read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError):
                 continue
-            sources = ["keyring" if status.get(s) else "" for s in blade.secrets]
-            local += bool(portability_rules.check(blade.code, blade.template, sources))
-        said = explorer_rules_words(local)
-        if said:
-            library.notice("project", said)
-            await live.broadcast({"type": "library_notice", "text": said})
+    found = []
+    for name in names:
+        for full, title, text in texts:
+            try:
+                if usage_rules.document_references(full, title, text, name):
+                    found.append(name)
+                    break
+            except ValueError:
+                continue
+    return found
 
-    sab_projects.opened.append(shared_opened)
 
-    # The Data Explorer: one search over the connections and their catalogs, the open tables, the
-    # variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
-    explorer = _explorer(
-        ws, datasets, connections, connection_tables, catalogs, catalog_loading, shared_catalog, variables,
-        blades, structures,
+async def _shared_projects(b: Built, not_working: set[str]) -> list[setup_rules.SharedProject]:
+    """Each shared project and the connections it names that do not work here (the checklist's)."""
+    folder = b.project_explorer.shared_folder()
+    if not folder:
+        return []
+    here = {h.name.casefold() for h in b.connections_here()}
+    out = []
+    for path in await asyncio.to_thread(ExplorerFiles.scan, folder):
+        named = await asyncio.to_thread(_connections_named_in, b, path)
+        missing = [n for n in named if n.casefold() not in here or n.casefold() in not_working]
+        out.append(setup_rules.SharedProject(Path(path).name, path, tuple(missing)))
+    return out
+
+
+async def _shared_opened(b: Built, folder: str, _extra: Any) -> None:
+    """A shared project opened (or made): its connections that only work on this machine, said once."""
+    if b.project_explorer.where(folder) != "shared":
+        return
+    local = 0
+    for name in await asyncio.to_thread(_connections_named_in, b, folder):
+        try:
+            blade = b.blade_store.get(name)
+            status = b.blade_store.secret_status(blade)
+        except Exception:  # noqa: S112 (a teammate's connection not here: the checklist says so)
+            continue
+        sources = ["keyring" if status.get(s) else "" for s in blade.secrets]
+        local += bool(portability_rules.check(blade.code, blade.template, sources))
+    said = explorer_rules_words(local)
+    if said:
+        b.library.notice("project", said)
+        await b.live.broadcast({"type": "library_notice", "text": said})
+
+
+def _setup_and_explorer(b: Built) -> None:
+    """Shared projects (said once when one's connections only work here, on the checklist when not set up
+    here), and the Data Explorer: one search over the connections and their catalogs, the open tables, the
+    variables and the blades, Structures' documents and paths, APIs' web calls that return a table."""
+    b.library_setup.shared_projects = partial(_shared_projects, b)
+    b.sab_projects.opened.append(partial(_shared_opened, b))
+    b.explorer = _explorer(
+        b.ws, b.datasets, b.connections, b.connection_tables, b.catalogs, b.catalog_loading, b.shared_catalog,
+        b.variables, b.blades, b.structures,
     )  # fmt: skip
 
-    # The project's sandbox (domain/sandbox.py): the data a local sandbox API reads and writes, mocked as the
-    # client of the connection each table came from; [Sandbox].orders in DuckDB SQL; a section in the Catalog.
+
+# ----- the project's sandbox and its local sandbox API -----
+
+
+def _sandbox_part(b: Built) -> None:
+    """The project's sandbox (domain/sandbox.py): the data a local sandbox API reads and writes, mocked as the
+    client of the connection each table came from; [Sandbox].orders in DuckDB SQL; a Catalog section."""
+    ws, datasets, connections, connection_tables = b.ws, b.datasets, b.connections, b.connection_tables
+
     def sandbox_client(table: str | None, connection: str | None) -> dict[str, Any]:
         name = connection
         if name is None and table is not None:
@@ -1403,8 +1628,8 @@ def bootstrap(
         }
 
     async def sandbox_grid_view(name: str) -> Any:
-        body = await table_cells.view(name)
-        return table_reader.arrow_stream_to_table(body, settings.max_dataset_bytes)
+        body = await b.table_cells.view(name)
+        return table_reader.arrow_stream_to_table(body, b.settings.max_dataset_bytes)
 
     async def sandbox_connection_table(name: str, place: Place) -> Any:
         kept, _ = await connection_tables.read(name, place)
@@ -1449,17 +1674,17 @@ def bootstrap(
         """A connection's table's primary key as the shared catalog knows it ([]: not known)."""
         for name in (".".join(p for p in (place.schema, place.table) if p), place.table):
             try:
-                return [str(c) for c in shared_catalog.table(connection, name).get("primary_key") or []]
+                return [str(c) for c in b.shared_catalog.table(connection, name).get("primary_key") or []]
             except (LookupError, ValueError):
                 continue
         return []
 
     def sandbox_ignore(folder: str) -> None:
-        archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
+        b.archive.write_state(folder, APP_IGNORE_FILE, APP_GITIGNORE.encode("utf-8"))
 
-    sandbox = Sandbox(
+    b.sandbox = sandbox = Sandbox(
         ws,
-        lambda: sab_projects.current.folder if sab_projects.current is not None else None,
+        lambda: b.sab_projects.current.folder if b.sab_projects.current is not None else None,
         SandboxFiles,
         SourcesFrom(
             sandbox_grid_view,
@@ -1467,122 +1692,135 @@ def bootstrap(
             datasets.read_file,
             sandbox_show,
             sandbox_client,
-            structure_fn=structures.records_table,
+            structure_fn=b.structures.records_table,
             view_rows_fn=sandbox_view_rows,
             connections_fn=sandbox_connections,
             key_fn=sandbox_key,
         ),
-        approvals,
+        b.approvals,
         lambda sql: duckdb_grammar().parse(sql),
         ignore=sandbox_ignore,
     )
-    sandbox_alias = SandboxAlias(sandbox)
+    b.sandbox_alias = SandboxAlias(sandbox)
     # The Sandbox as a connection (the owner, 2026-11-21): its card on the Connections page and its colour.
-    connection_usage.extra_cards = lambda: [c for c in [sandbox.card()] if c is not None]
-    connection_colours.fixed = lambda: (
+    b.connection_usage.extra_cards = lambda: [c for c in [sandbox.card()] if c is not None]
+    b.connection_colours.fixed = lambda: (
         [(sandbox_rules.NAME, sandbox_rules.COLOUR)] if sandbox.folder() else []
     )
     # The project's local sandbox API (API.py): hosted in a process of its own that gets only the sandbox.
-    local_api = LocalApi(
+    b.local_api = LocalApi(
         ws,
         sandbox.folder,
         LocalApiFiles(),
         api_runs.start,
         sandbox,
-        approvals,
-        data_url=lambda key: f"http://127.0.0.1:{port}/sandbox/data/{key}",
+        b.approvals,
+        data_url=lambda key: f"http://127.0.0.1:{b.port}/sandbox/data/{key}",
     )
-    explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
+    b.explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
 
-    async def open_work() -> dict[str, Any]:
-        """What is open and what an update would lose: the tables, the Workbench
-        window's documents (when one is open), the documents with unsaved changes, the kernels."""
-        tables = [{"grid": g.id, "name": g.dataset} for g in ws.grids.all() if store.get(g.dataset)]
-        documents: list[dict[str, Any]] = []
-        if live.workbench_open():
-            try:
-                answer = await asyncio.wait_for(workbench_window.ask("documents", {}, "app"), 3.0)
-                listed = answer.get("documents", []) if isinstance(answer, dict) else []
-                documents = [
-                    {
-                        "key": d.get("index"),
-                        "title": d.get("title"),
-                        "unsaved": d.get("unsaved_changes") is True,
-                    }
-                    for d in listed
-                    if isinstance(d, dict) and d.get("kind") in ("notebook", "script", "app")
-                ]
-            except Exception:  # noqa: S110 (a window that does not answer lists nothing)
-                pass
-        titles = [str(d["title"]) for d in documents if d["unsaved"]] + hooks.unsaved()
-        return {
-            "tables": tables,
-            "documents": documents,
-            "unsaved": list(dict.fromkeys(titles)),
-            "kernels": workbench.kernel_count(),
-        }
 
+# ----- the app's own life: what is open, extensions, the Team box, sharing, updates -----
+
+
+async def _open_work(b: Built) -> dict[str, Any]:
+    """What is open and what an update would lose: the tables, the Workbench
+    window's documents (when one is open), the documents with unsaved changes, the kernels."""
+    ws, live = b.ws, b.live
+    tables = [{"grid": g.id, "name": g.dataset} for g in ws.grids.all() if b.store.get(g.dataset)]
+    documents: list[dict[str, Any]] = []
+    if live.workbench_open():
+        try:
+            answer = await asyncio.wait_for(b.workbench_window.ask("documents", {}, "app"), 3.0)
+            listed = answer.get("documents", []) if isinstance(answer, dict) else []
+            documents = [
+                {
+                    "key": d.get("index"),
+                    "title": d.get("title"),
+                    "unsaved": d.get("unsaved_changes") is True,
+                }
+                for d in listed
+                if isinstance(d, dict) and d.get("kind") in ("notebook", "script", "app")
+            ]
+        except Exception:  # noqa: S110 (a window that does not answer lists nothing)
+            pass
+    titles = [str(d["title"]) for d in documents if d["unsaved"]] + b.hooks.unsaved()
+    return {
+        "tables": tables,
+        "documents": documents,
+        "unsaved": list(dict.fromkeys(titles)),
+        "kernels": b.workbench.kernel_count(),
+    }
+
+
+def _app_life(b: Built) -> None:
+    ws, live, state_dir, audit_log, approvals = b.ws, b.live, b.state_dir, b.audit_log, b.approvals
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
     failure_note = state_dir / "update_failed.json" if audit_log else None
     # Extensions (the Extensions page): the installed ones found once, at start; Install and Remove hand
     # over to the update's helper, and each update keeps the installed ones (`--with`).
-    update_helper, extensions = _extensions(
-        ws, live, approvals, state_dir, audit_log, on_extensions, on_shutdown
+    b.update_helper, b.extensions = _extensions(
+        ws, live, approvals, state_dir, audit_log, b.on_extensions, b.on_shutdown
     )
     # Settings' Team box: one GitHub repository for the team library and its projects/ (team.json: the team
     # joined, the folders before it, a step kept over Install's restart). The GitHub work is an extension's.
-    team = _team(
-        ws, hooks, library, project_explorer, library_setup, file_manager, approvals, extensions, state_dir,
-        audit_log,
+    b.team = _team(
+        ws, b.hooks, b.library, b.project_explorer, b.library_setup, file_manager, approvals, b.extensions,
+        state_dir, audit_log,
     )  # fmt: skip
     # Share a running app with your organization (Microsoft Dev Tunnels; the third way data leaves this
     # computer, on the user's click): devtunnel in the state folder's devtunnel/, got on the first share.
-    sharing = _sharing(ws, hooks, approvals, state_dir, port)
-    updates = _updates(
-        ws, live, settings, update_helper, extensions, approvals, open_work, failure_note, state_dir,
-        audit_log, on_shutdown,
+    b.sharing = _sharing(ws, b.hooks, approvals, state_dir, b.port)
+    b.updates = _updates(
+        ws, live, b.settings, b.update_helper, b.extensions, approvals, partial(_open_work, b), failure_note,
+        state_dir, audit_log, b.on_shutdown,
     )  # fmt: skip
+
+
+# ----- the editors' intelligence, the Scripts IDE, context.md and Launch Claude, the modes -----
+
+
+def _editors_and_claude(b: Built) -> None:
+    ws, state_dir, sab_projects, live = b.ws, b.state_dir, b.sab_projects, b.live
     # Launch Claude: Claude Code in the user's terminal, or Claude Desktop, found wherever it is installed.
-    standin = settings.claude_standin
-    claude_files = ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if audit_log else None)
-    agent = AgentService(ws, approvals, tickets)
-
-    catalog_of = partial(_catalog_of, catalogs)
-    used_in = partial(_used_in, sab_projects, connection_usage)
-
+    standin = b.settings.claude_standin
+    b.claude_files = ClaudeFiles(state_dir / "claude", state_dir / "claude.json" if b.audit_log else None)
+    b.agent = AgentService(ws, b.approvals, b.tickets)
+    catalog_of = partial(_catalog_of, b.catalogs)
+    used_in = partial(_used_in, sab_projects, b.connection_usage)
     # One Jedi world and one set of linters: the editors' intelligence's, and the Scripts IDE's (never a
     # second).
     jedi_world = JediWorld()
     linters = Linters(run_text)
-    intellisense = Intellisense(
+    b.intellisense = Intellisense(
         ws,
         kernel_intel.answer,
         jedi_world,
         ProjectModules(),
         linters,
-        kernel_of=workbench.kernel_or_none,
+        kernel_of=b.workbench.kernel_or_none,
         project_folder=lambda: (sab_projects.state().get("project") or {}).get("folder"),
-        blades=lambda: blades.listing()["blades"],
-        variables=lambda: variables.listing()["variables"],
-        structures=lambda: sorted({str(f.get("name")) for f in structures.files()}),
+        blades=lambda: b.blades.listing()["blades"],
+        variables=lambda: b.variables.listing()["variables"],
+        structures=lambda: sorted({str(f.get("name")) for f in b.structures.files()}),
         dialect_of=lambda name: next(
-            (b.dialect for b in blade_store.all() if b.name.casefold() == name.casefold()), None
+            (x.dialect for x in b.blade_store.all() if x.name.casefold() == name.casefold()), None
         ),
-        read_file=lambda path: documents.read(path)[0],
+        read_file=lambda path: b.documents.read(path)[0],
     )
-    script_ide = ScriptIde(
+    b.script_ide = ScriptIde(
         ws,
         ScriptCode(run_text),
         jedi_world,
         linters,
-        tree=lambda: project_scope.tree("scripts"),
-        touched=code_files.touched,
+        tree=lambda: b.project_scope.tree("scripts"),
+        touched=b.code_files.touched,
         library=lambda: (
-            (str(library_folder.root), code_file_disk.code_files_in(str(library_folder.root)))
-            if audit_log
+            (str(b.library_folder.root), code_file_disk.code_files_in(str(b.library_folder.root)))
+            if b.audit_log
             else (None, [])
         ),
-        tables=table_cells.listing,
+        tables=b.table_cells.listing,
         trash=file_manager.trash,  # Delete: the system's trash, the user's own
         library_roots=lambda: tuple(  # Python's own folders: a library's source, read-only
             dict.fromkeys(
@@ -1592,235 +1830,259 @@ def bootstrap(
             )
         ),
     )
-    blades.lint = intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
-    context_md = ContextMd(
+    b.blades.lint = b.intellisense.lint  # the blade IDE's Problems, for the agent (blades_problems)
+    b.context_md = context_md = ContextMd(
         ws,
-        claude_files,
+        b.claude_files,
         version=__version__,
         project=lambda: sab_projects.state().get("project"),
-        connections=lambda: connection_usage.overview()["connections"],
-        colour_of=connection_colours.colour_of,
+        connections=lambda: b.connection_usage.overview()["connections"],
+        colour_of=b.connection_colours.colour_of,
         catalog=catalog_of,
         used_in=used_in,
-        origin_of=datasets.origins.get,
-        relationships=models.current,
-        variables=lambda: variables.listing(),
-        documents=lambda: project_scope.documents(),
+        origin_of=b.datasets.origins.get,
+        relationships=b.models.current,
+        variables=lambda: b.variables.listing(),
+        documents=lambda: b.project_scope.documents(),
         windows=lambda: {
             "home": live.workspace_open(),
-            "front": agent.active_grid,
+            "front": b.agent.active_grid,
             "workbench": live.workbench_open(),
-            "kernels": workbench.running_documents(),
+            "kernels": b.workbench.running_documents(),
             "blades": live.catalog_open(),
         },
         changes=lambda: live.changes,
-        apis=api_explorer.listing,
-        structures=structures.listing,
-        shared=lambda: shared_catalog.listing(),
+        apis=b.api_explorer.listing,
+        structures=b.structures.listing,
+        shared=lambda: b.shared_catalog.listing(),
     )
-    claude = Claude(
+    b.claude = Claude(
         ws,
         StandinFinder(standin) if standin else ClaudeFinder(),
         RecordingStarter(standin.with_suffix(".launches.jsonl")) if standin else ClaudeStarter(),
-        claude_files,
+        b.claude_files,
         version=__version__,
         home=str(Path.home()),
         environ=dict(os.environ),
         commands=own_command,
         project=lambda: sab_projects.state().get("project"),
-        connections=lambda: connections.listing()["connections"],
-        documents=lambda: project_scope.documents()["documents"],
+        connections=lambda: b.connections.listing()["connections"],
+        documents=lambda: b.project_scope.documents()["documents"],
         context_md=context_md,
     )
-    context_md.access = app_registrations.access
-    modes = Modes(
+    context_md.access = b.app_registrations.access
+    b.modes = Modes(
         extension_modules.modes,
-        lambda: sab_projects.current.folder if sab_projects.current is not None else projects.opened,
-        projects.type_of,
+        lambda: sab_projects.current.folder if sab_projects.current is not None else b.projects.opened,
+        b.projects.type_of,
         extension_modules.areas,
         sab_projects.setting,
         sab_projects.set_setting,
     )
-    context_md.gates = modes.gates
+    context_md.gates = b.modes.gates
 
-    def saved_dashboards() -> list[dict[str, Any]]:
-        """The open project's saved dashboards: each one's name and its last version's cards."""
-        out = []
-        for listed in dashboards.names():
-            body = dashboards.read(str(listed["name"])) or {"versions": []}
-            last = body["versions"][-1] if body["versions"] else {}
-            out.append({"name": listed["name"], "cards": last.get("cards") or []})
-        return out
 
+# ----- the project's outline, the file dialogs, the server's life, the analyses -----
+
+
+def _saved_dashboards(b: Built) -> list[dict[str, Any]]:
+    """The open project's saved dashboards: each one's name and its last version's cards."""
+    out = []
+    for listed in b.dashboards.names():
+        body = b.dashboards.read(str(listed["name"])) or {"versions": []}
+        last = body["versions"][-1] if body["versions"] else {}
+        out.append({"name": listed["name"], "cards": last.get("cards") or []})
+    return out
+
+
+def _picker_places(b: Built) -> list[dict[str, str]]:
+    """The page's own picker's quick places: the system's, then the projects folder and the library."""
+    found = folder_places()
+    for name, kind, folder in (
+        ("Projects", "projects", b.project_explorer.folder()),
+        ("Library", "library", str(b.library_folder.root)),
+    ):
+        if is_folder(folder):
+            found.append({"name": name, "path": folder, "kind": kind})
+    return found
+
+
+async def _before_stop(b: Built) -> str:
+    """Before the server stops: the open project's unsaved changes saved as Autosave does; with Autosave
+    off, the stop waits (its words)."""
+    current = b.sab_projects.current
+    if current is None or not b.sab_projects.dirty():
+        return ""
+    if not current.autosave:
+        return "the open project has unsaved changes and Autosave is off"
+    try:
+        await b.sab_projects.save({}, "autosave")
+    except Exception as error:
+        return f"the open project could not be saved: {error}"
+    return ""
+
+
+def _outline_dialogs_and_life(b: Built) -> None:
+    ws, settings, sab_projects = b.ws, b.settings, b.sab_projects
     # The project's outline, ARCHITECTURE.md: its two seams wired to the ERD's tables in the project
     # (services/relationship_scope.py) and the connection cards' portability (domain/portability.py).
-    project_outline = ProjectOutline(
+    b.project_outline = project_outline = ProjectOutline(
         ws,
-        archive,
+        b.archive,
         project=lambda: sab_projects.state().get("project"),
-        mode=lambda: modes.active()["mode"],
-        connections=lambda: connection_usage.overview()["connections"],
-        usage=connection_usage.usage,
-        table_cells=table_cells.listing,
-        origin_of=datasets.origins.get,
-        kernel_document=workbench.document_of,
-        relationships=models.current,
-        dashboards=saved_dashboards,
-        run_settings=script_runs.settings,
-        app_pages=lambda path, text: hooks.app_pages(path, text),
+        mode=lambda: b.modes.active()["mode"],
+        connections=lambda: b.connection_usage.overview()["connections"],
+        usage=b.connection_usage.usage,
+        table_cells=b.table_cells.listing,
+        origin_of=b.datasets.origins.get,
+        kernel_document=b.workbench.document_of,
+        relationships=b.models.current,
+        dashboards=partial(_saved_dashboards, b),
+        run_settings=b.script_runs.settings,
+        app_pages=lambda path, text: b.hooks.app_pages(path, text),
     )
-    project_outline.used_tables = BothTables(project_tables.used, project_outline.used_tables)
-    project_outline.portability = CardPortability(lambda: connection_usage.overview()["connections"])
-
+    project_outline.used_tables = BothTables(b.project_tables.used, project_outline.used_tables)
+    project_outline.portability = CardPortability(lambda: b.connection_usage.overview()["connections"])
     # The system's own file dialog on the user's click (server/dialog_runner.py), and the page's own picker's
     # quick places and recent folders per kind of pick (dialogs.json: paths only).
-    def picker_places() -> list[dict[str, str]]:
-        found = folder_places()
-        for name, kind, folder in (
-            ("Projects", "projects", project_explorer.folder()),
-            ("Library", "library", str(library_folder.root)),
-        ):
-            if is_folder(folder):
-                found.append({"name": name, "path": folder, "kind": kind})
-        return found
-
-    file_dialogs = FileDialogs(
+    b.file_dialogs = FileDialogs(
         dialog_runner.DialogRunner(),
-        JsonFile(state_dir / "dialogs.json" if audit_log else None),
-        picker_places,
+        JsonFile(b.state_dir / "dialogs.json" if b.audit_log else None),
+        partial(_picker_places, b),
         is_folder,
     )
-
     # The server's life follows the app's windows (services/lifecycle.py): before it stops, the open
     # project's unsaved changes are saved as Autosave does; with Autosave off, the stop waits.
-    async def before_stop() -> str:
-        current = sab_projects.current
-        if current is None or not sab_projects.dirty():
-            return ""
-        if not current.autosave:
-            return "the open project has unsaved changes and Autosave is off"
-        try:
-            await sab_projects.save({}, "autosave")
-        except Exception as error:
-            return f"the open project could not be saved: {error}"
-        return ""
-
-    lifecycle = Lifecycle(
-        windows=live.windows,
-        busy=lambda: ["a VS Code window"] if live.openers() else [],
-        before_stop=before_stop,
-        stop=on_shutdown,
+    b.lifecycle = Lifecycle(
+        windows=b.live.windows,
+        busy=lambda: ["a VS Code window"] if b.live.openers() else [],
+        before_stop=partial(_before_stop, b),
+        stop=b.on_shutdown,
         grace=settings.life_grace_seconds,
         idle=settings.life_idle_seconds,
         start_grace=settings.life_start_grace_seconds,
     )
+    b.grid_service = GridService(ws, b.datasets.origins.get)
+    b.analysis = Analysis(ws, b.verifier)
+    b.key_finder = KeyFinder(ws)
+    b.tie_out = TieOut(b.compares)
 
-    grid_service = GridService(ws, datasets.origins.get)
-    analysis = Analysis(ws, verifier)
-    key_finder = KeyFinder(ws)
-    tie_out = TieOut(compares)
 
+# ----- exports: a document as one script, a local sandbox API for its framework target -----
+
+
+def _publish_api(values: dict[str, str]) -> None:
+    """The local sandbox API's address and key in this server's environment (what sab.api reads)."""
+    for name in ("SAB_API_URL", "SAB_API_KEY", "SAB_API_BASE"):
+        if name in values:
+            os.environ[name] = values[name]
+        else:
+            os.environ.pop(name, None)
+
+
+def _exports(b: Built) -> None:
+    ws, local_api, sandbox = b.ws, b.local_api, b.sandbox
     # Export as one Python script: the document's cells, its connections' own code, ruff's check.
-    script_exports = ScriptExports(
+    b.script_exports = ScriptExports(
         ws,
-        blade_store,
-        read_document=documents.read,
-        write_document=documents.write,
-        arrange=table_cells.arrange,
+        b.blade_store,
+        read_document=b.documents.read,
+        write_document=b.documents.write,
+        arrange=b.table_cells.arrange,
         lint=script_lint,
         folder_of=lambda path: str(Path(path).expanduser().parent),
         join=lambda folder, name: str(Path(folder) / name),
-        inline=apis.inline,  # an API_<name>.py the document imports travels inside the export
+        inline=b.apis.inline,  # an API_<name>.py the document imports travels inside the export
     )
     # A local sandbox API exported for its framework target: the real connections' own code.
-    api_export = ApiExport(
+    b.api_export = api_export = ApiExport(
         ws,
         sandbox.folder,
         lambda folder: LocalApiFiles.read(str(Path(folder) / local_api_rules.FILE)),
         lambda: Path(api_runtime.__file__).read_text(encoding="utf-8"),
-        script_exports,
+        b.script_exports,
         ExportFolder(sandbox.copy_now),
-        project_scope.edited_in,
-        approvals,
+        b.project_scope.edited_in,
+        b.approvals,
         adapter_text=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
     )
-    for extension in on_extensions:
+    for extension in b.on_extensions:
         for raw in getattr(extension, "API_TARGETS", ()) or ():
             api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
     local_api.target_ids = api_export.registry.ids
     local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]
-    local_api.catalog = catalogs
+    local_api.catalog = b.catalogs
+    local_api.publish = _publish_api
+    b.intellisense.sandbox_clients = sandbox.mock_names
+    b.intellisense.sandbox_tables = sandbox.table_columns
+    b.intellisense.sandbox_mocks = sandbox.mock_dialects
 
-    def publish_api(values: dict[str, str]) -> None:
-        for name in ("SAB_API_URL", "SAB_API_KEY", "SAB_API_BASE"):
-            if name in values:
-                os.environ[name] = values[name]
-            else:
-                os.environ.pop(name, None)
 
-    local_api.publish = publish_api
-    intellisense.sandbox_clients = sandbox.mock_names
-    intellisense.sandbox_tables = sandbox.table_columns
-    intellisense.sandbox_mocks = sandbox.mock_dialects
+# ----- what the doors are given -----
 
+
+def _services(b: Built) -> Services:
+    ws, state_dir, workbench = b.ws, b.state_dir, b.workbench
     return Services(
-        settings=settings,
+        settings=b.settings,
         ws=ws,
-        datasets=datasets,
-        file_watch=file_watch,
-        code_files=code_files,
-        grids=grid_service,
+        datasets=b.datasets,
+        file_watch=b.file_watch,
+        code_files=b.code_files,
+        grids=b.grid_service,
         profiles=Profiles(ws),
-        analysis=analysis,
-        analyze=Analyze(ws, grid_service, datasets, analysis, tie_out, key_finder, cards, blades),
+        analysis=b.analysis,
+        analyze=Analyze(
+            ws, b.grid_service, b.datasets, b.analysis, b.tie_out, b.key_finder, b.cards, b.blades
+        ),
         regression=Regression(ws),
         timeseries=TimeSeries(ws),
-        sql=SqlBox(ws, datasets, table_reader),
-        exports=Exports(ws, export_writer, tickets, now=lambda: datetime.now(UTC)),
-        codes=CodeService(ws, verifier),
-        cards=cards,
+        sql=SqlBox(ws, b.datasets, table_reader),
+        exports=Exports(ws, export_writer, b.tickets, now=lambda: datetime.now(UTC)),
+        codes=CodeService(ws, b.verifier),
+        cards=b.cards,
         inbox=Inbox(ws),
-        agent=agent,
-        sessions=Sessions(processes, store, live),
-        catalogs=catalogs,
-        blades=blades,
-        connections=connections,
-        found_connections=found_connections,
-        connection_usage=connection_usage,
-        connection_slots=slots,
-        apis=apis,
-        structures=structures,
-        api_explorer=api_explorer,
-        catalog_loading=catalog_loading,
-        vault_names_at_start=vault_names_at_start,
-        connection_tables=connection_tables,
+        agent=b.agent,
+        sessions=Sessions(b.processes, b.store, b.live),
+        catalogs=b.catalogs,
+        blades=b.blades,
+        connections=b.connections,
+        found_connections=b.found_connections,
+        connection_usage=b.connection_usage,
+        connection_slots=b.slots,
+        apis=b.apis,
+        structures=b.structures,
+        api_explorer=b.api_explorer,
+        catalog_loading=b.catalog_loading,
+        vault_names_at_start=b.vault_names_at_start,
+        connection_tables=b.connection_tables,
         folders=Folders(
             folder_listing,
-            lambda where: ensure_own_folder(where, settings.workbench_dir),
-            places=file_dialogs.places,
+            lambda where: ensure_own_folder(where, b.settings.workbench_dir),
+            places=b.file_dialogs.places,
             make_folder=make_folder,
         ),
-        file_dialogs=file_dialogs,
+        file_dialogs=b.file_dialogs,
         workbench=workbench,
-        models=models,
-        project_tables=project_tables,
-        finder=Finder(ws, models),
-        library=library,
-        library_setup=library_setup,
-        team=team,
-        sharing=sharing,
-        sandbox=sandbox,
-        local_api=local_api,
-        api_export=api_export,
-        shared_catalog=shared_catalog,
-        app_registrations=app_registrations,
-        keys=key_finder,
-        compares=compares,
-        tie_out=tie_out,
+        models=b.models,
+        project_tables=b.project_tables,
+        finder=Finder(ws, b.models),
+        library=b.library,
+        library_setup=b.library_setup,
+        team=b.team,
+        sharing=b.sharing,
+        sandbox=b.sandbox,
+        local_api=b.local_api,
+        api_export=b.api_export,
+        shared_catalog=b.shared_catalog,
+        app_registrations=b.app_registrations,
+        keys=b.key_finder,
+        compares=b.compares,
+        tie_out=b.tie_out,
         snapshots=Snapshots(ws),
-        workbench_window=workbench_window,
-        intellisense=intellisense,
-        script_ide=script_ide,
+        workbench_window=b.workbench_window,
+        intellisense=b.intellisense,
+        script_ide=b.script_ide,
         debugger=Debugger(
             ws,
             lambda kernel: cast(
@@ -1829,44 +2091,44 @@ def bootstrap(
             workbench.kernel_for,
             workbench.document_of,
         ),
-        table_cells=table_cells,
-        modes=modes,
-        switched_on=on_extensions,
-        hooks=hooks,
-        data_export=data_export,
-        documents=documents,
-        project_files=project_files,
+        table_cells=b.table_cells,
+        modes=b.modes,
+        switched_on=b.on_extensions,
+        hooks=b.hooks,
+        data_export=b.data_export,
+        documents=b.documents,
+        project_files=b.project_files,
         export_writer=export_writer,
-        process_event=process_event,
-        session_log=session_log,
-        variables=variables,
-        explorer=explorer,
-        connection_swap=connection_swap,
-        navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if audit_log else None)),
-        script_runs=script_runs,
-        connection_colours=connection_colours,
-        beta=beta,
-        updates=updates,
-        extensions=extensions,
-        lifecycle=lifecycle,
+        process_event=b.process_event,
+        session_log=b.session_log,
+        variables=b.variables,
+        explorer=b.explorer,
+        connection_swap=b.connection_swap,
+        navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if b.audit_log else None)),
+        script_runs=b.script_runs,
+        connection_colours=b.connection_colours,
+        beta=b.beta,
+        updates=b.updates,
+        extensions=b.extensions,
+        lifecycle=b.lifecycle,
         desktop=Desktop(SystemShell(info_file_path()), ws.audit, qt_version()),
-        claude=claude,
-        context_md=context_md,
+        claude=b.claude,
+        context_md=b.context_md,
         lineage=Lineage(
             ws,
-            hooks,
-            datasets.origins,
-            documents.read,
-            project_files,
+            b.hooks,
+            b.datasets.origins,
+            b.documents.read,
+            b.project_files,
             workbench.lineage_values,
             kernel_for=workbench.kernel_for,
         ),
-        projects=projects,
-        sab_projects=sab_projects,
-        project_explorer=project_explorer,
-        project_scope=project_scope,
-        project_outline=project_outline,
-        script_exports=script_exports,
-        live=live,
-        workers=workers,
+        projects=b.projects,
+        sab_projects=b.sab_projects,
+        project_explorer=b.project_explorer,
+        project_scope=b.project_scope,
+        project_outline=b.project_outline,
+        script_exports=b.script_exports,
+        live=b.live,
+        workers=b.workers,
     )
