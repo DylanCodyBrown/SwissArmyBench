@@ -1114,8 +1114,11 @@ export async function editBlade(
   // The editor takes the keyboard once it has loaded, unless the user is typing somewhere else by then.
   void ide.ready.then((e) => {
     const at = window.document.activeElement;
-    if (fresh) e.reveal(fresh.line, 5);
-    if (!at || at === window.document.body || at.closest(".ide-editor, dialog")) e.focus();
+    const free = !at || at === window.document.body || at.closest(".ide-editor, dialog") !== null;
+    // A new blade's scaffold line shown without taking the keyboard from a box the user is typing in
+    // (Properties opens by itself on a new blade, and its table name is often typed at once).
+    if (fresh) e.reveal(fresh.line, 5, free);
+    if (free) e.focus();
   });
   // Opened with packages missing: the prompt in the user's face.
   if (detail.inspect?.missing) void promptInstall(detail.inspect.missing, { then: reopen });

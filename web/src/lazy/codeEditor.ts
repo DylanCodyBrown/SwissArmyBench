@@ -602,8 +602,9 @@ export interface CodeEditor {
   setProblems: (list: Problem[]) => void;
   /** Make a fix's edit (replace a name, add an import); false when it no longer applies. */
   applyFix: (fix: Problem["fixes"][number], near: number) => boolean;
-  /** The cursor to a line and column, scrolled into view, with the focus. */
-  reveal: (line: number, column?: number) => void;
+  /** The cursor to a line and column, scrolled into view, with the focus (`focus` false: the focus left
+   *  where it is, e.g. while the user types in another box). */
+  reveal: (line: number, column?: number, focus?: boolean) => void;
   setLanguage: (language: EditorLanguage) => void;
   /** Panes drawn between lines (a script's HTML cells as designs): each after its line, at its height. */
   setZones: (zones: Zone[]) => void;
@@ -1376,10 +1377,10 @@ export function createCodeEditor(host: HTMLElement, options: CodeEditorOptions):
       editor.executeEdits("sab-fix", [{ range: monaco.Range.lift(edit.range), text: edit.text }]);
       return true;
     },
-    reveal: (line, column = 1) => {
+    reveal: (line, column = 1, focus = true) => {
       editor.setPosition({ lineNumber: line, column });
       editor.revealLineInCenterIfOutsideViewport(line);
-      editor.focus();
+      if (focus) editor.focus();
     },
     setLanguage: (language) => {
       const model = editor.getModel();

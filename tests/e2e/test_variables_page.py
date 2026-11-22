@@ -156,6 +156,8 @@ def test_the_variables_page(browser: Browser, own_server: dict[str, Any]) -> Non
         asked = page.locator("dialog.env-dialog")
         expect(asked).to_contain_text("Warehouse")
         asked.get_by_role("button", name="Cancel").click()
+        expect(asked).to_have_count(0)  # closed (its history entry stepped back) before the next address
+        page.wait_for_load_state()
         # The Variables page's old address lands on this tab, at the setting it named.
         page.goto(
             f"http://127.0.0.1:{server['port']}/workspace?open=variables&name=SALES_REGION#token={server['token']}"
