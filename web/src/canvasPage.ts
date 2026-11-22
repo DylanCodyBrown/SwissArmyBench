@@ -39,6 +39,7 @@ import { dotSpacing, gridLines, nudgeBy, snapRect, type Step } from "./canvasGri
 import { watchTheme } from "./catalogRail";
 import { askText, button, clear, h, icon, type MenuEntry, showEntries, toast } from "./dom";
 import { clearError, errorHere, showError } from "./errorNote";
+import { intoApp, type Missing, promptInstall } from "./missingPackages";
 import { chooseFile } from "./fileChooser";
 import { busy, loadingBlock } from "./loading";
 import { openShareDialog, shareMark, type ShareableApp } from "./shareApp";
@@ -989,7 +990,6 @@ function widgetMenu(x: number, y: number, pick: (name: string) => void, keep = f
 const DRAG = "application/x-sab-widget";
 let galleryFocus: string | null = null;
 let galleryQuery = "";
-const previews = new Map<string, { state: string; url?: string; said?: string }>();
 
 /** Yours first, then the prebuilt ones in the server's order: the starter packs, then by group (Buttons, Inputs...). */
 const grouped = (): WidgetEntry[] => [...widgets].sort((a, b) => Number(a.prebuilt) - Number(b.prebuilt));
@@ -1011,47 +1011,212 @@ function instanceText(node: Node, properties: { name: string; default: unknown }
   return null;
 }
 
-/** A widget's rendered preview: the picture when it is made, a placeholder until then, its mark when it failed. */
-function preview(name: string, className: string): HTMLElement {
-  const holder = h("div", { class: `${className} cvs-preview`, "data-preview": name });
-  const show = (): void => {
-    const p = previews.get(name);
-    if (p?.state === "ready" && p.url) clear(holder, h("img", { src: p.url, alt: `${name}, rendered`, draggable: "false" }));
-    else if (p?.state === "failed") clear(holder, h("div", { class: "cvs-preview-failed", title: p.said ?? "" }, icon("warning"), "Did not render"));
-    else clear(holder, h("div", { class: "cvs-preview-wait" }, name));
-  };
-  show();
-  void ask(name).then(show);
+/** A widget's rendered preview, and what the box shows until it is there (the owner, 2026-11-22: "The
+ *  pre-built widgets are not rendering on my machine": a box is never empty). One per widget file and theme
+ *  (server/previews.py), made one at a time: the board's widgets first (`board`), the gallery's cards as
+ *  they scroll into view (`card`), the hover's at once (`hover`). Until it is made, a card with the widget's
+ *  name and "Preview is being made…"; a failure's one line with Try again (its full words in the title),
+ *  and a missing Streamlit the one missing-package prompt, once. Asked again while it is coming (its
+ *  `widget_preview` notice, a slow look meanwhile; never given up while a box shows it), and a failure
+ *  again when the server's back-off is over or its cause changed (`widget_previews`). */
+type PreviewHow = "board" | "card" | "hover";
+interface PreviewState {
+  state: string;
+  url?: string;
+  said?: string;
+  kind?: string;
+  retry_in?: number;
+  missing?: Missing;
+  install?: string;
+}
+const previews = new Map<string, PreviewState>(); // by theme and name
+const previewTheme = (): string => (effectiveTheme().includes("dark") ? "dark" : "light");
+const previewKey = (name: string): string => `${previewTheme()}\u0000${name}`;
+const holdersOf = (name: string): HTMLElement[] => [...document.querySelectorAll<HTMLElement>(`[data-preview="${CSS.escape(name)}"]`)];
+const onBoard = (name: string): boolean => holdersOf(name).some((x) => x.dataset.how === "board");
+
+function preview(name: string, className: string, how: PreviewHow = "board"): HTMLElement {
+  const holder = h("div", { class: `${className} cvs-preview`, "data-preview": name, "data-how": how });
+  paintPreview(holder, name);
+  if (how === "card") seenLater(holder);
+  else void askPreview(name, how === "board");
   return holder;
 }
 
+/** One line of a failure's words, short enough for a box. */
+function firstLine(said: string): string {
+  const line = said.split("\n").map((l) => l.trim()).find(Boolean) ?? "The preview could not be made.";
+  return line.length > 110 ? `${line.slice(0, 108)}…` : line;
+}
+
+function paintPreview(holder: HTMLElement, name: string): void {
+  const p = previews.get(previewKey(name));
+  const how = (holder.dataset.how ?? "board") as PreviewHow;
+  holder.dataset.state = p?.state ?? "coming";
+  if (p?.state === "ready" && p.url) {
+    const image = h("img", { src: p.url, alt: `${name}, rendered`, draggable: "false" });
+    image.addEventListener("error", () => {
+      // The picture is gone (its cache cleared): asked for again.
+      previews.delete(previewKey(name));
+      paintPreview(holder, name);
+      void askPreview(name, how === "board");
+    });
+    clear(holder, image);
+    return;
+  }
+  const failed = p?.state === "failed";
+  const missing = failed ? p.missing : undefined;
+  const words = failed ? (missing ? `Needs ${missing.packages.join(", ")} to draw.` : firstLine(p.said ?? "")) : "Preview is being made…";
+  const again = !failed
+    ? null
+    : missing
+      ? button(`Install ${missing.packages.join(", ")}`, () => void installForPreviews(p, true), { icon: "import", class: "ghost small cvs-ph-again" })
+      : button("Try again", () => void askPreview(name, how === "board", true), { icon: "reset", class: "ghost small cvs-ph-again" });
+  clear(
+    holder,
+    h(
+      "div",
+      { class: `cvs-ph${failed ? " failed" : ""}`, title: failed ? (p.said ?? "") : `${name}: its preview is being made` },
+      h("span", { class: "cvs-ph-icon" }, icon(failed ? "warning" : "sliders")),
+      how === "card" ? null : h("span", { class: "cvs-ph-name" }, name),
+      h("span", { class: "cvs-ph-line", role: "status" }, words),
+      how === "card" ? null : again,
+    ),
+  );
+}
+
+function paintAll(name: string): void {
+  for (const holder of holdersOf(name)) paintPreview(holder, name);
+}
+
+/** A gallery card's preview is asked for once the card is in view (113 prebuilt widgets: never all at once,
+ *  never ahead of the board's). */
+let cardWatch: IntersectionObserver | null = null;
+function seenLater(holder: HTMLElement): void {
+  if (typeof IntersectionObserver === "undefined") return void askPreview(holder.dataset.preview ?? "", false);
+  cardWatch ??= new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      cardWatch?.unobserve(entry.target);
+      void askPreview((entry.target as HTMLElement).dataset.preview ?? "", false);
+    }
+  });
+  cardWatch.observe(holder);
+}
+
 const asking = new Map<string, Promise<void>>();
-function ask(name: string): Promise<void> {
-  const known = previews.get(name);
-  if (known && known.state !== "coming") return Promise.resolve();
-  const running = asking.get(name);
-  if (running) return running;
+const againLater = new Map<string, number>();
+const prompted = new Set<string>();
+
+function askPreview(name: string, first: boolean, retry = false): Promise<void> {
+  if (!name) return Promise.resolve();
+  const key = previewKey(name);
+  const known = previews.get(key);
+  if (!retry && known && known.state !== "coming") return Promise.resolve();
+  const running = asking.get(key);
+  if (running && !retry) return running;
+  if (retry) {
+    previews.set(key, { state: "coming" });
+    paintAll(name);
+  }
+  const theme = previewTheme();
   const made = (async () => {
-    const theme = effectiveTheme().includes("dark") ? "dark" : "light";
-    for (let tries = 0; tries < 90; tries++) {
+    let wait = 2000;
+    let again = retry;
+    for (;;) {
+      let said: PreviewState;
       try {
-        const said = await api<{ state: string; url?: string; said?: string }>(`/streamlit/widgets/${encodeURIComponent(name)}/preview?theme=${theme}`);
-        previews.set(name, said);
-        if (said.state !== "coming") break;
+        said = await api<PreviewState>(`/streamlit/widgets/${encodeURIComponent(name)}/preview?theme=${theme}${first ? "&first=1" : ""}${again ? "&retry=1" : ""}`);
       } catch {
-        previews.set(name, { state: "failed", said: "The preview could not be asked for." });
-        break;
+        said = { state: "failed", said: "The preview could not be asked for.", kind: "setup", retry_in: 15 };
       }
-      await new Promise((r) => window.setTimeout(r, 2000));
+      again = false;
+      if (previewTheme() !== theme) return; // the theme changed meanwhile: the new theme's is asked for
+      previews.set(key, said);
+      paintAll(name);
+      if (said.state === "failed") return void failedPreview(name, said);
+      if (said.state !== "coming" || holdersOf(name).length === 0) return;
+      await new Promise((r) => window.setTimeout(r, wait));
+      wait = Math.min(6000, wait + 1000); // its notice usually comes first; this is the slow look meanwhile
+      if (previews.get(key)?.state !== "coming") return; // its notice answered meanwhile
     }
-    for (const holder of document.querySelectorAll<HTMLElement>(`[data-preview="${CSS.escape(name)}"]`)) {
-      const p = previews.get(name);
-      if (p?.state === "ready" && p.url) clear(holder, h("img", { src: p.url, alt: `${name}, rendered`, draggable: "false" }));
-      else if (p?.state === "failed") clear(holder, h("div", { class: "cvs-preview-failed", title: p.said ?? "" }, icon("warning"), "Did not render"));
-    }
-  })().finally(() => asking.delete(name));
-  asking.set(name, made);
+  })().finally(() => {
+    if (asking.get(key) === made) asking.delete(key);
+  });
+  asking.set(key, made);
   return made;
+}
+
+/** A failure: asked again once the server's back-off is over (while a box still shows it); a missing
+ *  Streamlit the one prompt, once a page. */
+function failedPreview(name: string, said: PreviewState): void {
+  const key = previewKey(name);
+  if (said.missing) {
+    const once = `${said.missing.python}\u0000${said.missing.packages.join(" ")}`;
+    if (!prompted.has(once)) {
+      prompted.add(once);
+      void installForPreviews(said, false);
+    }
+  }
+  if (againLater.has(key)) return;
+  const at = window.setTimeout(
+    () => {
+      againLater.delete(key);
+      if (holdersOf(name).length === 0 || previews.get(key)?.state !== "failed") return;
+      previews.delete(key);
+      void askPreview(name, onBoard(name));
+    },
+    Math.max(1, said.retry_in ?? 30) * 1000,
+  );
+  againLater.set(key, at);
+}
+
+/** Install what the previews need (the project's Python: the Environment's Install, into its `.venv` and
+ *  requirements.txt; else the app's own), then every failed preview tried again. */
+async function installForPreviews(said: PreviewState, force: boolean): Promise<void> {
+  if (!said.missing) return;
+  const names = said.missing.packages;
+  await promptInstall(said.missing, {
+    force,
+    install: said.install === "project" ? async () => void (await api("/environment/libraries/install", "POST", { names })) : intoApp,
+    then: () => retryFailedPreviews(true),
+  });
+}
+
+/** Every failed preview a box shows, asked for again (`now`: past its back-off: an install just ended). */
+function retryFailedPreviews(now: boolean): void {
+  const theme = previewTheme();
+  for (const [key, p] of [...previews]) {
+    const [keyTheme, name = ""] = key.split("\u0000");
+    if (!name || keyTheme !== theme || p.state !== "failed" || holdersOf(name).length === 0) continue;
+    window.clearTimeout(againLater.get(key));
+    againLater.delete(key);
+    previews.delete(key);
+    void askPreview(name, onBoard(name), now);
+  }
+}
+
+/** The server's word: one made or failed (asked again: its address or its words), or the failures may be
+ *  tried again (the project's Python ready). */
+function previewNotice(said: { type: string; name?: string; theme?: string }): void {
+  if (said.type === "widget_preview" && said.name && said.theme === previewTheme()) {
+    const key = previewKey(said.name);
+    if (holdersOf(said.name).length === 0) return void previews.delete(key);
+    previews.set(key, { state: "coming" });
+    void askPreview(said.name, onBoard(said.name));
+  }
+  if (said.type === "widget_previews") retryFailedPreviews(false);
+}
+
+/** The theme changed: every box shows the new theme's picture (asked for when it is not known). */
+function watchPreviewTheme(): void {
+  new MutationObserver(() => {
+    for (const holder of document.querySelectorAll<HTMLElement>("[data-preview]")) {
+      const name = holder.dataset.preview ?? "";
+      paintPreview(holder, name);
+      void askPreview(name, holder.dataset.how === "board");
+    }
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 }
 
 let hoverTimer: number | null = null;
@@ -1079,7 +1244,7 @@ function drawGallery(): void {
       const card = h(
         "div",
         { class: `cvs-card${galleryFocus === w.name ? " focused" : ""}`, draggable: "true", tabindex: "0", role: "button", "data-widget": w.name, "aria-label": `${w.name}: ${w.description}` },
-        preview(w.name, "cvs-card-preview"),
+        preview(w.name, "cvs-card-preview", "card"),
         h("div", { class: "cvs-card-name" }, w.name),
         h("div", { class: "cvs-card-desc" }, w.description),
       );
@@ -1107,7 +1272,7 @@ function drawGallery(): void {
         hidePreview();
         hoverTimer = window.setTimeout(() => {
           const r = card.getBoundingClientRect();
-          bigPreview = h("div", { class: "cvs-big-preview", role: "tooltip" }, preview(w.name, "cvs-big-image"), h("div", { class: "cvs-card-name" }, w.name), h("div", { class: "cvs-card-desc" }, w.description));
+          bigPreview = h("div", { class: "cvs-big-preview", role: "tooltip" }, preview(w.name, "cvs-big-image", "hover"), h("div", { class: "cvs-card-name" }, w.name), h("div", { class: "cvs-card-desc" }, w.description));
           document.body.append(bigPreview);
           const width = 496;
           bigPreview.style.left = `${Math.max(8, r.left - width - 12)}px`;
@@ -1440,6 +1605,7 @@ async function landing(): Promise<void> {
 
 async function start(): Promise<void> {
   watchTheme();
+  watchPreviewTheme();
   if (!(await requireSession())) return;
   await loadPageRules();
   mountNav("canvas");
@@ -1463,6 +1629,7 @@ async function start(): Promise<void> {
   connect(() => undefined, { canvas: "1", window: WINDOW });
   onNotice((n) => {
     const said = n as unknown as { type: string; canvas?: string; window?: string };
+    previewNotice(said);
     if (said.type === "canvas_changed" && state && said.canvas === state.canvas && said.window !== WINDOW) {
       void reload().then(() => say("The canvas changed in another window: it is shown as it is now."));
     }

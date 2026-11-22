@@ -50,6 +50,9 @@ class ProjectPython:
         self.end_session: Callable[[], Awaitable[Any]] | None = None
         self.session_kernel: Callable[[], str | None] = lambda: None
         self.forget_environment: Callable[[str], None] | None = None
+        # What the project's type needs in its `.venv` beyond requirements.txt (extensions.requirements_of:
+        # Streamlit for a canvas), by the project's folder.
+        self.type_requirements: Callable[[str], list[str]] = lambda folder: []
 
     # ===== what the screens and the Workbench read =====
 
@@ -118,7 +121,7 @@ class ProjectPython:
     async def _run(self, folder: str) -> None:
         try:
             text = await asyncio.to_thread(self._files.read_requirements, folder)
-            code, out = await self._make(folder, rules.venv_packages(text))
+            code, out = await self._make(folder, rules.venv_packages(text, self.type_requirements(folder)))
             problem = rules.made_words(code, out)
             if problem is None and not self._files.python_of(folder)[1]:
                 problem = "Making the project's Python ended without a Python in its .venv folder."

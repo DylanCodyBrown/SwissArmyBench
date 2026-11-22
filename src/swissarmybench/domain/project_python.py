@@ -41,11 +41,13 @@ def in_project(path: Any, folder: Any) -> bool:
     return project_paths.inside(path, folder)
 
 
-def venv_packages(requirements_text: str) -> list[str]:
-    """What a project's `.venv` is made with: the kernel the app runs code in, the Excel readers, then each
-    library requirements.txt names (a line pip would not take from a list, an option or a path, is left
-    for the user's own install)."""
-    wanted: list[str] = [*ALWAYS, *EXCEL]
+def venv_packages(requirements_text: str, for_type: Sequence[str] = ()) -> list[str]:
+    """What a project's `.venv` is made with: the kernel the app runs code in, the Excel readers, what the
+    project's type needs (`for_type`: its contract's requirements, Streamlit for a canvas: 2026-11-22, so a
+    project whose requirements.txt leaves it out still draws its widgets), then each library requirements.txt
+    names (a line pip would not take from a list, an option or a path, is left for the user's own install;
+    its own line for a library wins)."""
+    wanted: list[str] = [*ALWAYS, *EXCEL, *for_type]
     for line in requirements_text.splitlines():
         text = line.split("#", 1)[0].strip()
         if text and _REQUIREMENT.match(text):

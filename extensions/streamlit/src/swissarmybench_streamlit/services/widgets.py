@@ -702,24 +702,23 @@ class Widgets:
         return f"{name}-{_hash(text)}-{'dark' if theme == 'dark' else 'light'}"
 
     def preview(self, name: str, theme: str = "light") -> dict[str, Any]:
-        """The preview's state: ready (its address), failed (why), or coming (asked for now)."""
+        """The preview's picture: ready (its address) or coming (not made yet). Whether it is being made or
+        failed is the previewer's (server/previews.py: in memory, tried again when its cause can change)."""
         key = self.preview_key(name, theme)
         if self._previews is None:
             return {"state": "none"}
         if self._previews.get(key) is not None:
             return {"state": "ready", "url": f"/streamlit/widgets/{name}/preview.png?key={key}", "key": key}
-        failed = self._previews.failed(key)
-        if failed is not None:
-            return {"state": "failed", "said": failed, "key": key}
         return {"state": "coming", "key": key}
 
     def preview_made(self, key: str, data: bytes) -> None:
         if self._previews is not None:
             self._previews.put(key, data)
 
-    def preview_failed(self, name: str, theme: str, said: str) -> None:
-        if self._previews is not None:
-            self._previews.fail(self.preview_key(name, theme), said)
+    def install_place(self) -> str:
+        """Where the packages a preview needs go: the open project's Python ("project": the Environment's
+        Install, into its `.venv` and requirements.txt), else the app's own ("app")."""
+        return "project" if self._project_folder() else "app"
 
     def app_of(self, name: str, body: Any) -> tuple[dict[str, str], Mapping[str, Any]]:
         """The widget alone as an app's files (a Run, a preview) and its one-widget canvas."""

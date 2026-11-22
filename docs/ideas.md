@@ -9164,3 +9164,18 @@ Open:
 - Run from a worktree with `PYTHONPATH` set (the environment's editable install points at the main checkout),
   `test_script_export`'s fresh-Python test and `test_updater`'s uv test fail because the new Python inherits
   the path; both pass without it.
+
+## Canvas previews, 2026-11-22
+
+- Decided: a preview's failure is kept in memory only, never in the state folder; a failure on disk outlived
+  its cause (the owner's empty boxes). The cost is one more try per widget after a restart.
+- Decided: the photographer's way per system (offscreen on Linux; a hidden off-screen window first on Windows
+  and macOS). The hidden window needs a desktop session; a Windows service or a locked session may still draw
+  nothing, which now ends as "The picture came out blank." in the box with Try again, never an empty box.
+- Open: confirm on the owner's Windows machine which way worked (a Session log line or the beta log could say
+  "previews: hidden" once; not added). If neither way draws there, a next step is Qt WebEngine's own
+  `QWebEnginePage.printToPdf` or Streamlit's AppTest output drawn as text, without a photograph.
+- Open: the gallery's 113 previews are still made one at a time; two photographers at once would halve the
+  wait on a fast machine but double the memory (each is a Qt WebEngine process).
+- Open: the instance's own title is laid over the default picture's top; a picture per instance (its own
+  values) would need a Streamlit run per edit.

@@ -37,7 +37,9 @@
       "section": ""
     }
   ],
-  "requirements": [],
+  "requirements": [
+    "streamlit>=1.43"
+  ],
   "canvas": "streamlit",
   "export": [
     "app",
