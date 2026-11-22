@@ -115,7 +115,7 @@ The page has these parts:
 
 ### Getting around
 
-- **The rail** down the left of every page and window has an icon for each area, in the order you work: first **Home** (a house: the Projects page), then where the data comes from (**Connections**, **APIs**, **Structures**, **Variables**, **Catalog**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), tools and building (**Blades**, **Scripts**, **Notebooks**, **Apps**: the Streamlit canvas), presenting (**Analyze**), then the log (**Session**), and **Settings** at the bottom. **Notebooks** and **Scripts** are two pages, each a window of its own: a notebook opens only on the Notebooks page, a .py only on the Scripts page. The Scripts page is a Python IDE: the project's code by module on the left (with each module's outline, the library's connections and APIs, and what the app generates), the Blades below it, the files as tabs; F12 goes to a definition (into an installed library: its file opens in a tab of its own marked **read-only**), Shift+F12 lists the references, F2 renames across the project, Ctrl+Shift+F searches every script, F11 is full screen (in the desktop app the window goes full screen too) and Ctrl+B folds the explorer. **Debug a script:** click the gutter beside a line (or F9) for a breakpoint; right-click there for a conditional breakpoint (it stops only when a condition holds) or a log point (it prints a message with `{values}` instead of stopping). The bug button (Ctrl+Shift+D) starts debugging: the script runs in its kernel and pauses at a breakpoint, its line highlighted, with the panel below: Call stack, Variables (unfold a value), Watch (expressions shown at each stop), Output, and the Debug console (type an expression to evaluate it where it stopped). F5 continues, F10 steps over, F11 into, Shift+F11 out, Shift+F5 stops. Right-click a module in the explorer (or F2, Delete on it) to **Rename…** it (every import of it in the project follows, shown first), **Duplicate** it or **Delete** it (to the trash); an `__init__.py` also renames, deletes or adds to its package, and **New package** is at the explorer's head. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
+- **The rail** down the left of every page and window has an icon for each area, in the order you work: first **Home** (a house: the Projects page), then where the data comes from (**Connections**, **APIs**, **Environment**: everything the project holds, **Catalog**: the one place to browse tables), getting and shaping it (**Grids**, **ERD**), tools and building (**Blades**, **Scripts**, **Notebooks**, **Apps**: the Streamlit canvas), presenting (**Analyze**), then the log (**Session**), and **Settings** at the bottom. **Notebooks** and **Scripts** are two pages, each a window of its own: a notebook opens only on the Notebooks page, a .py only on the Scripts page. The Scripts page is a Python IDE: the project's code by module on the left (with each module's outline, the library's connections and APIs, and what the app generates), the Blades below it, the files as tabs; F12 goes to a definition (into an installed library: its file opens in a tab of its own marked **read-only**), Shift+F12 lists the references, F2 renames across the project, Ctrl+Shift+F searches every script, F11 is full screen (in the desktop app the window goes full screen too) and Ctrl+B folds the explorer. **Debug a script:** click the gutter beside a line (or F9) for a breakpoint; right-click there for a conditional breakpoint (it stops only when a condition holds) or a log point (it prints a message with `{values}` instead of stopping). The bug button (Ctrl+Shift+D) starts debugging: the script runs in its kernel and pauses at a breakpoint, its line highlighted, with the panel below: Call stack, Variables (unfold a value), Watch (expressions shown at each stop), Output, and the Debug console (type an expression to evaluate it where it stopped). F5 continues, F10 steps over, F11 into, Shift+F11 out, Shift+F5 stops. Right-click a module in the explorer (or F2, Delete on it) to **Rename…** it (every import of it in the project follows, shown first), **Duplicate** it or **Delete** it (to the trash); an `__init__.py` also renames, deletes or adds to its package, and **New package** is at the explorer's head. Point at an icon (or Tab to it) to see its name; the area you are in has a bar beside it. The arrow keys move along the rail and Enter goes.
   - **Every icon lands on a page**, in the tab you are in: Grids, Analyze and the ERD on the grids' page; **Notebooks** and **Scripts** on their own pages, **Canvas** on its page and **Widgets** in a window of its own (your documents of that kind as cards, the open ones first; on Scripts and Notebooks, above them, each open table's **Transformations**: its name, its steps in plain words, and a click opens its read-only cell; **New** and **Open…** are in the Workbench's top bar); **Blades** on the Scripts page's Blades pane; **Connections** and **Settings** on pages of their own over whatever you were doing (your grids and kernels stay as they were). A card opens its document, and Back comes back to the cards.
   - **Right-click** any icon (or Ctrl+click, or middle-click) for **Open in a new window**: for Notebooks, Scripts or Apps a Workbench window of its own, for another screen.
   - The rail is always there. The tabs along the top are only your grids, and the Application row keeps the Tour and Zoom: Analyze, ERD, the Workbench, Settings, Connections and Blades are the rail's.
@@ -985,6 +985,41 @@ connections reach, and the ones you have open, on one page.
   and **/** jumps to the search.
 - The Workbench's Data Explorer pane is the same search beside your code; its **Pop out** opens this page
   in a window of its own. For an agent: `explorer_browse`, `explorer_search`, `explorer_table`.
+
+## Environment: everything the project holds
+
+The rail's **Environment** page (it took the Structures and Variables places) is one page for everything the open
+project holds, with a tab for each kind:
+
+- **Tables**: the data. A grid is only a view of a table, never a copy: the row says "In 2 grids", and closing a
+  grid leaves the table. Rows by columns, the first columns, where it came from (a connection, a file, pasted, a
+  query, your code). A table your Python holds that is not open yet is marked **In Python**.
+- **Variables**: what your code makes (numbers, text, lists, dictionaries), with a short look at the value.
+- **Structures**: JSON, YAML, XML and TOML documents (they open in the Structures viewer; **New, open or paste…**).
+- **Settings and secrets**: the `${NAME}` settings. A secret is always masked; **Show** is yours alone, in the
+  viewer. **Add a setting…**; **Key vaults and more…** opens the page that lists and adds key vaults.
+- **Libraries**: the libraries of the project's Python: version, what each is for, where it is imported.
+
+What you can do there:
+
+- **Search** (press `/`): one box over every tab, in any case and by parts (cust finds customer_id and
+  CustomerKey). Each tab's count lights up, and a line names the other tabs that match.
+- **Unfold a row** (the arrow, or Right): a table's columns with their type, range and blanks; a structure's
+  paths; a list's items; a setting's source and what uses it. Left closes.
+- **The viewer** beside the list (Ctrl+B folds it): **Used in** lists every place that uses the row, each a link
+  that goes there: grids, notebook and script cells by number, canvas widgets, API.py endpoints, analyses, the ERD,
+  tables made from it.
+- **Open** (Enter or a double click), **Insert into code**, **Copy name**, **Rename…** (F2), **Keep with the
+  project** (a table's rows saved in the project's `.sab/data/`, never shared in Git), **Make a sandbox variant…**,
+  **Send to the agent**, **Remove…** (Delete). Removing a table closes it and its grids; tick **Also delete it in
+  Python** to delete its variable too. **Clear…** takes what you tick; kept tables, settings and libraries stay.
+- **Libraries**: **Pin** keeps a library at its version (`name==version` in requirements.txt); **→ x.y** updates
+  one to the newer version (looked up when the tab opens, never in the background); **Update all not pinned**
+  skips the pinned ones; **Install a library…** installs into the project's Python and adds it to requirements.txt.
+
+The page updates by itself as your code runs: there is no Refresh. Tables are added on the **Connections** page (or
+by your code). Interrupt and Restart are on the Notebooks and Scripts pages, where the same list is the right pane
+(the status bar's **Environment**).
 
 ## Variables
 

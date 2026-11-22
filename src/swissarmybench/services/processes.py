@@ -159,8 +159,15 @@ class ProcessRegistry:
         """Each live session's variables (names, types, sizes) with its label and the kernel it is."""
         self.prune()
         return [
-            {"id": s.id, "label": s.label, "kernel": s.kernel, "variables": list(s.variables)}
-            for s in sorted(self._sessions.values(), key=lambda s: (s.label.lower(), s.id))
+            {
+                "id": s.id,
+                "label": s.label,
+                "kernel": s.kernel,
+                "variables": list(s.variables),
+                "tables": list(s.tables),
+            }
+            # The one that reported last comes last: where two sessions hold a name, the newest is said.
+            for s in sorted(self._sessions.values(), key=lambda s: (s.last_seen, s.id))
         ]
 
     def touch(self, process_id: str) -> bool:

@@ -21,6 +21,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
+from tests.e2e.environment_helpers import open_variables
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_VARIABLES_SHOTS")
@@ -100,11 +101,11 @@ def test_the_variables_page(browser: Browser, own_server: dict[str, Any]) -> Non
         ).new_page()
         page.goto(url)
         expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
-        page.locator('.nav-rail [data-area="variables"]').click()
+        open_variables(page)
         found = page.locator('.area-page[data-page="variables"]')
         expect(found).to_be_visible()
         expect(page).to_have_url(re.compile(r"[?&]open=variables\b"))
-        expect(page.locator('.nav-rail [data-area="variables"]')).to_have_attribute("aria-current", "page")
+        expect(page.locator('.nav-rail [data-area="environment"]')).to_have_attribute("aria-current", "page")
         rows = found.locator(".variable-row")
         # A key vault's entry: the vault and the secret's name, never a value; used by the connection.
         vaulted = rows.filter(has=page.locator(".variable-name", has_text="WAREHOUSE_PASSWORD"))

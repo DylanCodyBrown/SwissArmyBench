@@ -20,6 +20,7 @@ import pandas as pd
 from playwright.sync_api import Browser, Locator, Page, expect
 
 from swissarmybench.client import push_client
+from tests.e2e.environment_helpers import open_variables
 from tests.e2e.test_ui import browser, call, not_now  # noqa: F401
 
 
@@ -85,7 +86,7 @@ def test_a_vaults_variables_are_there_after_a_restart(
         page = browser.new_context(viewport={"width": 1300, "height": 820}).new_page()
         page.goto(url)
         expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
-        page.locator('.nav-rail [data-area="variables"]').click()
+        open_variables(page)
         found = page.locator('.area-page[data-page="variables"]')
         rows = found.locator(".variable-row")
         vaulted = rows.filter(has=page.locator(".variable-name", has_text="warehouse_password"))
@@ -143,7 +144,7 @@ def test_the_owners_steps_add_read_save_then_the_dollar_brace(
         page.goto(url)
         expect(page.locator(".ag-row[row-index='0']").first).to_be_visible(timeout=20000)
         dialog = page.locator(".area-page[data-page='connections']")
-        page.locator(".nav-rail [data-area='variables']").click()
+        open_variables(page)
         page.locator('.area-page[data-page="variables"]').get_by_role("button", name="Add key vault").click()
         page.locator(".variables-vault-types .connection-type", has_text="Azure Key Vault").click()
         not_now(page)

@@ -327,6 +327,10 @@ export function mountEnvironment(options: EnvironmentOptions = {}): EnvironmentV
       if (outdated.length) made.push(button(`Update all not pinned (${outdated.length})`, () => updateAll(outdated), { class: "env-update-all" }));
       made.push(button("Install a library…", () => installDialog(), { icon: "import", class: "primary env-install", title: "Installs into the project's environment and adds it to requirements.txt" }));
     }
+    if (tab === "structure") {
+      // New, Open and Paste are the Structures viewer's own (the page a structure's row opens into).
+      made.push(button("New, open or paste…", () => void import("./structuresPage").then((m) => m.openStructures()), { icon: "plus", class: "env-structures" }));
+    }
     if (tab === "setting") {
       made.push(button("Add a setting…", () => void import("./variableLinks").then((m) => m.addVariable("", () => void load())), { icon: "plus", class: "primary env-add-setting" }));
       // The key vaults (added, listed, read again) and every setting by its source: their own page.

@@ -211,9 +211,12 @@ class LiveUpdates:
         after it, and the push or step change that broadcast, until the connection's ping timed out;
         now it holds up one broadcast by at most the limit and is dropped. (Sending to all pages at
         once costs a task per page: slower with 200 pages, 8.7 -> 10.5 ms, so it is not done.)"""
-        self.changes += 1
-        for listener in self.listeners:
-            listener(message)
+        # The Environment's own notice says what the notices before it said again (its list is made of
+        # them): it is not counted, and no listener hears it.
+        if message.get("type") != "environment_changed":
+            self.changes += 1
+            for listener in self.listeners:
+                listener(message)
         if not self._sockets:
             return
         text = json.dumps(message, separators=(",", ":"), ensure_ascii=False)

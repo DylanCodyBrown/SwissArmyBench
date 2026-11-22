@@ -114,9 +114,9 @@ def test_the_rails_data_lands_on_the_page_and_browses(
     call(server, "POST", "/structures/paste", {"text": '{"crates": [{"grower_id": 7}]}', "name": "crates"})
     page = home(browser, server)
     rail_data = page.locator('.nav-rail [data-area="data"]')
-    # After Variables, with its own icon.
+    # After the Environment, with its own icon.
     areas = page.locator(".nav-rail-item").evaluate_all("(els) => els.map((e) => e.dataset.area)")
-    assert areas[areas.index("variables") + 1] == "data"
+    assert areas[areas.index("environment") + 1] == "data"
     expect(rail_data.locator("svg")).to_have_attribute("data-icon", "data")
     rail_data.click()
     expect(page).to_have_url(re.compile(r"open=data"))

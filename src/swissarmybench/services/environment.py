@@ -215,10 +215,11 @@ class Environment:
     def _python_tables(self) -> dict[str, tuple[str, dict[str, Any]]]:
         """The tables Python holds, by name: (where: its session's label, its entry with its session's id)."""
         found: dict[str, tuple[str, dict[str, Any]]] = {}
-        for session in self._s.sessions():
+        # Oldest report first, so where two sessions hold a name the newest one's table is the row.
+        for session in self._s.session_values() or self._s.sessions():
             for table in session.get("tables", []):
                 entry = table | {"session": session.get("id")}
-                found.setdefault(str(table["name"]), (str(session.get("label") or "Python"), entry))
+                found[str(table["name"])] = (str(session.get("label") or "Python"), entry)
         return found
 
     def _tables(self, uses: Mapping[str, list[Used]]) -> list[Item]:

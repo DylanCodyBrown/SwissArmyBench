@@ -17,6 +17,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.environment_helpers import open_variables
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_FEEL_SHOTS")
@@ -51,7 +52,7 @@ def test_empty_pages_lead_somewhere_and_the_sample_opens(browser: Browser, serve
     expect(empty.get_by_role("button", name="Add connection")).to_be_visible()
     shot(page, "empty-connections")
     # Variables: its sentence and Add variable (no sample: tables are not variables).
-    page.locator(".nav-rail [data-area='variables']").click()
+    open_variables(page)
     variables = page.locator(".area-page[data-page='variables'] .empty-state")
     expect(variables).to_be_visible(timeout=20000)
     expect(variables.get_by_role("button", name="Add variable")).to_be_visible()

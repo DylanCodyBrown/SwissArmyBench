@@ -26,6 +26,7 @@ from tools.testbed import testbed
 from tools.testbed.company import make_company
 
 from swissarmybench.client import push_client
+from tests.e2e.environment_helpers import open_variables
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_VARIABLE_REFS_SHOTS")
@@ -198,7 +199,7 @@ def test_a_connection_made_of_references_tests_saves_and_opens_a_table(
     expect(page.locator(".toast", has_text="is open as a grid").last).to_be_visible(timeout=LONG)
 
     # The Variables page shows each variable's uses in fields: the connection and the box.
-    page.locator('.nav-rail [data-area="variables"]').click()
+    open_variables(page)
     row = page.locator(".variable-row", has=page.locator(".variable-name", has_text="WAREHOUSE_HOST"))
     expect(row.locator(".variable-use")).to_contain_text("Warehouse · Server")
     page.context.close()

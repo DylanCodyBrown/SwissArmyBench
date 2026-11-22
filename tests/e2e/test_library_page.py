@@ -19,6 +19,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
+from tests.e2e.environment_helpers import open_variables
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_LIBRARY_SHOTS")
@@ -121,7 +122,7 @@ def test_the_library_in_the_page(browser: Browser, own_server: dict[str, Any]) -
     shot(page, "library-settings")
 
     # The key vaults: on the Variables page, not on the Connections page.
-    page.locator('.nav-rail [data-area="variables"]').click()
+    open_variables(page)
     variables = page.locator('.area-page[data-page="variables"]')
     expect(variables.locator('.variables-vault-card[data-vault="Team vault"]')).to_be_visible()
     expect(variables.locator(".variable-row", has_text="SALES_REGION")).to_contain_text("North")
