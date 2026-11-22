@@ -388,7 +388,10 @@ class ConnectionService:
                     return {"sheets": sheets}
                 sheet = sheets[0] if sheets else None
             dataset = rules.dataset_name(place["table"] or blade.name)
-            return await self._tables.load_file(dataset, path, sheet, who)
+            # Its connection kept with it: the project reads it again through the connection (its path
+            # from the connection's own code, a ${NAME} in it resolved on each computer), not this path.
+            where = (place["database"], place["schema"], place["table"])
+            return await self._tables.load_file(dataset, path, sheet, who, blade.name, where)
         if not place["table"]:
             raise ValueError("Name the table to open.")
         read = await self.read_table(blade, kind, place, every, body)
@@ -824,7 +827,15 @@ class Tables(Protocol):
         place: tuple[str, str, str] | None = None,
     ) -> dict[str, Any]: ...
 
-    async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]: ...
+    async def load_file(
+        self,
+        name: str,
+        path: str,
+        sheet: str | None,
+        who: str,
+        connection: str = "",
+        place: tuple[str, str, str] | None = None,
+    ) -> dict[str, Any]: ...
 
     def opened_from(self, name: str) -> str | None:
         """Where the open table of this name came from: its connection ("" when not a connection's;

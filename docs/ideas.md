@@ -8726,3 +8726,41 @@ Left open (seen, not changed):
 - **The ERD with open tables and no relationships** says "None of the relationships' tables is used in this
   project: draw all tables to see them" (the shared catalog knows same-named tables of a connection). "No
   relationships yet" with what to do next would read better there.
+
+## Test app one: BI review, 2026-11-22 (decisions and open notes)
+
+Decisions made while building examples/bi_review (confirm or change):
+- **The app is a builder, not a saved project folder.** `examples/bi_review/build.py` makes the project from
+  Larkfield Goods (small) into any folder; the example keeps only what a person writes (the two scripts, the
+  structures' inputs, the notebook's cells in build.py). A saved project would hold this disk's paths (the
+  data's folder) and go stale with the app; the builder is the test of both.
+- **The steps go on a table's first grid**, a second grid is a view: customers' eleven steps sit on its first
+  grid (its read-only cell and the outline's Transformations read the first grid only), order_lines' group by
+  on a second one, Make it fit on a third view of customers.
+- **The two tables opened from structures keep their rows** (project_save keep_rows, on the user's Allow): a
+  table Open as grid made from a structure is not read again from the structure when the project opens (see
+  below), so without the tick it comes back as "Its rows were not kept".
+- **YAML is opened only when PyYAML is installed** (no new dependency): the JSON and TOML structures always run;
+  without PyYAML the app's missing-package answer is what a user sees.
+- **The e2e test checks what the pages show of the built app** rather than building it by clicks: the build by
+  the agent's commands is the golden-rule half, the pages the user's half.
+- The bug fixes are listed in docs/verified.md under the same heading.
+
+Open notes:
+- **A table made from a structure is not read again from it** when the project opens: its origin is the
+  structure's file and path, but the structure's steps at the time are not kept with the table, so reading the
+  file again would give other rows. Either keep the steps (or the saved structure) with the table's source, or
+  say at Open as grid that its rows are kept only with Keep its rows. The owner's call.
+- **Swapping a table to a file connection** (a folder of Parquet files) is refused: "no connection called X
+  that holds tables". A file connection lists tables and DuckDB SQL names them, so by the owner's definition it
+  holds tables; the swap reads through the database/Python read only. A file connection's read (as Open table
+  does it) would make it work; left for now.
+- **A SQL cell over an open table** (`%%sql -> monthly` with no connection) exports as one automation only with
+  a stub: the export says "the SQL cell names no connection". It could write the open table's own load (its
+  query over the connections) before the cell.
+- **The outline's Transformations** shows a table's first grid only (the read-only cell's rule), so a second
+  grid's steps (order_lines by product) appear nowhere in ARCHITECTURE.md.
+- **Power BI's export** has no Power Query reader for a DuckDB or SQLite file (both say so, with Include its
+  rows): a project on local files goes to Power BI as Parquet rows only.
+- **The ERD marks a join's target column FK too** (regions.region_id PK,FK): the docstring says it marks every
+  column a join uses; a reader expects FK only on the many side.

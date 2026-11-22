@@ -397,16 +397,26 @@ class DatasetService:
             raise Refused("That is one of the grid server's own files, not a table.")
 
     async def load_file(
-        self, name: str, path: str, sheet: str | None, new_grid: bool, who: str, adapted: bool = False
+        self,
+        name: str,
+        path: str,
+        sheet: str | None,
+        new_grid: bool,
+        who: str,
+        adapted: bool = False,
+        connection: str = "",
+        place: tuple[str, str, str] | None = None,
     ) -> dict[str, Any]:
         """A file as a table. `adapted`: a file connection's, read through the adapter's Files (DuckDB's own
-        types), and read so again (Reload, the project opened again)."""
+        types), and read so again (Reload, the project opened again). `connection` and `place`: the file
+        connection it was opened from and its place there (a project reads it again through it)."""
         ws = self.ws
         used = await self.resolve_text(path, name)  # ${NAME} in a path (12.7); the origin keeps the text
         self._refuse_own_file(used)
         load = self._reader.load_adapted if adapted else self._reader.load_file
         table, kind = await ws.workers.run(BACKGROUND, load, used, ws.settings.max_dataset_bytes, sheet)
-        origin = Origin("file", path=path, sheet=sheet, adapted=adapted)
+        origin = Origin("file", path=path, sheet=sheet, adapted=adapted, connection=connection or None,
+                        place=place if connection else None)  # fmt: skip
         result = await self.store_table(name, table, kind, new_grid, who, origin=origin)
         ws.audit.write(who, "load_file", name, file=self._reader.file_name(path), sheet=sheet)
         return result
@@ -599,9 +609,17 @@ class ConnectionTables:
         self._datasets.ws.audit.write(who, "open_connection_table", name)
         return result
 
-    async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]:
+    async def load_file(
+        self,
+        name: str,
+        path: str,
+        sheet: str | None,
+        who: str,
+        connection: str = "",
+        place: tuple[str, str, str] | None = None,
+    ) -> dict[str, Any]:
         return await self._datasets.load_file(
-            name, path, sheet, True, who, adapted=True
+            name, path, sheet, True, who, adapted=True, connection=connection, place=place
         )  # the adapter's Files
 
     def opened_from(self, name: str) -> str | None:

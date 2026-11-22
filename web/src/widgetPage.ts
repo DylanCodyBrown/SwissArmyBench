@@ -100,7 +100,7 @@ let propsTimer: number | null = null;
 let applying = false;
 
 const list = h("nav", { class: "wg-list", "aria-label": "Widgets" });
-const search = h("input", { type: "search", class: "wg-search", placeholder: "Search widgets", "aria-label": "Search widgets", "data-no-variables": "" });
+const search = h("input", { type: "search", class: "wg-search", placeholder: "Search", "aria-label": "Search widgets", "data-no-variables": "" });
 const listItems = h("div", { class: "wg-items", role: "listbox", "aria-label": "Widgets" });
 const saved = h("span", { class: "wg-saved", "aria-live": "polite" });
 const copyButton = button("Copy as your own", () => void copyCurrent(), { icon: "copy", class: "ide-btn ghost wg-copy" });

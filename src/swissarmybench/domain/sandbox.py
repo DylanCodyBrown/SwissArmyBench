@@ -485,9 +485,7 @@ def variant_record(source: Mapping[str, Any], title: str, at: str) -> dict[str, 
             origin[k] = source[k]
     place = source.get("place")
     if "table" not in origin and isinstance(place, Mapping) and place.get("table"):
-        origin["table"] = place[
-            "table"
-        ]  # a connection's table is named by its place (database, schema, table)
+        origin["table"] = str(place["table"])  # a connection's table is kept as its place
     return {"title": title, "origin": origin, "copied_at": at}
 
 

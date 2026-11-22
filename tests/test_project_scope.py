@@ -99,6 +99,14 @@ def test_free_names_and_the_documents_of_a_project() -> None:
         ("data.py", "script", True),
         ("s.stapp.json", "app", False),
     ]
+    # Test app one (BI review): the scaffold's own files are made too (the outline listed adapter.py's
+    # every name as a deliverable script of the user's); a script of the user's is not.
+    scaffold = rules.documents([(f, 1, 0.0) for f in ("adapter.py", "connections.py", "sandbox_data.py",
+                                                      "scripts/adapter.py", "report.py")])  # fmt: skip
+    assert {d["path"]: d["made"] for d in scaffold} == {
+        "adapter.py": True, "connections.py": True, "sandbox_data.py": True, "scripts/adapter.py": False,
+        "report.py": False,
+    }  # fmt: skip
     assert [d["path"] for d in rules.documents([("a.py", 1, 0.0), ("b.ipynb", 1, 0.0)], "script")] == ["a.py"]
     # The project scaffold's made files, the sandbox mirror and an API export are made too (the landing page
     # and the agent's project_documents never offer adapter.py as a script of the user's); API.py is theirs.

@@ -339,7 +339,7 @@ class ProjectOutline:
         """A table's origin in words (names as code), its kind and its source (a connection, a file in the
         project) for the lineage."""
         origin = self._origin_of(name)
-        if origin.kind == "connection" and origin.connection:
+        if origin.kind in ("connection", "file") and origin.connection:  # a file connection's file too
             connection = origin.connection.split("/")[0]
             place = ".".join(p for p in (origin.place or ()) if p)
             how = f": {code(place)}" if place else (", a DAX query" if origin.dax else ", a query")

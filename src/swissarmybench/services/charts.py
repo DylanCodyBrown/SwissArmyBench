@@ -21,6 +21,7 @@ an open grid on its table (any time one is open again); until then it shows what
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import threading
 import time
@@ -295,6 +296,9 @@ def _place(card: Card) -> tuple[bool, float]:
     return (not card["pinned"], float(card.get("order") or card.get("created") or 0.0))
 
 
+_DASHBOARD_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
 class Cards:
     def __init__(
         self, ws: Workspace, dashboards: Dashboards | None = None, theme_shelf: ThemeShelf | None = None
@@ -540,8 +544,11 @@ class Cards:
 
     async def save(self, name: Any, who: str) -> dict[str, Any]:
         """Save Visualizations as `name`: a new version, every card as it is drawn now."""
-        if not isinstance(name, str):
-            raise ValueError('Send {"name": ...}: 1 to 64 letters, digits, _ or -.')
+        if not isinstance(name, str) or not _DASHBOARD_NAME.fullmatch(name):
+            # Its file's name, said as a dashboard's (it was "Dataset name ... is not allowed").
+            raise ValueError(
+                f"A dashboard's name is 1 to 64 letters, digits, _ or -: {name!r} is not (say, monthly)."
+            )
         shown = (await self.everything())["cards"]
         if not shown:
             raise ValueError("The Analyze board is empty: nothing to save.")

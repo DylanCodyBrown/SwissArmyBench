@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import ast
 import json
+import keyword
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -109,6 +110,7 @@ class DataCell:
     role: str = ""  # its part in the Tables group (domain/table_cells.py)
     table: str | None = None
     number: int | None = None
+    connection: str | None = None  # a SQL cell's line after %%sql: `Warehouse -> orders`, `-> monthly`
 
 
 @dataclass(frozen=True)
@@ -164,6 +166,21 @@ def _inside_function(tree: ast.AST, target: ast.AST) -> bool:
     return False
 
 
+_SQL_TARGET = re.compile(r"^(?P<name>.*?)(?:^|\s+)->\s*(?P<target>[A-Za-z_]\w*)(?:\s+--grid)?\s*$")
+
+
+def _sql_kept(cell: DataCell) -> str | None:
+    """A SQL cell that keeps its result as a variable, as Python: `orders = sab.sql("Warehouse", ...)` (no
+    connection: DuckDB over this Python's tables and the connections' tables it names). None otherwise."""
+    found = _SQL_TARGET.match((cell.connection or "").strip())
+    if found is None or not cell.source.strip() or keyword.iskeyword(found["target"]):
+        return None
+    name = found["name"].strip()
+    query = cell.source.strip("\n").replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    called = f'{json.dumps(name)}, """\n{query}\n"""' if name else f'"""\n{query}\n"""'
+    return f"import swissarmybench as sab\n\n{found['target']} = sab.sql({called})"
+
+
 def _stub(table: str, variable: str, why: str) -> str:
     return (
         f"# ===== FILL IN: {table} =====\n"
@@ -186,6 +203,13 @@ def data_module(
     for cell in cells:
         label = f"cell {cell.number}" if cell.number is not None else "a cell"
         if cell.kind == "markdown" or cell.role in ("tables", "table") or not cell.source.strip():
+            continue
+        if cell.kind == "sql" and (kept := _sql_kept(cell)) is not None:
+            # A SQL cell that keeps its result (`%%sql Warehouse -> orders`): the same query by sab.sql, so
+            # the cells after it that read `orders` find it (test app one, 2026-11-22: data.py named a
+            # result no line of it made).
+            parts.append(f"# cell {cell.number}" if cell.number is not None else "# a cell")
+            parts[-1] += "\n" + kept
             continue
         if cell.kind != "code":
             skipped.append(

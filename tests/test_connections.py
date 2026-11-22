@@ -3,6 +3,7 @@ Made-up data only: a sqlite file and a CSV written into the test's own folder.""
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
@@ -834,3 +835,38 @@ def test_the_forms_carry_their_order(client: TestClient) -> None:
     # The rule itself goes with every form, for fields that come later (another way to sign in).
     assert types["sqlserver"]["field_places"]["user"] == {"part": "who", "rank": 0}
     assert types["sqlserver"]["field_places"]["certificate file"] == {"part": "security", "rank": 1}
+
+
+def test_a_file_connections_file_in_a_project_is_read_again_through_its_connection(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test app one (BI review, 2026-11-22): a folder connection's file opened as a grid was saved in
+    .sab/project.json as this disk's path, the connection (and the ${NAME} its path came from) lost. Now
+    it is saved as the connection's table and read again through it: a folder that moved is followed."""
+    first, moved = tmp_path / "first", tmp_path / "moved"
+    for folder, rows in ((first, "order_id\n1\n2\n"), (moved, "order_id\n1\n2\n3\n")):
+        folder.mkdir()
+        (folder / "orders.csv").write_text(rows, encoding="utf-8")
+    monkeypatch.setenv("SHOP_EXPORTS", str(first))
+    exports = {"name": "Exports", "kind": "other", "template": "folder"}
+    exports["code"] = 'import os\nfrom pathlib import Path\nfolder = Path(os.environ["SHOP_EXPORTS"])'
+    assert client.post("/connections", json=exports, headers=AUTH).status_code == 200
+    project = tmp_path / "shop"
+    assert client.post("/project/new", json={"path": str(project)}, headers=AUTH).status_code == 200
+    opened = client.post("/connections/Exports/open", json={"table": "orders.csv"}, headers=AUTH)
+    assert opened.status_code == 200, opened.text
+    assert client.post("/project/save", json={}, headers=AUTH).status_code == 200
+    saved = json.loads((project / ".sab" / "project.json").read_text(encoding="utf-8"))
+    (table,) = [t for t in saved["tables"] if t["name"] == "orders"]
+    assert table["source"] == {
+        "kind": "connection", "connection": "Exports", "database": "", "schema": "",
+        "table": "orders.csv", "whole": True,
+    }  # fmt: skip
+    assert str(first) not in json.dumps(saved)  # no path of this disk
+    assert client.post("/project/close", json={"discard": True}, headers=AUTH).status_code == 200
+    monkeypatch.setenv("SHOP_EXPORTS", str(moved))
+    again = client.post("/project/open", json={"path": str(project)}, headers=AUTH)
+    assert again.status_code == 200, again.text
+    assert not again.json()["project"]["problems"]
+    listed = {d["name"]: d for d in client.get("/datasets", headers=AUTH).json()["datasets"]}
+    assert listed["orders"]["rows"] == 3  # read through the connection, from where it points now

@@ -142,7 +142,8 @@ def test_a_crud_set_with_a_date_column_brings_its_import() -> None:
     plain = scaffold.crud("notes", [{"name": "id", "type": "BIGINT"}], scaffold.Source("duckdb", "Sandbox"))
     assert scaffold.imports_missing(rules.scaffold("clinic"), plain) == ""
     assert scaffold.imports_missing(rules.scaffold("clinic") + needs + block, block) == ""
-    # Written among API.py's own imports (no lint note), every other line as it was.
+    # Written among API.py's own imports where a sorter of imports would put it (the standard library's
+    # together, in order: no "Import block is un-sorted" note on the Scripts page), every other line as it was
     text, rest = scaffold.with_imports(rules.scaffold("clinic"), needs)
     assert rest == "" and text.count("\n") == rules.scaffold("clinic").count("\n") + 1
     at = text.split("\n").index("from datetime import date, datetime")
@@ -158,6 +159,17 @@ def test_a_crud_set_with_a_date_column_brings_its_import() -> None:
         "from datetime import date",
         "from typing import Any",
         "from yaml import safe_load",
+    ]
+    # A later standard-library module goes after the file's own; another module's after the last import.
+    own = "import os\nfrom typing import TypedDict\n\nfrom sab_api import endpoint\n\nx = 1\n"
+    assert scaffold.with_imports(own, "from zoneinfo import ZoneInfo\n")[0].split("\n")[:3] == [
+        "import os",
+        "from typing import TypedDict",
+        "from zoneinfo import ZoneInfo",
+    ]
+    assert scaffold.with_imports(own, "from widgets import box\n")[0].split("\n")[3:5] == [
+        "from sab_api import endpoint",
+        "from widgets import box",
     ]
     # A file with no import of its own: the lines go before the set, as they are.
     assert scaffold.with_imports("# notes\n", needs) == ("# notes\n", needs)

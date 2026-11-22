@@ -144,7 +144,9 @@ function statusLabel(ext: Extension): string {
 /** What its contract.json adds: the project type and the files a new project of it gets. */
 function projectLine(ext: Extension): HTMLElement | null {
   if (!ext.project_type) return null;
-  const files = ext.deliverable?.length ? `: ${ext.deliverable.join(", ")}` : "";
+  // A path may hold {slug} (the project's name as a file name): said as <name>, never the raw placeholder.
+  const named = (ext.deliverable ?? []).map((path) => path.replace("{slug}", "<name>"));
+  const files = named.length ? `: ${named.join(", ")}` : "";
   return h("p", { class: "extension-project muted" }, `Adds the ${ext.project_name ?? ext.project_type} project type${files}`);
 }
 

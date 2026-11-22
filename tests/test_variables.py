@@ -256,3 +256,29 @@ def test_the_variables_are_the_computers_with_a_project_open(tmp_path: Path) -> 
     written = [p for p in target.rglob("*") if p.is_file()]
     assert not any("variables" in p.name for p in written)
     assert all(b"West" not in p.read_bytes() for p in written)
+
+
+def test_a_connection_whose_box_names_a_variable_uses_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Test app one (BI review): a folder connection's ${LARKFIELD_DIR} box is os.environ["LARKFIELD_DIR"]
+    # in its code; the variable said nothing used it.
+    monkeypatch.delenv("SHOP_EXPORTS", raising=False)
+    with make_client(tmp_path) as client:
+        _ok(
+            client.put(
+                "/variables",
+                json={"name": "SHOP_EXPORTS", "value": str(tmp_path), "local": True},
+                headers=AUTH,
+            )
+        )
+        folder = {
+            "name": "Exports",
+            "kind": "other",
+            "template": "folder",
+            "code": 'import os\nfrom pathlib import Path\n\nfolder = Path(os.environ["SHOP_EXPORTS"])',
+        }
+        _ok(client.post("/blades", json=folder, headers=AUTH))
+        uses = _ok(client.get("/variables/uses", params={"name": "SHOP_EXPORTS"}, headers=AGENT))["uses"]
+        assert uses == [{"kind": "connection", "name": "Exports", "how": "its code"}]
+        assert _by_name(client, AUTH)["SHOP_EXPORTS"]["from"] == "value"  # its own source, unchanged

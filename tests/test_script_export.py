@@ -1038,3 +1038,15 @@ def test_an_add_api_client_the_notebook_imports_is_inline_and_the_export_runs_in
         assert len((out / "open.csv").read_text(encoding="utf-8").splitlines()) == 1 + 17
     finally:
         service.stop()
+
+
+def test_a_scripts_import_above_its_first_cell_is_seen_by_every_cell_after_it() -> None:
+    # Test app one (BI review, 2026-11-22): scripts/monthly_review.py imported sab above its first `# %%`
+    # cell; that cell's sab.sql(...) was left as it was (sab undefined there) and its connection not written.
+    top = ExportCell("code", '"""The headline."""\nimport swissarmybench as sab', number=None)
+    first = ExportCell("code", "late = sab.sql('Shop', 'SELECT * FROM orders')\nprint(late)", number=1)
+    assert se.references([top, first], {}) == ["Shop"]
+    made = exported([top, first], {"Shop": shop_piece()})
+    body = run_body(made.text)
+    assert "late = run_sql('Shop', 'SELECT * FROM orders')" in body and "sab." not in body
+    assert not made.problems

@@ -158,7 +158,9 @@ let plotly: Promise<typeof import("./lazy/plotly")> | null = null;
 /** HTML (a DataFrame, a styled table) in a frame that runs no script and loads nothing from outside. */
 function htmlFrame(html: string, dark: boolean): HTMLIFrameElement {
   const frame = h("iframe", { class: "wb-html", sandbox: "allow-same-origin", title: "Output", loading: "lazy" }) as HTMLIFrameElement;
-  const style = `<style>body{margin:0;font:13px "Segoe UI",system-ui,sans-serif;color:${dark ? "#e8ecef" : "#1c2228"};background:transparent}
+  // The frame says its colour scheme: a frame whose scheme differs from the page's gets an opaque white
+  // backdrop from the browser, and a dark theme's light text was drawn on white (unreadable).
+  const style = `<style>:root{color-scheme:${dark ? "dark" : "light"}}body{margin:0;font:13px "Segoe UI",system-ui,sans-serif;color:${dark ? "#e8ecef" : "#1c2228"};background:transparent}
 table{border-collapse:collapse}th,td{padding:3px 8px;border-bottom:1px solid ${dark ? "#343c45" : "#d5dbe1"};text-align:right}
 th{font-weight:600}thead th{border-bottom-width:2px}tbody tr:hover{background:${dark ? "#21272d" : "#f2f4f7"}}</style>`;
   frame.srcdoc = `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">${style}${html}`;

@@ -1,0 +1,8 @@
+{
+  "review": "October 2026",
+  "regions": [
+    {"region": "North Vale", "manager": "A. Brookfield", "target": 60000, "status": "open"},
+    {"region": "Coastline", "manager": "Z. Yardley", "target": 21000, "status": "closed"},
+    {"region": "Highlands", "manager": "M. Ashdown", "target": 20000, "status": "open"}
+  ]
+}

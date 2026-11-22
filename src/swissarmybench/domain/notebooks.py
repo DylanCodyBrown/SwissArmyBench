@@ -139,11 +139,28 @@ def check_name(value: Any) -> str | None:
     return value.strip() or None
 
 
+# What a cell's line says after its connection: `-> name` (keep the result as that variable) and `--grid`.
+_LINE_TAIL = re.compile(
+    r"^(?P<name>.*?)(?:(?:^|\s+)->\s*(?P<target>[A-Za-z_]\w*))?(?:(?:^|\s+)(?P<grid>--grid))?\s*$"
+)
+
+
 def sql_line(connection: str | None) -> str:
-    """The first line of a SQL cell's code: `%%sql Warehouse`, quoted when the name has a space."""
-    if not connection:
+    """The first line of a SQL cell's code: `%%sql Warehouse`, quoted when the name has a space. What the
+    cell's line held after the name (` -> late`, ` --grid`: kept with the connection as read) stays outside
+    the quotes, so `%%sql "My warehouse" -> late` is written back as it was read."""
+    if not connection or not connection.strip():
         return "%%sql"
-    return f"%%sql {shlex.quote(connection) if re.search(r'\s', connection) else connection}"
+    found = _LINE_TAIL.match(connection.strip())
+    name = found["name"].strip() if found else connection.strip()
+    parts = ["%%sql"]
+    if name:
+        parts.append(shlex.quote(name) if re.search(r"\s", name) else name)
+    if found and found["target"]:
+        parts += ["->", found["target"]]
+    if found and found["grid"]:
+        parts.append("--grid")
+    return " ".join(parts)
 
 
 def dax_line(dataset: str | None) -> str:

@@ -64,6 +64,11 @@ def test_a_connection_a_variable_and_a_notebook(client: TestClient, tmp_path: Pa
     ok(client.post("/workbench/save", json={"path": str(notebook), "cells": cells}, headers=AUTH))
     saved = last(client, "notebook:sales.ipynb")
     assert saved["diff"]["cells"]["added"] == ["cell 2"] and "y = 2" not in json.dumps(saved)
+    assert saved["who"] == "user"
+    # Test app one (BI review): the agent's save was logged as the user's.
+    cells.append({"kind": "code", "source": "z = 3", "number": 3})
+    ok(client.post("/workbench/save", json={"path": str(notebook), "cells": cells}, headers=AGENT))
+    assert last(client, "notebook:sales.ipynb")["who"] == "agent"
     found = ok(client.get("/changes", params={"action": "search", "kind": "variable"}, headers=AGENT))
     assert [c["object"]["name"] for c in found["changes"]] == ["SALES_REGION"]
     assert client.get("/changes", params={"action": "nonsense"}, headers=AGENT).status_code == 400
