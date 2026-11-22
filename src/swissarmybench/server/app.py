@@ -48,6 +48,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
+  routes_environment.py    the Environment: everything the project holds, where each is used, its libraries
   routes_script_runs.py    a script's run settings
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X
@@ -103,6 +104,7 @@ from swissarmybench.server import (
     routes_datasets,
     routes_debugger,
     routes_desktop,
+    routes_environment,
     routes_explorer,
     routes_extensions,
     routes_file_dialogs,
@@ -396,6 +398,7 @@ def create_app(
                 *routes_connection_colours.routes(ctx.connection_colours),
                 *routes_session_log.routes(ctx.session_log),
                 *routes_variables.routes(ctx.variables),
+                *routes_environment.routes(ctx.environment),
                 *routes_script_runs.routes(ctx.script_runs),
                 *routes_beta_log.routes(ctx.beta),
                 *routes_updates.routes(ctx.updates, ctx.extensions.names),

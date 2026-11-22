@@ -54,6 +54,8 @@ class LiveUpdates:
         self._pages: set[WebSocket] = set()
         # Counted at every notice: context.md (services/context_md.py) looks again only after one.
         self.changes = 0
+        # Told each notice as it goes out (the Environment follows what its list is made of).
+        self.listeners: list[Callable[[dict[str, Any]], None]] = []
         # With no VS Code window to ask: the address shown elsewhere (the desktop app, else the browser);
         # True when it was. The running server sets it (server/__main__.py); none in tests.
         self.fallback: Callable[[str], bool] | None = None
@@ -210,6 +212,8 @@ class LiveUpdates:
         now it holds up one broadcast by at most the limit and is dropped. (Sending to all pages at
         once costs a task per page: slower with 200 pages, 8.7 -> 10.5 ms, so it is not done.)"""
         self.changes += 1
+        for listener in self.listeners:
+            listener(message)
         if not self._sockets:
             return
         text = json.dumps(message, separators=(",", ":"), ensure_ascii=False)

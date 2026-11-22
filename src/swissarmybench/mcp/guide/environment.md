@@ -1,0 +1,47 @@
+# The Environment
+
+Everything the open project holds, on one page (the rail's Environment, `app_navigate environment`) and in one
+tool, `environment(action, args)`. Five kinds, a tab each:
+
+| Kind | What it is | Where it comes from |
+|---|---|---|
+| `table` | the data: a named table (a grid is only a view of it, never a copy) | a connection, a file, a paste, a query, code |
+| `variable` | what the code makes: numbers, text, lists, dictionaries | the project's Python |
+| `structure` | JSON, YAML, XML, TOML documents | `structures/` in the project, or open and not saved |
+| `setting` | `${NAME}` settings and secrets (a secret's value never comes back) | the library's variables, the keyring, a key vault |
+| `library` | the libraries of the project's Python | its `.venv`, `requirements.txt` |
+
+## Reading
+- `environment(action="list")`: every row: `id` (`table:orders`), `name`, `type`, `size`, `value` (a short
+  look: column names, a value's start; a secret is masked), `from`, `tags` (`Keep`, `In Python`), `grids` (the
+  views of a table: `{"id", "steps"}`), `used` (every place that uses it: `{"kind", "words", "link"}`) and
+  `kids` (what the row unfolds to: a table's columns, a structure's paths, a list's items).
+  `counts` has each tab's number.
+- `args={"search": "cust"}`: one search over every tab, in any case and by parts (cust finds customer_id and
+  CustomerKey); each row says how it matched: `{"own": true, "kids": [1]}` (itself, or the rows inside).
+- `environment(action="show", args={"kind": "table", "name": "orders"})`: one row whole; a table's columns
+  with their ranges and blanks.
+- `used` kinds: `grid`, `cell` (a notebook's cells by number, a script), `widget` (a canvas page's widget),
+  `endpoint` (API.py), `analysis` (the Analyze board), `erd`, `table` (a table made from it), `connection`.
+
+## Doing
+| Action | Args | Notes |
+|---|---|---|
+| `open` | `kind`, `name` | a table opens in Grids (a view is made when it has none); the app goes there |
+| `insert` | `kind`, `name` | the code a row is written as (`python`, `sql`, a setting's `${NAME}` as `text`) |
+| `rename` | `kind`, `name`, `to` | a table (its grids follow), a variable (the same object), an open structure, a setting |
+| `remove` | `kind`, `name`, `python`? | a table closes with its grids; `python: true` also deletes it in Python; a saved structure's file waits for Allow |
+| `keep` | `name`, `keep` | Keep with the project: its rows into `.sab/data/` (Git-ignored); waits for Allow |
+| `clear` | `tables`, `variables`, `structures`, `dry_run`? | what is ticked; kept tables, settings and libraries stay; waits for Allow |
+
+Tables are added on the Connections page (`connections_open_table`), by `datasets_load` / `datasets_paste`, or
+by code; there is no add here. Interrupt and Restart are the Notebooks and Scripts pages' (`workbench_*`).
+
+## Libraries
+- `environment(action="libraries")`: the project's Python (`own`: its `.venv`) and each library: `version`,
+  `pinned`, `latest` (a newer version, once checked), what it is for, where it is imported.
+- `args={"check": true}` asks the package index for newer versions (only then: never in the background).
+- `install` `{"name"}`, `update` `{"name"}` or `{"all": true}` (never a pinned one), `pin` `{"name",
+  "pinned"}` (`name==version` in requirements.txt). Each waits for the user's Allow.
+
+The list follows the app by itself: `agent_events` says when it changed (read it again then).

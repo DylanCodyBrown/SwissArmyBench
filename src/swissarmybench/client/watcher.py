@@ -256,6 +256,16 @@ def resolve(namespace: dict[str, Any], name: str) -> Any | None:
     return None
 
 
+def _variables(namespace: dict[str, Any]) -> list[dict[str, str]]:
+    """What the session holds besides its tables: names, types and sizes only (client/kernel_variables.py)."""
+    try:
+        from swissarmybench.client import kernel_variables
+
+        return kernel_variables.names(namespace)
+    except Exception:
+        return []
+
+
 def label_for(namespace: dict[str, Any]) -> str:
     """How the Open list names this session: the notebook file (VS Code sets __vsc_ipynb_file__ in a
     notebook's kernel), else the script's file, else the process."""
@@ -304,6 +314,10 @@ class Watcher:
         self._poll_seconds = poll_seconds
         self._stop = threading.Event()
         self._resync = threading.Event()
+        # The trigger (the owner, 2026-11-21: "a simple trigger and watcher"): set after each cell runs
+        # (IPython's post-run hook), so the scan looks at once instead of at its next turn.
+        self._wake = threading.Event()
+        self._ran = 0  # how many cells have run: a run that made no table still says the session changed
         self._threads: list[threading.Thread] = []
         self._lock = threading.Lock()  # guards _pushed and _errors
         self._push_lock = threading.Lock()  # one push at a time
@@ -316,6 +330,7 @@ class Watcher:
     def start(self) -> None:
         if self._threads:
             return
+        self._hook()
         for name, target in (
             ("scan", self._scan_loop),
             ("listen", self._listen_loop),
@@ -326,6 +341,26 @@ class Watcher:
 
     def stop(self) -> None:
         self._stop.set()
+        self._wake.set()
+
+    def _hook(self) -> None:
+        """After each cell runs, look at once (IPython's post_run_cell). A plain script has no cells: its
+        timer (the scan every `scan_seconds`) is the trigger there."""
+        getter = getattr(sys.modules.get("IPython"), "get_ipython", None)
+        try:
+            shell = getter() if callable(getter) else None
+            if shell is not None:
+                shell.events.register("post_run_cell", self._after_cell)
+        except Exception:
+            log.debug("no post-run hook", exc_info=True)
+
+    def _after_cell(self, *_: Any) -> None:
+        self._ran += 1
+        self._wake.set()
+
+    def ran(self) -> None:
+        """Say that code just ran (a script's own trigger, and the tests')."""
+        self._after_cell()
 
     def alive(self) -> bool:
         return bool(self._threads) and not self._stop.is_set() and all(t.is_alive() for t in self._threads)
@@ -417,14 +452,22 @@ class Watcher:
         except (urllib.error.URLError, OSError) as error:
             raise _ServerDown from error
 
-    def _sync(self, entries: list[dict[str, Any]]) -> list[str]:
-        """Report the tables; the reply names the ones the server holds from this session."""
+    def _sync(
+        self, entries: list[dict[str, Any]], variables: list[dict[str, str]] | None = None
+    ) -> list[str]:
+        """Report the tables (and the variables: names, types and sizes only); the reply names the tables
+        the server holds from this session."""
         errors = self.take_errors()
         body: dict[str, Any] = {
             "label": self._label or label_for(self._namespace()),
             "pid": os.getpid(),
             "tables": entries,
+            "variables": variables or [],
+            "ran": self._ran,
         }
+        kernel = os.environ.get("SWISSARMYBENCH_KERNEL")
+        if kernel:
+            body["kernel"] = kernel  # a Workbench kernel: the app reads its values there, with a short look
         if errors:
             body["errors"] = errors
         try:
@@ -436,18 +479,25 @@ class Watcher:
         return [str(name) for name in reply.get("following", [])]
 
     def _scan_loop(self) -> None:
-        sent: list[dict[str, Any]] | None = None
+        sent: Any = None
         sent_at = 0.0
         following: list[str] = []
-        while not self._stop.wait(self._scan_seconds):
+        while True:
+            self._wake.wait(self._scan_seconds)  # a cell just ran (the trigger), or the timer's turn
+            self._wake.clear()
+            if self._stop.is_set():
+                return
             try:
-                tables = find_tables(self._namespace())
+                namespace = self._namespace()
+                tables = find_tables(namespace)
                 entries = [t.entry() for t in tables]
+                variables = _variables(namespace)
+                said = (entries, variables, self._ran)
                 now = monotonic()
-                if entries != sent or now - sent_at >= self._heartbeat_seconds or self._resync.is_set():
+                if said != sent or now - sent_at >= self._heartbeat_seconds or self._resync.is_set():
                     self._resync.clear()
-                    following = self._sync(entries)
-                    sent, sent_at = entries, now
+                    following = self._sync(entries, variables)
+                    sent, sent_at = said, now
                 current = {t.name: t.fingerprint for t in tables}
                 for name in following:
                     with self._lock:

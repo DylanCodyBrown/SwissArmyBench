@@ -117,7 +117,8 @@ def folded(text: str) -> str:
     return _SEPARATORS.sub("", text.lower())
 
 
-def _hit(word: str, name: str) -> bool:
+def hit(word: str, name: str) -> bool:
+    """Whether a search word is in a text: in any case, and with the separators taken out."""
     low = name.lower()
     if word in low:
         return True
@@ -131,8 +132,8 @@ def score(name: str, words: Sequence[str], path: Sequence[str] = ()) -> int | No
     parts does, 3 a word is inside it."""
     if not words:
         return 3
-    own = [w for w in words if _hit(w, name)]
-    if not own or any(not _hit(w, name) and not any(_hit(w, p) for p in path) for w in words):
+    own = [w for w in words if hit(w, name)]
+    if not own or any(not hit(w, name) and not any(hit(w, p) for p in path) for w in words):
         return None
     low = name.lower()
     text = " ".join(words)
