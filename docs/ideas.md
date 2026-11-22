@@ -9262,3 +9262,12 @@ Open notes:
   through the adapter (the test says so by name). Making it a dialect is now its record's `dialect`,
   `sqlglot` and `adapter`, and its starter's `dialect`.
 - `lakes.LAKE_KINDS` was read by nothing and went.
+
+## Sybase's count and Databricks' dialect, 2026-11-22
+
+Closing the two items review fix D flagged. SAP ASE (Sybase) speaks SQL Server's T-SQL but has no
+sys.partitions, so its row count before a read is now a plain COUNT(*): a starter's record may say its own
+`count` (the one field a starter may say beside its dialect's record; services/connections.py `_count_sql`
+reads the starter's first). Databricks' starter named dialect "other" although the adapter knows Databricks:
+it now names "databricks", with its own record (sqlglot databricks, filters folded, named marks, COUNT(*)),
+so Open as grid reads it through the adapter like the other SQL databases.

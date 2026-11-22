@@ -261,8 +261,8 @@ def test_the_adapters_own_dialects_are_kinds_the_records_know() -> None:
     read_here = set(kinds.adapter_dialects())
     assert read_here == set(connections.ADAPTER_DIALECTS)
     assert read_here - {"duckdb"} <= set(adapter.DIALECTS)  # DuckDB is the adapter's own source
-    # A dialect the adapter knows whose starter names none (Databricks: "other") is not read through it yet.
-    assert {w for w in adapter.DIALECTS if w not in read_here} == {"databricks"}
+    # Every dialect the adapter knows is read through it (Databricks' starter names its own since 2026-11-22).
+    assert {w for w in adapter.DIALECTS if w not in read_here} == set()
     assert connections.NOT_ADAPTED == kinds.own_sql() == ("sybase",)
 
 

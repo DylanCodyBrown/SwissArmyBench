@@ -188,7 +188,7 @@ def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None
     from swissarmybench.adapters import adapter
     from swissarmybench.services import connections
 
-    known = set(adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
+    known = set(adapter.DIALECTS)  # Databricks too: its starter names its own dialect (2026-11-22)
     assert known | {"duckdb"} == set(connections.ADAPTER_DIALECTS)
 
 

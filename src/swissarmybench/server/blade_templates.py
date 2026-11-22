@@ -634,7 +634,7 @@ conn = redshift_connector.connect(
     _db(
         "databricks",
         "Databricks",
-        "other",
+        "databricks",
         """from databricks import sql
 
 conn = sql.connect(

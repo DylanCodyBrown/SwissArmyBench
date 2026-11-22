@@ -910,7 +910,10 @@ def _engine(blade: Blade) -> connection_kinds.Kind:
 
 def _count_sql(blade: Blade, database: str, schema: str, table: str) -> str:
     """The query that counts a table's rows before it is read, as its dialect's record says."""
-    counter = _COUNTERS.get(_engine(blade).count)
+    # A starter's own count wins: SAP ASE speaks SQL Server's T-SQL but has no sys.partitions to count by.
+    starter = connection_kinds.get(blade.template)
+    how = starter.count if starter is not None and starter.count else _engine(blade).count
+    counter = _COUNTERS.get(how)
     if counter is not None and not database:
         return counter(schema, table)
     return count_sql(blade.dialect, database, schema, table)

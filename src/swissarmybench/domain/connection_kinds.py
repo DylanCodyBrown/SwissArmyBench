@@ -156,6 +156,7 @@ _RECORDS: tuple[Kind, ...] = (
         DATABASES,
         dialect="sqlserver",
         own_sql=True,  # T-SQL without OFFSET ... FETCH
+        count="query",  # COUNT(*): SAP ASE has no sys.partitions, which SQL Server's count reads
         read_only=_reads_only("SAP ASE"),
         local_only="sybase",
     ),
@@ -237,6 +238,19 @@ _RECORDS: tuple[Kind, ...] = (
         read_only=_LOADERS,
     ),
     Kind(
+        "databricks",
+        "Databricks",
+        DATABASES,
+        dialect="databricks",
+        sqlglot="databricks",
+        filters="sql",
+        adapter=True,
+        count="query",
+        paramstyle="named",
+        sql_words="Databricks SQL",
+        read_only=_LOADERS,
+    ),
+    Kind(
         "oracle",
         "Oracle",
         DATABASES,
@@ -271,7 +285,6 @@ _RECORDS: tuple[Kind, ...] = (
     ),
     # ===== databases the app reads in their own SQL, with no dialect of their own here =====
     Kind("bigquery", "Google BigQuery", DATABASES, read_only=_LOADERS),
-    Kind("databricks", "Databricks", DATABASES, read_only=_LOADERS),
     Kind("db2", "IBM Db2", DATABASES, read_only=_reads_only("Db2")),
     Kind("teradata", "Teradata", DATABASES, read_only=_reads_only("Teradata")),
     Kind("clickhouse", "ClickHouse", DATABASES, read_only=_reads_only("ClickHouse")),
@@ -703,7 +716,10 @@ def problems(records: Mapping[str, Kind] | None = None) -> list[str]:
                 if taken.setdefault(alias, kind.dialect) != kind.dialect:
                     say(f"the name {alias!r} is {taken[alias]}'s already")
         else:
-            said = [f for f in _DIALECT_FIELDS if getattr(kind, f) != getattr(Kind("", ""), f)]
+            # A starter may count its own way (SAP ASE speaks T-SQL but has no sys.partitions); the rest is
+            # its dialect's own record's.
+            blank = Kind("", "")
+            said = [f for f in _DIALECT_FIELDS if f != "count" and getattr(kind, f) != getattr(blank, f)]
             if said:
                 whose = owners[kind.dialect].name if kind.dialect else "no dialect"
                 say(f"{', '.join(said)} are said once, by its dialect's own record ({whose})")
