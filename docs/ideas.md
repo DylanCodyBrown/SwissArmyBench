@@ -8879,3 +8879,65 @@ Open:
   would make a hosted app follow its source too. The owner's call.
 - A table changed in a Workbench kernel only (never opened in Grids) is not a table property's choice, so it has
   nothing to follow.
+
+## Structures beside the code, 2026-11-22
+
+The owner (2026-11-22): "When we open a json or yaml or xml file is it possible to open a collapsable navigation
+tree of nodes" / "I want it beside the ide so you can search and explore", then "Does structures open as an
+ide? Or is it read only". A JSON, YAML, XML or TOML file now opens as a tab in the code pages' groups, beside a
+script or a notebook, and that tab is an IDE (web/src/structureDoc.ts on codeIde.ts).
+
+Decided (confirm or change):
+- **A tab kind of its own, `structure`, on either page.** It opens on the page it was opened from (the Files
+  pane, Open…, the Data Explorer pane, a palette command); from outside (the desktop app, a file dropped on a
+  window, an old address, the agent with no page) on the Scripts page (domain/workbench_pages.py
+  `home_of_path`; web/src/structurePaths.ts the same rule). An app's `*.canvas.json`, a `.design.json`, an old
+  `.stapp.json` and anything under `.sab/` keep their owners and never open as one.
+- **The Files pane's Structures group, on both pages**: the project's structure files at its top and in its
+  `structures/` folder (deeper folders and `.sab/` never). A structure's file has no Rename/Duplicate/Delete of
+  the Scripts tree (those rewrite Python imports).
+- **The desktop app opens a .json, .yaml, .xml or .toml file as a structure's tab** (it opened a .json as a
+  table before); JSON lines (.jsonl, .ndjson) stay a table. A JSON list of records becomes a grid from the tab
+  (Transform, Open as grid). A file an on extension claims stays the extension's.
+- **The text is the file's own, editable at all times** (the coordinator's word for the owner's IDE question):
+  kept as typed whether it parses or not; the server's parse is the realtime linter (PUT /structures/{id}: its
+  `text_error` with line and column, squiggled from there to the line's end and listed under Problems); the tree
+  follows once it parses, its folds and the selected path kept where they still are. No parser of the page's
+  own: one rule for the page and the agent (YAML through PyYAML on the server).
+- **The tree edits the file**: double-click a value or a key, right-click (Add key…, Duplicate, Move up, Move
+  down, Delete), drag a list's item onto another; each is POST /structures/{id}/edit on the file's value and
+  writes the text again in its format. So an edit in the tree reformats the text as Format does (JSON indented by
+  2, keys in their order; a YAML or TOML comment goes). Editing in the text keeps every byte typed.
+- **Steps are a view, apart from editing**: Transform (Pick, Filter…, Sort…, Flatten, Open as grid) adds steps;
+  the tree then shows "Through its steps" (a switch back to "The file"); the text stays the file's and is never
+  locked; a tab's Save writes the text, never the steps. The Structures page keeps its own way (its Save writes
+  the steps' result; its text view shows their result read-only while there are steps): the server tells the two
+  saves apart by the body (`{"text", "hash"}` is a tab's).
+- **Save writes only changed bytes and never over a change made outside**: the tab holds the file's hash as it
+  read it; a Save whose file changed since is refused (409: Reload / Keep mine); a change on disk is noticed
+  through the `file_changed` notice (services/code_files.py now looks at the open project's structure files too,
+  never the library's) and taken at once while nothing is unsaved. A text that does not parse is saved all the
+  same with a warning naming its line.
+- **Copy as code** gives the node's Python from the file's value, named `data`
+  (`data["orders"][3]["lines"]`), shown while a Python document is open in the window (and always in the "…"
+  menu). One rule in Python and in the page, checked against shared cases (tests/golden/structure_code.json).
+- **Search and explore**: the matches marked and their way unfolded (a long list shown as far as its item),
+  Enter / Shift+Enter or the arrows for the next and previous match ("3 of 12"), Escape clears.
+- **Closing the tab closes the structure** on the server too (the Structures page's tab with it). A reload of the
+  window brings the tab back from its file.
+- **YAML without PyYAML**: the app's one missing-package prompt and nothing opens (no new dependency).
+- **The agent**: no new tool. The window's palette commands `structure.open`, `.search`, `.next`, `.select`,
+  `.view`, `.format`, `.state` (workbench_window), and options on the existing ones: `structures_show(search)`,
+  `structures_edit(edit | format_text)`, `structures_save(as_text | disk=reload|keep_mine)`.
+
+Open:
+- **A possible simplification for the owner: the Structures page.** The code pages' tab now does what the page
+  does for a file (the tree and the text, search, steps as a view, Open as grid, Save, Save as) and more (an IDE,
+  beside the code). The page is still where an API's answer lands (Run again, Return as table…, its call's
+  headers, Lineage), a kernel's dict or list, a paste, New object/list, and Make a sandbox variant. Those could
+  open as a tab too (a tab already opens by a structure's id, as the Data Explorer's pasted ones do), and the
+  page could then go. Not removed: the owner's call.
+- A tree edit could keep the text's own layout and comments (a change at the node's place in the text instead of
+  writing it again); today it reformats, as Format does.
+- The tree and the text could follow each other's place (the selected node's line revealed in the text, the
+  cursor's node selected in the tree).

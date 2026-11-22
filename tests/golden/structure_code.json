@@ -1,0 +1,12 @@
+[
+  {"parts": [], "path": "$", "code": "data"},
+  {"parts": ["orders"], "path": "$.orders", "code": "data[\"orders\"]"},
+  {"parts": ["orders", 3, "lines"], "path": "$.orders[3].lines", "code": "data[\"orders\"][3][\"lines\"]"},
+  {"parts": ["unit price"], "path": "$[\"unit price\"]", "code": "data[\"unit price\"]"},
+  {"parts": ["say \"hi\""], "path": "$[\"say \\\"hi\\\"\"]", "code": "data[\"say \\\"hi\\\"\"]"},
+  {"parts": ["café", 0], "path": "$[\"café\"][0]", "code": "data[\"café\"][0]"},
+  {"parts": ["@id"], "path": "$[\"@id\"]", "code": "data[\"@id\"]"},
+  {"parts": ["feed", "entry", 1, "#text"], "path": "$.feed.entry[1][\"#text\"]", "code": "data[\"feed\"][\"entry\"][1][\"#text\"]"},
+  {"parts": [0, 0], "path": "$[0][0]", "code": "data[0][0]"},
+  {"parts": ["a-b_c"], "path": "$.a-b_c", "code": "data[\"a-b_c\"]"}
+]

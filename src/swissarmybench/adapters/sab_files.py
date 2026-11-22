@@ -111,6 +111,28 @@ class SabArchive:
                     return found
         return found
 
+    def structure_files(self, folder: str) -> list[str]:
+        """The JSON, YAML, XML and TOML files at the project's top and in its structures/ folder (paths inside
+        it): the code pages' Files pane opens each as a tab beside the code. Hidden ones left out."""
+        root = Path(folder)
+        found: list[str] = []
+        suffixes = (".json", ".yaml", ".yml", ".xml", ".toml")
+        places = [root, *([root / "structures"] if (root / "structures").is_dir() else [])]
+        for place in places:
+            walk = place.rglob("*") if place != root else place.iterdir()
+            for file in sorted(walk):
+                if len(found) >= self.max_entries:
+                    return found
+                try:
+                    if file.is_symlink() or not file.is_file() or not file.name.lower().endswith(suffixes):
+                        continue
+                except OSError:
+                    continue
+                relative = file.relative_to(root).as_posix()
+                if not any(part.startswith(".") for part in relative.split("/")):
+                    found.append(relative)
+        return found
+
     def app_files(self, folder: str) -> list[tuple[str, int, float]]:
         """The project's own definitions in its working folder (domain/project_scope.py): .sab/blades and
         .sab/dashboards' JSON files, path inside the folder, size, last change."""

@@ -46,9 +46,13 @@ def test_a_file_opens_takes_steps_and_saves_with_the_original_untouched_until_th
     assert [g["name"] for g in after["value"]["gates"]] == ["release"]
     assert after["steps"][0]["words"] == "Keep $.gates where on = true" and after["dirty"] is True
     assert json.loads(file.read_text(encoding="utf-8")) == GATES  # nothing written outside Save
-    # The text view is the steps' result: read-only while there are steps.
-    refused = client.put(f"/structures/{sid}", json={"text": "{}"}, headers=AUTH)
-    assert refused.status_code == 400 and "steps" in refused.text
+    # The text is the file's own, editable with steps too (2026-11-22): the steps replay on what it says.
+    broken = ok(client.put(f"/structures/{sid}", json={"text": '{"gates": ['}, headers=AUTH))
+    assert "line 1" in broken["text_error"] and broken["text_dirty"] is True  # kept as typed, said where
+    mended = ok(
+        client.put(f"/structures/{sid}", json={"text": json.dumps(GATES), "view": "result"}, headers=AUTH)
+    )
+    assert mended["text_error"] is None and [g["name"] for g in mended["value"]["gates"]] == ["release"]
     # A step that cannot apply is refused before it is kept.
     bad = client.post(f"/structures/{sid}/steps", json={"op": "pick", "path": "$.nope"}, headers=AUTH)
     assert bad.status_code == 400 and "not there" in bad.text

@@ -7,29 +7,27 @@
  *             folded, and a long list shows its first 200 items with Show more (quick at any size).
  *   [PATH]    a click selects a node: its path ($.orders[3].lines) said to `onSelect`.
  *   [SEARCH]  words marked in keys and values; the nodes on the way to a match unfold.
- *   [EDIT]    when the caller allows it: a double click edits a value (Set value) or a key (Rename key).
+ *   [EDIT]    when the caller allows it: a double click edits a value (Set value) or a key (Rename key);
+ *             right-click is the caller's menu (onMenu); a list's item dragged onto another moves there
+ *             (onMove: the structure's tab beside the code, structureDoc.ts).
+ *   [FOUND]   the search's current match marked (found), its way unfolded and scrolled to (select).
  *   [TEXT]    the text view: Monaco (lazy) in JSON, YAML, XML or TOML colours, its errors at their lines.
+ *
+ * The paths' words and code, and the search's matches, are structurePaths.ts's (pure, tested as run).
  */
 import { h, icon } from "./dom";
 import type { CodeEditor, Problem } from "./lazy/codeEditor";
 import { effectiveTheme } from "./theme";
 import { errorNote } from "./errorNote";
 import { loadEditors } from "./lazyLoad";
+import { type Part, pathText, type Value } from "./structurePaths";
 
-export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };
-export type Part = string | number;
+export { accessCode, matchPaths, pathText, type Part, type Value } from "./structurePaths";
 export const FORMATS = ["json", "yaml", "xml", "toml"] as const;
 export type Format = (typeof FORMATS)[number];
 export const FORMAT_NAMES: Record<Format, string> = { json: "JSON", yaml: "YAML", xml: "XML", toml: "TOML" };
 
-const NAME = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const PAGE = 200;
-
-export function pathText(parts: Part[]): string {
-  let out = "$";
-  for (const p of parts) out += typeof p === "number" ? `[${p}]` : NAME.test(p) ? `.${p}` : `[${JSON.stringify(p)}]`;
-  return out;
-}
 
 export function kindOf(value: Value): string {
   if (value === null) return "null";
@@ -62,6 +60,10 @@ export interface TreeOptions {
   /** A schema's tree (APIs): "string (date-time)" leaves read as types, a key's * as required. */
   schema?: boolean;
   label?: string;
+  /** Right-click on a node: the caller's menu at the pointer. */
+  onMenu?: (parts: Part[], value: Value, at: { x: number; y: number }) => void;
+  /** A list's item dragged onto another item of the same list: moved to that index. */
+  onMove?: (parts: Part[], to: number) => void;
 }
 
 export interface Tree {
@@ -70,6 +72,8 @@ export interface Tree {
   search: (words: string) => number;
   select: (parts: Part[]) => void;
   selected: () => Part[];
+  /** The search's current match (null: none): marked, its way unfolded, scrolled to. */
+  found: (parts: Part[] | null) => void;
 }
 
 function shown(value: Value, schema: boolean): string {
@@ -86,6 +90,8 @@ export function mountTree(value: Value, options: TreeOptions = {}): Tree {
   let current = value;
   let words = "";
   let selected: Part[] = [];
+  let foundId: string | null = null;
+  let dragged: Part[] | null = null;
   const element = h("div", { class: "structure-tree", role: "tree", "aria-label": options.label ?? "Tree", tabindex: 0 });
 
   const matches = (text: string): boolean => Boolean(words) && text.toLowerCase().includes(words);
@@ -140,7 +146,7 @@ export function mountTree(value: Value, options: TreeOptions = {}): Tree {
     const line = h(
       "div",
       {
-        class: `structure-row${here ? " selected" : ""}`,
+        class: `structure-row${here ? " selected" : ""}${foundId === id ? " found" : ""}`,
         role: "treeitem",
         "aria-level": level + 1,
         "aria-selected": here ? "true" : "false",
@@ -184,6 +190,39 @@ export function mountTree(value: Value, options: TreeOptions = {}): Tree {
         e.stopPropagation();
         editInPlace(keySpan, key, (to) => options.onRename?.(parts.slice(0, -1), key, to));
       });
+    }
+    if (options.onMenu) {
+      line.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        line.click(); // the node it is about is the selected one
+        options.onMenu?.(parts, node, { x: e.clientX, y: e.clientY });
+      });
+    }
+    const index = parts[parts.length - 1];
+    if (options.onMove && typeof index === "number") {
+      // A list's item moves by dragging it onto another item of the same list.
+      line.draggable = true;
+      const sameList = (): boolean => !!dragged && dragged.length === parts.length && pathText(dragged.slice(0, -1)) === pathText(parts.slice(0, -1));
+      line.addEventListener("dragstart", (e) => {
+        dragged = parts;
+        e.dataTransfer?.setData("text/plain", id);
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+      });
+      line.addEventListener("dragover", (e) => {
+        if (!sameList() || dragged === parts) return;
+        e.preventDefault();
+        line.classList.add("drop-here");
+      });
+      line.addEventListener("dragleave", () => line.classList.remove("drop-here"));
+      line.addEventListener("drop", (e) => {
+        line.classList.remove("drop-here");
+        if (!sameList() || !dragged) return;
+        e.preventDefault();
+        const from = dragged;
+        dragged = null;
+        if (pathText(from) !== id) options.onMove?.(from, index);
+      });
+      line.addEventListener("dragend", () => (dragged = null));
     }
     line.addEventListener("click", () => {
       // Marked in place (no redraw): a double click that follows lands on the same row.
@@ -240,6 +279,16 @@ export function mountTree(value: Value, options: TreeOptions = {}): Tree {
     e.preventDefault();
   });
 
+  /** The way to a node unfolded, a long list shown as far as its item. */
+  const unfold = (parts: Part[]): void => {
+    for (let i = 0; i < parts.length; i++) {
+      const at = pathText(parts.slice(0, i));
+      open.set(at, true);
+      const item = parts[i];
+      if (typeof item === "number" && item >= (more.get(at) ?? PAGE)) more.set(at, item + PAGE);
+    }
+  };
+
   draw();
   return {
     element,
@@ -255,11 +304,17 @@ export function mountTree(value: Value, options: TreeOptions = {}): Tree {
     },
     select: (parts) => {
       selected = parts;
-      for (let i = 0; i < parts.length; i++) open.set(pathText(parts.slice(0, i)), true);
+      unfold(parts);
       draw();
       element.querySelector(".structure-row.selected")?.scrollIntoView({ block: "nearest" });
     },
     selected: () => selected,
+    found: (parts) => {
+      foundId = parts ? pathText(parts) : null;
+      if (parts) unfold(parts);
+      draw();
+      element.querySelector(".structure-row.found")?.scrollIntoView({ block: "nearest" });
+    },
   };
 }
 

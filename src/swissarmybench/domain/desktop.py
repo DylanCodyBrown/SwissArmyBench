@@ -18,6 +18,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from swissarmybench.domain import workbench_pages
+
 HOST = "127.0.0.1"
 INSIDE, OUTSIDE, REFUSE = "inside", "outside", "refuse"
 # Schemes the system opens (its browser, its mail program); every other one is refused.
@@ -389,19 +391,22 @@ def read_message(line: bytes, key: str) -> dict[str, Any]:
 
 # ===== a file opened with the app: `swissarmybench open <file>`, Open with, a file dropped on a window =====
 
-# The files the app opens as a table (adapters/datasets.py SUFFIXES), a notebook and a blade.
+# The files the app opens as a table (adapters/datasets.py SUFFIXES), a notebook, a blade and a structure.
 TABLE_SUFFIXES: tuple[str, ...] = (
-    ".csv", ".tsv", ".txt", ".parquet", ".json", ".jsonl", ".ndjson", ".arrow", ".feather", ".xlsx",
+    ".csv", ".tsv", ".txt", ".parquet", ".jsonl", ".ndjson", ".arrow", ".feather", ".xlsx",
 )  # fmt: skip
+# A structure's file opens as a tab beside the code on the Scripts page (2026-11-22; its tree and text,
+# Open as grid for a list of records in it): domain/workbench_pages.py is_structure_path says which.
+STRUCTURE_SUFFIXES: tuple[str, ...] = (".json", ".yaml", ".yml", ".xml", ".toml")
 NOTEBOOK_SUFFIXES: tuple[str, ...] = (".ipynb",)
 BLADE_SUFFIX = ".blade.py"
-TABLE, NOTEBOOK, BLADE, PROJECT = "table", "notebook", "blade", "project"
+TABLE, NOTEBOOK, BLADE, PROJECT, STRUCTURE = "table", "notebook", "blade", "project", "structure"
 EXTENSION = (
     "extension"  # a file an on extension opens (its OPENS: suffix -> route), never the default program
 )
 CANNOT_OPEN = (
-    "{name}: Swiss Army Bench opens CSV, TSV, Parquet, JSON, Arrow and Excel files, notebooks (.ipynb), "
-    "blades (.blade.py) and project folders."
+    "{name}: Swiss Army Bench opens CSV, TSV, Parquet, JSON lines, Arrow and Excel files, notebooks "
+    "(.ipynb), blades (.blade.py), JSON, YAML, XML and TOML files and project folders."
 )
 _NAME_PART = re.compile(r"[^A-Za-z0-9_-]+")
 
@@ -420,7 +425,8 @@ def read_file_path(value: Any) -> str:
 
 def file_kind(name: str, is_folder: bool, has_sab: bool, claimed: tuple[str, ...] = ()) -> str:
     """What opening a file with the app does: a project (a folder with .sab/, or any folder: it is asked to
-    become one), a table, a notebook (the Workbench) or a blade; "" when the app does not open it."""
+    become one), a table, a notebook (the Workbench), a blade or a structure (a tab beside the code); "" when
+    the app does not open it. A file an on extension claims is its own before a structure's."""
     if is_folder:
         return PROJECT
     lowered = name.lower()
@@ -432,6 +438,8 @@ def file_kind(name: str, is_folder: bool, has_sab: bool, claimed: tuple[str, ...
         return TABLE
     if claimed and lowered.endswith(tuple(s.lower() for s in claimed)):
         return EXTENSION
+    if lowered.endswith(STRUCTURE_SUFFIXES) and workbench_pages.is_structure_path(name):
+        return STRUCTURE
     return ""
 
 

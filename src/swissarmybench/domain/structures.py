@@ -702,6 +702,104 @@ def record_lists(value: Any, limit: int = 50) -> list[str]:
     return found
 
 
+# ===== the structure's tab beside the code (2026-11-22): edits in its tree, its search, a node as code =====
+
+EDITS: tuple[str, ...] = ("set", "rename", "remove", "add", "duplicate", "move")
+MAX_FOUND: int = 1000
+
+
+def code_of(path: Any, variable: str = "data") -> str:
+    """The Python that reaches a node from the file's value, for a script beside it: `$.orders[3].lines` is
+    `data["orders"][3]["lines"]` (web/src/structurePaths.ts accessCode says the same: tests/golden)."""
+    parts = tuple(path) if isinstance(path, tuple | list) else parse_path(path)
+    out = variable
+    for part in parts:
+        if part is WILD:
+            raise StructureError(f"{format_path(parts)} reaches many nodes: name one.")
+        out += f"[{part}]" if isinstance(part, int) else "[" + json.dumps(part, ensure_ascii=False) + "]"
+    return out
+
+
+def _words_of(node: Any) -> str:
+    return node if isinstance(node, str) else json.dumps(node)
+
+
+def search(value: Any, words: Any, limit: int = MAX_FOUND) -> dict[str, Any]:
+    """Where `words` stand (in any case) in a structure's keys and values, in the document's order:
+    {"words", "found": [{path, where: key | value, code}], "count", "more"}. No words: nothing."""
+    said = str(words or "").strip().lower()
+    found: list[dict[str, Any]] = []
+    count = 0
+    if not said:
+        return {"words": "", "found": [], "count": 0, "more": False}
+    stack: list[tuple[tuple[str | int, ...], Any, str | None]] = [((), value, None)]
+    while stack:
+        where, node, key = stack.pop()
+        hit = "key" if key is not None and said in key.lower() else None
+        if hit is None and not isinstance(node, dict | list) and said in _words_of(node).lower():
+            hit = "value"
+        if hit:
+            count += 1
+            if len(found) < limit:
+                found.append({"path": format_path(where), "where": hit, "code": code_of(where)})
+        if isinstance(node, dict):
+            stack += [((*where, str(k)), v, str(k)) for k, v in reversed(list(node.items()))]
+        elif isinstance(node, list):
+            stack += [((*where, n), v, None) for n, v in reversed(list(enumerate(node)))]
+    return {"words": said, "found": found, "count": count, "more": count > len(found)}
+
+
+def _one(value: Any, path: Any) -> tuple[tuple[str | int, ...], Any]:
+    parts = parse_path(path)
+    if WILD in parts:
+        raise StructureError(f"{format_path(parts)} reaches many nodes: an edit names one.")
+    found = resolve(value, parts)
+    if not found:
+        raise StructureError(f"{format_path(parts)} is not there.")
+    return found[0]
+
+
+def edit(value: Any, raw: Any) -> Any:
+    """An edit made in the tab's tree, on the file's value itself (not a step: its text is written again
+    from it): set, rename (path the object, key, to), remove, add (path the object, key, value), duplicate
+    (a list's item after itself; an object's key beside it as "<key> copy"), move (a list's item to `to`).
+    A new value; the one given is left as it was."""
+    if not isinstance(raw, Mapping):
+        raise StructureError('An edit is {"op": "set", "path": "$.orders[0].status", "value": "open"}.')
+    op = str(raw.get("op") or "").strip().lower()
+    if op not in EDITS:
+        raise StructureError(f"An edit's op is one of {', '.join(EDITS)}.")
+    out = copy.deepcopy(value)
+    if op in ("set", "rename", "remove", "add"):
+        step = check_step(raw)
+        if WILD in parse_path(step.path):
+            raise StructureError(f"{step.path} reaches many nodes: an edit names one.")
+        return _apply(out, step)
+    where, node = _one(out, raw.get("path", "$"))
+    if not where:
+        raise StructureError(f"{op.capitalize()} names a node inside: $ is the whole structure.")
+    parent = _parent(out, where)
+    last = where[-1]
+    if op == "duplicate":
+        if isinstance(parent, list):
+            parent.insert(int(last) + 1, copy.deepcopy(node))
+            return out
+        base, n = f"{last} copy", 2
+        key = base
+        while key in parent:
+            key, n = f"{base} {n}", n + 1
+        items = list(parent.items())
+        items.insert([k for k, _ in items].index(last) + 1, (key, copy.deepcopy(node)))
+        return _replace(out, where[:-1], dict(items))
+    if not isinstance(parent, list):  # move
+        raise StructureError(f"{format_path(where)} is not a list's item: only a list's items move.")
+    to = raw.get("to")
+    if isinstance(to, bool) or not isinstance(to, int) or not 0 <= to < len(parent):
+        raise StructureError(f"to is 0 to {len(parent) - 1}.")
+    parent.insert(to, parent.pop(int(last)))
+    return out
+
+
 # ===== the shape: what a card and the agent read =====
 
 

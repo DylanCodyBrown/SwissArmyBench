@@ -17,6 +17,8 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
+from swissarmybench.domain import workbench_pages
+
 # The groups in their order, each a folder of the tree.
 SCRIPTS = "scripts"  # Your scripts: scripts/ and its packages
 PROJECT = "project"  # Project code: data.py, the scaffold's modules, pages/*.py, the canvas's export
@@ -156,6 +158,29 @@ def notebook_tree(paths: Iterable[str]) -> list[dict[str, Any]]:
         (data if relative.lower() == "data.ipynb" else rest).append(item)
     rest.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
     return [{"id": "notebooks", "name": "Notebooks", "files": data + rest}]
+
+
+STRUCTURES = "structures"
+
+
+def structure_group(paths: Iterable[str]) -> dict[str, Any] | None:
+    """Both pages' Structures group (2026-11-22, the owner: "I want it beside the ide so you can search and
+    explore"): the project's JSON, YAML, XML and TOML files at its top and in its structures/ folder, each
+    opening as a tab beside the code; never an app's canvas, a workbook design or the app's .sab/ state.
+    None when there are none."""
+    files = []
+    for relative in paths:
+        relative = relative.replace("\\", "/")
+        if not workbench_pages.is_structure_path(relative) or not listed(relative):
+            continue
+        if "/" in relative and not relative.startswith("structures/"):
+            continue
+        name, folder = posixpath.basename(relative), posixpath.dirname(relative)
+        files.append({"path": relative, "name": name, "folder": folder})
+    if not files:
+        return None
+    files.sort(key=lambda f: (f["folder"].casefold(), f["name"].casefold()))
+    return {"id": STRUCTURES, "name": "Structures", "files": files, "kind": "structure"}
 
 
 # The library's code (the owner, 2026-11-21: "this is meant to expose the high level code of everything in the

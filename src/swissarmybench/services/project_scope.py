@@ -44,6 +44,8 @@ class ScopeFiles(Protocol):
 
     def app_files(self, folder: str) -> list[tuple[str, int, float]]: ...
 
+    def structure_files(self, folder: str) -> list[str]: ...
+
     def read_file(self, folder: str, relative: str) -> bytes: ...
 
     def read_loose(self, path: str) -> bytes: ...
@@ -128,6 +130,10 @@ class ProjectScope:
                 except OSError:
                     texts.append((relative, None))
             groups = code_tree.script_tree(texts, self.edited_by_hand())
+        # Both pages: a structure's tab beside the code (its top's and structures/' JSON, YAML, XML, TOML).
+        structures = code_tree.structure_group(self._files.structure_files(current.folder))
+        if structures is not None:
+            groups.append(structures)
         for group in groups:
             for item in group["files"]:
                 item["full"] = rules.inside(current.folder, item["path"])

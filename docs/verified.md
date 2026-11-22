@@ -5901,3 +5901,47 @@ The owner's call ("yea live changes"): a table a playing page reads follows its 
   suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,383 passed, 40 skipped, 1 failed
   (test_desktop_shell's Ctrl+W under the run's load; it passes alone, 2 of 2). In Chromium: the canvas, canvas
   gaps, widgets, widget packs, widget wiring, forms recon and field service pages, 19 passed.
+
+## Structures beside the code, 2026-11-22 (branch structure-tabs)
+
+The owner's asks ("a collapsable navigation tree of nodes" / "beside the ide so you can search and explore" /
+"Does structures open as an ide?"): a JSON, YAML, XML or TOML file as an IDE tab beside the code. How it was
+checked:
+- `tests/test_structure_tabs.py` (28 tests): which files are a structure's tab (a canvas, a `.design.json`, an
+  old `.stapp.json`, `.sab/` and hidden files never), the page (the one asked from; from outside the Scripts
+  page; an old address; `structure.open` with no page), the desktop app's kinds (.json a structure now, JSON lines
+  a table, an extension's claim first), the Files pane's Structures group (top and `structures/` only), a node as
+  code (every golden case compiles as Python; `eval` of one on made-up data reaches its node), the search (keys and
+  values, any case, the document's order, capped), the tree's edits (set, rename, add, remove, duplicate in a list
+  and an object, move; the value given left as it was; the refusals in words), and over HTTP: the text kept as
+  typed with its `text_error`, the tree's last good value meanwhile, Format refused until it parses then JSON
+  indented by 2 in the keys' order, nothing written outside Save; an edit in the tree writing the text again; Save
+  of the same bytes writing nothing, a changed text written byte for byte, a file changed on disk refused (409)
+  and left as it was, Keep mine then Save, Reload, a text that does not parse saved with a warning naming its
+  line; Save as with as_text keeping the steps as the view.
+- `tests/test_structure_paths.py` (3 tests): web/src/structurePaths.ts bundled by the page's esbuild and run by
+  Node, against the server's rules: the golden paths and code (tests/golden/structure_code.json), the search's
+  matches in the same order as the server's for eight words, which files are a structure's tab, an error's line
+  and column read from JSON's and TOML's words.
+- `tests/test_structures_routes.py`: its text-under-steps check now says the new rule (the text edits with steps;
+  a broken text kept with its line). The Structures page keeps its own way (Save writes the steps' result; the
+  text view shows their result read-only while there are steps: the server's `result_text`).
+- In a browser (Chromium; the e2e conftest's launch pointed at this machine's Chromium for the run only, never
+  committed): `tests/e2e/test_structure_tabs_page.py` (2 tests) on a made-up bakery project (orders.json, nested;
+  config.yaml; structures/feed.xml; scripts/count.py): the Files pane's Structures group (3, no `.sab/`); orders.json
+  opened beside count.py and split right; search "LOAF-1" (1 of 2, Enter 2 of 2 with its path, Shift+Enter back);
+  Copy as code read back from the clipboard (`data["orders"][0]["lines"][0]["sku"]`); a branch folded; a value
+  edited in the tree (the tab dirty, the file untouched); Both, a broken text (the error bar, Problems 1, the
+  squiggle at its line, the tree as it last parsed), mended, Ctrl+S (the file written, the dot gone); an edit
+  outside taken at once while clean; with unsaved edits, Reload / Keep mine, Reload; feed.xml's tree; config.yaml
+  without PyYAML: the one missing-package prompt. The agent's side: `structure.open` with `at`, `structure.search`,
+  `structure.next` and `documents` through workbench_window, the page following. Run three times: passed.
+- Pictures looked at (light and dark, 1600x950, scratchpad only, never committed): the tab beside the script with
+  a search (light, dark), Both in dark, the text's error, the change on disk, the XML tree, the YAML prompt.
+- The checks: ruff, ruff format, mypy (1,048 files), the page's typecheck: clean. The quick suite (`-n 4 --dist
+  loadfile --ignore=tests/e2e`): 3,929 passed, 31 skipped, 3 failed, each failing the same on the branch's base
+  source (c474ca5, run from an archive of it): test_field_service_app's statistics count (50 > 50) and its
+  widgets/ file listing, test_script_export's fresh Python and test_updater's uv tool (both see the run's
+  PYTHONPATH, which this worktree needs). In Chromium: the structure tabs, Scripts IDE, script files, Structures
+  and APIs, Data Explorer (its structure result now opens a tab: the test says so), notebook kinds, open file,
+  navigation, Environment, blade tab, project session and desktop keys pages: 34 passed.

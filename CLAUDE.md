@@ -473,7 +473,9 @@ src/swissarmybench/
                          the code, and the tables contract (table_calls: exactly the switched-on calls)
     structures.py        Structures: JSON, YAML (the adapter's), XML (no DOCTYPE or entity) and TOML (written
                          here); paths ($.orders[3], [*]); steps replayed on the original (pick, filter, rename,
-                         remove, set, add, sort, flatten); records for a grid; shapes; a structure's lineage
+                         remove, set, add, sort, flatten); records for a grid; shapes; a structure's lineage; a
+                         tab's tree edits on the file itself (edit: set, rename, remove, add, duplicate, move), the
+                         search in the document's order, a node as Python (code_of: data["orders"][3]["lines"])
     shared_catalog.py    the shared catalog (the library's catalog/<connection>.json): tables, columns, keys, relationships,
                          used_by, present/gone; the file's text (sorted, one table per block, byte-stable), read back
                          (merge markers and broken JSON said), a listing applied (gone since a date, pruned after N
@@ -588,11 +590,15 @@ src/swissarmybench/
                          the small lint (compile, undefined names, unused imports, f-strings, == None, bare
                          except) and its fixes, where an import goes, SQL's syntax by sqlglot, the ranking
     workbench_pages.py   Notebooks and Scripts, two pages (2026-11-21): which page a file or a kind opens on, the
-                         one line a wrong-kind take is refused with, the old /workbench addresses, a command's page
+                         one line a wrong-kind take is refused with, the old /workbench addresses, a command's page;
+                         a structure's file (.json, .yaml, .yml, .xml, .toml; never a canvas, a .design.json nor
+                         .sab/: is_structure_path) a tab on the page it was opened from, from outside the Scripts
+                         page (home_of_path; 2026-11-22)
     code_tree.py         the pages' explorers: a .py's module (scripts/etl/load.py is etl.load), its outline by ast,
                          the groups (Your scripts, Project code, made files and what they are made from, the
                          library's Connections, APIs, Key vaults, Widgets, Generated), the notebooks' (one list,
-                         data.ipynb first)
+                         data.ipynb first); both pages' Structures (structure_group: the project's top and its
+                         structures/ folder)
     script_ide.py        the Scripts IDE's rules: search and replace across the scripts (regex, case, word), a
                          rename's plan and preview that never writes a made file, a Python name checked; a
                          module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
@@ -640,7 +646,8 @@ src/swissarmybench/
                          named without the token, the app's command line, its channel's messages (open, file,
                          status, quit), the clipboard the one permission, window titles, the launcher's icon (PNG,
                          .ico) made with the stdlib; a file opened with the app (its kind: a table, a notebook, a
-                         blade, a project; the table's free name)
+                         blade, a structure (a .json, .yaml, .xml or .toml: its tab on the Scripts page; JSON lines
+                         a table), a project; the table's free name)
     lifecycle.py         the server's life: windows, the grace, the start grace, the app closed, the last client's
                          ten minutes, busy, held; when it stops and why (app_lifecycle)
     claude.py            Launch Claude: Claude Code and Claude Desktop found loosely (registry, Store, Start menu,
@@ -883,7 +890,11 @@ src/swissarmybench/
                          API blade's tables made again, Refresh then apply, rename, delete (the agent's on Allow)
     structures.py        Structures: open (a file, a paste, New, an API's answer, a kernel's value), the text
                          view, steps, Open as grid, Save and Save as (the project's structures/), the project's
-                         files and the ones open (project.json), sab.structure's read, references, lineage
+                         files and the ones open (project.json), sab.structure's read, references, lineage; the
+                         file's own text kept as typed (its parse error, text_error, never refused), a tab's tree
+                         edits, Format, search, Reload and Keep mine, a tab's Save (the text, only changed bytes,
+                         never over a file changed on disk: its hash; a text that does not parse saved with a
+                         warning) apart from the page's (the steps' result) (2026-11-22)
     folders.py           the page's own file picker (a folder's names: real paths; its quick places; New folder)
     file_dialogs.py      the system's own file dialog on the user's click (403 for the agent), the picker's places
                          and recent folders per kind of pick
@@ -1126,7 +1137,8 @@ src/swissarmybench/
     live_updates.py      the pages' and VS Code windows' sockets (the app's windows counted for the server's life)
     folders.py           a folder's contents for the page's own picker (hidden ones on request), its places (Home,
                          Desktop, Documents, Downloads), New folder
-    code_files.py        a code file's stamp and hash, a folder's code files (hidden folders, caches, environments out)
+    code_files.py        a code file's stamp and hash, a folder's code files (hidden folders, caches, environments out;
+                         the open project's structure files too: a structure's tab follows them)
     script_ide.py        Jedi's go to definition, references and rename (ScriptCode), a file read and written
                          atomically, Ruff's format on stdin
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
@@ -1370,8 +1382,17 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          function into a picked script, opened there) and Discover (its Allow said, Take it
                          back); actionPicker.ts the one action picker for any API (the canvas's endpoint
                          property, In source and Event call: grouped by API); structuresPage.ts the Structures page (open=structures: tabs, the
-                         tree and the text, steps, Open as grid, Save, Run again, Lineage) and structureTree.ts
-                         its tree and text view (shared with the APIs page);
+                         tree and the text, steps, Open as grid, Save, Run again, Lineage; off the rail, where an API's
+                         answer and a kernel's value open) and structureTree.ts its tree and text view (shared with
+                         the APIs page, the Structures page and a structure's tab: folding, Show more, search marks,
+                         the found match, right-click and a list's drag for the tab); structurePaths.ts its pure parts
+                         (a path's words and Python code, the search's matches, which files are a structure's tab);
+                         structureDoc.ts a structure's tab in the code pages' groups, beside the code (2026-11-22, the
+                         owner: "I want it beside the ide so you can search and explore"): an IDE on codeIde.ts (Save,
+                         Save as…, Cancel, Tree | Text | Both, Format; the text editable at all times, the server's
+                         parse its realtime linter; the tree and the text in step both ways; search with Next and
+                         Previous, the path with Copy path and Copy as code; Transform: steps as a view, Open as grid;
+                         Reload / Keep mine on a change on disk);
                          pythonConnectionForm.ts is its form for Python (your own code): three code
                          boxes and the environment variables they read;
                          starters.ts is the starter pack in the page: Copy as your own, a snippet's drag,

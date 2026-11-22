@@ -3171,14 +3171,20 @@ def _structure_summary(answer: Any) -> Any:
 
 @command(
     "structures_show",
-    "A structure's shape (types, counts, keys), its record lists, and the node at path, capped like rows",
+    "A structure's shape (types, counts, keys), its record lists, and the node at path, capped like rows; "
+    "search: where words stand (each match's path and Python code)",
     req("structure", "Its id or name."),
     opt("path", "$.orders[0] (default $)."),
+    opt("search", "Words to find in its keys and values (the file's; through its steps with path=result)."),
     values=True,
 )
 def structures_show(a: dict[str, Any]) -> Any:
+    sid = _q(a["structure"])
+    if a.get("search"):
+        view = "result" if a.get("path") == "result" else "file"
+        return api.call("GET", f"/structures/{sid}/search?words={_q(a['search'])}&view={view}")
     query = f"?path={_q(a['path'])}" if a.get("path") else ""
-    return api.call("GET", f"/structures/{_q(a['structure'])}/describe" + query)
+    return api.call("GET", f"/structures/{sid}/describe" + query)
 
 
 @command(
@@ -3213,15 +3219,27 @@ def structures_step_remove(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_edit",
-    "Change a structure: its whole text (only with no steps), the format it is written in, or its name",
+    "Change a structure's file (unsaved until structures_save): its text (kept as typed; text_error says "
+    "where it does not parse), a node (edit), Format, the format it is written in, or its name",
     req("structure", "Its id or name."),
     opt("text", "The new text, in its format."),
+    opt(
+        "edit",
+        '{"op": set|rename|remove|add|duplicate|move, "path", "value"|"key","to"|"to": index}.',
+        "json",
+    ),
+    opt("format_text", "true: written again in its own format (JSON indented by 2).", "bool"),
     opt("format", "json, yaml, xml or toml."),
     opt("name", "A new name."),
 )
 def structures_edit(a: dict[str, Any]) -> Any:
+    sid = _q(a["structure"])
+    if a.get("edit") is not None:
+        return _structure_summary(api.call("POST", f"/structures/{sid}/edit", a["edit"]))
+    if a.get("format_text"):
+        return _structure_summary(api.call("POST", f"/structures/{sid}/format", {}))
     body = {k: a[k] for k in ("text", "format", "name") if a.get(k) is not None}
-    return _structure_summary(api.call("PUT", f"/structures/{_q(a['structure'])}", body))
+    return _structure_summary(api.call("PUT", f"/structures/{sid}", body))
 
 
 @command(
@@ -3238,19 +3256,29 @@ def structures_open_as_grid(a: dict[str, Any]) -> Any:
 
 @command(
     "structures_save",
-    "Save a structure to its file; with name, format, folder or path: Save as (default: the project's "
-    "structures/ folder)",
+    "Save a structure to its file (as_text: its text as typed, only changed bytes, never over a file "
+    "changed on disk); with name, format, folder or path: Save as; disk=reload|keep_mine after a change",
     req("structure", "Its id or name."),
+    opt("as_text", "true: the file's text (a tab's Save), not the steps' result.", "bool"),
     opt("name", "Save as: its file's name."),
     opt("format", "Save as: json, yaml, xml or toml."),
     opt("folder", "Save as: the folder."),
     opt("path", "Save as: the whole path."),
+    opt("disk", "reload (the file as it is now) or keep_mine (the next save writes over it)."),
 )
 def structures_save(a: dict[str, Any]) -> Any:
     sid = _q(a["structure"])
-    body = {k: a[k] for k in ("name", "format", "folder", "path") if a.get(k)}
-    if body:
+    if a.get("disk") in ("reload", "keep_mine"):
+        route = {"reload": f"/structures/{sid}/reload", "keep_mine": f"/structures/{sid}/keep-mine"}[
+            a["disk"]
+        ]
+        return _structure_summary(api.call("POST", route, {}))
+    body = {k: a[k] for k in ("name", "format", "folder", "path", "as_text") if a.get(k)}
+    if body.keys() - {"as_text"}:
         return api.call("POST", f"/structures/{sid}/save-as", body)
+    if a.get("as_text"):
+        # The text as the app holds it, over the file as it was read (a change on disk since refuses it).
+        return _structure_summary(api.call("POST", f"/structures/{sid}/save", {"hash": None}))
     return api.call("POST", f"/structures/{sid}/save", {})
 
 

@@ -74,6 +74,10 @@ import { mountExplorerPane } from "./workbenchExplorer";
 import { type ExplorerResult, type ExplorerState, openDataWindow } from "./dataExplorer";
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
 import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
+import { openStructureDoc, type StructureDoc, type StructureView } from "./structureDoc";
+import { isStructurePath } from "./structurePaths";
+import type { Part } from "./structureTree";
+import { openStructures } from "./lazyPages";
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
@@ -114,7 +118,7 @@ watchTheme();
 
 interface Doc {
   id: number;
-  kind: "notebook" | "script" | "blade" | "table" | "workbook" | "codefile" | "library";
+  kind: "notebook" | "script" | "blade" | "table" | "workbook" | "codefile" | "library" | "structure";
   title: string;
   path: string | null;
   modified: number | null;
@@ -136,6 +140,8 @@ interface Doc {
   modes?: ModeFrame;
   /** A code app's file (workbenchCodeFile.ts, the Power Apps extension's plug-in): TypeScript or TSX. */
   codefile?: CodeFileView;
+  /** A JSON, YAML, XML or TOML file beside the code (structureDoc.ts): its tree and its text, an IDE. */
+  structure?: StructureDoc;
   /** Its file's text's hash as this window last read or wrote it (the file_changed notice is compared). */
   hash?: string | null;
   /** Its file changed elsewhere while it had unsaved edits (or is gone): Save waits for the choice. */
@@ -1352,6 +1358,10 @@ function close(doc: Doc, moved = false): void {
   doc.script?.dispose();
   doc.console?.dispose();
   doc.codefile?.dispose();
+  if (doc.structure) {
+    doc.structure.dispose();
+    void api(`/structures/${encodeURIComponent(doc.structure.id)}`, "DELETE").catch(() => undefined); // closed there too
+  }
   docs.splice(docs.indexOf(doc), 1);
   tablesSent.delete(doc);
   flows.delete(doc);
@@ -1400,6 +1410,72 @@ void whenMode();
 
 registerTabKind({ id: "codefile", label: "Code file", icon: "codeapp", mark: "script" });
 registerTabKind({ id: "library", label: "Library source", icon: "key", mark: "plain" });
+registerTabKind({ id: "structure", label: "Structure", icon: "json", mark: "plain" });
+
+// ===== a structure's file beside the code (2026-11-22, the owner: "I want it beside the ide so you can search
+// and explore"): its tree and its text, an IDE (structureDoc.ts), on the page it was opened from =====
+
+/** A Python document is open in this window: the structure's Copy as code is offered. */
+const pythonBeside = (): boolean => docs.some((d) => d.kind === "script" || d.kind === "notebook");
+
+/** A structure's file (or an open structure by its id) as a tab in the focused group; one tab a file. `at`: a
+ *  node to select. */
+async function openStructureTab(target: { path?: string; id?: string }, at: Part[] | null = null): Promise<Doc | null> {
+  const already = docs.find((d) => d.structure && ((target.path && d.path === target.path) || (target.id && d.structure.id === target.id)));
+  if (already) {
+    show(already);
+    if (at?.length) already.structure!.select(at);
+    return already;
+  }
+  const doc = makeDoc("structure", target.path ? baseName(target.path) : "Structure", target.path ?? null, null);
+  let view: StructureDoc | null = null;
+  try {
+    view = await openStructureDoc(
+      target,
+      {
+        pythonBeside,
+        dirty: (dirty) => {
+          if (doc.dirty === dirty) return;
+          doc.dirty = dirty;
+          drawTabs();
+        },
+        renamed: (title, path) => {
+          doc.title = title;
+          doc.path = path;
+          drawTabs();
+          remember();
+          codexHooks.refresh();
+        },
+        close: () => close(doc, true),
+        openPage: (id) => openStructures(id),
+      },
+      at,
+    );
+  } catch (e) {
+    docs.splice(docs.indexOf(doc), 1);
+    errorHere(e);
+    return null;
+  }
+  if (!view) {
+    docs.splice(docs.indexOf(doc), 1); // a missing package: its prompt is up
+    return null;
+  }
+  doc.structure = view;
+  doc.path = view.path() ?? doc.path;
+  if (!target.path) doc.title = view.title();
+  doc.element.append(view.element);
+  show(doc);
+  return doc;
+}
+
+/** The structure in front (or the one of `path`), for the palette's and the agent's structure commands. */
+function structureOf(args: Record<string, unknown>): StructureDoc {
+  const path = typeof args.path === "string" ? args.path : null;
+  const doc = path ? docs.find((d) => d.structure && d.path === path) : current?.structure ? current : docs.find((d) => d.structure);
+  if (!doc?.structure) throw new Error(path ? `${path} is not open as a structure here: structure.open opens it.` : "No structure is open here: structure.open opens one.");
+  if (doc !== current) show(doc);
+  return doc.structure;
+}
 
 // ===== a library's source, read-only (go to definition outside the project: the owner's IDE shows it) =====
 
@@ -1569,9 +1645,13 @@ function splitDoc(doc: Doc | null, side: Side): void {
 
 // ===== files =====
 
+const STRUCTURE_SUFFIXES = [".json", ".yaml", ".yml", ".xml", ".toml"];
+
 async function open(path?: string): Promise<void> {
-  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: PAGE === "scripts" ? [".py"] : [".ipynb", ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])], start: sab.folder ?? current?.path ?? homeFolder }));
+  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [...(PAGE === "scripts" ? [".py"] : [".ipynb", ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])]), ...STRUCTURE_SUFFIXES], start: sab.folder ?? current?.path ?? homeFolder }));
   if (!chosen) return;
+  // A JSON, YAML, XML or TOML file: a structure's tab here, beside the code (where it is: never copied in).
+  if (isStructurePath(chosen)) return void (await openStructureTab({ path: chosen }));
   // Documents are the project's (the owner, 2026-11-16): a file from outside it is copied in, and the copy opens.
   if (!path && sabOpen() && sab.folder && !inFolder(chosen, sab.folder)) {
     try {
@@ -1693,6 +1773,10 @@ function elsewhereBar(doc: Doc, hash: string | null): void {
 /** A file_changed notice: each document of that file follows (in place when unchanged here). */
 function fileChanged(path: string, hash: string | null): void {
   for (const doc of docs.filter((d) => d.path === path)) {
+    if (doc.structure) {
+      doc.structure.changedOnDisk(hash); // the structure's own (taken at once when clean; else Reload / Keep mine)
+      continue;
+    }
     if (hash !== null && hash === doc.hash) continue; // this window's own save, or the same text
     if (hash === null || doc.dirty || !(doc.script || doc.notebook)) elsewhereBar(doc, hash);
     else void reloadDoc(doc).catch((e: Error) => errorToast(e));
@@ -1707,6 +1791,7 @@ async function save(doc: Doc | null, as = false): Promise<boolean> {
     const where = await chooseFile({ title: "Save workbook design as", mode: "save", start: doc.path ?? project?.folder ?? homeFolder, name: `workbook${WORKBOOK_ENDING}` });
     return where ? doc.workbook.save(where.toLowerCase().endsWith(".json") ? where : where + WORKBOOK_ENDING) : false;
   }
+  if (doc?.structure) return as ? doc.structure.saveAs() : doc.structure.save();
   if (doc?.codefile) {
     await doc.codefile.save();
     doc.dirty = false;
@@ -2183,7 +2268,7 @@ function drawStatus(): void {
       envHost.dataset.doc = String(doc.id);
     }
   } else {
-    clear(kernelHost, doc ? h("span", { class: "hint" }, doc.kind === "blade" ? "Blade" : "Table") : null);
+    clear(kernelHost, doc ? h("span", { class: "hint" }, doc.kind === "blade" ? "Blade" : doc.kind === "structure" ? "Structure" : "Table") : null);
     clear(envHost);
     envHost.dataset.doc = "";
   }
@@ -2253,6 +2338,13 @@ const explorerPane = mountExplorerPane({
     return t.document ? (t.cell ? `cell ${t.cell} of ${t.document}` : t.document) : "a notebook or a script (none is in front)";
   },
   showGrid: (grid) => showGridAtHome(grid),
+  // A Structures result: its tab here, beside the code, at its node (a structure with no file of its own by id).
+  openStructure: (r: ExplorerResult) => {
+    const at = Array.isArray(r.parts) ? (r.parts as Part[]) : null;
+    const path = typeof r.file === "string" && isStructurePath(r.file) ? r.file : undefined;
+    const id = typeof r.structure === "string" ? r.structure : undefined;
+    void openStructureTab(path ? { path } : { id }, at).catch((e: unknown) => errorHere(e));
+  },
   openVariable: (name?: string) => openEnvironment("setting", name),
   addTable: (anchor) => void openMenu(anchor, "Add a table", tableEntries()),
   toggled: () => {
@@ -2592,7 +2684,7 @@ const rail = mountRail({
 // ===== restore after a reload =====
 
 interface Remembered {
-  kind: "notebook" | "script";
+  kind: "notebook" | "script" | "structure";
   path: string | null;
   modified: number | null;
   dirty: boolean;
@@ -2619,8 +2711,8 @@ function rememberNow(): void {
   rememberTimer = null;
   const kept = (withOutputs: boolean): Remembered[] =>
     docs
-      .filter((d) => d.notebook || d.script)
-      .map((d) => ({
+      .filter((d) => d.notebook || d.script || (d.structure && d.path))
+      .map((d): Remembered => d.structure ? { kind: "structure", path: d.path, modified: null, dirty: false, python: null } : ({
         kind: d.notebook ? "notebook" : "script",
         path: d.path,
         modified: d.modified,
@@ -2629,7 +2721,8 @@ function rememberNow(): void {
         // A saved document comes back from its file; only changed ones keep their text here.
         ...(d.dirty || !d.path ? (d.notebook ? { cells: d.notebook.cells().map((c) => (withOutputs ? c : { ...c, outputs: [] })), next_cell: d.notebook.nextCell(), ...dataBody(d) } : { text: d.script!.text() }) : {}),
       }));
-  const code = docs.filter((d) => d.notebook || d.script);
+  // A structure comes back from its file (its unsaved text is the server's, kept while it is open).
+  const code = docs.filter((d) => d.notebook || d.script || (d.structure && d.path));
   const at = current ? code.indexOf(current) : -1;
   // The groups as they are: each document by its place in `docs` (a blade or a table is left out).
   const layoutNow = groups.save((d) => (code.includes(d) ? code.indexOf(d) : null));
@@ -2678,7 +2771,7 @@ async function restore(): Promise<boolean> {
       }
       continue;
     }
-    if (wrongPage(r.kind, PAGE)) continue; // the other page's
+    if (wrongPage(r.kind, PAGE) || r.kind === "structure") continue; // the other page's
     const doc = r.kind === "notebook" ? openNotebook(r.path, r.cells ?? [], r.modified, r.next_cell, r.dictionary) : openScript(r.path, r.text ?? "", r.modified);
     doc.python = r.python;
     if (r.python && !pythons.some((p) => p.python === r.python)) pythons.push({ python: r.python, version: "", ipykernel: true, swissarmybench: true });
@@ -2914,6 +3007,7 @@ function documents(): unknown {
       kernel: d.kernel ? { id: d.kernel.id, state: d.kernel.state, runs_waiting: Math.max(0, d.kernel.running - 1) } : null,
       python: d.python,
       selected_cell: d.notebook ? d.notebook.selected() : null,
+      ...(d.structure ? { structure: d.structure.state() } : {}),
       group: groups.indexOf(d),
     })),
     // The tab groups in reading order: each one's documents (by index), the one in front, the focused one.
@@ -2973,6 +3067,30 @@ const COMMANDS: Command[] = [
   } },
   // Documents
   { id: "documents", agentOnly: true, group: "Documents", title: "What is open", run: () => documents() },
+  // A structure's tab (structureDoc.ts): open, search and explore, as the user does.
+  { id: "structure.open", group: "Structure", title: "Open a JSON, YAML, XML or TOML file beside the code…", args: "path: the file; at: a node to select ($.orders[3])", run: async (a) => {
+    const path = text(a, "path");
+    if (!path) return open();
+    const doc = await openStructureTab({ path });
+    if (!doc?.structure) throw new Error(`${path} did not open (a missing package says so on the screen).`);
+    const at = text(a, "at");
+    if (at) doc.structure.select(at);
+    return doc.structure.state();
+  } },
+  { id: "structure.search", group: "Structure", title: "Search the structure in front", args: "words; path: its file (default: the one in front)", run: (a) => {
+    const view = structureOf(a);
+    view.search(text(a, "words") ?? "");
+    return view.state();
+  } },
+  { id: "structure.next", group: "Structure", title: "Next match", keys: "Enter", args: "back: true for the previous one", run: (a) => structureOf(a).next(a.back === true ? -1 : 1) },
+  { id: "structure.select", agentOnly: true, group: "Structure", title: "Select a node by its path (its way unfolded)", args: "at: $.orders[3].lines; path: its file", run: (a) => structureOf(a).select(text(a, "at") ?? "$") },
+  { id: "structure.view", group: "Structure", title: "Tree, Text or Both", args: "view: tree, text or both", run: (a) => {
+    const v = text(a, "view");
+    if (v !== "tree" && v !== "text" && v !== "both") throw new Error("view is tree, text or both.");
+    structureOf(a).setView(v as StructureView);
+  } },
+  { id: "structure.format", group: "Structure", title: "Format the structure in front", run: (a) => structureOf(a).format() },
+  { id: "structure.state", agentOnly: true, group: "Structure", title: "The structure in front: its view, selection, search and problems", run: (a) => structureOf(a).state() },
   { id: "doc.read", agentOnly: true, group: "Documents", title: "The front document's text or cells", when: isCode, whyNot: "no notebook or script is in front", run: () => (current?.notebook ? { kind: "notebook", cells: current.notebook.cells() } : { kind: "script", text: script().text() }) },
   { id: "doc.repoint", agentOnly: true, group: "Documents", title: "Point an open document's cells at another connection (unsaved until Save)", args: "path; from; to; cells: the cells' own numbers (null: a script's main code)", run: (a) => repointDocument(a) },
   { id: "doc.show", group: "Documents", title: "Show a document", args: "index, or path", run: (a) => {

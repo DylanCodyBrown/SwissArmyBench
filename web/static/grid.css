@@ -20175,3 +20175,204 @@ body.wb-full .wb-col-right {
   font-size: 11px;
   white-space: nowrap;
 }
+
+/* A structure's tab beside the code (structureDoc.ts, 2026-11-22): codeIde's shell, the tree in the editor's place
+   (Tree), beside it (Both) or the text alone (Text); the search, the selected node's path, the steps. */
+.wb-doc-body.kind-structure {
+  display: flex;
+  height: 100%;
+  padding: 0;
+}
+
+.structure-doc {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sd-stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sd-find,
+.sd-path,
+.sd-steps,
+.sd-error {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sd-find > .icon-svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  flex: none;
+}
+
+.sd-search {
+  flex: 0 1 280px;
+  min-width: 120px;
+}
+
+.sd-count {
+  min-width: 64px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sd-path {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.sd-path-text {
+  overflow: hidden;
+  min-width: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sd-steps {
+  flex-wrap: wrap;
+}
+
+.sd-steps-label {
+  font-size: 12px;
+}
+
+.sd-steps[hidden],
+.sd-error[hidden],
+.sd-through[hidden] {
+  display: none;
+}
+
+.sd-error {
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.sd-error .icon-svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.sd-tree {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sd-tree > .structure-tree {
+  max-height: none;
+}
+
+.sd-views,
+.sd-through {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.structure-row.found {
+  background: var(--highlight);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.structure-row.selected.found {
+  background: var(--selected);
+}
+
+.structure-row.drop-here {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.structure-row[draggable="true"] {
+  cursor: grab;
+}
+
+/* Both: the tree beside the text, the panel under them. */
+.structure-ide.view-both .ide-center {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-auto-rows: auto;
+}
+
+.structure-ide.view-both .ide-center > .ide-stage {
+  grid-row: 1;
+  grid-column: 1;
+  border-right: 1px solid var(--border);
+}
+
+.structure-ide.view-both .ide-center > .ide-editor {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.structure-ide.view-both .ide-center > :not(.ide-stage):not(.ide-editor) {
+  grid-column: 1 / -1;
+}
+
+.sd-format-chip {
+  margin-left: 6px;
+  font-size: 11px;
+}
+
+/* The structure tab's bar and panes stay one row however narrow its group is: the words go before the icons. */
+.structure-ide {
+  container-type: inline-size;
+}
+
+.btn.sd-view-btn {
+  min-height: 24px;
+  padding: 1px 8px;
+  font-size: 0.86em;
+}
+
+.sd-views {
+  flex: none;
+  flex-wrap: nowrap;
+  margin: 0 4px;
+}
+
+.sd-stage {
+  container-type: inline-size;
+}
+
+.sd-path,
+.sd-find {
+  overflow: hidden;
+}
+
+.sd-path .btn,
+.sd-find .btn {
+  flex: none;
+}
+
+@container (max-width: 760px) {
+  .structure-ide .ide-bar .btn.ide-btn .btn-label {
+    display: none;
+  }
+}
+
+@container (max-width: 560px) {
+  .sd-path .btn .btn-label {
+    display: none;
+  }
+  .sd-search {
+    min-width: 80px;
+  }
+}

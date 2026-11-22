@@ -4,12 +4,16 @@
   open       a file (the file chooser), pasted text (its format found or chosen), New (an empty object
              or list), an API's response (services/apis.py), a Workbench kernel's value (sab.show_structure)
              or a value the agent sends; each a tab of the Structures page, kept in memory
-  text       the text view's edit: the original replaced (only while there are no steps: with steps the
-             text is the steps' result, read-only)
-  steps      added, removed, undone, redone; replayed on the original, which is never changed until Save
+  text       the file's own text, edited at any time (2026-11-22, the owner: "this is an IDE not a save
+             form"): kept as typed, read again into the original whenever it parses (the error at its line
+             when it does not); an edit in a tab's tree (edit) writes the text again from the value; Format
+             writes it again in its own format
+  steps      added, removed, undone, redone; replayed on the original, a view of the file for making grids
+             (they never lock the text; the Structures page's Save writes their result, a tab's the text)
   grid       a list of records at any path as a grid (a table in DuckDB), its origin the structure and path
   save       to its file, or Save as (JSON, YAML, XML, TOML) into the open project's structures/ folder
-             (else the Workbench's own folder); nothing is written outside Save
+             (else the Workbench's own folder); nothing is written outside Save, only changed bytes; a file
+             changed on disk since it was read is never written over (Conflict: Reload or Keep mine)
   project    the project's structures/ files are its own: listed with the project (domain/sab_files.py),
              and the ones open when it was saved open again with it
   use        `sab.structure("gates")` answers the saved file's value; where code names it (the references)
@@ -30,7 +34,7 @@ from swissarmybench.domain import datasets as dataset_rules
 from swissarmybench.domain import structures as rules
 from swissarmybench.domain.structures import Step, StructureError
 from swissarmybench.domain.table_cells import Origin
-from swissarmybench.services.workspace import NotFound, Workspace
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 FOLDER = "structures"  # inside a project's working folder
 MAX_OPEN = 100
@@ -86,13 +90,21 @@ class Opened:
     origin: dict[str, Any] = field(default_factory=dict)
     steps: list[Step] = field(default_factory=list)
     redo: list[Step] = field(default_factory=list)
-    edited: bool = False  # the original changed since it was read (a paste, New, the text view)
+    edited: bool = False  # never saved to a file of its own (a paste, New, an API's answer)
     version: int = 0
     grids: list[tuple[str, str]] = field(default_factory=list)  # (table, path): made with Open as grid
+    text: str = ""  # the document's own text, as typed (the original is its last good parse)
+    disk: str | None = None  # the file's text as last read or written here
+    hash: str | None = None  # the file's hash then (the file_changed notice is compared with it)
+    text_error: str | None = None  # the text does not parse: where and why
+
+    @property
+    def text_dirty(self) -> bool:
+        return self.edited or self.disk is None or self.text != self.disk
 
     @property
     def dirty(self) -> bool:
-        return self.edited or bool(self.steps)
+        return self.text_dirty or bool(self.steps)
 
 
 class Structures:
@@ -126,6 +138,9 @@ class Structures:
         self._lock = asyncio.Lock()
         # The Variables page (services/variables.py, set once built): a path's ${NAME} (12.7).
         self.variables: Any = None
+        # A file's hash now, and a write said to every window (services/code_files.py, set once built).
+        self.hash_of: Callable[[str], Awaitable[str | None]] | None = None
+        self.touched: Callable[[str, str], Awaitable[str | None]] | None = None
 
     # ===== what is open =====
 
@@ -156,6 +171,9 @@ class Structures:
             "steps": [step.to_json() | {"words": rules.describe(step)} for step in s.steps],
             "can_redo": bool(s.redo),
             "dirty": s.dirty,
+            "text_dirty": s.text_dirty,
+            "text_error": s.text_error,
+            "hash": s.hash,
             "version": s.version,
             "type": rules.kind(result),
             "count": len(result) if isinstance(result, dict | list) else None,
@@ -167,18 +185,23 @@ class Structures:
         """The open structures (tabs), and the project's structure files (cards)."""
         return {"open": [self._summary(s) for s in self._open.values()], "files": self.files()}
 
-    def show(self, sid: str, with_text: bool = True) -> dict[str, Any]:
-        """One open structure for the page: its result and, written in its format, its text."""
+    def show(self, sid: str, with_text: bool = True, view: str = "result") -> dict[str, Any]:
+        """One open structure for the page: its value (view "result": through its steps; "file": the
+        original, as the file's text says) and its own text, as typed."""
         s = self._get(sid)
         out = self._summary(s)
-        if out["error"] is None:
-            result = self.value(s)
-            out["value"] = result
-            if with_text:
+        if view == "file":
+            out["value"] = s.original
+        elif out["error"] is None:
+            out["value"] = self.value(s)
+        if with_text:
+            out["text"] = s.text
+            if s.steps and view == "result" and out["error"] is None:
+                # The Structures page's text view with steps: their result, read-only (as before 2026-11-22).
                 try:
-                    out["text"] = self._codecs.dump(result, s.format)
-                except StructureError as error:
-                    out["text"], out["text_error"] = self._codecs.dump(result, "json"), str(error)
+                    out["result_text"] = self._codecs.dump(out["value"], s.format)
+                except StructureError:
+                    out["result_text"] = self._codecs.dump(out["value"], "json")
         return out
 
     def node(self, sid: str, path: str = "$") -> Any:
@@ -244,12 +267,14 @@ class Structures:
             raise StructureError("A structure is a .json, .yaml, .yml, .xml or .toml file.")
         for s in self._open.values():
             if s.path == full:
-                return self.show(s.id)
+                return self.show(s.id, view=str(body.get("view") or "result"))
         text = await asyncio.to_thread(self._files.read, full)
         value = await asyncio.to_thread(self._codecs.parse, text, fmt)
         s = self._add(self._free_name(rules.name_of(full)), fmt, value, full, {"kind": "file"}, False)
+        s.text, s.disk = text, text
+        s.hash = await self._hash(full)
         await self._changed(s, who, "structure_open")
-        return self.show(s.id)
+        return self.show(s.id, view=str(body.get("view") or "result"))
 
     async def paste(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{"text", "format"? (found when not given), "name"?}."""
@@ -261,6 +286,7 @@ class Structures:
         value = await asyncio.to_thread(self._codecs.parse, text, fmt)
         name = self._free_name(rules.check_name(body.get("name") or "Pasted"))
         s = self._add(name, fmt, value, None, {"kind": "paste"}, True)
+        s.text = text
         await self._changed(s, who, "structure_paste")
         return self.show(s.id)
 
@@ -281,12 +307,17 @@ class Structures:
             origin["kind"] = "agent" if who == "agent" else "new"
         name = self._free_name(rules.check_name(body.get("name") or "Untitled"))
         s = self._add(name, fmt, value, None, origin, True)
+        try:
+            s.text = await asyncio.to_thread(self._codecs.dump, value, fmt)
+        except StructureError:  # a value the format cannot hold (TOML and a null): written as JSON
+            s.text, s.format = rules.dump(value, "json"), "json"
         await self._changed(s, who, "structure_new")
         return self.show(s.id)
 
     async def from_api(self, name: str, value: Any, origin: dict[str, Any], who: str) -> dict[str, Any]:
         """An API's response, opened as a new tab (the APIs page's Send): its origin is the call."""
         s = self._add(self._free_name(rules.check_name(name)), "json", value, None, dict(origin), True)
+        s.text = rules.dump(value, "json")
         await self._changed(s, who, "structure_from_api")
         return self._summary(s)
 
@@ -297,6 +328,10 @@ class Structures:
             raise StructureError(f"{s.name} did not come from an API call: there is nothing to run again.")
         value, origin = await self.rerun(dict(s.origin), who)
         s.original, s.origin, s.edited = value, dict(origin), True
+        try:
+            s.text, s.text_error = await asyncio.to_thread(self._codecs.dump, value, s.format), None
+        except StructureError:
+            s.text, s.format, s.text_error = rules.dump(value, "json"), "json", None
         await self._changed(s, who, "structure_run_again")
         return self.show(s.id)
 
@@ -326,25 +361,99 @@ class Structures:
     # ===== the text view =====
 
     async def set_text(self, sid: str, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"text", "format"?}: the text view's edit (only while there are no steps)."""
+        """{"text", "format"?, "view"?}: the text as typed, kept whether it parses or not (an IDE keeps what
+        is typed); the original follows it whenever it parses, else `text_error` says where (line and
+        column) and the original stays its last good parse. The steps replay on it. With "view" the answer
+        holds the value too (file: the original; result: through the steps), never the text again."""
         s = self._get(sid)
         text = body.get("text") if isinstance(body, dict) else None
         if not isinstance(text, str):
             raise StructureError('Send {"text": "..."}.')
-        if s.steps:
-            raise StructureError("The text is the steps' result: remove the steps (or Save) to edit it.")
+        if len(text) > MAX_VALUE_CHARS:
+            raise StructureError("The text is too big (50 MB at most).")
         fmt = rules.check_format(body.get("format") or s.format)
-        s.original = await asyncio.to_thread(self._codecs.parse, text, fmt)
-        s.format, s.edited = fmt, True
+        s.text, s.format = text, fmt
+        try:
+            s.original = await asyncio.to_thread(self._codecs.parse, text, fmt)
+            s.text_error = None
+        except StructureError as error:
+            s.text_error = str(error)
         await self._changed(s, who, "")
-        return self._summary(s)
+        view = body.get("view")
+        return self.show(s.id, False, str(view)) if view in ("file", "result") else self._summary(s)
 
     async def set_format(self, sid: str, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"format"}: the text view written in another format (Save writes that format)."""
+        """{"format"}: the text written again in another format (Save writes that format)."""
         s = self._get(sid)
-        s.format = rules.check_format(body.get("format") if isinstance(body, dict) else None)
+        fmt = rules.check_format(body.get("format") if isinstance(body, dict) else None)
+        self._parsed(s)
+        s.text = await asyncio.to_thread(self._codecs.dump, s.original, fmt)
+        s.format = fmt
         await self._changed(s, who, "")
         return self.show(s.id)
+
+    def _parsed(self, s: Opened) -> None:
+        if s.text_error:
+            raise StructureError(f"{s.name} does not parse: {s.text_error} Mend the text first.")
+
+    async def format_text(self, sid: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Format: the text written again in its own format (JSON indented by 2, the keys in their order);
+        refused while the text does not parse. {"view"?} as set_text; the text comes back."""
+        s = self._get(sid)
+        self._parsed(s)
+        s.text = await asyncio.to_thread(self._codecs.dump, s.original, s.format)
+        await self._changed(s, who, "")
+        view = body.get("view") if isinstance(body, dict) else None
+        return self.show(s.id, True, str(view) if view in ("file", "result") else "result")
+
+    async def edit(self, sid: str, body: Any, who: str = "user") -> dict[str, Any]:
+        """An edit in a tab's tree on the file itself (domain/structures.py edit: set, rename, remove, add,
+        duplicate, move): the original changed and its text written again in its format (as Format writes
+        it: a YAML or TOML comment goes). {"view"?} as set_text; the text comes back."""
+        s = self._get(sid)
+        self._parsed(s)
+        raw = body.get("edit") if isinstance(body, dict) and isinstance(body.get("edit"), dict) else body
+        value = rules.edit(s.original, raw)
+        text = await asyncio.to_thread(self._codecs.dump, value, s.format)
+        s.original, s.text = value, text
+        op = str(raw.get("op")) if isinstance(raw, dict) else ""
+        await self._changed(s, who, "structure_edit", edit=op)
+        view = body.get("view") if isinstance(body, dict) else None
+        return self.show(s.id, True, str(view) if view in ("file", "result") else "result")
+
+    def search(self, sid: str, words: str, view: str = "file") -> dict[str, Any]:
+        """Where words stand in its keys and values (the file's value; through its steps: view result), in
+        the document's order, each with its path and its code (data["orders"][3])."""
+        s = self._get(sid)
+        value = s.original if view == "file" else self.value(s)
+        return {"id": s.id, "name": s.name} | rules.search(value, words)
+
+    async def reload(self, sid: str, who: str = "user") -> dict[str, Any]:
+        """Reload: the file read again (its text and value as they are on disk now; the steps kept)."""
+        s = self._get(sid)
+        if not s.path:
+            raise StructureError(f"{s.name} has no file to read again.")
+        try:
+            text = await asyncio.to_thread(self._files.read, s.path)
+        except OSError:
+            raise NotFound(f"{s.path} is gone.") from None
+        s.text, s.disk = text, text
+        s.hash = await self._hash(s.path)
+        try:
+            s.original, s.text_error = await asyncio.to_thread(self._codecs.parse, text, s.format), None
+        except StructureError as error:
+            s.text_error = str(error)
+        await self._changed(s, who, "structure_reload")
+        return self.show(s.id)
+
+    async def keep_mine(self, sid: str, who: str = "user") -> dict[str, Any]:
+        """Keep mine: the file on disk as it is now is the one the next Save writes over (its hash taken)."""
+        s = self._get(sid)
+        if s.path:
+            s.hash = await self._hash(s.path)
+            s.disk = None  # what is on disk now is not this text: the next Save writes
+        await self._changed(s, who, "")
+        return self._summary(s)
 
     # ===== steps =====
 
@@ -436,23 +545,71 @@ class Structures:
         return self._files.join(project, FOLDER) if project else self._default_folder()
 
     async def _write(self, s: Opened, path: str, fmt: str) -> None:
-        text = await asyncio.to_thread(self._codecs.dump, self.value(s), fmt)
+        """The steps' result written in `fmt` (with no steps, in its own format and parsing: the text as
+        typed, its own bytes)."""
+        if not s.steps and fmt == s.format and not s.text_error and s.text:
+            text = s.text
+        else:
+            text = await asyncio.to_thread(self._codecs.dump, self.value(s), fmt)
         await asyncio.to_thread(self._files.write, path, text)
+        s.text, s.disk, s.text_error = text, text, None
+        s.hash = await (self.touched(path, "user") if self.touched else self._hash(path))
 
-    async def save(self, sid: str, who: str = "user") -> dict[str, Any]:
-        """To its own file, in its format; the steps become the original (the file is the result)."""
+    async def save(self, sid: str, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """To its own file. {} (the Structures page, the agent's structures_save): the steps' result written
+        in its format, the steps then the original (as before; with no steps the text as typed). {"text"?,
+        "hash"?, "force"?} (a tab's Save: the IDE): the file's text written as it is, only when its bytes
+        change, the steps kept as the view; `hash` the file's as the tab read it: a file changed on disk
+        since is never written over (Conflict: Reload, or Keep mine), unless `force`. A text that does not
+        parse is written all the same: the answer's `warning` says where."""
         s = self._get(sid)
         if not s.path:
             raise StructureError(f"{s.name} has no file yet: Save as names one.")
-        fmt = rules.format_of(s.path) or s.format
-        await self._write(s, s.path, fmt)
-        self._saved(s, s.path, fmt)
-        await self._changed(s, who, "structure_save")
-        return self._summary(s)
+        body = body if isinstance(body, dict) else {}
+        if "text" not in body and "hash" not in body:
+            fmt = rules.format_of(s.path) or s.format
+            await self._check_disk(s, None, bool(body.get("force")))
+            await self._write(s, s.path, fmt)
+            self._saved(s, s.path, fmt)
+            await self._changed(s, who, "structure_save")
+            return self._summary(s)
+        if isinstance(body.get("text"), str):
+            await self.set_text(s.id, {"text": body["text"]}, who)
+        said = body.get("hash")
+        await self._check_disk(s, said if isinstance(said, str) else None, bool(body.get("force")))
+        written = await self._write_text(s, s.path)
+        s.edited = False
+        await self._changed(s, who, "structure_save", written=written)
+        warning = f"Saved, but it does not parse: {s.text_error}" if s.text_error else None
+        return self._summary(s) | {"written": s.path if written else None, "warning": warning}
 
-    def _saved(self, s: Opened, path: str, fmt: str) -> None:
-        s.original = self.value(s)
-        s.steps, s.redo, s.edited = [], [], False
+    async def _check_disk(self, s: Opened, said: str | None, force: bool) -> None:
+        """A file changed on disk since it was read here (by the hash the page holds, else the one read
+        here) is never written over silently."""
+        if force or not s.path or self.hash_of is None:
+            return
+        now = await self.hash_of(s.path)
+        known = said if said is not None else s.hash
+        if now is not None and known is not None and now != known:
+            raise Conflict(f"{s.name} changed on disk since it was read: Reload, or Keep mine and Save.")
+
+    async def _write_text(self, s: Opened, path: str) -> bool:
+        """The text written to `path` when those bytes are not there already (True: written)."""
+        if s.disk == s.text and path == s.path and s.hash is not None:
+            return False
+        await asyncio.to_thread(self._files.write, path, s.text)
+        s.disk = s.text
+        s.hash = await (self.touched(path, "user") if self.touched else self._hash(path))
+        return True
+
+    async def _hash(self, path: str) -> str | None:
+        return await self.hash_of(path) if self.hash_of else None
+
+    def _saved(self, s: Opened, path: str, fmt: str, keep_steps: bool = False) -> None:
+        if not keep_steps:
+            s.original = self.value(s)
+            s.steps, s.redo = [], []
+        s.edited = False
         s.path, s.format = path, fmt
         s.name = (
             rules.name_of(path)
@@ -464,9 +621,10 @@ class Structures:
         )
 
     async def save_as(self, sid: str, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"name"?, "format"?, "folder"? | "path"?}: written there (the project's structures/ folder by
-        default). TOML that cannot hold the result (a null, a list at the top) says so: save as JSON or
-        YAML."""
+        """{"name"?, "format"?, "folder"? | "path"?, "as_text"?}: written there (the project's structures/
+        folder by default). TOML that cannot hold the result (a null, a list at the top) says so: save as
+        JSON or YAML. as_text (a tab's Save as): the file's text, not the steps' result (in another format:
+        the file's value written in it), the steps kept as the view."""
         s = self._get(sid)
         body = body if isinstance(body, dict) else {}
         fmt = rules.check_format(body.get("format") or s.format)
@@ -478,8 +636,17 @@ class Structures:
         else:
             folder = str(body.get("folder") or self.folder())
             path = self._files.join(folder, rules.file_name(str(body.get("name") or s.name), fmt))
-        await self._write(s, path, fmt)
-        self._saved(s, self._files.full(path), fmt)
+        if body.get("as_text"):
+            if fmt != s.format:
+                self._parsed(s)
+                s.text = await asyncio.to_thread(self._codecs.dump, s.original, fmt)
+            await asyncio.to_thread(self._files.write, path, s.text)
+            s.disk = s.text
+            s.hash = await (self.touched(path, "user") if self.touched else self._hash(path))
+            self._saved(s, self._files.full(path), fmt, keep_steps=True)
+        else:
+            await self._write(s, path, fmt)
+            self._saved(s, self._files.full(path), fmt)
         await self._changed(s, who, "structure_save_as", format=fmt)
         return self._summary(s) | {"written": s.path}
 

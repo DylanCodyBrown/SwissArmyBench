@@ -6,16 +6,22 @@ POST   /structures/open                 {"path"}: a .json, .yaml, .xml or .toml 
 POST   /structures/paste                {"text", "format"?, "name"?}
 GET    /structures/saved?name=&path=    a saved structure's value (sab.structure)
 GET    /structures/references?name=     where code calls sab.structure(name)
-GET    /structures/{id}                 its result, written in its format too (text)
+GET    /structures/{id}?view=           its value (result: through its steps; file: the file's) and its
+                                        own text as typed
+GET    /structures/{id}/search?words=&view=  where words stand: each match's path and code
 GET    /structures/{id}/describe?path=  its shape, record lists and a capped preview (the agent's read)
 DELETE /structures/{id}                 closed
-PUT    /structures/{id}                 {"text"} the text view's edit | {"format"} | {"name"}
+PUT    /structures/{id}                 {"text", "view"?} the text as typed (kept when it does not parse:
+                                        text_error) | {"format"} | {"name"}
+POST   /structures/{id}/edit            an edit in a tab's tree on the file itself (its text written again)
+POST   /structures/{id}/format          Format: the text written again in its own format
+POST   /structures/{id}/reload          Reload: the file read again; POST /keep-mine: Keep mine
 POST   /structures/{id}/steps           a step; POST /structures/{id}/steps/remove {"index"?}
 POST   /structures/{id}/undo, /redo
 POST   /structures/{id}/grid            {"path"?, "name"?}: Open as grid
 POST   /structures/{id}/run-again       an API call's structure: the call sent again, its steps kept
 GET    /structures/{id}/lineage         the call (or file) -> it -> its steps -> the grids made from it
-POST   /structures/{id}/save            to its file
+POST   /structures/{id}/save            to its file ({"text", "hash", "force"?}: a tab's Save, the text)
 POST   /structures/{id}/save-as         {"name"?, "format"?, "folder"? | "path"?}
 """
 
@@ -44,7 +50,25 @@ def routes(structures: Structures) -> list[BaseRoute]:
         return json_response(structures.references(request.query_params.get("name", "")))
 
     async def show(request: Request) -> Response:
-        return json_response(structures.show(sid(request)))
+        view = request.query_params.get("view", "result")
+        return json_response(structures.show(sid(request), view="file" if view == "file" else "result"))
+
+    async def search(request: Request) -> Response:
+        q = request.query_params
+        return json_response(structures.search(sid(request), q.get("words", ""), q.get("view", "file")))
+
+    async def edit(request: Request) -> Response:
+        return json_response(await structures.edit(sid(request), await read_json(request), actor(request)))
+
+    async def format_text(request: Request) -> Response:
+        body = await read_json(request)
+        return json_response(await structures.format_text(sid(request), body, actor(request)))
+
+    async def reload(request: Request) -> Response:
+        return json_response(await structures.reload(sid(request), actor(request)))
+
+    async def keep_mine(request: Request) -> Response:
+        return json_response(await structures.keep_mine(sid(request), actor(request)))
 
     async def describe(request: Request) -> Response:
         return json_response(structures.describe(sid(request), request.query_params.get("path", "$")))
@@ -87,7 +111,8 @@ def routes(structures: Structures) -> list[BaseRoute]:
         return json_response(structures.lineage(sid(request)))
 
     async def save(request: Request) -> Response:
-        return json_response(await structures.save(sid(request), actor(request)))
+        body = await read_json(request)
+        return json_response(await structures.save(sid(request), body, actor(request)))
 
     async def save_as(request: Request) -> Response:
         return json_response(await structures.save_as(sid(request), await read_json(request), actor(request)))
@@ -103,6 +128,11 @@ def routes(structures: Structures) -> list[BaseRoute]:
         Route("/structures/{sid}", close, methods=["DELETE"]),
         Route("/structures/{sid}", change, methods=["PUT"]),
         Route("/structures/{sid}/describe", describe, methods=["GET"]),
+        Route("/structures/{sid}/search", search, methods=["GET"]),
+        Route("/structures/{sid}/edit", edit, methods=["POST"]),
+        Route("/structures/{sid}/format", format_text, methods=["POST"]),
+        Route("/structures/{sid}/reload", reload, methods=["POST"]),
+        Route("/structures/{sid}/keep-mine", keep_mine, methods=["POST"]),
         Route("/structures/{sid}/steps", step, methods=["POST"]),
         Route("/structures/{sid}/steps/remove", remove_step, methods=["POST"]),
         Route("/structures/{sid}/undo", undo, methods=["POST"]),

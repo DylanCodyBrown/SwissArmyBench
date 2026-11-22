@@ -8,7 +8,9 @@
  *             Files (Ctrl+B), resized by its edge; no project open: one line with a link to Home.
  *   [GROUPS]  the server's (GET /project/tree?page=, domain/code_tree.py): Scripts by module in groups (Your
  *             scripts, Project code, the library's code, what the app generates), Notebooks with the data
- *             notebook first. Never the other page's kind.
+ *             notebook first. Never the other page's kind. Both pages end with Structures (2026-11-22): the
+ *             project's JSON, YAML, XML and TOML files at its top and in structures/, each a tab beside the code
+ *             (structureDoc.ts).
  *   [OUTLINE] a module unfolds to its classes (their methods), functions and constants; a click goes to the
  *             line. The open document's outline follows its text as it is typed (POST /project/module-outline).
  *   [MARKS]   open (its name strong), unsaved (●), read-only (a key), edited by hand (a pencil).
@@ -20,6 +22,7 @@ import { button, clear, h, icon, type MenuItem, showMenu } from "./dom";
 import { errorHere } from "./errorNote";
 import { kindIcon } from "./kindColours";
 import { goHome } from "./nav";
+import { isStructurePath } from "./structurePaths";
 import type { CodePage } from "./workbenchPages";
 
 export interface Symbol {
@@ -145,14 +148,15 @@ export function mountCodeExplorer(host: CodeExplorerHost): CodeExplorer {
           title: file.made_from ? `${file.path}: made from ${file.made_from}` : file.path,
           onclick: () => host.open(file),
         },
-        icon(file.item ? "table" : host.page === "scripts" ? "code" : kindIcon("notebook", file.full)),
-        h("span", { class: "wb-codex-name" }, host.page === "scripts" && file.module && !file.item ? file.module : file.name),
+        icon(file.item ? "table" : isStructurePath(file.path) ? "json" : host.page === "scripts" ? "code" : kindIcon("notebook", file.full)),
+        h("span", { class: "wb-codex-name" }, host.page === "scripts" && file.module && !file.item ? file.module : file.folder && isStructurePath(file.path) ? file.path : file.name),
         now.dirty.includes(file.full) ? h("span", { class: "wb-codex-dirty", title: "Not saved", "aria-label": "Not saved" }, "●") : null,
         file.edited ? h("span", { class: "wb-codex-mark edited", title: "Edited by hand", "aria-label": "Edited by hand" }, icon("edit")) : file.read_only ? h("span", { class: "wb-codex-mark locked", title: file.made_from ? `Made from ${file.made_from}: read-only` : "Read-only", "aria-label": "Read-only" }, icon("key")) : null,
       ),
       ...(file.actions ?? []).map((a) => button(a.label, () => host.action?.(file, a.id), { class: "ghost wb-codex-action", title: a.label })),
     );
-    const own = !!host.fileAction && !file.item && !file.library && !file.read_only && !file.made_from;
+    // A module's own actions (rename with its imports, a package's); never a structure's file.
+    const own = !!host.fileAction && !file.item && !file.library && !file.read_only && !file.made_from && !isStructurePath(file.path);
     if (own) {
       const fileButton = row.querySelector<HTMLElement>(".wb-codex-file")!;
       const folder = file.full.replace(/[\\/][^\\/]*$/, "");

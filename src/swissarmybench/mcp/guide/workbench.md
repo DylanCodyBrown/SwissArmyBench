@@ -36,6 +36,8 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   other, and "file.open" of a `.stapp.json` says so in one line.
   The Files pane (the page's notebooks or scripts) and, on Scripts, the Blades pane are columns on the right
   of the code, each shown or hidden by its status bar button ("view.files", Ctrl+B; "view.blades").
+  A JSON, YAML, XML or TOML file opens as a structure's tab beside the code, on either page ("structure.open";
+  its tree, search and text: the structures guide).
   The Data Explorer (the left pane, off until opened: "view.explorer", Ctrl+Shift+E) sits beside every
   document; "documents" panes.data_explorer says open or closed. "explorer.search" searches it
   (as `explorer_search`), "explorer.insert" puts a result's insert code in the front document's cell,

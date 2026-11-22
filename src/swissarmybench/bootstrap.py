@@ -1501,7 +1501,10 @@ def _shared_catalog_part(b: Built) -> None:
         ),
         code_file_disk.stamp,
         code_file_disk.file_hash,
-        code_file_disk.code_files_in,
+        # The open project's structure files too (a structure's tab follows its file), never the library's.
+        lambda folder: code_file_disk.code_files_in(
+            folder, structures=bool(sab_projects.current and folder == sab_projects.current.folder)
+        ),
         code_file_disk.resolve,
         b.settings.file_watch_seconds,
     )
@@ -1509,6 +1512,9 @@ def _shared_catalog_part(b: Built) -> None:
         sab_projects, b.archive, b.library, b.connections, on_saved=b.catalog_loading.saved
     )
     b.code_files.listeners.append(b.project_scope.saw)  # a made file saved by hand is marked so
+    # A structure's tab follows its file as a script does (its hash; its Save said to every window).
+    b.structures.hash_of = b.code_files.hash_now
+    b.structures.touched = b.code_files.touched
 
 
 # ----- the variables, Find connections, app registrations, Set up this computer -----

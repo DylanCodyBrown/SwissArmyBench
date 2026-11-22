@@ -200,10 +200,15 @@ def file_page(path: str, info: dict[str, Any]) -> str:
             return f"/scripts?pane=blades&blade={quote(stem, safe='')}"  # its tab on the Scripts page
         except OSError:
             pass  # not one of the library's: its file in the Workbench
-    # A notebook on the Notebooks page, a .py on the Scripts page (the owner, 2026-11-21).
-    page = workbench_pages.url_of(workbench_pages.page_of_path(full) or "notebooks")
+    # A notebook on the Notebooks page, a .py on the Scripts page (the owner, 2026-11-21); a structure's
+    # file a tab beside the code on the Scripts page (2026-11-22).
+    home = workbench_pages.home_of_path(full) or "notebooks"
+    page = workbench_pages.url_of(home)
+    told = {"command": "file.open", "args": {"path": full}}
+    if kind == rules.STRUCTURE:
+        told["page"] = home
     try:
-        post_json(info, "/workbench/window", {"command": "file.open", "args": {"path": full}}, timeout=30)
+        post_json(info, "/workbench/window", told, timeout=30)
         return page  # the page's window that opened it, brought forward
     except OSError:
         return f"{page}?file={quote(full, safe='')}"  # no window of that page: one that opens it

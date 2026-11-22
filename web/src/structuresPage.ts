@@ -9,7 +9,9 @@
  *             a Workbench kernel's dict or list. With none open, the project's structure files as cards.
  *   [VIEWS]   the tree and the text side by side (or one of them): a click on a node says its path
  *             ($.orders[3].lines, Copy); a double click edits a value or a key (each a step); the text in
- *             its format's colours, its error at its line, edited only while there are no steps.
+ *             its format's colours, its error at its line, edited only while there are no steps (then the
+ *             file's own text, kept as typed). A file opened from the code pages' Files pane is a tab there
+ *             instead, beside the code (structureDoc.ts): its text always the file's, the steps a view.
  *   [STEPS]   a strip of steps as the grid's: Pick, Filter, Rename, Remove, Set, Add, Sort, Flatten, each
  *             from the selected node's actions; Undo, Redo; a step's × removes it.
  *   [MAKE]    Open as grid (a list of records at any path); Save, Save as (JSON, YAML, XML, TOML);
@@ -62,6 +64,8 @@ interface Shown extends Summary {
   value?: Value;
   text?: string;
   text_error?: string;
+  /** With steps: their result written in its format (the text view, read-only here). */
+  result_text?: string;
 }
 
 interface FileCard {
@@ -471,16 +475,17 @@ function drawPage(): void {
     } else tree = null;
     if (view !== "tree") {
       let timer = 0;
-      text = mountText(current.text ?? "", current.format, (t) => {
+      // With steps the text view shows their result, read-only (as this page always did); with none it is the
+      // file's own text, kept as typed (2026-11-22), its error at its line.
+      text = mountText((current.steps.length ? current.result_text : current.text) ?? "", current.format, (t) => {
         window.clearTimeout(timer);
         timer = window.setTimeout(async () => {
           try {
-            const done = await api<Summary>(`/structures/${encodeURIComponent(current.id)}`, "PUT", { text: t });
-            text?.setError(null);
-            const fresh = await api<Shown>(`/structures/${encodeURIComponent(current.id)}`);
-            doc = fresh;
-            tree?.set(fresh.value ?? null);
-            void done;
+            const done = await api<Shown>(`/structures/${encodeURIComponent(current.id)}`, "PUT", { text: t, view: "result" });
+            text?.setError(done.text_error ?? null);
+            if (done.text_error) return;
+            doc = { ...done, text: t };
+            tree?.set(done.value ?? null);
             void refreshTabs();
           } catch (e) {
             text?.setError((e as Error).message);

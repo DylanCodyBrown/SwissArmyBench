@@ -178,7 +178,12 @@ def test_a_structures_path_opens_at_its_node(browser: Browser, server: dict[str,
     )
     found.hover()
     found.get_by_role("button", name="Open at this node").click()
-    shown = page.locator(".area-page[data-page='structures']")
+    # In the code pages, a tab beside the code (2026-11-22: structureDoc.ts), at its node.
+    shown = page.locator(".wb-doc-body.kind-structure:visible")
     expect(shown).to_be_visible(timeout=20000)
-    expect(shown.get_by_text("$.plums[0].grower.farm_id").first).to_be_visible(timeout=10000)
+    expect(page.locator(".wb-tab[data-kind='structure']", has_text="plum crates")).to_be_visible()
+    expect(shown.locator(".sd-path-text")).to_have_text("$.plums[0].grower.farm_id", timeout=10000)
+    expect(shown.locator(".structure-row.selected")).to_have_attribute(
+        "data-path", "$.plums[0].grower.farm_id"
+    )
     page.context.close()
