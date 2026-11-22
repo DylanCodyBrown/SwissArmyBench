@@ -26,7 +26,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `connections_`, `variables_` | connections; variables; access | `connections_list`, `variables_resolve`, `app_registration_check` |
 | `library_`, `team_`, `sharing_` | library; team; sharing | `team_join`, `sharing_start` |
 | `apis_`, `actions_`; `sandbox_`, `api_` | APIs, any API call; local APIs | `actions`, `apis_call`; `sandbox`, `api` |
-| `structures_` | JSON, YAML, XML, TOML | `structures_open`, `structures_show` |
+| `structures_`; `environment_` | JSON, YAML; all a project holds | `structures_open`; `environment` |
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
 | `blades_` | saved code, starters | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
@@ -52,8 +52,8 @@ No prefix: `guide`, `commands`, `health`.
 - Prefer steps on the user's grid; name a number's table.
 
 ## More
-- `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, blades, workbench,
-  streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, extensions, writing, privacy. Or
+- `guide(topic=...)`: grids, analyze, relationships, connections, apis, structures, environment, blades,
+  workbench, streamlit, projects, library, sandbox, accounting, powerapps, powerbi, git, extensions, writing, privacy. Or
   swissarmybench://guide/<topic>.
 - swissarmybench://analyze/contracts: each analysis's contract; then `analyze_run`.
 - `commands(match="word")`: each tool's arguments.

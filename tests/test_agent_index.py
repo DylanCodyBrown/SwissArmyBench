@@ -31,6 +31,11 @@ INDEX_LIMIT = 4_000
 GUIDE = files("swissarmybench.mcp")
 
 
+# Words shaped like a command that are an argument's name: Power Apps' environment_id (the Environment's one
+# tool, `environment`, made its word a prefix, 2026-11-22).
+ARGUMENTS = {"environment_id"}
+
+
 def index() -> str:
     return GUIDE.joinpath("index.md").read_text(encoding="utf-8")
 
@@ -40,7 +45,7 @@ def named_commands(text: str) -> set[str]:
     prefixes = "|".join(re.escape(area) for area, _ in AREAS if area != "help")
     named = set(re.findall(rf"\b((?:{prefixes})_[a-z_]+)\b", text))
     named |= {word for word in HELP_COMMANDS if re.search(rf"`{word}[`(]", text)}
-    return {name for name in named if not name.endswith("_")}
+    return {name for name in named if not name.endswith("_")} - ARGUMENTS
 
 
 def test_the_index_is_short() -> None:

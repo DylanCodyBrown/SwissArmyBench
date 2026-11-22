@@ -240,6 +240,7 @@ NOT_COMMANDS = {
     "/sandbox/data/{}/read": "adapter's read from that process, as Arrow (the agent calls the API)",
     "/sandbox/data/{}/query": "adapter's query from that process, as Arrow (the agent calls the API)",
     "/sandbox/data/{}/write": "adapter's write from that process, as Arrow (the agent calls the API)",
+    "/environment/columns": "a table's columns for the row that unfolds: environment's show answers them",
     "/sharing/install": "devtunnel's download: sharing_start does it for the agent, on the user's Allow",
     "/sharing/sign-in": "signing in to share (Microsoft Entra) is the user's own (403 for the agent)",
     "/team/show": "Show its folder opens the user's own file manager: the user's click only (403 for the "
@@ -940,6 +941,9 @@ def test_the_agent_guide_only_names_commands_that_exist() -> None:
     guide = "\n".join([execute("guide"), *(execute("guide", {"topic": topic}) for topic in GUIDE_TOPICS)])
     prefixes = "|".join(area for area, _ in AREAS if area != "help")
     named = set(re.findall(rf"\b((?:{prefixes})_[a-z_]+)\b", guide))
+    named -= {
+        "environment_id"
+    }  # an argument of powerapps_new, not a command (the `environment` tool's prefix)
     unknown = sorted(n for n in named if n not in REGISTRY and not n.endswith("_"))
     assert unknown == [], f"the guide names commands that do not exist: {unknown}"
     assert {"tabs_new_query", "column_keep", "cell_exclude", "steps_add", "agent_events"} <= named

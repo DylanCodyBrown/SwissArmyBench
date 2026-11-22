@@ -4965,3 +4965,35 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
 - The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,032 passed, 45 skipped, none failed.
 - Not checked: Edge; Windows; a real outside API (only the stand-ins and recorded payloads); YAML answers (no PyYAML
   in this venv); the canvas's Events and API widgets through api_adapter (not built).
+## The Environment (2026-11-22, branch environment; Plans/environment.plan.md)
+
+What was checked:
+- **The rules** (tests/test_environment_rules.py, 9 tests): cells that use a name by document and number (a Python
+  name as written, a table's name in SQL in any case), canvas widgets, API.py endpoints, analyses, the ERD, tables
+  made from a table; the one search over every tab by the Data Explorer's matching (by parts, in any case, a row
+  matched itself or inside); requirements.txt pinned, unpinned, added to and taken from with every other line and
+  comment as it was and the same text again changing no byte; the Libraries rows (what is required or imported, a
+  newer version only when it is newer, never pip or a dependency nobody chose); a secret setting never carrying its
+  value; Clear never taking a kept or a sandbox table.
+- **Over HTTP** (tests/test_environment.py, 11 tests): one list with every kind and where each is used; the search's
+  counts; Rename, Remove, Clear (the agent's refused until the user's Allow, then declined: nothing cleared); a table
+  Python holds listed at once (In Python) and opened on request by its session; Open makes a view, never a second
+  table; Pin, Update (a pinned one updated by name is pinned at its new version; Update all skips it), Install, with
+  requirements.txt read back byte for byte; the agent's install waiting for Allow; the watcher looking at once after
+  a cell runs and sending names, types and sizes, never a value; the kernel's rename keeping the same object.
+- **In Chromium** (tests/e2e/test_environment_page.py, light, and dark for the screenshots): the rail's Environment
+  (the Variables and Structures items gone), five tabs, a table arriving listed with no Refresh, the search (counts
+  lit, "Also matches in", the match marked), a table unfolding to its columns with ranges and blanks, the keys
+  (Left, Right, Delete, Ctrl+B), a Used in grid link going to the grid, Remove sending the Python tick, a secret
+  masked and its value nowhere in the page, the Libraries tab against a made-up index and made-up installs
+  (tests/libraries_standin.py), the tab kept in the address over a reload. The Workbench's pane, the rail, the
+  navigation, Structures, Variables, vault names, first run, data page and table cells browser tests: 85 tests in one run of two processes: 78 passed, 7 failed under load; each of the 7 passed run again one process at a time, but tests/e2e/test_data_page.py's first test, which passes and fails by turns (its fixture takes a catalog away while the connection's own background load may still finish: no Environment request is in its log).
+- The quick suite: 5,008 passed, 41 skipped, 2 failed under load and passed alone (test_performance million rows, test_desktop_shell).
+
+What was not checked:
+- A real `uv pip install` or `pip install` into a real `.venv`, and PyPI itself (both stood in for).
+- A real kernel's "Also delete it in Python" from the page (the kernel's forget and rename are tested on a
+  namespace; the page's request is checked, the kernel call is not driven in a browser).
+- Edge (the browser tests ran in Chromium here), the desktop app's window, a screen reader.
+- Many rows: the list was not measured past a few dozen; a project with hundreds of variables or libraries.
+- Two sessions holding one name: the one that reported last is the row; nothing says there are two.

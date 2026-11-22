@@ -30,6 +30,7 @@ from swissarmybench import extensions as extension_modules
 from swissarmybench.adapters import adapter, api_adapter, blade_run
 from swissarmybench.adapters import code_files as code_file_disk
 from swissarmybench.adapters import datasets as table_reader
+from swissarmybench.adapters import environment as environment_files
 from swissarmybench.adapters import export as export_writer
 from swissarmybench.adapters.apis import ApiFiles, ApiLibrary, SpecSource
 from swissarmybench.adapters.app_registrations import MicrosoftProbe, RegistrationFiles
@@ -111,6 +112,7 @@ from swissarmybench.server.claude_finder import Finder as ClaudeFinder
 from swissarmybench.server.claude_finder import RecordingStarter, StandinFinder, own_command
 from swissarmybench.server.claude_finder import Starter as ClaudeStarter
 from swissarmybench.server.desktop import SystemShell, qt_version
+from swissarmybench.server.environments import ProjectLibraries
 from swissarmybench.server.kernels import Launcher
 from swissarmybench.server.script_check import lint as script_lint
 from swissarmybench.server.text_process import run_text
@@ -144,6 +146,7 @@ from swissarmybench.services.data_export import DataExport
 from swissarmybench.services.datasets import ConnectionTables, DatasetService
 from swissarmybench.services.debugger import Debugger, DebugKernel
 from swissarmybench.services.desktop import Desktop
+from swissarmybench.services.environment import Environment, sources_from
 from swissarmybench.services.explorer import BrowseSources, Explorer, OpenTable
 from swissarmybench.services.export import Exports
 from swissarmybench.services.extensions import Extensions
@@ -257,6 +260,7 @@ class Services:
     script_exports: ScriptExports
     session_log: SessionLog
     variables: Variables
+    environment: Environment
     explorer: Explorer
     connection_swap: ConnectionSwap
     navigation: Navigation
@@ -791,6 +795,8 @@ class Built:
     sandbox: Sandbox
     sandbox_alias: SandboxAlias
     local_api: LocalApi
+    sessions: Sessions
+    environment: Environment
     actions: Actions
     update_helper: UpdateHelper
     extensions: Extensions
@@ -1524,6 +1530,21 @@ def _variables_part(b: Built) -> None:
     b.api_explorer.variables = variables
     if b.audit_log:
         _variables_once(state_dir, b.library, variables)
+    # The Environment (the owner, 2026-11-21/22): everything the project holds (services/environment.py).
+    b.sessions = Sessions(b.processes, b.store, b.live)
+    b.environment = Environment(
+        ws,
+        sources_from(
+            datasets=b.datasets, sab_projects=b.sab_projects, workbench=b.workbench, sessions=b.sessions,
+            structures=b.structures, settings=variables, cards=b.cards, models=b.models,
+            document_paths=lambda: usage_documents(b.documents, b.hooks, b.sab_projects, b.project_files),
+            read=b.documents.read, project_names=b.project_files.names, project_file=b.project_files.read,
+            remove_file=environment_files.remove_structure_file, touched=b.code_files.touched,
+        ),
+        ProjectLibraries(environment_files),
+        b.approvals,
+    )  # fmt: skip
+    b.live.listeners.append(b.environment.heard)
     # Set up from the meta store: what this computer needs before the team's connections work.
     b.library_setup = LibrarySetup(
         ws,
@@ -2059,7 +2080,7 @@ def _services(b: Built) -> Services:
         cards=b.cards,
         inbox=Inbox(ws),
         agent=b.agent,
-        sessions=Sessions(b.processes, b.store, b.live),
+        sessions=b.sessions,
         catalogs=b.catalogs,
         blades=b.blades,
         connections=b.connections,
@@ -2119,6 +2140,7 @@ def _services(b: Built) -> Services:
         process_event=b.process_event,
         session_log=b.session_log,
         variables=b.variables,
+        environment=b.environment,
         explorer=b.explorer,
         connection_swap=b.connection_swap,
         navigation=Navigation(ws, JsonFile(state_dir / "rail.json" if b.audit_log else None)),

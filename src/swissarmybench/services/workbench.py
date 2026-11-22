@@ -5,6 +5,7 @@ audit log names who did each."""
 
 from __future__ import annotations
 
+import json
 import secrets as tokens
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
@@ -350,6 +351,26 @@ class Workbench:
     def kernel_count(self) -> int:
         """How many kernels are running (the question before an update)."""
         return len(self._running)
+
+    def running_kernels(self) -> list[str]:
+        """The running kernels' ids (the Environment reads each one's variables)."""
+        return list(self._running)
+
+    async def kernel_call(self, kernel_id: str, function: str, *args: Any) -> Any:
+        """One of client/kernel_variables.py's functions run in a kernel without printing or entering its
+        history (forget, rename: the Environment's Remove and Rename): its JSON answer. None while the
+        kernel is busy; an empty answer when it is gone or its Python has no package."""
+        kernel = self._running.get(kernel_id)
+        if kernel is None or function not in ("forget", "rename"):
+            return []
+        said = ", ".join(repr(a) for a in args)
+        try:
+            text = await kernel.evaluate(
+                f"__import__('swissarmybench.client.kernel_variables', fromlist=['x']).{function}({said})"
+            )
+        except ValueError:
+            return []
+        return None if text is None else json.loads(text)
 
     def kernel_or_none(self, kernel_id: str) -> Kernel | None:
         """A running kernel by its id (the editors' intelligence asks it; None: not running)."""

@@ -92,7 +92,7 @@ import { updateCommands } from "./updates";
 import { claudeCommands } from "./claudeLaunch";
 import { setDocumentName } from "./workbenchAgent";
 import { fetchTables, type TableInfo } from "./workbenchTables";
-import { variablesPanel } from "./workbenchVariables";
+import { environmentPane } from "./environmentPage";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
@@ -179,10 +179,22 @@ const layout = mountLayout(
   () => focusConsole(),
   () => window.setTimeout(() => drawStatus()),
 );
-const variables = variablesPanel(() => {
-  layout.toggle("right", false);
-  drawStatus();
-});
+// The Environment (the owner, 2026-11-21/22): the same list as its page, in the right pane (it replaced the
+// Variables pane); it follows the app's notices by itself.
+const variables = environmentPane(
+  () => {
+    layout.toggle("right", false);
+    drawStatus();
+  },
+  (code) => {
+    try {
+      explorerInsert(code);
+      return true;
+    } catch {
+      return false; // no notebook or script in front: the code is copied instead
+    }
+  },
+);
 layout.variables.append(variables.element);
 let cursor = { line: 1, column: 1 };
 const docs: Doc[] = [];
@@ -1300,7 +1312,6 @@ function show(doc: Doc): void {
 /** The focused group's document changed: everything that follows the focused document follows. */
 function focused(doc: Doc | null): void {
   current = doc;
-  variables.show(doc?.kernel ?? null);
   // A workbook's design runs no code of its own: its console's place says nothing.
   if (doc?.kind === "workbook") layout.console.replaceChildren();
   else layout.console.replaceChildren(doc?.console?.element ?? h("p", { class: "hint wb-pane-empty" }, "No console"));
@@ -2026,7 +2037,7 @@ const consoleToggle = button("Console", () => {
   layout.toggle("console");
   drawStatus();
 }, { class: "ghost wb-toggle wb-console-toggle", pressed: false });
-const variablesToggle = button("Variables", () => {
+const variablesToggle = button("Environment", () => {
   if (layout.toggle("right")) void variables.refresh();
   drawStatus();
 }, { class: "ghost wb-toggle wb-variables-toggle", pressed: false });
@@ -3057,7 +3068,7 @@ const COMMANDS: Command[] = [
   // View
   { id: "palette", group: "View", title: "Show every command", keys: "Ctrl+Shift+P", run: () => openPalette() },
   { id: "view.source", group: "View", title: "Go to the source", keys: "Ctrl+1", run: () => layout.focus("source") },
-  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", run: () => layout.focus("variables") },
+  { id: "view.variables", group: "View", title: "Go to the Environment", keys: "Ctrl+3", run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
   // Full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable"): the tabs and the editor fill
@@ -3072,7 +3083,7 @@ const COMMANDS: Command[] = [
     const show = typeof a.show === "boolean" ? a.show : undefined;
     return { open: explorerPane.toggle(show), popped: false };
   } },
-  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", run: (a) => {
+  { id: "view.toggleRight", group: "View", title: "Show or hide the Environment", args: "show: true or false (default: the other way)", run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();
     drawStatus();
@@ -3159,7 +3170,7 @@ const COMMANDS: Command[] = [
   { id: "data.closeFlyout", group: "Data", title: "Close the catalog or the blades beside the Data Explorer", when: () => explorerPane.flyoutShown() !== null, whyNot: "neither is open", run: () => explorerPane.flyout(null) },
   { id: "data.addConnection", group: "Data", title: "Add connection…", run: () => openConnections().then(() => void rail.loadBlades()) },
   { id: "data.addApi", group: "Data", title: "Add API…", run: () => addApi() },
-  { id: "view.variablesRefresh", group: "View", title: "Read the variables again", when: isCode, whyNot: "no notebook or script is in front", run: () => variables.refresh().then(() => variables.snapshot()) },
+  { id: "view.variablesRefresh", group: "View", title: "Read the Environment again (its rows: tables, variables, structures, settings, libraries)", run: () => variables.refresh().then(() => variables.snapshot()) },
   // Getting around (nav.ts): the mark's Home, and the browser's Back and Forward inside the app
   { id: "nav.home", group: "Go", title: "Home: Projects, in the home window", keys: "Alt+Home", run: () => goHome() },
   { id: "nav.back", group: "Go", title: "Back", keys: "Alt+Left", when: canGoBack, whyNot: "nothing to go back to in this window", run: () => back() },

@@ -6800,7 +6800,7 @@ dialog .field > .field-row > select {
   min-width: 0;
 }
 
-/* The Variables pane (workbenchVariables.ts), top right */
+/* The Environment pane (environmentPage.ts environmentPane), top right */
 .wb-vars {
   display: flex;
   flex: 1;
@@ -6810,6 +6810,24 @@ dialog .field > .field-row > select {
   padding: 8px 12px;
   overflow: auto;
   background: var(--surface);
+}
+
+.wb-vars.wb-environment {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.wb-environment > .wb-vars-head {
+  flex: none;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.wb-environment > .env {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
 }
 
 .wb-sort {
@@ -19572,4 +19590,598 @@ body.wb-full .wb-col-right {
   font-size: 12px;
   background: var(--surface);
   padding: 8px;
+}
+
+/* ===== The Environment (environmentPage.ts): everything the project holds, a tab for each kind ===== */
+
+.area-page-body.env-page-body {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.env-project {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.env {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  font-size: 13px;
+}
+
+.env-main {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.env.env-folded .env-main {
+  grid-template-columns: minmax(0, 1fr) 36px;
+}
+
+.env-page {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+
+.env-session {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.env-session:empty {
+  display: none;
+}
+
+.env-grow {
+  flex: 1;
+}
+
+.env-tabs {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.env-tab {
+  padding: 8px 14px 7px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.env-tab[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+}
+
+.env-tab:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -2px;
+}
+
+.env-tab i {
+  margin-left: 6px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.env-tab i.hot {
+  border-color: transparent;
+  background: var(--highlight);
+  color: var(--fg);
+}
+
+.env-find {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.env-search {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14px;
+}
+
+.env-hint,
+.env-keys,
+.env-none,
+.env-latest {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.env-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.env-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.env-link:focus-visible,
+.env-row:focus-visible,
+.env-pin:focus-visible,
+.env-update:focus-visible,
+.env-more:focus-visible {
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: -1px;
+}
+
+.env-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.env-list:focus {
+  outline: none;
+}
+
+.env-head,
+.env-row {
+  display: grid;
+  grid-template-columns: var(--env-cols);
+  gap: 10px;
+  align-items: baseline;
+  min-width: 820px;
+  padding: 5px 16px;
+}
+
+.env-compact .env-head,
+.env-compact .env-row {
+  min-width: 0;
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.env-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.env-columns,
+.env-more {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.env-columns svg,
+.env-more svg {
+  width: 16px;
+  height: 16px;
+}
+
+.env-row {
+  border-bottom: 1px solid var(--border);
+  cursor: default;
+}
+
+.env-row:hover {
+  background: var(--row-hover);
+}
+
+.env-row.sel {
+  background: var(--selected);
+}
+
+.env-row.env-child {
+  background: var(--surface);
+}
+
+.env-row.env-child .env-name {
+  padding-left: 16px;
+  font-weight: 400;
+}
+
+.env-twist {
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.env-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-family: Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.env-kind {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  transform: translateY(1px);
+}
+
+.env-k-table {
+  background: var(--cat-2);
+}
+
+.env-k-variable {
+  border-radius: 50%;
+  background: var(--kind-notebook);
+}
+
+.env-k-structure {
+  background: var(--cat-6);
+  transform: rotate(45deg) translateY(1px);
+}
+
+.env-k-setting {
+  background: var(--kind-app);
+}
+
+.env-k-secret {
+  background: var(--warn);
+}
+
+.env-k-sandbox {
+  background: var(--cat-7);
+}
+
+.env-k-library {
+  border-radius: 50% 0;
+  background: var(--muted);
+}
+
+.env-tag {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.env-tag-keep {
+  border-color: transparent;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.env-tag-grid {
+  border-color: var(--cat-2);
+  color: var(--cat-2);
+}
+
+.env-why {
+  color: var(--muted);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.env-type,
+.env-from {
+  min-width: 0;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.env-from {
+  font-size: 12px;
+}
+
+.env-size {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.env-val {
+  min-width: 0;
+  color: var(--muted);
+  font-family: Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.env-val.env-shown {
+  color: var(--fg);
+}
+
+.env mark {
+  padding: 0;
+  border-radius: 2px;
+  background: var(--highlight);
+  color: var(--fg);
+}
+
+.env-pin,
+.env-update {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--raised);
+  color: var(--muted);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.env-pin svg {
+  width: 11px;
+  height: 11px;
+}
+
+.env-pin.on {
+  border-color: transparent;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.env-update {
+  margin-left: 6px;
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.env-latest {
+  margin-left: 6px;
+}
+
+.env-empty {
+  padding: 24px 16px;
+  color: var(--muted);
+}
+
+.env-side {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--surface);
+}
+
+.env-side-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.env-side-name {
+  font-family: Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+  overflow-wrap: anywhere;
+}
+
+.env-side-title .env-fold {
+  margin-left: auto;
+}
+
+.env-folded .env-side {
+  align-items: center;
+  padding-top: 6px;
+}
+
+.env-side-part {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.env-side-part.env-keys {
+  display: block;
+  line-height: 1.9;
+}
+
+.env-kv {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 3px 10px;
+  font-size: 12px;
+}
+
+.env-kv span {
+  overflow-wrap: anywhere;
+}
+
+.env-kv span:nth-child(odd) {
+  color: var(--muted);
+}
+
+.env-used {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  list-style: none;
+}
+
+.env-used li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.env-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.env kbd {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 3px;
+  background: var(--raised);
+  font: 11px Consolas, "Cascadia Mono", ui-monospace, Menlo, monospace;
+}
+
+.env-python-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.env-clear-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* The Workbench's right pane: the same list, narrower, its viewer under it. */
+.env.env-compact {
+  height: 100%;
+  font-size: 12px;
+}
+
+.env-compact .env-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.env-compact .env-page {
+  flex: 1 1 60%;
+  border-right: 0;
+}
+
+.env-compact .env-side {
+  flex: 0 1 40%;
+  border-top: 1px solid var(--border);
+}
+
+.env-compact.env-folded .env-side {
+  flex: none;
+  flex-direction: row;
+  padding: 2px 6px;
+}
+
+.env-compact .env-tabs {
+  padding: 0 4px;
+}
+
+.env-compact .env-tab {
+  padding: 5px 6px 4px;
+  font-size: 11px;
+}
+
+.env-compact .env-tab i {
+  margin-left: 3px;
+  padding: 0 4px;
+}
+
+.env-compact .env-find {
+  padding: 6px 8px;
+}
+
+.env-compact .env-search {
+  flex-basis: 120px;
+  padding: 3px 6px;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .env-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .env-page {
+    border-right: 0;
+  }
+
+  .env-side {
+    max-height: 40vh;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .env-row {
+    transition: background 0.08s;
+  }
+}
+
+.env-pin {
+  justify-self: start;
 }

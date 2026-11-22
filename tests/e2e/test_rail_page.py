@@ -29,8 +29,7 @@ AREAS = [
     "projects",  # first: Home (the owner, 2026-11-21; its address open=projects)
     "connections",
     "apis",
-    "structures",  # beside APIs (the owner, 2026-11-21)
-    "variables",
+    "environment",  # everything the project holds, in the Structures and Variables places (2026-11-22)
     "data",  # the one place to browse tables: Catalog (2026-11-21)
     "grids",
     "erd",
@@ -48,8 +47,7 @@ NAMES = [
     "Home",
     "Connections",
     "APIs",
-    "Structures",
-    "Variables",
+    "Environment",
     "Catalog",
     "Grids",
     "ERD",
@@ -233,10 +231,8 @@ def keyboard_and_tips(browser: Browser, orchard: str) -> None:
     area(page, "erd").focus()
     page.keyboard.press("ArrowDown")
     expect(area(page, "blades")).to_be_focused()  # Blades after the ERD (2026-11-21)
-    for _ in range(7):
-        page.keyboard.press(
-            "ArrowUp"
-        )  # the ERD, the grids, Catalog, Variables, Structures, APIs, Connections
+    for _ in range(6):
+        page.keyboard.press("ArrowUp")  # the ERD, the grids, Catalog, Environment, APIs, Connections
     expect(area(page, "connections")).to_be_focused()
     page.keyboard.press("ArrowUp")  # the mark, the first (2026-11-18)
     expect(area(page, "projects")).to_be_focused()

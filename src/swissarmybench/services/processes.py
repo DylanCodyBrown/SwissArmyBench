@@ -39,8 +39,33 @@ class _Session:
     tables: list[dict[str, Any]]
     last_seen: float
     loaded: set[str] = field(default_factory=set)
+    # What it holds besides tables (names, types and sizes only), how many cells it has run, and the
+    # Workbench kernel it is, when it is one: the Environment's (services/environment.py).
+    variables: list[dict[str, str]] = field(default_factory=list)
+    ran: int = 0
+    kernel: str | None = None
     requests: list[dict[str, str]] = field(default_factory=list)
     waiters: list[asyncio.Event] = field(default_factory=list)
+
+
+MAX_VARIABLES: int = 500
+
+
+def _clean_variables(variables: Any) -> list[dict[str, str]]:
+    """A session's variables as sent: names, types and sizes, each cut short; anything else is left out."""
+    if not isinstance(variables, list):
+        return []
+    cleaned: list[dict[str, str]] = []
+    for entry in variables[:MAX_VARIABLES]:
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str) and entry["name"].isidentifier():
+            cleaned.append(
+                {
+                    "name": entry["name"][:128],
+                    "type": str(entry.get("type") or "")[:128],
+                    "size": str(entry.get("size") or "")[:64],
+                }
+            )
+    return cleaned
 
 
 def valid_process_id(value: str) -> bool:
@@ -116,6 +141,34 @@ class ProcessRegistry:
         changed = (session.label, session.pid, session.tables) != (label, pid, cleaned)
         session.label, session.pid, session.tables = label, pid, cleaned
         return changed
+
+    def note(self, process_id: str, variables: Any, ran: Any, kernel: Any) -> bool:
+        """What a session holds besides its tables, as its report said. True when it changed (a cell ran,
+        a variable came or went): the Environment follows."""
+        session = self._sessions.get(process_id)
+        if session is None:
+            return False
+        cleaned = _clean_variables(variables)
+        count = ran if isinstance(ran, int) and not isinstance(ran, bool) else session.ran
+        named = kernel if isinstance(kernel, str) and valid_process_id(kernel) else None
+        changed = (session.variables, session.ran, session.kernel) != (cleaned, count, named)
+        session.variables, session.ran, session.kernel = cleaned, count, named
+        return changed
+
+    def values(self) -> list[dict[str, Any]]:
+        """Each live session's variables (names, types, sizes) with its label and the kernel it is."""
+        self.prune()
+        return [
+            {
+                "id": s.id,
+                "label": s.label,
+                "kernel": s.kernel,
+                "variables": list(s.variables),
+                "tables": list(s.tables),
+            }
+            # The one that reported last comes last: where two sessions hold a name, the newest is said.
+            for s in sorted(self._sessions.values(), key=lambda s: (s.last_seen, s.id))
+        ]
 
     def touch(self, process_id: str) -> bool:
         """A long poll is also proof of life. False when the session is unknown or has expired."""
@@ -266,8 +319,12 @@ class Sessions:
             raise ValueError("Send an object with label, pid and tables.")
         changed = self.registry.sync(process_id, body.get("label"), body.get("pid"), body.get("tables", []))
         errors = _clean_errors(body.get("errors"))
+        held = self.registry.note(process_id, body.get("variables"), body.get("ran"), body.get("kernel"))
         if changed:
             await self._live.broadcast({"type": "processes_changed"})
+        elif held:
+            # A cell ran, or a variable came or went: no table changed, the Environment's list did.
+            await self._live.broadcast({"type": "environment_changed"})
         # Why a table the user clicked would not open (too large, say): the page shows it as a toast.
         label = next((s["label"] for s in self.registry.snapshot(self._open) if s["id"] == process_id), "")
         for name, message in errors:
@@ -285,6 +342,10 @@ class Sessions:
 
     def listing(self) -> list[dict[str, Any]]:
         return self.registry.snapshot(self._open)
+
+    def values(self) -> list[dict[str, Any]]:
+        """The sessions' variables (names, types and sizes only): the Environment's Variables tab."""
+        return self.registry.values()
 
     def open_table(self, process_id: str, name: str) -> bool:
         """Ask a session to push one of its tables. False when the session or table is gone."""

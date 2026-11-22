@@ -147,6 +147,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "connections": "Connections and catalogs: databases, files, Power BI, your own Python; key vaults, variables",
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
     "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
+    "environment": "The Environment: tables, variables, structures, settings and secrets, libraries; Used in",
     "sandbox": "Local sandbox APIs: the project's sandbox, API.py, mock clients, Run, Try it, Export",
     "blades": "Blades and starters: saved code, the starter pack",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
@@ -4330,6 +4331,57 @@ def sandbox(a: dict[str, Any]) -> Any:
     return api.call(method, path, given, timeout=900)
 
 
+_ENVIRONMENT = {
+    "list": ("GET", "/environment"),
+    "show": ("GET", "/environment/show"),
+    "libraries": ("GET", "/environment/libraries"),
+    "open": ("POST", "/environment/open"),
+    "rename": ("POST", "/environment/rename"),
+    "keep": ("POST", "/environment/keep"),
+    "insert": ("POST", "/environment/insert"),
+    "remove": ("POST", "/environment/remove"),
+    "clear": ("POST", "/environment/clear"),
+    "install": ("POST", "/environment/libraries/install"),
+    "update": ("POST", "/environment/libraries/update"),
+    "pin": ("POST", "/environment/libraries/pin"),
+}
+_ENVIRONMENT_ASKS = {"list": ("search",), "show": ("kind", "name"), "libraries": ("check",)}
+
+
+@command(
+    "environment",
+    "Everything the project holds: tables, variables, structures, settings and secrets, libraries, each "
+    "with where it is used (guide: environment); clear, keep, install, update, pin and a file's delete "
+    "wait for Allow",
+    req("action", ", ".join(_ENVIRONMENT) + "."),
+    opt(
+        "args",
+        'list: {"search"}; show, open, insert: {"kind": table|variable|structure|setting|library, "name"}; '
+        'rename: + {"to"}; remove: + {"python": true} (a table: also delete it in Python); keep: {"name", '
+        '"keep"}; clear: {"tables", "variables", "structures", "dry_run"}; libraries: {"check": true} (ask '
+        'the index); install: {"name"}; update: {"name"} or {"all": true}; pin: {"name", "pinned"}.',
+        "json",
+    ),
+)
+def environment(a: dict[str, Any]) -> Any:
+    action = str(a["action"])
+    if action not in _ENVIRONMENT:
+        raise CommandError(f"action is one of: {', '.join(_ENVIRONMENT)}.")
+    method, path = _ENVIRONMENT[action]
+    given = dict(a.get("args") or {})
+    if method == "GET":
+        asked = {k: str(given[k]) for k in _ENVIRONMENT_ASKS[action] if given.get(k) not in (None, "", False)}
+        if action == "libraries" and "check" in asked:
+            asked["check"] = "1"
+        return api.call(method, path + ("?" + urlencode(asked) if asked else ""), timeout=120)
+    answer = api.call(method, path, given, timeout=900)
+    link = answer.get("link") if action == "open" and isinstance(answer, dict) else None
+    if isinstance(link, dict):  # shown in the app as well: a table's grid, else the Environment page
+        to = f"grid:{link['grid']}" if link.get("to") == "grid" else "environment"
+        api.call("POST", "/navigate", {"to": to})
+    return answer
+
+
 @command(
     "sharing_start",
     "Share a launched app with the organization (sign-in is the user's); waits for Allow",
@@ -4950,7 +5002,8 @@ def app_audit(a: dict[str, Any]) -> Any:
     req(
         "to",
         "the rail: projects (the mark), data (browse tables), grids, analyze, erd, notebooks, scripts, "
-        "apps, blades, connections, variables, session, settings; back, forward, add_connection, add_api; home: "
+        "apps, blades, connections, environment, structures, session, settings; back, forward, add_connection, "
+        "add_api; home: "
         "new_query (the New query page), query, query:<connection> (its draft, Query from set), grid:<id>; "
         "catalog (the blades page): blade:<name>, new_blade",
     ),
@@ -5200,6 +5253,7 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("api", "The project's local sandbox API (API.py): run it, call it, export it for its target"),
     ("actions", "Every API's actions through api_adapter: list, run, shapes and drift, discover, build"),
     ("sandbox", "The project's sandbox: the tables a local sandbox API reads and writes, Reset, checkpoints"),
+    ("environment", "The Environment: everything the project holds, where each is used, its libraries"),
     ("apis", "APIs: each API added with Add API, its operations' inputs and outputs, Try it, Refresh"),
     ("structures", "Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save"),
     ("files", "Folders and files on this computer (the file chooser)"),

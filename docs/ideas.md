@@ -8139,7 +8139,16 @@ what stays, and the connection colour as the card's highlight, not a dot).
 One module, sab_excel, behind the adapter; openpyxl only (xlsxwriter goes; large plain exports get slower: accepted);
 the twelve cell-level starters removed (three remain); any project type may deliver a workbook. Plan: Plans/excel.plan.md.
 
-## The Environment (the owner, 2026-11-21): being designed
+## The Environment (the owner, 2026-11-21): built in part (2026-11-22, branch environment)
+Built: the one list and its agent tool, the page and the Workbench's pane, Remove, Rename, Clear, Keep, Libraries
+(Pin, Update, Install), the watcher's trigger, the Settings and secrets tab. Decisions made while building: a
+table's From says its connection, file or document; the index is PyPI's JSON (SWISSARMYBENCH_PACKAGE_INDEX names a
+mirror); a pinned library updated by name is pinned at its new version; Update all never moves a pinned one; a
+library nobody chose (pip, a dependency) is not listed unless requirements.txt names it or code imports it; Clear
+never takes a kept table, a sandbox table, a setting or a library. Open for the owner: one kernel for the whole
+project and the app making the project's .venv (step 5), the key vaults on the Settings and secrets tab and the
+old Variables address redirected (step 6); Plans/environment.plan.md "What is built" has the list.
+
 "One shared space for all tables at the env level ... each project should have its own env ... a simple trigger and
 watcher for any tables, vars, structures ... easy to browse on one screen ... RStudio handles this concept
 beautifully." Answers: one environment per project replaces per-notebook environments; "variables" means the Python

@@ -315,9 +315,9 @@ def test_the_status_bar_has_the_kernel_its_menu_the_environment_and_the_panes(
     workbench.get_by_role("menuitem", name="Restart").click()
     expect(workbench.locator(".toast", has_text="Restarted")).to_be_visible(timeout=30000)
     # Console and Variables open from here, and say so.
-    status(workbench, "Variables")
-    expect(bar.get_by_role("button", name="Variables")).to_have_attribute("aria-pressed", "true")
-    expect(workbench.get_by_role("region", name="Variables", exact=True)).to_be_visible()
+    status(workbench, "Environment")
+    expect(bar.get_by_role("button", name="Environment")).to_have_attribute("aria-pressed", "true")
+    expect(workbench.get_by_role("region", name="Environment", exact=True)).to_be_visible()
     status(workbench, "Console")
     expect(workbench.locator(".wb-console")).to_be_visible()
     assert window(server, "view.toggleConsole", show=False) == {"shown": False}

@@ -18,6 +18,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 # The grid tests' fixtures (browser, server, orders_url), imported by name.
+from tests.e2e.environment_helpers import open_variables
 from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
 
 
@@ -335,7 +336,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
     dialog = page.locator(".area-page[data-page='connections']")
     try:
         # A key vault is added on the Variables page (its form is the Connections page's).
-        page.locator(".nav-rail [data-area='variables']").click()
+        open_variables(page)
         page.locator('.area-page[data-page="variables"]').get_by_role("button", name="Add key vault").click()
         page.locator(".variables-vault-types .connection-type", has_text="Azure Key Vault").click()
         not_now(page)
@@ -375,7 +376,7 @@ def test_a_key_vault_is_a_connection_made_from_a_password_and_mapped_to_variable
         # The vault is not on the Connections page (it has no tables): the Variables page lists it.
         dialog.locator(".area-page-foot").get_by_role("button", name="Back to Add connection").click()
         expect(dialog.get_by_role("heading", name="Key vaults")).to_have_count(0)
-        page.locator(".nav-rail [data-area='variables']").click()
+        open_variables(page)
         # Its card's detail: what it sets (the Connections page's detail, 2026-11-16).
         page.locator(".variables-vault-card", has_text="Azure Key Vault").click()
         config = dialog.locator(".connection-config")
@@ -799,25 +800,28 @@ def test_the_variables_pane_shows_what_the_kernel_holds(
     workbench.keyboard.type(f"import pandas as pd\nrainfall = pd.DataFrame({frame})")
     workbench.keyboard.press("Control+Enter")
     expect(cell.locator(".wb-count")).to_have_text("[1]", timeout=60000)
-    status(workbench, "Variables")  # closed until the status bar opens it (the redesign of 2026-11-15)
-    overlay = workbench.get_by_role("region", name="Variables")
-    row = overlay.locator("tr", has_text="rainfall")
-    expect(row).to_contain_text("2 × 2", timeout=15000)  # rows by columns (the whole words on hover)
-    expect(row).to_contain_text("columns: city, rain_mm")
-    # A connection no cell has opened is not listed here (the side bar lists them), and there is no
-    # Environment block when no variable of a vault or password is in play.
-    expect(overlay.get_by_role("heading", name="Connections and blades")).to_have_count(0)
-    expect(overlay.get_by_role("heading", name="Environment")).to_have_count(0)
-    expect(overlay.locator("tr", has_text="Orders")).to_have_count(0)
-    # A cell that uses the connection opens it; the overlay reads again when the run ends.
+    status(workbench, "Environment")  # closed until the status bar opens it (the redesign of 2026-11-15)
+    # The Environment (2026-11-22): the same list as its page, in the right pane; it follows the run.
+    overlay = workbench.get_by_role("region", name="Environment", exact=True)
+    overlay.get_by_role("tab", name=re.compile("^Tables")).click()
+    row = overlay.locator('.env-row[data-name="rainfall"]')
+    expect(row).to_contain_text("2 × 2", timeout=30000)  # rows by columns
+    expect(row).to_contain_text("In Python")
+    # A variable the next run makes shows by itself (the watcher's trigger after each cell): no Refresh.
     cell.locator(".monaco-editor").click()
     workbench.keyboard.press("Control+End")
-    workbench.keyboard.type("\nlen(pd.read_csv(orders))")
+    workbench.keyboard.type("\nwettest = 3.5")
     workbench.keyboard.press("Control+Enter")
-    expect(overlay.locator("tr", has_text="orders")).to_contain_text("orders.csv", timeout=30000)
-    # A table opens as a grid in the grid page.
-    row.get_by_role("button", name="Open rainfall as a grid").click()
-    expect(workbench.locator(".toast")).to_contain_text("rainfall is open as a grid", timeout=30000)
+    overlay.get_by_role("tab", name=re.compile("^Variables")).click()
+    expect(overlay.locator('.env-row[data-name="wettest"]')).to_contain_text("3.5", timeout=30000)
+    # A table opens as a grid in the grid page: its session sends it.
+    overlay.get_by_role("tab", name=re.compile("^Tables")).click()
+    row.dblclick()
+    expect(workbench.locator(".toast")).to_contain_text("Opening rainfall from Python", timeout=30000)
+    for _ in range(100):
+        if any(d["name"] == "rainfall" for d in call(server, "GET", "/datasets")["datasets"]):
+            break
+        workbench.wait_for_timeout(200)
     assert any(d["name"] == "rainfall" for d in call(server, "GET", "/datasets")["datasets"])
 
 
@@ -831,7 +835,7 @@ def test_four_panes_a_palette_and_jupyters_keys(browser: Browser, orders_url: st
     expect(workbench.locator(".wb-console-pane .wb-console")).to_be_hidden()
     expect(workbench.locator(".wb-env .wb-vars")).to_be_hidden()
     status(workbench, "Console")
-    status(workbench, "Variables")
+    status(workbench, "Environment")
     expect(workbench.locator(".wb-status").get_by_role("button", name="Console")).to_have_attribute(
         "aria-pressed", "true"
     )

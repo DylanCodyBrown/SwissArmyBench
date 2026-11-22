@@ -191,6 +191,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   download store, checked against the Content-MD5 it publishes and, on Windows and macOS, its Microsoft signature;
   sign-in (`devtunnel user login --entra`, its token in the system's key chain by devtunnel) is the user's own. The
   Session log says which app was shared and stopped, never the link or a token.
+  **The Environment's Libraries tab (the owner, 2026-11-22: "checked when the tab opens, never in the background")
+  asks the package index (PyPI's JSON, a GET a library carrying only its name) for newer versions when the tab opens
+  or the user asks, and installs with uv or pip on the user's Install or Update (the agent's on Allow); it writes
+  the open project's requirements.txt (Pin, Unpin, Install, Remove), only when its bytes change.**
   **Otherwise one request leaves the computer, by the owner's call (2026-11-16):** the update check, PyPI's JSON for
   `swissarmybench` (then GitHub's latest release), at start and every six hours, carrying nothing but
   itself; its on/off is a hidden setting (`update.json`, the agent's `app_update_check on`), and Settings shows only
@@ -518,6 +522,12 @@ src/swissarmybench/
     project_explorer.py  the Project Explorer: projects.json read, each project's card (type, counts, Git
                          branch from .git/HEAD, times, missing, an off extension's "needs"), the sorts and the
                          custom order (moved left and right), the filters, the types explained for beginners
+    environment.py       the Environment (the owner, 2026-11-21/22; Plans/environment.plan.md): one row's shape for
+                         every kind (table, variable, structure, setting, library), Used in (grids, cells by number,
+                         canvas widgets, API.py endpoints, analyses, the ERD, tables made from it), the one search
+                         over every tab by the Data Explorer's matching (explorer.hit), requirements.txt read and
+                         written (Pin name==version, Unpin, a library added or taken out), a newer version, what a
+                         library is for and where it is imported, a secret masked, Clear's ticks, Insert's code
     environments.py      a notebook's own environment: the libraries offered (groups, presets, imports)
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
@@ -711,6 +721,12 @@ src/swissarmybench/
                          (the child killed), the wait limit (Try again); who from the request (CURRENT: the agent,
                          a page's X-Sab-Client, a kernel's X-Kernel); kernels' leased slots; the Queries window's
                          list, finished (memory, last 50), SQL (the user's); the limits saved; `connection_slots`
+    environment.py       the Environment: the one list (listing with search, show, a table's columns with ranges and
+                         blanks), open (a table: a grid, a view of it; one in Python only: its session sends it),
+                         rename, remove (a table: also delete it in Python), keep, clear, insert; libraries (the
+                         project's Python, check the index only when asked, pin, install, update, uninstall: the
+                         agent's on Allow); `environment_changed` once things settle (heard: the live notices);
+                         sources_from (the app's services as its Sources)
     explorer.py          the Data Explorer's search: a provider per source (connections and their loaded catalogs,
                          the open tables, variables, blades; a connection whose catalog is not loaded offered);
                          Structures' documents and paths and APIs' table-returning web calls registered from
@@ -939,6 +955,11 @@ src/swissarmybench/
     apis.py              Add API: the OpenAPI document read (a file, an address; YAML with PyYAML), API_<name>.py written
     structure_files.py   Structures' files (read, written whole), YAML by PyYAML (else the missing-package
                          answer), records as an Arrow table for Open as grid
+    environment.py       the Environment's files: the project's Python (its .venv, else the app's own) and its
+                         libraries read from site-packages' metadata (nothing runs), requirements.txt (atomic, only
+                         when its bytes change), the package index's newest versions (one GET a library, only when
+                         the Libraries tab opens or the user asks; SWISSARMYBENCH_PACKAGE_INDEX), a structure's file
+                         removed
     variables.py         the Variables page's files (the library's variables.toml, shareable; local/variables.toml,
                          this computer's), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets (the app's windows counted for the server's life)
@@ -1060,7 +1081,9 @@ src/swissarmybench/
                          (duck-typed); sab.visualizations and sab.sandbox, the old names, one release
   client/analyze_client.py sab.analyze: callable for a card; .<analysis>(df or an open table's name), .check,
                          .contract, .contracts, .sample: the page's contracts and checker, stats' functions
-  client/watcher.py      a Python session's tables for the Open list; an open one follows its variable
+  client/watcher.py      a Python session's tables for the Open list (and, for the Environment, each variable's
+                         name, type and size, never a value; after each cell runs, IPython's post-run hook, it looks
+                         at once); an open one follows its variable
                          (never a table cell's own result: the grid would apply its steps twice)
   client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the
                          kernel, and as sab_lineage.py beside a playing page (it notes each block's values)
@@ -1095,7 +1118,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          the work (the owner, 2026-11-17; APIs beside Connections, 2026-11-18; 24px icons so more
                          fit, 2026-11-18; 2026-11-21: Home first, a house, "just call it home instead of projects";
                          Structures beside APIs; Scripts beside Blades; Catalog; Git): Home, Connections, APIs,
-                         Structures, Variables, Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
+                         Environment (2026-11-22: it took the Structures and Variables places; the Structures page
+                         stays as the viewer a structure opens into, the Variables page at open=variables for the
+                         key vaults, both off the rail), Catalog, Grids, ERD, Blades (the Scripts page's Blades pane),
                          Scripts, Notebooks, Canvas, Widgets, Analyze, Session, Settings at the
                          bottom: a click is a nav.ts move in this tab, and every icon lands on a page (no
                          dialog, no menu); the current area marked; Open in a new window on request; always
@@ -1245,7 +1270,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          workbenchCompletion.ts, workbenchIntel.ts (the editors' intelligence: the member
                          list with its documentation panel, parameter info, quick info, the lint as you type,
                          the status bar's Problems count and list, the Ruff offer), workbenchEnvironment.ts,
-                         workbenchVariables.ts, lazy/codeEditor.ts (Monaco: line edits that keep the
+                         environmentPage.ts (the Environment: the rail's page, open=environment&at=<tab>&name=<row>,
+                         and the Workbench's right pane, environmentPane: tabs by kind with their own columns, one
+                         search over every tab, rows that unfold, the viewer beside the list (Ctrl+B), Used in
+                         links, Remove with the Python tick, Rename, Clear…, Keep, Libraries' Pin, Update and
+                         Install through missingPackages.ts; follows environment_changed, no Refresh; it replaced
+                         workbenchVariables.ts), lazy/codeEditor.ts (Monaco: line edits that keep the
                          cursor, cell links, a script's folds and marker notes),
                          workbenchTables.ts (every table's read-only cell: its state against the text it
                          last ran, the folded lines' words, the uses line); the Tables group, cell
@@ -1347,7 +1377,9 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          DuckDB, the rows kept: the adapter's T-SQL run there), test_sql_server_real.py (a real SQL Server when
                          SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
-                         orders service, every sign-in it takes stood in for), devtunnel_standin.py (Microsoft's
+                         orders service, every sign-in it takes stood in for), libraries_standin.py (uv and pip stood
+                         in for, a made-up .venv and a made-up package index on 127.0.0.1: the Environment's
+                         Libraries tab), devtunnel_standin.py (Microsoft's
                          devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
                          and Git Data APIs and the device flow over in-memory repositories of made-up files)
 tools/                   screenshots.py; testbed/: the real-world test bed (testbed.py up|down:

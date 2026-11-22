@@ -65,8 +65,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
         "projects",  # the mark, the rail's first item: the Projects page (2026-11-18)
         "connections",
         "apis",
-        "structures",  # beside APIs (2026-11-21)
-        "variables",
+        "environment",  # everything the project holds, in the Structures and Variables places (2026-11-22)
         "data",  # the one place to browse tables (2026-11-17)
         "grids",
         "erd",
@@ -105,7 +104,7 @@ def test_every_rail_area_is_a_place_from_every_window() -> None:
     ("window", "to", "words"),
     [
         ("tray", "home", "window is one of home, workbench, notebooks, scripts"),
-        ("home", "", "to is where to go: home, projects, connections, apis, structures, variables"),
+        ("home", "", "to is where to go: home, projects, connections, apis, environment, data"),
         ("home", None, "to is where to go"),
         (
             "home",

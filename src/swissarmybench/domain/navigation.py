@@ -36,8 +36,9 @@ AREAS: tuple[str, ...] = (
     # data, tools, building, presenting, the log; Settings at the bottom.
     "connections",
     "apis",
-    "structures",  # beside APIs (the owner, 2026-11-21: "Apis and Structure should be side by side")
-    "variables",
+    # The Environment (the owner, 2026-11-21/22): everything the project holds, in the Structures and
+    # Variables places (Structures stays a place: the viewer its rows open into; variables goes here).
+    "environment",
     "data",  # the one place to browse tables (the owner, 2026-11-17: "a standalone DATA rail icon")
     "grids",
     "erd",
@@ -56,6 +57,7 @@ SAME: dict[str, str] = {
     "start": "projects",
     "apps": "canvas",  # 2026-11-21: Apps is the Canvas
     "catalog": "data",  # 2026-11-21: the Data Catalog is the Catalog
+    "variables": "environment",  # 2026-11-22: the settings are the Environment's Settings and secrets tab
 }
 # The code areas: each may open in a Workbench window of its own (the owner's "external tab").
 CODE: tuple[str, ...] = ("notebooks", "scripts")
@@ -64,6 +66,7 @@ CODE: tuple[str, ...] = ("notebooks", "scripts")
 EVERYWHERE: tuple[str, ...] = (
     "home",
     *AREAS,
+    "structures",  # the Structures viewer (a structure's row opens into it)
     "back",
     "forward",
     "connection:<name>",

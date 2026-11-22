@@ -1,6 +1,6 @@
 # The Environment (the owner, 2026-11-21)
 
-Status: decided; build after adapter phase 2 (a session reads a grid by name through the adapter). Mockup (made-up
+Status: built in part (2026-11-22, branch `environment`; see "What is built" at the end). Was: decided; build after adapter phase 2 (a session reads a grid by name through the adapter). Mockup (made-up
 data): the published Environment Mockup artifact; its source in the session scratchpad (environment/).
 
 > "one shared space for all tables at the env level ... each project should have its own env ... a simple trigger and
@@ -111,3 +111,29 @@ The owner approved the mockup (version 10, 2026-11-22: "This looks good ... it's
 this has to be"). It is the brief for building this page. To keep the density calm: the yellow note is the mockup's
 only; the viewer folds away (Ctrl+B) to give the list the whole width; less-used columns (From) can be hidden from the
 column headings' menu and the choice is kept per tab.
+
+## What is built (2026-11-22, branch `environment`)
+- **Step 1, the one list:** `services/environment.py` over `domain/environment.py`: every row (table, variable,
+  structure, setting, library) in one shape with Used in (grids, cells by number, canvas widgets, API.py endpoints,
+  analyses, the ERD, tables made from it), one search over every tab by the Data Explorer's matching, the
+  `environment_changed` notice (sent once things settle after any notice that changes the list). The agent's
+  `environment(action, args)`: list, show, libraries, open, rename, keep, insert, remove, clear, install, update,
+  pin (clear, keep, install, update, pin and a structure file's delete wait for Allow).
+- **Step 2, the page:** the rail's Environment (in the Structures and Variables places), five tabs with their own
+  columns, the search (counts light up, "Also matches in"), rows that unfold in place (a table's columns with ranges
+  and blanks, asked when opened), the viewer beside the list (Ctrl+B), the keys, columns hidden from the headings'
+  menu per tab; the same list as the Workbench's right pane (workbenchVariables.ts went). No Refresh, no Add table,
+  no Interrupt or Restart.
+- **Step 3:** Remove (a table: the tick "Also delete it in Python", off by default), Rename, Clear… (one dialog with
+  ticks), Keep with the project.
+- **Step 4, Libraries:** the project's Python's libraries (its `.venv`, else the app's own) with version, what it is
+  for, imported in; Pin (`name==version`), Update (the index asked when the tab opens), Update all not pinned,
+  Install a library… through the one install prompt; requirements.txt follows.
+- **Step 5, in part:** the watcher's trigger after each cell runs (IPython's post-run hook; a script's timer) and its
+  report of variables by name, type and size; a table Python holds is listed at once (In Python) and opens as a grid
+  on request. **Not built:** making the project's `.venv` from the app, one kernel for the whole project, notebooks'
+  own environments moved, a table shared with every session at once without being opened.
+- **Step 6, in part:** the `${NAME}` settings are the Settings and secrets tab (a secret masked, Show the user's,
+  Change, Rename, Remove, Add a setting…). **Not built:** the key vaults' cards and Add key vault on the tab: the
+  old Variables page stays at its address (open=variables, "Key vaults and more…") and is not redirected; the
+  Structures page stays as the viewer (New, open or paste… on the Structures tab).

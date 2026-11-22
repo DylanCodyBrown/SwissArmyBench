@@ -244,7 +244,11 @@ def test_the_structures_page_keeps_tree_and_text_in_step(
     url = push_client.push(pd.DataFrame({"a": [1]}), name="anything")
     for dark in (True, False):  # the dark picture first, before the steps
         page = opened(browser, url, dark)
-        page.locator('.nav-rail [data-area="structures"]').click()
+        page.locator('.nav-rail [data-area="environment"]').click()
+        page.locator('.area-page[data-page="environment"]').get_by_role(
+            "tab", name=re.compile("^Structures")
+        ).click()
+        page.get_by_role("button", name="New, open or paste…").click()
         found = page.locator('.area-page[data-page="structures"]')
         expect(found).to_be_visible()
         expect(page).to_have_url(re.compile(r"[?&]open=structures\b"))

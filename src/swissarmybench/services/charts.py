@@ -594,6 +594,14 @@ class Cards:
     def holds_cards(self) -> bool:
         return bool(self._cards)
 
+    def on_tables(self) -> list[dict[str, Any]]:
+        """The cards drawn on a grid (names only): the Environment's "Used in" for a table."""
+        return [
+            {"id": c.get("id"), "grid": c.get("grid"), "title": c.get("title"), "kind": c.get("kind")}
+            for c in sorted(self._cards.values(), key=_place)
+            if c.get("grid")
+        ]
+
     def state_key(self) -> str:
         """What Visualizations holds, as text that changes when a card is added, changed, moved or removed."""
         fields = (*_KEPT, "id", "order")
