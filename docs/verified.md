@@ -4825,6 +4825,51 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   test_real_world: 44 passed, 1 failed: use case 11 ("There is no widget called my_widget" after the rename),
   as on the base. test_local_apis_page's Run API toast failed once under load and passes alone.
 
+## The adapter's fourth phase (2026-11-22, branch adapter-4; DuckDB 2.0.0, pyarrow 26.0.1, sqlglot 30.24.0)
+- Use case 11 on the base (tests/e2e/test_real_world.py): the Widgets window sent its rename twice (Enter and
+  the change after it: the second PATCH a 404 for the old name), and Preview typed `table_name = "invoices"` as
+  plain text (the run's properties read without the open tables), so the table never went beside the run ("The
+  table invoices is not here"). Both fixed; use cases 11 and 11a pass in Chromium.
+- The Write starters on the adapter (tests/test_starters_write.py, with the test bed's PostgreSQL and MariaDB):
+  every mode's counts, the dry run, "batch 2 (rows 3 to 4) failed" rolled back, the note when the target changed,
+  create's types (PostgreSQL bigint, text, double precision; Region written as region), a DuckDB relation and
+  Arrow as rows; the files' COPY words as before. One assertion changed: an upsert's dry run lists the
+  adapter's UPDATE (was ON CONFLICT).
+- sab.write (tests/test_sab_write.py): SQLite through every mode, a dry run, a DataFrame, Arrow, a list of dicts,
+  an open table's name, a file connection's Parquet written whole, the refusals; connections_write: a dry run
+  with no Allow, the write declined then allowed, rows from an open table by its name.
+- The adapter's file writes: a delimiter, JSON one record a line, a name with no suffix and its format, a folder
+  of partitioned Parquet replaced and added to; arrow_of on records, pandas 3 (its strings large_string) and a
+  reader.
+- listed(): MariaDB's (the test bed, every schema the reader sees) equal to its starter's listing row for row;
+  SQL Server's descriptions, keys and positions and Oracle's shape with stand-in connections (no server here).
+  The listing texts equal their starters', whitespace aside, for all eight templates.
+- A file connection's semicolon CSV opened through the adapter: three columns (the loader reads one), BIGINT,
+  DATE, DOUBLE; Reload keeps them. The project's source says "reader": "adapter" and reads it back.
+- The engine's cursor (adapters/views.py Adapted): the grid, profile, analysis, regression, time series, SQL box
+  and steps tests unchanged. The grid's scroll window, through HTTP (TestClient, the server in the same process),
+  20 windows of 200 rows spread through the view, their median, then the first window (ms); before = the raw
+  cursor, the same build:
+  - 1M made-up rows, no steps: before 5.2 to 7.0 (first 6.3 to 7.9), after 6.4 to 8.7 (first 7.3 to 11.2);
+    a filter and a sort: before 5.2 to 7.0, after 6.0 to 7.9.
+  - Larkfield large's order lines (10,001,903 rows, 534 MiB; made in 10.2 s, deleted after), no steps: before
+    5.8 to 6.8, after 6.5 to 8.6; a filter and a sort: before 5.0 to 6.0, after 5.4 to 6.4.
+  - A step change and its first window: 1M rows before 140 to 147, after 164 to 171 (413 to 454 before the
+    view engine loaded pyarrow's pandas bridge at start: pyarrow loads it the first time a table is built in
+    Python, about 300 ms once); a second change 137 to 189 either way; Larkfield 385 to 411 before, 416 to 461
+    after (its sort of 10M rows). A column profile: 61 to 114 before, 65 to 123 after.
+- Not checked: SQL Server, Oracle, Snowflake, Trino and Databricks listings for real (no server here); the
+  Oracle and ODBC Write starters against a real database; Windows; Edge.
+- The suites (steps 0 to 5): the quick suite (`-n 4 --dist loadfile`, the test bed up) 4,985 passed, 38
+  skipped, 2 failed under load that pass alone (test_performance's million-row targets; test_copilot's private
+  project); test_desktop_shell failed once under load and on a first run alone, passed on the second. In
+  Chromium (`-n 2`, the test bed up, the Streamlit Python): test_ui, test_steps_page, test_grid_palette,
+  test_analyze_page, test_write_starters_page, test_catalog_page, test_local_apis_page, test_forms_recon_app,
+  test_connection_sql_page and test_real_world: 119 passed, 2 skipped, 9 failed; one (test_ui's last row
+  clear of the scrollbar) passes alone; the eight real-world ones failed because the PostgreSQL Write test had
+  left a second orders table in the test bed (sab_writes.orders: fixed, the write tests now clean up), and
+  then pass: test_real_world 14 passed alone, use cases 11 and 11a among them.
+
 ## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
 - Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite
   (`pytest -n 4 --dist loadfile tests --ignore=tests/e2e`) after the removals and after the route guard; the e2e

@@ -3,7 +3,38 @@
 Status: agreed; phase 1 built (branch `adapter`, 2026-11-21): Order 1 and the start of 2; phase 2 built (branch
 `adapter-2`, 2026-11-22): the reading half of Order 2, the start of 3 and 4, `truncate`; phase 3 built (branch
 `adapter-3`, 2026-11-22): `query`, the mock clients gone, the writes of Dataverse, SharePoint lists and the lakes,
-the Catalog's listing, file connections, the engine's first paths (the owner's answers after phase 2).
+the Catalog's listing, file connections, the engine's first paths (the owner's answers after phase 2); phase 4 built
+(branch `adapter-4`, 2026-11-22): the Write starters and one `sab.write`, every database's listing, a file
+connection's Open as grid, the engine's cursor (the owner's answers after phase 3).
+
+### What is built (phase 4)
+
+Two concepts (the owner, 2026-11-22): **the project scaffold** (what an export carries: sab_adapter.py, the
+Write starters it calls) and **the app** (sab.write, the agent's command, the Catalog, the engine).
+
+- The scaffold's adapter, added to only (each change its own commit; tables() answers as before):
+  `Files(path, name, format, options, partition_by)` (COPY's options, a format for a name with no suffix, a
+  folder of partitioned Parquet replaced or added to); a SQL write's failed batch beside the source's own error
+  (`Batch`, `batch_of(error)`, its notes); `Sql(..., value=)`; `arrow_of(rows)` (Arrow, a DataFrame, a DuckDB
+  relation, a list of dicts); `listed(source)` (a database's whole catalog as its starter lists it:
+  `Dialect.listing` and `listing_shape` for MySQL and MariaDB, Oracle, Snowflake, SQL Server and Azure SQL,
+  Trino, Databricks; SQL Server's descriptions and keys: `Column.description`, `Column.position`,
+  `Table.description`), and `catalog_rows` writing those back row for row.
+- The Write starters (the scaffold): PostgreSQL, MySQL and MariaDB, SQLite, Oracle, ODBC (`SqlWrite.by_adapter`)
+  and CSV, JSON, Parquet, partitioned Parquet (`FileWrite.by_adapter`) are thin callers of the adapter's write,
+  names, modes and dry_run kept. SQL Server (typed #temp staging, MERGE WITH (HOLDLOCK), Azure's passing errors
+  retried), Trino (no transactions) and the Excel sheet (the Excel module) keep their own (docs/ideas.md).
+- `sab.write(connection, table, rows, mode, key=None, dry_run=False)` (the app's client) and
+  `connections_write` (the agent's; a dry run needs no Allow, a write waits for the user's).
+- The Catalog lists every database through `listed()` (a user's edited listing still wins).
+- A file connection's Open as grid is the adapter's Files read (DuckDB's types; Reload and the project read it
+  the same way again).
+- The engine: every grid query gets the adapted cursor (adapters/views.py `Adapted`: `execute` is
+  `sab_adapter.query` over the app's DuckDB session; windows, the steps' counts and view cache, the SQL box,
+  profiles, analyses, regression, time series), its values as DuckDB's own fetch gives them.
+- Not yet (docs/ideas.md "One adapter", what each needs): contract.json, the eight-file export, folder
+  extensions, the Environment page, the API adapter, the Excel module, the endpoint wizard; the rename to
+  adapter.py (the owner, 2026-11-22: the last step of this phase).
 
 ### What is built (phase 3)
 

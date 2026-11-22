@@ -7932,6 +7932,71 @@ the app. The per-source mock clients are dropped (the owner: "use my model"). Pl
   mark); SQL text in api_clients, sharepoint, blade_templates; the extensions' accounting runtime and service,
   powerapps' ts_notebook, powerbi's pbix readers.
 
+**Phase 4 built (2026-11-22, branch adapter-4).** Each change says which of the two concepts it is about (the
+owner, 2026-11-22, design principle 12a): the project scaffold (sab_adapter.py and the Write starters it calls,
+what an export carries) or the app (sab.write, connections_write, the Catalog, the engine). Decisions:
+- The adapter only grows (12b): every change to it is its own commit and adds (Files' format, options and
+  partitions; a write's Batch; Sql's value; arrow_of; listed; Column.description and position;
+  Table.description). One change was caught and taken back before it landed: a failed SQL batch first raised
+  the adapter's own error in place of the driver's (a caller catching the driver's would have broken); it now
+  raises the driver's own error with its Batch beside it (error.sab_batch, batch_of, its notes).
+- tables() keeps each dialect's own scope (MySQL's DATABASE(), Oracle's USER, Snowflake's and Databricks'
+  current schema): an exported API.py names a MySQL table by its bare name. The Catalog's whole listing is a
+  new call, listed(), the starter's own listing text kept in the adapter (an export copies it whole) with the
+  shape of its rows; a test holds each the same as its starter's, whitespace aside.
+- The Write starters: the nine moved keep their names, modes and dry_run; their checks (columns, keys, the
+  table there or not) stay in SqlWrite, their writing is the adapter's. What a user sees differently: a dry
+  run of an upsert lists UPDATE then INSERT (was ON CONFLICT, ON DUPLICATE KEY UPDATE or MERGE); PostgreSQL
+  inserts with INSERT (was COPY: slower on very large appends); create makes the table, then writes in its own
+  transaction, and takes the table away when the write fails (was one transaction for PostgreSQL and SQLite).
+  The counts, the 5-row sample, "batch 2 (rows 3 to 4) failed" and the note when the target changed are as
+  they were.
+- Kept on their own, for the owner: **SQL Server** (its rows staged in a #temp table of the target's exact types
+  with setinputsizes, one MERGE WITH (HOLDLOCK), Azure's passing errors running the whole transaction again,
+  identity_insert, keys defaulting to the primary key: the adapter's generic Sql write has none of that; moving
+  it means that robustness moves into the adapter as SQL Server's write, about 400 lines), **Trino** (no
+  transactions: the adapter's Sql writes only in one; a write a batch at a time with "the rows before it were
+  written" is a decision) and the **Excel sheet** (moves with the Excel module, Plans/excel.plan.md).
+- sab.write's dry_run defaults to False (the brief's signature); its report is the starters' (counts, words, a
+  5-row sample). connections_write runs it in the connection's child process, through the connection's query
+  slots (the Queries window says "write"); its dry run needs no Allow, its write waits for the user's.
+- A file connection's Open as grid (accepted by the owner): DuckDB's readers and types. What changes: the
+  delimiter is DuckDB's sniffer's (a semicolon file is three columns, not one); a stray value further down a
+  CSV, or a cp1252 or latin-1 file, refuses with DuckDB's words (was: the column as text, the encoding tried
+  again); a JSON array of mixed records is DuckDB's union of types (was Python's reader, text where kinds
+  mixed). Open file, a dropped file and a workbook keep the loader. Reload and the project read it again the
+  same way (Origin.adapted; the project's source "reader": "adapter"). No existing test changed.
+- The engine: one seam, the cursor every grid query gets (Workspace.grid_query, an Analyze run, a highlight's
+  check): adapters/views.py's Adapted, its execute the adapter's query over the app's DuckDB session, its fetch*
+  reading that Arrow answer with DuckDB's own values (a HUGEINT an int, an INTERVAL a timedelta, a MAP a dict).
+  The steps' compile (DESCRIBE), the view cache's CREATE TABLE AS and the windows all go through it. Speed
+  (docs/verified.md): a window 1 to 2 ms slower (5 to 7 ms, the budget is 300); pyarrow loads its pandas
+  bridge the first time a table is made in Python (about 300 ms), so the view engine loads it in a background
+  thread at start, off the first step change's way.
+- bootstrap()'s split by area (step 5, no behaviour change): three more module-level helpers, the code as it
+  was: _explorer (the Data Explorer's sources), _app_registrations (with each registration's connections) and
+  _variables_once (the one-time password move and the ${NAME} listing). bootstrap() is 1,168 lines (was
+  1,245); the rest of it is the services' wiring, each block naming the services it needs: the next helpers
+  (the sandbox's seams, Set up this computer, context.md and Launch Claude) take ten or more of them each,
+  so a split there means a small record of the shared services first (a decision, not done here).
+- What each later piece needs now: contract.json loading needs nothing of the adapter. The eight-file export:
+  connections.py wires source_from and Connection; data.py needs a TableSource per table; listed() gives a
+  catalog for its README. Folder extensions add a Dialect (its listing and shape too) or a source. The
+  Environment page reads sab.table and the open tables' listing. The API adapter is a source by the three
+  calls (plus query). The Excel module is a Files-like source (a workbook's sheets as tables) plus a `replace`
+  mode. The endpoint wizard writes connection(name).read/query/write. SQL Server's and Trino's starters onto the
+  adapter need the owner's word (above).
+- The boundary list now (tests/test_adapter_boundary.py, -s prints it; 42 places): moved and enforced in
+  phase 4: the 13 Write functions but SQL Server, Trino and Excel write only through the adapter (no
+  statement of their own); the engine's cursor (every grid query, an Analyze run, a highlight's check); a file
+  connection's Open as grid. Still outside: adapters/apis, catalogs, codegen, database, found_connections
+  (sqlite3), intellisense, library, sandbox (read_json, its own DuckDB file); datasets and views (DuckDB itself:
+  the engine's session and loaders); export; bootstrap.py, stats.py (sab.analyze on a DataFrame),
+  server/http.py, routes_agent, routes_grids; client/sql_cell, structures_client, write_sql and writes (the
+  rows staged in DuckDB); the starters' driver imports (their package's mark); SQL text in api_clients,
+  sharepoint, blade_templates; the extensions' accounting runtime and service, powerapps' ts_notebook, powerbi's
+  pbix readers.
+
 ## The approved API and sandbox items, and three canvas gaps (the owner, 2026-11-21; branch api-approved)
 
 BUILT, each with its decision:
