@@ -29,8 +29,8 @@ import pytest
 from starlette.testclient import TestClient
 
 import swissarmybench
+from swissarmybench.adapters import adapter
 from swissarmybench.adapters.blade_run import run_code
-from swissarmybench.client import write_sql
 from swissarmybench.client.writes import WriteError
 from swissarmybench.domain import dataverse, write_capability
 from swissarmybench.domain.blades import needed, read_blade
@@ -627,6 +627,9 @@ class FakeCursor:
     def fetchall(self) -> list[tuple[Any, ...]]:
         return self._rows
 
+    def close(self) -> None:
+        pass
+
 
 class FakeSqlServer:
     """mssql-python's (or an older connection's pyodbc's) connection to SQL Server, stood in for: sys.columns, the primary key and triggers of a
@@ -878,17 +881,15 @@ def test_sql_server_runs_the_whole_transaction_again_on_azures_passing_errors(
     ]
     assert sum(1 for c in calls(sql_server, "execute") if c[1].startswith("CREATE TABLE #sab_stage")) == 3
     assert "Try 1 met a passing error" in str(done) and "Try 2 met a passing error" in str(done)
-    assert write_sql.transient(
-        FakeOdbcError("40001", "Transaction (Process ID 61) was deadlocked ... (1205)")
-    )
-    assert not write_sql.transient(FakeOdbcError("23000", "Violation of PRIMARY KEY constraint (2627)"))
-    assert write_sql.transient(
+    assert adapter.transient(FakeOdbcError("40001", "Transaction (Process ID 61) was deadlocked ... (1205)"))
+    assert not adapter.transient(FakeOdbcError("23000", "Violation of PRIMARY KEY constraint (2627)"))
+    assert adapter.transient(
         FakeMssqlError(
             "Driver Error: Serialization failure; DDBC Error: [Microsoft][SQL Server]Transaction "
             "(Process ID 61) was deadlocked on lock resources with another process"
         )
     )
-    assert not write_sql.transient(
+    assert not adapter.transient(
         FakeMssqlError(
             "Driver Error: Integrity constraint violation; DDBC Error: [Microsoft][SQL Server]"
             "Violation of PRIMARY KEY constraint 'PK_orders'."
@@ -948,20 +949,18 @@ def test_sql_server_keys_default_to_the_primary_key_and_identity_and_computed_co
         )
 
 
-def test_sql_server_batches_stay_under_its_parameter_limit_without_fast_executemany(
-    sql_server: dict[str, Any],
-) -> None:
-    w = write_sql.SqlServerWrite("Warehouse", "dbo.orders", "append", ROWS, dry_run=False, batch_size=5000)
-    names = ["order_id", "region", "code", "amount"]
-    assert w.rows_a_batch(names) == 5000
-    w.fast = False
-    assert w.rows_a_batch(names) == 524  # 2,099 parameters / 4 columns
-    w.insert_into("#sab_stage", names)
-    inserted = calls(sql_server, "execute")[-1]
-    assert inserted[1].startswith(
-        "INSERT INTO #sab_stage ([order_id], [region], [code], [amount]) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?)"
+def test_sql_server_batches_are_sized_by_the_targets_width(sql_server: dict[str, Any]) -> None:
+    """A batch holds about 16 MB of values by the target's own sizes (a (max) column counts 4,000 bytes):
+    four nvarchar(max) columns take 1,000 rows a round trip, whatever batch_size asks above it. (The multi-row
+    VALUES path, chosen by setting w.fast = False by hand, went with phase 5: executemany is the one way.)"""
+    sql_server["columns"] = [(f"note_{i}", "nvarchar", -1, 0, 0, False, False) for i in range(4)]
+    rows = pd.DataFrame({f"note_{i}": [f"made-up {n}" for n in range(2500)] for i in range(4)})
+    text = cell("write_sql_server", mode="append", dry_run=False, target="dbo.notes").replace(
+        "batch_size=1000", "batch_size=5000"
     )
-    assert len(inserted[2]) == 12
+    assert run(text, orders=rows).counts == {"inserted": 2500}
+    sent = [c for c in calls(sql_server, "executemany") if c[1].startswith("INSERT INTO [dbo].[notes]")]
+    assert [len(c[2]) for c in sent] == [1000, 1000, 500]
 
 
 def test_sql_server_delete_deletes_by_a_join_on_the_staged_keys(sql_server: dict[str, Any]) -> None:
@@ -1055,7 +1054,42 @@ def test_trino_merges_a_batch_at_a_time_and_says_when_the_connector_cannot(
     said = str(refused.value)
     assert said.startswith("Batch 1 (rows 1 to 2) failed: TrinoUserError")
     assert "This catalog's connector has no MERGE: Iceberg, Delta Lake, Hive" in said
-    assert said.endswith("Trino writes each statement by itself: nothing was written.")
+    assert said.endswith("Trino writes row batches without a transaction: nothing was written.")
+
+
+def test_trino_says_it_has_no_transaction_in_its_dry_run_and_refuses_replace(
+    monkeypatch: pytest.MonkeyPatch, connection: Callable[[Callable[[], Any]], list[str]]
+) -> None:
+    fake = types.ModuleType("trino")
+    fake.paramstyle = "qmark"  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "trino", fake)
+    world: dict[str, Any] = {}
+    connection(lambda: FakeTrino(world))
+    dry = run(cell("write_trino", mode="append", dry_run=True, target="iceberg.sales.orders"), orders=ORDERS)
+    said = str(dry)
+    assert (
+        "Trino writes row batches without a transaction: a failure part-way leaves the rows already" in said
+    )
+    assert (
+        'INSERT INTO "iceberg"."sales"."orders" ("order_id", "region", "amount") VALUES (?, ?, ?), ...'
+        in said
+    )
+    with pytest.raises(WriteError, match="Clear it first"):
+        run(cell("write_trino", mode="replace", dry_run=True, target="iceberg.sales.orders"), orders=ORDERS)
+
+
+def test_a_copy_of_the_old_sql_server_starter_is_told_what_to_do_in_one_line(
+    sql_server: dict[str, Any],
+) -> None:
+    from swissarmybench.client.write_sql import SqlServerWrite
+
+    w = SqlServerWrite("Warehouse", "dbo.orders", "upsert", ROWS, dry_run=True)
+    with pytest.raises(
+        WriteError, match=r"w\.in_transaction went in 0\.0\.32: .*Copy the Write to SQL Server"
+    ):
+        w.in_transaction(lambda: {})
+    with pytest.raises(AttributeError):
+        _ = w.not_a_method
 
 
 # ===== Dataverse: the Web API's change sets =====

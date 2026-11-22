@@ -175,6 +175,39 @@ def test_the_write_starter_upserts_through_mssql_python(names: dict[str, Any]) -
     assert check[0]["ref"].upper() == "6F9619FF-8B86-D011-B42D-00C04FC964FF"
 
 
+def test_the_adapter_writes_each_mode_through_mssql_python(names: dict[str, Any]) -> None:
+    """Phase 5: the adapter's own SQL Server write (the scaffold's adapter.py), every mode against the real
+    server: staged in the target's types, MERGE WITH (HOLDLOCK), the dry run's staged keys rolled back."""
+    import pyarrow as pa
+
+    from swissarmybench.adapters import adapter
+
+    conn = connect(names)
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE dbo.stock (sku int PRIMARY KEY, name nvarchar(40), qty decimal(9,2))")
+    cursor.execute("INSERT INTO dbo.stock VALUES (1, N'Bolt', 5), (9, N'Nut', 9)")
+    conn.commit()
+    db = adapter.Sql(conn, "sqlserver", "Made-up stock", reopen=lambda: connect(names))
+    rows = pa.table({"sku": [1, 2], "name": ["Bölt", "Washer"], "qty": [6.5, 1.25]})
+    assert adapter.planned(db, "dbo.stock", rows, ["sku"], "merge") == adapter.Counts(inserted=1, updated=1)
+    done = adapter.write(db, "dbo.stock", rows, ["sku"], "merge")
+    assert (done.inserted, done.updated) == (1, 1)
+    assert (
+        adapter.write(db, "dbo.stock", pa.table({"sku": [9], "name": ["Big nut"]}), ["sku"], "update").updated
+        == 1
+    )
+    assert adapter.write(db, "dbo.stock", pa.table({"sku": [2]}), ["sku"], "delete").deleted == 1
+    check = connect(names).read_arrow("SELECT * FROM dbo.stock ORDER BY sku").to_pylist()
+    assert [(r["sku"], r["name"], r["qty"]) for r in check] == [
+        (1, "Bölt", decimal.Decimal("6.50")),
+        (9, "Big nut", decimal.Decimal("9.00")),
+    ]
+    cleared = adapter.write(
+        db, "dbo.stock", pa.table({"sku": [3], "name": ["Pin"], "qty": [1.0]}), mode="truncate"
+    )
+    assert (cleared.deleted, cleared.inserted) == (2, 1)
+
+
 def test_dataverses_cursor_reads_tds_through_python_tds(names: dict[str, Any]) -> None:
     """Dataverse's SQL cursor (its marks, its plain-word refusals) on python-tds against this SQL Server's
     TDS: signed in with a SQL login here, as Dataverse's endpoint takes only an Entra token (not reached)."""

@@ -8006,6 +8006,58 @@ what an export carries) or the app (sab.write, connections_write, the Catalog, t
   sharepoint, blade_templates; the extensions' accounting runtime and service, powerapps' ts_notebook, powerbi's
   pbix readers.
 
+**Phase 5 built (2026-11-22, branch adapter-5; the owner's answers after phase 4).** Decisions:
+- The project scaffold: SQL Server's and Azure SQL's writes are adapter.py's own section (about 420 lines), Trino's
+  another (about 160); adapter.py is 1.1.0 (added to only: every earlier call answers as it did), allowed 3,500
+  lines. Every change to it its own commit (the SQL Server section, a one-line fix to it, the Trino section, the
+  version). SQL Server goes through mssql-python only; an older pyodbc connection still gets its sizes and
+  fast_executemany, as before. The Write starters' checks stay in client/write_sql.py (columns, computed and
+  identity columns, triggers, keys defaulting to the primary key): they are a starter's words before a write,
+  not the write.
+- How the dry run's words travel: a source may have its own `planned()` (SQL Server's: the keys staged and one
+  COUNT join, then rolled back) and the new `statements()` call says what it will run; `Counts.notes` carries
+  what a write says beside its counts (a passing error run again, MERGE or TRUNCATE refused and done another way,
+  Trino's no transaction). SQL Server and Trino count only in a dry run, as their starters did (a write does not
+  stage the keys twice).
+- A passing error's run again needs the rows twice: the SQL Server write keeps the batches it was given (they
+  are in memory already: read_all of the reader holds the same buffers, no copy) and a fresh connection from
+  `Sql(reopen=)` (the starter's: the connection signed in again; without one, a SqlServer connection closed signs
+  in again by itself on its next cursor, and a plain driver connection is reused after its rollback).
+- Trino: "Trino writes row batches without a transaction: a failure part-way leaves the rows already written."
+  in every dry run and write; a truncate with rows is refused (it could clear the table and then fail, leaving
+  it without its rows), so **the Trino starter's replace is refused** (it was a DELETE and then inserts with no
+  transaction); its words say to clear first (truncate with no rows), then append. The Connections page says
+  Writes: append, create, upsert, delete. Decision for the owner: keep the refusal, or offer replace again as a
+  plainly unsafe two-step (or, on Iceberg, CREATE OR REPLACE TABLE ... AS, which is one statement).
+- What else changes for the user: SQL Server's create makes the table, then writes in a second transaction (the
+  table dropped again when the write fails, as before; was one transaction); a replace whose TRUNCATE a foreign
+  key refuses now clears with DELETE FROM in the same transaction, said in a note (was refused); the multi-row
+  VALUES path (only reachable by setting w.fast = False by hand) is gone; a failed Trino batch ends "Trino writes
+  row batches without a transaction: the N rows before it were written" (was "writes each statement by
+  itself"). sab.write and connections_write now write to Trino (were refused) and use SQL Server's section.
+- A copy of the old SQL Server starter (Copy as your own before 0.0.32: its own in_transaction, stage, merge...)
+  is refused in one line ("w.in_transaction went in 0.0.32 ... Copy the Write to SQL Server starter as your own
+  again, or end your cell with return w.by_adapter(keys)"), never an AttributeError. The SQL helpers SqlWrite
+  documents for a user's own cells (transaction, each_batch, each_values, each_where, copy) stay.
+- The proof: tests/sqlserver_standin.py is SQL Server at mssql-python's seam over DuckDB (the adapter's T-SQL
+  run there after fixed rewrites; a connection a transaction at a time, its #temp tables its own and gone on a
+  rollback), so a test reads back the rows that landed; the same write through the SqlServer connection's own
+  object; the starters' statement-recording stand-ins unchanged. tests/trino_standin.py answers reads only (the
+  same rows to any query), so Trino's writes are proven against a stand-in of trino.dbapi's connection over
+  DuckDB (tests/test_adapter_trino.py). No real SQL Server or Trino here: tests/test_sql_server_real.py has the
+  adapter's write for one (SWISSARMYBENCH_SQLSERVER_TEST), not run.
+- The app: bootstrap() is its parts by area over one typed record, `Built` (what is made so far: each part reads
+  what it needs and adds what it makes; a closure reads a later one when it runs). A frozen record of the shared
+  services was the brief's first choice, but about twenty closures read a service made after them (the
+  sandbox, the variables, the structures, the Connections page's counts), held up by four `*_ready` lists; one
+  record that grows replaces those lists and lets each area be a short module-level function. No behaviour
+  change: the same objects in the same order.
+- For the statistics builder (Plans/stats.plan.md, not built): every write starts and ends in adapter.write()
+  (and its dry run in planned()); SQL Server's tries are one loop in _server_written (each try's time and its
+  passing error are there), Trino's batches one loop in _trino_batches; a source's name, its dialect and the mode
+  are on the Sql source; the rows each way are Counts. Not there yet: a connection's wait in its line (the app's
+  slots, outside the adapter), connect and first-row times (the driver's, inside the connection's own code).
+
 ## The approved API and sandbox items, and three canvas gaps (the owner, 2026-11-21; branch api-approved)
 
 BUILT, each with its decision:

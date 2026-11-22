@@ -193,18 +193,17 @@ def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None
 
 
 WRITES_OWN = {  # the Write starters that still write themselves, and why (docs/ideas.md "One adapter")
-    "write_to_sql_server": "typed #temp staging, MERGE WITH (HOLDLOCK), Azure's passing errors retried",
-    "write_to_trino": "no transactions: a statement at a time, MERGE where the connector has it",
     "write_to_excel_sheet": "moves with the Excel module (Plans/excel.plan.md)",
 }
 STATEMENTS = {"execute", "executemany", "copy", "each_batch", "each_values", "each_where", "transaction"}
 
 
 def test_the_write_starters_write_only_through_the_adapter() -> None:
-    """Phase 4, step 1: every Write function but the three above is a thin caller of the adapter's write
-    (by_adapter: its planned() for the dry run, then adapter.write); none runs a statement itself."""
+    """Phase 4, step 1, and phase 5 (SQL Server and Trino): every Write function but the Excel sheet is a
+    thin caller of the adapter's write (by_adapter: its planned() for the dry run, then adapter.write); none
+    runs a statement itself: 15 of the 16."""
     functions = sorted((PACKAGE / "starters").glob("write_to_*.blade.py"))
-    assert len(functions) == 16
+    assert len(functions) == 16 and len(WRITES_OWN) == 1
     for path in functions:
         stem = path.name.removesuffix(".blade.py")
         tree = ast.parse(path.read_text(encoding="utf-8"))
