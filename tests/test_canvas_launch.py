@@ -241,7 +241,7 @@ ORDERS = pa.table({"month": ["2026-01", "2026-02"], "region": ["North", "South"]
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, FakeRunner, Path]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs._runner = runner  # type: ignore[attr-defined]
+        client.app.state.ctx.live_runs.use_runner(runner)  # type: ignore[attr-defined]
         assert push(client, "orders", ORDERS).status_code == 200
         project = tmp_path / "shop"
         project.mkdir()
@@ -355,7 +355,7 @@ def test_the_analyzer_records_only_while_attached_and_names_the_widget(
     table = next(n["id"] for n in tables if n["widget"] == "data_table")
     launches.tap(key, "down", _bin("new_session"))
     launches.tap("launch-cvnotone-secret", "down", _bin("new_session"))  # another key: nothing kept
-    held = launches._running[canvas].recording
+    held = launches.recording(canvas)
     assert len(held.messages) == 1
     frame = perf.Message("down", "delta", 2_400_000, "dataframe", (0, 2))
     held.messages += [frame, perf.read_forward(_bin("script_finished")), perf.read_back(_bin("rerun")), frame]
@@ -379,7 +379,7 @@ def test_the_analyzer_records_only_while_attached_and_names_the_widget(
     ok(client.post(f"{base}/perf", headers=AUTH, json={"on": False}))
     assert not (run / "sab_perf.on").exists()
     ok(client.delete(f"{base}/perf", headers=AUTH))
-    assert launches._running[canvas].recording is None
+    assert launches.recording(canvas) is None
 
 
 def test_the_folded_canvas_commands_answer_by_their_old_names() -> None:

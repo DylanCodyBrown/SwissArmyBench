@@ -86,8 +86,24 @@ def _widget(name: str) -> tuple[rules.Widget, build.Built]:
 
 
 class _NoLibrary:
-    def _apis(self) -> list[dict[str, Any]]:
+    """services/actions.py Explorer with no library API."""
+
+    variables: Any = None
+
+    def apis(self) -> list[dict[str, Any]]:
         return []
+
+    def document(self, api: Any) -> dict[str, Any]:
+        raise AssertionError("no library API to read")
+
+    def read(self, path: str) -> str | None:
+        return None
+
+    async def run_in_api_blade(self, name: str, command: str) -> dict[str, Any]:
+        raise AssertionError("carried() runs nothing")
+
+    async def table_call(self, name: str, operation: str, records: str, who: str = "user") -> None:
+        raise AssertionError("carried() switches nothing on")
 
 
 class _Local:
@@ -99,6 +115,12 @@ class _Local:
             return None
         api = local_rules.parse(self.text)
         return local_rules.openapi(api), api.settings.base_path
+
+    async def state(self, body: Any = None, who: str = "user", full: bool = False) -> dict[str, Any]:
+        raise AssertionError("carried() reads API.py's document only")
+
+    async def call(self, body: Any, who: str = "user", raw: bool = False) -> dict[str, Any]:
+        raise AssertionError("carried() calls nothing")
 
 
 class _NoFiles:

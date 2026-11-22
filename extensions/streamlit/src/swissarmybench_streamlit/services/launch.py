@@ -219,6 +219,11 @@ class Launches:
             self.ws.audit.write(who, "app_stop", f"{launched.title}: build {launched.number}")
         return {"ok": stopped, "running": False, **({"build": launched.number} if launched else {})}
 
+    def recording(self, canvas: str) -> Recording | None:
+        """The analyzer's session on a launched canvas as it is held (None: not launched, or not attached)."""
+        launched = self._running.get(canvas)
+        return launched.recording if launched is not None else None
+
     def status(self, canvas: str) -> dict[str, Any]:
         launched = self._running.get(canvas)
         if launched is None or not self._live.running(self._key(canvas)):

@@ -137,7 +137,7 @@ def _approvals(answer: bool | None) -> tuple[Approvals, Live]:
     return approvals, live
 
 
-ASK = {
+ASK: dict[str, Any] = {
     "subject": "Shop",
     "action": "write_connection",
     "detail": "Write 2 rows to orders",

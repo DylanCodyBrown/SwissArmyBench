@@ -110,6 +110,11 @@ class LiveRuns:
         # launched app ends with it (services/sharing_target.py).
         self.ended: list[Callable[[str], Awaitable[None]]] = []
 
+    def use_runner(self, runner: Any) -> None:
+        """The Streamlit processes started by `runner` from now on (a test's stand-in: start, check,
+        default_python), in place of server/streamlit_apps.py's Runner."""
+        self._runner = runner
+
     def port_of(self, key: str) -> int | None:
         run_id, _, secret = key.rpartition("-")
         live = self._runs.get(run_id)

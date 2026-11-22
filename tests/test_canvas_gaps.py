@@ -333,7 +333,7 @@ def test_the_api_widgets_call_through_the_runtimes_one_action() -> None:
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, FakeRunner, Path]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs._runner = runner  # type: ignore[attr-defined]
+        client.app.state.ctx.live_runs.use_runner(runner)  # type: ignore[attr-defined]
         assert push(client, "orders", ORDERS).status_code == 200
         project = tmp_path / "work" / "shop"
         ok(client.post("/project/new", json={"path": str(project)}, headers=AUTH))

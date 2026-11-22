@@ -152,6 +152,11 @@ class GitHubSync:
         ] = {}  # folder -> when, head, behind, error
         self._device: dict[str, Any] | None = None
 
+    def forget_remote(self) -> None:
+        """Forget when GitHub was last asked about each folder: the next look asks again (otherwise at
+        most once a minute)."""
+        self._remote.clear()
+
     # ===== who is signed in =====
 
     def _signed_in(self) -> str:

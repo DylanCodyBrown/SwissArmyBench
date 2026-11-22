@@ -104,7 +104,7 @@ class Explorer:
         except ValueError:
             return None
 
-    def _apis(self) -> list[dict[str, Any]]:
+    def apis(self) -> list[dict[str, Any]]:
         found = []
         for folder in self._library.folders():
             made = self._library.find(folder, "API_*.py")
@@ -125,12 +125,12 @@ class Explorer:
         return found
 
     def _api(self, name: str) -> dict[str, Any]:
-        for api in self._apis():
+        for api in self.apis():
             if api["name"].casefold() == str(name).casefold():
                 return api
         raise NotFound(f"There is no API called {name} in the library: apis_list names them.")
 
-    def _document(self, api: Mapping[str, Any]) -> dict[str, Any]:
+    def document(self, api: Mapping[str, Any]) -> dict[str, Any]:
         doc = self._json(self._library.path(str(api["folder"]), "openapi.json"))
         if not isinstance(doc, dict):
             raise NotFound(f"{api['name']} has no openapi.json: Refresh it, or add it again.")
@@ -147,7 +147,7 @@ class Explorer:
 
     def _explored(self, name: str) -> dict[str, Any]:
         api = self._api(name)
-        doc = self._document(api)
+        doc = self.document(api)
         spec = apis.parse_spec(doc, "")
         explored = api_explorer.explore(doc, spec)
         calls = self._calls(api["name"])
@@ -194,9 +194,9 @@ class Explorer:
 
     def listing(self) -> dict[str, Any]:
         cards = []
-        for api in self._apis():
+        for api in self.apis():
             try:
-                doc = self._document(api)
+                doc = self.document(api)
                 spec = apis.parse_spec(doc, "")
                 operations, title, version, problem = len(spec.operations), spec.title, spec.version, None
             except (NotFound, ApiError) as error:
@@ -235,7 +235,7 @@ class Explorer:
         """An API's OpenAPI document and its sign-in's settings (its type and names, never a secret):
         what an extension makes a custom connector of."""
         api = self._api(name)
-        return self._document(api), dict(api["mark"].get("auth") or {"type": "none"})
+        return self.document(api), dict(api["mark"].get("auth") or {"type": "none"})
 
     def describe(self, name: str, operation: str | None = None) -> dict[str, Any]:
         explored = self._explored(name)
@@ -248,7 +248,7 @@ class Explorer:
 
     def search(self, query: str) -> dict[str, Any]:
         explored = []
-        for api in self._apis():
+        for api in self.apis():
             try:
                 explored.append((api["name"], self._explored(api["name"])))
             except (NotFound, ApiError):
@@ -262,6 +262,16 @@ class Explorer:
             return self._blades.get(name)
         except (KeyError, LookupError, ValueError):
             raise NotFound(f"{name}'s API blade is not here: add the API again.") from None
+
+    # ===== what Actions reads (services/actions.py Explorer) =====
+
+    def read(self, path: str) -> str | None:
+        """A library file's text (an API's kept shape), or None."""
+        return self._library.read(path)
+
+    async def run_in_api_blade(self, name: str, command: str) -> dict[str, Any]:
+        """`command` run in a child process through the API's blade (its sign-in and secrets there)."""
+        return dict(await self._blades.run_read(self._api_blade(name), command, "", {}))
 
     def _operation(self, explored: Mapping[str, Any], operation: str) -> dict[str, Any]:
         op = next((o for o in explored["operations"] if o["id"] == operation), None)
@@ -663,7 +673,7 @@ class Explorer:
             text, where = await self._thread(self._sources.read_file, address)
         new_doc = self._sources.document(text)
         new_spec = apis.parse_spec(new_doc, where or address)
-        old_doc = self._document(api)
+        old_doc = self.document(api)
         old = api_explorer.explore(old_doc, apis.parse_spec(old_doc, where or address))
         new = api_explorer.explore(new_doc, new_spec)
         diff = api_explorer.diff(old, new)
@@ -693,7 +703,7 @@ class Explorer:
     def _operations(self, api: dict[str, Any]) -> dict[str, Any]:
         """An API's specification as the change log names it: each operation by method and path (its
         parameters and schemas fingerprinted there)."""
-        doc = self._document(api)
+        doc = self.document(api)
         explored = api_explorer.explore(doc, apis.parse_spec(doc, ""))
         return {"operations": {f"{o['method']} {o['path']}": o for o in explored.get("operations") or []}}
 

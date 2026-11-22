@@ -76,7 +76,7 @@ def test_data_ipynbs_tables_are_data_pys_names() -> None:
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, FakeRunner, Path]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs._runner = runner  # type: ignore[attr-defined]
+        client.app.state.ctx.live_runs.use_runner(runner)  # type: ignore[attr-defined]
         segments = [(i, "Gold" if i % 2 else "Silver") for i in range(1, 9)]
         sqlite_connection(
             client, tmp_path, "Shop", {"segments": ("CustomerKey INTEGER, Segment TEXT", segments)}

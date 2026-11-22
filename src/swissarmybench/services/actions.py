@@ -31,8 +31,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
+from contextlib import AbstractContextManager
 from dataclasses import replace
+from types import ModuleType
 from typing import Any, Protocol
 
 from swissarmybench.domain import api_actions as rules
@@ -40,6 +42,7 @@ from swissarmybench.domain import apis as api_rules
 from swissarmybench.domain import notebooks
 from swissarmybench.domain.api_actions import LOCAL, BuildError
 from swissarmybench.services.changes import raised
+from swissarmybench.services.hooks import Hooks
 from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -54,6 +57,42 @@ class Files(Protocol):
     def forget(self, path: str) -> bool: ...
 
 
+class Explorer(Protocol):
+    """What Actions reads from the API explorer (services/api_explorer.py Explorer): the library's APIs, an
+    API's OpenAPI document, a library file's text, a run through an API's blade, Return as table switched on,
+    and the variables a typed input names."""
+
+    variables: Any  # services/variables.py Variables (resolve_all), once built; None before
+
+    def apis(self) -> list[dict[str, Any]]: ...
+
+    def document(self, api: Mapping[str, Any]) -> dict[str, Any]: ...
+
+    def read(self, path: str) -> str | None: ...
+
+    async def run_in_api_blade(self, name: str, command: str) -> dict[str, Any]: ...
+
+    async def table_call(self, name: str, operation: str, records: str, who: str = "user") -> None: ...
+
+
+class LocalApi(Protocol):
+    """The local sandbox API (services/local_api.py LocalApi): its state, API.py's document, a call."""
+
+    async def state(self, body: Any = None, who: str = "user", full: bool = False) -> dict[str, Any]: ...
+
+    def document(self) -> tuple[dict[str, Any], str] | None: ...
+
+    async def call(self, body: Any, who: str = "user", raw: bool = False) -> dict[str, Any]: ...
+
+
+class Stats(Protocol):
+    """The calls' statistics (services/call_stats.py CallStats): an envelope's facts, and runs said here."""
+
+    def api(self, answer: Mapping[str, Any], where: Mapping[str, Any] | None = None) -> None: ...
+
+    def own(self) -> AbstractContextManager[None]: ...
+
+
 def _join(folder: str, *parts: str) -> str:
     return "/".join([folder.rstrip("/\\"), *parts])
 
@@ -62,19 +101,19 @@ class Actions:
     def __init__(
         self,
         ws: Workspace,
-        explorer: Any,  # services/api_explorer.py Explorer: the library's APIs, their blades, save_call
-        local_api: Any,  # services/local_api.py LocalApi: state(full), call
+        explorer: Explorer,
+        local_api: LocalApi,
         files: Files,  # the library's and the project's files (written whole, only when the bytes change)
         project: Callable[[], str | None],
         approvals: Approvals,
         today: Callable[[], str],
         to_thread: Callable[..., Awaitable[Any]] = asyncio.to_thread,
-        hooks: Any = None,  # services/hooks.py Hooks: canvas_put (a widget on a canvas page)
-        api_adapter: Any = None,  # adapters/api_adapter.py, the module (the composition root hands it in)
+        hooks: Hooks | None = None,  # canvas_put (a widget on a canvas page)
+        api_adapter: ModuleType | None = None,  # adapters/api_adapter.py, the module (the root hands it in)
         adapter_text: Callable[[], str] | None = None,  # api_adapter.py's own text (a built app carries it)
         changed: Callable[[str, str], Awaitable[Any]] | None = None,  # a code file written: every window told
         show: Callable[[str, dict[str, Any]], Awaitable[Any]] | None = None,  # a document opened at a place
-        stats: Any = None,  # services/call_stats.py CallStats: each envelope's facts (own(), api)
+        stats: Stats | None = None,  # each envelope's facts
     ) -> None:
         self.ws = ws
         self._explorer = explorer
@@ -85,7 +124,7 @@ class Actions:
         self._today = today
         self._thread = to_thread
         self._hooks = hooks
-        self._aa = api_adapter
+        self._aa: Any = api_adapter
         self._adapter_text = adapter_text
         self._changed = changed
         self._show = show
@@ -101,7 +140,7 @@ class Actions:
     # ===== the actions, from each API's specification =====
 
     def _library_api(self, name: str) -> dict[str, Any] | None:
-        for api in self._explorer._apis():
+        for api in self._explorer.apis():
             if api["name"].casefold() == name.casefold():
                 return dict(api)
         return None
@@ -118,7 +157,7 @@ class Actions:
         api = self._library_api(name)
         if api is None:
             raise NotFound(f"There is no API called {name}: actions(action=list) names them.")
-        return str(api["name"]), self._explorer._document(api), api
+        return str(api["name"]), self._explorer.document(api), api
 
     def _actions_of(self, name: str, doc: dict[str, Any]) -> dict[str, Any]:
         """The specification's actions, each named as the APIs page names its operation (a web call's)."""
@@ -152,9 +191,9 @@ class Actions:
             for one in self._actions_of(LOCAL, doc).values():
                 path = one.path[len(base) :] if base and one.path.startswith(base) else one.path
                 found.append((rules.ref(LOCAL, one.method, path), LOCAL, replace(one, path=path), None))
-        for api in self._explorer._apis():
+        for api in self._explorer.apis():
             try:
-                actions = self._actions_of(str(api["name"]), self._explorer._document(api))
+                actions = self._actions_of(str(api["name"]), self._explorer.document(api))
             except (NotFound, ValueError):  # an API whose document does not read: none of its actions
                 continue
             name = str(api["name"])
@@ -212,7 +251,7 @@ class Actions:
             }
             file = entry.get("file") if entry is not None else None
             if file and "module" not in holder:
-                text = self._explorer._library.read(str(file))
+                text = self._explorer.read(str(file))
                 module = str(file).replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".py")
                 if text:
                     holder["module"] = module
@@ -309,7 +348,7 @@ class Actions:
     async def list(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         """Every API's actions ({"api"?: one}): each with its learned kind, drift line and what it maps to."""
         given = body if isinstance(body, dict) else {}
-        names = [str(given["api"])] if given.get("api") else [a["name"] for a in self._explorer._apis()]
+        names = [str(given["api"])] if given.get("api") else [a["name"] for a in self._explorer.apis()]
         if not given.get("api"):
             state = await self._local.state()
             if state.get("exists"):
@@ -430,7 +469,7 @@ class Actions:
         self, name: str, one: Any, inputs: dict[str, Any], options: dict[str, Any]
     ) -> dict[str, Any]:
         """One run in a child process through the API blade (its sign-in), api_adapter's run there."""
-        variables = getattr(self._explorer, "variables", None)
+        variables = self._explorer.variables
         if variables is not None:  # an input's ${NAME} (12.7): its value sent
             inputs = await variables.resolve_all(inputs, f"{name} {one.name}")
         command = _child_command(
@@ -441,8 +480,7 @@ class Actions:
         return await self._in_child(name, command)
 
     async def _in_child(self, name: str, command: str) -> dict[str, Any]:
-        explorer = self._explorer
-        done = await explorer._blades.run_read(explorer._api_blade(name), command, "", {})
+        done = await self._explorer.run_in_api_blade(name, command)
         rows = done["table"].to_pylist()
         if not rows:
             raise Conflict(f"{name}'s API blade answered nothing.")
@@ -567,7 +605,7 @@ class Actions:
             raise Conflict(str(error)) from None
         if given.get("insert", True) is False:  # the plan alone: nothing placed, no table switched on
             return {"as": "widget", "widget": plan["widget"], "plan": plan}
-        put = getattr(self._hooks, "canvas_put", None)
+        put = self._hooks.canvas_put if self._hooks is not None else None
         if put is None:
             raise Conflict("A widget goes on a canvas page: the Streamlit extension makes canvases.")
         if plan.get("as_table"):  # another API's records: its web call with Return as table on, the one gate

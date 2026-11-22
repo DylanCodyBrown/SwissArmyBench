@@ -207,6 +207,11 @@ class PowerApps:
         # The open project is told (the base's mode follows the open code app's type).
         self._told = opened
 
+    def use_api_documents(self, api_documents: ApiDocuments) -> None:
+        """An API's OpenAPI document and sign-in read through `api_documents` from now on (a test's stand-in
+        for the library's APIs)."""
+        self._api_documents = api_documents
+
     @property
     def folder(self) -> str | None:
         return self._folder

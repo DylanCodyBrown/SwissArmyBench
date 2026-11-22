@@ -104,7 +104,7 @@ def test_the_stamp_holds_no_name_or_value() -> None:
 def played(tmp_path: Path) -> Iterator[tuple[TestClient, Path, str, str]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs._runner = runner  # type: ignore[attr-defined]
+        client.app.state.ctx.live_runs.use_runner(runner)  # type: ignore[attr-defined]
         project = tmp_path / "shop"
         ok(client.post("/project/new", json={"path": str(project)}, headers=AUTH))
         csv = tmp_path / "orders.csv"
