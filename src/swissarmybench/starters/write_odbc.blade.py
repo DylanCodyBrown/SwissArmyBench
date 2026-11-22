@@ -18,6 +18,7 @@ snippet = r"""
 # statements, the counts) and changes nothing. Read it, then set dry_run=False and run the cell again.
 # An agent sets dry_run=False only after you said to write, in your own words, in this conversation.
 # The function holds the statements: Copy it as your own from the Write starters to change it.
+# Or one line for any connection: sab.write(connection, table, rows, mode, key) (the adapter's same write).
 write_odbc = sab.blade("Write to ODBC")  # until the project's functions.py holds write_odbc
 
 write_odbc(

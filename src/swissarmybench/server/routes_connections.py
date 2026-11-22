@@ -13,6 +13,7 @@ answer holds a password's value:
   POST   /connections/{name}/catalog  load its catalog in the background now (first use: a SQL cell asks)
   POST   /connections/{name}/open     a table as a grid {database, schema, table, all} (a file: its file)
   POST   /connections/{name}/preview  a table's first rows {database, schema, table} (nothing kept)
+  POST   /connections/{name}/write    sab.write: {table, rows (records) or from_table, mode, key, dry_run}
   GET    /connections/{name}/datasets a Power BI workspace's datasets: from its loaded catalog, or
                                       (?live=1, or no catalog yet) from Power BI itself, with their ids;
                                       ?live=0 never asks Power BI (none until the catalog is loaded)
@@ -110,6 +111,18 @@ def routes(
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
 
+    async def write(request: Request) -> Response:
+        """sab.write for the agent: rows to a connection's table through the adapter (the agent's waits for
+        the user's Allow, a dry run does not)."""
+        try:
+            body = await read_json(request)
+            return json_response(await connections.write(request.path_params["name"], body, actor(request)))
+        except NeedsValues as error:
+            return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
+        except RefreshError as error:
+            failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
+            return json_response(failed, status_code=422)
+
     async def preview(request: Request) -> Response:
         try:
             body = await read_json(request)
@@ -188,6 +201,7 @@ def routes(
         Route("/connections/{name}/tables", tables, methods=["POST"]),
         Route("/connections/{name}/catalog", load_catalog, methods=["POST"]),
         Route("/connections/{name}/open", open_table, methods=["POST"]),
+        Route("/connections/{name}/write", write, methods=["POST"]),
         Route("/connections/{name}/preview", preview, methods=["POST"]),
         Route("/connections/{name}/relationships", import_relationships, methods=["POST"]),
         Route("/connections/{name}/datasets", datasets),

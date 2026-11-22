@@ -52,7 +52,7 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   an open table as its grid shows it, an Arrow table, read through the adapter (the plan done by the app's
   DuckDB); read again each time, the table stays the app's one copy.
 - A connection through the adapter in a kernel, as an exported API.py reads it: `from swissarmybench.adapters
-  import sab_adapter`, `db = sab_adapter.Connection(sab_adapter.source_from(sab.connection("Warehouse"),
+  import adapter`, `db = adapter.Connection(adapter.source_from(sab.connection("Warehouse"),
   name="Warehouse"))`, then `db.read(...)`, `db.query(sql, params)` (its own SQL), `db.write(...)` (a real write:
   the user's word first, as the Write starters), `db.tables()`.
   A Python cell's missing open table: `workbench_window` command `tables.add` gives the document its cell.

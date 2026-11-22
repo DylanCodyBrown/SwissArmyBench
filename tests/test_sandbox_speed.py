@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.adapters.sandbox import SandboxFiles, _Gate
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.server import api_host
@@ -129,7 +129,7 @@ def boxed(tmp_path: Path) -> Iterator[TestClient]:
 
 def test_many_rows_written_are_one_call_and_every_row_lands_typed(boxed: TestClient) -> None:
     door = CountingRemote(boxed)
-    db = sab_adapter.Connection(door)
+    db = adapter.Connection(door)
     rows = [
         {"batch_id": 1, "field": f"f{n % 4}", "value_number": n * 1.5,
          "value_date": f"2026-10-{1 + n % 28:02d}", "value_bool": n % 2 == 0}
@@ -153,7 +153,7 @@ def test_many_rows_written_are_one_call_and_every_row_lands_typed(boxed: TestCli
     log = boxed.get("/sandbox", headers=AUTH).json()["log"]
     assert log["entries"]["inserted"] == 20_000
     # All or none: a bad value and nothing of the write is there.
-    with pytest.raises(sab_adapter.AdapterError):
+    with pytest.raises(adapter.AdapterError):
         db.write(
             "entries",
             [{"batch_id": 2, "value_date": "2026-10-01"}, {"batch_id": 2, "value_date": "not a day"}],
@@ -164,7 +164,7 @@ def test_many_rows_written_are_one_call_and_every_row_lands_typed(boxed: TestCli
 
 
 def test_two_requests_at_once_never_see_each_others_rows(boxed: TestClient) -> None:
-    db = sab_adapter.Connection(CountingRemote(boxed))
+    db = adapter.Connection(CountingRemote(boxed))
     db.write("entries", [{"batch_id": b, "field": f"b{b}"} for b in range(8)])
     wrong: list[str] = []
     ready = threading.Barrier(8, timeout=10)

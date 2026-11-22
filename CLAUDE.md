@@ -638,7 +638,7 @@ src/swissarmybench/
                          mock would refuse, never run); agent_writes_words
     api_targets.py       a local sandbox API's framework targets as data (FastAPI, Azure Functions v2 on Linux, AWS
                          Lambda on Linux; an extension's API_TARGETS): each one's files from a Bundle (API.py as it is,
-                         sab_api.py, sab_adapter.py, connections.py: the real connections' own code; README with
+                         sab_api.py, adapter.py, connections.py: the real connections' own code; README with
                          the deploy steps, the checklist and the variables; no secret), exports/api/<target>/ a made
                          folder
     api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
@@ -834,7 +834,7 @@ src/swissarmybench/
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
-    sab_adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `sab_adapter`)
+    adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `adapter`)
                          and an export share, standard library + duckdb + pyarrow only: tables(source),
                          read(source, table, plan) -> (Arrow batches, Folded), query(source, sql, params) (its own
                          SQL: joins, CTEs; a write's count), write(source, table, batches, key, mode: insert,
@@ -842,7 +842,9 @@ src/swissarmybench/
                          table(name) and refresh(name) (a table is the data, a grid its view); Connection (what
                          API.py's connection(name) gives, here and exported: tables, columns, read, query, write);
                          source_from(client) (a connection's own client or a file's path in its backend);
-                         catalog_rows (tables as a listing's rows); the Plan (columns, filters, sort, limit,
+                         catalog_rows (tables as a listing's rows, descriptions too), listed(source) (a database's
+                         whole catalog as its starter lists it: Dialect.listing and listing_shape); the Plan
+                         (columns, filters, sort, limit,
                          offset, group, totals; what a source cannot fold done by DuckDB over the stream);
                          from_json (pages to Arrow with given types); sources DuckDB (a file, a connection, the
                          sandbox's gated cursor, the app's session as it is), Remote (the sandbox through
@@ -851,15 +853,19 @@ src/swissarmybench/
                          plan folded, writes in one transaction), OData (Dataverse's Web API; writes in $batch
                          change sets, choice labels, keys, 429), Rows (the lakes and SharePoint by their own read
                          and writes: Delta, a file, a list's Graph calls), Files (a file connection's CSV, Parquet,
-                         JSON); to_json and to_ipc (an endpoint's Arrow answer). Allowed 2,400 lines (one file)
+                         JSON: COPY's options, a format, a partitioned folder); arrow_of (rows of any shape), a SQL
+                         write's Batch beside the driver's error (batch_of); to_json and to_ipc (an endpoint's
+                         Arrow answer). Allowed 3,000 lines (one file); it only grows (design principle 12b)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
                          TextFolder (one of the library's folders of small text files: shared_catalog.py's
                          and vault_names.py's read and write)
     database.py          the locked DuckDB, the priority worker pool, DuckDB's own SQL grammar
-    datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders
-    views.py             the view cache and windows
+    datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders; load_adapted
+                         (a file connection's file through the adapter's Files: DuckDB's types)
+    views.py             the view cache and windows; Adapted (the engine's cursor: every grid query's execute is
+                         adapter.query over the app's session, its values as DuckDB's fetch gives them)
     catalogs.py          loaded catalogs: tree queries and search in the locked DuckDB
     found_connections.py Find connections on this computer: each tool's files found per system (a stand-in home and
                          system for tests: SWISSARMYBENCH_FIND_HOME, _FIND_SYSTEM), the registry read through a
@@ -986,15 +992,20 @@ src/swissarmybench/
   starters/              the built-in starter pack (99 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
                          DAX, HTML, Markdown, Write; the Streamlit extension brings its 52), listed apart, found by name, Copy as your own (tests/test_starters*.py);
                          Write: 16 functions (write_to_*: one public typed function a target, for functions.py) and
-                         17 calls (a cell's text: the call only, dry_run=True; one a target, its mode a placeholder)
+                         17 calls (a cell's text: the call only, dry_run=True; one a target, its mode a placeholder;
+                         each points at sab.write); 13 of the functions write only through the adapter (SQL
+                         Server, Trino and the Excel sheet their own: docs/ideas.md "One adapter")
   client/push_client.py  push(), ensure_server()
   client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
                          write_sql.py each database's quoting, marks, values, types and transaction (SqlWrite;
                          SqlServerWrite: sys.columns' types, #temp staging, MERGE WITH (HOLDLOCK), retried whole on
                          Azure's passing errors); by_adapter (the Dataverse, SharePoint list, Delta and lake file
-                         starters: the dry run the adapter's planned(), then its write). Standard library only (the
-                         adapter imported when a write runs); the SQL statements stay in each Write function
+                         starters: the dry run the adapter's planned(), then its write; SqlWrite.by_adapter and
+                         FileWrite.by_adapter the SQL databases' and files'); write (sab.write: any connection, rows
+                         of any shape or an open table's name, the adapter's five modes) and write_with (the
+                         agent's connections_write runs it in a child process). Standard library only (the adapter
+                         imported when a write runs)
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box), sab.table (an open table as its grid
                          shows it, through the adapter: Arrow, a plan folded by the app)

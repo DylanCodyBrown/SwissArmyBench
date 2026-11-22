@@ -18,7 +18,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.domain import dataverse
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.sandbox import SandboxError
@@ -38,7 +38,7 @@ class _Answer(io.BytesIO):
         return str(self.headers.get(name, default))
 
 
-class TestRemote(sab_adapter.Remote):
+class TestRemote(adapter.Remote):
     """The adapter's sandbox source, through the test's client (the token's path) instead of HTTP."""
 
     __test__ = False
@@ -50,7 +50,7 @@ class TestRemote(sab_adapter.Remote):
     def _post(self, path: str, body: bytes) -> Any:
         answer = self.client.post("/sandbox/adapter" + path, content=body, headers=AUTH)
         if answer.status_code >= 400:
-            raise sab_adapter.AdapterError(answer.json()["error"])
+            raise adapter.AdapterError(answer.json()["error"])
         return _Answer(answer)
 
 
@@ -133,7 +133,7 @@ def test_each_source_speaks_its_own_sql_and_marks() -> None:
 # ===== the same code, the real source and the sandbox =====
 
 
-def orders_in(db: sab_adapter.Connection, region: str) -> list[dict[str, Any]]:
+def orders_in(db: adapter.Connection, region: str) -> list[dict[str, Any]]:
     """One endpoint's code, as it is in API.py: the adapter's calls, the source's own SQL and marks."""
     joined = db.query(
         "SELECT o.order_id, o.amount, c.city FROM orders o JOIN customers c ON c.customer_id = o.customer_id "
@@ -165,8 +165,8 @@ def test_the_same_code_reads_and_writes_sqlite_and_the_sandbox_alike(
     )
     for table in ("orders", "customers"):
         _mock_as(tmp_path / "shop", table, "Shop", "sqlite")
-    here = sab_adapter.Connection(TestRemote(boxed, "Shop"), "Shop")
-    there = sab_adapter.Connection(sab_adapter.Sql(real, "sqlite"), "Shop")
+    here = adapter.Connection(TestRemote(boxed, "Shop"), "Shop")
+    there = adapter.Connection(adapter.Sql(real, "sqlite"), "Shop")
     assert orders_in(here, "West") == orders_in(there, "West")
     assert [r["city"] for r in orders_in(here, "West")] == ["Springfield", "Shelbyville"]
     for db in (here, there):
@@ -176,12 +176,12 @@ def test_the_same_code_reads_and_writes_sqlite_and_the_sandbox_alike(
             "orders", columns=["order_id"], filters=[["amount", "<", 5]], sort=[["order_id", "asc"]]
         )
         assert read.read_all().column("order_id").to_pylist() == [1, 3]
-        assert db.write("orders", [{"order_id": 3}], key=["order_id"], mode="delete") == sab_adapter.Counts(
+        assert db.write("orders", [{"order_id": 3}], key=["order_id"], mode="delete") == adapter.Counts(
             deleted=1
         )
     log = boxed.get("/sandbox", headers=AUTH).json()["log"]
     assert log["orders"]["updated"] == 1 and log["orders"]["deleted"] == 1  # Reset undoes them
-    with pytest.raises(sab_adapter.AdapterError, match="makes a table from a query"):
+    with pytest.raises(adapter.AdapterError, match="makes a table from a query"):
         here.query("CREATE TABLE x (a INT)")
 
 
@@ -189,7 +189,7 @@ def test_a_long_read_comes_back_whole(boxed: TestClient, tmp_path: Path) -> None
     """A query's answer is streamed (no page size, no "more" to ask for): every row, nested types kept."""
     many = 25_003
     _put(boxed, tmp_path, "lines", pa.table({"line_id": list(range(many)), "tags": [["a", "b"]] * many}))
-    db = sab_adapter.Connection(TestRemote(boxed, "Sandbox"))
+    db = adapter.Connection(TestRemote(boxed, "Sandbox"))
     found = db.query("SELECT line_id, tags FROM lines ORDER BY line_id").read_all()
     assert found.num_rows == many and found.column("tags")[0].as_py() == ["a", "b"]
 
@@ -203,22 +203,22 @@ def test_an_api_makes_views_tables_and_sequences_and_reset_undoes_them(
     _put(boxed, tmp_path, "regions", pa.table({"region": ["West"]}))
     for table in ("orders", "regions"):
         _mock_as(tmp_path / "shop", table, "Shop", "postgres")
-    pg = sab_adapter.Connection(TestRemote(boxed, "Shop"))
-    with pytest.raises(sab_adapter.AdapterError, match="a view cannot hold a value given apart"):
+    pg = adapter.Connection(TestRemote(boxed, "Shop"))
+    with pytest.raises(adapter.AdapterError, match="a view cannot hold a value given apart"):
         pg.query("CREATE VIEW west AS SELECT order_id FROM orders WHERE region = %s", ["West"])
     assert pg.query(
         "CREATE VIEW west AS SELECT order_id FROM orders WHERE region = 'West'"
     ).read_all().to_pylist() == [{"count": 0}]
     assert pg.query("SELECT count(*) AS n FROM west").read_all().to_pylist() == [{"n": 2}]
     assert [t.name for t in pg.tables()] == ["orders", "regions", "west"]
-    assert pg.columns("WEST") == [sab_adapter.Column("order_id", "BIGINT")]
+    assert pg.columns("WEST") == [adapter.Column("order_id", "BIGINT")]
     listed = {t["name"]: t for t in boxed.get("/sandbox", headers=AUTH).json()["tables"]}
     assert listed["west"]["source_words"] == "Made by the API (a view)"
     with pytest.raises(
-        sab_adapter.AdapterError, match="orders is a sandbox table you added: an API cannot replace it"
+        adapter.AdapterError, match="orders is a sandbox table you added: an API cannot replace it"
     ):
         pg.query("CREATE OR REPLACE VIEW orders AS SELECT 1 AS one")
-    with pytest.raises(sab_adapter.AdapterError, match="cannot drop it"):
+    with pytest.raises(adapter.AdapterError, match="cannot drop it"):
         pg.query("DROP TABLE orders")
     assert boxed.post("/sandbox/reset", json={}, headers=AUTH).status_code == 200
     assert [t.name for t in pg.tables()] == ["orders", "regions"]
@@ -233,7 +233,7 @@ def standin(monkeypatch: pytest.MonkeyPatch) -> Iterator[made_up.StandIn]:
     running.stop()
 
 
-def big_accounts(db: sab_adapter.Connection) -> list[dict[str, Any]]:
+def big_accounts(db: adapter.Connection) -> list[dict[str, Any]]:
     """One endpoint's code for Dataverse: a plan, folded into OData by the real source, by DuckDB here."""
     found = db.read("account", columns=["name", "revenue"], filters=[["revenue", ">", 1_000_000]],
                     sort=[["revenue", "desc"]], limit=3)  # fmt: skip
@@ -254,8 +254,8 @@ def test_the_same_code_reads_dataverse_and_the_sandbox_alike(
     every, _ = real.rows("account", columns=["name", "revenue"])
     _put(boxed, tmp_path, "account", pa.Table.from_pylist(every))
     _mock_as(tmp_path / "shop", "account", "Sales CRM", "sqlserver", "dataverse")
-    here = sab_adapter.Connection(TestRemote(boxed, "Sales CRM"))
-    there = sab_adapter.Connection(sab_adapter.source_from(real, name="Sales CRM"))
+    here = adapter.Connection(TestRemote(boxed, "Sales CRM"))
+    there = adapter.Connection(adapter.source_from(real, name="Sales CRM"))
     assert big_accounts(here) == big_accounts(there) and len(big_accounts(here)) == 3
-    with pytest.raises(sab_adapter.AdapterError, match="read-only: SELECT only"):
+    with pytest.raises(adapter.AdapterError, match="read-only: SELECT only"):
         here.query("DELETE FROM account")

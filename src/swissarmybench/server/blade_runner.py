@@ -143,6 +143,8 @@ def payload(
         "attempts": (extra or {}).get("attempts"),
         # modes "rows" and "queries" on a Power BI workspace: the dataset the statements are sent to.
         "dataset": (extra or {}).get("dataset"),
+        # mode "write": sab.write's request ({"table", "mode", "key", "dry_run", "records"? or "ipc"?}).
+        "write": (extra or {}).get("write"),
     }
 
 
@@ -397,6 +399,8 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
             return _queries(job, secrets)
         if job["mode"] == "datasets":
             return _datasets(job, secrets)
+        if job["mode"] == "write":
+            return _write(job, hidden)
         if job["kind"] == "vault":
             every = bool(job.get("vault_all"))
             values = run_vault(
@@ -472,7 +476,7 @@ def _adapter_rows(
     DB-API connection in its dialect; its plan folded into the read, the batches made the table and nothing
     else kept; its row count when asked (SQL Server's from its system views, as before). None: a connection
     the adapter does not read (its SQL is sent instead)."""
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
     from swissarmybench.adapters.blade_run import _sql_rows
 
     dialect = str(read.get("dialect") or "duckdb")
@@ -492,6 +496,28 @@ def _adapter_rows(
         reader, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))
         total = int(reader.read_all().column(0)[0].as_py())
     return {"arrow": _arrow_text(table), "total": total}
+
+
+def _write(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
+    """sab.write on the connection (the agent's connections_write): its client in the adapter's backend, the
+    dry run counted by reads, else the rows written; the answer is the counts and the report's words."""
+    from swissarmybench.adapters.blade_run import BladeRunError, close_quietly, run_code
+    from swissarmybench.client import writes
+
+    asked = job["write"]
+    rows: Any = asked.get("records")
+    if asked.get("ipc"):
+        rows = ipc.open_stream(io.BytesIO(base64.b64decode(asked["ipc"]))).read_all()
+    value, _ = run_code(job["code"], job["variable"], secrets, job["label"])
+    try:
+        made = writes.write_with(
+            job["label"], value, asked["table"], rows, asked["mode"], asked.get("key"), bool(asked["dry_run"])
+        )
+        return writes.answer(made)
+    except writes.WriteError as error:
+        raise BladeRunError(str(error)) from None
+    finally:
+        close_quietly(value)
 
 
 def _arrow_text(table: Any) -> str:
@@ -605,7 +631,7 @@ def _adapter_read(
     """A Dataverse table (OData) or a lake's or SharePoint's (Rows) through the adapter: the limit, and the
     columns and filters a DuckDB query sends, folded into the connection's own read; the count it gave and,
     for the lakes, how it read the files (the table's sab_read)."""
-    from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters import adapter as sab
 
     source: Any = sab.OData(connection) if adapter == "odata" else sab.Rows(connection)
     table = str(place.get("table") or "")

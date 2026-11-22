@@ -14,8 +14,8 @@ from typing import Any
 import pyarrow as pa
 import pytest
 
-from swissarmybench.adapters import sab_adapter as sab
-from swissarmybench.adapters.sab_adapter import Counts
+from swissarmybench.adapters import adapter as sab
+from swissarmybench.adapters.adapter import Counts
 from swissarmybench.domain import dataverse
 from tests import dataverse_standin as crm_standin
 from tests import lake_standins as made_up

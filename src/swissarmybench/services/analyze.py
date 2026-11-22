@@ -282,14 +282,15 @@ class Analyze:
             timer.start()
             started = time.monotonic()
             try:
-                view = ws.compiled(cursor, grid, info)
+                adapted = ws.views.adapted(cursor)  # its rows only through the adapter
+                view = ws.compiled(adapted, grid, info)
                 if view.error is not None:
                     raise Conflict(
                         f"A step of {info.name} does not work, so it cannot be analysed: {view.error}",
                         where=info.name,
                     )
-                with ws.views.reading(cursor, info, grid.steps, grid.settings) as rows:
-                    found = run(cursor, f"({rows}) AS src", view.columns)
+                with ws.views.reading(adapted, info, grid.steps, grid.settings) as rows:
+                    found = run(adapted, f"({rows}) AS src", view.columns)
                 if time.monotonic() - started > seconds:  # past its time as it ended: the limit holds
                     timed_out[0] = True
                     raise ws.interrupted()

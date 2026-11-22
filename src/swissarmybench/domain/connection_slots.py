@@ -49,6 +49,7 @@ KINDS: dict[str, str] = {
     "blade": "blade run",
     "analyze": "Analyze",
     "probe": "access check",
+    "write": "write",
 }
 
 OUTCOMES: tuple[str, ...] = ("ok", "cancelled", "failed", "timed out", "ended")

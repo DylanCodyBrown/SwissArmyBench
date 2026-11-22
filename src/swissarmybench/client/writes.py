@@ -2,7 +2,7 @@
 meant to be handled with blades and cells in notebooks"): the rows, the dry run's plan and the write's
 counts. Each target's own helper builds on it (client/write_sql.py); since the adapter's phase 3 the
 Dataverse, SharePoint list and lake starters are its write (by_adapter: the dry run counted by its reads,
-then sab_adapter.write).
+then adapter.write).
 
     rows      the rows to write (a DataFrame of any kind, an Arrow table, a DuckDB relation), staged in a
               DuckDB of their own: their columns and types, counts, keys and batches are DuckDB SQL
@@ -274,15 +274,15 @@ def by_adapter(
     written: bool = False,
 ) -> Write:
     """The write's dry run and the write itself by the adapter on `source` (the connection's own client in
-    its backend: sab_adapter.source_from): what it would do counted by sab_adapter.planned (reads, nothing
-    written), then, with dry_run False, sab_adapter.write. An update changes only rows that are there: a key
+    its backend: adapter.source_from): what it would do counted by adapter.planned (reads, nothing
+    written), then, with dry_run False, adapter.write. An update changes only rows that are there: a key
     that is not stops it (merge adds them). `written`: the counts said as rows written (a file, an append)."""
-    from swissarmybench.adapters import sab_adapter  # imported when a write runs: this module stays stdlib
+    from swissarmybench.adapters import adapter  # imported when a write runs: this module stays stdlib
 
     data = None if w.rows is None else w.rows.arrow()
     try:
-        plan = sab_adapter.planned(source, table, data, tuple(key), mode)
-    except sab_adapter.AdapterError as error:
+        plan = adapter.planned(source, table, data, tuple(key), mode)
+    except adapter.AdapterError as error:
         raise WriteError(str(error)) from None
     given = 0 if data is None else data.num_rows
     if mode == "update" and plan.updated < given:
@@ -293,11 +293,72 @@ def by_adapter(
     w.would(said, **_counts(plan, mode, written))
     if not w.dry_run:
         try:
-            done = sab_adapter.write(source, table, data, tuple(key), mode)
-        except sab_adapter.AdapterError as error:
+            done = adapter.write(source, table, data, tuple(key), mode)
+        except adapter.AdapterError as error:
             raise WriteError(str(error)) from None
+        except Exception as error:  # the source's own refusal (a SQL write's names its batch; rolled back)
+            batch = adapter.batch_of(error)
+            raise WriteError(
+                f"Nothing was written: {batch.where() + ' failed: ' if batch else ''}{words(error)}"
+            ) from None
         w.done(**{k: int(v or 0) for k, v in _counts(done, mode, written).items()})
     return w
+
+
+# ===== sab.write: the one write, every source the adapter writes =====
+
+
+def write(
+    connection: Any,
+    table: str,
+    rows: Any,
+    mode: str = "insert",
+    key: str | Sequence[str] | None = None,
+    dry_run: bool = False,
+) -> Write:
+    """Rows written to a connection's table through the adapter (adapter.write), one call for every
+    source: `sab.write("Warehouse", "sales.orders", orders, "merge", key="order_id")`.
+
+    connection: a saved connection's name (sab.connection opens it, signed in its own way) or its client.
+    rows: a DataFrame (pandas, polars), an Arrow table, a list of dicts, or an open table's name (its grid's
+    view, read through the adapter: sab.table). None with truncate: the table only cleared.
+    mode: insert, update (by key), merge (update, else insert), delete (by key) or truncate (cleared, then
+    the rows inserted); all or none where the source has transactions.
+    dry_run: True only counts what it would do (by reads) and writes nothing. An agent writes only after
+    the user said to, in their own words.
+    Returns the write's report (its counts; in a notebook, its words)."""
+    if isinstance(rows, str):
+        import swissarmybench as sab
+
+        rows = sab.table(rows)
+    name, conn = live(connection)
+    return write_with(name, conn, table, rows, mode, key, dry_run)
+
+
+def write_with(
+    name: str, conn: Any, table: str, rows: Any, mode: str, key: str | Sequence[str] | None, dry_run: bool
+) -> Write:
+    """sab.write on a live connection (a kernel's; the agent's connections_write runs it in a child
+    process): its client in its backend (adapter.source_from), the dry run planned(), then write()."""
+    from swissarmybench.adapters import adapter
+    from swissarmybench.client.write_sql import writable
+
+    if mode not in adapter.MODES:
+        raise WriteError(f"mode is one of {', '.join(adapter.MODES)}, not {mode!r}.")
+    keys = [key] if isinstance(key, str) else [str(k) for k in key or () if k]
+    try:
+        data = None if rows is None and mode == "truncate" else adapter.arrow_of(rows)
+        source = adapter.source_from(writable(conn), name=name)
+    except adapter.AdapterError as error:
+        raise WriteError(str(error)) from None
+    w = Write(name, table, mode, data, dry_run=dry_run)
+    said = f"adapter.write({name!r}, {table!r}, mode={mode!r}" + (f", key={keys!r})" if keys else ")")
+    return by_adapter(w, source, table, mode, keys, said=said)
+
+
+def answer(w: Write) -> dict[str, Any]:
+    """A write's report as the agent is told it: the counts and the words (a 5-row sample at most)."""
+    return {"dry_run": w.dry_run, "planned": dict(w.planned), "counts": w.counts, "said": w.words()}
 
 
 def _counts(counts: Any, mode: str, written: bool) -> dict[str, int | None]:
@@ -425,35 +486,29 @@ class FileWrite(Write):
         """A COPY with the file's path in it ({file} in the text)."""
         return copy.replace("{file}", (file or self.path).replace("'", "''"))
 
-    def copy(self, copy: str) -> int:
-        """DuckDB's COPY to a new file (or folder) beside the target, then put in its place."""
-        import os
-        import shutil
+    def by_adapter(self, options: str = "", partition_by: Sequence[str] = ()) -> FileWrite:
+        """The file (or the folder of partitioned Parquet files) written by the adapter's Files: DuckDB's
+        COPY with these options to a new file beside the target, then put in its place (a folder's files
+        added with add); what it would run said first, the write itself only with dry_run False."""
+        from swissarmybench.adapters import (
+            adapter,
+        )  # imported when a write runs: this module stays stdlib
 
-        rows = self.need_rows()
-        spare = self.file.with_name(f".{self.file.name}.{uuid.uuid4().hex[:8]}.writing")
+        fmt = "parquet" if self.kind == "folder" else self.kind
+        said = f"FORMAT {fmt}{', HEADER' if fmt == 'csv' else ''}{', ' + options if options else ''}"
+        if partition_by:
+            said += f", PARTITION_BY ({self.names(partition_by)}), FILENAME_PATTERN 'data_{{uuid}}'"
+        self.would(self.statement(f"COPY sab_rows TO '{{file}}' ({said})"), written=self.need_rows().count)
+        if self.dry_run:
+            return self
+        source = adapter.Files(str(self.file), "this computer", fmt, options, partition_by)
+        mode = "insert" if self.add else "truncate"
         try:
-            rows.db.execute(self.statement(copy, str(spare)))
-            if self.kind != "folder":
-                os.replace(spare, self.file)
-            elif self.add and self.file.exists():
-                for made in spare.rglob("*"):
-                    if made.is_file():
-                        place = self.file / made.relative_to(spare)
-                        place.parent.mkdir(parents=True, exist_ok=True)
-                        os.replace(made, place)
-                shutil.rmtree(spare, ignore_errors=True)
-            else:
-                if self.file.exists():
-                    shutil.rmtree(self.file)
-                os.replace(spare, self.file)
+            done = adapter.write(source, self.file.name, self.need_rows().arrow(), (), mode)
         except Exception as error:
-            if spare.is_dir():
-                shutil.rmtree(spare, ignore_errors=True)
-            elif spare.exists():
-                spare.unlink()
             raise WriteError(f"Nothing was written: {words(error)}") from None
-        return rows.count
+        self.done(written=int(done.inserted))
+        return self
 
     # ===== an Excel sheet =====
 

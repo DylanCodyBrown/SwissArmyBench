@@ -44,6 +44,8 @@ class TableReader(Protocol):
 
     def load_file(self, path_text: str, max_bytes: int, sheet: str | None = None) -> tuple[Any, str]: ...
 
+    def load_adapted(self, path_text: str, max_bytes: int, sheet: str | None = None) -> tuple[Any, str]: ...
+
     def excel_sheets(self, path_text: str) -> list[str]: ...
 
     def load_bytes(
@@ -145,7 +147,7 @@ class DatasetService:
         found = _file_of(origin)
         if self.ws.store.get(name) is None or found is None:
             raise NotFound(f"No table named {name!r} read from a file is open.")
-        result = await self.load_file(name, found[0], found[1], False, who)
+        result = await self.load_file(name, found[0], found[1], False, who, origin.adapted)
         return result | {"reloaded": name}
 
     async def reopen(self, who: str) -> dict[str, Any]:
@@ -382,15 +384,16 @@ class DatasetService:
             raise Refused("That is one of the grid server's own files, not a table.")
 
     async def load_file(
-        self, name: str, path: str, sheet: str | None, new_grid: bool, who: str
+        self, name: str, path: str, sheet: str | None, new_grid: bool, who: str, adapted: bool = False
     ) -> dict[str, Any]:
+        """A file as a table. `adapted`: a file connection's, read through the adapter's Files (DuckDB's own
+        types), and read so again (Reload, the project opened again)."""
         ws = self.ws
         used = await self.resolve_text(path, name)  # ${NAME} in a path (12.7); the origin keeps the text
         self._refuse_own_file(used)
-        table, kind = await ws.workers.run(
-            BACKGROUND, self._reader.load_file, used, ws.settings.max_dataset_bytes, sheet
-        )
-        origin = Origin("file", path=path, sheet=sheet)
+        load = self._reader.load_adapted if adapted else self._reader.load_file
+        table, kind = await ws.workers.run(BACKGROUND, load, used, ws.settings.max_dataset_bytes, sheet)
+        origin = Origin("file", path=path, sheet=sheet, adapted=adapted)
         result = await self.store_table(name, table, kind, new_grid, who, origin=origin)
         ws.audit.write(who, "load_file", name, file=self._reader.file_name(path), sheet=sheet)
         return result
@@ -584,7 +587,9 @@ class ConnectionTables:
         return result
 
     async def load_file(self, name: str, path: str, sheet: str | None, who: str) -> dict[str, Any]:
-        return await self._datasets.load_file(name, path, sheet, True, who)
+        return await self._datasets.load_file(
+            name, path, sheet, True, who, adapted=True
+        )  # the adapter's Files
 
     def opened_from(self, name: str) -> str | None:
         # Names that differ only in case are one table to DuckDB: Invoices is open as invoices too.

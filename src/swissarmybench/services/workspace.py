@@ -105,7 +105,7 @@ class Workspace:
         def job() -> T:
             if grid.is_stale(gen, client):
                 raise StaleRequestError()
-            return fn(cursor)
+            return fn(self.views.adapted(cursor))  # its rows only through the adapter (interrupted as itself)
 
         try:
             return await self.workers.run(priority, job)

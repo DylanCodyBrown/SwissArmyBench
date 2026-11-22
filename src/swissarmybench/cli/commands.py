@@ -2836,6 +2836,24 @@ def connections_open_table(a: dict[str, Any]) -> Any:
 
 
 @command(
+    "connections_write",
+    "Write rows to a connection's table through the adapter (sab.write): insert, update, merge, delete (by "
+    "key) or truncate. dry_run=true counts and writes nothing; a write waits for the user's Allow.",
+    req("name", "The connection's name."),
+    req("table", "The table to write (schema.table; a file connection's file, orders.parquet)."),
+    opt("rows", "The rows: a list of records.", "json"),
+    opt("from_table", "Or an open table's name: its grid's rows."),
+    opt("mode", "insert (default), update, merge, delete or truncate."),
+    opt("key", "The key column(s) a row is matched by (update, merge, delete).", "list"),
+    opt("dry_run", "Count only; nothing written.", "bool"),
+)
+def connections_write(a: dict[str, Any]) -> Any:
+    keys = ("table", "rows", "from_table", "mode", "key", "dry_run")
+    body = {k: a[k] for k in keys if a.get(k) is not None}
+    return api.call("POST", f"/connections/{_q(a['name'])}/write", body)
+
+
+@command(
     "connections_tables",
     "A connection's tables as the Connections page's tree: its datasets (Power BI) or schemas, each table "
     "with its name for DuckDB SQL ([Finance Captive].Sales). Loads the catalog first when needed.",

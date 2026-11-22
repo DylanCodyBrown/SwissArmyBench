@@ -249,7 +249,10 @@ def source_of(
     document whose kernel pushed it; `place`: a connection's database, schema and table."""
     if origin.kind == "file" and origin.path:
         relative = near(origin.path, sab_folder)
-        return Source("file", path=relative or origin.path, absolute=origin.path, sheet=origin.sheet)
+        read = {"reader": "adapter"} if origin.adapted else {}  # a file connection's: the adapter's Files
+        return Source(
+            "file", path=relative or origin.path, absolute=origin.path, sheet=origin.sheet, extra=read
+        )
     if origin.kind == "connection" and origin.connection and place is not None:
         database, schema, table = place
         # A Power BI workspace names its dataset too ("Finance/Sales model"): the connection is the first.

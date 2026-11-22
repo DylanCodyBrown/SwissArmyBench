@@ -1,5 +1,5 @@
 """The adapter's one rule, read like the layers test (Plans/adapter.plan.md: "every single data call and every
-api payload in and out should travel through the adapter"): every place outside sab_adapter.py that opens a
+api payload in and out should travel through the adapter"): every place outside adapter.py that opens a
 database driver or turns JSON into rows, found with ast.
 
 Enforced for what moved: a local sandbox API's own process (api_host.py, sab_api) opens no driver and reaches
@@ -15,7 +15,7 @@ from typing import Any
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench"
 ROOTS = [PACKAGE, *sorted((PACKAGE.parents[1] / "extensions").glob("*/src/*"))]
-ADAPTER = PACKAGE / "adapters" / "sab_adapter.py"
+ADAPTER = PACKAGE / "adapters" / "adapter.py"
 
 DRIVERS = {
     "duckdb", "sqlite3", "psycopg", "psycopg2", "pymysql", "mysql", "pyodbc", "mssql_python", "pytds",
@@ -76,7 +76,7 @@ def test_the_places_outside_the_adapter_are_listed() -> None:
         said = ", ".join(sorted(found["drivers"])) or "-"
         rows = ", ".join(sorted(found["rows"])) or "-"
         print(f"{name}: drivers {said}; JSON to rows {rows}; in SQL {', '.join(sorted(found['sql'])) or '-'}")
-    assert "swissarmybench/adapters/sab_adapter.py" not in listed
+    assert "swissarmybench/adapters/adapter.py" not in listed
     assert listed, "the scan finds the places the later steps move"
 
 
@@ -125,6 +125,9 @@ def test_a_sandbox_api_reaches_its_data_only_through_the_adapter() -> None:
 ENGINE_MOVED = {
     "adapters/export.py": ("batches",),  # every export's rows (CSV, Excel, Parquet, Markdown)
     "adapters/datasets.py": ("query_table", "query_to_arrow_stream"),  # "+" tab, SQL box, a kernel's view
+    # Phase 4: the engine's cursor (Adapted): a grid's windows, its steps' counts and the view cache, the SQL
+    # box, the analyses and profiles all execute through it.
+    "adapters/views.py": ("execute",),
 }
 DIRECT_ROWS = {"to_arrow_reader", "to_arrow_table", "fetch_arrow_table", "fetchall", "fetchmany", "fetchone"}
 
@@ -141,20 +144,80 @@ def test_the_engine_paths_that_moved_read_rows_only_through_the_adapter() -> Non
                 n.func.attr for n in ast.walk(bodies[function])
                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
             }  # fmt: skip
-            assert "query" in called, f"{name} {function} reads through sab_adapter.query"
+            assert "query" in called, f"{name} {function} reads through adapter.query"
             assert not called & DIRECT_ROWS, (
                 f"{name} {function} reads rows itself: {sorted(called & DIRECT_ROWS)}"
             )
 
 
+def _calls(path: str, function: str) -> set[str]:
+    tree = ast.parse((PACKAGE / path).read_text(encoding="utf-8"))
+    body = next(
+        f
+        for f in ast.walk(tree)
+        if isinstance(f, ast.FunctionDef | ast.AsyncFunctionDef) and f.name == function
+    )
+    return {
+        n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")
+        for n in ast.walk(body)
+        if isinstance(n, ast.Call)
+    }
+
+
+def test_every_grid_query_and_engine_cursor_reaches_rows_through_the_adapter() -> None:
+    """Phase 4, step 4 (the owner: "everything, the engine too"): every grid query (windows, counts, the
+    view cache, the SQL box, profiles, analyses, regression, time series) is handed the adapted cursor, and
+    the two engine paths that take a cursor themselves (an Analyze run, a highlight's check) adapt theirs."""
+    assert "adapted" in _calls("services/workspace.py", "grid_query")
+    assert "adapted" in _calls("services/analyze.py", "_on_view")
+    assert "adapted" in _calls("services/grids.py", "set_highlights")
+    assert "query" in _calls("adapters/views.py", "execute")
+
+
+def test_a_file_connections_open_as_grid_reads_through_the_adapter() -> None:
+    """Phase 4, step 3: a file connection's file is the adapter's Files read (DuckDB's types)."""
+    assert {"read", "Files"} <= _calls("adapters/datasets.py", "load_adapted")
+    text = (PACKAGE / "services" / "datasets.py").read_text(encoding="utf-8")
+    found = text[text.index("class ConnectionTables") :]
+    assert "adapted=True" in found[: found.index("def opened_from")]  # ConnectionTables.load_file
+
+
 def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None:
     """Phase 2: a database connection's Open as grid is the adapter's read for DuckDB and each SQL dialect it
     folds a plan into (the old SELECT and COUNT text stays only for the dialects it does not know)."""
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
     from swissarmybench.services import connections
 
-    known = set(sab_adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
+    known = set(adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
     assert known | {"duckdb"} == set(connections.ADAPTER_DIALECTS)
+
+
+WRITES_OWN = {  # the Write starters that still write themselves, and why (docs/ideas.md "One adapter")
+    "write_to_sql_server": "typed #temp staging, MERGE WITH (HOLDLOCK), Azure's passing errors retried",
+    "write_to_trino": "no transactions: a statement at a time, MERGE where the connector has it",
+    "write_to_excel_sheet": "moves with the Excel module (Plans/excel.plan.md)",
+}
+STATEMENTS = {"execute", "executemany", "copy", "each_batch", "each_values", "each_where", "transaction"}
+
+
+def test_the_write_starters_write_only_through_the_adapter() -> None:
+    """Phase 4, step 1: every Write function but the three above is a thin caller of the adapter's write
+    (by_adapter: its planned() for the dry run, then adapter.write); none runs a statement itself."""
+    functions = sorted((PACKAGE / "starters").glob("write_to_*.blade.py"))
+    assert len(functions) == 16
+    for path in functions:
+        stem = path.name.removesuffix(".blade.py")
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        calls = [n.func for n in ast.walk(tree) if isinstance(n, ast.Call)]
+        called = {f.attr for f in calls if isinstance(f, ast.Attribute)} | {
+            f.id for f in calls if isinstance(f, ast.Name)
+        }
+        if stem in WRITES_OWN:
+            continue
+        assert "by_adapter" in called or {"write", "planned"} <= called, f"{stem} writes through the adapter"
+        assert stem in ("write_to_delta",) or not called & STATEMENTS, (
+            f"{stem} runs statements itself: {sorted(called & STATEMENTS)}"
+        )
 
 
 def test_a_kernel_reaches_an_open_table_only_through_the_adapter() -> None:

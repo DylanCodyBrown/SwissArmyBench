@@ -9,9 +9,9 @@ Status: decided; not built. Cared for as design principle 12b (equal to adapter.
 > change code, it adapts."
 
 ## Two adapters, one each
-- `sab_adapter.py`: tables (read, query, write) from connections. Unchanged.
+- `adapter.py`: tables (read, query, write) from connections. Unchanged.
 - `api_adapter.py`: actions (calls to any API that do something or answer something). Standard library only, copied
-  into exports like sab_adapter.py. Where an answer is table-shaped it hands it to sab_adapter as a table: the one
+  into exports like adapter.py. Where an answer is table-shaped it hands it to adapter as a table: the one
   crossing point.
 
 ## One call, one envelope
@@ -22,7 +22,7 @@ endpoint, an extension's or blade's own) answers, for every API:
 |---|---|
 | `ok`, `status` | did it work; the HTTP status (or the action's own) |
 | `kind` | what the answer is: `records`, `record`, `value`, `file`, `empty`, `text` |
-| `records` / `record` / `value` / `file` | the answer in that shape (records also as a table through sab_adapter) |
+| `records` / `record` / `value` / `file` | the answer in that shape (records also as a table through adapter) |
 | `paging` | more pages and how they were followed (or stopped) |
 | `shape` | the answer's fingerprint and any drift from the last time (below) |
 | `raw` | the answer as it came, for the viewer and the agent |

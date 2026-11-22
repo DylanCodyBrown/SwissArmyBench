@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.domain import api_scaffold as scaffold
 from swissarmybench.domain import api_targets as targets
 from swissarmybench.domain import local_api as rules
@@ -248,11 +248,11 @@ def test_the_words() -> None:
         api_runtime._convert("maybe", bool, "paid")
     with pytest.raises(api_runtime.ApiError, match=r"fee is not a number: 'lots'"):
         api_runtime._convert("lots", float, "fee")
-    assert sab_adapter.sql_line("Line 1: the sandbox's mock has no system views (x).") == (
+    assert adapter.sql_line("Line 1: the sandbox's mock has no system views (x).") == (
         "The sandbox's mock has no system views (x)."
     )
-    assert sab_adapter.sql_line("Line 3: :id has no value.") == ":id has no value. (line 3 of its SQL)"
-    assert sab_adapter.sql_line("Conversion Error: no") == "Conversion Error: no"
+    assert adapter.sql_line("Line 3: :id has no value.") == ":id has no value. (line 3 of its SQL)"
+    assert adapter.sql_line("Conversion Error: no") == "Conversion Error: no"
 
 
 def test_an_export_without_rows_warns_in_its_answer() -> None:

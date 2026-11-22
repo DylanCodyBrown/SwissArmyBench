@@ -51,7 +51,7 @@ class ApiExport:
         edited: Callable[[str], set[str]],
         approvals: Any,
         registry: Registry | None = None,
-        adapter_text: Callable[[], str] = str,  # sab_adapter.py, beside sab_api.py in every export
+        adapter_text: Callable[[], str] = str,  # adapter.py, beside sab_api.py in every export
     ) -> None:
         self.ws = ws
         self._project = project

@@ -38,7 +38,9 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
         return await read_json(request) if int(request.headers.get("content-length") or 0) else {}
 
     def name_of(request: Request) -> str:
-        return str(request.path_params["name"])
+        """The widget a request means; a rename this session is followed, never for a delete."""
+        name = str(request.path_params["name"])
+        return name if request.method == "DELETE" else widgets.follow(name)
 
     async def window(request: Request) -> Response:
         if web_root is None or not (web_root / "widget.html").is_file():

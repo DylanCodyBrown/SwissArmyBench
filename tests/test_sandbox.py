@@ -22,7 +22,7 @@ import pyarrow as pa
 import pytest
 from starlette.testclient import TestClient
 
-from swissarmybench.adapters import sab_adapter
+from swissarmybench.adapters import adapter
 from swissarmybench.adapters.database import duckdb_grammar
 from swissarmybench.adapters.sandbox import SandboxFiles
 from swissarmybench.domain import sandbox as rules
@@ -194,7 +194,7 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
 
         assert rows() == 3
         # An API's writes through the adapter: counted, the grid following.
-        db = sab_adapter.Connection(TestRemote(client, "Sandbox"))
+        db = adapter.Connection(TestRemote(client, "Sandbox"))
         assert db.write("orders", [{"order_id": 4, "region": "North", "amount": 1.5}]).inserted == 1
         assert db.query("UPDATE orders SET amount = 99 WHERE order_id = ?", [1]).read_all().to_pylist() == [
             {"count": 1}
@@ -242,9 +242,9 @@ def test_tables_in_writes_counted_grid_follows_reset_and_checkpoints(tmp_path: P
         section = next(s for s in browse["sections"] if s["kind"] == "sandbox")
         assert {i["name"] for i in section["items"]} == {"notes", "orders", "west"}
         # A write naming a column that is not there: one sentence, nothing written.
-        with pytest.raises(sab_adapter.AdapterError, match="nope"):
+        with pytest.raises(adapter.AdapterError, match="nope"):
             db.write("orders", [{"nope": 1}])
-        with pytest.raises(sab_adapter.AdapterError, match="duplicate key"):
+        with pytest.raises(adapter.AdapterError, match="duplicate key"):
             db.write("notes", [{"id": 1}, {"id": 1}])
         assert db.read("notes").read_all().num_rows == 0
 
@@ -287,7 +287,7 @@ def test_the_agents_reset_waits_for_the_users_allow(tmp_path: Path) -> None:
                 "/sandbox/tables", json={"from": "columns", "name": "t", "columns": cols}, headers=AGENT
             )
         )
-        sab_adapter.Connection(TestRemote(client, "Sandbox")).write("t", [{"id": 1}])
+        adapter.Connection(TestRemote(client, "Sandbox")).write("t", [{"id": 1}])
         answer: dict[str, Any] = {}
         waiting = threading.Thread(
             target=lambda: answer.update(r=client.post("/sandbox/reset", json={}, headers=AGENT))
@@ -303,7 +303,7 @@ def test_the_agents_reset_waits_for_the_users_allow(tmp_path: Path) -> None:
         ok(client.post(f"/agent/approvals/{pending[0]['id']}", json={"approve": False}, headers=AUTH))
         waiting.join(10)
         assert answer["r"].status_code == 403
-        found = sab_adapter.Connection(TestRemote(client, "Sandbox")).read("t").read_all()
+        found = adapter.Connection(TestRemote(client, "Sandbox")).read("t").read_all()
         assert found.to_pylist() == [{"id": 1}]
 
 

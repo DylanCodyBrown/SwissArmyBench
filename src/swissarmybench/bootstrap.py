@@ -27,7 +27,7 @@ import duckdb
 
 from swissarmybench import __version__
 from swissarmybench import extensions as extension_modules
-from swissarmybench.adapters import blade_run, sab_adapter
+from swissarmybench.adapters import adapter, blade_run
 from swissarmybench.adapters import code_files as code_file_disk
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
@@ -585,6 +585,122 @@ def _used_in(sab_projects: Any, connection_usage: Any, name: str) -> list[tuple[
     return out
 
 
+def _explorer(
+    ws: Workspace,
+    datasets: DatasetService,
+    connections: ConnectionService,
+    connection_tables: Any,
+    catalogs: Any,
+    catalog_loading: Any,
+    shared_catalog: Any,
+    variables: Any,
+    blades: Any,
+    structures: Any,
+) -> Explorer:
+    """The Data Explorer: one search over the connections and their catalogs, the open tables, the
+    variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
+    The Data page browses the same sources: each connection's tree (never loaded by a look: Load does)."""
+    store = ws.store
+    explorer = Explorer(
+        ws,
+        BrowseSources(
+            lambda: connections.listing()["connections"],
+            lambda name: connection_tables.tree(name, load=False),
+            connection_tables.describe,
+        ),
+    )
+    explorer.register(
+        "connections",
+        explorer_providers.connections_provider(
+            lambda: connections.listing()["connections"], catalogs, catalog_loading.state
+        ),
+    )
+
+    def open_tables() -> list[OpenTable]:
+        out = []
+        for info in store.all():
+            grids = ws.grids.for_dataset(info.name)
+            out.append(
+                OpenTable(
+                    info.name,
+                    info.row_count,
+                    [(c.name, c.type) for c in info.columns],
+                    grids[0].id if grids else None,
+                    datasets.origins.get(info.name),
+                )
+            )
+        return out
+
+    explorer.register("grids", explorer_providers.grids_provider(open_tables))
+    explorer.register(
+        "shared",
+        explorer_providers.shared_catalog_provider(
+            lambda: list(shared_catalog.tables()), catalogs.loaded_names, shared_catalog.here_names
+        ),
+    )
+    explorer.register(
+        "variables", explorer_providers.variables_provider(lambda: variables.listing()["variables"])
+    )
+    explorer.register("blades", explorer_providers.blades_provider(lambda: blades.listing()["blades"]))
+    explorer.register(
+        "structures",
+        explorer_providers.structures_provider(structures.listing, lambda sid: structures.node(sid)),
+    )
+    explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
+    return explorer
+
+
+def _app_registrations(
+    ws: Workspace,
+    connections: ConnectionService,
+    blade_store: BladeStore,
+    library_folder: LibraryFolder,
+    variables: Any,
+) -> AppRegistrations:
+    """The library's app registrations, each one's users being the connections that read its variables."""
+
+    def every_connection() -> list[tuple[str, str, str]]:
+        """(name, kind, code) of each connection: an app registration's users (they read its variables)."""
+        out = []
+        for row in connections.listing()["connections"]:
+            try:
+                blade = blade_store.get(str(row["name"]))
+            except Exception:  # noqa: S112 (one that cannot be read is not counted)
+                continue
+            kind = "powerbi" if blade.dialect == "dax" else str(blade.template or row.get("connection") or "")
+            out.append((blade.name, "sqlserver" if kind == "azuresql" else kind, blade.code))
+        return out
+
+    app_registrations = AppRegistrations(
+        ws,
+        RegistrationFiles(lambda: library_folder.root, library_folder.ensure),
+        MicrosoftProbe(),
+        variables.values,
+        every_connection,
+    )
+    return app_registrations
+
+
+def _variables_once(state_dir: Path, library: Any, variables: Any) -> None:
+    """Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
+    variable, its connection's file backed up first; then what saved text now reads a variable (once)."""
+    # Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
+    # variable, its connection's file backed up first; then what saved text now reads a variable (once).
+    today = datetime.now(UTC).date().isoformat()
+    passwords_moved = JsonFile(state_dir / "variables_moved.json")  # once: the first start with 12.7
+    if passwords_moved.read() is None:
+        library.notice(
+            "computer",
+            variables.migrate_passwords(backup_copies(state_dir / "backup" / f"before-variables-{today}")),
+        )
+        passwords_moved.write({"moved": today})
+    refs_seen = JsonFile(state_dir / "variable_refs.json")
+    holding = variables.holding() if refs_seen.read() is None else []
+    if holding:  # said once; nothing found writes nothing
+        library.notice("computer", variable_rules.holding_words(holding))
+        refs_seen.write({"listed": today})
+
+
 def bootstrap(
     port: int,
     token: str,
@@ -860,6 +976,9 @@ def bootstrap(
         catalogs=catalogs,
         colours=connection_colours,
     )
+    # sab.write for the agent (connections_write): its Allow, and an open table's grid view as rows.
+    connections.approvals = approvals
+    connections.open_view = table_cells.view
     # The Connections page: each connection's references, configuration and calls this session.
     connection_usage = ConnectionUsage(
         ws,
@@ -1181,47 +1300,13 @@ def bootstrap(
         approvals,
     )
 
-    def every_connection() -> list[tuple[str, str, str]]:
-        """(name, kind, code) of each connection: an app registration's users (they read its variables)."""
-        out = []
-        for row in connections.listing()["connections"]:
-            try:
-                blade = blade_store.get(str(row["name"]))
-            except Exception:  # noqa: S112 (one that cannot be read is not counted)
-                continue
-            kind = "powerbi" if blade.dialect == "dax" else str(blade.template or row.get("connection") or "")
-            out.append((blade.name, "sqlserver" if kind == "azuresql" else kind, blade.code))
-        return out
-
-    app_registrations = AppRegistrations(
-        ws,
-        RegistrationFiles(lambda: library_folder.root, library_folder.ensure),
-        MicrosoftProbe(),
-        variables.values,
-        every_connection,
-    )
+    app_registrations = _app_registrations(ws, connections, blade_store, library_folder, variables)
     app_registrations.tables_of = catalogs.places  # Azure SQL's SELECT TOP 0 on its catalog's tables
     datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
     structures.variables = variables
     api_explorer.variables = variables
     if audit_log:
-        # Once (12.7: a password field holds ${NAME}): each connection's own saved password becomes a keyring
-        # variable, its connection's file backed up first; then what saved text now reads a variable (once).
-        today = datetime.now(UTC).date().isoformat()
-        passwords_moved = JsonFile(state_dir / "variables_moved.json")  # once: the first start with 12.7
-        if passwords_moved.read() is None:
-            library.notice(
-                "computer",
-                variables.migrate_passwords(
-                    backup_copies(state_dir / "backup" / f"before-variables-{today}")
-                ),
-            )
-            passwords_moved.write({"moved": today})
-        refs_seen = JsonFile(state_dir / "variable_refs.json")
-        holding = variables.holding() if refs_seen.read() is None else []
-        if holding:  # said once; nothing found writes nothing
-            library.notice("computer", variable_rules.holding_words(holding))
-            refs_seen.write({"listed": today})
+        _variables_once(state_dir, library, variables)
 
     # Set up from the meta store: what this computer needs before the team's connections work.
     library_setup = LibrarySetup(
@@ -1292,53 +1377,10 @@ def bootstrap(
 
     # The Data Explorer: one search over the connections and their catalogs, the open tables, the
     # variables and the blades, Structures' documents and paths, APIs' web calls that return a table.
-    # The Data page browses the same sources: each connection's tree (never loaded by a look: Load does).
-    explorer = Explorer(
-        ws,
-        BrowseSources(
-            lambda: connections.listing()["connections"],
-            lambda name: connection_tables.tree(name, load=False),
-            connection_tables.describe,
-        ),
-    )
-    explorer.register(
-        "connections",
-        explorer_providers.connections_provider(
-            lambda: connections.listing()["connections"], catalogs, catalog_loading.state
-        ),
-    )
-
-    def open_tables() -> list[OpenTable]:
-        out = []
-        for info in store.all():
-            grids = ws.grids.for_dataset(info.name)
-            out.append(
-                OpenTable(
-                    info.name,
-                    info.row_count,
-                    [(c.name, c.type) for c in info.columns],
-                    grids[0].id if grids else None,
-                    datasets.origins.get(info.name),
-                )
-            )
-        return out
-
-    explorer.register("grids", explorer_providers.grids_provider(open_tables))
-    explorer.register(
-        "shared",
-        explorer_providers.shared_catalog_provider(
-            lambda: list(shared_catalog.tables()), catalogs.loaded_names, shared_catalog.here_names
-        ),
-    )
-    explorer.register(
-        "variables", explorer_providers.variables_provider(lambda: variables.listing()["variables"])
-    )
-    explorer.register("blades", explorer_providers.blades_provider(lambda: blades.listing()["blades"]))
-    explorer.register(
-        "structures",
-        explorer_providers.structures_provider(structures.listing, lambda sid: structures.node(sid)),
-    )
-    explorer.register("apis", explorer_providers.apis_provider(lambda: blades.listing()["blades"]))
+    explorer = _explorer(
+        ws, datasets, connections, connection_tables, catalogs, catalog_loading, shared_catalog, variables,
+        blades, structures,
+    )  # fmt: skip
 
     # The project's sandbox (domain/sandbox.py): the data a local sandbox API reads and writes, mocked as the
     # client of the connection each table came from; [Sandbox].orders in DuckDB SQL; a section in the Catalog.
@@ -1700,7 +1742,7 @@ def bootstrap(
         ExportFolder(sandbox.copy_now),
         project_scope.edited_in,
         approvals,
-        adapter_text=lambda: Path(sab_adapter.__file__).read_text(encoding="utf-8"),
+        adapter_text=lambda: Path(adapter.__file__).read_text(encoding="utf-8"),
     )
     for extension in on_extensions:
         for raw in getattr(extension, "API_TARGETS", ()) or ():

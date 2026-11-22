@@ -311,3 +311,16 @@ def test_the_recent_list_keeps_folders_and_times_only(tmp_path: Path) -> None:
         r["path"] for r in listed.all()
     ) == str(there)
     assert listed.remove(str(there)) and not listed.remove(str(there))
+
+
+def test_a_file_connections_table_is_read_by_the_adapter_again() -> None:
+    """Phase 4: a file connection's file was read through the adapter's Files (DuckDB's types), so the
+    project reads it that way when it opens again: its source says so; any other file's says nothing."""
+    adapted = Origin("file", path="/data/orders.csv", adapted=True)
+    source = rules.source_of(adapted, "/data/.sab", "/data", None, None, True, False)
+    assert source.to_json()["reader"] == "adapter"
+    assert rules.read_source(source.to_json()).extra == {"reader": "adapter"}
+    plain = rules.source_of(
+        Origin("file", path="/data/orders.csv"), "/data/.sab", "/data", None, None, True, False
+    )
+    assert "reader" not in plain.to_json()

@@ -14,7 +14,7 @@ import duckdb
 import pyarrow as pa
 import pytest
 
-from swissarmybench.adapters import sab_adapter as sab
+from swissarmybench.adapters import adapter as sab
 
 
 @pytest.fixture

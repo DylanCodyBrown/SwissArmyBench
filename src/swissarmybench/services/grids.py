@@ -459,7 +459,7 @@ class GridService:
                     raise ValueError("Each highlight is an object.")
                 filter_condition(compiled.stages[-1], rule, grid.settings)
 
-        await ws.workers.run(AGENT, lambda: check(ws.store.cursor()))
+        await ws.workers.run(AGENT, lambda: check(ws.views.adapted(ws.store.cursor())))
         grid.highlights = rules
         await ws.live.broadcast({"type": "grid_updated", "grid": grid.id, "by": who, "gen": grid.gen})
         ws.audit.write(who, "highlights", info.name, count=len(rules), grid=grid.id)

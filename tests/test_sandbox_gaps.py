@@ -355,10 +355,10 @@ def test_mocked_as_a_connection(tmp_path: Path) -> None:
         )
         assert mocked["client"]["connection"] == "Shop" and mocked["client"]["dialect"] == "sqlite"
         # Its mock client is Shop's now: its kind and dialect, its tables.
-        from swissarmybench.adapters import sab_adapter
+        from swissarmybench.adapters import adapter
         from tests.test_sandbox_query import TestRemote
 
-        assert {t.name for t in sab_adapter.tables(TestRemote(client, "Shop"))} == {"orders", "customers"}
+        assert {t.name for t in adapter.tables(TestRemote(client, "Shop"))} == {"orders", "customers"}
         # its SQL is SQLite's now (the sandbox makes it DuckDB's): a SQLite function answers
         sqlite_sql = "SELECT ifnull(NULL, 'x') AS v FROM orders LIMIT 1"
         said = arrow_rows(query(client, sqlite_sql, connection="Shop"))

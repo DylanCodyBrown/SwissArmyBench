@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from swissarmybench.client.structures_client import show_structure, structure, structure_table
     from swissarmybench.client.watcher import start as watch
     from swissarmybench.client.watcher import stop as unwatch
+    from swissarmybench.client.writes import write
 
 __version__: str = "0.0.31"
 __all__ = [
@@ -61,6 +62,7 @@ __all__ = [
     "table",
     "unwatch",
     "watch",
+    "write",
 ]
 
 # Public name -> (module, attribute), imported when first asked for.
@@ -76,6 +78,8 @@ _LAZY: dict[str, tuple[str, str]] = {
     "read": ("swissarmybench.client.blades_client", "read"),
     # An open table as its grid shows it, through the adapter: sab.table("orders", limit=50).
     "table": ("swissarmybench.client.blades_client", "table"),
+    # Rows written to a connection's table through the adapter: sab.write("Shop", "orders", df, "merge").
+    "write": ("swissarmybench.client.writes", "write"),
     "sql": ("swissarmybench.client.sql_cell", "sql"),
     # DAX on one dataset of a Power BI workspace connection: sab.dax("Finance/Sales model", ...).
     "dax": ("swissarmybench.client.sql_cell", "dax"),

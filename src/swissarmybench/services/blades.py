@@ -918,6 +918,11 @@ class BladeService:
         }
         return await self._run_blade(blade, "read", typed, extra)
 
+    async def write(self, blade: Blade, request: Mapping[str, Any]) -> dict[str, Any]:
+        """sab.write on a connection, in a child process as Refresh is (it waits for one of the connection's
+        slots): {"dry_run", "planned", "counts", "said"}."""
+        return await self._run_blade(blade, "write", self._typed_values(blade, {}), {"write": dict(request)})
+
     async def test(self, blade: Blade, body: Any) -> dict[str, Any]:
         """Run it in a child process: does it work?"""
         return await self._run_blade(blade, "test", self._typed_values(blade, body))

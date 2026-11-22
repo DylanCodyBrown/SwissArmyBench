@@ -1,5 +1,5 @@
 """Grids made through the adapter (Plans/adapter.plan.md, phase 1): a DuckDB file connection's Open as grid
-and the sandbox's Open in Grids read through sab_adapter (the plan folded into the read, the batches made the
+and the sandbox's Open in Grids read through adapter (the plan folded into the read, the batches made the
 grid, nothing else kept). Made-up data only."""
 
 from __future__ import annotations

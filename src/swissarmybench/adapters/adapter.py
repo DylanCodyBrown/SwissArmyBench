@@ -1,9 +1,9 @@
-"""sab_adapter: every data call in and out of a project, the same file wherever it runs (the app, a Workbench
+"""adapter: every data call in and out of a project, the same file wherever it runs (the app, a Workbench
 kernel, a local sandbox API's process, an exported project). It holds nothing: a read streams Arrow record
 batches from its source, a write streams them into it, and only tables (named Arrow tables) stay: a grid is
 only a view of one.
 
-    from sab_adapter import Filter, Plan, query, read, table, tables, write
+    from adapter import Filter, Plan, query, read, table, tables, write
 
     reader, folded = read("Warehouse", "orders", Plan(columns=("id", "amount"), filters=(Filter("region",
                           "=", "North"),), limit=100))
@@ -31,7 +31,19 @@ It reads top to bottom in the order a call runs:
   5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
                     and kept; refresh(name) reads it again
 
-The standard library, duckdb and pyarrow only: an export copies this file as it is.
+The standard library, duckdb and pyarrow only: an export copies this file as it is. Its contract only grows
+(design principle 12b): a version adds, never breaks a caller.
+
+Version 1.0.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+  phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
+           delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
+  phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
+           to_ipc (an endpoint's answer)
+  phase 3  query (a source's own SQL); Connection; source_from; OData's and Rows' writes; planned (a write's
+           dry run by reads); catalog_rows; Files
+  1.0.0    Files' format, COPY options and partitioned folders; a failed SQL batch beside its error (Batch,
+           batch_of); Sql's value; arrow_of; listed() and each dialect's listing; columns' and tables'
+           descriptions and positions; the file and module named adapter (was sab_adapter)
 """
 
 from __future__ import annotations
@@ -45,12 +57,14 @@ import time
 import urllib.parse
 import uuid
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
+
+VERSION = "1.0.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -63,6 +77,26 @@ ROWS = "rows"  # what a table's SQL calls its read: SELECT region, sum(amount) F
 
 class AdapterError(ValueError):
     """A plan, a table or a write the source cannot take, said in one sentence."""
+
+
+@dataclass(frozen=True)
+class Batch:
+    """Which batch of a SQL write the source refused (the write rolled back): its number, the rows before
+    it, its size. The source's own error is raised as it was, this beside it as `error.sab_batch` and in
+    its notes, so a caller catching the driver's error still does."""
+
+    number: int
+    before: int
+    size: int
+
+    def where(self) -> str:
+        return f"batch {self.number} (rows {self.before + 1:,} to {self.before + self.size:,})"
+
+
+def batch_of(error: BaseException) -> Batch | None:
+    """The batch a SQL write's error came from (None: not from one)."""
+    found = getattr(error, "sab_batch", None)
+    return found if isinstance(found, Batch) else None
 
 
 # ===== 1. The plan =====
@@ -211,6 +245,10 @@ class Column:
     type: str  # the source's type name (DuckDB's for a DuckDB source)
     key: bool = False  # part of the table's primary key
     nullable: bool | None = field(default=None, compare=False)  # None: not said
+    description: str = field(
+        default="", compare=False
+    )  # the listing's words (SQL Server's: Primary key. ...)
+    position: int | None = field(default=None, compare=False)  # its ordinal as the listing says
 
 
 @dataclass(frozen=True)
@@ -221,22 +259,33 @@ class Table:
     schema: str = field(default="", compare=False)
     kind: str = field(default="", compare=False)  # BASE TABLE, VIEW ...
     database: str = field(default="", compare=False)
+    description: str = field(default="", compare=False)  # the listing's words (SQL Server's: 1,204 rows ...)
 
 
 def catalog_rows(listed: Sequence[Table]) -> tuple[list[str], list[list[Any]]]:
     """Tables as a catalog's rows, in the columns an information_schema listing has (table_catalog only when
-    one is said): the app's Catalog reads them as it reads a connection's own List the tables."""
+    one is said; description when one is): the app's Catalog reads them as it reads a connection's own List
+    the tables. A table's own description is its row with no column (ordinal 0), as SQL Server's listing
+    has."""
     with_database = any(t.database for t in listed)
+    described = any(t.description or any(c.description for c in t.columns) for t in listed)
     names = ["table_schema", "table_name", "table_type", "column_name", "data_type", "is_nullable",
              "ordinal_position"]  # fmt: skip
     rows: list[list[Any]] = []
     for t in listed:
         bare = t.name.rpartition(".")[2] if t.schema and t.name.startswith(t.schema + ".") else t.name
+        lines: list[tuple[list[Any], str]] = []
+        if t.description:
+            lines.append(([t.schema, bare, t.kind or None, "", "", "YES", 0], t.description))
         for at, c in enumerate(t.columns, 1):
             nullable = None if c.nullable is None else ("YES" if c.nullable else "NO")
-            row = [t.schema, bare, t.kind or None, c.name, c.type, nullable, at]
-            rows.append([t.database, *row] if with_database else row)
-    return (["table_catalog", *names] if with_database else names), rows
+            place = c.position if c.position is not None else at
+            lines.append(([t.schema, bare, t.kind or None, c.name, c.type, nullable, place], c.description))
+        for row, words in lines:
+            full = [t.database, *row] if with_database else row
+            rows.append([*full, words or None] if described else full)
+    heading = ["table_catalog", *names] if with_database else names
+    return ([*heading, "description"] if described else heading), rows
 
 
 @dataclass(frozen=True)
@@ -662,6 +711,98 @@ _INFO_KEYS = (
 )
 
 
+# Each database's whole listing as its Connections starter lists it (every schema but the system's; SQL
+# Server's descriptions: a column's Primary key., Identity. ..., a table's rows), and the shape of its rows:
+# what `listed()` runs for the app's Catalog. tables() keeps each dialect's own scope (the columns query).
+_LISTED = ("database", "schema", "table", "kind", "column", "type", "nullable", "position")
+_INFO_LISTING = """SELECT c.table_catalog, c.table_schema, c.table_name, t.table_type,
+       c.column_name, c.data_type, c.is_nullable, c.ordinal_position
+FROM information_schema.columns AS c
+JOIN information_schema.tables AS t
+  ON t.table_catalog = c.table_catalog
+ AND t.table_schema = c.table_schema
+ AND t.table_name = c.table_name
+WHERE c.table_schema NOT IN ('information_schema', 'INFORMATION_SCHEMA', 'pg_catalog', 'sys')
+ORDER BY c.table_schema, c.table_name, c.ordinal_position"""
+_MYSQL_LISTING = """SELECT c.table_catalog, c.table_schema, c.table_name, t.table_type,
+       c.column_name, c.data_type, c.is_nullable, c.ordinal_position
+FROM information_schema.columns AS c
+JOIN information_schema.tables AS t
+  ON t.table_catalog = c.table_catalog
+ AND t.table_schema = c.table_schema
+ AND t.table_name = c.table_name
+WHERE c.table_schema NOT IN ('information_schema', 'INFORMATION_SCHEMA', 'mysql', 'performance_schema', 'sys')
+ORDER BY c.table_schema, c.table_name, c.ordinal_position"""
+_ORACLE_LISTING = """SELECT c.owner, c.table_name, o.object_type AS table_type, c.column_name, c.data_type,
+       c.nullable, c.column_id
+FROM all_tab_columns c
+JOIN all_objects o ON o.owner = c.owner AND o.object_name = c.table_name
+                  AND o.object_type IN ('TABLE', 'VIEW')
+WHERE c.owner NOT IN ('SYS', 'SYSTEM', 'XDB', 'MDSYS', 'CTXSYS', 'ORDSYS', 'OUTLN', 'DBSNMP',
+                      'APEX_PUBLIC_USER')
+ORDER BY c.owner, c.table_name, c.column_id"""
+_SQLSERVER_LISTING = """SELECT DB_NAME() AS table_catalog, s.name AS table_schema, o.name AS table_name,
+       CASE o.type WHEN 'V' THEN 'VIEW' WHEN 'SN' THEN 'VIEW' ELSE 'BASE TABLE' END AS table_type,
+       c.name AS column_name,
+       CASE
+         WHEN t.name IN ('varchar', 'char', 'varbinary', 'binary')
+           THEN t.name + '('
+             + CASE c.max_length WHEN -1 THEN 'max' ELSE CAST(c.max_length AS varchar(5)) END + ')'
+         WHEN t.name IN ('nvarchar', 'nchar')
+           THEN t.name + '('
+             + CASE c.max_length WHEN -1 THEN 'max' ELSE CAST(c.max_length / 2 AS varchar(5)) END + ')'
+         WHEN t.name IN ('decimal', 'numeric')
+           THEN t.name + '(' + CAST(c.precision AS varchar(3)) + ',' + CAST(c.scale AS varchar(3)) + ')'
+         WHEN t.name IN ('datetime2', 'datetimeoffset', 'time')
+           THEN t.name + '(' + CAST(c.scale AS varchar(3)) + ')'
+         ELSE t.name
+       END AS data_type,
+       CASE c.is_nullable WHEN 1 THEN 'YES' ELSE 'NO' END AS is_nullable,
+       c.column_id AS ordinal_position,
+       NULLIF(LTRIM(CONCAT(
+         CASE WHEN pk.column_id IS NOT NULL THEN ' Primary key.' END,
+         CASE WHEN c.is_identity = 1 THEN ' Identity.' END,
+         CASE WHEN c.is_computed = 1 THEN ' Computed.' END,
+         CASE WHEN c.is_sparse = 1 THEN ' Sparse.' END,
+         CASE WHEN c.generated_always_type > 0 THEN ' Period column.' END,
+         ' ' + CAST(ep.value AS nvarchar(4000)))), '') AS description
+FROM sys.objects AS o
+JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+LEFT JOIN sys.synonyms AS sn ON sn.object_id = o.object_id
+JOIN sys.columns AS c ON c.object_id = CASE
+  WHEN sn.object_id IS NULL THEN o.object_id
+  WHEN COALESCE(PARSENAME(sn.base_object_name, 3), DB_NAME()) = DB_NAME() THEN OBJECT_ID(sn.base_object_name)
+END  -- a synonym: its object's columns, when the object is in this database
+JOIN sys.types AS t ON t.user_type_id = c.user_type_id
+LEFT JOIN (
+  SELECT ic.object_id, ic.column_id FROM sys.indexes AS i
+  JOIN sys.index_columns AS ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+  WHERE i.is_primary_key = 1
+) AS pk ON pk.object_id = c.object_id AND pk.column_id = c.column_id
+LEFT JOIN sys.extended_properties AS ep
+  ON ep.class = 1 AND ep.major_id = c.object_id AND ep.minor_id = c.column_id AND ep.name = 'MS_Description'
+WHERE o.type IN ('U', 'V', 'SN') AND o.is_ms_shipped = 0
+UNION ALL
+SELECT DB_NAME(), s.name, o.name, CASE o.type WHEN 'V' THEN 'VIEW' ELSE 'BASE TABLE' END, '', '', 'YES', 0,
+       NULLIF(STUFF(CONCAT(
+         CASE WHEN o.type = 'U' THEN N' · ' + FORMAT(COALESCE(r.n, 0), 'N0') + N' rows' END,
+         CASE WHEN tb.temporal_type = 2 THEN N' · temporal (history: ' + hs.name + N'.' + h.name + N')' END,
+         CASE WHEN tb.temporal_type = 1 THEN N' · history table' END,
+         N' · ' + CAST(ep.value AS nvarchar(4000))), 1, 3, N''), N'')
+FROM sys.objects AS o
+JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+LEFT JOIN sys.tables AS tb ON tb.object_id = o.object_id
+LEFT JOIN sys.tables AS h ON h.object_id = tb.history_table_id
+LEFT JOIN sys.schemas AS hs ON hs.schema_id = h.schema_id
+LEFT JOIN (
+  SELECT object_id, SUM(rows) AS n FROM sys.partitions WHERE index_id IN (0, 1) GROUP BY object_id
+) AS r ON r.object_id = o.object_id
+LEFT JOIN sys.extended_properties AS ep
+  ON ep.class = 1 AND ep.major_id = o.object_id AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+WHERE o.type IN ('U', 'V') AND o.is_ms_shipped = 0
+ORDER BY 2, 3, 8"""
+
+
 @dataclass(frozen=True)
 class Dialect:
     """What one database's SQL needs for a plan and a write: how it quotes a name, how it says a limit and
@@ -678,6 +819,8 @@ class Dialect:
     transactional: bool = True
     order_needed: bool = False  # an OFFSET needs an ORDER BY (T-SQL)
     no_limit: str = ""  # what LIMIT says for "every row" before an OFFSET (MySQL's, SQLite's)
+    listing: str = ""  # its starter's whole listing (listed()); "": its tables() are its listing
+    listing_shape: tuple[str, ...] = _LISTED  # what each of the listing's columns is, in order
 
     def quote(self, name: str) -> str:
         opening, closing = self.quotes[0], self.quotes[1]
@@ -688,11 +831,11 @@ DIALECTS: dict[str, Dialect] = {
     "postgres": Dialect("postgres", default_schema=("public",)),
     "mysql": Dialect(
         "mysql", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = DATABASE() "),
-        default_schema=("*",), no_limit="18446744073709551615",
+        default_schema=("*",), no_limit="18446744073709551615", listing=_MYSQL_LISTING,
     ),
     "sqlserver": Dialect(
         "sqlserver", "[]", "fetch", columns=_INFO_COLUMNS.format(where=""), default_schema=("dbo",),
-        order_needed=True,
+        order_needed=True, listing=_SQLSERVER_LISTING, listing_shape=(*_LISTED, "description"),
     ),
     "oracle": Dialect(
         "oracle", limit="fetch",
@@ -701,7 +844,7 @@ DIALECTS: dict[str, Dialect] = {
         keys="SELECT c.owner, c.table_name, c.column_name FROM all_cons_columns c JOIN all_constraints k "
         "ON k.owner = c.owner AND k.constraint_name = c.constraint_name WHERE k.constraint_type = 'P' "
         "AND c.owner = USER",
-        default_schema=("*",),
+        default_schema=("*",), listing=_ORACLE_LISTING, listing_shape=_LISTED[1:],
     ),
     "sqlite": Dialect(
         "sqlite",
@@ -714,14 +857,15 @@ DIALECTS: dict[str, Dialect] = {
     ),
     "snowflake": Dialect(
         "snowflake", columns=_INFO_COLUMNS.format(where="AND c.table_schema = CURRENT_SCHEMA() "),
-        default_schema=("*",),
+        default_schema=("*",), listing=_INFO_LISTING,
     ),
     "trino": Dialect(
         "trino", limit="offset_limit", columns=_INFO_COLUMNS.format(where=""), keys="", transactional=False,
+        listing=_INFO_LISTING,
     ),
     "databricks": Dialect(
         "databricks", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = current_schema() "),
-        keys="", default_schema=("*",),
+        keys="", default_schema=("*",), listing=_INFO_LISTING,
     ),
 }  # fmt: skip
 
@@ -831,11 +975,19 @@ class Sql:
     the whole plan folded into one query in its dialect, the answer streamed as Arrow batches as the cursor
     fetches them; a write in its own statements, in one transaction (all or none)."""
 
-    def __init__(self, connection: Any, dialect: str | Dialect, name: str = "", style: str = "") -> None:
+    def __init__(
+        self,
+        connection: Any,
+        dialect: str | Dialect,
+        name: str = "",
+        style: str = "",
+        value: Callable[[Any], Any] | None = None,
+    ) -> None:
         self.connection = connection
         self.dialect = dialect if isinstance(dialect, Dialect) else DIALECTS[dialect]
         self.name = name or self.dialect.name
         self.style = style or paramstyle(getattr(connection, "raw", connection))
+        self._value = value  # a value as the driver takes it, when the caller knows better (a Write starter)
 
     def tables(self) -> list[Table]:
         keys = (
@@ -856,6 +1008,36 @@ class Sql:
                 place, (str(row[4] or "") if len(row) > 4 else "", str(row[6] or "") if len(row) > 6 else "")
             )
         return [Table(self._listed(s, t), tuple(cols), s, *about[(s, t)]) for (s, t), cols in listed.items()]
+
+    def listed(self) -> list[Table]:
+        """Its whole catalog as its starter lists it (the app's Catalog): every schema but the system's, each
+        table's and column's description where the listing has one; else its tables()."""
+        if not self.dialect.listing:
+            return self.tables()
+        keys = (
+            {tuple(str(v) for v in k) for k in self._rows(self.dialect.keys)} if self.dialect.keys else set()
+        )
+        found: dict[tuple[str, str], Table] = {}
+        for row in self._rows(self.dialect.listing):
+            said = {name: row[i] for i, name in enumerate(self.dialect.listing_shape) if i < len(row)}
+            schema, table = str(said.get("schema") or ""), str(said.get("table") or "")
+            made = found.get((schema, table)) or Table(
+                self._listed(schema, table) if schema not in ("", "*") else table,
+                (),
+                schema,
+                str(said.get("kind") or ""),
+                str(said.get("database") or ""),
+            )
+            words = str(said.get("description") or "")
+            if not said.get("column"):  # the table's own row (its description)
+                found[(schema, table)] = replace(made, description=words)
+                continue
+            column = str(said["column"])
+            key = (schema, table, column) in keys or "Primary key." in words
+            added = Column(column, str(said.get("type") or ""), key, _yes(said.get("nullable")), words,
+                           int(said["position"]) if said.get("position") is not None else None)  # fmt: skip
+            found[(schema, table)] = replace(made, columns=(*made.columns, added))
+        return list(found.values())
 
     def _listed(self, schema: str, table: str) -> str:
         bare = "*" in self.dialect.default_schema or schema in self.dialect.default_schema
@@ -934,6 +1116,8 @@ class Sql:
 
     def value(self, value: Any) -> Any:
         """A value as the driver takes it (SQLite: a decimal as a number, a date or time as text)."""
+        if self._value is not None:
+            return self._value(value)
         if self.dialect.name != "sqlite":
             return value
         import datetime as dt
@@ -953,6 +1137,19 @@ def _quietly(close: Callable[[], Any]) -> None:
         close()
 
 
+@dataclass(frozen=True)
+class _Statements:
+    """A SQL write's statements over one target, its values bound by the driver's marks."""
+
+    target: str
+    names: list[str]  # the rows' columns, as an insert binds them
+    key: list[str]
+    order: list[str]  # an update's values: the columns it sets, then the key
+    insert: str
+    update: str
+    delete: str
+
+
 def _sql_written(
     db: Sql,
     cursor: Any,
@@ -962,11 +1159,11 @@ def _sql_written(
     mode: str,
     batches: pa.RecordBatchReader,
 ) -> Counts:
-    """The rows into `target` by `mode`, on one cursor of the open transaction. A merge asks which keys are
-    there first, a batch at a time, then updates those and inserts the rest."""
+    """The rows into `target` by `mode`, on one cursor of the open transaction, a batch at a time (a batch
+    the source refuses raises its own error, its Batch beside it). A merge asks which keys are there first,
+    then    updates those and inserts the rest."""
     q, style = db.dialect.quote, db.style
     marks = ", ".join(_mark(style, i) for i in range(1, len(names) + 1))
-    insert = f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({marks})"  # noqa: S608
     sets = [n for n in names if n not in key]
     if mode in ("update", "merge"):
         missing = [k for k in key if k not in names]
@@ -974,39 +1171,61 @@ def _sql_written(
             raise AdapterError(f"The rows have no {missing[0]} column to match by.")
         if not sets:
             raise AdapterError("The rows have nothing to change but their key.")
-    order = sets + key
     assigned = ", ".join(f"{q(n)} = {_mark(style, i)}" for i, n in enumerate(sets, 1))
     matched = " AND ".join(f"{q(k)} = {_mark(style, len(sets) + i)}" for i, k in enumerate(key, 1))
-    update = f"UPDATE {target} SET {assigned} WHERE {matched}"  # noqa: S608 (names quoted, values bound)
     gone = " AND ".join(f"{q(k)} = {_mark(style, i)}" for i, k in enumerate(key, 1))
-    delete = f"DELETE FROM {target} WHERE {gone}"  # noqa: S608
+    said = _Statements(
+        target,
+        names,
+        key,
+        sets + key,
+        f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({marks})",  # noqa: S608
+        f"UPDATE {target} SET {assigned} WHERE {matched}",  # noqa: S608 (names quoted, values bound)
+        f"DELETE FROM {target} WHERE {gone}",  # noqa: S608
+    )
     counts = {"inserted": 0, "updated": 0, "deleted": 0}
-
-    def many(sql: str, rows: list[list[Any]]) -> int:
-        if not rows:
-            return 0
-        cursor.executemany(sql, [_bound(style, [db.value(v) for v in r]) for r in rows])
-        return len(rows)
-
     if mode == "truncate":
         cursor.execute(f"DELETE FROM {target}")  # noqa: S608 (the name quoted)
         counts["deleted"] = max(int(getattr(cursor, "rowcount", 0) or 0), 0)
-    for batch in batches:
-        rows = batch.to_pylist()
-        if mode in ("insert", "truncate"):
-            counts["inserted"] += many(insert, [[r[n] for n in names] for r in rows])
-        elif mode == "delete":
-            for r in rows:
-                cursor.execute(delete, _bound(style, [db.value(r[k]) for k in key]))
-                counts["deleted"] += max(int(getattr(cursor, "rowcount", 0) or 0), 0)
-        else:
-            there = _present(db, cursor, target, key, rows)
-            found = [r for r in rows if tuple(r[k] for k in key) in there]
-            counts["updated"] += many(update, [[r[n] for n in order] for r in found])
-            if mode == "merge":
-                new = [r for r in rows if tuple(r[k] for k in key) not in there]
-                counts["inserted"] += many(insert, [[r[n] for n in names] for r in new])
+    before = 0
+    for number, batch in enumerate(batches, 1):
+        try:
+            _sql_batch(db, cursor, batch.to_pylist(), mode, said, counts)
+        except Exception as error:
+            failed = Batch(number, before, batch.num_rows)
+            with contextlib.suppress(AttributeError, TypeError):  # a driver's error that takes no attribute
+                error.sab_batch = failed  # type: ignore[attr-defined]
+            error.add_note(f"{failed.where()} of the write to {target}")
+            raise
+        before += batch.num_rows
     return Counts(counts["inserted"], counts["updated"], counts["deleted"])
+
+
+def _many(db: Sql, cursor: Any, sql: str, rows: list[list[Any]]) -> int:
+    if rows:
+        cursor.executemany(sql, [_bound(db.style, [db.value(v) for v in r]) for r in rows])
+    return len(rows)
+
+
+def _sql_batch(
+    db: Sql, cursor: Any, rows: list[dict[str, Any]], mode: str, said: _Statements, counts: dict[str, int]
+) -> None:
+    """One batch of a write's rows by `mode`, its counts added."""
+    names, key = said.names, said.key
+    if mode in ("insert", "truncate"):
+        counts["inserted"] += _many(db, cursor, said.insert, [[r[n] for n in names] for r in rows])
+        return
+    if mode == "delete":
+        for r in rows:
+            cursor.execute(said.delete, _bound(db.style, [db.value(r[k]) for k in key]))
+            counts["deleted"] += max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+        return
+    there = _present(db, cursor, said.target, key, rows)
+    found = [r for r in rows if tuple(r[k] for k in key) in there]
+    counts["updated"] += _many(db, cursor, said.update, [[r[n] for n in said.order] for r in found])
+    if mode == "merge":
+        new = [r for r in rows if tuple(r[k] for k in key) not in there]
+        counts["inserted"] += _many(db, cursor, said.insert, [[r[n] for n in names] for r in new])
 
 
 def _present(
@@ -1727,7 +1946,6 @@ def _lake_written(source: Rows, table: str, data: pa.Table, key: list[str], mode
 FILE_FORMATS = {".csv": "csv", ".tsv": "csv", ".txt": "csv", ".parquet": "parquet", ".json": "json",
                 ".jsonl": "json", ".ndjson": "json"}  # fmt: skip
 _READERS = {"csv": "read_csv", "parquet": "read_parquet", "json": "read_json"}
-_COPY = {"csv": "(FORMAT csv, HEADER)", "parquet": "(FORMAT parquet)", "json": "(FORMAT json)"}
 
 
 class Files:
@@ -1735,13 +1953,19 @@ class Files:
     by its path below the folder without its suffix (sales/orders). A read is DuckDB over the file (the whole
     plan folded, streamed); query is DuckDB SQL with every file a view by its name; a write puts a file
     in its place whole (truncate) or adds to it (insert, the file read and written again), in its suffix's
-    format: a new name takes a suffix (orders.parquet)."""
+    format: a new name takes a suffix (orders.parquet). A write may say its file's format (a name with no
+    suffix of one), DuckDB COPY's options (DELIMITER ';', ARRAY true, COMPRESSION zstd) and, for a folder of
+    Parquet files, its partition columns (a write then fills the folder: truncate replaces it, insert
+    adds)."""
 
-    def __init__(self, path: str, name: str = "") -> None:
+    def __init__(
+        self, path: str, name: str = "", format: str = "", options: str = "", partition_by: Sequence[str] = ()
+    ) -> None:
         import pathlib
 
         self.path = pathlib.Path(path)
         self.name = name or self.path.name
+        self.format, self.options, self.partition_by = format, options, tuple(partition_by)
 
     def _files(self) -> dict[str, Any]:
         if self.path.is_file():
@@ -1813,6 +2037,8 @@ class Files:
         import pathlib
 
         _checked_write(mode, key)
+        if self.partition_by:
+            return self._folder_written(batches, mode)
         try:
             file = self._file(table)
         except AdapterError:
@@ -1820,7 +2046,7 @@ class Files:
                 raise
             base = self.path if self.path.is_dir() else self.path.parent
             file = base / pathlib.Path(str(table).replace("\\", "/"))
-            if file.suffix.lower() not in FILE_FORMATS:
+            if file.suffix.lower() not in FILE_FORMATS and not self.format:
                 raise AdapterError(
                     f"A new file is named with its format: {table}.parquet, .csv or .json."
                 ) from None
@@ -1828,25 +2054,69 @@ class Files:
             raise AdapterError(
                 f"{table} is one file: it is written whole (truncate) or added to (insert), not {mode}d."
             )
+        fmt = self.format or FILE_FORMATS[file.suffix.lower()]
+        copy = (
+            f"(FORMAT {fmt}{', HEADER' if fmt == 'csv' else ''}{', ' + self.options if self.options else ''})"
+        )
         data = batches.read_all()
         before = 0
+        relation = f"{_READERS[fmt]}('{str(file).replace(chr(39), chr(39) * 2)}')"
         with self._duck(True) as con:
             existing = file.exists()
             if existing:
-                before = int(con.sql(f"SELECT count(*) FROM {self._relation(file)}").fetchall()[0][0])  # noqa: S608
+                before = int(con.sql(f"SELECT count(*) FROM {relation}").fetchall()[0][0])  # noqa: S608
             if not data.num_columns and existing:  # a truncate with no rows: the file's own columns
-                data = con.sql(f"SELECT * FROM {self._relation(file)} LIMIT 0").to_arrow_table()  # noqa: S608
-            con.register("sab_incoming", data)
-            rows = "SELECT * FROM sab_incoming"
+                data = con.sql(f"SELECT * FROM {relation} LIMIT 0").to_arrow_table()  # noqa: S608
+            con.register("sab_rows", data)
+            rows = "SELECT * FROM sab_rows"
             if mode == "insert" and existing:
-                rows = f"SELECT * FROM {self._relation(file)} UNION ALL BY NAME SELECT * FROM sab_incoming"  # noqa: S608
+                rows = f"SELECT * FROM {relation} UNION ALL BY NAME SELECT * FROM sab_rows"  # noqa: S608
             file.parent.mkdir(parents=True, exist_ok=True)
             partial = file.with_name(f".{file.name}.sab-writing")
-            target = str(partial).replace("'", "''")
-            fmt = _COPY[FILE_FORMATS[file.suffix.lower()]]
-            con.execute(f"COPY ({rows}) TO '{target}' {fmt}")
-            os.replace(partial, file)
+            try:
+                con.execute(f"COPY ({rows}) TO '{str(partial).replace(chr(39), chr(39) * 2)}' {copy}")
+                os.replace(partial, file)
+            finally:
+                if partial.exists():
+                    partial.unlink()
         return Counts(inserted=data.num_rows, deleted=before if mode == "truncate" else 0)
+
+    def _folder_written(self, batches: pa.RecordBatchReader, mode: str) -> Counts:
+        """A folder of Parquet files, a folder for each value of the partition columns: written beside, then
+        put in the folder's place (truncate) or its files moved in (insert); a failure leaves it as it was."""
+        import os
+        import shutil
+
+        if mode not in ("insert", "truncate"):
+            raise AdapterError(
+                f"{self.name} is a folder of files: it is replaced (truncate) or added to (insert)."
+            )
+        data = batches.read_all()
+        missing = [c for c in self.partition_by if c not in data.column_names]
+        if missing:
+            raise AdapterError(f"The rows have no {missing[0]} column to partition by.")
+        partial = self.path.with_name(f".{self.path.name}.sab-writing")
+        parts = ", ".join(quote(c) for c in self.partition_by)
+        options = f", {self.options}" if self.options else ""
+        try:
+            with self._duck(True) as con:
+                con.register("sab_rows", data)
+                con.execute(
+                    f"COPY (SELECT * FROM sab_rows) TO '{str(partial).replace(chr(39), chr(39) * 2)}' "  # noqa: S608 (the path and columns quoted)
+                    f"(FORMAT parquet{options}, PARTITION_BY ({parts}), FILENAME_PATTERN 'data_{{uuid}}')"
+                )
+            if mode == "insert" and self.path.exists():
+                for made in sorted(p for p in partial.rglob("*") if p.is_file()):
+                    place = self.path / made.relative_to(partial)
+                    place.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(made, place)
+            else:
+                if self.path.exists():
+                    shutil.rmtree(self.path)
+                os.replace(partial, self.path)
+        finally:
+            shutil.rmtree(partial, ignore_errors=True)
+        return Counts(inserted=data.num_rows)
 
 
 # ===== 3. The calls =====
@@ -1872,6 +2142,21 @@ def source_of(source: str | Source) -> Source:
 def tables(source: str | Source) -> list[Table]:
     """The source's tables: names, columns and types."""
     return source_of(source).tables()
+
+
+def listed(source: str | Source) -> list[Table]:
+    """The source's whole catalog as the app's Catalog lists it (a SQL database's: its starter's listing,
+    every schema but the system's, with descriptions); a source with no listing of its own: its tables()."""
+    found = source_of(source)
+    whole = getattr(found, "listed", None)
+    return list(whole()) if callable(whole) else found.tables()
+
+
+def _yes(said: Any) -> bool | None:
+    """A listing's nullable as a bool (YES, Y, 1, true; NO, N, 0, false), None when it says nothing."""
+    if said is None or str(said).strip() == "":
+        return None
+    return str(said).strip().upper() in ("YES", "Y", "1", "TRUE")
 
 
 def read(source: str | Source, table: str, plan: Plan | None = None) -> tuple[pa.RecordBatchReader, Folded]:
@@ -2278,6 +2563,27 @@ def to_ipc(data: pa.Table | pa.RecordBatchReader) -> bytes:
 
 def is_arrow(value: Any) -> bool:
     return isinstance(value, pa.Table | pa.RecordBatchReader)
+
+
+def arrow_of(rows: Any) -> pa.Table:
+    """Rows as an Arrow table: Arrow (a table or a reader), a DataFrame (pandas, polars), a DuckDB relation,
+    or a list of dicts (records: each key a column, the first record's order)."""
+    if isinstance(rows, pa.RecordBatchReader):
+        return rows.read_all()
+    if isinstance(rows, pa.Table):
+        return rows
+    if isinstance(rows, list) and all(isinstance(r, Mapping) for r in rows):
+        return pa.Table.from_pylist([dict(r) for r in rows])
+    made = getattr(rows, "to_arrow_table", None) or getattr(rows, "to_arrow", None)  # DuckDB, polars
+    if callable(made):
+        found = made()
+        return found.read_all() if isinstance(found, pa.RecordBatchReader) else found
+    if type(rows).__module__.split(".")[0] == "pandas":
+        return pa.Table.from_pandas(rows, preserve_index=False)
+    raise AdapterError(
+        "The rows are a DataFrame, an Arrow table, a list of dicts or an open table's name, "
+        f"not {type(rows).__name__}."
+    )
 
 
 # ===== 5. Tables =====

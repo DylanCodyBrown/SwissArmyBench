@@ -314,7 +314,7 @@ def table(
         "limit": limit,
     }
     try:  # the adapter needs duckdb and pyarrow: the plain client (standard library only) reads the view
-        from swissarmybench.adapters import sab_adapter
+        from swissarmybench.adapters import adapter
     except ImportError:
         if columns or filters or sort or limit is not None:
             raise ImportError(
@@ -323,12 +323,12 @@ def table(
         import pyarrow.ipc as ipc
 
         return ipc.open_stream(_call_bytes(f"/workbench/tables/{_quote(name)}/arrow")).read_all()
-    door = sab_adapter.Remote(
+    door = adapter.Remote(
         f"http://127.0.0.1:{info['port']}/workbench/tables/adapter",
         "Open tables",
         {"Authorization": f"Bearer {info['token']}"},
     )
-    return sab_adapter.make_table(sab_adapter.TableSource(door, name, sab_adapter.plan_from(plan)))
+    return adapter.make_table(adapter.TableSource(door, name, adapter.plan_from(plan)))
 
 
 def python_tables(connection: str) -> tuple[list[tuple[str, str]], Callable[[str, str], Any]]:

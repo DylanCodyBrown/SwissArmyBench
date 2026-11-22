@@ -36,6 +36,108 @@ from swissarmybench.domain.steps import CompiledView, Step, ViewSettings, compil
 from swissarmybench.services.ports import SqlSession
 
 
+class Adapted:
+    """The engine's cursor with its rows only through the adapter (Plans/adapter.plan.md: "everything, the
+    engine too"): `execute` is adapter.query over this DuckDB session (the open tables, the view cache's
+    tables, the steps' SQL), its answer Arrow; `fetchall`, `fetchone`, `fetchmany` and `fetch_arrow_table`
+    read that answer, each value as DuckDB's own fetch gives it (a HUGEINT an int, an INTERVAL a timedelta,
+    a MAP a dict), so a window, a profile and an analysis see what they saw. Anything else (register,
+    interrupt, a relation's sql) is the session's own."""
+
+    def __init__(self, raw: Any) -> None:
+        self._raw = raw
+        self._reader: Any = None  # the answer as it streams, until something reads it whole
+        self._answer: Any = None
+        self._rows: list[tuple[Any, ...]] | None = None
+        self._at = 0
+        self.description: list[tuple[Any, ...]] | None = None
+
+    def execute(self, sql: str, parameters: Any = None) -> Adapted:
+        from swissarmybench.adapters import adapter
+
+        self._reader = adapter.query(adapter.DuckDB.session(self._raw), sql, parameters or ())
+        self._answer, self._rows, self._at = None, None, 0
+        self.description = [(f.name, str(f.type), None, None, None, None, None) for f in self._reader.schema]
+        return self
+
+    def _whole(self) -> Any:
+        if self._answer is None and self._reader is not None:
+            self._answer, self._reader = self._reader.read_all(), None
+        return self._answer
+
+    def _tuples(self) -> list[tuple[Any, ...]]:
+        if self._rows is None:
+            whole = self._whole()
+            columns = [_python(c) for c in whole.columns] if whole is not None else []
+            self._rows = list(zip(*columns, strict=True)) if columns else []
+        return self._rows
+
+    def fetchall(self) -> list[tuple[Any, ...]]:
+        rows = self._tuples()[self._at :]
+        self._at += len(rows)
+        return rows
+
+    def fetchone(self) -> tuple[Any, ...] | None:
+        rows = self._tuples()
+        if self._at >= len(rows):
+            return None
+        self._at += 1
+        return rows[self._at - 1]
+
+    def fetchmany(self, size: int = 1) -> list[tuple[Any, ...]]:
+        rows = self._tuples()[self._at : self._at + size]
+        self._at += len(rows)
+        return rows
+
+    def fetch_arrow_table(self) -> Any:
+        return self._whole()
+
+    to_arrow_table = fetch_arrow_table
+    arrow = fetch_arrow_table
+
+    def to_arrow_reader(self, batch_size: int = 1_000_000) -> Any:
+        """The answer streamed as it is made (never held whole), unless it was read already."""
+        if self._reader is not None:
+            reader, self._reader = self._reader, None
+            return reader
+        return self._whole().to_reader(max_chunksize=batch_size)
+
+    fetch_record_batch = to_arrow_reader
+
+    def df(self) -> Any:
+        return self._whole().to_pandas()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._raw, name)
+
+
+def _warm() -> None:
+    import pyarrow as pa
+
+    pa.Table.from_arrays([pa.array([0])], names=["warm"])
+
+
+def _python(column: Any) -> list[Any]:
+    """An Arrow column's values as DuckDB's fetchall gives them."""
+    import pyarrow as pa
+
+    kind = column.type
+    if pa.types.is_decimal(kind) and kind.scale == 0 and kind.precision == 38:  # HUGEINT
+        return [None if v is None else int(v) for v in column.to_pylist()]
+    if pa.types.is_interval(kind):  # month_day_nano: DuckDB's INTERVAL as a timedelta
+        import datetime
+
+        return [
+            None
+            if v is None
+            else datetime.timedelta(days=v.months * 30 + v.days, microseconds=v.nanoseconds // 1000)
+            for v in column.to_pylist()
+        ]
+    if pa.types.is_map(kind):
+        return [None if v is None else dict(v) for v in column.to_pylist()]
+    return list(column.to_pylist())
+
+
 @dataclass
 class _Cached:
     table: str
@@ -63,6 +165,13 @@ class ViewEngine:
         self._lock = threading.Lock()
         # One lock per cache key, so two windows of a new view materialize it only once.
         self._key_locks: dict[str, threading.Lock] = {}
+        # pyarrow loads its pandas bridge the first time a table is built in Python (about 300 ms): loaded
+        # now, off the first step change's way (its rows come through the adapter, as Arrow).
+        threading.Thread(target=_warm, name="arrow-warm", daemon=True).start()
+
+    def adapted(self, cursor: SqlSession) -> SqlSession:
+        """The engine's cursor with its rows only through the adapter (Adapted)."""
+        return cursor if isinstance(cursor, Adapted) else Adapted(cursor)
 
     # ===== compile =====
 

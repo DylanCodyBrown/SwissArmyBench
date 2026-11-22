@@ -22,13 +22,13 @@ from tests.test_local_api import API_PY
 
 def _amounts(server: dict[str, Any]) -> list[float]:
     """The sandbox's rows as a local sandbox API reads them: the adapter's query on its door."""
-    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.adapters import adapter
 
-    door = sab_adapter.Remote(
+    door = adapter.Remote(
         f"http://127.0.0.1:{server['port']}/sandbox/adapter",
         headers={"Authorization": f"Bearer {server['token']}"},
     )
-    read = sab_adapter.query(door, "SELECT amount FROM orders_sandbox ORDER BY order_id")
+    read = adapter.query(door, "SELECT amount FROM orders_sandbox ORDER BY order_id")
     return [float(r["amount"]) for r in read.read_all().to_pylist()]
 
 

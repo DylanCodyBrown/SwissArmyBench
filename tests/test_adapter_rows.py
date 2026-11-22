@@ -9,8 +9,8 @@ from typing import Any
 
 import pyarrow as pa
 
-from swissarmybench.adapters import sab_adapter as sab
-from swissarmybench.adapters.sab_adapter import Filter, Plan
+from swissarmybench.adapters import adapter as sab
+from swissarmybench.adapters.adapter import Filter, Plan
 
 STOCK = pa.table({"sku": ["a-1", "b-2", "c-3", "d-4"], "qty": [5, 0, 12, 3], "bin": ["N", "S", "N", "S"]})
 

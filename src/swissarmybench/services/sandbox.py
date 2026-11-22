@@ -762,7 +762,7 @@ class Sandbox:
 
     # ===== an API's reads and writes =====
 
-    # ===== the adapter's door: a local sandbox API's sab_adapter.Remote (Plans/adapter.plan.md) =====
+    # ===== the adapter's door: a local sandbox API's adapter.Remote (Plans/adapter.plan.md) =====
 
     async def _one_of(self, connection: Any, wanted: Any) -> str:
         """The sandbox table `wanted` (any case) among those `connection` is mocked over."""

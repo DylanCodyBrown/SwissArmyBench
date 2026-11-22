@@ -23,6 +23,28 @@ from typing import Any
 from swissarmybench.domain.connection_tables import TABLE_KINDS
 
 WRITE_FAMILY: str = "Write"
+# sab.write's and the agent's connections_write modes: the adapter's (adapter.MODES; a test holds them).
+WRITE_MODES: tuple[str, ...] = ("insert", "update", "merge", "delete", "truncate")
+KEYED_MODES: tuple[str, ...] = ("update", "merge", "delete")
+
+
+def write_request(body: Any) -> tuple[str, str, list[str], bool]:
+    """A connections_write body checked: its table, mode, key and dry run; ValueError in one sentence."""
+    if not isinstance(body, dict) or not isinstance(body.get("table"), str) or not body["table"].strip():
+        raise ValueError('Send the table to write: {"table": "orders", "rows": [...], "mode": "insert"}.')
+    mode = str(body.get("mode") or "insert")
+    if mode not in WRITE_MODES:
+        raise ValueError(f"mode is one of {', '.join(WRITE_MODES)}, not {mode!r}.")
+    given = body.get("key")
+    key = [given] if isinstance(given, str) else [str(k) for k in given or () if k]
+    if mode in KEYED_MODES and not key:
+        raise ValueError(f'A {mode} names the key its rows are matched by: "key": "order_id".')
+    rows, table = body.get("rows"), body.get("from_table")
+    if rows is not None and not (isinstance(rows, list) and all(isinstance(r, dict) for r in rows)):
+        raise ValueError('rows is a list of records: [{"order_id": 1, "region": "North"}].')
+    if rows is None and not isinstance(table, str) and mode != "truncate":
+        raise ValueError("Send the rows (a list of records) or from_table (an open table's name).")
+    return body["table"].strip(), mode, key, body.get("dry_run") is True
 
 
 @dataclass(frozen=True)

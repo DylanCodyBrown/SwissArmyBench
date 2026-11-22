@@ -722,7 +722,7 @@ Click a card for its **detail**:
 - **Open as grid** (a file), **Edit**, **Test**, **Refresh catalog**, **Copy for Python** and **Remove**. Edit's Back returns to the detail, and Save shows it again.
 
 - **Every database form reads in the same order:** the server, the port and the catalog or database; then the user and the password, each under its own label; then the certificate file and **Trust server certificate** together.
-- **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows.
+- **A file connection** takes its name from the file you pick or type, until you name it yourself. **Test connection** shows what is in the file: its columns and its first 20 rows. **Open as grid** reads a CSV, Parquet or JSON file as DuckDB reads it (its types; the delimiter found by itself, a semicolon too): a file with a stray value far down a column, or saved in an older Windows encoding, says so in one line; **Open file** (the grid page's) still reads such a file, a stray value as text.
 - **A package that is not installed** is asked for at once, in a window of its own: "Key Vault connections needs azure-identity", **Install now** or **Not now**. Install now puts it into Swiss Army Bench's own Python with uv, shows it working, says done or what went wrong, and then carries on with what you were doing. Not now leaves a small **Install azure-identity** button on the form, with the command for your own Python beside it, and does not ask again until you reopen the app. The same window comes up wherever a package is missing: a connection's form or test, a blade, an analysis blade, a YAML API document, a Streamlit app, Test this page, and a notebook cell that stops on an import.
 - **A password from a key vault:** choose the vault, and **Entry in the vault** lists the vault's secrets by name (never a value). Picking one applies it. A secret the vault does not list can be named by hand (**A secret by name…**).
 
@@ -1183,10 +1183,17 @@ version never touches your copy.
 
 ![The blade list's Starters: a line for each family with its count, Streamlit open on its pieces.](images/22-starters.png)
 
-### Writing data: the Write starters
+### Writing data: sab.write and the Write starters
 
-Writes are cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
-for the connections that take writes. Each connection says which: its card on the Connections page reads
+One line writes rows to any connection that takes writes, from a Python cell:
+`sab.write("Shop", "orders", orders, "merge", key="order_id")`. The rows are a DataFrame, an Arrow table, a
+list of dicts, or an open table's name (its grid's rows); the mode is **insert**, **update**, **merge**
+(update where the key is there, insert the rest), **delete** (by the key) or **truncate** (the table
+emptied, then the rows: with none, only emptied). `dry_run=True` only says what it would do. It is the same
+write an exported API's `connection(name).write(...)` makes, so it works the same once deployed.
+
+Writes are also cells in a notebook: the **Write** starters (the Starters' Write family) are Python snippets
+for the connections that take writes, with each target's own words. Each connection says which: its card on the Connections page reads
 **Writes** or **Read-only** (hover for the starters, or the reason), and its page says it in full. A
 Power BI model is read-only (write its source, then refresh it: Power BI refresh dataset); so are a
 DuckDB file the app opens read-only and the warehouses that load through their own tools (Snowflake,
@@ -1195,9 +1202,11 @@ BigQuery, Redshift, Databricks), and a key vault.
 - **Databases** (SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite, Oracle, Trino, ODBC):
   append, create table (the rows' types made the database's), replace (every row, in one transaction),
   upsert (insert, or update where a key matches) and delete (the rows whose keys are the rows' keys).
-  SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
-  passing errors run the whole write again. PostgreSQL uses COPY and ON CONFLICT. Trino writes where the
-  catalog's connector does (Iceberg, Delta Lake, Hive), a statement at a time.
+  PostgreSQL, MySQL and MariaDB, SQLite, Oracle and ODBC write as sab.write does: their own INSERT,
+  UPDATE and DELETE in one transaction (an upsert updates the rows whose keys are there and inserts the
+  others). SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
+  passing errors run the whole write again. Trino writes where the catalog's connector does (Iceberg,
+  Delta Lake, Hive), a statement at a time.
 - **Dataverse** through its Web API (its SQL endpoint is read-only): create, update, upsert (by an
   alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
   labels (Won, not 1).

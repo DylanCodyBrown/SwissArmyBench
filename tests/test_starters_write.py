@@ -12,6 +12,7 @@ data only."""
 from __future__ import annotations
 
 import ast
+import contextlib
 import importlib.util
 import json
 import re
@@ -368,7 +369,9 @@ def test_a_dry_run_changes_nothing_and_says_what_it_would_do(shop: Path) -> None
     assert "Target    orders on Warehouse" in said and "Database  SQLite" in said
     assert "Rows      3: order_id (BIGINT), region (VARCHAR), amount (DOUBLE)" in said
     assert "Would     update 1 row, insert 2 rows" in said
-    assert 'ON CONFLICT ("order_id") DO UPDATE SET "region" = excluded."region"' in said
+    assert (
+        'UPDATE "orders" SET "region" = ?, "amount" = ? WHERE "order_id" = ?' in said
+    )  # the adapter's write
     assert "The first 3 rows:" in said
     assert rows_of(shop) == [(1, "North", 10.0), (9, "North", 90.0)]
 
@@ -454,6 +457,30 @@ def bed_state() -> dict[str, Any]:
     return state
 
 
+@pytest.fixture
+def leaves_no_trace() -> Iterator[None]:
+    """The test bed as it was after a write test: its sab_writes schema (PostgreSQL) and database (MariaDB)
+    taken away, so the real-world use cases see only the made-up company's tables."""
+    yield
+    state = bed_state()
+    with contextlib.suppress(Exception):
+        import psycopg
+
+        pg = state["postgres"]
+        with psycopg.connect(
+            f"host={pg['data']} port={pg['port']} dbname=shop user=postgres", autocommit=True
+        ) as db:
+            db.execute("DROP SCHEMA IF EXISTS sab_writes CASCADE")
+    with contextlib.suppress(Exception):
+        pymysql: Any = importlib.import_module("pymysql")  # no stubs: the test bed's driver
+
+        root = pymysql.connect(unix_socket=state["mariadb"]["socket"], user="root", autocommit=True)
+        with root.cursor() as c:
+            c.execute("DROP DATABASE IF EXISTS sab_writes")
+        root.close()
+
+
+@pytest.mark.usefixtures("leaves_no_trace")
 def test_postgresql_writes_through_copy_on_conflict_and_one_transaction(
     connection: Callable[[Callable[[], Any]], list[str]],
 ) -> None:
@@ -515,6 +542,7 @@ def test_postgresql_writes_through_copy_on_conflict_and_one_transaction(
         ]
 
 
+@pytest.mark.usefixtures("leaves_no_trace")
 def test_mariadb_writes_with_on_duplicate_key_update(
     connection: Callable[[Callable[[], Any]], list[str]],
 ) -> None:
