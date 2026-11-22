@@ -84,8 +84,16 @@ class Widgets:
         self._connections = connections  # the saved connections' names ([Conn].table)
         self._connection_listing = connection_listing  # each connection's tables, as far as it is listed
         self._read_connection_table = read_connection_table  # [Conn].table as Parquet, through the contract
+        self._moved: dict[str, str] = {}  # a renamed widget's old name -> its name now (this session)
 
     # ===== reading =====
+
+    def follow(self, name: str) -> str:
+        """The name a request means: a widget renamed this session is still reached by its old name (a save
+        or a second rename on its way when the rename landed), unless a widget of that name is there now."""
+        if name not in self._moved or self._files.read(name) is not None:
+            return name
+        return self._moved[name]
 
     def _all(self) -> dict[str, tuple[Widget, str]]:
         """Every widget by name (the project's first, then the library's: a widget hides another of its name
@@ -288,11 +296,17 @@ class Widgets:
             )
         return made
 
+    def _made(self, code: str) -> build_rules.Built:
+        """A widget's code as the builder uses it, its properties typed as the Properties pane types them
+        (a value naming an open table is a table: its rows go beside the run)."""
+        found, problem = self._properties(code)
+        return build_rules.made(code) if problem else build_rules.made(code, found)
+
     def built(self) -> dict[str, build_rules.Built]:
         made: dict[str, build_rules.Built] = {}
         for name, (widget, _text) in self._all().items():
             # code that does not parse: its error shows in its place on the page
-            made[name] = build_rules.made(widget.code)
+            made[name] = self._made(widget.code)
         return made
 
     def properties(self, body: Any) -> dict[str, Any]:
@@ -435,6 +449,9 @@ class Widgets:
         if new_name != name:
             self._write(new_name, after, place)
             self._files.remove(name, place)
+            self._moved = {old: new_name if now == name else now for old, now in self._moved.items()}
+            self._moved[name] = new_name
+            self._moved.pop(new_name, None)
             if self.renamed is not None:
                 renamed = await self.renamed(name, new_name)
             self.ws.audit.write(who, "rename_widget", f"{name} -> {new_name}")
@@ -582,7 +599,7 @@ class Widgets:
         body = body if isinstance(body, dict) else {}
         widget, _text = self._one(name)
         code: str = body.get("code") if isinstance(body.get("code"), str) else widget.code
-        built = build_rules.made(code)
+        built = self._made(code)
         values = body.get("values") if isinstance(body.get("values"), dict) else {}
         canvas = build_rules.one_widget(name, built, values, widget.size)
         context = self.context(values)
@@ -604,7 +621,7 @@ class Widgets:
         widget, _ = self._one(name)
         sent = body.get("code") if isinstance(body, dict) else None
         code = sent if isinstance(sent, str) else widget.code
-        return {name: build_rules.made(code)}
+        return {name: self._made(code)}
 
     async def check(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         """The widget run headless (AppTest): what it drew and its errors (the agent's widgets_run)."""

@@ -369,8 +369,9 @@ function headerFields(widget: WidgetFull): HTMLElement {
   const line = h("div", { class: "wg-name-line", "aria-live": "polite" });
   const description = h("textarea", { class: "wg-description", rows: 2, "aria-label": "Description", "data-no-variables": "", readOnly: widget.prebuilt }, widget.description);
   const check = async (): Promise<boolean> => {
-    const said = await api<{ ok: boolean; state: string; said: string }>(`/streamlit/widgets/check-name?name=${encodeURIComponent(name.value)}&own=${encodeURIComponent(widget.name)}`);
-    line.textContent = name.value === widget.name ? "" : said.said;
+    const own = (): string => current?.name ?? widget.name;
+    const said = await api<{ ok: boolean; state: string; said: string }>(`/streamlit/widgets/check-name?name=${encodeURIComponent(name.value)}&own=${encodeURIComponent(own())}`);
+    line.textContent = name.value === own() ? "" : said.said; // a rename may have landed meanwhile
     line.dataset.state = said.state;
     return said.ok;
   };
@@ -378,7 +379,10 @@ function headerFields(widget: WidgetFull): HTMLElement {
     if (checkTimer !== null) window.clearTimeout(checkTimer);
     checkTimer = window.setTimeout(() => void check(), 150);
   });
-  const commit = async (): Promise<void> => {
+  // Enter sends it and so does the change that follows: one at a time, the second sees the first's answer.
+  let committing: Promise<void> = Promise.resolve();
+  const commit = (): Promise<void> => (committing = committing.then(commitOnce, commitOnce));
+  const commitOnce = async (): Promise<void> => {
     if (!current || current.prebuilt) return;
     const changes: Record<string, string> = {};
     if (name.value !== current.name) {
@@ -389,7 +393,9 @@ function headerFields(widget: WidgetFull): HTMLElement {
     if (!Object.keys(changes).length) return;
     await flush();
     try {
-      const after = await api<WidgetFull>(`/streamlit/widgets/${encodeURIComponent(current.name)}`, "PATCH", changes);
+      const before = current.name;
+      const after = await api<WidgetFull>(`/streamlit/widgets/${encodeURIComponent(before)}`, "PATCH", changes);
+      if (after.name !== before) keepView(after.name, viewOf(before));
       current = { ...current, ...after };
       ide?.setName(after.name);
       document.title = `${after.name} · Widgets`;

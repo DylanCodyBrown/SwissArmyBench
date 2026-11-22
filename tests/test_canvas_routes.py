@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
+import pyarrow.parquet as pq
 import pytest
 from starlette.testclient import TestClient
 
@@ -249,3 +250,44 @@ def test_stop_ends_play_or_the_launched_app(served: tuple[TestClient, FakeRunner
         }
     refused = client.post(f"/streamlit/canvases/{canvas}/stop", headers=AUTH, json={"run": "everything"})
     assert refused.status_code == 403 and "play or launch" in refused.text
+
+
+def test_a_late_request_for_a_renamed_widget_follows_the_rename(
+    served: tuple[TestClient, FakeRunner, Path],
+) -> None:
+    """The Widgets window's Enter and change both sent the rename, and a save may still be on its way: a
+    request for the old name that comes after the rename reaches the renamed widget (its preview, its save),
+    never "There is no widget called ...". A delete never follows; a new widget given the old name wins."""
+    client, _runner, _project = served
+    code = 'import streamlit as st\n\nlabel = "Sales"\n\nst.metric(label, 1)\n'
+    ok(client.post("/streamlit/widgets", headers=AUTH, json={"name": "my_widget", "code": code}))
+    first = ok(client.patch("/streamlit/widgets/my_widget", headers=AUTH, json={"name": "invoice_total"}))
+    assert first["name"] == "invoice_total"
+    again = ok(client.patch("/streamlit/widgets/my_widget", headers=AUTH, json={"name": "invoice_total"}))
+    assert again["name"] == "invoice_total"
+    saved = ok(client.put("/streamlit/widgets/my_widget", headers=AUTH, json={"code": code + "# later\n"}))
+    assert saved["name"] == "invoice_total" and saved["code"].endswith("# later\n")
+    assert ok(client.get("/streamlit/widgets/my_widget", headers=AUTH))["name"] == "invoice_total"
+    ran = ok(client.post("/streamlit/widgets/my_widget/run", headers=AUTH, json={"python": "/p"}))
+    assert ran["widget"] == "invoice_total"
+    assert client.delete("/streamlit/widgets/my_widget", headers=AUTH).status_code == 404
+    names = {w["name"] for w in ok(client.get("/streamlit/widgets", headers=AUTH))["widgets"]}
+    assert "invoice_total" in names and "my_widget" not in names
+    ok(client.post("/streamlit/widgets", headers=AUTH, json={"name": "my_widget", "code": code}))
+    assert ok(client.get("/streamlit/widgets/my_widget", headers=AUTH))["name"] == "my_widget"
+
+
+def test_a_widget_run_alone_gets_the_open_table_its_value_names(
+    served: tuple[TestClient, FakeRunner, Path],
+) -> None:
+    """`table_name = "orders"` is a table property because orders is open (the Properties pane says so), and
+    Preview (a widget run alone) and the headless check write that table's rows beside the run."""
+    client, runner, _project = served
+    code = (
+        "import streamlit as st\nfrom sab_canvas import table\n\n# table: the orders to count\n"
+        'table_name = "orders"\n\nst.metric("Orders", len(table(table_name)))\n'
+    )
+    ok(client.post("/streamlit/widgets", headers=AUTH, json={"name": "order_count", "code": code}))
+    ok(client.post("/streamlit/widgets/order_count/run", headers=AUTH, json={"python": "/p"}))
+    folder = Path(runner.started[-1][1])
+    assert pq.read_table(folder / "data" / "orders.parquet").num_rows == 2
