@@ -563,6 +563,11 @@ class Request:
     headers: dict[str, str] = field(default_factory=dict)
     body: bytes | None = None
 
+    def parts(self) -> tuple[str, dict[str, str]]:
+        """The address's path and its query's values (a send to a process of this computer takes them)."""
+        split = urllib.parse.urlsplit(self.url)
+        return split.path or "/", dict(urllib.parse.parse_qsl(split.query))
+
 
 @dataclass
 class Response:
@@ -2025,9 +2030,11 @@ def discover(
 # ===== 11. Tables: records through adapter =====
 
 
-def table(answer: Mapping[str, Any]) -> Any:
-    """A records answer as an Arrow table, through adapter (the one crossing point: adapter beside it)."""
-    import adapter  # type: ignore[import-not-found]  # beside this file in the scaffold; the app gives its own
+def table(answer: Mapping[str, Any], adapter: Any = None) -> Any:
+    """A records answer as an Arrow table, through adapter (the one crossing point): the module beside this
+    file, or the one given (the app's own)."""
+    if adapter is None:
+        import adapter  # type: ignore[import-not-found, no-redef]  # beside this file in the scaffold
 
     rows = answer.get("records")
     if rows is None and answer.get("flat") is not None:
