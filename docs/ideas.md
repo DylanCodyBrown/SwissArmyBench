@@ -8123,3 +8123,8 @@ thing now sees:
 api_adapter.py: any API's answer in, one envelope out, with active payload detection (format, envelope, paging, types)
 and drift handling (fields bound by path; added, missing, retyped and moved fields adapt; an unsure rename offered once,
 never guessed). Plan: Plans/api-adapter.plan.md.
+
+## Real-time statistics (the owner, 2026-11-22): decided
+Every call through either adapter records time in parts, size, outcome and who, never values; calls kept this session,
+running figures per endpoint and table kept with the project (.sab/stats.json). The agent's stats tool and plain-word
+hints. Plan: Plans/stats.plan.md.
