@@ -4,7 +4,7 @@ local sandbox API, as api_adapter's actions; Build's code and widget, by the end
   names     the local sandbox API's one name (`local`), an action's place (an API and an action's name)
   build     what an endpoint builds into, by its shape: a notebook cell or a script function (sab.run's
             text), a widget on a canvas page (which prebuilt widget, its values and its wire); why one
-            cannot be
+            cannot be; ref(): an action as the canvas names it
   words     the drift note said once ("Orders list_orders: 2 fields new since 2026-11-20")
 
 Standard library only; no I/O.
@@ -22,6 +22,12 @@ LOCAL = "local"  # the project's local sandbox API among the actions (its own na
 BUILDS = ("cell", "function", "widget")
 SHAPES_FOLDER = "shapes"  # beside an API in the library: apis/<name>/shapes/<action>.json
 LOCAL_SHAPES = ".sab/api-shapes"  # the project's local sandbox API's, in its .sab
+
+
+def ref(api: str, method: str, path: str) -> str:
+    """An action as the canvas names it: "GET /orders" (the local sandbox API's endpoint), "[Orders] GET
+    /orders" (the library API called Orders)."""
+    return f"{method} {path}" if api.casefold() == LOCAL else f"[{api}] {method} {path}"
 
 
 class BuildError(ValueError):
@@ -94,14 +100,11 @@ def function(api: str, action: Mapping[str, Any], kind: str) -> str:
 
 def widget(api: str, action: Mapping[str, Any], kind: str, local: bool) -> dict[str, Any]:
     """The widget an endpoint builds on a canvas page: which prebuilt widget, its values and its wire. A list
-    of records a table (the local API's GET wired; another API's as [API].action); a write the
-    local API's form; one value or record the local API's metric."""
-    endpoint = f"{action['method']} {action['path']}"
+    of records a table (the local API's GET wired; another API's as [API].action); a write an API form; one
+    value or record an API metric: any API's action, named as the canvas's one picker names it (ref) and
+    called through api_adapter."""
+    endpoint = ref(LOCAL if local else api, str(action["method"]), str(action["path"]))
     if action.get("writes"):
-        if not local:
-            raise BuildError(
-                "A widget sends only to the project's local sandbox API: build a script function."
-            )
         return {"widget": "api_form", "values": {"endpoint": endpoint}, "wire": None}
     if kind == "records":
         if local:
@@ -116,13 +119,11 @@ def widget(api: str, action: Mapping[str, Any], kind: str, local: bool) -> dict[
             "wire": None,
             "as_table": True,
         }
-    if kind in ("value", "record") and local:
+    if kind in ("value", "record"):
         return {"widget": "api_metric", "values": {"endpoint": endpoint}, "wire": None}
     if not kind:
         raise BuildError("Its shape is not learned yet: run it once, or Discover the API.")
-    raise BuildError(
-        f"A {kind} answer of another API has no widget: build a notebook cell or a script function."
-    )
+    raise BuildError(f"A {kind} answer has no widget: build a notebook cell or a script function.")
 
 
 def drift_said(api: str, action: str, words: str) -> str:

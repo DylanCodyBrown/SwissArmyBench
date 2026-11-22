@@ -278,5 +278,10 @@ def test_build_a_widget_on_the_projects_canvas(live: int, service: Service, tmp_
     assert built["widget"] == "data_table" and built["id"]
     canvas = json.dumps(ask(live, "GET", f"/streamlit/canvases/{built['canvas_id']}"))
     assert "[Orders].list_orders" in canvas
-    with pytest.raises(AssertionError, match="no widget"):
-        ask(live, "POST", "/actions/build", {"api": "Orders", "action": "get_order", "as": "widget"})
+    # Another API's record is an API metric and its write an API form: any API's action, through api_adapter.
+    one = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "get_order", "as": "widget"})
+    assert one["widget"] == "api_metric"
+    form = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "create_order", "as": "widget"})
+    assert form["widget"] == "api_form"
+    placed = json.dumps(ask(live, "GET", f"/streamlit/canvases/{form['canvas_id']}"))
+    assert "[Orders] GET /orders/{order_id}" in placed and "[Orders] POST /orders" in placed

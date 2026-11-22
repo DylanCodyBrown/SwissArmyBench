@@ -6,6 +6,7 @@ only."""
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -122,6 +123,10 @@ def test_an_export_that_calls_the_api_names_its_variables(
     assert "## Variables to set where it runs" in readme and all(
         f"`{v}`" in readme for v in done["variables"]
     )
+    # Every built app carries api_adapter.py beside its pages, and the actions it calls (types only).
+    assert (out / "api_adapter.py").read_text(encoding="utf-8").startswith('"""api_adapter:')
+    kept = json.loads((out / "sab_actions.json").read_text(encoding="utf-8"))
+    assert kept == {}  # this folder has no API.py: the call says so where it runs
 
 
 def test_an_export_that_does_not_call_it_names_none(served: tuple[TestClient, Path], tmp_path: Path) -> None:

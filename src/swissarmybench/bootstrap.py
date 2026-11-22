@@ -1506,6 +1506,7 @@ def bootstrap(
         lambda: datetime.now(UTC).date().isoformat(),
         hooks=hooks,
         api_adapter=api_adapter,
+        adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
     )
 
     async def open_work() -> dict[str, Any]:

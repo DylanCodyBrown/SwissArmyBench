@@ -74,7 +74,8 @@ _PATH_NAME = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _KIND_WORD = re.compile(
     r"#\s*(table|column|colour|color|path|date|datetime|time|variable|endpoint)\b", re.IGNORECASE
 )
-_ENDPOINT = re.compile(r"^(GET|POST|PUT|PATCH|DELETE) /\S*$")
+# "GET /orders" (the local sandbox API's) or "[Orders] GET /orders" (another API's action): canvas_wiring's
+_ENDPOINT = re.compile(r"^(?:\[([^\[\]]{1,120})\] )?(GET|POST|PUT|PATCH|DELETE) (/\S*)$")
 _PATHLIKE = re.compile(r"^([a-zA-Z]:[\\/]|[\\/]|~|\.{1,2}[\\/])|[\\/].*\.[a-zA-Z0-9]{1,8}$")
 _ANNOTATIONS: dict[str, str] = {
     "bool": "bool",
@@ -562,8 +563,12 @@ def check(prop: Property, value: Any, context: Context | None = None) -> None:
             "Pick one of API.py's endpoints.",
         )
     elif kind == "endpoint" and value and context.endpoints is not None and value not in context.endpoints:
+        outside = _ENDPOINT.match(value)
         raise PropertyError(
-            f"API.py has no endpoint {value}.", "Pick one of its endpoints, or add it to API.py."
+            f"{outside.group(1)} has no action {outside.group(2)} {outside.group(3)}."
+            if outside and outside.group(1)
+            else f"API.py has no endpoint {value}.",
+            "Pick one of its endpoints, or add it to API.py.",
         )
     elif kind == "path_values":
         _check_path_values(prop, value, context)

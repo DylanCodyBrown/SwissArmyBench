@@ -12,6 +12,11 @@ sandbox API (`local`) are read from their specifications only; each call is api_
             endpoint called once at its smallest page, the shapes kept, values not
   build     a notebook cell, a script function, or a widget on a canvas page (the Streamlit extension's,
             through hooks.canvas_put); nothing built until asked
+  refs      every action as the canvas's one picker names it ("GET /orders": the local sandbox API's;
+            "[Orders] GET /orders": a library API's), with its body fields
+  carried   what a built app (Play, Launch, Export) carries beside its pages to call them: api_adapter.py,
+            sab_actions.json (each action's definition and learned shape: types only), a library API's
+            API_<name>.py
 
 A library API's calls run in a child process through its API blade (its sign-in, its secrets resolved there);
 the local sandbox API's through its running process (services/local_api.py: its own Allow for the agent's
@@ -61,6 +66,7 @@ class Actions:
         to_thread: Callable[..., Awaitable[Any]] = asyncio.to_thread,
         hooks: Any = None,  # services/hooks.py Hooks: canvas_put (a widget on a canvas page)
         api_adapter: Any = None,  # adapters/api_adapter.py, the module (the composition root hands it in)
+        adapter_text: Callable[[], str] | None = None,  # api_adapter.py's own text (a built app carries it)
     ) -> None:
         self.ws = ws
         self._explorer = explorer
@@ -72,6 +78,7 @@ class Actions:
         self._thread = to_thread
         self._hooks = hooks
         self._aa = api_adapter
+        self._adapter_text = adapter_text
         self._allowed: set[str] = set()  # the APIs whose discovery the user allowed this session
         self._last: dict[tuple[str, str], dict[str, Any]] = {}  # the last call of each action (memory only)
 
@@ -115,6 +122,77 @@ class Actions:
         if one is None:
             raise NotFound(f"{name} has no action {action}: actions(action=list, api={name}) names them.")
         return name, one, found, entry
+
+    # ===== the canvas: one picker, and what a built app carries =====
+
+    def _every(self) -> list[tuple[str, str, Any, dict[str, Any] | None]]:
+        """Every action there is, read now from the files (no call): (its reference, its API, the action,
+        the API's library entry or None for the local one). The local API's paths without its base path
+        (a built app adds SAB_API_BASE)."""
+        found: list[tuple[str, str, Any, dict[str, Any] | None]] = []
+        local = self._local.document()
+        if local is not None:
+            doc, base = local
+            for one in self._actions_of(LOCAL, doc).values():
+                path = one.path[len(base) :] if base and one.path.startswith(base) else one.path
+                found.append((rules.ref(LOCAL, one.method, path), LOCAL, replace(one, path=path), None))
+        for api in self._explorer._apis():
+            try:
+                actions = self._actions_of(str(api["name"]), self._explorer._document(api))
+            except (NotFound, ValueError):  # an API whose document does not read: none of its actions
+                continue
+            name = str(api["name"])
+            found += [(rules.ref(name, a.method, a.path), name, a, dict(api)) for a in actions.values()]
+        return found
+
+    def refs(self) -> list[dict[str, Any]]:
+        """Every API's actions as the canvas's one picker names them: {"ref", "api", "name", "method", "path",
+        "writes", "fields": its body's field names}."""
+        return [
+            {
+                "ref": ref,
+                "api": api,
+                "name": one.name,
+                "method": one.method,
+                "path": one.path,
+                "writes": one.writes,
+                "fields": [b.name for b in one.body],
+            }
+            for ref, api, one, _ in self._every()
+        ]
+
+    def carried(self, used: str) -> dict[str, str]:
+        """What a built app carries beside its pages: api_adapter.py (always), and sab_actions.json: the local
+        sandbox API's actions and each library API's action that `used` (the app's canvas and code as text)
+        names, each with its definition, its contract's boxes and its learned shape (types only, never a
+        value); a library API's own client file, API_<name>.py (its sign-in from the host's variables)."""
+        files: dict[str, str] = {}
+        if self._adapter_text is not None:
+            files["api_adapter.py"] = self._adapter_text()
+        apis: dict[str, Any] = {}
+        for ref, api, one, entry in self._every():
+            if entry is not None and ref not in used:
+                continue
+            kept = self._shape(self._shape_path(api, entry, one.name))
+            contract = self._aa.learn(kept, one)
+            holder = apis.setdefault(api, {"actions": {}})
+            holder["actions"][rules.ref(LOCAL, one.method, one.path)] = {
+                "action": one.to_json(),
+                "known": kept.get("returned"),
+                "renames": kept.get("renames") or {},
+                "inputs": contract["inputs"],
+                "body": contract["body"],
+                "kind": contract["kind"],
+            }
+            file = entry.get("file") if entry is not None else None
+            if file and "module" not in holder:
+                text = self._explorer._library.read(str(file))
+                module = str(file).replace("\\", "/").rsplit("/", 1)[-1].removesuffix(".py")
+                if text:
+                    holder["module"] = module
+                    files[module + ".py"] = text
+        files["sab_actions.json"] = json.dumps(apis, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+        return files
 
     # ===== the kept shapes =====
 

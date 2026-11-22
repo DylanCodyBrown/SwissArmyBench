@@ -212,6 +212,13 @@ def routes(services: Any) -> list[Any]:
     if local_api is not None:
         widgets.endpoints = local_api.endpoint_names
         widgets.endpoint_fields = local_api.endpoint_fields
+        # Every API's actions through api_adapter (the base's services/actions.py): the one picker's list
+        # (the local sandbox API's endpoints and each library API's actions), and what a built app carries.
+        actions = getattr(services, "actions", None)
+        if actions is not None:
+            widgets.endpoints = lambda: [a["ref"] for a in actions.refs()]
+            widgets.endpoint_fields = lambda: {a["ref"]: a["fields"] for a in actions.refs() if a["fields"]}
+            widgets.api_files = actions.carried
 
         def api_uses() -> list[dict[str, Any]]:
             """Each canvas widget instance whose endpoint property names one of API.py's, and each Event

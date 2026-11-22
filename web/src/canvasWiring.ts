@@ -15,6 +15,7 @@
  *   Wiring    lines from the exact Out port to the In port (dots on each widget's edges: Ins left, Outs and
  *             Events right); a wire from another page a stub with that page's name; a broken one marked
  */
+import { actionGroups, readsOnly } from "./actionPicker";
 import { button, h } from "./dom";
 import type { FieldContext } from "./widgetFields";
 
@@ -192,9 +193,9 @@ function inputField(port: Port, id: string, page: string, given: Wire | undefine
     box.append(h("option", { value: "", selected: !current }, auto ? `Automatic: ${outWords(auto.from, wiring, page, context.page_names)}` : `Not wired (${port.default === null ? "none" : JSON.stringify(port.default)})`));
     if (port.type === "Table") box.append(...tableOptions(context, current));
     box.append(...outOptions(port, id, page, wiring, current, false, context.page_names));
-    const gets = (context.endpoints ?? []).filter((e) => e.startsWith("GET "));
+    const gets = (context.endpoints ?? []).filter(readsOnly);
     if (gets.length && (port.type === "Table" || port.type === "dict" || port.type.startsWith("list"))) {
-      box.append(h("optgroup", { label: "Local sandbox API" }, ...gets.map((e) => h("option", { value: `endpoint:${e}`, selected: current === `endpoint:${e}` }, e))));
+      box.append(...actionGroups(gets, current, (e) => `endpoint:${e}`));
     }
     if (context.variables.length && ["str", "int", "float", "bool", "date", "datetime"].includes(port.type)) {
       box.append(h("optgroup", { label: "Variables" }, ...context.variables.map((v) => h("option", { value: `variable:${v}`, selected: current === `variable:${v}` }, v))));
@@ -266,7 +267,7 @@ function eventField(port: Port, given: Wire | undefined, context: WiringContext,
   const rows = actions.map((action, at) => {
     const parts: HTMLElement[] = [];
     if (action.do === "call") {
-      const endpoint = h("select", { class: "wg-input", disabled: !editable, "aria-label": "Endpoint" }, h("option", { value: "" }, "(pick an endpoint)"), ...(context.endpoints ?? []).map((e) => h("option", { value: e, selected: e === action.endpoint }, e)));
+      const endpoint = h("select", { class: "wg-input", disabled: !editable, "aria-label": "Endpoint" }, h("option", { value: "" }, "(pick an endpoint)"), ...actionGroups(context.endpoints ?? [], action.endpoint ?? ""));
       endpoint.addEventListener("change", () => change(at, { endpoint: endpoint.value, body: "", params: {} }));
       parts.push(h("label", { class: "wg-field" }, h("span", { class: "wg-label" }, "Call"), endpoint));
       const fields = action.endpoint ? context.endpoint_fields?.[action.endpoint] : undefined;
@@ -303,7 +304,7 @@ function eventField(port: Port, given: Wire | undefined, context: WiringContext,
   });
   const add = h("select", { class: "wg-input cvs-action-add", disabled: !editable, "aria-label": `${port.name}: add an action` }, h("option", { value: "" }, "Add an action…"), h("option", { value: "call" }, "Call an API endpoint"), h("option", { value: "set" }, "Set a page value"), h("option", { value: "rerun" }, "Rerun the page"));
   add.addEventListener("change", () => {
-    const made: Action | null = add.value === "call" ? { do: "call", endpoint: (context.endpoints ?? []).find((e) => !e.startsWith("GET ")) ?? context.endpoints?.[0] ?? "", body: "" } : add.value === "set" ? { do: "set", key: `${port.name}_payload`, value: "" } : add.value === "rerun" ? { do: "rerun" } : null;
+    const made: Action | null = add.value === "call" ? { do: "call", endpoint: (context.endpoints ?? []).find((e) => !readsOnly(e)) ?? context.endpoints?.[0] ?? "", body: "" } : add.value === "set" ? { do: "set", key: `${port.name}_payload`, value: "" } : add.value === "rerun" ? { do: "rerun" } : null;
     if (made) put([...actions, made]);
   });
   return h(

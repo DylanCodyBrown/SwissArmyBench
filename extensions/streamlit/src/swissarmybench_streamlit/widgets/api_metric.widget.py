@@ -1,7 +1,7 @@
 # /// swissarmybench-widget
 # format = 1
 # name = "api_metric"
-# description = "One number from a local sandbox API's GET endpoint"
+# description = "One number from an API action's answer (the local sandbox API's GET, or any API's)"
 # framework = "streamlit"
 # group = "Data"
 # tags = ["api"]
@@ -10,16 +10,15 @@
 # ///
 import os
 import re
-import urllib.parse
 
 import streamlit as st
-from sab_canvas import Out, api_call
+from sab_canvas import Out, action, said
 
-# The endpoint it reads (a GET answering an object, or a list: its first row, or how many)
+# The action it reads (a GET answering a value, an object, or a list: its first row, or how many)
 endpoint = ""  # endpoint
 # One box per {name} in the endpoint's path: a value, a variable or a page value
 path_values = {}  # path values of endpoint
-# The answer's field that holds the number (empty: how many rows a list holds)
+# The answer's field that holds the number, by its path (empty: the value, or how many rows a list holds)
 field = ""
 label = "Value"
 prefix = ""
@@ -42,35 +41,34 @@ def _given(value):
     return value
 
 
-def _path(wanted, values):
-    """The endpoint's method and path, its {names} filled from `values` (None: one is missing)."""
-    method, _, path = (wanted or "").partition(" ")
-    for name in re.findall(r"\{(\w+)\}", path):
+def _inputs(wanted, values):
+    """The action's path inputs, each {name} given from `values`: (inputs, None), or (None, the one missing)."""
+    found = {}
+    for name in dict.fromkeys(re.findall(r"\{(\w+)\}", wanted or "")):
         given = _given(values[name]) if name in values else None
         if given is None or given == "":
-            return method, None, name
-        path = path.replace("{" + name + "}", urllib.parse.quote(str(given), safe=""))
-    return method, path, None
+            return None, name
+        found[name] = given
+    return found, None
 
 
 if not endpoint:
     st.metric(label, "-")
     st.caption("Pick the endpoint in Properties.")
 else:
-    method, path, missing = _path(endpoint, path_values)
-    answer, problem = (
-        (None, f"Give {missing} in Properties (its path box).") if missing else api_call(method, path)
-    )
+    inputs, missing = _inputs(endpoint, path_values)
+    answer = None if missing else action(endpoint, inputs)
+    problem = f"Give {missing} in Properties (its path box)." if missing else said(answer)
     if problem:
         st.metric(label, "-")
         st.caption(problem)
     else:
-        row = answer[0] if isinstance(answer, list) and answer and field else answer
-        value = (
-            len(answer)
-            if isinstance(answer, list) and not field
-            else (row or {}).get(field)
-            if isinstance(row, dict)
-            else row
-        )
+        # The envelope by its kind: records (how many, or the first one's field), a record's field, a value.
+        if answer["kind"] == "records":
+            found = answer["records"]
+            value = (found[0].get(field) if found else None) if field else len(found)
+        elif answer["kind"] == "record":
+            value = answer["flat"].get(field) if field else answer["record"]
+        else:
+            value = answer.get("value", answer.get("text"))
         st.metric(label, f"{prefix}{value}{suffix}")

@@ -1,7 +1,7 @@
 # /// swissarmybench-widget
 # format = 1
 # name = "api_bridge"
-# description = "Call a local sandbox API endpoint with the values its Ins are wired to; hand its answer on"
+# description = "Call an API action (through api_adapter) with the values its Ins are wired to; hand its answer on"
 # framework = "streamlit"
 # group = "Forms"
 # tags = []
@@ -10,14 +10,11 @@
 # ///
 import hashlib
 import json
-import os
 import re
-import urllib.error
 import urllib.parse
-import urllib.request
 
 import streamlit as st
-from sab_canvas import In, Out, Table, key
+from sab_canvas import In, Out, Table, action, key, said
 
 # The endpoint it calls
 endpoint = ""  # endpoint
@@ -76,32 +73,11 @@ _INS = {
 
 
 def _call(method, path, body=None):
-    base = os.environ.get("SAB_API_URL", "")
-    if not base:
-        return None, "Run the local sandbox API (the APIs page), then Play again."
-    url = base.rstrip("/") + os.environ.get("SAB_API_BASE", "") + path
-    data = None if body is None else json.dumps(body, default=str).encode("utf-8")
-    headers = {
-        "Authorization": "Bearer " + os.environ.get("SAB_API_KEY", ""),
-        "Content-Type": "application/json",
-    }
-    try:
-        with urllib.request.urlopen(
-            urllib.request.Request(url, data, headers, method=method), timeout=600
-        ) as r:
-            raw = r.read()
-            return (json.loads(raw) if raw else None), None
-    except urllib.error.HTTPError as failed:
-        try:
-            said = json.loads(failed.read() or b"{}").get("error") or failed.reason
-        except ValueError:
-            said = failed.reason
-        return None, f"{failed.code}: {said}"
-    except OSError as failed:
-        return (
-            None,
-            f"The local sandbox API could not be reached ({getattr(failed, 'reason', failed)}).",
-        )
+    """One call through api_adapter (the runtime's action): the answer as it came, or the problem in a line."""
+    answer = action(f"{method} {path}", body=body, timeout=600)
+    if not answer["ok"]:
+        return None, said(answer)
+    return (answer.get("raw") or {}).get("body"), None
 
 
 def _value(path):

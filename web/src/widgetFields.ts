@@ -10,13 +10,15 @@
  *   column    the columns of the table its `of` property names
  *   variable  the variables (the Variables page's names)
  *   path      a text box                        json     a small JSON editor, checked as it is typed
- *   endpoint  one of the project's local sandbox API's endpoints ("GET /orders": API.py's)
+ *   endpoint  an API's action: the project's local sandbox API's endpoint ("GET /orders": API.py's) or
+ *             another API's ("[Orders] GET /orders"), from the one action picker (actionPicker.ts)
  *   path_values  a box per {name} of its endpoint's path (following the endpoint picked): a value, a variable or
  *             a page value each
  *
  * A change is handed to `onValue` with `said`: the caller checks it (the server's check-value) and says what is
  * wrong under the box, with the fix, before anything is kept.
  */
+import { actionGroups } from "./actionPicker";
 import { h, icon } from "./dom";
 
 export interface Prop {
@@ -43,7 +45,7 @@ export interface FieldContext {
   data_tables?: string[];
   /** Each connection's tables as SQL names them; null: its catalog is not listed yet (the table is typed). */
   connection_tables?: Record<string, string[] | null>;
-  /** The project's local sandbox API's endpoints, "GET /orders/{region}" (API.py's). */
+  /** Every API's actions: the local sandbox API's "GET /orders/{region}", another's "[Orders] GET /orders". */
   endpoints?: string[];
 }
 
@@ -198,7 +200,10 @@ export function propertyField(prop: Prop, values: Record<string, unknown>, conte
     case "endpoint": {
       const listed = context.endpoints ?? [];
       const known = listed.includes(text(value)) || !text(value) ? listed : [text(value), ...listed];
-      const box2 = select([{ value: "", label: listed.length ? "(pick an endpoint)" : "(API.py has no endpoints yet)" }, ...known.map((e) => ({ value: e, label: e }))], text(value), readOnly);
+      // The one action picker (actionPicker.ts): every API's actions, grouped by their API.
+      const box2 = select([{ value: "", label: listed.length ? "(pick an endpoint)" : "(API.py has no endpoints yet)" }], "", readOnly);
+      box2.append(...actionGroups(known, text(value)));
+      if (!text(value)) box2.value = "";
       box2.addEventListener("change", () => send(box2.value));
       box = box2;
       break;

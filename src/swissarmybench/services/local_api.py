@@ -163,6 +163,18 @@ class LocalApi:
         text = self._text()
         return [] if text is None else [f"{e.method} {e.path}" for e in rules.parse(text).endpoints]
 
+    def document(self) -> tuple[dict[str, Any], str] | None:
+        """API.py's OpenAPI document and its base path as the file is now (None: no project, no API.py, or
+        one that does not read): its actions for the canvas's picker and a built app (services/actions.py)."""
+        text = self._text() if self._project() is not None else None
+        if text is None:
+            return None
+        try:
+            api = rules.parse(text)
+        except Exception:  # API.py's own trouble: no actions to offer
+            return None
+        return rules.openapi(api), api.settings.base_path
+
     def endpoint_fields(self) -> dict[str, list[str]]:
         """Each endpoint whose body is one of API.py's models: its fields, in order ("POST /visits" -> [...]),
         for an Event's body mapping on the Canvas."""
