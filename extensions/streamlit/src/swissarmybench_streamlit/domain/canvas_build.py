@@ -16,7 +16,12 @@ runs in the app is what an export runs on a hosted Streamlit app, unchanged).
                         table() (a page value too: "page:<key>"), sample(kind) (made-up data), var(),
                         key(), choices() (a select's from a table's column), start() (a starting value from
                         another widget's key), marked() and problem() (the inputs' one look), emit() (an
-                        event's wiring carried out: call the local sandbox API, set a page value, rerun)
+                        event's wiring carried out: call an API's action, set a page value, rerun);
+                        action(endpoint, inputs) (any API's action through api_adapter, its one envelope;
+                        said(answer), data(answer), takes(endpoint)); api_call (the older form)
+    api_adapter.py      the API adapter, as it is (carried: the services hand its text in), and
+    sab_actions.json    each action the app calls: its definition and learned shape (types only); a library
+                        API's own client, API_<name>.py
 
 Pure rules: no I/O, standard library only.
 """
@@ -349,8 +354,10 @@ def build(
     widgets: Mapping[str, Built],
     context: props_rules.Context | None = None,
     first: str | None = None,
+    carried: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Every file of the app (Play, Launch and Export write these)."""
+    """Every file of the app (Play, Launch and Export write these). `carried`: what the app carries to call
+    APIs (api_adapter.py, sab_actions.json, a library API's client: the base's services/actions.py)."""
     names = used(canvas)
     mine = {n: widgets[n] for n in names if n in widgets}
     files = {
@@ -363,7 +370,7 @@ def build(
     calls = wiring.api_calls(canvas)
     if calls:
         files["README.md"] = readme(canvas, calls)
-    return files
+    return files | dict(carried or {})
 
 
 def one_widget(name: str, built: Built, values: Mapping[str, Any], size: tuple[int, int]) -> dict[str, Any]:
@@ -426,11 +433,14 @@ def readme(canvas: Mapping[str, Any], calls: list[str]) -> str:
         "",
         "## The API it calls",
         "",
-        "Its events call these endpoints of the project's local sandbox API (API.py):",
+        "Its wires call these actions through api_adapter.py (beside the pages): the project's local "
+        "sandbox API's (API.py), and any other API's as `[its name] METHOD /path` (through its own client "
+        "file, API_<name>.py, its sign-in from the variables set where the app runs):",
         "",
         *[f"- `{c}`" for c in calls],
         "",
-        "Set these on the host to the deployed API (Play and Launch set them to the running sandbox):",
+        "For API.py's, set these on the host to the deployed API (Play and Launch set them to the "
+        "running sandbox):",
         "",
         "- `SAB_API_URL`: the API's address, as https://orders-api.azurewebsites.net",
         "- `SAB_API_KEY`: its key, sent as `Authorization: Bearer <key>` (a secret: the host's settings)",
@@ -743,41 +753,177 @@ def pick(payload: Any, path: str = "") -> Any:
     return found
 
 
+# ===== API actions: every call through api_adapter (the file beside this one), one envelope =====
+
+_ACTION = re.compile(r"^(?:\[([^\[\]]{1,120})\] )?(GET|POST|PUT|PATCH|DELETE) (/\S*)$")
+_KEPT: dict[str, Any] = {}
+
+
+def _actions() -> dict[str, Any]:
+    """sab_actions.json beside the app: each API's actions as they were when the app was built (their inputs,
+    their body's fields, the last learned shape: types only, never a value)."""
+    if "apis" not in _KEPT:
+        try:
+            import json
+
+            _KEPT["apis"] = json.loads((_HERE / "sab_actions.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _KEPT["apis"] = {}
+    return _KEPT["apis"]
+
+
+def _unsent(said: str, where: str = "api") -> dict[str, Any]:
+    """The envelope of a call that could not be made here (no API to send it to): api_adapter's own shape."""
+    return {
+        "ok": False, "status": 0, "action": "", "api": "", "kind": "empty", "format": "empty",
+        "paging": {"pages": 0, "by": "", "more": False, "stopped": "", "retried": 0},
+        "shape": {}, "sent": {}, "raw": None,
+        "error": {"error": said, "where": where, "fixes": [], "details": ""},
+    }  # fmt: skip
+
+
+def _api(aa: Any, name: str, root: bool, timeout: float) -> Any:
+    """Where an API's actions are sent from this app: the local sandbox API at SAB_API_URL (its key
+    SAB_API_KEY, its base path SAB_API_BASE: Play and Launch give the running sandbox's, a host the deployed
+    API's); another API through its own client file beside the app (API_<name>.py: its sign-in from the
+    variables set where the app runs)."""
+    if name == "local":
+        base = os.environ.get("SAB_API_URL", "")
+        if not base:
+            raise aa.ActionError("Run the local sandbox API (the APIs page), then Play again.", "api")
+        base = base.rstrip("/") + ("" if root else os.environ.get("SAB_API_BASE", ""))
+        return aa.http(base, {"type": "bearer", "variable": "SAB_API_KEY"}, timeout, "local")
+    module = (_actions().get(name) or {}).get("module")
+    if not module:
+        raise aa.ActionError(
+            f"{name} is not an API of this app: pick its action again on the canvas.", "api"
+        )
+    try:
+        made = importlib.import_module(str(module))
+        client = next(
+            v
+            for v in vars(made).values()
+            if isinstance(v, type) and hasattr(v, "_send") and v.__module__ == made.__name__
+        )()
+    except Exception as error:
+        raise aa.ActionError(f"{name} could not be set up here: {error}", "api") from None
+    return aa.from_client(client, name)
+
+
+def takes(endpoint: str) -> dict[str, Any]:
+    """What an action takes, as the app knew it when it was built: {"inputs": [...], "body": [...]}, each
+    {"name", "type", "required", "box": text | number | switch | date | datetime | dropdown | json,
+    "choices"?}; {"kind"}: what it answers (records, record, value ...), once learned."""
+    found = _ACTION.match(str(endpoint or ""))
+    kept: dict[str, Any] = {}
+    if found:
+        apis = _actions().get(found.group(1) or "local") or {}
+        kept = (apis.get("actions") or {}).get(f"{found.group(2)} {found.group(3)}") or {}
+    return {
+        "inputs": list(kept.get("inputs") or []),
+        "body": list(kept.get("body") or []),
+        "kind": str(kept.get("kind") or ""),
+    }
+
+
+def action(
+    endpoint: str,
+    inputs: Any = None,
+    *,
+    query: Any = None,
+    body: Any = None,
+    pages: int = 1,
+    timeout: float = 30.0,
+    root: bool = False,
+) -> dict[str, Any]:
+    """One call of any API's action through api_adapter, its one envelope. `endpoint`: "GET /orders/{id}" (the
+    project's local sandbox API) or "[Orders] GET /orders/{id}" (another API). `inputs`: its inputs by name
+    (a path's, a query's, the body's fields), checked first; `query`: more query values, sent as given;
+    `body`: the whole body. `pages`: the pages followed at most (1: one request).
+
+    The envelope: answer["ok"]; answer["kind"] (records, record, value, file, empty, text) and the answer in
+    that shape (answer["records"]: rows by field path; answer["record"]; answer["value"]); answer["paging"]
+    (more: there are more pages); answer["raw"]["body"] (as it came); answer["error"] (said(answer): one
+    line for the widget's own place). data(answer) is the answer in its shape."""
+    found = _ACTION.match(str(endpoint or ""))
+    if not found:
+        return _unsent(f"{str(endpoint)[:80]!r} is not an action: as GET /orders, or [Orders] GET /orders.")
+    try:
+        import api_adapter as aa  # beside the app's pages: Play, Launch and Export write it
+    except ImportError:
+        return _unsent("api_adapter.py is not beside this app: Play it again (or export it again).")
+    import dataclasses
+
+    name, method, path = found.group(1) or "local", found.group(2), found.group(3)
+    kept = ((_actions().get(name) or {}).get("actions") or {}).get(f"{method} {path}") or {}
+    if kept.get("action"):
+        one = dataclasses.replace(aa.Action.from_json(kept["action"]), api=name)
+    else:  # an action the app did not know when it was built: its path's {names} are its inputs
+        names = list(dict.fromkeys(re.findall(r"\{(\w+)\}", path)))
+        needed = tuple(aa.Input(n, "path", required=True) for n in names)
+        one = aa.Action(f"{method} {path}", method, path, name, inputs=needed)
+    given = dict(inputs or {})
+    asked = {k: v for k, v in dict(query or {}).items() if v is not None}
+    known = {i.name for i in one.inputs} | {b.name for b in one.body} | {"body"}
+    free = [k for k in given if k not in known]
+    if free and one.writes and not one.body and body is None:  # an undeclared body: the inputs are its fields
+        body = {k: given.pop(k) for k in free}
+        free = []
+    extra = [k for k in [*free, *asked] if k not in {i.name for i in one.inputs}]
+    if extra:  # query values the specification does not name are sent all the same
+        one = dataclasses.replace(
+            one, inputs=one.inputs + tuple(aa.Input(k, "query") for k in dict.fromkeys(extra))
+        )
+    sent = given | asked | ({"body": body} if body is not None else {})
+    try:
+        target = _api(aa, name, root, timeout)
+    except aa.ActionError as error:
+        return _unsent(str(error), error.where or "api")
+    return aa.run(
+        one, sent, api=target, known=kept.get("known"), renames=kept.get("renames") or {},
+        max_pages=max(1, int(pages)), retries=1, who="widget",
+    )  # fmt: skip
+
+
+def said(answer: Any) -> str:
+    """A failed call's words in one line, for the widget's own place (empty: it worked)."""
+    error = (answer or {}).get("error") or {}
+    words, details = str(error.get("error") or ""), str(error.get("details") or "")
+    return f"{words} {details}".strip() if details and details not in words else words
+
+
+def data(answer: Any) -> Any:
+    """An answer in its shape: its records (a list of rows, fields by path: customer.id), its one record
+    (whole), its value, its file or its text; None when it failed or answered nothing."""
+    if not answer or not answer.get("ok"):
+        return None
+    kind = str(answer.get("kind"))
+    return answer.get(kind) if kind in ("records", "record", "value", "file", "text") else None
+
+
+def _for_in(answer: dict[str, Any], kind: str) -> Any:
+    """An answer as an In of `kind` takes it: a table its records (one record a table of one row), a dict
+    the record or the answer as it came, anything else the answer in its shape."""
+    raw = (answer.get("raw") or {}).get("body")
+    if kind.startswith(("Table", "list")):
+        if answer.get("kind") == "records":
+            return answer.get("records") or []
+        return [answer["flat"]] if answer.get("kind") == "record" and kind.startswith("Table") else raw
+    if kind == "dict":
+        return answer["record"] if answer.get("kind") == "record" else raw
+    found = data(answer)
+    return raw if found is None else found
+
+
 def api_call(
     method: str, path: str, body: Any = None, query: Any = None, root: bool = False
 ) -> tuple[Any, Any]:
-    """One request to the project's local sandbox API: its address and key from SAB_API_URL, SAB_API_KEY and
-    SAB_API_BASE (Play and Launch give the running sandbox's; a host the deployed API's). (answer,
-    problem)."""
-    import json
-    import urllib.error
-    import urllib.parse
-    import urllib.request
-
-    base = os.environ.get("SAB_API_URL", "")
-    if not base:
-        return None, "Run the local sandbox API (the APIs page), then Play again."
-    url = base.rstrip("/") + ("" if root else os.environ.get("SAB_API_BASE", "")) + path
-    if query:
-        url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
-    data = None if body is None else json.dumps(body, default=str).encode("utf-8")
-    headers = {
-        "Authorization": "Bearer " + os.environ.get("SAB_API_KEY", ""),
-        "Content-Type": "application/json",
-    }
-    try:
-        request = urllib.request.Request(url, data, headers, method=method)  # noqa: S310 (the API's address)
-        with urllib.request.urlopen(request, timeout=30) as answer:  # noqa: S310
-            raw = answer.read()
-            return (json.loads(raw) if raw else None), None
-    except urllib.error.HTTPError as failed:
-        try:
-            said = json.loads(failed.read() or b"{}").get("error") or failed.reason
-        except ValueError:
-            said = failed.reason
-        return None, f"{failed.code}: {said}"
-    except OSError as failed:
-        return None, f"The local sandbox API could not be reached ({getattr(failed, 'reason', failed)})."
+    """One request to the project's local sandbox API, through api_adapter: (the answer as it came, the
+    problem). The older form of action(), kept for the widgets written on it."""
+    answer = action(f"{method} {path}", None, query=query, body=body, root=root)
+    if answer["ok"]:
+        return (answer.get("raw") or {}).get("body"), None
+    return None, said(answer)
 
 
 # ===== the contract: In, Out, Event =====
@@ -970,11 +1116,10 @@ def _source(wire: Any, kind: str, default: Any, name: str) -> Any:
     if "page" in wire:
         return _coerce(st.session_state.get(str(wire["page"]), default), kind, name)
     if "endpoint" in wire:
-        _method, _, path = str(wire["endpoint"]).partition(" ")
-        answer, failed = api_call("GET", path)
-        if failed:
-            raise Missing(f"{name}: GET {path}: {failed}")
-        return _coerce(answer, kind, name)
+        answer = action(str(wire["endpoint"]))
+        if not answer["ok"]:
+            raise Missing(f"{name}: {said(answer)}")
+        return _coerce(_for_in(answer, kind), kind, name)
     if "variable" in wire:
         return _coerce(var(str(wire["variable"])), kind, name)
     if "value" in wire:
@@ -994,27 +1139,28 @@ class _Fire:
         self.instance, self.name, self.actions = instance, name, actions
 
     def __call__(self, payload: Any = None) -> dict[str, Any]:
-        import urllib.parse
-
         st.session_state[_out_key(f"{self.instance}.{self.name}")] = payload
         answers: list[Any] = []
         errors: list[str] = []
         rerun = False
-        for action in self.actions:
-            do = action.get("do") if isinstance(action, dict) else None
+        for step in self.actions:
+            do = step.get("do") if isinstance(step, dict) else None
             if do == "set":
-                st.session_state[str(action.get("key"))] = pick(payload, str(action.get("value") or ""))
+                st.session_state[str(step.get("key"))] = pick(payload, str(step.get("value") or ""))
             elif do == "rerun":
                 rerun = True
             elif do == "call":
-                method, _, path = str(action.get("endpoint") or "").partition(" ")
-                given = action.get("body", "")
+                ref = str(step.get("endpoint") or "")
+                found = _ACTION.match(ref)
+                method, path = (found.group(2), found.group(3)) if found else ("", ref)
+                given = step.get("body", "")
                 if isinstance(given, dict):
                     body = {field: pick(payload, at) for field, at in given.items()}
                 else:
                     body = pick(payload, given)
-                params = action.get("params") or {}
+                params = step.get("params") or {}
                 missing = None
+                filled: dict[str, Any] = {}
                 for part in re.findall(r"\{(\w+)\}", path):
                     value = pick(payload, params[part]) if part in params else (
                         body.get(part) if isinstance(body, dict) else None
@@ -1022,17 +1168,18 @@ class _Fire:
                     if value is None:
                         missing = part
                         break
-                    path = path.replace("{" + part + "}", urllib.parse.quote(str(value), safe=""))
+                    filled[part] = value
                 if missing:
                     errors.append(f"{self.name} needs {missing} for {path}: map it in the widget's Events.")
                     continue
-                answer, failed = api_call(method, path, None if method == "GET" else body)
-                if failed:
-                    errors.append(f"{method} {path}: {failed}")
+                answer = action(ref, filled, body=None if method == "GET" else body)
+                if answer["ok"]:
+                    shaped = data(answer)
+                    answers.append((answer.get("raw") or {}).get("body") if shaped is None else shaped)
                 else:
-                    answers.append(answer)
-        for said in errors:
-            st.error(said)
+                    errors.append(said(answer))
+        for words in errors:
+            st.error(words)
         if rerun and not errors:
             st.rerun()
         return {"ok": not errors, "answers": answers, "errors": errors}

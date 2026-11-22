@@ -1753,7 +1753,13 @@ def _sandbox_part(b: Built) -> None:
         lambda: datetime.now(UTC).date().isoformat(),
         hooks=b.hooks,
         api_adapter=api_adapter,
+        adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
+        changed=b.code_files.touched,
+        show=lambda path, at: b.workbench_window.ask(
+            "file.openCell" if "cell" in at else "file.openAt", {"path": path, **at}, "app"
+        ),
     )
+    b.local_api.learned = b.actions.local_learned  # Try it fills its form from the learned shape
 
 
 # ----- the app's own life: what is open, extensions, the Team box, sharing, updates -----

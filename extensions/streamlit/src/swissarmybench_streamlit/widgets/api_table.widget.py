@@ -1,7 +1,7 @@
 # /// swissarmybench-widget
 # format = 1
 # name = "api_table"
-# description = "A local sandbox API's GET endpoint as a table, a page at a time"
+# description = "An API action's records as a table, a page at a time (the local sandbox API's GET, or any API's)"
 # framework = "streamlit"
 # group = "Data"
 # tags = ["api"]
@@ -10,12 +10,11 @@
 # ///
 import os
 import re
-import urllib.parse
 
 import streamlit as st
-from sab_canvas import Out, Table, api_call, key
+from sab_canvas import Out, Table, action, key, said
 
-# The endpoint whose rows it shows (a GET that answers a list)
+# The action whose records it shows (a GET that answers a list), read through api_adapter
 endpoint = ""  # endpoint
 # One box per {name} in the endpoint's path: a value, a variable or a page value
 path_values = {}  # path values of endpoint
@@ -42,38 +41,38 @@ def _given(value):
     return value
 
 
-def _path(wanted, values):
-    """The endpoint's method and path, its {names} filled from `values` (None: one is missing)."""
-    method, _, path = (wanted or "").partition(" ")
-    for name in re.findall(r"\{(\w+)\}", path):
+def _inputs(wanted, values):
+    """The action's path inputs, each {name} given from `values`: (inputs, None), or (None, the one missing)."""
+    found = {}
+    for name in dict.fromkeys(re.findall(r"\{(\w+)\}", wanted or "")):
         given = _given(values[name]) if name in values else None
         if given is None or given == "":
-            return method, None, name
-        path = path.replace("{" + name + "}", urllib.parse.quote(str(given), safe=""))
-    return method, path, None
+            return None, name
+        found[name] = given
+    return found, None
 
 
 if not endpoint:
-    st.info("Pick the endpoint in Properties: a GET of the local sandbox API.")
+    st.info("Pick the endpoint in Properties: a GET of an API.")
 else:
-    method, path, missing = _path(endpoint, path_values)
+    inputs, missing = _inputs(endpoint, path_values)
     page = st.session_state.get(key("page"), 0)
     if missing:
         st.warning(f"Give {missing} in Properties (its path box).")
     else:
-        rows, problem = api_call(method, path, query={limit_name: page_size, offset_name: page * page_size})
-        if problem:
-            st.info(problem)
+        answer = action(endpoint, inputs, query={limit_name: page_size, offset_name: page * page_size})
+        if not answer["ok"]:
+            st.info(said(answer))
         else:
-            st.dataframe(
-                rows if isinstance(rows, list) else [rows], use_container_width=True, hide_index=True
-            )
+            # The envelope's records (fields by path: customer.id); one record a table of one row.
+            rows = answer["records"] if answer["kind"] == "records" else [answer.get("flat") or {}]
+            st.dataframe(rows, use_container_width=True, hide_index=True)
             left, middle, right = st.columns([1, 2, 1])
             if left.button("Previous", key=key("previous"), disabled=page == 0):
                 st.session_state[key("page")] = page - 1
                 st.rerun()
             middle.caption(f"Page {page + 1}")
-            full = isinstance(rows, list) and len(rows) >= page_size
+            full = answer["paging"]["more"] or len(rows) >= page_size
             if right.button("Next", key=key("next"), disabled=not full):
                 st.session_state[key("page")] = page + 1
                 st.rerun()

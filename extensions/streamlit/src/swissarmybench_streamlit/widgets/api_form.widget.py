@@ -1,7 +1,7 @@
 # /// swissarmybench-widget
 # format = 1
 # name = "api_form"
-# description = "A form that sends a row to a local sandbox API's POST or PUT endpoint"
+# description = "A form that sends a row to an API's action (the local sandbox API's POST or PUT, or any API's)"
 # framework = "streamlit"
 # group = "Forms"
 # tags = ["api"]
@@ -10,16 +10,15 @@
 # ///
 import os
 import re
-import urllib.parse
 
 import streamlit as st
-from sab_canvas import Event, api_call, key
+from sab_canvas import Event, action, data, key, said, takes
 
-# The endpoint it sends to (a POST or a PUT whose body is a row)
+# The action it sends to (a POST or a PUT whose body is a row), through api_adapter
 endpoint = ""  # endpoint
 # One box per {name} in the endpoint's path: a value, a variable or a page value
 path_values = {}  # path values of endpoint
-# The fields (empty: its body's, as API.py's model gives them)
+# The fields (empty: its body's, as the API's specification gives them)
 fields = []
 button = "Send"
 # Fired once the row was sent ({"request", "answer"}); the Canvas wires what it does next
@@ -40,56 +39,50 @@ def _given(value):
     return value
 
 
-def _path(wanted, values):
-    """The endpoint's method and path, its {names} filled from `values` (None: one is missing)."""
-    method, _, path = (wanted or "").partition(" ")
-    for name in re.findall(r"\{(\w+)\}", path):
+def _inputs(wanted, values):
+    """The action's path inputs, each {name} given from `values`: (inputs, None), or (None, the one missing)."""
+    found = {}
+    for name in dict.fromkeys(re.findall(r"\{(\w+)\}", wanted or "")):
         given = _given(values[name]) if name in values else None
         if given is None or given == "":
-            return method, None, name
-        path = path.replace("{" + name + "}", urllib.parse.quote(str(given), safe=""))
-    return method, path, None
-
-
-def _model(wanted):
-    """The endpoint's body fields and their types, from the running API."""
-    found, problem = api_call("GET", "/__sab/endpoints", root=True)
-    if problem or not isinstance(found, dict):
-        return {}
-    method, _, path = wanted.partition(" ")
-    for e in found.get("endpoints") or []:
-        if e["method"] == method and e["path"] == path:
-            return e.get("body") or {}
-    return {}
+            return None, name
+        found[name] = given
+    return found, None
 
 
 if not endpoint:
-    st.info("Pick the endpoint in Properties: a POST or PUT of the local sandbox API.")
-elif not os.environ.get("SAB_API_URL"):
-    st.info("Run the local sandbox API (the APIs page), then Play again.")
+    st.info("Pick the endpoint in Properties: a POST or PUT of an API.")
 else:
-    model = _model(endpoint)
+    # The body's fields as the action takes them: each one's box by its type (a closed set a dropdown).
+    model = {f["name"]: f for f in takes(endpoint)["body"]}
     names = list(fields) or list(model)
     with st.form(key("form")):
         values = {}
         for name in names:
-            kind = model.get(name, "str")
-            if kind == "bool":
+            box = model.get(name, {}).get("box", "text")
+            kind = model.get(name, {}).get("type", "string")
+            if box == "switch":
                 values[name] = st.checkbox(name, key=key(name))
-            elif kind in ("int", "float"):
-                values[name] = st.number_input(name, value=0 if kind == "int" else 0.0, key=key(name))
+            elif box == "number":
+                values[name] = st.number_input(name, value=0 if kind == "integer" else 0.0, key=key(name))
+            elif box == "dropdown":
+                values[name] = st.selectbox(name, model[name].get("choices") or [], key=key(name))
+            elif box == "date":
+                picked = st.date_input(name, value=None, key=key(name))
+                values[name] = picked.isoformat() if picked else None
             else:
                 values[name] = st.text_input(name, key=key(name))
         sent = st.form_submit_button(button)
     if sent:
-        method, path, missing = _path(endpoint, path_values)
+        inputs, missing = _inputs(endpoint, path_values)
         if missing:
             st.warning(f"Give {missing} in Properties (its path box).")
         else:
-            answer, problem = api_call(method, path, {k: v for k, v in values.items() if v not in ("", None)})
-            if problem:
-                st.error(problem)
+            answer = action(endpoint, inputs, body={k: v for k, v in values.items() if v not in ("", None)})
+            if not answer["ok"]:
+                st.error(said(answer))
             else:
+                got = data(answer)
                 st.success("Sent.")
-                st.json(answer)
-                sent({"request": values, "answer": answer})
+                st.json(got)
+                sent({"request": values, "answer": got})

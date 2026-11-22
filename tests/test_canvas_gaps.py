@@ -313,12 +313,17 @@ def test_map_columns_keys_its_pickers_by_the_columns_it_maps() -> None:
     assert 'key=key(f"f_{field}_{_of}")' in code and "hashlib.sha256" in code
 
 
-def test_the_api_widgets_use_the_runtimes_one_api_call() -> None:
+def test_the_api_widgets_call_through_the_runtimes_one_action() -> None:
+    """Every API widget's call is the runtime's action(): api_adapter's run, its one envelope. No widget has a
+    request of its own, and the older api_call is the same call (kept for the widgets written on it)."""
     for name in ("api_table", "api_form", "api_button", "api_metric"):
         code = (PREBUILT / f"{name}.widget.py").read_text(encoding="utf-8")
-        assert "def _call(" not in code and "urllib.request" not in code and "api_call(" in code, name
-        assert "api_call" in code.split("from sab_canvas import", 1)[1].split("\n", 1)[0], name
-    assert "def api_call(" in build.RUNTIME
+        assert "def _call(" not in code and "urllib" not in code and "api_call(" not in code, name
+        assert " action(endpoint" in code and "said(answer)" in code, name
+        assert "action" in code.split("from sab_canvas import", 1)[1].split("\n", 1)[0], name
+    assert "def action(" in build.RUNTIME and "import api_adapter as aa" in build.RUNTIME
+    older = build.RUNTIME.split("def api_call(", 1)[1].split("\n\n\n", 1)[0]
+    assert "action(" in older and "urllib" not in older
 
 
 # ===== the HTTP door and the agent =====

@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -436,7 +437,9 @@ class Canvases:
     def _app(self, opened: Open, first: str | None = None) -> tuple[dict[str, str], set[str]]:
         built = self._widgets.built()
         context = self._widgets.context()
-        files = build_rules.build(opened.canvas, built, context, first)
+        used = {n: built[n] for n in build_rules.used(opened.canvas) if n in built}
+        carried = self._widgets.carried(opened.canvas, used)
+        files = build_rules.build(opened.canvas, built, context, first, carried)
         folder = opened.path.rsplit("/", 1)[0]
         data = self._read_data_py(folder)
         if data is not None:
@@ -507,16 +510,27 @@ class Canvases:
             if not await self._approvals.ask(opened.path, "export_canvas", detail):
                 raise Refused("The user declined (or did not answer): nothing was written.")
         # An app that calls the local sandbox API reads its address from these where it is deployed.
-        # (sab_canvas.py always holds api_call: only a widget's, a page's or the wiring's use counts)
-        calls = (
-            "README.md" in files
-            or wiring.api_calls(opened.canvas)
-            or any("SAB_API_URL" in t or "api_call(" in t for n, t in files.items() if n != "sab_canvas.py")
+        # (sab_canvas.py always holds action and api_call: only a widget's, a page's or the wiring's use
+        # counts; a wire that names only another API's action does not call the local one.)
+        wired = wiring.api_calls(opened.canvas)
+        named = [*wired, *_endpoint_values(opened.canvas)]
+        in_code = any(
+            _CALLS.search(t)
+            for n, t in files.items()
+            if n.endswith(".py") and n not in ("sab_canvas.py", "api_adapter.py") and not _client(n)
         )
-        variables = list(API_VARIABLES) if calls else []
+        local = any(not c.startswith("[") for c in named) or (in_code and not named)
+        variables = list(API_VARIABLES) if local else []
         warnings = [f"Set {v} where it runs: {API_VARIABLES[v]}." for v in variables]
+        lines = [f"- `{v}`: {API_VARIABLES[v]}\n" for v in variables]
+        # Another API's own client travels with the app (API_<name>.py): its sign-in's variables are named.
+        for name in sorted(n for n in files if _client(n)):
+            for variable in dict.fromkeys(_ENVIRON.findall(files[name])):
+                variables.append(variable)
+                warnings.append(f"Set {variable} where it runs: {name} reads it.")
+                lines.append(f"- `{variable}`: {name} reads it (its API's address or sign-in)\n")
         if variables:
-            files["README.md"] = API_README + "".join(f"- `{v}`: {API_VARIABLES[v]}\n" for v in variables)
+            files["README.md"] = API_README + "".join(lines)
         # The project's own widgets the canvas uses go with it, as their files (widgets/<name>.widget.py).
         files |= self._widgets.project_widgets(build_rules.used(opened.canvas))
         where, written = self._app_files.export(chosen, files, tables)
@@ -537,9 +551,25 @@ API_VARIABLES: dict[str, str] = {
     "SAB_API_KEY": "the key the deployed API takes (Authorization: Bearer)",
     "SAB_API_BASE": "the API's base path, as /api (empty when it has none)",
 }
+_CALLS = re.compile(r"\b(?:api_call|action)\(|SAB_API_URL")
+_ENVIRON = re.compile(r"os\.environ\.get\(\s*\"([A-Za-z_][A-Za-z0-9_]*)\"")
+
+
+def _client(name: str) -> bool:
+    """A library API's own client file among an app's files (API_<name>.py, Add API's made file)."""
+    return name.startswith("API_") and name.endswith(".py") and "/" not in name
+
+
+def _endpoint_values(canvas: Mapping[str, Any]) -> list[str]:
+    """Each action a widget instance's endpoint property names."""
+    found = [(n.get("values") or {}).get("endpoint") for _, n in model.walk(canvas) if n["kind"] == "widget"]
+    return [v for v in found if isinstance(v, str) and v]
+
+
 API_README = (
     "# The app\n\nRun it with `streamlit run app.py`.\n\n## Variables to set where it runs\n\nIt calls an "
-    "API (exported from the local sandbox API): set these, never in a file.\n\n"
+    "API through api_adapter.py (the local sandbox API as it is deployed, or another API by its own client "
+    "file): set these, never in a file.\n\n"
 )
 
 

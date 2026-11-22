@@ -10,7 +10,9 @@ actions, kept in the canvas file beside its values (`"wires": {port: wire}`, byt
                                                        name, this computer's user name in Play, else
                                                        "unknown")
                         {"page": "last_visit"}         a page value an Event's action set (or an older widget)
-                        {"endpoint": "GET /orders"}    the local sandbox API's answer
+                        {"endpoint": "GET /orders"}    an API action's answer, through api_adapter: the
+                                                       local sandbox API's endpoint, or another API's
+                                                       action as "[Orders] GET /orders" (action_ref)
                         {"variable": "REGION"}         a variable of this computer
                         {"value": "West"}              a typed constant
                         {"tables": [wire, ...]}        a list[Table] In: tables or Outs, in order
@@ -43,7 +45,10 @@ ACTIONS: tuple[str, ...] = ("call", "set", "rerun")
 _KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,80}$")
 _REF = re.compile(r"^([a-z][0-9]+|app)\.([A-Za-z_][A-Za-z0-9_]{0,80})$")
 _PATH = re.compile(r"^(?:[A-Za-z_][A-Za-z0-9_]{0,80}(?:\.[A-Za-z_][A-Za-z0-9_]{0,80}){0,8})?$")
-_ENDPOINT = re.compile(r"^(GET|POST|PUT|PATCH|DELETE) /\S*$")
+# An action of any API, as a wire and a widget's endpoint property name it: "GET /orders" (the project's local
+# sandbox API) or "[Orders] GET /orders" (the library's API called Orders). One picker, one form.
+_ENDPOINT = re.compile(r"^(?:\[([^\[\]]{1,120})\] )?(GET|POST|PUT|PATCH|DELETE) (/\S*)$")
+LOCAL = "local"  # the local sandbox API among the actions (the base's domain/api_actions.py LOCAL)
 _ENV = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")
 MAX_ACTIONS = 8
 OUT_KEY = "sab:"  # an Out's session state key: sab:<instance>.<port>
@@ -67,6 +72,21 @@ APP_OUTS: dict[str, dict[str, Any]] = {
     }
     for ref, kind in VIEWER_OUTS.items()
 }
+
+
+def action_ref(text: Any) -> tuple[str, str, str] | None:
+    """An action's reference read: (api, method, path); `local` for the project's own. None: not one."""
+    found = _ENDPOINT.match(text) if isinstance(text, str) else None
+    return (found.group(1) or LOCAL, found.group(2), found.group(3)) if found else None
+
+
+def _no_action(ref: str) -> str:
+    api, method, path = action_ref(ref) or (LOCAL, "", ref)
+    return (
+        f"API.py has no endpoint {ref}."
+        if api == LOCAL
+        else f"{api} has no action {method} {path} (or it is not an API here)."
+    )
 
 
 @dataclass(frozen=True)
@@ -131,10 +151,11 @@ def check_in(port: Port, wire: Any, context: Context) -> None:
                 f"{str(value)[:40]!r} is not a page value's key.", "Type a key, as last_visit."
             )
     elif kind == "endpoint":
-        if not isinstance(value, str) or not value.startswith("GET ") or not _ENDPOINT.match(value):
+        ref = action_ref(value)
+        if ref is None or ref[1] != "GET":
             raise ContractError(f"{port.name} reads a GET endpoint's answer, as GET /orders.")
         if context.endpoints is not None and value not in context.endpoints:
-            raise ContractError(f"API.py has no endpoint {value}.", "Pick one of its endpoints, or add it.")
+            raise ContractError(_no_action(value), "Pick one of its endpoints, or add it.")
         if wanted not in ("Table", "dict", "list") and not wanted.startswith("list"):
             raise ContractError(f"{port.name} takes {contract.words(wanted)}: an endpoint answers JSON.")
     elif kind == "variable":
@@ -174,7 +195,7 @@ def check_event(port: Port, wire: Any, endpoints: set[str] | None = None) -> Non
             if not isinstance(endpoint, str) or not _ENDPOINT.match(endpoint):
                 raise ContractError(f"{port.name} calls an endpoint, as POST /orders.", "Pick an endpoint.")
             if endpoints is not None and endpoint not in endpoints:
-                raise ContractError(f"API.py has no endpoint {endpoint}.", "Pick one of its endpoints.")
+                raise ContractError(_no_action(endpoint), "Pick one of its endpoints.")
             body = action.get("body", "")
             paths = list(body.values()) if isinstance(body, dict) else [body]
             params = action.get("params") or {}
@@ -410,7 +431,8 @@ def needs(sources: Mapping[str, Mapping[str, Any]]) -> dict[str, set[str]]:
 
 
 def api_calls(canvas: Mapping[str, Any]) -> list[str]:
-    """The local sandbox API endpoints the canvas reads or calls ("POST /visits"), sorted, each once."""
+    """The API actions the canvas's wires read or call ("POST /visits": the local sandbox API's; "[Orders] GET
+    /orders": another API's), sorted, each once."""
     found: set[str] = set()
     for _page, node in _instances(canvas):
         for wire in (node.get("wires") or {}).values():

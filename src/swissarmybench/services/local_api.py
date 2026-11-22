@@ -30,6 +30,7 @@ import time
 from collections.abc import Callable
 from typing import Any, Protocol
 
+from swissarmybench.domain import api_actions
 from swissarmybench.domain import api_scaffold as scaffold_rules
 from swissarmybench.domain import local_api as rules
 from swissarmybench.domain import sandbox_dialects as dialects
@@ -163,6 +164,18 @@ class LocalApi:
         text = self._text()
         return [] if text is None else [f"{e.method} {e.path}" for e in rules.parse(text).endpoints]
 
+    def document(self) -> tuple[dict[str, Any], str] | None:
+        """API.py's OpenAPI document and its base path as the file is now (None: no project, no API.py, or
+        one that does not read): its actions for the canvas's picker and a built app (services/actions.py)."""
+        text = self._text() if self._project() is not None else None
+        if text is None:
+            return None
+        try:
+            api = rules.parse(text)
+        except Exception:  # API.py's own trouble: no actions to offer
+            return None
+        return rules.openapi(api), api.settings.base_path
+
     def endpoint_fields(self) -> dict[str, list[str]]:
         """Each endpoint whose body is one of API.py's models: its fields, in order ("POST /visits" -> [...]),
         for an Event's body mapping on the Canvas."""
@@ -212,19 +225,17 @@ class LocalApi:
                         mocks[name.casefold()] = await self._mocks.client(name)
                     except Exception:
                         mocks[name.casefold()] = None
-        examples = self._examples()
+        learned = self._learned()
         endpoints = []
         for e in api.endpoints:
             words = [data_words(n, mocks.get(n.casefold())) for n in e.connections]
-            kept = examples.get(rules.endpoint_key(e.method, e.path))
             # Its contract, read by every door from the one definition (domain/local_api.py): the body's
-            # fields, and the made-up request Try it starts from (the kept example's body first).
-            start = rules.made_up(e, api.models)
-            if kept is not None:
-                start["body"] = kept
+            # fields, and the made-up request Try it starts from, filled from the endpoint's learned shape
+            # (what it was last sent: paths and types; made-up values, never a kept one).
+            known = learned.get(f"{e.method} {e.path}") or {}
+            start = api_actions.tried(rules.made_up(e, api.models), known.get("contract"), known.get("sent"))
             endpoints.append(
-                e.to_json()
-                | {"data": words, "example": kept, "fields": rules.body_fields(e, api.models), "try": start}
+                e.to_json() | {"data": words, "fields": rules.body_fields(e, api.models), "try": start}
             )
         return {
             "project": folder,
@@ -234,16 +245,11 @@ class LocalApi:
             "endpoints": endpoints,
             "models": api.to_json()["models"],
             "problems": api.problems,
-            "examples_file": rules.EXAMPLES_FILE,
             "targets": self.targets(),
             "running": self._running_json(),
             "failed": self._failed,
             "agent_writes": self.agent_writes(),
-        } | (
-            {"openapi": rules.with_examples(rules.openapi(api), examples, api.settings.base_path)}
-            if full
-            else {}
-        )
+        } | ({"openapi": rules.openapi(api)} if full else {})
 
     def _running_json(self) -> dict[str, Any] | None:
         if not self.running() or self._runner is None:
@@ -293,37 +299,17 @@ class LocalApi:
             await self._told(who, "local_api_settings")
         return await self.state()
 
-    # ===== an endpoint's kept example =====
+    # ===== Try it: filled from the learned shape =====
 
-    def _examples_path(self) -> str:
-        folder = self._project()
-        if folder is None:
-            raise Conflict("Open a project first: its local sandbox API is its API.py.")
-        return self._files.join(folder, rules.EXAMPLES_FILE)
+    # Each endpoint's learned contract and the shape of what it was last sent ("POST /orders" -> {"contract",
+    # "sent"}: services/actions.py local_learned, set once it is built). Types only: no value is kept.
+    learned: Callable[[], dict[str, dict[str, Any]]] | None = None
 
-    def _examples(self) -> dict[str, Any]:
-        return rules.read_examples(self._files.read(self._examples_path()))
-
-    async def keep_example(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """Keep as its example: {"endpoint": "POST /orders", "body": {...}}: Try it's edited body kept as the
-        endpoint's example payload (Try it starts from it; the OpenAPI document shows it), in the project's
-        .sab/api_examples.json beside API.py (API.py itself is never written). {"body": null}: forgotten."""
-        given = body if isinstance(body, dict) else {}
-        key = str(given.get("endpoint") or "").strip()
-        text = self._text()
-        if text is None:
-            raise NotFound("The project has no API.py yet: New local sandbox API… makes it.")
-        method, _, path = key.partition(" ")
-        key = rules.endpoint_key(method, path)
-        examples = self._examples()
-        if given.get("body") is None:
-            if examples.pop(key, None) is None:
-                raise NotFound(f"{key} has no kept example.")
-        else:
-            examples[key] = rules.check_example(rules.parse(text), key, given["body"])
-        self._files.write(self._examples_path(), rules.examples_text(examples))
-        await self._told(who, "local_api_example")
-        return {"endpoint": key, "example": examples.get(key), "file": rules.EXAMPLES_FILE}
+    def _learned(self) -> dict[str, dict[str, Any]]:
+        try:
+            return dict(self.learned()) if self.learned is not None else {}
+        except Exception:  # a shape file's own trouble: Try it starts from the definition alone
+            return {}
 
     # ===== Payload shapes =====
 

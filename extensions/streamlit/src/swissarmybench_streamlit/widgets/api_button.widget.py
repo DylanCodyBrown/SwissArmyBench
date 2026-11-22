@@ -1,7 +1,7 @@
 # /// swissarmybench-widget
 # format = 1
 # name = "api_button"
-# description = "A button that calls a local sandbox API's endpoint"
+# description = "A button that calls an API's action (the local sandbox API's endpoint, or any API's)"
 # framework = "streamlit"
 # group = "Buttons"
 # tags = ["api"]
@@ -10,12 +10,11 @@
 # ///
 import os
 import re
-import urllib.parse
 
 import streamlit as st
-from sab_canvas import Event, api_call, key
+from sab_canvas import Event, action, data, key, said
 
-# The endpoint it calls
+# The action it calls, through api_adapter
 endpoint = ""  # endpoint
 label = "Call"
 # One box per {name} in the endpoint's path: a value, a variable or a page value
@@ -24,7 +23,7 @@ path_values = {}  # path values of endpoint
 body = {}
 show_answer = True
 
-# Fired once the endpoint answered ({"answer": ...}); the Canvas wires what it does next
+# Fired once the action answered ({"answer": ...}); the Canvas wires what it does next
 answered: Event[dict] = None
 
 
@@ -42,29 +41,31 @@ def _given(value):
     return value
 
 
-def _path(wanted, values):
-    """The endpoint's method and path, its {names} filled from `values` (None: one is missing)."""
-    method, _, path = (wanted or "").partition(" ")
-    for name in re.findall(r"\{(\w+)\}", path):
+def _inputs(wanted, values):
+    """The action's path inputs, each {name} given from `values`: (inputs, None), or (None, the one missing)."""
+    found = {}
+    for name in dict.fromkeys(re.findall(r"\{(\w+)\}", wanted or "")):
         given = _given(values[name]) if name in values else None
         if given is None or given == "":
-            return method, None, name
-        path = path.replace("{" + name + "}", urllib.parse.quote(str(given), safe=""))
-    return method, path, None
+            return None, name
+        found[name] = given
+    return found, None
 
 
 if st.button(label, key=key("button"), disabled=not endpoint):
-    method, path, missing = _path(endpoint, path_values)
+    inputs, missing = _inputs(endpoint, path_values)
     if missing:
         st.warning(f"Give {missing} in Properties (its path box).")
     else:
-        answer, problem = api_call(method, path, body if method in ("POST", "PUT", "PATCH") else None)
-        if problem:
-            st.error(problem)
+        writes = endpoint.rpartition(" ")[0].rpartition(" ")[2] in ("POST", "PUT", "PATCH")
+        answer = action(endpoint, inputs, body=body if writes else None)
+        if not answer["ok"]:
+            st.error(said(answer))
         else:
-            answered({"answer": answer})
+            got = data(answer)
+            answered({"answer": got})
             if show_answer:
-                st.json(answer)
+                st.json(got)
             else:
                 st.success("Done.")
 if not endpoint:

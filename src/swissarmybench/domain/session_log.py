@@ -355,6 +355,28 @@ RULES: dict[str, Rule] = {
         "structures",
         _area("structures"),
     ),
+    # Every API's actions through api_adapter (services/actions.py): names, counts and days, never a value.
+    "api_action": lambda d, x: (f"Ran {d} ({_name(x.get('status'))})", "apis", _area("apis")),
+    "api_shape_changed": lambda d, x: (
+        f"{d} answers a new shape: {_name(x.get('words'))}",
+        "apis",
+        _area("apis"),
+    ),
+    "api_discovered": lambda d, x: (
+        f"Discovered the API {d} ({_name(x.get('calls'))} read-only calls)",
+        "apis",
+        _area("apis"),
+    ),
+    "api_discover_allow": lambda d, x: (
+        f"Allowed Discover for the API {d}" if x.get("allowed") else f"Took back Discover's Allow for {d}",
+        "apis",
+        _area("apis"),
+    ),
+    "api_built": lambda d, x: (
+        f"Built {d} into {_file(x.get('path'))}",
+        _area_of_document(x.get("path")),
+        _document(x.get("path"), x.get("cell")),
+    ),
     "api_refresh": lambda d, x: (f"Read the API {_name(x.get('api'))} again", "apis", _area("apis")),
     "api_delete": lambda d, x: (f"Deleted the API {_name(x.get('api'))}", "apis", _area("apis")),
     # Structures: names only, never a value.

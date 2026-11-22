@@ -107,6 +107,14 @@ class ApiFiles:
         """Written whole or not at all (a file beside it, then moved into place)."""
         write_atomic(Path(path), text, newline="\n")  # an API's own folder in the library made
 
+    def forget(self, path: str) -> bool:
+        """One small file of an API's taken away (Discover's Allow taken back). False: it was not there."""
+        file = Path(path)
+        if not file.is_file():
+            return False
+        file.unlink()
+        return True
+
     def clients(self, folder: str) -> dict[str, str]:
         """The API_*.py files in a folder, by module name, with their text."""
         root = Path(folder).expanduser()

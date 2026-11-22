@@ -125,21 +125,46 @@ def test_an_edit_names_its_row_by_every_value_and_casts_to_its_type() -> None:
     assert rules.not_a("amount", "abc", "DOUBLE") == "'abc' is not a number: amount is DOUBLE."
 
 
-def test_a_kept_example_is_byte_stable_and_beside_api_py() -> None:
-    api = api_rules.parse(API_PY)
-    body = {"order_id": 9, "region": "West", "amount": 1.5}
-    assert api_rules.check_example(api, "POST /orders", body) == body
-    with pytest.raises(api_rules.ApiFileError, match="takes no body"):
-        api_rules.check_example(api, "GET /orders/{region}", body)
-    with pytest.raises(api_rules.ApiFileError, match="no endpoint"):
-        api_rules.check_example(api, "POST /gone", body)
-    text = api_rules.examples_text({"POST /orders": body})
-    assert api_rules.examples_text(api_rules.read_examples(text)) == text
-    document = api_rules.with_examples(api_rules.openapi(api), {"POST /orders": body})
-    assert (
-        document["paths"]["/orders"]["post"]["requestBody"]["content"]["application/json"]["example"] == body
-    )
-    assert api_rules.EXAMPLES_FILE == ".sab/api_examples.json"
+def test_try_it_is_filled_from_the_learned_shape_and_no_example_is_kept() -> None:
+    """The owner, 2026-11-22: "No need to ever keep values". Keep as its example went; Try it's form starts
+    from the endpoint's definition with what its learned shape knows over it (made-up values by type)."""
+    from swissarmybench.domain import api_actions
+
+    for gone in ("EXAMPLES_FILE", "read_examples", "examples_text", "check_example", "with_examples"):
+        assert not hasattr(api_rules, gone), gone
+    start = {"path": {"region": "made-up region"}, "query": {"limit": 100}, "body": {}}
+    sent = {
+        "fields": {
+            "path.region": {"type": "text"},
+            "query.limit": {"type": "integer"},
+            "query.since": {"type": "date"},
+            "body.amount": {"type": "number"},
+            "body.customer.id": {"type": "integer"},
+            "body.rush": {"type": "boolean"},
+        }
+    }
+    filled = api_actions.tried(start, None, sent)
+    assert filled == {
+        "path": {"region": "made-up region"},
+        "query": {"limit": 100, "since": "2026-01-15"},  # the definition's own default stays
+        "body": {"amount": 12.5, "customer": {"id": 1}, "rush": True},
+        "learned": True,
+    }
+    assert start["body"] == {} and start["query"] == {"limit": 100}  # the definition's request is not changed
+    # A field the definition already names keeps its made-up value; a closed set starts from its first choice.
+    model = {"path": {}, "query": {"status": "made-up status"}, "body": {"amount": 12.5, "status": "x"}}
+    contract = {
+        "inputs": [{"name": "status", "in": "query", "choices": ["open", "shipped"]}],
+        "body": [{"name": "status", "choices": ["open", "shipped"]}],
+    }
+    chosen = api_actions.tried(model, contract, {"fields": {"body.amount": {"type": "integer"}}})
+    assert chosen["query"] == {"status": "open"} and chosen["body"] == {"amount": 12.5, "status": "open"}
+    # Nothing learned: the definition's request, as it is.
+    plain = api_actions.tried(start, None, None)
+    assert plain == start | {"learned": False}
+    # A body that is not an object (a list, a text) is left alone.
+    listed = api_actions.tried({"path": {}, "query": {}, "body": []}, None, sent)
+    assert listed["body"] == []
 
 
 # ===== the routes =====
@@ -482,35 +507,33 @@ def test_the_agents_catalog_commands_sort_the_sandbox_as_the_catalog_does(tmp_pa
         assert {"sort", "order"} <= {x.name for x in commands.REGISTRY["explorer_browse"].args}
 
 
-def test_try_its_body_kept_as_the_endpoints_example(tmp_path: Path) -> None:
+def test_keep_as_its_example_is_gone_and_no_value_is_kept(tmp_path: Path) -> None:
+    from swissarmybench.cli import commands
+
     with make_client(tmp_path) as client:
         folder = _project(client, tmp_path)
         (folder / "API.py").write_text(API_PY, encoding="utf-8")
         body = {"order_id": 9, "region": "West", "amount": 1.5}
-        kept = ok(
-            client.post("/local-api/example", json={"endpoint": "POST /orders", "body": body}, headers=AGENT)
+        gone = client.post(
+            "/local-api/example", json={"endpoint": "POST /orders", "body": body}, headers=AUTH
         )
-        assert kept["file"] == ".sab/api_examples.json"
-        assert json.loads((folder / ".sab" / "api_examples.json").read_text(encoding="utf-8"))[
-            "examples"
-        ] == {"POST /orders": body}
-        assert API_PY == (folder / "API.py").read_text(encoding="utf-8")  # API.py itself never written
+        assert gone.status_code in (404, 405)
+        assert not (folder / ".sab" / "api_examples.json").exists()
+        # A file an earlier version kept is not read any more: Try it starts from the definition.
+        (folder / ".sab").mkdir(exist_ok=True)
+        (folder / ".sab" / "api_examples.json").write_text(
+            json.dumps({"format": 1, "examples": {"POST /orders": {"order_id": 4242}}}), encoding="utf-8"
+        )
         brief = ok(client.get("/local-api", headers=AGENT))
         assert "openapi" not in brief  # the agent's state is brief: the document on asking (full)
         state = ok(client.get("/local-api?full=true", headers=AUTH))
-        [post] = [e for e in state["endpoints"] if e["method"] == "POST"]
-        assert post["example"] == body
         assert len(json.dumps(brief)) < len(json.dumps(state))
+        [post] = [e for e in state["endpoints"] if e["method"] == "POST"]
+        assert "example" not in post and "examples_file" not in state and "4242" not in json.dumps(state)
         assert (
-            state["openapi"]["paths"]["/orders"]["post"]["requestBody"]["content"]["application/json"][
-                "example"
-            ]
-            == body
+            set(post["try"]["body"]) == {"order_id", "region", "amount"} and post["try"]["learned"] is False
         )
-        refused = client.post(
-            "/local-api/example", json={"endpoint": "GET /orders/{region}", "body": body}, headers=AUTH
-        )
-        assert refused.status_code == 400 and "takes no body" in refused.text
-        ok(client.post("/local-api/example", json={"endpoint": "POST /orders", "body": None}, headers=AUTH))
-        endpoints = ok(client.get("/local-api", headers=AUTH))["endpoints"]
-        assert next(e for e in endpoints if e["method"] == "POST")["example"] is None
+        sent = state["openapi"]["paths"]["/orders"]["post"]["requestBody"]["content"]["application/json"]
+        assert "example" not in sent
+        with pytest.raises(commands.CommandError, match="Keep as its example went"):
+            commands.REGISTRY["api"].run({"action": "example", "args": {}})

@@ -66,19 +66,49 @@ def test_discover_learn_build_and_a_drift(
         expect(learned).to_contain_text("maps to a table or a grid")
         expect(learned.locator("[data-field='amount']")).to_contain_text("number")
         expect(apis.locator(".api-op[data-operation='get_order'] .api-op-kind")).to_have_text("record")
+        # Discover's Allow is remembered with the API (the library's apis/Shop/discover.json) and said
+        # beside the button, until it is taken back there.
+        allowed = apis.locator(".api-discover-allowed")
+        expect(allowed).to_contain_text("Discover allowed since", timeout=20000)
+        kept_allow = Path(call(server, "GET", "/library")["folder"]) / "apis" / "Shop" / "discover.json"
+        assert json.loads(kept_allow.read_text(encoding="utf-8"))["allowed"] is True
         shot(page, "api-learned.png")
+        allowed.get_by_role("button", name="Take it back").click()
+        expect(apis.locator(".api-discover-allowed")).to_have_count(0, timeout=20000)
+        assert not kept_allow.exists()
         # Build: a widget on the project's canvas page (its records as a table: [Shop].list_orders).
         learned.get_by_role("button", name="Widget on a canvas").click()
         expect(page.locator(".toast", has_text="Put data_table on")).to_be_visible()
         canvas = call(server, "GET", "/streamlit/canvases")["canvases"][0]["path"]
         made = json.dumps(call(server, "POST", "/streamlit/canvases", {"path": canvas})["model"])
         assert '"data_table"' in made and "[Shop].list_orders" in made
-        # Build: a notebook cell, shown to copy.
-        learned.get_by_role("button", name="Notebook cell").click()
-        expect(page.locator(".api-built-code")).to_contain_text('sab.run("Shop", "list_orders"')
-        page.get_by_role("dialog", name="A notebook cell").get_by_role(
-            "button", name="Close", exact=True
-        ).last.click()
+        # Build: a notebook cell, put into the project's data.ipynb and opened on the Notebooks page there.
+        from swissarmybench.domain import notebooks
+
+        data = folder / "data.ipynb"
+        cells_before = len(notebooks.read_notebook(data.read_text(encoding="utf-8")))
+        with page.context.expect_page(timeout=30000) as opened:
+            learned.get_by_role("button", name="Notebook cell").click()
+        notebook_page = opened.value
+        cells = notebooks.read_notebook(data.read_text(encoding="utf-8"))
+        assert len(cells) == cells_before + 1 and 'sab.run("Shop", "list_orders"' in cells[-1].source
+        expect(notebook_page.locator(".wb-cell", has_text='sab.run("Shop", "list_orders"')).to_be_visible(
+            timeout=60000
+        )
+        notebook_page.screenshot(path=str(SHOTS / "api-built-cell.png"))
+        notebook_page.close()
+        # Build: a script function, into the script the user picks (a new one here), opened on Scripts.
+        with page.context.expect_page(timeout=30000) as opened:
+            learned.get_by_role("button", name="Script function").click()
+            picker = page.get_by_role("dialog", name="Put the function in a script")
+            expect(picker.get_by_label("New script")).to_have_value("api_functions.py")
+            picker.screenshot(path=str(SHOTS / "api-built-function-pick.png"))
+            picker.get_by_role("button", name="Put it there").click()
+        script_page = opened.value
+        script = (folder / "api_functions.py").read_text(encoding="utf-8")
+        assert "def list_orders(" in script and 'sab.run("Shop", "list_orders"' in script
+        expect(script_page.locator(".monaco-editor").first).to_be_visible(timeout=60000)
+        script_page.close()
         # A drift: the kept shape had a field the API no longer answers. Run says it and marks the field.
         library = Path(call(server, "GET", "/library")["folder"])
         kept = library / "apis" / "Shop" / "shapes" / "list_orders.json"

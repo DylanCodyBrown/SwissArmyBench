@@ -1,6 +1,6 @@
 # The API adapter: any payload in, one shape out (the owner, 2026-11-22)
 
-Status: built (branch api-adapter, 2026-11-22: steps 1 to 6 below; what is left under "Not yet"). Cared for as design principle 12b (equal to adapter.py). Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
+Status: built (branch api-adapter, 2026-11-22: steps 1 to 6 below; branch api-adapter-2, 2026-11-22: the owner's answers after the first build, at the end). Cared for as design principle 12b (equal to adapter.py). Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
 
 > "How do we handle API actions. They don't have to go through the adapter but I feel like they need their own to
 > standardize outputs. Kinda like how Power Automate online standardizes" / "api_adapter.py and we should think more
@@ -172,3 +172,29 @@ The agent runs the same discovery (`actions(action="discover")`) and reads the s
 - Build inserts: a notebook cell into data.ipynb, or a function into a script the user picks, and opens it there.
 - Discover's Allow is remembered per API (kept with the API in the library, until the user takes it back; the agent's
   too).
+
+## Built from those answers (branch api-adapter-2, 2026-11-22)
+1. **The canvas through api_adapter.** One action picker for any API: an action is named `GET /orders` (the
+   project's local sandbox API) or `[Orders] GET /orders` (a library API) in a widget's endpoint property, an In's
+   source and an Event's call. Every built app (Play, Launch, Export, a widget run alone) carries `api_adapter.py`
+   as it is, `sab_actions.json` (the actions it calls: definitions and learned shapes, types only) and a library
+   API's own client file. The runtime's one call is `action(endpoint, inputs)`: the adapter's run and envelope; the
+   prebuilt API widgets read it (records, a record's field by path, a value; the error in their own place).
+   api_adapter.py 1.0.1: a whole float (a form's number box) is an integer input.
+2. **Keep as its example is gone** (the button, its route, `.sab/api_examples.json`, the agent's `api(example)`).
+   Try it's form starts from the endpoint's definition with its learned shape over it: made-up values by type.
+3. **Build inserts.** A cell at the end of the project's data.ipynb, a function at the end of a script the user
+   picks; each opened there (Notebooks at the cell, Scripts at the line). The agent's `actions(build)` the same.
+4. **Discover's Allow is remembered per API:** `apis/<name>/discover.json` in the library (the local sandbox
+   API's in the project's `.sab/api-discover.json`), until taken back on the APIs page or by `actions(allow)`.
+
+## Still for the owner
+- A wire and an API widget make one request a call (as before api_adapter): following every page would change
+  what a table shows and make up to 20 requests a rerun. `action(..., pages=n)` follows more; no setting on a wire.
+- A built app calls a library API by its own client file with the variables set where it runs (the app's own
+  environment in Play). A sign-in that needs the keyring or a browser does not travel to a hosted app.
+- Discover's Allow, kept in the library, is shared with the team by the library's sync: a teammate's first
+  Discover of that API does not ask. Kept in `local/` instead it would be this computer's only.
+- A project that has an older `.sab/api_examples.json` keeps the file (never read or written now): the app does
+  not delete it.
+- Author a call's Send still goes through the web call blade; the Local sandbox APIs panel has no learned section.

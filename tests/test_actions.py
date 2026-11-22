@@ -192,9 +192,70 @@ def test_discover_asks_once_probes_reads_only_and_keeps_shapes(
     ]
     files = sorted(p.name for p in (library(tmp_path) / "Orders" / "shapes").iterdir())
     assert files == ["get_order.json", "list_clients.json", "list_orders.json", "list_regions.json"]
-    # Allowed once: the second discovery this session asks nothing.
+    # Allowed once: the second discovery asks nothing.
     again = ask(live, "POST", "/actions/discover", {"api": "Orders"}, agent=True)
     assert again["calls"] == 4
+
+
+def test_discovers_allow_is_kept_with_the_api_until_it_is_taken_back(
+    live: int, service: Service, tmp_path: Path
+) -> None:
+    """The owner, 2026-11-22: Discover's Allow is remembered per API, kept with the API in the library (the
+    agent's too), until the user takes it back on the APIs page."""
+    from swissarmybench.domain import api_actions
+
+    add_orders(live, service)
+    kept = library(tmp_path) / "Orders" / "discover.json"
+    listed = ask(live, "GET", "/actions?api=Orders")["apis"][0]
+    assert listed["allowed"] is False and listed["allowed_since"] is None and not kept.exists()
+    thread, out = in_background(lambda: ask(live, "POST", "/actions/discover", {"api": "Orders"}, agent=True))
+    words = answer_next(live, True)
+    thread.join(120)
+    assert out["answer"]["calls"] == 4 and "remembered for this API until you take it back" in words
+    text = kept.read_text(encoding="utf-8")
+    since = json.loads(text)["since"]
+    assert json.loads(text) == {"allowed": True, "since": since} and text == api_actions.allow_text(since)
+    listed = ask(live, "GET", "/actions?api=Orders")["apis"][0]
+    assert listed["allowed"] is True and listed["allowed_since"] == since
+    # Remembered: the user's own discovery asks nothing, and the file's bytes do not change.
+    assert ask(live, "POST", "/actions/discover", {"api": "Orders"})["calls"] == 4
+    assert not ask(live, "GET", "/agent/approvals")["pending"] and kept.read_text(encoding="utf-8") == text
+    # It is given only by the answer to Discover's own question: never by this call, whoever makes it.
+    for agent in (True, False):
+        with pytest.raises(AssertionError, match="only takes it back"):
+            ask(live, "POST", "/actions/allow", {"api": "Orders", "allow": True}, agent=agent)
+    # Taken back (the agent may: it only narrows): the file goes, and the next discovery asks again.
+    assert ask(live, "POST", "/actions/allow", {"api": "Orders", "allow": False}, agent=True) == {
+        "api": "Orders",
+        "allowed": False,
+    }
+    assert not kept.exists() and ask(live, "GET", "/actions?api=Orders")["apis"][0]["allowed"] is False
+    thread, out = in_background(lambda: ask(live, "POST", "/actions/discover", {"api": "Orders"}))
+    answer_next(live, False)
+    thread.join(60)
+    assert "declined" in out["error"] and not kept.exists()
+    ask(live, "POST", "/actions/allow", {"api": "Orders", "allow": False})  # nothing to take back: no error
+    log = json.dumps(ask(live, "GET", "/session-log?who=both"))
+    assert "Allowed Discover for the API Orders" in log and "Took back Discover" in log
+
+
+def test_the_local_sandbox_apis_allow_is_kept_in_the_project(live: int, tmp_path: Path) -> None:
+    from tests.test_local_api import API_PY
+
+    folder = tmp_path / "shop"
+    ask(live, "POST", "/project/new", {"path": str(folder)})
+    (folder / "API.py").write_text(API_PY, encoding="utf-8")
+    ask(live, "POST", "/local-api/run", {})
+    thread, out = in_background(lambda: ask(live, "POST", "/actions/discover", {"api": "local"}))
+    answer_next(live, True)
+    thread.join(120)
+    assert "answer" in out, out
+    kept = folder / ".sab" / "api-discover.json"
+    assert json.loads(kept.read_text(encoding="utf-8"))["allowed"] is True
+    assert ask(live, "GET", "/actions?api=local")["apis"][0]["allowed"] is True
+    ask(live, "POST", "/actions/allow", {"api": "local", "allow": False})
+    assert not kept.exists()
+    ask(live, "POST", "/local-api/stop", {})
 
 
 def test_a_write_by_the_agent_waits_for_allow(live: int, service: Service) -> None:
@@ -268,6 +329,40 @@ def test_the_local_sandbox_apis_endpoints_are_actions_too(live: int, tmp_path: P
     ask(live, "POST", "/local-api/stop", {})
 
 
+def test_try_it_fills_its_form_from_the_learned_shape(live: int, tmp_path: Path) -> None:
+    """A body the definition does not spell out (a plain dict): once the endpoint was called, Try it's form
+    names the fields it was sent, with made-up values of their learned types. No value is kept anywhere."""
+    from tests.test_local_api import API_PY
+
+    folder = tmp_path / "shop"
+    ask(live, "POST", "/project/new", {"path": str(folder)})
+    noted = API_PY + (
+        '\n\n@endpoint("POST", "/notes")\ndef add_note(note: dict) -> dict:\n'
+        '    """A note, kept nowhere."""\n    return {"fields": len(note)}\n'
+    )
+    (folder / "API.py").write_text(noted, encoding="utf-8")
+    before = next(e for e in ask(live, "GET", "/local-api")["endpoints"] if e["name"] == "add_note")
+    assert before["try"]["body"] == {} and before["try"]["learned"] is False
+    ask(live, "POST", "/local-api/run", {})
+    body = {"subject": "fragile parcel", "pieces": 3, "due": "2026-12-24", "to": {"store": "Larkfield"}}
+    done = ask(live, "POST", "/actions/run", {"api": "local", "action": "add_note", "inputs": {"body": body}})
+    assert done["ok"], done
+    state = ask(live, "GET", "/local-api")
+    after = next(e for e in state["endpoints"] if e["name"] == "add_note")
+    assert after["try"]["learned"] is True
+    assert after["try"]["body"] == {
+        "due": "2026-01-15",
+        "pieces": 1,
+        "subject": "made-up subject",
+        "to": {"store": "made-up store"},
+    }
+    kept = (folder / ".sab" / "api-shapes" / "add_note.json").read_text(encoding="utf-8")
+    for value in ("fragile", "Larkfield", "2026-12-24"):
+        assert value not in kept and value not in json.dumps(state)
+    assert not (folder / ".sab" / "api_examples.json").exists()
+    ask(live, "POST", "/local-api/stop", {})
+
+
 def test_build_a_widget_on_the_projects_canvas(live: int, service: Service, tmp_path: Path) -> None:
     add_orders(live, service)
     ask(live, "POST", "/project/new", {"path": str(tmp_path / "shop"), "type": "streamlit"})
@@ -278,5 +373,10 @@ def test_build_a_widget_on_the_projects_canvas(live: int, service: Service, tmp_
     assert built["widget"] == "data_table" and built["id"]
     canvas = json.dumps(ask(live, "GET", f"/streamlit/canvases/{built['canvas_id']}"))
     assert "[Orders].list_orders" in canvas
-    with pytest.raises(AssertionError, match="no widget"):
-        ask(live, "POST", "/actions/build", {"api": "Orders", "action": "get_order", "as": "widget"})
+    # Another API's record is an API metric and its write an API form: any API's action, through api_adapter.
+    one = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "get_order", "as": "widget"})
+    assert one["widget"] == "api_metric"
+    form = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "create_order", "as": "widget"})
+    assert form["widget"] == "api_form"
+    placed = json.dumps(ask(live, "GET", f"/streamlit/canvases/{form['canvas_id']}"))
+    assert "[Orders] GET /orders/{order_id}" in placed and "[Orders] POST /orders" in placed

@@ -1,12 +1,11 @@
 """The API widgets (the Streamlit extension's prebuilt api_table, api_form, api_button, api_metric) against a
-running
-local sandbox API: built by the page builder Play uses, run headless with Streamlit's AppTest, their answers
-the
-endpoint's rows. The endpoint property is a mask of its own: a value is one of API.py's endpoints, checked.
-With
-no API running, each says how to start it. Streamlit is never the app's dependency: the runs need the Python
-named
-by SWISSARMYBENCH_STREAMLIT_PYTHON (else skipped). Made-up data only."""
+running local sandbox API: built by the page builder Play uses, with what a built app carries to call an API
+(api_adapter.py and sab_actions.json: services/actions.py carried), run headless with Streamlit's AppTest.
+Every call goes through api_adapter and the widgets read its envelope (records, a record, a value; its error
+in the widget's own place). The endpoint property is a mask of its own: a value is one of API.py's endpoints
+or another API's action ("[Orders] GET /orders"), checked. With no API running, each says how to start it.
+Streamlit is never the app's dependency: the runs need the Python named by SWISSARMYBENCH_STREAMLIT_PYTHON
+(else skipped). Made-up data only."""
 
 from __future__ import annotations
 
@@ -22,7 +21,10 @@ from typing import Any
 
 import pytest
 
+from swissarmybench.adapters import api_adapter
+from swissarmybench.domain import local_api as local_rules
 from swissarmybench.server.app import create_app
+from swissarmybench.services.actions import Actions
 from swissarmybench.settings import Settings
 from swissarmybench_streamlit.domain import canvas_build as build
 from swissarmybench_streamlit.domain import widget_properties as props
@@ -69,6 +71,8 @@ RUNNER = textwrap.dedent(
             "infos": [str(i.value) for i in at.info] + [str(c.value) for c in at.caption],
             "frames": frames,
             "metrics": [m.value for m in at.metric],
+            "inputs": [type(w).__name__ + ":" + str(w.label) for w in at.main if hasattr(w, "label")
+                       and type(w).__name__ in ("TextInput", "NumberInput", "Checkbox", "Selectbox")],
             "said": [str(e.value)[:500] for e in at.error] + [str(w.value)[:500] for w in at.warning],
         })
     print("SAB-RUN " + json.dumps(out, default=str))
@@ -79,6 +83,49 @@ RUNNER = textwrap.dedent(
 def _widget(name: str) -> tuple[rules.Widget, build.Built]:
     widget = rules.read_widget((PREBUILT / f"{name}.widget.py").read_text(encoding="utf-8"), prebuilt=True)
     return widget, build.made(widget.code)
+
+
+class _NoLibrary:
+    def _apis(self) -> list[dict[str, Any]]:
+        return []
+
+
+class _Local:
+    def __init__(self, text: str | None) -> None:
+        self.text = text
+
+    def document(self) -> tuple[dict[str, Any], str] | None:
+        if self.text is None:
+            return None
+        api = local_rules.parse(self.text)
+        return local_rules.openapi(api), api.settings.base_path
+
+
+class _NoFiles:
+    def read(self, path: str) -> str | None:
+        return None
+
+    def write(self, path: str, text: str) -> None:
+        raise AssertionError("a built app's files are never written by carried()")
+
+    def forget(self, path: str) -> bool:
+        raise AssertionError("carried() removes nothing")
+
+
+def carried(api_py: str | None = API_PY) -> dict[str, str]:
+    """What a built app carries to call APIs, as the app's own service makes it for a project's API.py."""
+    made = Actions(
+        None,  # type: ignore[arg-type]  # carried() reads files only
+        _NoLibrary(),
+        _Local(api_py),
+        _NoFiles(),
+        lambda: None,
+        None,  # type: ignore[arg-type]
+        lambda: "2026-11-22",
+        api_adapter=api_adapter,
+        adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
+    )
+    return made.carried("")
 
 
 def _run(folder: Path, uses: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
@@ -95,7 +142,8 @@ def _run(folder: Path, uses: list[tuple[str, dict[str, Any]]]) -> list[dict[str,
         page["id"] = f"p{at}"
         page["name"] = f"Page {at}"
         canvas["pages"].append(page)
-    files = build.build(canvas, built)
+    files = build.build(canvas, built, carried=carried())
+    assert {"api_adapter.py", "sab_actions.json"} <= set(files)
     pages = sorted(
         (p for p in files if p.startswith("app_pages/")), key=lambda p: int(re.sub(r"\D", "", p) or 0)
     )
@@ -192,5 +240,7 @@ def test_the_api_widgets_show_the_running_apis_answers(live: int, tmp_path: Path
         assert found[0]["frames"], found
         assert [r["order_id"] for r in found[0]["frames"][0]] == [1, 3]
         assert found[1]["metrics"] == ["7.25"] and found[2]["metrics"] == ["2"]
+        # The form's boxes are its body's fields as the action takes them (a number a number box).
+        assert found[4]["inputs"], found[4]
     finally:
         _ask(port, "POST", "/local-api/stop", {})

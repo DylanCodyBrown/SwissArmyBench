@@ -27,6 +27,7 @@ process per key, its folder a temporary one of the app's, its address /streamlit
 from __future__ import annotations
 
 import contextlib
+import json
 import time
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
@@ -149,6 +150,19 @@ class Widgets:
     endpoints: Callable[[], list[str]] | None = None
     # Each endpoint's body fields (an Event's body mapping), the same seam.
     endpoint_fields: Callable[[], dict[str, list[str]]] | None = None
+
+    # What a built app carries to call APIs' actions (the base's services/actions.py carried: api_adapter.py,
+    # sab_actions.json, a library API's client), given the app's canvas and code as text.
+    api_files: Callable[[str], dict[str, str]] | None = None
+
+    def carried(self, canvas: Mapping[str, Any], built: Mapping[str, Any]) -> dict[str, str]:
+        if self.api_files is None:
+            return {}
+        used = json.dumps(canvas, ensure_ascii=False) + "".join(str(b.code) for b in built.values())
+        try:
+            return dict(self.api_files(used))
+        except Exception:  # an API's own trouble: the app is built all the same (a call says what is missing)
+            return {}
 
     def _endpoints(self) -> list[str] | None:
         try:
@@ -603,7 +617,8 @@ class Widgets:
         values = body.get("values") if isinstance(body.get("values"), dict) else {}
         canvas = build_rules.one_widget(name, built, values, widget.size)
         context = self.context(values)
-        return build_rules.build(canvas, {name: built}, context), canvas
+        carried = self.carried(canvas, {name: built})
+        return build_rules.build(canvas, {name: built}, context, carried=carried), canvas
 
     async def run(self, name: str, body: Any = None, who: str = "user") -> dict[str, Any]:
         """Run in place: the widget alone as a live page, with its properties' current values (the code as

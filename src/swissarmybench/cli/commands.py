@@ -4225,7 +4225,6 @@ _API = {
     "scaffold": ("POST", "/local-api/scaffold"),
     "check": ("POST", "/local-api/check"),
     "shapes": ("GET", "/local-api/shapes"),
-    "example": ("POST", "/local-api/example"),
 }
 
 
@@ -4236,18 +4235,23 @@ _API = {
     req(
         "action",
         "state, new, settings, run, stop, call, writes, log, address, openapi, targets, export, scaffold, "
-        "check, shapes, example.",
+        "check, shapes.",
     ),
     opt(
         "args",
         'state: {"full": true} adds the OpenAPI document; call: {"method", "path", "query"?, "body"?}; '
         'writes: {"allow": bool} (the agent writing this session); settings: {"name", '
-        '"target", "base_path"}; example: {"endpoint": "POST /orders", "body"}.',
+        '"target", "base_path"}.',
         "json",
     ),
 )
 def api_command(a: dict[str, Any]) -> Any:
     action = str(a["action"])
+    if action == "example":
+        raise CommandError(
+            "Keep as its example went (2026-11-22): no value is kept. Try it starts from the endpoint's "
+            "learned shape: api(state) gives each endpoint's `try`."
+        )
     if action not in _API:
         raise CommandError(f"action is one of: {', '.join(_API)}.")
     method, path = _API[action]
@@ -4257,7 +4261,7 @@ def api_command(a: dict[str, Any]) -> Any:
     return api.call(method, path, None if method == "GET" else given, timeout=900)
 
 
-_ACTIONS = ("list", "describe", "run", "shape", "discover", "offer", "build")
+_ACTIONS = ("list", "describe", "run", "shape", "discover", "allow", "offer", "build")
 
 
 @command(
@@ -4269,8 +4273,9 @@ _ACTIONS = ("list", "describe", "run", "shape", "discover", "offer", "build")
     opt("name", "The action's name (describe, run, shape, offer, build)."),
     opt(
         "args",
-        'run: {"inputs": {...}, "required"?: [paths]}; offer: {"from", "to", "take": bool}; build: {"as": '
-        'cell|function|widget, "inputs"?, "canvas"?, "page"?}.',
+        'run: {"inputs": {...}, "required"?: [paths]}; allow: {"allow": false} (Discover\'s, taken back); offer: {"from", "to", "take": bool}; build: {"as": '
+        'cell (into data.ipynb)|function ("path": its script)|widget, "inputs"?, "insert"?: false, "canvas"?, '
+        '"page"?}.',
         "json",
     ),
 )
@@ -4287,6 +4292,8 @@ def actions_command(a: dict[str, Any]) -> Any:
         return found if action == "describe" else {k: found[k] for k in ("api", "shape", "contract")}
     if action == "discover":
         return api.call("POST", "/actions/discover", {"api": which["api"]}, timeout=900)
+    if action == "allow":  # Discover's remembered Allow taken back (it is given only by the user's answer)
+        return api.call("POST", "/actions/allow", {"api": which["api"], "allow": given.get("allow")})
     posted = {"run": "/actions/run", "offer": "/actions/offer", "build": "/actions/build"}
     return api.call("POST", posted[action], given | which, timeout=900)
 
