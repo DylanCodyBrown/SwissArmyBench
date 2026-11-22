@@ -45,7 +45,7 @@ import time
 import urllib.parse
 import uuid
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 import duckdb
@@ -231,6 +231,10 @@ class Column:
     type: str  # the source's type name (DuckDB's for a DuckDB source)
     key: bool = False  # part of the table's primary key
     nullable: bool | None = field(default=None, compare=False)  # None: not said
+    description: str = field(
+        default="", compare=False
+    )  # the listing's words (SQL Server's: Primary key. ...)
+    position: int | None = field(default=None, compare=False)  # its ordinal as the listing says
 
 
 @dataclass(frozen=True)
@@ -241,22 +245,33 @@ class Table:
     schema: str = field(default="", compare=False)
     kind: str = field(default="", compare=False)  # BASE TABLE, VIEW ...
     database: str = field(default="", compare=False)
+    description: str = field(default="", compare=False)  # the listing's words (SQL Server's: 1,204 rows ...)
 
 
 def catalog_rows(listed: Sequence[Table]) -> tuple[list[str], list[list[Any]]]:
     """Tables as a catalog's rows, in the columns an information_schema listing has (table_catalog only when
-    one is said): the app's Catalog reads them as it reads a connection's own List the tables."""
+    one is said; description when one is): the app's Catalog reads them as it reads a connection's own List
+    the tables. A table's own description is its row with no column (ordinal 0), as SQL Server's listing
+    has."""
     with_database = any(t.database for t in listed)
+    described = any(t.description or any(c.description for c in t.columns) for t in listed)
     names = ["table_schema", "table_name", "table_type", "column_name", "data_type", "is_nullable",
              "ordinal_position"]  # fmt: skip
     rows: list[list[Any]] = []
     for t in listed:
         bare = t.name.rpartition(".")[2] if t.schema and t.name.startswith(t.schema + ".") else t.name
+        lines: list[tuple[list[Any], str]] = []
+        if t.description:
+            lines.append(([t.schema, bare, t.kind or None, "", "", "YES", 0], t.description))
         for at, c in enumerate(t.columns, 1):
             nullable = None if c.nullable is None else ("YES" if c.nullable else "NO")
-            row = [t.schema, bare, t.kind or None, c.name, c.type, nullable, at]
-            rows.append([t.database, *row] if with_database else row)
-    return (["table_catalog", *names] if with_database else names), rows
+            place = c.position if c.position is not None else at
+            lines.append(([t.schema, bare, t.kind or None, c.name, c.type, nullable, place], c.description))
+        for row, words in lines:
+            full = [t.database, *row] if with_database else row
+            rows.append([*full, words or None] if described else full)
+    heading = ["table_catalog", *names] if with_database else names
+    return ([*heading, "description"] if described else heading), rows
 
 
 @dataclass(frozen=True)
@@ -682,6 +697,98 @@ _INFO_KEYS = (
 )
 
 
+# Each database's whole listing as its Connections starter lists it (every schema but the system's; SQL
+# Server's descriptions: a column's Primary key., Identity. ..., a table's rows), and the shape of its rows:
+# what `listed()` runs for the app's Catalog. tables() keeps each dialect's own scope (the columns query).
+_LISTED = ("database", "schema", "table", "kind", "column", "type", "nullable", "position")
+_INFO_LISTING = """SELECT c.table_catalog, c.table_schema, c.table_name, t.table_type,
+       c.column_name, c.data_type, c.is_nullable, c.ordinal_position
+FROM information_schema.columns AS c
+JOIN information_schema.tables AS t
+  ON t.table_catalog = c.table_catalog
+ AND t.table_schema = c.table_schema
+ AND t.table_name = c.table_name
+WHERE c.table_schema NOT IN ('information_schema', 'INFORMATION_SCHEMA', 'pg_catalog', 'sys')
+ORDER BY c.table_schema, c.table_name, c.ordinal_position"""
+_MYSQL_LISTING = """SELECT c.table_catalog, c.table_schema, c.table_name, t.table_type,
+       c.column_name, c.data_type, c.is_nullable, c.ordinal_position
+FROM information_schema.columns AS c
+JOIN information_schema.tables AS t
+  ON t.table_catalog = c.table_catalog
+ AND t.table_schema = c.table_schema
+ AND t.table_name = c.table_name
+WHERE c.table_schema NOT IN ('information_schema', 'INFORMATION_SCHEMA', 'mysql', 'performance_schema', 'sys')
+ORDER BY c.table_schema, c.table_name, c.ordinal_position"""
+_ORACLE_LISTING = """SELECT c.owner, c.table_name, o.object_type AS table_type, c.column_name, c.data_type,
+       c.nullable, c.column_id
+FROM all_tab_columns c
+JOIN all_objects o ON o.owner = c.owner AND o.object_name = c.table_name
+                  AND o.object_type IN ('TABLE', 'VIEW')
+WHERE c.owner NOT IN ('SYS', 'SYSTEM', 'XDB', 'MDSYS', 'CTXSYS', 'ORDSYS', 'OUTLN', 'DBSNMP',
+                      'APEX_PUBLIC_USER')
+ORDER BY c.owner, c.table_name, c.column_id"""
+_SQLSERVER_LISTING = """SELECT DB_NAME() AS table_catalog, s.name AS table_schema, o.name AS table_name,
+       CASE o.type WHEN 'V' THEN 'VIEW' WHEN 'SN' THEN 'VIEW' ELSE 'BASE TABLE' END AS table_type,
+       c.name AS column_name,
+       CASE
+         WHEN t.name IN ('varchar', 'char', 'varbinary', 'binary')
+           THEN t.name + '('
+             + CASE c.max_length WHEN -1 THEN 'max' ELSE CAST(c.max_length AS varchar(5)) END + ')'
+         WHEN t.name IN ('nvarchar', 'nchar')
+           THEN t.name + '('
+             + CASE c.max_length WHEN -1 THEN 'max' ELSE CAST(c.max_length / 2 AS varchar(5)) END + ')'
+         WHEN t.name IN ('decimal', 'numeric')
+           THEN t.name + '(' + CAST(c.precision AS varchar(3)) + ',' + CAST(c.scale AS varchar(3)) + ')'
+         WHEN t.name IN ('datetime2', 'datetimeoffset', 'time')
+           THEN t.name + '(' + CAST(c.scale AS varchar(3)) + ')'
+         ELSE t.name
+       END AS data_type,
+       CASE c.is_nullable WHEN 1 THEN 'YES' ELSE 'NO' END AS is_nullable,
+       c.column_id AS ordinal_position,
+       NULLIF(LTRIM(CONCAT(
+         CASE WHEN pk.column_id IS NOT NULL THEN ' Primary key.' END,
+         CASE WHEN c.is_identity = 1 THEN ' Identity.' END,
+         CASE WHEN c.is_computed = 1 THEN ' Computed.' END,
+         CASE WHEN c.is_sparse = 1 THEN ' Sparse.' END,
+         CASE WHEN c.generated_always_type > 0 THEN ' Period column.' END,
+         ' ' + CAST(ep.value AS nvarchar(4000)))), '') AS description
+FROM sys.objects AS o
+JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+LEFT JOIN sys.synonyms AS sn ON sn.object_id = o.object_id
+JOIN sys.columns AS c ON c.object_id = CASE
+  WHEN sn.object_id IS NULL THEN o.object_id
+  WHEN COALESCE(PARSENAME(sn.base_object_name, 3), DB_NAME()) = DB_NAME() THEN OBJECT_ID(sn.base_object_name)
+END  -- a synonym: its object's columns, when the object is in this database
+JOIN sys.types AS t ON t.user_type_id = c.user_type_id
+LEFT JOIN (
+  SELECT ic.object_id, ic.column_id FROM sys.indexes AS i
+  JOIN sys.index_columns AS ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id
+  WHERE i.is_primary_key = 1
+) AS pk ON pk.object_id = c.object_id AND pk.column_id = c.column_id
+LEFT JOIN sys.extended_properties AS ep
+  ON ep.class = 1 AND ep.major_id = c.object_id AND ep.minor_id = c.column_id AND ep.name = 'MS_Description'
+WHERE o.type IN ('U', 'V', 'SN') AND o.is_ms_shipped = 0
+UNION ALL
+SELECT DB_NAME(), s.name, o.name, CASE o.type WHEN 'V' THEN 'VIEW' ELSE 'BASE TABLE' END, '', '', 'YES', 0,
+       NULLIF(STUFF(CONCAT(
+         CASE WHEN o.type = 'U' THEN N' · ' + FORMAT(COALESCE(r.n, 0), 'N0') + N' rows' END,
+         CASE WHEN tb.temporal_type = 2 THEN N' · temporal (history: ' + hs.name + N'.' + h.name + N')' END,
+         CASE WHEN tb.temporal_type = 1 THEN N' · history table' END,
+         N' · ' + CAST(ep.value AS nvarchar(4000))), 1, 3, N''), N'')
+FROM sys.objects AS o
+JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+LEFT JOIN sys.tables AS tb ON tb.object_id = o.object_id
+LEFT JOIN sys.tables AS h ON h.object_id = tb.history_table_id
+LEFT JOIN sys.schemas AS hs ON hs.schema_id = h.schema_id
+LEFT JOIN (
+  SELECT object_id, SUM(rows) AS n FROM sys.partitions WHERE index_id IN (0, 1) GROUP BY object_id
+) AS r ON r.object_id = o.object_id
+LEFT JOIN sys.extended_properties AS ep
+  ON ep.class = 1 AND ep.major_id = o.object_id AND ep.minor_id = 0 AND ep.name = 'MS_Description'
+WHERE o.type IN ('U', 'V') AND o.is_ms_shipped = 0
+ORDER BY 2, 3, 8"""
+
+
 @dataclass(frozen=True)
 class Dialect:
     """What one database's SQL needs for a plan and a write: how it quotes a name, how it says a limit and
@@ -698,6 +805,8 @@ class Dialect:
     transactional: bool = True
     order_needed: bool = False  # an OFFSET needs an ORDER BY (T-SQL)
     no_limit: str = ""  # what LIMIT says for "every row" before an OFFSET (MySQL's, SQLite's)
+    listing: str = ""  # its starter's whole listing (listed()); "": its tables() are its listing
+    listing_shape: tuple[str, ...] = _LISTED  # what each of the listing's columns is, in order
 
     def quote(self, name: str) -> str:
         opening, closing = self.quotes[0], self.quotes[1]
@@ -708,11 +817,11 @@ DIALECTS: dict[str, Dialect] = {
     "postgres": Dialect("postgres", default_schema=("public",)),
     "mysql": Dialect(
         "mysql", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = DATABASE() "),
-        default_schema=("*",), no_limit="18446744073709551615",
+        default_schema=("*",), no_limit="18446744073709551615", listing=_MYSQL_LISTING,
     ),
     "sqlserver": Dialect(
         "sqlserver", "[]", "fetch", columns=_INFO_COLUMNS.format(where=""), default_schema=("dbo",),
-        order_needed=True,
+        order_needed=True, listing=_SQLSERVER_LISTING, listing_shape=(*_LISTED, "description"),
     ),
     "oracle": Dialect(
         "oracle", limit="fetch",
@@ -721,7 +830,7 @@ DIALECTS: dict[str, Dialect] = {
         keys="SELECT c.owner, c.table_name, c.column_name FROM all_cons_columns c JOIN all_constraints k "
         "ON k.owner = c.owner AND k.constraint_name = c.constraint_name WHERE k.constraint_type = 'P' "
         "AND c.owner = USER",
-        default_schema=("*",),
+        default_schema=("*",), listing=_ORACLE_LISTING, listing_shape=_LISTED[1:],
     ),
     "sqlite": Dialect(
         "sqlite",
@@ -734,14 +843,15 @@ DIALECTS: dict[str, Dialect] = {
     ),
     "snowflake": Dialect(
         "snowflake", columns=_INFO_COLUMNS.format(where="AND c.table_schema = CURRENT_SCHEMA() "),
-        default_schema=("*",),
+        default_schema=("*",), listing=_INFO_LISTING,
     ),
     "trino": Dialect(
         "trino", limit="offset_limit", columns=_INFO_COLUMNS.format(where=""), keys="", transactional=False,
+        listing=_INFO_LISTING,
     ),
     "databricks": Dialect(
         "databricks", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = current_schema() "),
-        keys="", default_schema=("*",),
+        keys="", default_schema=("*",), listing=_INFO_LISTING,
     ),
 }  # fmt: skip
 
@@ -884,6 +994,36 @@ class Sql:
                 place, (str(row[4] or "") if len(row) > 4 else "", str(row[6] or "") if len(row) > 6 else "")
             )
         return [Table(self._listed(s, t), tuple(cols), s, *about[(s, t)]) for (s, t), cols in listed.items()]
+
+    def listed(self) -> list[Table]:
+        """Its whole catalog as its starter lists it (the app's Catalog): every schema but the system's, each
+        table's and column's description where the listing has one; else its tables()."""
+        if not self.dialect.listing:
+            return self.tables()
+        keys = (
+            {tuple(str(v) for v in k) for k in self._rows(self.dialect.keys)} if self.dialect.keys else set()
+        )
+        found: dict[tuple[str, str], Table] = {}
+        for row in self._rows(self.dialect.listing):
+            said = {name: row[i] for i, name in enumerate(self.dialect.listing_shape) if i < len(row)}
+            schema, table = str(said.get("schema") or ""), str(said.get("table") or "")
+            made = found.get((schema, table)) or Table(
+                self._listed(schema, table) if schema not in ("", "*") else table,
+                (),
+                schema,
+                str(said.get("kind") or ""),
+                str(said.get("database") or ""),
+            )
+            words = str(said.get("description") or "")
+            if not said.get("column"):  # the table's own row (its description)
+                found[(schema, table)] = replace(made, description=words)
+                continue
+            column = str(said["column"])
+            key = (schema, table, column) in keys or "Primary key." in words
+            added = Column(column, str(said.get("type") or ""), key, _yes(said.get("nullable")), words,
+                           int(said["position"]) if said.get("position") is not None else None)  # fmt: skip
+            found[(schema, table)] = replace(made, columns=(*made.columns, added))
+        return list(found.values())
 
     def _listed(self, schema: str, table: str) -> str:
         bare = "*" in self.dialect.default_schema or schema in self.dialect.default_schema
@@ -1988,6 +2128,21 @@ def source_of(source: str | Source) -> Source:
 def tables(source: str | Source) -> list[Table]:
     """The source's tables: names, columns and types."""
     return source_of(source).tables()
+
+
+def listed(source: str | Source) -> list[Table]:
+    """The source's whole catalog as the app's Catalog lists it (a SQL database's: its starter's listing,
+    every schema but the system's, with descriptions); a source with no listing of its own: its tables()."""
+    found = source_of(source)
+    whole = getattr(found, "listed", None)
+    return list(whole()) if callable(whole) else found.tables()
+
+
+def _yes(said: Any) -> bool | None:
+    """A listing's nullable as a bool (YES, Y, 1, true; NO, N, 0, false), None when it says nothing."""
+    if said is None or str(said).strip() == "":
+        return None
+    return str(said).strip().upper() in ("YES", "Y", "1", "TRUE")
 
 
 def read(source: str | Source, table: str, plan: Plan | None = None) -> tuple[pa.RecordBatchReader, Folded]:
