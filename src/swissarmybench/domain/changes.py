@@ -41,6 +41,7 @@ KINDS = (
     "variable",
     "library",
 )
+KIND_WORDS = {"api": "API", "canvas": "canvas page"}  # a kind as it is said (the others as they are)
 WHO = ("user", "agent", "app")
 SHOWN = ("columns", "fields")  # parts whose descriptions are types, said as they changed
 VIEWS = ("last", "history", "since", "search")
@@ -137,6 +138,13 @@ def change(
     if was == now and not words:  # words given: the caller knows it changed (a variable's value, unseen)
         return None
     found = diff(before, after)
+    if not words and before is None and after is not None:
+        columns = after.get("columns")
+        count = len(columns) if isinstance(columns, Mapping | list | tuple) else 0
+        size = f" ({count} column{'' if count == 1 else 's'})" if count else ""
+        words = f"Added the {KIND_WORDS.get(kind, kind)} {name}{size}"
+    elif not words and after is None and before is not None:
+        words = f"Removed the {KIND_WORDS.get(kind, kind)} {name}"
     return {
         "object": {"kind": kind, "name": " ".join(str(name).split())[:200]},
         "words": words or (words_of(name, found) if found else f"{name}: changed"),
