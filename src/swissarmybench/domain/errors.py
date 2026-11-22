@@ -15,6 +15,8 @@ written for data work; nothing leaves the computer.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from swissarmybench.domain import dataverse
@@ -96,173 +98,260 @@ def _bare(text: str) -> str:
     return text[1:-1] if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"" else text
 
 
-def explain(entry: dict[str, Any]) -> dict[str, Any]:
-    """One exception of the chain: a title, a plain explanation and the fixes."""
-    kind = str(entry.get("type", ""))
-    message = str(entry.get("message", ""))
-    facts: dict[str, Any] = entry.get("facts") or {}
-    fixes: list[dict[str, Any]] = []
-    title = f"{kind}: {message}" if message else kind
-    text = ""
+# ===== the rules: one entry an error =====
+#
+# explain() tries RULES in order and the first whose test matches says the explanation and the fixes. A new
+# error is a new entry (its test, its words), never another branch: put a narrower rule before a wider one
+# (a TypeError that names NoneType before any TypeError), and the rules that read the message rather than
+# the type (Dataverse's SQL endpoint, a SQL error) last.
 
-    if kind == "NameError":
-        name = str(facts.get("name") or _name_in(message) or "")
-        candidates = [c for c in facts.get("candidates", []) if c != name]
+
+@dataclass(frozen=True)
+class Seen:
+    """What a rule looks at: the exception's type, its message and the facts the kernel gathered."""
+
+    kind: str
+    message: str
+    facts: Mapping[str, Any]
+
+
+Said = tuple[str, list[dict[str, Any]]]  # the explanation, the fixes
+
+
+def _is(*kinds: str) -> Callable[[Seen], bool]:
+    return lambda seen: seen.kind in kinds
+
+
+def _words(text: str) -> Callable[[Seen], Said]:
+    return lambda seen: (text, [])
+
+
+def _name_error(seen: Seen) -> Said:
+    name = str(seen.facts.get("name") or _name_in(seen.message) or "")
+    candidates = [c for c in seen.facts.get("candidates", []) if c != name]
+    fixes: list[dict[str, Any]] = []
+    text = (
+        f"Python has no {_quote(name)} here. Either the cell that makes it has not run yet (or ran "
+        f"before a restart), or the name is spelled differently."
+    )
+    if name in IMPORTS:
         text = (
-            f"Python has no {_quote(name)} here. Either the cell that makes it has not run yet (or ran "
-            f"before a restart), or the name is spelled differently."
+            f"{_quote(name)} is usually brought in with `{IMPORTS[name]}`, which has not run in this kernel."
         )
-        if name in IMPORTS:
-            text = (
-                f"{_quote(name)} is usually brought in with `{IMPORTS[name]}`, which has not run in this "
-                f"kernel."
-            )
-            fixes.append({"kind": "import", "title": f"Add `{IMPORTS[name]}`", "line": IMPORTS[name]})
-        fixes += _replace(name, candidates)
-        if name and name not in IMPORTS:
-            fixes.append({"kind": "define", "title": f"Run the cell that makes {_quote(name)}", "name": name})
-    elif kind == "UnboundLocalError":
+        fixes.append({"kind": "import", "title": f"Add `{IMPORTS[name]}`", "line": IMPORTS[name]})
+    fixes += _replace(name, candidates)
+    if name and name not in IMPORTS:
+        fixes.append({"kind": "define", "title": f"Run the cell that makes {_quote(name)}", "name": name})
+    return text, fixes
+
+
+def _attribute_error(seen: Seen) -> Said:
+    facts = seen.facts
+    name = str(facts.get("name") or "")
+    if facts.get("is_none"):
+        return (
+            f"The value is None, so it has no {_quote(name)}. Something earlier gave back None "
+            f"instead of what you expected (a function with no `return`, or a method that changes the "
+            f"value in place, like `.sort()`).",
+            [],
+        )
+    fixes: list[dict[str, Any]] = []
+    owner = str(facts.get("object_type") or "the value")
+    text = f"A {owner} has no attribute {_quote(name)}."
+    columns = facts.get("columns") or []
+    if columns:
+        text += (
+            f" Its columns are {_list(columns)}; a column whose name has spaces or capitals is "
+            f"read with `df['Column name']`."
+        )
+        fixes += _replace(name, list(facts.get("column_candidates", [])))
+    fixes += _replace(
+        name, [c for c in facts.get("candidates", []) if c not in facts.get("column_candidates", [])]
+    )
+    return text, fixes
+
+
+def _missing_module(seen: Seen) -> Said:
+    module = str(seen.facts["module"])
+    top = module.split(".")[0]
+    package = PACKAGES.get(top, top)
+    text = (
+        f"This Python does not have {_quote(top)}. Install it into this document's environment (the "
+        f"Environment picker shows which Python runs it)."
+    )
+    if package != top:
+        text += f" Its package is called {_quote(package)}."
+    fix = {"kind": "install", "title": f"Install {_quote(package)} here", "package": package, "module": top}
+    return text, [fix]
+
+
+def _key_error(seen: Seen) -> Said:
+    facts = seen.facts
+    key = _bare(str(facts.get("key", seen.message)))
+    keys = list(facts.get("keys") or [])
+    if facts.get("table"):
+        text = f"The table has no column {_quote(key)}."
+        if keys:
+            text += f" Its columns are {_list(keys)}."
+    elif keys:
+        text = f"There is no key {_quote(key)}. The keys are {_list(keys)}."
+    elif seen.kind == "IndexError":
+        length = facts.get("length")
+        text = "The position is past the end." + (
+            f" It has {length:,} items, so the last is at {length - 1:,} (counting from 0)."
+            if isinstance(length, int) and length > 0
+            else ""
+        )
+    else:
+        text = f"There is no key {_quote(key)}."
+    return text, _replace(key, list(facts.get("candidates", [])))
+
+
+def _file_error(seen: Seen) -> Said:
+    full = str(seen.facts.get("full_path") or seen.facts.get("path") or "")
+    cwd = str(seen.facts.get("cwd") or "")
+    if seen.kind == "FileNotFoundError":
+        text = f"Nothing is at {full}." if full else "The file is not there."
+        if cwd:
+            text += f" A path that does not start at a drive or / is read from the kernel's folder, {cwd}."
+    elif seen.kind == "PermissionError":
         text = (
+            f"This computer does not let Python open {full or 'it'} (it may be open in Excel, or read-only)."
+        )
+    else:
+        text = f"{full or 'The path'} is a folder where a file was expected, or the other way round."
+    return text, []
+
+
+def _decode_error(seen: Seen) -> Said:
+    return (
+        f"The file is not in {seen.facts.get('encoding') or 'that'} encoding. Files from Excel on Windows "
+        f"are often 'cp1252' or 'latin-1': pass `encoding='cp1252'` when reading it.",
+        [],
+    )
+
+
+def _tds_off(seen: Seen) -> Said:
+    text = (
+        "This Dataverse environment's SQL endpoint is off, so SQL cannot reach it. An admin turns on "
+        '"Enable TDS endpoint" in the Power Platform admin center; reading the table through the Web '
+        "API works now."
+    )
+    line = re.search(r"(\w+ = )?sab\.read\([^)]*\)", seen.message)
+    fixes = [{"kind": "cell", "title": "Read the table instead", "text": line.group(0)}] if line else []
+    return text, fixes
+
+
+def _sql_error(seen: Seen) -> Said:
+    absent = missing_table(seen.message)
+    text = (
+        f"The SQL names a table this query cannot see: {_quote(absent)}. Open it in Grids, read it with "
+        "a cell, or check the name's spelling."
+        if absent
+        else "The SQL did not run: the database's own words are above."
+    )
+    return text, []
+
+
+RULES: tuple[tuple[Callable[[Seen], bool], Callable[[Seen], Said]], ...] = (
+    (_is("NameError"), _name_error),
+    (
+        _is("UnboundLocalError"),
+        _words(
             "A function reads a variable before giving it a value. A name assigned anywhere in a function "
             "is that function's own, even on the lines before the assignment: give it a value first, or "
             "mark it `global`."
-        )
-    elif kind == "AttributeError":
-        name = str(facts.get("name") or "")
-        if facts.get("is_none"):
-            text = (
-                f"The value is None, so it has no {_quote(name)}. Something earlier gave back None "
-                f"instead of what you expected (a function with no `return`, or a method that changes the "
-                f"value in place, like `.sort()`)."
-            )
-        else:
-            owner = str(facts.get("object_type") or "the value")
-            text = f"A {owner} has no attribute {_quote(name)}."
-            columns = facts.get("columns") or []
-            if columns:
-                text += (
-                    f" Its columns are {_list(columns)}; a column whose name has spaces or capitals is "
-                    f"read with `df['Column name']`."
-                )
-                fixes += _replace(name, list(facts.get("column_candidates", [])))
-            fixes += _replace(
-                name, [c for c in facts.get("candidates", []) if c not in facts.get("column_candidates", [])]
-            )
-    elif kind in ("ModuleNotFoundError", "ImportError") and facts.get("module"):
-        module = str(facts["module"])
-        top = module.split(".")[0]
-        package = PACKAGES.get(top, top)
-        text = (
-            f"This Python does not have {_quote(top)}. Install it into this document's environment (the "
-            f"Environment picker shows which Python runs it)."
-        )
-        if package != top:
-            text += f" Its package is called {_quote(package)}."
-        fixes.append(
-            {"kind": "install", "title": f"Install {_quote(package)} here", "package": package, "module": top}
-        )
-    elif kind in ("KeyError", "IndexError"):
-        key = _bare(str(facts.get("key", message)))
-        keys = list(facts.get("keys") or [])
-        if facts.get("table"):
-            text = f"The table has no column {_quote(key)}."
-            if keys:
-                text += f" Its columns are {_list(keys)}."
-        elif keys:
-            text = f"There is no key {_quote(key)}. The keys are {_list(keys)}."
-        elif kind == "IndexError":
-            length = facts.get("length")
-            text = "The position is past the end." + (
-                f" It has {length:,} items, so the last is at {length - 1:,} (counting from 0)."
-                if isinstance(length, int) and length > 0
-                else ""
-            )
-        else:
-            text = f"There is no key {_quote(key)}."
-        fixes += _replace(key, list(facts.get("candidates", [])))
-    elif kind == "ZeroDivisionError":
-        text = (
+        ),
+    ),
+    (_is("AttributeError"), _attribute_error),
+    (
+        lambda seen: seen.kind in ("ModuleNotFoundError", "ImportError") and bool(seen.facts.get("module")),
+        _missing_module,
+    ),
+    (_is("KeyError", "IndexError"), _key_error),
+    (
+        _is("ZeroDivisionError"),
+        _words(
             "A number was divided by zero. The values below show which part was 0; guard it, or let a "
             "table's division give NaN (pandas does that for columns)."
-        )
-    elif kind == "TypeError" and "NoneType" in message:
-        text = (
+        ),
+    ),
+    (
+        lambda seen: seen.kind == "TypeError" and "NoneType" in seen.message,
+        _words(
             "One of the values is None where a real value was expected. The values below show which; "
             "something earlier gave back None."
-        )
-    elif kind == "TypeError":
-        text = (
+        ),
+    ),
+    (
+        _is("TypeError"),
+        _words(
             "A value of the wrong kind was used here: the message says which kinds met. The values below "
             "show what each part held."
-        )
-    elif kind == "ValueError":
-        text = (
+        ),
+    ),
+    (
+        _is("ValueError"),
+        _words(
             "The kind of value was right but not the value itself (a word where a number was expected, a "
             "date in another format, a size that does not match)."
-        )
-    elif kind in ("FileNotFoundError", "IsADirectoryError", "NotADirectoryError", "PermissionError"):
-        full = str(facts.get("full_path") or facts.get("path") or "")
-        cwd = str(facts.get("cwd") or "")
-        if kind == "FileNotFoundError":
-            text = f"Nothing is at {full}." if full else "The file is not there."
-            if cwd:
-                text += (
-                    f" A path that does not start at a drive or / is read from the kernel's folder, {cwd}."
-                )
-        elif kind == "PermissionError":
-            text = (
-                f"This computer does not let Python open {full or 'it'} (it may be open in Excel, or "
-                f"read-only)."
-            )
-        else:
-            text = f"{full or 'The path'} is a folder where a file was expected, or the other way round."
-    elif kind == "UnicodeDecodeError":
-        text = (
-            f"The file is not in {facts.get('encoding') or 'that'} encoding. Files from Excel on Windows "
-            f"are often 'cp1252' or 'latin-1': pass `encoding='cp1252'` when reading it."
-        )
-    elif kind in ("SyntaxError", "IndentationError", "TabError"):
-        text = (
+        ),
+    ),
+    (_is("FileNotFoundError", "IsADirectoryError", "NotADirectoryError", "PermissionError"), _file_error),
+    (_is("UnicodeDecodeError"), _decode_error),
+    (
+        _is("SyntaxError"),
+        _words(
             "Python could not read this code: nothing in it ran. The mark shows where it stopped "
             "understanding (the mistake is often just before it: a missing bracket, quote or colon)."
-        )
-        if kind != "SyntaxError":
-            text = (
-                "The lines' indents do not line up: every line of a block needs the same indent (four "
-                "spaces), and tabs and spaces should not be mixed."
-            )
-    elif kind == "RecursionError":
-        text = (
+        ),
+    ),
+    (
+        _is("IndentationError", "TabError"),
+        _words(
+            "The lines' indents do not line up: every line of a block needs the same indent (four "
+            "spaces), and tabs and spaces should not be mixed."
+        ),
+    ),
+    (
+        _is("RecursionError"),
+        _words(
             "A function called itself too many times (it never reached the case that stops). Only the "
             "first and last calls are shown."
-        )
-    elif kind == "MemoryError":
-        text = (
+        ),
+    ),
+    (
+        _is("MemoryError"),
+        _words(
             "This Python ran out of memory. Read fewer rows, fewer columns, or let DuckDB do the work on "
             "the file instead of loading it whole."
-        )
-    elif kind == "KeyboardInterrupt":
-        title = "Interrupted"
-        text = "Interrupt stopped the run. Variables made before that point are still there."
-    elif dataverse.tds_off(message):
-        text = (
-            "This Dataverse environment's SQL endpoint is off, so SQL cannot reach it. An admin turns on "
-            '"Enable TDS endpoint" in the Power Platform admin center; reading the table through the Web '
-            "API works now."
-        )
-        line = re.search(r"(\w+ = )?sab\.read\([^)]*\)", message)
-        if line:
-            fixes.append({"kind": "cell", "title": "Read the table instead", "text": line.group(0)})
-    elif kind == "UsageError" or ("Error" in kind and _sql_text(message)):
-        absent = missing_table(message)
-        text = (
-            f"The SQL names a table this query cannot see: {_quote(absent)}. Open it in Grids, read it with "
-            "a cell, or check the name's spelling."
-            if absent
-            else "The SQL did not run: the database's own words are above."
-        )
-    else:
-        text = ""
+        ),
+    ),
+    (
+        _is("KeyboardInterrupt"),
+        _words("Interrupt stopped the run. Variables made before that point are still there."),
+    ),
+    # By the message, whatever the type: after every rule that knows its type.
+    (lambda seen: dataverse.tds_off(seen.message), _tds_off),
+    (
+        lambda seen: seen.kind == "UsageError" or ("Error" in seen.kind and _sql_text(seen.message)),
+        _sql_error,
+    ),
+)
+# An error whose title is not its type and message.
+TITLES: dict[str, str] = {"KeyboardInterrupt": "Interrupted"}
+
+
+def explain(entry: dict[str, Any]) -> dict[str, Any]:
+    """One exception of the chain: a title, a plain explanation and the fixes (the first of RULES that
+    matches; none: no explanation), then what any error may carry: a SQL error's place and close names, a
+    "Did you mean" hint as a fix."""
+    kind = str(entry.get("type", ""))
+    message = str(entry.get("message", ""))
+    facts: dict[str, Any] = entry.get("facts") or {}
+    seen = Seen(kind, message, facts)
+    title = TITLES.get(kind) or (f"{kind}: {message}" if message else kind)
+    text, fixes = next((says(seen) for matches, says in RULES if matches(seen)), ("", []))
     sql = sql_position(message)
     if sql:
         candidates = sql.get("candidates", [])

@@ -274,3 +274,26 @@ def test_a_table_open_in_grids_offers_its_table_cell() -> None:
     python = {"chain": [{"type": "NameError", "message": "name 'orders' is not defined", "facts": {}}]}
     told_python = errors.explain_detail(python, open_tables=["orders"])["chain"][-1]
     assert not any(f["kind"] == "table" for f in told_python["fixes"])
+
+
+def test_the_rules_are_a_table_tried_in_order() -> None:
+    """explain() is a list of rules, the first match says it (the craft review of 2026-11-22): a narrower
+    rule stands before a wider one, the rules that read the message come last, and an error nobody wrote
+    a rule for gets no explanation rather than a wrong one."""
+    from swissarmybench.domain import errors
+
+    def first(kind: str, message: str = "", **facts: object) -> int:
+        seen = errors.Seen(kind, message, facts)
+        return next((i for i, (matches, _) in enumerate(errors.RULES) if matches(seen)), -1)
+
+    none_type = first("TypeError", "unsupported operand type(s) for +: 'NoneType' and 'int'")
+    assert 0 <= none_type < first("TypeError", "can only concatenate str")
+    assert first("ImportError") == -1 and first("ImportError", module="polars") >= 0  # only with its module
+    assert first("UsageError") == len(errors.RULES) - 1  # the rules that read the message stand last
+    assert first("SomethingNobodyKnows") == -1
+    assert errors.explain({"type": "SomethingNobodyKnows", "message": "odd"})["explanation"] == ""
+    assert errors.explain({"type": "KeyboardInterrupt"})["title"] == "Interrupted"
+    # every call's fixes are its own: one call's are never another's
+    one = errors.explain({"type": "ZeroDivisionError", "hint": "Did you mean: 'x'?", "facts": {"name": "y"}})
+    two = errors.explain({"type": "ZeroDivisionError"})
+    assert one["fixes"] and two["fixes"] == []
