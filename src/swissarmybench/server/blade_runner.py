@@ -422,8 +422,9 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         if not job.get("sql"):
             return {"path": str(value)}
         source = _within(value, job)
-        if job.get("read") and type(source).__module__.split(".")[0] in ("duckdb", "_duckdb"):
-            return _adapter_rows(source, job["read"])
+        adapted = _adapter_rows(source, job["read"], job.get("count_sql")) if job.get("read") else None
+        if adapted is not None:
+            return adapted
         typed = getattr(source, "read_arrow", None)  # a connection that reads typed Arrow itself (SQL Server)
         table = typed(job["sql"]) if callable(typed) else None
         columns, rows = ([], []) if table is not None else _sql_rows(source, job["sql"])
@@ -445,17 +446,32 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     return {"arrow": _arrow_text(pa.Table.from_arrays(arrays, names=columns)), "total": total}
 
 
-def _adapter_rows(connection: Any, read: dict[str, Any]) -> dict[str, Any]:
-    """A DuckDB connection's table through the adapter (Plans/adapter.plan.md): its plan folded into the read,
-    the batches made the grid's table and nothing else kept; its row count when asked."""
+def _adapter_rows(
+    connection: Any, read: dict[str, Any], count_sql: str | None = None
+) -> dict[str, Any] | None:
+    """A connection's table through the adapter (Plans/adapter.plan.md): DuckDB's own, or a SQL database's
+    DB-API connection in its dialect; its plan folded into the read, the batches made the table and nothing
+    else kept; its row count when asked (SQL Server's from its system views, as before). None: a connection
+    the adapter does not read (its SQL is sent instead)."""
     from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters.blade_run import _sql_rows
 
-    source = sab.DuckDB.over(connection)
+    dialect = str(read.get("dialect") or "duckdb")
+    source: Any
+    if type(connection).__module__.split(".")[0] in ("duckdb", "_duckdb"):
+        source = sab.DuckDB.over(connection)
+    elif dialect in sab.DIALECTS and callable(getattr(connection, "cursor", None)):
+        source = sab.Sql(connection, dialect)
+    else:
+        return None
     table = sab.make_table(sab.TableSource(source, str(read["table"]), sab.plan_from(read.get("plan"))))
     total = None
-    if read.get("count"):
-        counted, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))
-        total = int(counted.read_all().column(0)[0].as_py())
+    if read.get("count") and count_sql and dialect == "sqlserver":
+        _, counted = _sql_rows(connection, count_sql)
+        total = int(counted[0][0]) if counted and counted[0] and counted[0][0] is not None else None
+    elif read.get("count"):
+        reader, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))
+        total = int(reader.read_all().column(0)[0].as_py())
     return {"arrow": _arrow_text(table), "total": total}
 
 

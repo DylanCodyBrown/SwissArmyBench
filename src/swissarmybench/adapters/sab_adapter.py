@@ -532,6 +532,391 @@ def _closing(reader: Any, answer: Any) -> Iterator[pa.RecordBatch]:
         answer.close()
 
 
+# ----- SQL databases: any DB-API connection, its dialect's rules as data -----
+
+_INFO_COLUMNS = (
+    "SELECT c.table_schema, c.table_name, c.column_name, c.data_type FROM information_schema.columns c "
+    "WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA', 'sys') {where}"
+    "ORDER BY c.table_schema, c.table_name, c.ordinal_position"
+)
+_INFO_KEYS = (
+    "SELECT k.table_schema, k.table_name, k.column_name FROM information_schema.table_constraints t "
+    "JOIN information_schema.key_column_usage k ON k.constraint_name = t.constraint_name "
+    "AND k.table_schema = t.table_schema AND k.table_name = t.table_name "
+    "WHERE t.constraint_type = 'PRIMARY KEY'"
+)
+
+
+@dataclass(frozen=True)
+class Dialect:
+    """What one database's SQL needs for a plan and a write: how it quotes a name, how it says a limit and
+    an offset (`limit`: LIMIT n OFFSET m; `offset_limit`: OFFSET m LIMIT n; `fetch`: OFFSET m ROWS FETCH
+    NEXT n ROWS ONLY, T-SQL's wanting an ORDER BY), its catalog (rows of schema, table, column, type) and
+    primary keys (schema, table, column), the schema a bare name is in, whether a write is one transaction."""
+
+    name: str
+    quotes: str = '""'
+    limit: str = "limit"
+    columns: str = _INFO_COLUMNS.format(where="")
+    keys: str = _INFO_KEYS
+    default_schema: tuple[str, ...] = ()  # listed without its schema (public, dbo, main)
+    transactional: bool = True
+    order_needed: bool = False  # an OFFSET needs an ORDER BY (T-SQL)
+    no_limit: str = ""  # what LIMIT says for "every row" before an OFFSET (MySQL's, SQLite's)
+
+    def quote(self, name: str) -> str:
+        opening, closing = self.quotes[0], self.quotes[1]
+        return opening + str(name).replace(closing, closing * 2) + closing
+
+
+DIALECTS: dict[str, Dialect] = {
+    "postgres": Dialect("postgres", default_schema=("public",)),
+    "mysql": Dialect(
+        "mysql", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = DATABASE() "),
+        default_schema=("*",), no_limit="18446744073709551615",
+    ),
+    "sqlserver": Dialect(
+        "sqlserver", "[]", "fetch", columns=_INFO_COLUMNS.format(where=""), default_schema=("dbo",),
+        order_needed=True,
+    ),
+    "oracle": Dialect(
+        "oracle", limit="fetch",
+        columns="SELECT owner, table_name, column_name, data_type FROM all_tab_columns WHERE owner = USER "
+        "ORDER BY owner, table_name, column_id",
+        keys="SELECT c.owner, c.table_name, c.column_name FROM all_cons_columns c JOIN all_constraints k "
+        "ON k.owner = c.owner AND k.constraint_name = c.constraint_name WHERE k.constraint_type = 'P' "
+        "AND c.owner = USER",
+        default_schema=("*",),
+    ),
+    "sqlite": Dialect(
+        "sqlite",
+        columns="SELECT 'main', m.name, p.name, p.type FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        "WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite_%' ORDER BY m.name, p.cid",
+        keys="SELECT 'main', m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        "WHERE m.type = 'table' AND p.pk > 0",
+        default_schema=("main",), no_limit="-1",
+    ),
+    "snowflake": Dialect(
+        "snowflake", columns=_INFO_COLUMNS.format(where="AND c.table_schema = CURRENT_SCHEMA() "),
+        default_schema=("*",),
+    ),
+    "trino": Dialect(
+        "trino", limit="offset_limit", columns=_INFO_COLUMNS.format(where=""), keys="", transactional=False,
+    ),
+    "databricks": Dialect(
+        "databricks", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = current_schema() "),
+        keys="", default_schema=("*",),
+    ),
+}  # fmt: skip
+
+
+def dialect_sql(dialect: Dialect, table: str, plan: Plan, style: str = "qmark") -> tuple[str, list[Any]]:
+    """The plan as one query in `dialect` over `table` ("schema.table" or "table"), its values bound in the
+    driver's parameter style (PEP 249's paramstyle)."""
+    check_plan(plan)
+    params: list[Any] = []
+    q = dialect.quote
+
+    def mark(value: Any) -> str:
+        params.append(value)
+        return _mark(style, len(params))
+
+    def condition(f: Filter) -> str:
+        name = q(f.column)
+        if f.op in ("is null", "is not null"):
+            return f"{name} {f.op.upper()}"
+        if f.op == "in":
+            return f"{name} IN ({', '.join(mark(v) for v in f.value)})"
+        if f.op == "between":
+            return f"{name} BETWEEN {mark(f.value[0])} AND {mark(f.value[1])}"
+        return f"{name} {'<>' if f.op == '!=' else f.op.upper()} {mark(f.value)}"
+
+    def total(t: Total) -> str:
+        if t.fn == "count":
+            what = f"COUNT({q(t.column)})" if t.column else "COUNT(*)"
+        elif t.fn == "count_distinct":
+            what = f"COUNT(DISTINCT {q(t.column)})"
+        else:
+            what = f"{t.fn.upper()}({q(t.column)})"
+        return f"{what} AS {q(t.label)}"
+
+    if plan.totals:
+        picked = [q(c) for c in plan.group] + [total(t) for t in plan.totals]
+    else:
+        picked = [q(c) for c in plan.columns] or ["*"]
+    wheres = [condition(f) for f in plan.filters]
+    top = ""
+    paged = plan.limit is not None or plan.offset
+    if dialect.limit == "fetch" and dialect.order_needed and paged and not plan.sort and not plan.offset:
+        top = f"TOP ({int(plan.limit or 0)}) "  # T-SQL: a limit with no order is TOP
+        paged = False
+    sql = f"SELECT {top}{', '.join(picked)} FROM {table_name(dialect, table)}"  # noqa: S608 (quoted, bound)
+    if wheres:
+        sql += " WHERE " + " AND ".join(wheres)
+    if plan.group:
+        sql += " GROUP BY " + ", ".join(q(c) for c in plan.group)
+    if plan.sort:
+        sql += " ORDER BY " + ", ".join(f"{q(c)} {'DESC' if d else 'ASC'}" for c, d in plan.sort)
+    elif paged and dialect.order_needed:
+        sql += " ORDER BY (SELECT NULL)"
+    if paged:
+        sql += _paging(dialect, plan.limit, plan.offset)
+    return sql, params
+
+
+def _paging(dialect: Dialect, limit: int | None, offset: int) -> str:
+    if dialect.limit == "fetch":
+        said = f" OFFSET {int(offset)} ROWS"
+        return said + (f" FETCH NEXT {int(limit)} ROWS ONLY" if limit is not None else "")
+    if dialect.limit == "offset_limit":
+        return (f" OFFSET {int(offset)}" if offset else "") + (
+            f" LIMIT {int(limit)}" if limit is not None else ""
+        )
+    if limit is None:
+        return (
+            f" LIMIT {dialect.no_limit} OFFSET {int(offset)}"
+            if dialect.no_limit
+            else f" OFFSET {int(offset)}"
+        )
+    return f" LIMIT {int(limit)}" + (f" OFFSET {int(offset)}" if offset else "")
+
+
+def _mark(style: str, at: int) -> str:
+    if style in ("format", "pyformat"):
+        return "%s"
+    if style == "numeric":
+        return f":{at}"
+    if style == "named":
+        return f":p{at}"
+    return "?"
+
+
+def _bound(style: str, params: list[Any]) -> Any:
+    return {f"p{i}": v for i, v in enumerate(params, 1)} if style == "named" else params
+
+
+def table_name(dialect: Dialect, table: str) -> str:
+    """A listed name ("schema.table", or "table" in its default schema) quoted for `dialect`."""
+    schema, _, name = str(table).partition(".")
+    return f"{dialect.quote(schema)}.{dialect.quote(name)}" if name else dialect.quote(schema)
+
+
+def paramstyle(connection: Any) -> str:
+    """A DB-API connection's parameter style, from its driver's module (qmark when it does not say)."""
+    import sys
+
+    module = sys.modules.get(type(connection).__module__.split(".")[0])
+    style = getattr(module, "paramstyle", "qmark")
+    return style if style in ("qmark", "format", "pyformat", "numeric", "named") else "qmark"
+
+
+class Sql:
+    """A SQL database as a source, through its own DB-API connection (the one its connection's code made):
+    the whole plan folded into one query in its dialect, the answer streamed as Arrow batches as the cursor
+    fetches them; a write in its own statements, in one transaction (all or none)."""
+
+    def __init__(self, connection: Any, dialect: str | Dialect, name: str = "", style: str = "") -> None:
+        self.connection = connection
+        self.dialect = dialect if isinstance(dialect, Dialect) else DIALECTS[dialect]
+        self.name = name or self.dialect.name
+        self.style = style or paramstyle(getattr(connection, "raw", connection))
+
+    def tables(self) -> list[Table]:
+        keys = (
+            {(str(s), str(t), str(c)) for s, t, c in self._rows(self.dialect.keys)}
+            if self.dialect.keys
+            else set()
+        )
+        listed: dict[tuple[str, str], list[Column]] = {}
+        for schema, table, column, kind in self._rows(self.dialect.columns):
+            place = (str(schema), str(table))
+            listed.setdefault(place, []).append(Column(str(column), str(kind), (*place, str(column)) in keys))
+        return [Table(self._listed(s, t), tuple(cols)) for (s, t), cols in listed.items()]
+
+    def _listed(self, schema: str, table: str) -> str:
+        bare = "*" in self.dialect.default_schema or schema in self.dialect.default_schema
+        return table if bare else f"{schema}.{table}"
+
+    def _rows(self, sql: str) -> list[Any]:
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql)
+            return list(cursor.fetchall())
+        finally:
+            _quietly(cursor.close)
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        sql, params = dialect_sql(self.dialect, table, plan, self.style)
+        typed = getattr(self.connection, "read_arrow", None)  # a connection typing its own Arrow (SQL Server)
+        if callable(typed) and not params:
+            return typed(sql).to_reader(), Folded(plan.parts())
+        cursor = self.connection.cursor()
+        try:
+            if params:
+                cursor.execute(sql, _bound(self.style, params))
+            else:
+                cursor.execute(sql)
+        except Exception:
+            _quietly(cursor.close)
+            raise
+        return cursor_batches(cursor), Folded(plan.parts())
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        if mode not in MODES:
+            raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
+        if mode in KEYED and not key:
+            raise AdapterError(f"A {mode} names the key its rows are matched by.")
+        if not self.dialect.transactional:
+            raise AdapterError(f"{self.name} takes no transactions, so a write could not be all or none.")
+        target = table_name(self.dialect, table)
+        names = [str(n) for n in batches.schema.names]
+        cursor = self.connection.cursor()
+        try:
+            done = _sql_written(self, cursor, target, names, list(key), mode, batches)
+            self.connection.commit()
+            return done
+        except BaseException:
+            _quietly(self.connection.rollback)
+            raise
+        finally:
+            _quietly(cursor.close)
+
+    def value(self, value: Any) -> Any:
+        """A value as the driver takes it (SQLite: a decimal as a number, a date or time as text)."""
+        if self.dialect.name != "sqlite":
+            return value
+        import datetime as dt
+        import decimal
+
+        if isinstance(value, decimal.Decimal):
+            return float(value)
+        if isinstance(value, dt.datetime):
+            return value.isoformat(sep=" ")
+        if isinstance(value, dt.date | dt.time):
+            return value.isoformat()
+        return value
+
+
+def _quietly(close: Callable[[], Any]) -> None:
+    with contextlib.suppress(Exception):
+        close()
+
+
+def _sql_written(
+    db: Sql,
+    cursor: Any,
+    target: str,
+    names: list[str],
+    key: list[str],
+    mode: str,
+    batches: pa.RecordBatchReader,
+) -> Counts:
+    """The rows into `target` by `mode`, on one cursor of the open transaction. A merge asks which keys are
+    there first, a batch at a time, then updates those and inserts the rest."""
+    q, style = db.dialect.quote, db.style
+    marks = ", ".join(_mark(style, i) for i in range(1, len(names) + 1))
+    insert = f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({marks})"  # noqa: S608
+    sets = [n for n in names if n not in key]
+    if mode in ("update", "merge"):
+        missing = [k for k in key if k not in names]
+        if missing:
+            raise AdapterError(f"The rows have no {missing[0]} column to match by.")
+        if not sets:
+            raise AdapterError("The rows have nothing to change but their key.")
+    order = sets + key
+    assigned = ", ".join(f"{q(n)} = {_mark(style, i)}" for i, n in enumerate(sets, 1))
+    matched = " AND ".join(f"{q(k)} = {_mark(style, len(sets) + i)}" for i, k in enumerate(key, 1))
+    update = f"UPDATE {target} SET {assigned} WHERE {matched}"  # noqa: S608 (names quoted, values bound)
+    gone = " AND ".join(f"{q(k)} = {_mark(style, i)}" for i, k in enumerate(key, 1))
+    delete = f"DELETE FROM {target} WHERE {gone}"  # noqa: S608
+    counts = {"inserted": 0, "updated": 0, "deleted": 0}
+
+    def many(sql: str, rows: list[list[Any]]) -> int:
+        if not rows:
+            return 0
+        cursor.executemany(sql, [_bound(style, [db.value(v) for v in r]) for r in rows])
+        return len(rows)
+
+    if mode == "truncate":
+        cursor.execute(f"DELETE FROM {target}")  # noqa: S608 (the name quoted)
+        counts["deleted"] = max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+    for batch in batches:
+        rows = batch.to_pylist()
+        if mode in ("insert", "truncate"):
+            counts["inserted"] += many(insert, [[r[n] for n in names] for r in rows])
+        elif mode == "delete":
+            for r in rows:
+                cursor.execute(delete, _bound(style, [db.value(r[k]) for k in key]))
+                counts["deleted"] += max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+        else:
+            there = _present(db, cursor, target, key, rows)
+            found = [r for r in rows if tuple(r[k] for k in key) in there]
+            counts["updated"] += many(update, [[r[n] for n in order] for r in found])
+            if mode == "merge":
+                new = [r for r in rows if tuple(r[k] for k in key) not in there]
+                counts["inserted"] += many(insert, [[r[n] for n in names] for r in new])
+    return Counts(counts["inserted"], counts["updated"], counts["deleted"])
+
+
+def _present(
+    db: Sql, cursor: Any, target: str, key: list[str], rows: list[dict[str, Any]]
+) -> set[tuple[Any, ...]]:
+    """Which of the rows' keys the table has, asked 100 rows at a time."""
+    q, found = db.dialect.quote, set[tuple[Any, ...]]()
+    for at in range(0, len(rows), 100):
+        part = rows[at : at + 100]
+        values: list[Any] = []
+        ors = []
+        for r in part:
+            ands = []
+            for k in key:
+                values.append(db.value(r[k]))
+                ands.append(f"{q(k)} = {_mark(db.style, len(values))}")
+            ors.append("(" + " AND ".join(ands) + ")")
+        picked = ", ".join(q(k) for k in key)
+        cursor.execute(f"SELECT {picked} FROM {target} WHERE {' OR '.join(ors)}", _bound(db.style, values))  # noqa: S608
+        found.update(tuple(row) for row in cursor.fetchall())
+    return found
+
+
+def cursor_batches(cursor: Any, size: int = BATCH_ROWS) -> pa.RecordBatchReader:
+    """A DB-API cursor's answer as Arrow batches of `size` rows, fetched as they are read; each column keeps
+    the first batch's type (a column with no value in it is text). The cursor is closed at the end."""
+    names = [str(d[0]) for d in cursor.description or []]
+    first = cursor.fetchmany(size)
+    head = _rows_batch(names, first, None)
+
+    def batches() -> Iterator[pa.RecordBatch]:
+        try:
+            yield head
+            while True:
+                rows = cursor.fetchmany(size)
+                if not rows:
+                    break
+                yield _rows_batch(names, rows, head.schema)
+        finally:
+            _quietly(cursor.close)
+
+    return pa.RecordBatchReader.from_batches(head.schema, batches())
+
+
+def _rows_batch(names: list[str], rows: Sequence[Sequence[Any]], schema: pa.Schema | None) -> pa.RecordBatch:
+    arrays = []
+    for i, name in enumerate(names):
+        values = [row[i] for row in rows]
+        kind = schema.field(i).type if schema is not None else None
+        try:
+            made = pa.array(values, type=kind) if kind is not None else pa.array(values)
+        except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError):
+            if kind is not None and kind != pa.string():
+                raise AdapterError(f"{name}'s values changed type part way through the read.") from None
+            made = pa.array([None if v is None else str(v) for v in values], pa.string())
+        if kind is None and pa.types.is_null(made.type):
+            made = made.cast(pa.string())
+        arrays.append(made)
+    return pa.RecordBatch.from_arrays(arrays, names=names) if names else pa.RecordBatch.from_pylist([])
+
+
 # ===== 3. The calls =====
 
 _find: Callable[[str], Source] | None = None

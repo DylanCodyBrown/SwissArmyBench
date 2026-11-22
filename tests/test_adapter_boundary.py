@@ -104,3 +104,13 @@ def test_the_mocks_calls_that_moved_reach_the_sandbox_only_through_the_adapter()
                 if isinstance(n, ast.Call)
             }
             assert not called & OLD_DOOR, f"{class_name}.{method} calls {sorted(called & OLD_DOOR)}"
+
+
+def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None:
+    """Phase 2: a database connection's Open as grid is the adapter's read for DuckDB and each SQL dialect it
+    folds a plan into (the old SELECT and COUNT text stays only for the dialects it does not know)."""
+    from swissarmybench.adapters import sab_adapter
+    from swissarmybench.services import connections
+
+    known = set(sab_adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
+    assert known | {"duckdb"} == set(connections.ADAPTER_DIALECTS)

@@ -808,19 +808,23 @@ class CodeCheck(Protocol):
     def check_code(self, code: str, where: str) -> None: ...
 
 
-ADAPTER_DIALECTS = ("duckdb",)  # the connections the adapter reads itself so far (Plans/adapter.plan.md)
+# The connections the adapter reads itself (Plans/adapter.plan.md): DuckDB, and each SQL dialect it folds a
+# plan into (sab_adapter.DIALECTS). Sybase speaks T-SQL without OFFSET ... FETCH, so it keeps its own SQL.
+ADAPTER_DIALECTS = ("duckdb", "postgres", "mysql", "sqlserver", "oracle", "sqlite", "snowflake", "trino")
+NOT_ADAPTED = ("sybase",)  # starters whose dialect is shared but whose SQL is older
 
 
 def _adapter_read(
     blade: Blade, place: dict[str, str], limit: int | None, counted: bool
 ) -> dict[str, Any] | None:
-    """What the adapter reads for Open as grid ({"table", "plan", "count"}), for a connection whose dialect it
-    reads; None for the others, which send their SQL."""
-    if blade.dialect not in ADAPTER_DIALECTS:
+    """What the adapter reads for Open as grid ({"table", "dialect", "plan", "count"}), for a connection whose
+    dialect it reads; None for the others (and a table named with its database), which send their SQL."""
+    if blade.dialect not in ADAPTER_DIALECTS or blade.template in NOT_ADAPTED or place.get("database"):
         return None
     schema = place["schema"]
-    table = place["table"] if schema in ("", "main") else f"{schema}.{place['table']}"
-    return {"table": table, "plan": {"limit": limit}, "count": counted}
+    plain = schema == "" or (blade.dialect == "duckdb" and schema == "main")
+    table = place["table"] if plain else f"{schema}.{place['table']}"
+    return {"table": table, "dialect": blade.dialect, "plan": {"limit": limit}, "count": counted}
 
 
 def _web_api(blade: Blade) -> bool:
