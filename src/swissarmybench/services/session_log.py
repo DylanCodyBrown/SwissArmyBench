@@ -112,7 +112,8 @@ class Heard:
         rows: int | None = None,
         **details: Any,
     ) -> None:
-        if self.changes is not None and details.get("change"):
+        if self.changes is not None and isinstance(details.get("change"), dict):
+            # (A detail called `change` that is not one of the change log's is left as its writer gave it.)
             # Something the open project's log already knows in this shape (a project opened again reads
             # its tables again) is no change: the entry stays, its change does not.
             settled = self.changes.settled(details["change"])

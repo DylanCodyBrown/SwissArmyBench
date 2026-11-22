@@ -700,7 +700,7 @@ def test_a_window_command_is_run_by_the_window_and_answered(client: TestClient) 
 
     # No Workbench window open: said plainly.
     refused = client.post("/workbench/window", json={"command": "documents"}, headers=AUTH)
-    assert refused.status_code == 409 and "not open" in refused.text
+    assert refused.status_code == 409 and "Neither the Notebooks nor the Scripts page is open" in refused.text
     assert (
         client.post("/workbench/window", json={"command": "no spaces allowed"}, headers=AUTH).status_code
         == 400

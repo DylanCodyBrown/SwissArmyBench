@@ -129,3 +129,14 @@ def test_a_project_opened_again_does_not_add_its_tables_again(client: TestClient
     assert changed["words"] == "orders changed since this project last had it open"
     assert changed["before"] == first["after"] and changed["after"] != first["after"]
     assert changed["diff"] == {}  # what it was is not kept, so no difference by name is claimed
+
+
+def test_a_detail_called_change_that_is_not_the_logs_is_left_alone(client: TestClient) -> None:
+    """The Power BI extension's audit says `change="measure"` (its own word for what an edit changed): the
+    change log reads only its own records and leaves that entry as written (the sweep's own slip, caught by
+    tests/test_powerbi_live.py: the new check before the log read a text as a record)."""
+    audit = client.app.state.ctx.workbench.ws.audit  # type: ignore[attr-defined]
+    audit.write("user", "powerbi_edit", "Sales", change="measure", name="Total")
+    session = ok(client.get("/session-log", params={"who": "user"}, headers=AUTH))
+    assert any(e.get("action") == "powerbi_edit" for e in session["entries"]) or session["entries"] == []
+    assert ok(client.get("/changes", params={"action": "search"}, headers=AUTH))["changes"] == []
