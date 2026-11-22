@@ -57,9 +57,13 @@ class WorkbenchWindow:
         to = workbench_pages.page_for_command(page, args, command)
         if not self.ws.live.workbench_open(to):
             words = workbench_pages.WORDS[to] if to else "Notebooks or Scripts"
-            which = f"The {words} page" if to else "No Notebooks or Scripts page"
+            which = (
+                f"The {words} page is not open"
+                if to
+                else "Neither the Notebooks nor the Scripts page is open"
+            )
             raise Conflict(
-                f"{which} is not open: the rail's {words} opens it."
+                f"{which}: the rail's {words} opens it."
                 " (Files and kernels work without it: workbench_open, workbench_run.)"
             )
         request_id = secrets.token_hex(6)
