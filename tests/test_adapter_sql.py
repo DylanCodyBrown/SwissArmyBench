@@ -164,9 +164,12 @@ def test_a_truncate_clears_and_inserts_in_one_transaction(shop: sqlite3.Connecti
     assert [c.name for c in sab.tables(source)[1].columns] == ["id", "region", "amount", "placed"]
 
 
-def test_a_source_with_no_transactions_is_read_only() -> None:
+def test_a_source_with_no_transactions_and_no_write_of_its_own_is_read_only() -> None:
+    """Phase 2's rule, kept for any dialect with no transactions the adapter has no write of its own for.
+    Trino has one since phase 5 (row batches without a transaction, said: tests/test_adapter_trino.py)."""
+    loose = sab.Dialect("made-up", transactional=False)
     with pytest.raises(sab.AdapterError, match="no transactions"):
-        sab.write(sab.Sql(sqlite3.connect(":memory:"), "trino"), "orders", pa.table({"id": [1]}))
+        sab.write(sab.Sql(sqlite3.connect(":memory:"), loose), "orders", pa.table({"id": [1]}))
 
 
 # ===== PostgreSQL, when the test bed runs =====
