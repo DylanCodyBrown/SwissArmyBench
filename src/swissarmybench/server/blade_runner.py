@@ -31,7 +31,7 @@ from typing import Any
 import pyarrow.ipc as ipc
 
 from swissarmybench.adapters.blades import BladeStore
-from swissarmybench.domain import dataverse, lakes, python_connections
+from swissarmybench.domain import blade_tables, dataverse, lakes, python_connections
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.connections import TEST_ROWS
 
@@ -42,6 +42,14 @@ class RefreshError(RuntimeError):
     def __init__(self, message: str, missing_module: str | None = None) -> None:
         super().__init__(message)
         self.missing_module = missing_module
+
+
+def _listed_by_adapter(blade: Blade) -> str:
+    from swissarmybench.server.blade_templates import TEMPLATES
+
+    return blade_tables.listed_by_adapter(
+        blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.catalog_command, TEMPLATES
+    )
 
 
 def payload(
@@ -104,7 +112,12 @@ def payload(
         "variable": blade.variable,
         # A draft's typed passwords (the Add connection form's Test, nothing saved) over the saved ones.
         "secrets": store.saved_secrets(blade) | dict((extra or {}).get("secrets", {})),
-        "catalog": {"language": blade.catalog_language, "command": blade.catalog_command},
+        "catalog": {
+            "language": blade.catalog_language,
+            "command": blade.catalog_command,
+            # its tables listed by the adapter unless its List the tables is the user's own (step 3)
+            "adapter": _listed_by_adapter(blade),
+        },
         "vault_mapping": blade.vault_mapping,
         "vault_all": blade.vault_all,
         "vaults": [
@@ -342,6 +355,7 @@ async def install_packages(packages: list[str]) -> tuple[int | None, str]:
 def _child(job: dict[str, Any]) -> dict[str, Any]:
     from swissarmybench.adapters.blade_run import (
         BladeRunError,
+        adapter_catalog,
         close_quietly,
         list_tables,
         run_catalog,
@@ -398,6 +412,8 @@ def _child(job: dict[str, Any]) -> dict[str, Any]:
             catalog = job["catalog"]
             if python:
                 columns, rows = list_tables(names, catalog["command"], hidden, job["label"])
+            elif catalog.get("adapter"):
+                columns, rows = adapter_catalog(value, catalog["adapter"], hidden, job["label"])
             else:
                 columns, rows = run_catalog(
                     value, names, catalog["language"], catalog["command"], hidden, job["label"]

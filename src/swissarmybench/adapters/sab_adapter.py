@@ -207,14 +207,35 @@ class Folded:
 @dataclass(frozen=True)
 class Column:
     name: str
-    type: str  # DuckDB's type name
+    type: str  # the source's type name (DuckDB's for a DuckDB source)
     key: bool = False  # part of the table's primary key
+    nullable: bool | None = field(default=None, compare=False)  # None: not said
 
 
 @dataclass(frozen=True)
 class Table:
     name: str  # the source's own name for it: what read and write take
     columns: tuple[Column, ...] = ()
+    # where it is and what it is, as its catalog says (a listing's own words): kept apart from the name
+    schema: str = field(default="", compare=False)
+    kind: str = field(default="", compare=False)  # BASE TABLE, VIEW ...
+    database: str = field(default="", compare=False)
+
+
+def catalog_rows(listed: Sequence[Table]) -> tuple[list[str], list[list[Any]]]:
+    """Tables as a catalog's rows, in the columns an information_schema listing has (table_catalog only when
+    one is said): the app's Catalog reads them as it reads a connection's own List the tables."""
+    with_database = any(t.database for t in listed)
+    names = ["table_schema", "table_name", "table_type", "column_name", "data_type", "is_nullable",
+             "ordinal_position"]  # fmt: skip
+    rows: list[list[Any]] = []
+    for t in listed:
+        bare = t.name.rpartition(".")[2] if t.schema and t.name.startswith(t.schema + ".") else t.name
+        for at, c in enumerate(t.columns, 1):
+            nullable = None if c.nullable is None else ("YES" if c.nullable else "NO")
+            row = [t.schema, bare, t.kind or None, c.name, c.type, nullable, at]
+            rows.append([t.database, *row] if with_database else row)
+    return (["table_catalog", *names] if with_database else names), rows
 
 
 @dataclass(frozen=True)
@@ -361,9 +382,10 @@ class DuckDB:
 
     def tables(self) -> list[Table]:
         with self._connect(False) as con:
+            database = str(con.sql("SELECT current_database()").fetchall()[0][0])
             return [
-                Table(name, tuple(Column(*c) for c in _columns(con, schema, table)))
-                for name, schema, table in _relations(con)
+                Table(name, tuple(Column(*c) for c in _columns(con, schema, table)), schema, kind, database)
+                for name, schema, table, kind in _relations(con)
             ]
 
     def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
@@ -382,7 +404,7 @@ class DuckDB:
 
     def _place(self, con: Any, table: str) -> tuple[str, str]:
         wanted = str(table).casefold()
-        for listed, schema, name in _relations(con):
+        for listed, schema, name, _ in _relations(con):
             if listed.casefold() == wanted:
                 return schema, name
         raise AdapterError(f"{self.name} has no table {table!r}.")
@@ -429,18 +451,19 @@ class DuckDB:
         return made.to_reader()
 
 
-def _relations(con: Any) -> list[tuple[str, str, str]]:
+def _relations(con: Any) -> list[tuple[str, str, str, str]]:
     """Each table and view of the database: its listed name (table, or schema.table outside main), schema,
-    name."""
+    name, kind (BASE TABLE or VIEW, as information_schema says)."""
     rows = con.sql(
-        "SELECT schema_name, table_name FROM duckdb_tables() WHERE database_name = current_database() "
-        "AND NOT internal UNION ALL SELECT schema_name, view_name FROM duckdb_views() "
+        "SELECT schema_name, table_name, 'BASE TABLE' FROM duckdb_tables() "
+        "WHERE database_name = current_database() AND NOT internal UNION ALL "
+        "SELECT schema_name, view_name, 'VIEW' FROM duckdb_views() "
         "WHERE database_name = current_database() AND NOT internal ORDER BY 1, 2"
     ).fetchall()
-    return [(t if s == "main" else f"{s}.{t}", s, t) for s, t in rows]
+    return [(t if s == "main" else f"{s}.{t}", s, t, k) for s, t, k in rows]
 
 
-def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool]]:
+def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool, bool]]:
     keys = {
         str(c)
         for row in con.sql(
@@ -452,11 +475,12 @@ def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool]]:
         for c in row[0] or []
     }
     rows = con.sql(
-        "SELECT column_name, data_type FROM duckdb_columns() WHERE database_name = current_database() "
-        "AND schema_name = ? AND table_name = ? ORDER BY column_index",
+        "SELECT column_name, data_type, is_nullable FROM duckdb_columns() "
+        "WHERE database_name = current_database() AND schema_name = ? AND table_name = ? "
+        "ORDER BY column_index",
         params=[schema, table],
     ).fetchall()
-    return [(str(n), str(t), str(n) in keys) for n, t in rows]
+    return [(str(n), str(t), str(n) in keys, bool(nullable)) for n, t, nullable in rows]
 
 
 def _stream(
@@ -611,7 +635,10 @@ def _closing(reader: Any, answer: Any) -> Iterator[pa.RecordBatch]:
 # ----- SQL databases: any DB-API connection, its dialect's rules as data -----
 
 _INFO_COLUMNS = (
-    "SELECT c.table_schema, c.table_name, c.column_name, c.data_type FROM information_schema.columns c "
+    "SELECT c.table_schema, c.table_name, c.column_name, c.data_type, t.table_type, c.is_nullable, "
+    "c.table_catalog FROM information_schema.columns c JOIN information_schema.tables t "
+    "ON t.table_catalog = c.table_catalog AND t.table_schema = c.table_schema "
+    "AND t.table_name = c.table_name "
     "WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA', 'sys') {where}"
     "ORDER BY c.table_schema, c.table_name, c.ordinal_position"
 )
@@ -666,7 +693,8 @@ DIALECTS: dict[str, Dialect] = {
     ),
     "sqlite": Dialect(
         "sqlite",
-        columns="SELECT 'main', m.name, p.name, p.type FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        columns="SELECT 'main', m.name, p.name, p.type, m.type, CASE WHEN p.\"notnull\" = 1 THEN 'NO' ELSE "
+        "'YES' END FROM sqlite_master m JOIN pragma_table_info(m.name) p "
         "WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite_%' ORDER BY m.name, p.cid",
         keys="SELECT 'main', m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p "
         "WHERE m.type = 'table' AND p.pk > 0",
@@ -804,10 +832,18 @@ class Sql:
             else set()
         )
         listed: dict[tuple[str, str], list[Column]] = {}
-        for schema, table, column, kind in self._rows(self.dialect.columns):
-            place = (str(schema), str(table))
-            listed.setdefault(place, []).append(Column(str(column), str(kind), (*place, str(column)) in keys))
-        return [Table(self._listed(s, t), tuple(cols)) for (s, t), cols in listed.items()]
+        about: dict[tuple[str, str], tuple[str, str]] = {}  # (kind, database) as the listing says
+        for row in self._rows(self.dialect.columns):
+            schema, table, column, kind = (str(v) for v in row[:4])
+            place = (schema, table)
+            nullable = (
+                None if len(row) < 6 or row[5] is None else str(row[5]).upper() in ("YES", "Y", "1", "TRUE")
+            )
+            listed.setdefault(place, []).append(Column(column, kind, (*place, column) in keys, nullable))
+            about.setdefault(
+                place, (str(row[4] or "") if len(row) > 4 else "", str(row[6] or "") if len(row) > 6 else "")
+            )
+        return [Table(self._listed(s, t), tuple(cols), s, *about[(s, t)]) for (s, t), cols in listed.items()]
 
     def _listed(self, schema: str, table: str) -> str:
         bare = "*" in self.dialect.default_schema or schema in self.dialect.default_schema
@@ -2189,6 +2225,7 @@ __all__ = [
     "TableSource",
     "Tables",
     "Total",
+    "catalog_rows",
     "cursor_batches",
     "define",
     "dialect_sql",

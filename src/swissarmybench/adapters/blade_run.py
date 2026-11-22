@@ -226,6 +226,22 @@ def run_catalog(
         raise _failure(error, secrets, what) from None
 
 
+def adapter_catalog(
+    value: Any, dialect: str, secrets: dict[str, str], label: str
+) -> tuple[list[str], list[list[Any]]]:
+    """A connection's tables listed by the adapter (sab_adapter.tables on its own client, in its dialect), as
+    a catalog's column names and rows, the columns its starter's listing has."""
+    from swissarmybench.adapters import sab_adapter
+
+    try:
+        source = sab_adapter.source_from(value, "" if dialect == "duckdb" else dialect, label)
+        return sab_adapter.catalog_rows(sab_adapter.tables(source))
+    except BaseException as error:
+        if isinstance(error, KeyboardInterrupt | SystemExit):
+            raise
+        raise _failure(error, secrets, f"{label}'s tables") from None
+
+
 # ===== a connection from the user's own Python: its variables, List the tables, Read a table =====
 
 
