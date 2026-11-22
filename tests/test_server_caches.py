@@ -77,8 +77,8 @@ def test_a_secret_saved_or_forgotten_here_is_said_at_once(tmp_path: Path) -> Non
         # Changed outside the app: said once the kept answer is older than SECRET_STATUS_SECONDS.
         vault.values[(KEYRING_SERVICE, "blade/bakery/password")] = "made-up"
         assert store.secret_status("Bakery") == {"password": False}
-        kept = store._saved_status
-        store._saved_status = {
+        kept = store.secrets._saved_status
+        store.secrets._saved_status = {
             user: (when - SECRET_STATUS_SECONDS, saved) for user, (when, saved) in kept.items()
         }
         assert store.secret_status("Bakery") == {"password": True}

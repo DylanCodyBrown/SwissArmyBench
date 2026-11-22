@@ -18,8 +18,12 @@ source of truth: saving it writes the file, a change to the file (a `git pull`) 
 removing one is the user's to do in their folder. A saved blade with the same name comes first.
 
 A blade's own secrets (`secret("password")` in its code) are kept in the vault through `keyring`,
-under the service "SwissArmyBench" and the user name `blade/<name>/<secret>`; the file never holds a
-value. A blade's code is the user's: the routes never show it to the agent.
+under the service "SwissArmyBench" and the user name `blade/<name>/<secret>` (BladeSecrets, the store's
+keyring half); the file never holds a value. A blade's code is the user's: the routes never show it to the
+agent.
+
+What a save may change is the domain's (domain/blade_tables.py: a starter is read-only, a secret blade has no
+code, a name is taken, which secrets follow a rename); the write paths here ask it and do the file work.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ import json
 import os
 import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -36,7 +40,16 @@ from typing import Any
 from swissarmybench.adapters.atomic_files import write_atomic
 from swissarmybench.domain import blades as rules
 from swissarmybench.domain import library, snippets
-from swissarmybench.domain.blade_tables import follow_variable, stamp, with_code, with_header
+from swissarmybench.domain.blade_tables import (
+    SecretsMove,
+    follow_variable,
+    may_change,
+    may_take,
+    secrets_after_rename,
+    stamp,
+    with_code,
+    with_header,
+)
 from swissarmybench.domain.blade_templates import gone_starter
 from swissarmybench.domain.blades import (
     Blade,
@@ -97,8 +110,9 @@ class BladeStore:
         # they change.
         self._seen: dict[str, tuple[tuple[int, int], Blade | None, str | None]] = {}
         self.problems: list[dict[str, str]] = []  # files with a blade header that could not be read
-        # A secret's vault entry (its user) -> (when looked, whether a value is saved): never the value.
-        self._saved_status: dict[str, tuple[float, bool]] = {}
+        # The blades' own secrets in the operating system's vault (type(self)._keyring: a subclass's own,
+        # client/standalone.py's for a Python with no keyring package).
+        self.secrets = BladeSecrets(type(self)._keyring)
         # A starter's name (ignoring case) -> its file, from the last listing of the starters.
         self._starter_index: dict[str, str] = {}
 
@@ -419,8 +433,7 @@ class BladeStore:
         read-only."""
         with self._lock:
             blade = self.get(name)
-            if blade.pack == rules.STARTERS:
-                raise BladeError(f"{blade.name} is a starter (read-only): copy it as your own to change.")
+            may_change(blade.name, blade.pack, blade.kind)
             path = self.file_of(blade.name)
             if path is None:
                 raise BladeError(f"{blade.name} has no file to change.")
@@ -434,22 +447,29 @@ class BladeStore:
                 return blade
             renamed = after.name.casefold() != blade.name.casefold()
             if renamed:
-                try:
-                    taken: Blade | None = self.get(after.name)
-                except KeyError:
-                    taken = None
-                if taken is not None:
-                    raise BladeError(f"A blade named {taken.name!r} already exists. Pick another name.")
+                may_take(after.name, self._taken(after.name))
             written = (b"\xef\xbb\xbf" if bom else b"") + with_header(text, after.to_json()).encode("utf-8")
             write_atomic(path, written)  # the file's own mode kept
             self._seen.pop(str(path), None)
             if renamed:
-                for secret in blade.secrets:
-                    value = self._secret(blade.name, secret)
-                    if value is not None:
-                        self._set_secret(after.name, secret, value)
-                    self._delete_secret(blade.name, secret)
+                self._secrets_follow(blade, after)
             return self.get(after.name)
+
+    def _taken(self, name: str) -> str | None:
+        """The blade answering to `name` now (a saved one, a folder's, a starter's): its name, or None."""
+        try:
+            return self.get(name).name
+        except KeyError:
+            return None
+        except BladeError:  # a starter's name that went: no blade answers to it
+            return None
+
+    def _secrets_follow(self, was: Blade, now: Blade) -> None:
+        """A rename, once its file is written: its saved secrets moved by the one rule
+        (domain/blade_tables.py secrets_after_rename), never one another blade still reads."""
+        still = self._taken(was.name)
+        still_read = self.get(still).secrets if still is not None else ()
+        self.secrets.move(was.name, now.name, secrets_after_rename(was.secrets, now.secrets, still_read))
 
     def stamp_of(self, name: str) -> str:
         """The blade's file's stamp (its bytes' digest), "" when it has none."""
@@ -466,14 +486,7 @@ class BladeStore:
         change. A starter's is read-only."""
         with self._lock:
             blade = self.get(name)
-            if blade.pack == rules.STARTERS:
-                raise BladeError(
-                    f"{blade.name} is a starter (read-only): Copy as your own (blades_copy) to change it."
-                )
-            if blade.kind == "secret":
-                raise BladeError(
-                    f"{blade.name} is a secret blade: it has no code, only its variables' names."
-                )
+            may_change(blade.name, blade.pack, blade.kind, code=True)
             path = self.file_of(blade.name)
             if path is None:
                 raise BladeError(f"{blade.name} has no file to change.")
@@ -504,17 +517,12 @@ class BladeStore:
                     previous = self.get(previous_name)
                 except KeyError:
                     raise BladeError(f"No blade named {previous_name!r} to change.") from None
-            if previous is not None and previous.pack == rules.STARTERS:
-                raise BladeError(f"{previous.name} is a starter (read-only): copy it as your own to change.")
+            if previous is not None:
+                may_change(previous.name, previous.pack, previous.kind)
             blade = parse_blade(data, previous)
             renamed = previous is not None and previous.name.casefold() != blade.name.casefold()
             if previous is None or renamed:
-                try:
-                    taken = self.get(blade.name)
-                except KeyError:
-                    taken = None
-                if taken is not None:
-                    raise BladeError(f"A blade named {taken.name!r} already exists. Pick another name.")
+                may_take(blade.name, self._taken(blade.name))
             if previous is None and isinstance(data, dict) and data.get("folder"):
                 blade.path = str(self._new_file(str(data["folder"]), blade.name))
             if previous is None and isinstance(data, dict) and data.get("library_folder"):
@@ -522,13 +530,10 @@ class BladeStore:
             old = self.saved_file(previous.name) if previous is not None and not previous.path else None
             written = self._write(blade, None if renamed else old)
             if renamed and previous is not None:
-                for secret in previous.secrets:
-                    value = self._secret(previous.name, secret)
-                    if value is not None and secret in blade.secrets:
-                        self._set_secret(blade.name, secret, value)
-                    self._delete_secret(previous.name, secret)
                 if old is not None and old != written:
                     old.unlink(missing_ok=True)
+                    self._seen.pop(str(old), None)
+                self._secrets_follow(previous, blade)
             return blade
 
     def adopt(self, blade: Blade) -> Path:
@@ -568,7 +573,7 @@ class BladeStore:
             blade = self.get(name)
             if self.in_library(blade):
                 for secret in blade.secrets:
-                    self._delete_secret(blade.name, secret)
+                    self.secrets.delete(blade.name, secret)
                 Path(blade.path or "").unlink(missing_ok=True)
                 self._seen.pop(str(blade.path), None)
                 return
@@ -580,87 +585,33 @@ class BladeStore:
                     "there to remove it."
                 )
             for secret in blade.secrets:
-                self._delete_secret(blade.name, secret)
+                self.secrets.delete(blade.name, secret)
             path = self.saved_file(blade.name)
             if path is not None:
                 path.unlink(missing_ok=True)
                 self._seen.pop(str(path), None)
 
-    # ===== secrets, in the operating system's vault =====
+    # ===== secrets, in the operating system's vault (BladeSecrets, below) =====
 
     @staticmethod
     def _keyring() -> Any:
-        import keyring
-        from keyring.backends import fail
-
-        backend = keyring.get_keyring()
-        if isinstance(backend, fail.Keyring):
-            raise VaultUnavailableError(
-                "This computer has no keyring Swiss Army Bench can keep secrets in (Windows Credential "
-                "Manager, macOS Keychain or a Linux Secret Service). Use a key vault, an environment "
-                "variable or a secret blade (typed each session) instead."
-            )
-        return keyring
-
-    @staticmethod
-    def _user(name: str, secret: str) -> str:
-        return f"blade/{name.casefold()}/{secret}"
-
-    def _secret(self, name: str, secret: str) -> str | None:
-        vault, user = self._keyring(), self._user(name, secret)
-        value: str | None = vault.get_password(KEYRING_SERVICE, user)
-        return value
-
-    def _has_secret(self, name: str, secret: str) -> bool:
-        """Whether a value is saved for the secret (kept SECRET_STATUS_SECONDS; raises
-        VaultUnavailableError as _secret does)."""
-        user, now = self._user(name, secret), time.monotonic()
-        kept = self._saved_status.get(user)
-        if kept is not None and now - kept[0] < SECRET_STATUS_SECONDS:
-            return kept[1]
-        saved = self._secret(name, secret) is not None
-        self._saved_status[user] = (now, saved)
-        return saved
-
-    def _set_secret(self, name: str, secret: str, value: str) -> None:
-        try:
-            self._keyring().set_password(KEYRING_SERVICE, self._user(name, secret), value)
-        finally:
-            self._saved_status.pop(self._user(name, secret), None)
-
-    def _delete_secret(self, name: str, secret: str) -> None:
-        try:
-            self._forget_secret(name, secret)
-        finally:
-            self._saved_status.pop(self._user(name, secret), None)
-
-    def _forget_secret(self, name: str, secret: str) -> None:
-        try:
-            self._keyring().delete_password(KEYRING_SERVICE, self._user(name, secret))
-        except VaultUnavailableError:
-            return
-        except Exception:
-            return
+        """The operating system's vault (keyring), or VaultUnavailableError (variables, Git and the
+        standalone client use it too)."""
+        return BladeSecrets.system_keyring()
 
     def copy_secrets(self, source: str, target: str) -> None:
         """A blade kept under a new name (a project's, beside the library's own): the values saved under the
         old name, saved under the new one too (none here: nothing to copy)."""
         try:
             blade = self.get(target)
-            for secret in blade.secrets:
-                value = self._secret(source, secret)
-                if value is not None:
-                    self._set_secret(blade.name, secret, value)
-        except (KeyError, VaultUnavailableError):
+        except KeyError:
             return
+        self.secrets.copy(source, blade.name, blade.secrets)
 
     def secret_status(self, name: str | Blade) -> dict[str, bool]:
         """Each secret the blade's code asks for, and whether a value is saved (never the value)."""
         blade = name if isinstance(name, Blade) else self.get(name)
-        try:
-            return {s: self._has_secret(blade.name, s) for s in blade.secrets}
-        except VaultUnavailableError:
-            return {s: False for s in blade.secrets}
+        return self.secrets.status(blade.name, blade.secrets)
 
     def set_secrets(self, name: str, values: Any) -> dict[str, bool]:
         """Save (text) or forget (null) the blade's secrets. Only names its code asks for."""
@@ -671,24 +622,16 @@ class BladeStore:
             if secret not in blade.secrets:
                 raise BladeError(f"The blade's code never asks for secret({secret!r}).")
             if value is None:
-                self._delete_secret(blade.name, secret)
+                self.secrets.delete(blade.name, secret)
             elif isinstance(value, str) and 0 < len(value) <= 10_000:
-                self._set_secret(blade.name, secret, value)
+                self.secrets.set(blade.name, secret, value)
             else:
                 raise BladeError(f"{secret}: a secret is 1 to 10,000 characters of text.")
         return self.secret_status(name)
 
     def saved_secrets(self, blade: Blade) -> dict[str, str]:
         """The saved values, for running the blade (the client's sab.blade, the server's Refresh)."""
-        values: dict[str, str] = {}
-        try:
-            for secret in blade.secrets:
-                value = self._secret(blade.name, secret)
-                if value is not None:
-                    values[secret] = value
-        except VaultUnavailableError:
-            return {}
-        return values
+        return self.secrets.values(blade.name, blade.secrets)
 
     # ===== what a blade needs from vault and secret blades =====
 
@@ -698,7 +641,7 @@ class BladeStore:
         """For the secrets the blade asks for and has no saved value for: the vault blades that set
         them (to run first), and the variables a secret blade asks the user for (name -> that blade)."""
         try:
-            missing = [s for s in blade.secrets if not self._has_secret(blade.name, s)]
+            missing = [s for s in blade.secrets if not self.secrets.has(blade.name, s)]
         except VaultUnavailableError:
             missing = list(blade.secrets)
         # A setting's ${NAME} (12.7): the code reads os.environ["NAME"], which a vault's entry may give.
@@ -720,3 +663,106 @@ class BladeStore:
                     if env in missing:
                         typed.setdefault(env, other.name)
         return vaults, typed
+
+
+class BladeSecrets:
+    """A blade's own secrets (`secret("password")` in its code) in the operating system's vault through
+    keyring: the service "SwissArmyBench", the user `blade/<name>/<secret>`. Never a value in a file, an
+    answer or a log. Whether one is saved is kept SECRET_STATUS_SECONDS (a listing asks for every blade's);
+    a save or forget here clears it at once."""
+
+    def __init__(self, keyring: Callable[[], Any]) -> None:
+        self._keyring = keyring  # the vault, or VaultUnavailableError
+        # A secret's vault entry (its user) -> (when looked, whether a value is saved): never the value.
+        self._saved_status: dict[str, tuple[float, bool]] = {}
+
+    @staticmethod
+    def system_keyring() -> Any:
+        import keyring
+        from keyring.backends import fail
+
+        backend = keyring.get_keyring()
+        if isinstance(backend, fail.Keyring):
+            raise VaultUnavailableError(
+                "This computer has no keyring Swiss Army Bench can keep secrets in (Windows Credential "
+                "Manager, macOS Keychain or a Linux Secret Service). Use a key vault, an environment "
+                "variable or a secret blade (typed each session) instead."
+            )
+        return keyring
+
+    @staticmethod
+    def user(name: str, secret: str) -> str:
+        return f"blade/{name.casefold()}/{secret}"
+
+    def get(self, name: str, secret: str) -> str | None:
+        """The saved value (raises VaultUnavailableError with no vault)."""
+        value: str | None = self._keyring().get_password(KEYRING_SERVICE, self.user(name, secret))
+        return value
+
+    def has(self, name: str, secret: str) -> bool:
+        """Whether a value is saved (raises VaultUnavailableError as get does)."""
+        user, now = self.user(name, secret), time.monotonic()
+        kept = self._saved_status.get(user)
+        if kept is not None and now - kept[0] < SECRET_STATUS_SECONDS:
+            return kept[1]
+        saved = self.get(name, secret) is not None
+        self._saved_status[user] = (now, saved)
+        return saved
+
+    def set(self, name: str, secret: str, value: str) -> None:
+        try:
+            self._keyring().set_password(KEYRING_SERVICE, self.user(name, secret), value)
+        finally:
+            self._saved_status.pop(self.user(name, secret), None)
+
+    def delete(self, name: str, secret: str) -> None:
+        """Forgotten (nothing saved, or no vault: nothing to forget)."""
+        try:
+            self._keyring().delete_password(KEYRING_SERVICE, self.user(name, secret))
+        except Exception:  # VaultUnavailableError, keyring's PasswordDeleteError: nothing saved
+            return
+        finally:
+            self._saved_status.pop(self.user(name, secret), None)
+
+    def move(self, old: str, new: str, plan: SecretsMove) -> None:
+        """A rename's secrets (domain/blade_tables.py secrets_after_rename): each followed one copied to the
+        new name first, then the dropped ones removed from the old name; a copy that fails stops before
+        anything is removed. No vault: nothing is saved, so nothing moves."""
+        try:
+            for secret in plan.follow:
+                value = self.get(old, secret)
+                if value is not None:
+                    self.set(new, secret, value)
+        except VaultUnavailableError:
+            return
+        for secret in plan.drop:
+            self.delete(old, secret)
+
+    def copy(self, source: str, target: str, secrets: Sequence[str]) -> None:
+        """The values saved under `source` saved under `target` too (none saved, or no vault: nothing)."""
+        try:
+            for secret in secrets:
+                value = self.get(source, secret)
+                if value is not None:
+                    self.set(target, secret, value)
+        except VaultUnavailableError:
+            return
+
+    def status(self, name: str, secrets: Sequence[str]) -> dict[str, bool]:
+        """Each secret, and whether a value is saved (never the value); none with no vault."""
+        try:
+            return {s: self.has(name, s) for s in secrets}
+        except VaultUnavailableError:
+            return {s: False for s in secrets}
+
+    def values(self, name: str, secrets: Sequence[str]) -> dict[str, str]:
+        """The saved values, for a run; none with no vault."""
+        found: dict[str, str] = {}
+        try:
+            for secret in secrets:
+                value = self.get(name, secret)
+                if value is not None:
+                    found[secret] = value
+        except VaultUnavailableError:
+            return {}
+        return found

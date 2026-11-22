@@ -359,7 +359,7 @@ def test_a_starter_is_read_only_and_copies_as_your_own(client: TestClient) -> No
     name = "Excel%20make%20a%20workbook"
     starter = client.get(f"/blades/{name}", headers=AUTH).json()
     changed = client.put(f"/blades/{name}", json=starter | {"description": "mine"}, headers=AUTH)
-    assert changed.status_code == 400 and "starter (read-only): copy it as your own" in changed.text
+    assert changed.status_code == 400 and "starter (read-only): Copy as your own" in changed.text
     assert "comes with the app" in client.delete(f"/blades/{name}", headers=AUTH).text
     copied = client.post(f"/blades/{name}/copy", headers=AUTH).json()
     assert copied["name"] == "Excel make a workbook copy" and copied["source"] == "saved"

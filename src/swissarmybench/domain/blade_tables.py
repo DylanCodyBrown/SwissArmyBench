@@ -13,6 +13,10 @@ The name is checked as it is typed, against: a table's name rule (a dataset's: 1
 are always listed. A connection saved before with no listing query is given its starter's (by its
 template, else by its SQL dialect) when it is read: `listing_for`.
 
+What a save may change (the craft review, 2026-11-22): a starter is read-only, a secret blade has no code, a
+name is another blade's, and which saved secrets follow a rename (`secrets_after_rename`), one sentence each;
+the store's three write paths (adapters/blades.py) ask these.
+
 Standard library only; no I/O.
 """
 
@@ -25,6 +29,7 @@ from dataclasses import dataclass
 
 from swissarmybench.domain.blades import (
     HEADER_TYPE,
+    STARTERS,
     TABLE_NAME_RULE,
     BladeCodeError,
     PortableError,
@@ -282,3 +287,62 @@ def new_blades(templates: Sequence[Template]) -> list[dict[str, object]]:
 # What a blade's code is given before it runs (adapters/blade_run.py's secret()), told to the lint so it is
 # never an undefined name.
 SECRET_STUB: str = "def secret(name: str) -> str: ...\n"  # noqa: S105 (a stub, no value)
+
+
+# ===== what a save may change (adapters/blades.py's write paths: Properties, the IDE's Save, save) =====
+#
+# One rule, one sentence each (the craft review, 2026-11-22: the store wrote "a starter is read-only" three
+# ways and moved a renamed blade's secrets two ways).
+
+
+def starter_read_only(name: str) -> str:
+    """A starter comes with the app: never changed in place."""
+    return f"{name} is a starter (read-only): Copy as your own (blades_copy) to change it."
+
+
+def secret_blade_no_code(name: str) -> str:
+    """A secret blade holds its variables' names only."""
+    return f"{name} is a secret blade: it has no code, only its variables' names."
+
+
+def name_taken(name: str) -> str:
+    """Another blade answers to the name already (a saved one, a blade folder's, a starter's)."""
+    return f"A blade named {name!r} already exists. Pick another name."
+
+
+def may_change(name: str, pack: str | None, kind: str, code: bool = False) -> None:
+    """Whether the blade `name` may be written: never a starter's; never code into a secret blade.
+    Raises BladeError with the rule's one sentence."""
+    if pack == STARTERS:
+        raise _BladeError(starter_read_only(name))
+    if code and kind == "secret":
+        raise _BladeError(secret_blade_no_code(name))
+
+
+def may_take(name: str, taken: str | None) -> None:
+    """A new blade, or a rename, takes a name only no other blade answers to (`taken`: the one that does,
+    as it is written, or None). Raises BladeError."""
+    if taken is not None:
+        raise _BladeError(name_taken(taken))
+
+
+@dataclass(frozen=True)
+class SecretsMove:
+    """What a rename does to the blade's saved secrets (the keyring's `blade/<name>/<secret>`): `follow`
+    copied to the new name, then `drop` removed from the old one. Whatever another blade still reads under
+    the old name stays there."""
+
+    follow: tuple[str, ...]
+    drop: tuple[str, ...]
+
+
+def secrets_after_rename(
+    had: Iterable[str], names: Iterable[str], still_read: Iterable[str] = ()
+) -> SecretsMove:
+    """A blade renamed: of the secrets it `had` under its old name, those its code still `names` follow it
+    to the new name; each is removed from the old name unless a blade that still answers to the old name (a
+    blade folder's, once a saved one of the same name is renamed) reads it (`still_read`). Never a secret a
+    blade still needs: one followed is copied before the old is removed, one still read is kept."""
+    kept, read = set(names), set(still_read)
+    had = list(dict.fromkeys(had))
+    return SecretsMove(follow=tuple(s for s in had if s in kept), drop=tuple(s for s in had if s not in read))
