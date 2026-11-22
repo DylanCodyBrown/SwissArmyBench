@@ -614,44 +614,126 @@ export function dragResize(handle: HTMLElement, options: DragOptions): void {
   });
 }
 
-/** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
-export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
-  document.querySelector(".menu")?.remove();
-  const extra = extraMenuItems().map((e): MenuItem => [e.icon, e.label, e.run]);
-  if (extra.length) items = items.length ? [...items, "-", ...extra] : extra;
-  const menu = h(
-    "div",
-    { class: "menu context-menu", role: "menu", "aria-label": label },
-    h("div", { class: "menu-label" }, label),
-    ...items.map((item) =>
-      item === "-"
-        ? h("div", { class: "menu-rule", role: "separator" })
-        : h("button", { type: "button", role: "menuitem", disabled: Boolean(item[3]), title: item[3], onclick: () => { menu.remove(); item[2](); } }, icon(item[0]), item[1]),
-    ),
-  );
+/** A menu's entry with everything a menu here shows: its words, an icon, a key at the right, a tick, a rule
+ *  above it (the start of a group), a menu of its own beside it. */
+export interface MenuEntry {
+  label: string;
+  icon?: string;
+  run?: () => void;
+  /** It cannot be used now; `why` says so as its tooltip. */
+  disabled?: boolean;
+  why?: string;
+  /** Its key, shown at the right. */
+  key?: string;
+  /** A tick (a checkbox entry). */
+  checked?: boolean;
+  /** A rule above it: the start of a group. */
+  group?: boolean;
+  /** A menu of its own, opened beside it (on a click or resting on it): given where. */
+  sub?: (x: number, y: number) => void;
+}
+
+export interface MenuLook {
+  /** The classes of the menu, an entry and a rule (default: the app's context menu). */
+  menu?: string;
+  item?: string;
+  rule?: string;
+  /** Its label as a heading at the top (default: yes). */
+  heading?: boolean;
+  /** Close on a press outside it (default: yes; no: the caller closes it with its own floating panels). */
+  away?: boolean;
+  /** Before an entry's `run`: the caller's own closing (its submenus). */
+  closing?: () => void;
+}
+
+/** The app's one menu (the craft review of 2026-11-22: five menus had each their own): at the pointer, kept
+ *  inside the window, the first entry focused, arrow keys move, Escape closes, a press outside closes. Every
+ *  menu is this one: showMenu's plain entries, and a menu with keys, ticks and submenus (the Canvas's). */
+export function showEntries(x: number, y: number, label: string, entries: MenuEntry[], look: MenuLook = {}): HTMLElement {
+  const plain = !look.menu;
+  if (plain) document.querySelector(".menu")?.remove();
+  const menu = h("div", { class: look.menu ?? "menu context-menu", role: "menu", "aria-label": label });
+  if (look.heading !== false) menu.append(h("div", { class: "menu-label" }, label));
+  const close = (): void => menu.remove();
+  for (const item of entries) {
+    if (item.group) menu.append(h("div", { class: look.rule ?? "menu-rule", role: "separator" }));
+    const row = h(
+      "button",
+      {
+        type: "button",
+        role: item.checked === undefined ? "menuitem" : "menuitemcheckbox",
+        class: look.item,
+        disabled: Boolean(item.disabled || item.why),
+        title: item.why,
+        "aria-checked": item.checked === undefined ? undefined : String(item.checked),
+        "aria-haspopup": item.sub ? "menu" : undefined,
+      },
+      item.icon !== undefined ? icon(item.icon) : null,
+      // A menu with ticks keeps their column, so its words line up.
+      plain ? null : h("span", { class: "cvs-check" }, item.checked ? "✓" : ""),
+      plain ? item.label : h("span", {}, item.label),
+      item.key ? h("kbd", { class: "cvs-menu-key" }, item.key) : null,
+      item.sub ? h("span", { class: "cvs-sub" }, "▸") : null,
+    );
+    row.addEventListener("click", () => {
+      if (item.sub) {
+        const r = row.getBoundingClientRect();
+        item.sub(r.right, r.top);
+        return;
+      }
+      close();
+      look.closing?.();
+      item.run?.();
+    });
+    if (item.sub) row.addEventListener("mouseenter", () => row.click());
+    menu.append(row);
+  }
   // A modal dialog makes the rest of the page inert: a menu opened from one lives inside it (as toasts do).
   ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body).append(menu);
   menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
   (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
-  setTimeout(() => {
-    const away = (event: Event): void => {
-      if (!menu.contains(event.target as Node)) {
-        menu.remove();
-        document.removeEventListener("mousedown", away);
-        document.removeEventListener("contextmenu", away);
-      }
-    };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("contextmenu", away);
-  });
+  if (look.away !== false) {
+    setTimeout(() => {
+      const away = (event: Event): void => {
+        if (!menu.contains(event.target as Node)) {
+          close();
+          document.removeEventListener("mousedown", away);
+          document.removeEventListener("contextmenu", away);
+        }
+      };
+      document.addEventListener("mousedown", away);
+      document.addEventListener("contextmenu", away);
+    });
+  }
   menu.addEventListener("keydown", (event) => {
     const buttons = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    if (event.key === "Escape") menu.remove();
-    else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();
+    if (event.key === "Escape") {
+      close();
+      look.closing?.();
+    } else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();
     else if (event.key === "ArrowUp") buttons[(at - 1 + buttons.length) % buttons.length]?.focus();
     else return;
     event.preventDefault();
+    event.stopPropagation(); // the key was the menu's: a page's own arrows and Escape do not also act
   });
+  return menu;
+}
+
+/** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
+export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
+  const extra = extraMenuItems().map((e): MenuItem => [e.icon, e.label, e.run]);
+  if (extra.length) items = items.length ? [...items, "-", ...extra] : extra;
+  const entries: MenuEntry[] = [];
+  let rule = false;
+  for (const item of items) {
+    if (item === "-") {
+      rule = true;
+      continue;
+    }
+    entries.push({ icon: item[0], label: item[1], run: item[2], why: item[3], group: rule });
+    rule = false;
+  }
+  showEntries(x, y, label, entries);
 }

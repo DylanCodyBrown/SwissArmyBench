@@ -37,7 +37,7 @@ import { analyzerAddress, openAnalyzer, openBuilds } from "./canvasBuilds";
 import { type Guide, type Rect } from "./canvasSnap";
 import { dotSpacing, gridLines, nudgeBy, snapRect, type Step } from "./canvasGrid";
 import { watchTheme } from "./catalogRail";
-import { askText, button, clear, h, icon, toast } from "./dom";
+import { askText, button, clear, h, icon, type MenuEntry, showEntries, toast } from "./dom";
 import { clearError, errorHere, showError } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import { busy, loadingBlock } from "./loading";
@@ -855,18 +855,6 @@ viewport.addEventListener(
 
 // ===== menus =====
 
-interface MenuEntry {
-  label: string;
-  /** Its key, shown at the right. */
-  key?: string;
-  /** A line above it: the start of a group. */
-  group?: boolean;
-  run?: () => void;
-  sub?: (x: number, y: number) => void;
-  checked?: boolean;
-  disabled?: boolean;
-}
-
 let floatingOpen: HTMLElement[] = [];
 function closeFloating(): void {
   for (const f of floatingOpen) f.remove();
@@ -884,31 +872,12 @@ document.addEventListener("pointerdown", (e) => {
   if (!(e.target as HTMLElement).closest(".cvs-menu")) closeFloating();
 });
 
+/** A menu of the Canvas: the app's one menu (dom.ts showEntries: kept inside the window, arrow keys,
+ *  Escape) in the Canvas's look, with its keys, ticks and submenus; it closes with the page's other floating
+ *  panels (a press outside, a pick). */
 function menu(x: number, y: number, entries: MenuEntry[]): void {
-  const element = h("div", { class: "cvs-menu", role: "menu" });
-  for (const item of entries) {
-    const row = h(
-      "button",
-      { type: "button", role: item.checked === undefined ? "menuitem" : "menuitemcheckbox", class: "cvs-menu-item", disabled: item.disabled, "aria-checked": item.checked === undefined ? undefined : String(item.checked) },
-      h("span", { class: "cvs-check" }, item.checked ? "✓" : ""),
-      h("span", {}, item.label),
-      item.key ? h("kbd", { class: "cvs-menu-key" }, item.key) : null,
-      item.sub ? h("span", { class: "cvs-sub" }, "▸") : null,
-    );
-    if (item.group) element.append(h("div", { class: "cvs-menu-sep", role: "separator" }));
-    row.addEventListener("click", () => {
-      if (item.sub) {
-        const r = row.getBoundingClientRect();
-        item.sub(r.right, r.top);
-        return;
-      }
-      closeFloating();
-      item.run?.();
-    });
-    if (item.sub) row.addEventListener("mouseenter", () => row.click());
-    element.append(row);
-  }
-  floating(element, x, y);
+  closeFloating();
+  floatingOpen.push(showEntries(x, y, "Canvas", entries, { menu: "cvs-menu", item: "cvs-menu-item", rule: "cvs-menu-sep", heading: false, away: false, closing: closeFloating }));
 }
 
 /** Play's ▾ (and the run group's middle): Launch, Launch with the Performance Analyzer, the analyzer's window
