@@ -290,9 +290,13 @@ def catalog_rows(listed: Sequence[Table]) -> tuple[list[str], list[list[Any]]]:
 
 @dataclass(frozen=True)
 class Counts:
+    """A write's rows each way; `notes`: what the source says beside them (a passing error run again, MERGE
+    refused and done in two statements)."""
+
     inserted: int = 0
     updated: int = 0
     deleted: int = 0
+    notes: tuple[str, ...] = ()
 
     @property
     def rows(self) -> int:
@@ -956,9 +960,9 @@ def _bound(style: str, params: list[Any]) -> Any:
 
 
 def table_name(dialect: Dialect, table: str) -> str:
-    """A listed name ("schema.table", or "table" in its default schema) quoted for `dialect`."""
-    schema, _, name = str(table).partition(".")
-    return f"{dialect.quote(schema)}.{dialect.quote(name)}" if name else dialect.quote(schema)
+    """A listed name ("schema.table", "table" in its default schema, or "catalog.schema.table": Trino's, SQL
+    Server's database.schema.table) quoted for `dialect`, each part on its own."""
+    return ".".join(dialect.quote(part) for part in str(table).split(".", 2))
 
 
 def paramstyle(connection: Any) -> str:
@@ -982,12 +986,16 @@ class Sql:
         name: str = "",
         style: str = "",
         value: Callable[[Any], Any] | None = None,
+        reopen: Callable[[], Any] | None = None,
+        identity_insert: bool = False,
     ) -> None:
         self.connection = connection
         self.dialect = dialect if isinstance(dialect, Dialect) else DIALECTS[dialect]
         self.name = name or self.dialect.name
         self.style = style or paramstyle(getattr(connection, "raw", connection))
         self._value = value  # a value as the driver takes it, when the caller knows better (a Write starter)
+        self.reopen = reopen  # a fresh connection for a write run again after a passing error (SQL Server)
+        self.identity_insert = identity_insert  # SQL Server: the rows' own values go into its identity column
 
     def tables(self) -> list[Table]:
         keys = (
@@ -1072,6 +1080,8 @@ class Sql:
             raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
         if mode in KEYED and not key:
             raise AdapterError(f"A {mode} names the key its rows are matched by.")
+        if self.dialect.name == "sqlserver":
+            return _server_written(self, table, batches, list(key), mode)
         if not self.dialect.transactional:
             raise AdapterError(f"{self.name} takes no transactions, so a write could not be all or none.")
         target = table_name(self.dialect, table)
@@ -1130,6 +1140,20 @@ class Sql:
         if isinstance(value, dt.date | dt.time):
             return value.isoformat()
         return value
+
+    def planned(self, table: str, rows: pa.Table, key: Sequence[str], mode: str) -> Counts:
+        """A write's dry run on this database: SQL Server's keys staged and counted by one join (then rolled
+        back); any other's by reads."""
+        if self.dialect.name == "sqlserver":
+            return _server_planned(self, table, rows, list(key), mode)
+        return counted_by_reads(self, table, rows, key, mode)
+
+    def statements(self, table: str, names: Sequence[str], key: Sequence[str], mode: str) -> list[str]:
+        """What a write will run here, in its own SQL, for a dry run's report (SQL Server's; []:
+        the generic INSERT, UPDATE and DELETE, which a caller says itself)."""
+        if self.dialect.name == "sqlserver":
+            return _server_statements(self, table, list(names), list(key), mode)
+        return []
 
 
 def _quietly(close: Callable[[], Any]) -> None:
@@ -1192,13 +1216,17 @@ def _sql_written(
         try:
             _sql_batch(db, cursor, batch.to_pylist(), mode, said, counts)
         except Exception as error:
-            failed = Batch(number, before, batch.num_rows)
-            with contextlib.suppress(AttributeError, TypeError):  # a driver's error that takes no attribute
-                error.sab_batch = failed  # type: ignore[attr-defined]
-            error.add_note(f"{failed.where()} of the write to {target}")
+            _batch_noted(error, Batch(number, before, batch.num_rows), target)
             raise
         before += batch.num_rows
     return Counts(counts["inserted"], counts["updated"], counts["deleted"])
+
+
+def _batch_noted(error: BaseException, failed: Batch, target: str) -> None:
+    """The batch a write's error came from, beside the source's own error (error.sab_batch and its notes)."""
+    with contextlib.suppress(AttributeError, TypeError):  # a driver's error that takes no attribute
+        error.sab_batch = failed  # type: ignore[attr-defined]
+    error.add_note(f"{failed.where()} of the write to {target}")
 
 
 def _many(db: Sql, cursor: Any, sql: str, rows: list[list[Any]]) -> int:
@@ -1285,6 +1313,488 @@ def _rows_batch(names: list[str], rows: Sequence[Sequence[Any]], schema: pa.Sche
             made = made.cast(pa.string())
         arrays.append(made)
     return pa.RecordBatch.from_arrays(arrays, names=names) if names else pa.RecordBatch.from_pylist([])
+
+
+# ----- SQL Server and Azure SQL writes: staged in the target's own types, merged, run again whole -----
+# The SQL Server Write starter's robustness, moved in (phase 5; the owner, 2026-11-17: "SQL server and azure
+# SQL are two things I use alot so make them robust"). A write here:
+#   types      read from the target (sys.columns): keyed rows staged in a #temp table of exactly those types,
+#              the driver told each text's, decimal's and datetime2's size (setinputsizes), so varchar stays
+#              varchar, nvarchar Unicode, a decimal its scale; NaN is NULL, an id a uniqueidentifier's text,
+#              a zoned time a datetimeoffset's
+#   inserts    executemany, one round trip a batch (mssql-python binds arrays itself; an older pyodbc
+#              connection's fast_executemany), batches sized by the rows' width
+#   merges     the rows staged, then one MERGE ... WITH (HOLDLOCK) (where MERGE is refused: UPDATE, then
+#              INSERT, in the same transaction); an update and a delete join the staged rows or keys
+#   truncate   TRUNCATE TABLE in the transaction (where a foreign key refuses it: DELETE FROM)
+#   identity   the rows' own values in the identity column only with identity_insert (SET IDENTITY_INSERT)
+#   retries    Azure's passing errors, a deadlock, a dropped connection: the WHOLE transaction again, on a
+#              fresh connection, after 1, 2, 4 seconds; never half of one
+#   dry run    the keys staged, one COUNT join (no row fetched), then rolled back
+
+TRANSIENT_ERRORS: frozenset[str] = frozenset(
+    {"40613", "40197", "40501", "49918", "49919", "49920", "10928", "10929", "4221", "1205"}
+)
+TRANSIENT_STATES: frozenset[str] = frozenset({"08S01", "08001", "40001", "HYT00", "HYT01"})
+TRANSIENT_SOCKETS: frozenset[str] = frozenset({"10053", "10054", "10060"})
+TRANSIENT_WORDS: tuple[str, ...] = (  # mssql-python says the server's words without the number
+    "not currently available",  # 40613
+    "the service has encountered an error processing your request",  # 40197
+    "the service is currently busy",  # 40501
+    "not enough resources to process request",  # 49918
+    "too many create or update operations in progress",  # 49919
+    "too many operations in progress for subscription",  # 49920
+    "the server is currently too busy",  # 10929
+    "limit for the database is",  # 10928
+    "login to read-secondary failed",  # 4221
+    "deadlocked on lock",  # 1205
+    "communication link failure",  # 08S01
+    "error code 0x2745",  # 10053
+    "error code 0x2746",  # 10054
+    "error code 0x274c",  # 10060
+)
+TRIES = 4  # a write met by passing errors is run whole this many times at most
+BATCH_BYTES = 16_000_000  # about this much of values in one executemany batch
+STAGE = "#sab_stage"  # the rows, in the target's own types
+STAGED_KEYS = "#sab_keys"  # their keys, each once (a dry run, a delete)
+_COLLATE = " COLLATE DATABASE_DEFAULT"  # a #temp table's text in the database's collation (not tempdb's)
+_SERVER_COLUMNS = (
+    "SELECT c.name, t.name, c.max_length, c.precision, c.scale, c.is_identity, c.is_computed "
+    "FROM sys.columns AS c JOIN sys.types AS t ON t.user_type_id = c.user_type_id "
+    "WHERE c.object_id = OBJECT_ID(?) ORDER BY c.column_id"
+)
+# A column's type as mssql-python names it, where the target's own type does not size it (its SQL type, size,
+# scale); mssql-python takes a type for every parameter or for none.
+_MSSQL_TYPES: dict[str, tuple[str, int, int]] = {
+    "bit": ("SQL_BIT", 1, 0),
+    "tinyint": ("SQL_TINYINT", 3, 0),
+    "smallint": ("SQL_SMALLINT", 5, 0),
+    "int": ("SQL_INTEGER", 10, 0),
+    "bigint": ("SQL_BIGINT", 19, 0),
+    "real": ("SQL_REAL", 24, 0),
+    "float": ("SQL_DOUBLE", 53, 0),
+    "money": ("SQL_DECIMAL", 19, 4),
+    "smallmoney": ("SQL_DECIMAL", 10, 4),
+    "date": ("SQL_TYPE_DATE", 10, 0),
+    "datetime": ("SQL_TYPE_TIMESTAMP", 23, 3),
+    "smalldatetime": ("SQL_TYPE_TIMESTAMP", 16, 0),
+    "uniqueidentifier": ("SQL_WVARCHAR", 36, 0),  # its text
+    "datetimeoffset": ("SQL_WVARCHAR", 40, 0),  # its text, the zone kept
+}
+
+
+def transient(error: BaseException) -> bool:
+    """Whether a SQL Server error passes by itself, so its transaction is run again: Azure's reconfiguration,
+    busy and throttling errors, a deadlock, a dropped connection (by its SQLSTATE, number or words)."""
+    args = [str(a) for a in getattr(error, "args", ())]
+    if args and args[0] in TRANSIENT_STATES:
+        return True
+    text = " ".join(args) or str(error)
+    if set(re.findall(r"(?<!\d)(\d{4,5})(?!\d)", text)) & (TRANSIENT_ERRORS | TRANSIENT_SOCKETS):
+        return True
+    lowered = text.lower()
+    return any(w in lowered for w in TRANSIENT_WORDS)
+
+
+@dataclass(frozen=True)
+class ServerColumn:
+    """One of a SQL Server table's columns, as sys.columns says it."""
+
+    name: str
+    type: str  # sys.types' name: nvarchar, decimal, datetime2...
+    max_length: int  # bytes; -1 for (max)
+    precision: int
+    scale: int
+    identity: bool = False
+    computed: bool = False
+
+    def declared(self) -> str:
+        """The column's type as T-SQL declares it: nvarchar(40), decimal(12,2), datetime2(7)..."""
+        kind = self.type.lower()
+        if kind in ("nvarchar", "nchar"):
+            return f"{kind}({'max' if self.max_length < 0 else max(1, self.max_length // 2)})"
+        if kind in ("varchar", "char", "varbinary", "binary"):
+            return f"{kind}({'max' if self.max_length < 0 else max(1, self.max_length)})"
+        if kind in ("decimal", "numeric"):
+            return f"{kind}({self.precision},{self.scale})"
+        if kind in ("datetime2", "datetimeoffset", "time"):
+            return f"{kind}({self.scale})"
+        return kind
+
+    @property
+    def text(self) -> bool:
+        return self.type.lower() in ("nvarchar", "nchar", "varchar", "char")
+
+
+def server_columns(db: Sql, table: str) -> list[ServerColumn]:
+    """A SQL Server table's columns (name, type, size, identity, computed) from sys.columns; refused in one
+    sentence when this sign-in sees no such table."""
+    cursor = db.connection.cursor()
+    try:
+        cursor.execute(_SERVER_COLUMNS, [table_name(db.dialect, table)])
+        found = list(cursor.fetchall())
+    finally:
+        _quietly(cursor.close)
+    if not found:
+        raise AdapterError(f"{table} is not a table on {db.name} this sign-in may see.")
+    return [
+        ServerColumn(str(r[0]), str(r[1]), int(r[2]), int(r[3]), int(r[4]), bool(r[5]), bool(r[6]))
+        for r in found
+    ]
+
+
+def _server_value(value: Any) -> Any:
+    """A value as SQL Server takes it: NaN is NULL, an id its text, a zoned time its text with the offset (a
+    datetimeoffset keeps the instant), a list or a record JSON."""
+    import math
+
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    if isinstance(value, uuid.UUID):
+        return str(value)
+    if getattr(value, "tzinfo", None) is not None and hasattr(value, "date"):
+        return value.isoformat(sep=" ")
+    if isinstance(value, list | dict):
+        return json.dumps(value, default=str)
+    return value
+
+
+def _server_driver(connection: Any) -> Any:
+    """The connection's driver module (mssql-python, or an older connection's pyodbc), for its SQL types."""
+    import sys
+
+    top = type(getattr(connection, "raw", connection)).__module__.split(".")[0]
+    if top in ("mssql_python", "pyodbc"):
+        return sys.modules.get(top)
+    return sys.modules.get("mssql_python") or sys.modules.get("pyodbc")
+
+
+def _server_size(driver: Any, column: ServerColumn) -> Any:
+    """The driver's size for a column (setinputsizes): text by the target's own type and length, a decimal by
+    its precision and scale, a datetime2 by its scale (fast_executemany cut its fractions), varbinary by its
+    length; None: the driver's own choice."""
+    kind = column.type.lower()
+    if column.text:
+        wide = kind in ("nvarchar", "nchar")
+        size = 0 if column.max_length < 0 else column.max_length // (2 if wide else 1)
+        return (driver.SQL_WVARCHAR if wide else driver.SQL_VARCHAR, size, 0)
+    if kind in ("decimal", "numeric"):
+        return (driver.SQL_DECIMAL, column.precision, column.scale)
+    if kind == "datetime2":
+        return (getattr(driver, "SQL_TYPE_TIMESTAMP", 93), 20 + column.scale, column.scale)
+    if kind in ("varbinary", "binary"):
+        return (getattr(driver, "SQL_VARBINARY", -3), 0 if column.max_length < 0 else column.max_length, 0)
+    return None  # bit, uniqueidentifier (its text), datetimeoffset (its text, the zone kept), ints
+
+
+def _server_sizes(driver: Any, columns: Sequence[ServerColumn]) -> list[Any]:
+    """Every column's size for setinputsizes ([]: none to give). mssql-python takes one for every parameter
+    or for none: the ones left to the driver named by their type, else none at all."""
+    if driver is None:
+        return []
+    sizes = [_server_size(driver, c) for c in columns]
+    if driver.__name__ != "mssql_python" or None not in sizes:
+        return sizes
+    for at, column in enumerate(columns):
+        named = _MSSQL_TYPES.get(column.type.lower())
+        if sizes[at] is None and named is not None and getattr(driver, named[0], None) is not None:
+            sizes[at] = (getattr(driver, named[0]), named[1], named[2])
+    return [] if None in sizes else sizes
+
+
+class _ServerWrite:
+    """One try of a SQL Server write on one cursor of its transaction: the target's columns, the rows staged
+    or inserted in their types, the MERGE, UPDATE, DELETE or TRUNCATE, the counts and the notes."""
+
+    def __init__(self, db: Sql, cursor: Any, table: str, data: pa.Table, size: int, notes: list[str]) -> None:
+        self.db, self.cursor, self.table, self.data, self.size, self.notes = (
+            db,
+            cursor,
+            table,
+            data,
+            size,
+            notes,
+        )
+        self.target = table_name(db.dialect, table)
+        self.columns = {c.name.casefold(): c for c in server_columns(db, table)}
+        self.value = db._value or _server_value
+
+    def column(self, name: str) -> ServerColumn:
+        found = self.columns.get(str(name).casefold())
+        if found is None:
+            raise AdapterError(f"{self.table} has no column {name}.")
+        return found
+
+    def name(self, name: str) -> str:
+        return self.db.dialect.quote(self.column(name).name)
+
+    def names(self, names: Sequence[str]) -> str:
+        return ", ".join(self.name(n) for n in names)
+
+    def run(self, sql: str, values: Sequence[Any] | None = None) -> None:
+        if values:
+            self.cursor.execute(sql, list(values))
+        else:
+            self.cursor.execute(sql)
+
+    def one(self, sql: str) -> int:
+        self.run(sql)
+        return int(self.cursor.fetchall()[0][0])
+
+    def checked(self) -> None:
+        """The rows' columns are the target's, none computed, its identity only with identity_insert."""
+        for name in self.data.column_names:
+            column = self.column(name)
+            if column.computed:
+                raise AdapterError(f"{name} is computed by {self.table}: drop it from the rows.")
+            if column.identity and not self.db.identity_insert:
+                raise AdapterError(
+                    f"{name} is {self.table}'s identity column: SQL Server numbers it. Drop it from the rows "
+                    "(the SQL Server Write starter's identity_insert=True writes the rows' own values)."
+                )
+
+    def joined(self, keys: Sequence[str], left: str = "t", right: str = "s") -> str:
+        return " AND ".join(f"{left}.{self.name(k)} = {right}.{self.name(k)}" for k in keys)
+
+    def insert_into(self, into: str, names: Sequence[str], distinct: bool = False) -> int:
+        """The rows' `names` columns (each distinct row once) into `into` (the target, or a #temp table), a
+        batch a round trip with each value's size; a batch that fails is named beside its error."""
+        rows = _distinct(self.data.select(list(names))) if distinct else self.data.select(list(names))
+        picked = [self.column(n) for n in names]
+        width = sum(4000 if c.max_length < 0 else max(8, c.max_length) for c in picked)
+        size = max(1, min(self.size, BATCH_BYTES // max(1, width)))
+        driver = _server_driver(self.db.connection)
+        if type(getattr(self.db.connection, "raw", self.db.connection)).__module__.split(".")[0] == "pyodbc":
+            self.cursor.fast_executemany = True  # an older connection's: one round trip a batch
+        sizes = _server_sizes(driver, picked)
+        if any(sizes):
+            self.cursor.setinputsizes(sizes)
+        sql = f"INSERT INTO {into} ({self.names(names)}) VALUES ({', '.join('?' for _ in names)})"  # noqa: S608
+        try:
+            return self.batches(sql, rows, size, into)
+        finally:
+            if any(sizes) and driver is not None and driver.__name__ == "mssql_python":
+                self.cursor.setinputsizes([])  # mssql-python keeps them for the next statements
+
+    def batches(self, sql: str, rows: pa.Table, size: int, into: str) -> int:
+        before = 0
+        for number, batch in enumerate(rows.to_batches(max_chunksize=size), 1):
+            values = [column.to_pylist() for column in batch.columns]
+            try:
+                self.cursor.executemany(
+                    sql, [tuple(self.value(v) for v in row) for row in zip(*values, strict=True)]
+                )
+            except Exception as error:
+                _batch_noted(error, Batch(number, before, batch.num_rows), into)
+                raise
+            before += batch.num_rows
+        return before
+
+    def stage(self, names: Sequence[str], into: str = STAGE, distinct: bool = False) -> None:
+        """The rows' `names` columns in a #temp table of the target's own types (tempdb's collation is not the
+        target's: text columns take the database's)."""
+        declared = ", ".join(
+            f"{self.name(n)} {self.column(n).declared()}{_COLLATE if self.column(n).text else ''} NULL"
+            for n in names
+        )
+        self.run(f"IF OBJECT_ID('tempdb..{into}') IS NOT NULL DROP TABLE {into}")
+        self.run(f"CREATE TABLE {into} ({declared})")
+        self.insert_into(into, names, distinct)
+
+    def matching(self, keys: Sequence[str], staged: str, hint: str = "") -> int:
+        """The target's rows the staged rows' keys find: one COUNT join, no row fetched."""
+        return self.one(
+            f"SELECT COUNT(*) FROM {staged} AS s JOIN {self.target} AS t{hint} ON {self.joined(keys)}"  # noqa: S608
+        )
+
+    def identity(self, on: bool) -> None:
+        carried = any(self.column(n).identity for n in self.data.column_names)
+        if carried and self.db.identity_insert:
+            self.run(f"SET IDENTITY_INSERT {self.target} {'ON' if on else 'OFF'}")
+
+    def written(self, key: list[str], mode: str) -> Counts:
+        """The write by `mode`, on this try's cursor (the caller commits)."""
+        self.checked()
+        if mode == "delete":
+            self.stage(key, STAGED_KEYS, distinct=True)
+            found = self.matching(key, STAGED_KEYS)
+            self.run(f"DELETE t FROM {self.target} AS t JOIN {STAGED_KEYS} AS s ON {self.joined(key)}")
+            return Counts(deleted=found)
+        deleted = self.cleared() if mode == "truncate" else 0
+        if mode in ("insert", "truncate"):
+            self.identity(True)
+            inserted = self.insert_into(self.target, self.data.column_names) if self.data.num_columns else 0
+            self.identity(False)
+            return Counts(inserted=inserted, deleted=deleted)
+        self.stage(self.data.column_names)
+        matched = self.matching(key, STAGE, " WITH (UPDLOCK, HOLDLOCK)")
+        total = self.one(f"SELECT COUNT(*) FROM {STAGE}")  # noqa: S608
+        if mode == "update":
+            self.run(_server_update(self, key))
+            return Counts(updated=matched)
+        self.identity(True)
+        self.merged(key)
+        self.identity(False)
+        return Counts(updated=matched, inserted=total - matched)
+
+    def cleared(self) -> int:
+        """TRUNCATE TABLE in the transaction (it fires no DELETE trigger); where a foreign key points at the
+        table SQL Server refuses it, so DELETE FROM. The rows there before."""
+        before = self.one(f"SELECT COUNT(*) FROM {self.target}")  # noqa: S608
+        self.run("SAVE TRANSACTION sab_clear")
+        try:
+            self.run(f"TRUNCATE TABLE {self.target}")
+        except Exception as error:
+            if transient(error) or "FOREIGN KEY" not in str(error).upper():
+                raise
+            self.run("ROLLBACK TRANSACTION sab_clear")
+            self.notes.append(
+                "TRUNCATE was refused (a foreign key points at the table): DELETE FROM instead."
+            )
+            self.run(f"DELETE FROM {self.target}")  # noqa: S608
+        return before
+
+    def merged(self, key: list[str]) -> None:
+        """One MERGE ... WITH (HOLDLOCK); where MERGE is refused, UPDATE then INSERT in the transaction."""
+        self.run("SAVE TRANSACTION sab_merge")
+        try:
+            self.run(_server_merge(self, key))
+        except Exception as error:
+            if transient(error) or "MERGE" not in str(error).upper():
+                raise
+            self.run("ROLLBACK TRANSACTION sab_merge")
+            self.notes.append("MERGE was refused here: UPDATE, then INSERT, in the same transaction.")
+            for statement in _server_update_then_insert(self, key):
+                self.run(statement)
+
+
+def _settable(w: _ServerWrite, key: Sequence[str]) -> tuple[list[str], list[str]]:
+    """The rows' columns as the target names them, and those a match sets (not the key, not the identity)."""
+    names = [w.column(n).name for n in w.data.column_names]
+    wanted = {k.casefold() for k in key}
+    return names, [n for n in names if n.casefold() not in wanted and not w.column(n).identity]
+
+
+def _server_merge(w: _ServerWrite, key: Sequence[str]) -> str:
+    names, others = _settable(w, key)
+    text = f"MERGE INTO {w.target} WITH (HOLDLOCK) AS t\nUSING {STAGE} AS s ON {w.joined(key)}\n"
+    if others:
+        text += (
+            f"WHEN MATCHED THEN UPDATE SET {', '.join(f't.{w.name(n)} = s.{w.name(n)}' for n in others)}\n"
+        )
+    values = ", ".join(f"s.{w.name(n)}" for n in names)
+    return text + f"WHEN NOT MATCHED BY TARGET THEN INSERT ({w.names(names)}) VALUES ({values});"  # noqa: S608
+
+
+def _server_update(w: _ServerWrite, key: Sequence[str]) -> str:
+    _, others = _settable(w, key)
+    if not others:
+        raise AdapterError("The rows have nothing to change but their key.")
+    sets = ", ".join(f"t.{w.name(n)} = s.{w.name(n)}" for n in others)
+    locked = f"{w.target} AS t WITH (UPDLOCK, HOLDLOCK)"
+    return f"UPDATE t SET {sets} FROM {locked} JOIN {STAGE} AS s ON {w.joined(key)}"  # noqa: S608
+
+
+def _server_update_then_insert(w: _ServerWrite, key: Sequence[str]) -> list[str]:
+    """MERGE's work in two statements, for where MERGE is refused."""
+    names, others = _settable(w, key)
+    said = [_server_update(w, key)] if others else []
+    picked = ", ".join(f"s.{w.name(n)}" for n in names)
+    return [
+        *said,
+        f"INSERT INTO {w.target} ({w.names(names)}) SELECT {picked} FROM {STAGE} AS s WHERE NOT EXISTS "  # noqa: S608
+        f"(SELECT 1 FROM {w.target} AS t WITH (UPDLOCK, HOLDLOCK) WHERE {w.joined(key)})",
+    ]
+
+
+def _distinct(rows: pa.Table) -> pa.Table:
+    """Each distinct row once (DuckDB over the Arrow table: no copy of it)."""
+    con = duckdb.connect()
+    try:
+        con.register("sab_rows", rows)
+        return con.sql("SELECT DISTINCT * FROM sab_rows").to_arrow_table()
+    finally:
+        con.close()
+
+
+def _server_written(db: Sql, table: str, batches: pa.RecordBatchReader, key: list[str], mode: str) -> Counts:
+    """A SQL Server write in one transaction, run WHOLE again (never half) on a passing error, on a fresh
+    connection after 1, 2, 4 seconds. The rows are kept for that (they are in memory already: no copy)."""
+    data = batches.read_all()
+    size = max((b.num_rows for b in data.to_batches()), default=BATCH_ROWS) or BATCH_ROWS
+    notes: list[str] = []
+    for attempt in range(1, TRIES + 1):
+        cursor = db.connection.cursor()
+        try:
+            done = _ServerWrite(db, cursor, table, data, size, notes).written(key, mode)
+            db.connection.commit()
+            return replace(done, notes=tuple(notes))
+        except Exception as error:
+            _quietly(db.connection.rollback)
+            if attempt == TRIES or not transient(error):
+                raise
+            said = (str(error).strip().splitlines() or [type(error).__name__])[0][:400]
+            notes.append(f"Try {attempt} met a passing error ({said}): run again, whole.")
+            time.sleep(2 ** (attempt - 1))
+            _server_again(db)
+        finally:
+            _quietly(cursor.close)
+    raise AdapterError("Nothing was written.")  # pragma: no cover (the last try returns or raises)
+
+
+def _server_again(db: Sql) -> None:
+    """A fresh connection for the next try: the caller's (reopen); else a SqlServer connection closed (it
+    signs in again by itself on its next cursor); else the driver's own, rolled back, as it is."""
+    if db.reopen is not None:
+        _quietly(db.connection.close)
+        db.connection = db.reopen()
+    elif callable(getattr(db.connection, "for_writes", None)):
+        _quietly(db.connection.close)
+
+
+def _server_planned(db: Sql, table: str, rows: pa.Table, key: list[str], mode: str) -> Counts:
+    """SQL Server's dry run: an insert's rows; a truncate's rows now; the keys staged in a #temp table and one
+    COUNT join for the rest; then rolled back (nothing kept)."""
+    if mode == "insert":
+        return Counts(inserted=rows.num_rows)
+    cursor = db.connection.cursor()
+    try:
+        w = _ServerWrite(db, cursor, table, rows, BATCH_ROWS, [])
+        if mode == "truncate":
+            return Counts(inserted=rows.num_rows, deleted=w.one(f"SELECT COUNT(*) FROM {w.target}"))  # noqa: S608
+        w.stage(key, STAGED_KEYS, distinct=True)
+        found = w.matching(key, STAGED_KEYS)
+    finally:
+        _quietly(db.connection.rollback)
+        _quietly(cursor.close)
+    if mode == "merge":
+        return Counts(updated=found, inserted=rows.num_rows - found)
+    return Counts(updated=found) if mode == "update" else Counts(deleted=found)
+
+
+def _server_statements(db: Sql, table: str, names: list[str], key: list[str], mode: str) -> list[str]:
+    """What a SQL Server write runs, for a dry run's report (a merge's staging and its MERGE)."""
+    target = table_name(db.dialect, table)
+    q = db.dialect.quote
+    insert = (
+        f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({', '.join('?' for _ in names)})"  # noqa: S608
+    )
+    if mode == "insert":
+        return [insert]
+    if mode == "truncate":
+        return [f"TRUNCATE TABLE {target}", insert] if names else [f"TRUNCATE TABLE {target}"]
+    if mode == "delete":
+        joined = " AND ".join(f"t.{q(k)} = s.{q(k)}" for k in key)
+        return [f"DELETE t FROM {target} AS t JOIN {STAGED_KEYS} AS s ON {joined}"]
+    cursor = db.connection.cursor()
+    try:
+        w = _ServerWrite(
+            db, cursor, table, pa.table({n: pa.array([], pa.null()) for n in names}), BATCH_ROWS, []
+        )
+    finally:
+        _quietly(cursor.close)
+    staged = f"CREATE TABLE {STAGE} (the target's own types), the rows into it by executemany (as arrays)"
+    return [staged, _server_merge(w, key) if mode == "merge" else _server_update(w, key)]
 
 
 # ----- Dataverse's Web API: OData folded into its connection's own read -----
@@ -2235,9 +2745,10 @@ def planned(
     key: Sequence[str] = (),
     mode: str = "insert",
 ) -> Counts:
-    """What a write would do, counted by reads through the source and nothing written (a Write starter's
-    dry run): an insert's rows; an update's and a merge's keys that are there (a merge inserts the rest),
-    a delete's; a truncate's rows now and the rows it inserts."""
+    """What a write would do, nothing written (a Write starter's dry run): an insert's rows; an update's and a
+    merge's keys that are there (a merge inserts the rest), a delete's; a truncate's rows now and the rows it
+    inserts. Counted by reads through the source, or by the source's own dry run where it has one (SQL
+    Server's staged keys); its notes say what to know before writing."""
     _checked_write(mode, key)
     found = source_of(source)
     data = (
@@ -2247,6 +2758,14 @@ def planned(
         if isinstance(batches, pa.RecordBatchReader)
         else batches
     )
+    own = getattr(found, "planned", None)
+    if callable(own):
+        return own(table, data, tuple(key), mode)  # type: ignore[no-any-return]
+    return counted_by_reads(found, table, data, key, mode)
+
+
+def counted_by_reads(found: Source, table: str, data: pa.Table, key: Sequence[str], mode: str) -> Counts:
+    """planned()'s counts by reads through the source: a count for a truncate, the keys that are there."""
     if mode == "insert":
         return Counts(inserted=data.num_rows)
     if mode == "truncate":
@@ -2263,6 +2782,16 @@ def planned(
     if mode == "merge":
         return Counts(updated=there, inserted=data.num_rows - there)
     return Counts(deleted=there)
+
+
+def statements(
+    source: str | Source, table: str, names: Sequence[str], key: Sequence[str] = (), mode: str = "insert"
+) -> list[str]:
+    """What a write of rows with these columns would run, in the source's own SQL, for a dry run's report:
+    SQL Server's staging and MERGE; [] when the source does not say."""
+    _checked_write(mode, key)
+    say = getattr(source_of(source), "statements", None)
+    return list(say(table, list(names), list(key), mode)) if callable(say) else []
 
 
 def _listed(source: Source, table: str) -> bool:
