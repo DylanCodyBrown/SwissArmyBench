@@ -91,11 +91,13 @@ def test_the_wizard_ranks_asks_that_patterns_steps_previews_and_adds(
     totals.get_by_label("Total 1", exact=True).select_option("avg")
     totals.get_by_label("Column of total 1").select_option("amount")
     expect(code).to_contain_text("avg_amount: float", timeout=20000)
-    # A period: only the date column is offered; the statement is the source's own SQL.
+    # A period: only the date column is offered; it is the read's plan (the adapter's Period, 1.8.0), `since`
+    # a date sent as a date.
     wizard.get_by_label("Date column (for a period)").select_option("order_date")
     wizard.get_by_label("Period", exact=True).select_option("month")
-    expect(code).to_contain_text("def summary_sales_by_month_region_status(since:", timeout=20000)
-    expect(code).to_contain_text("DATE_TRUNC('MONTH', \"order_date\")")
+    expect(code).to_contain_text("def summary_sales_by_month_region_status(", timeout=20000)
+    expect(code).to_contain_text("since: date | None = None,")
+    expect(code).to_contain_text('"periods": [{"column": "order_date", "unit": "month", "name": "period"}],')
     wizard.get_by_role("button", name="Add to API.py").click()
     expect(wizard).to_be_hidden(timeout=20000)
     text = (shop / "API.py").read_text(encoding="utf-8")
