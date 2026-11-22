@@ -527,7 +527,8 @@ src/swissarmybench/
                          only (a kernel's Run file reads a script by the same rule)
     projects.py          a project: data.py as the export of data.ipynb's code cells (imports in a plain
                          kernel, kept under Streamlit, a stub for a table with no load: no rows), a
-                         notebook for a zip, requirements, README, which files open
+                         notebook for a zip, requirements, README, which files open (never a made file:
+                         data.py, adapter.py, connections.py, the sandbox mirror)
     project_scope.py     what is the open project's own: its documents (by kind; data.py and pages/*.py
                          marked made; each notebook's role: data.ipynb data, any other app; notebook_kind), its .sab/visualizations (and an older one's .sab/blades), an import's free names and
                          picks, a connection's passwords with no source on this computer and the fix
@@ -542,7 +543,8 @@ src/swissarmybench/
                          custom order (moved left and right), the filters, the types explained for beginners
     environment.py       the Environment (the owner, 2026-11-21/22; Plans/environment.plan.md): one row's shape for
                          every kind (table, variable, structure, setting, library), Used in (grids, cells by number,
-                         canvas widgets, API.py endpoints, analyses, the ERD, tables made from it), the one search
+                         canvas widgets, API.py endpoints, analyses, the ERD, tables made from it; a name in a
+                         comment uses nothing: code_only), the one search
                          over every tab by the Data Explorer's matching (explorer.hit), requirements.txt read and
                          written (Pin name==version, Unpin, a library added or taken out), a newer version, what a
                          library is for and where it is imported, a secret masked, Clear's ticks, Insert's code
@@ -597,7 +599,9 @@ src/swissarmybench/
                          (a marked section per connection the project uses, `# ===== connection: <name> =====` to its
                          end mark; its variables named, SETTINGS without values), README.md's Variables block (name,
                          source, uses; never a value; the rest of README.md byte for byte), data.py's structures read
-                         as grids (a stdlib _records line each), the sandbox mirror (sandbox_data.py: tables, where
+                         as grids (a _records line each: JSON, XML and TOML by the standard library, YAML by
+                         PyYAML; keeping_structures: data.ipynb's own write of data.py carries the part over),
+                         the sandbox mirror (sandbox_data.py: tables, where
                          from, keys, baseline, checkpoints by name; sandbox_connections.py: each connection's stand-in
                          over sandbox/sandbox.duckdb, never its code), what to write (plan: write, remove, same, edited
                          by hand: kept, Take the new one; .sab/scaffold.json the hashes the app last wrote)
@@ -654,7 +658,7 @@ src/swissarmybench/
     connection_swap.py   a table's connection swapped: a table matched in another catalog (name in any case,
                          schema then database; an ODBC database as Trino's catalog), a read query checked, the
                          code pointed at the new connection (the name only: ast, a %%sql/%%dax line; ticked cells)
-    variables.py         the Variables page: this computer's variables (plain, this computer only, keyring), the
+    variables.py         the settings and secrets (the Environment's tab; the Variables page went 2026-11-22): this computer's variables (plain, this computer only, keyring), the
                          shareable and local halves, each variable's source (vault, value, keyring, env,
                          missing) and uses (connections, cells by ast, Run settings), which values show, rename
     connection_tables.py what a connection is: the tables contract (each kind's way to list and read; NO_TABLES and
@@ -713,7 +717,9 @@ src/swissarmybench/
                          imports the datetime module: datetime.date); py (a value written as a formatter leaves it)
     api_patterns.py      the endpoint wizard's patterns as data (the owner, 2026-11-21): Step, Pairing, Pattern, the
                          nine (table, choices, search, summary, bulk, action, versions, reconcile, export: each its
-                         own steps and the widgets that pair with its endpoints), Registry (ranked: a table's shape
+                         own steps and the widgets that pair with its endpoints; a Pairing's `sets`: a widget
+                         property set to a field of the endpoint's answer, a select's column of options the
+                         label), Registry (ranked: a table's shape
                          against every pattern with one sentence why; planned: a pattern's steps with their columns
                          and defaults; make; role, pairings), from_extension (an extension's API_PATTERNS), the one
                          marker comment (`# pattern: summary of orders`: marked, pattern_at)
@@ -762,8 +768,8 @@ src/swissarmybench/
                          listing and proposing blades (saved on the user's Allow)
     catalogs.py          load, remove, the tree, search
     catalog_loading.py   catalogs that load themselves in the background: on save, at start-up (once the
-                         first window is open; not a browser-window sign-in), on first use; each a child
-                         process, a few at once
+                         first window is open; not a browser-window sign-in, nor one the user took away this
+                         session), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     connections.py       connections: the list, the forms, test before saving, password sources
     found_connections.py Find connections on this computer: the scan off the loop (Cancel), the last list in memory,
@@ -778,7 +784,9 @@ src/swissarmybench/
                          project's figures in .sab/stats.json (a few seconds after calls settle, only on change)
     changes.py           the change log: raised (a change on the audit entry a service writes: `change=`), the log
                          that hears it (stamped, appended to the open project's .sab/changes.jsonl, else memory), a
-                         connection's settings and sign-in as it names them; the changes tool's views
+                         connection's settings and sign-in as it names them; settled (something new to the
+                         session that the open project's log already has in the same shape says nothing: a
+                         project opened again reads its tables again); the changes tool's views
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
                          documents: recent, open, the project's: one seam), configuration (never a value),
                          and its calls this session (the app's runs, a Workbench kernel's report; memory only)
@@ -787,7 +795,7 @@ src/swissarmybench/
     connection_swap.py   a table read from another connection with its steps kept (matched, picked, or its query
                          reviewed), every table of a deleted connection moved, the undo (old rows in memory), the
                          cells repointed (an open document in the Workbench window, else its file)
-    variables.py         the Variables page: list, add, change, rename (connections and Run settings follow),
+    variables.py         the Environment's Settings and secrets tab (the Variables page went 2026-11-22): list, add, change, rename (connections and Run settings follow),
                          remove, Show (the user's: 403 for the agent); the values set in this server's environment
     connection_tables.py the contract's list and read for every kind, DuckDB SQL naming a connection's table (each
                          read: every row the query needs, counted first, refused past the limit; kept for the
@@ -802,7 +810,8 @@ src/swissarmybench/
                          blanks), open (a table: a grid, a view of it; one in Python only: its session sends it),
                          rename, remove (a table: also delete it in Python), keep, clear, insert; libraries (the
                          project's Python, check the index only when asked, pin, install (one or several),
-                         update, uninstall: the agent's on Allow); python and set_python (the project's own
+                         update, uninstall: the agent's on Allow; each a change log event); python and
+                         set_python (the project's own
                          Python: Make it now, an offered notebook environment's libraries added or not);
                          `environment_changed` once things settle (heard: the live notices);
                          sources_from (the app's services as its Sources)
@@ -825,7 +834,8 @@ src/swissarmybench/
                          the session; api writes), log, address, the endpoint wizard (pattern_list; plan: the
                          tables, the patterns ranked, a pattern's steps and its code, nothing written; scaffold: a
                          pattern's endpoints appended to API.py, a dry run the code only; its key kept by the
-                         sandbox; paired: each pattern-made endpoint with its widget, for the Canvas); each
+                         sandbox; paired: each pattern-made endpoint with its widget, for the Canvas); its
+                         endpoints noted for the change log whenever API.py is read or the wizard writes it; each
                          endpoint's pattern and "DuckDB does part of it over the stream"; state brief (full: the
                          OpenAPI document)
     scaffold.py          the project scaffold kept as the user works: status, refresh (adapter.py once something
@@ -837,13 +847,16 @@ src/swissarmybench/
     api_export.py        Export for a target: the bundle, the made folder (only changed bytes, stale files gone,
                          a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
-                         blade, a web call blade per operation, openapi.json, source.json), inline (the exporter)
+                         blade, a web call blade per operation, openapi.json, source.json; a new API that is
+                         refused part way leaves nothing behind), inline (the exporter)
     actions.py           every API's actions through api_adapter (the module handed in): list, describe, run (a
                          library API's in a child process through its API blade; the local API's through its
                          process; a write by the agent on Allow), the shape kept (types only, said once), offer,
                          discover (Allow asked once per API, kept with it until taken back: allow; reads
                          only), build (a cell into data.ipynb, a function into a script, each opened there;
-                         hooks.canvas_put for a widget); refs (every action as the canvas's one picker names it),
+                         hooks.canvas_put for a widget: another API's records Return as table on, its records
+                         where the learned shape keeps them; insert false: the plan alone); refs (every action
+                         as the canvas's one picker names it),
                          carried (what a built app carries: api_adapter.py, sab_actions.json, an API's client),
                          local_learned (Try it's form)
     api_explorer.py      the APIs page: the library's APIs (cards), explore, search, send (the answer in
@@ -881,13 +894,14 @@ src/swissarmybench/
     script_ide.py        the Scripts IDE: its tree (the project's code, the library's, Generated), go to definition,
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
+                         (rename, replace, duplicate and delete in the change log too)
     debugger.py          the Scripts page's debugger: a session per kernel over the kernel's own debugpy (the
                          Jupyter debug protocol), the run and the events' watcher, steps, variables, evaluate,
                          stop; `debug_state` notices
     code_files.py        code files that update themselves everywhere: `file_changed` {path, hash, by} on the app's
                          writes (touched) and on a look every few seconds at the project's and library's .py and
                          .ipynb (off the loop); its listeners (a made file saved by hand: project_scope.saw)
-    script_runs.py       a script's run settings (run_settings.json): Run file's arguments, the Variables page
+    script_runs.py       a script's run settings (run_settings.json): Run file's arguments, the Environment's variables
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
@@ -948,7 +962,7 @@ src/swissarmybench/
     library_setup.py     Set up this computer: the vaults checked in child processes, the checklist, Move to
                          a vault
     vault_names.py       a key vault's names kept as they are read (the form, Set up this computer, a kernel's
-                         load), written only when they change; given as its variables (Variables, the ${ list,
+                         load), written only when they change; given as its variables (the Settings and secrets tab, the ${ list,
                          context.md, the checklist, a kernel's names); read again once the first window is open
                          (child processes, a few at once, never one that signs in with a window; a failure keeps
                          them: "Names from <time>: Read again"); a deleted or renamed vault's file follows
@@ -1076,7 +1090,7 @@ src/swissarmybench/
                          when its bytes change), the package index's newest versions (one GET a library, only when
                          the Libraries tab opens or the user asks; SWISSARMYBENCH_PACKAGE_INDEX), a structure's file
                          removed; requires (each library with what it says it needs: a notebook's older environment)
-    variables.py         the Variables page's files (the library's variables.toml, shareable; local/variables.toml,
+    variables.py         the settings and secrets' files (the library's variables.toml, shareable; local/variables.toml,
                          this computer's), the keyring (`variable/<NAME>`), the server's own environment
     live_updates.py      the pages' and VS Code windows' sockets (the app's windows counted for the server's life)
     folders.py           a folder's contents for the page's own picker (hidden ones on request), its places (Home,
@@ -1218,7 +1232,7 @@ src/swissarmybench/
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
-  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (283 of them).
+  mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (363 in the base, 393 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid
                          and Plotly (each loads when first needed; svgSafe cleans drawings);
@@ -1262,7 +1276,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          no project; /workspace?view=start lands on it; it makes way for a project opened there or
                          a table that arrives); keyVaults.ts the key vaults on the Environment's Settings and
                          secrets tab (a card each, Read again, Add key vault: moved from the Variables page, which
-                         went 2026-11-22); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
+                         went 2026-11-22); dataPage.ts the Catalog page (open=data, the rail's Catalog, after the Environment on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
                          (this session's log, live, each entry a link; The agent / Me / Both; Changes, each change's words under it; Follow the agent: main.ts brings
                          the grids, Analyze and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); findConnections.ts the Connections page's Find connections on this computer… (the scan gated
@@ -1343,7 +1357,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          prompt ("<Feature> needs <package>": Install now, Not now; the reminder after
                          Not now, no nagging this session), used by every place that finds one;
                          emptyState.ts an empty page that leads somewhere (one sentence, the primary button, Try
-                         it with sample data: Connections, Variables, Session, the Workbench's landing pages);
+                         it with sample data: Connections, Session, the Workbench's landing pages);
                          loading.ts the one loading state (design principles 8.12, 2026-11-18): busy(host, words,
                          work, {abort, onCancel, errorIn}) gates an element (inert, aria-busy, a cover over its box
                          after 150 ms with a spinner, the words at the body's size, the time after 3 s, Cancel, the

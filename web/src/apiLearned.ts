@@ -9,12 +9,13 @@
  *              (a table, a detail card, a metric, a download, a form), each field's path and type with its
  *              drift mark (new, retyped), the drift line, a rename offered once (Use it / No); Run (its
  *              envelope: kind, status, pages); Build: a notebook cell, a script function, a widget on a
- *              canvas page. Nothing is built until the user picks it.
+ *              canvas page. Nothing is built until the user picks it. It follows the `api_shape_changed`
+ *              notice: a shape learned or drifted elsewhere (the agent, a notebook) shows without a reload.
  *
  * ROUTING: GET /actions?api=, /actions/{api}/{action}  ·  POST /actions/run, /actions/discover, /actions/allow,
  *          /actions/offer, /actions/build
  */
-import { api } from "./api";
+import { api, onNoticeWhile } from "./api";
 import { button, h, openDialog, toast } from "./dom";
 import { busy, busyClick } from "./loading";
 import { errorHere, errorNote, warningNote } from "./errorNote";
@@ -262,5 +263,13 @@ export function learnedSection(apiName: string, action: string, writes: boolean,
     }
   };
   void busy(section, "Reading what it answers…", draw());
+  // Its shape learned or drifted elsewhere (the agent's run, a notebook's sab.run, Discover): shown here too.
+  let timer = 0;
+  onNoticeWhile(section, (n) => {
+    const of = n as { api?: string; action?: string | null };
+    if (n.type !== "api_shape_changed" || of.api !== apiName || (of.action && of.action !== action)) return;
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => void draw(), 200);
+  });
   return section;
 }
