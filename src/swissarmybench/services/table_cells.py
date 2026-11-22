@@ -55,11 +55,17 @@ class Origins:
 
 class TableCells:
     def __init__(
-        self, ws: Workspace, origins: Origins, view_bytes: Callable[[SqlSession, str], bytes] | None = None
+        self,
+        ws: Workspace,
+        origins: Origins,
+        view_bytes: Callable[[SqlSession, str], bytes] | None = None,
+        planned_bytes: Callable[[SqlSession, str, Any], tuple[bytes, tuple[str, ...]]] | None = None,
     ) -> None:
         self.ws = ws
         # A query's result as an Arrow IPC stream (adapters/datasets.py's query_table and its stream).
         self._view_bytes = view_bytes
+        # The adapter's plan over a relation, as an Arrow IPC stream, and what it folded (all of it: DuckDB).
+        self._planned_bytes = planned_bytes
         self._origins = origins
 
     # ===== every open table as its cell's text =====
@@ -154,16 +160,60 @@ class TableCells:
 
         return {"tables": await ws.workers.run(BACKGROUND, read) if pairs else []}
 
-    async def view(self, name: str) -> bytes:
-        """The open table `name` (any case, as DuckDB reads a name) as its grid shows it, every row, its
-        steps applied, as an Arrow IPC stream. LookupError: no table of that name is open in Grids."""
+    def _open(self, name: str) -> tuple[DatasetInfo, Grid]:
+        """The open table `name` (any case, as DuckDB reads a name) and the grid that shows it."""
         ws = self.ws
         infos = [i for i in ws.store.all() if ws.grids.first_for(i.name) is not None]
         info = next((i for i in infos if i.name == name), None) or next(
             (i for i in infos if i.name.lower() == name.lower()), None
         )
         grid = ws.grids.first_for(info.name) if info is not None else None
-        if info is None or grid is None or self._view_bytes is None:
+        if info is None or grid is None:
+            raise LookupError(f"No table named {name} is open in Grids.")
+        return info, grid
+
+    # ===== the open tables as a source of the adapter (Plans/adapter.plan.md, Order 3) =====
+
+    async def adapter_tables(self) -> dict[str, Any]:
+        """The open tables as the adapter lists a source's: each one's name and its grid view's columns
+        (its steps applied) with their DuckDB types."""
+        ws = self.ws
+        pairs = [(i, g) for i in ws.store.all() if (g := ws.grids.first_for(i.name)) is not None]
+
+        def listed() -> list[dict[str, Any]]:
+            cursor = ws.store.cursor()
+            out = []
+            for info, grid in pairs:
+                compiled = ws.views.compile(cursor, info, grid.steps, grid.settings)
+                columns = [{"name": c.name, "type": c.type} for c in compiled.columns_at(None)]
+                out.append({"name": info.name, "columns": columns})
+            return out
+
+        return {"tables": await ws.workers.run(BACKGROUND, listed) if pairs else []}
+
+    async def adapter_read(self, name: str, plan: Any) -> tuple[bytes, tuple[str, ...]]:
+        """An open table read with the adapter's plan (its JSON) over its grid's view, its steps applied: the
+        answer as an Arrow IPC stream, and the parts folded (DuckDB folds them all); nothing kept."""
+        info, grid = self._open(name)
+        if self._planned_bytes is None:
+            raise LookupError(f"No table named {name} is open in Grids.")
+        planned = self._planned_bytes
+        ws = self.ws
+
+        def read(cursor: SqlSession) -> tuple[bytes, tuple[str, ...]]:
+            with ws.views.reading(cursor, info, grid.steps, grid.settings, ordered=True) as rows:
+                return planned(cursor, rows, plan)
+
+        found: tuple[bytes, tuple[str, ...]] = await ws.grid_query(grid, None, BACKGROUND, read)
+        ws.audit.write("app", "table_read_by_adapter", info.name, rows=None)
+        return found
+
+    async def view(self, name: str) -> bytes:
+        """The open table `name` (any case, as DuckDB reads a name) as its grid shows it, every row, its
+        steps applied, as an Arrow IPC stream. LookupError: no table of that name is open in Grids."""
+        ws = self.ws
+        info, grid = self._open(name)
+        if self._view_bytes is None:
             raise LookupError(f"No table named {name} is open in Grids.")
         to_bytes = self._view_bytes
 

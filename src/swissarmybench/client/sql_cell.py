@@ -674,12 +674,9 @@ def _open_grid(message: str, registered: list[str]) -> tuple[str, Any] | None:
     if not name or "." in name or name in registered or len(registered) >= _MOST_GRIDS:
         return None
     try:
-        import pyarrow.ipc as ipc
-
-        data = blades_client._call_bytes(f"/workbench/tables/{blades_client._quote(name)}/arrow")
-    except (ImportError, ServerNotRunningError, RuntimeError, OSError):
+        table = blades_client.table(name)  # through the adapter (Plans/adapter.plan.md), its view as Arrow
+    except (ImportError, ServerNotRunningError, RuntimeError, OSError, ValueError):
         return None
-    table = ipc.open_stream(data).read_all()
     print(f"{name}: the open table in Grids, {table.num_rows:,} rows as its grid shows them")
     return name, table
 

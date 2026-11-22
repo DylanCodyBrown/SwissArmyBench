@@ -473,13 +473,17 @@ def _count(con: Any, sql: str) -> int:
 
 
 class Remote:
-    """The project's sandbox through the app's data door (a local sandbox API's process has no file and no
-    connection of its own): `connection` names whose tables these are (a sandbox table mocked as it), the
-    reads and writes travel as Arrow IPC streams. The sandbox folds the whole plan."""
+    """A source through the app's data door, its reads and writes as Arrow IPC streams: the project's sandbox
+    (a local sandbox API's process has no file and no connection of its own; `connection` names whose tables
+    these are, a sandbox table mocked as it), or a kernel's open tables (`headers` the token). Each folds the
+    whole plan."""
 
-    def __init__(self, url: str, connection: str = "Sandbox") -> None:
+    def __init__(
+        self, url: str, connection: str = "Sandbox", headers: Mapping[str, str] | None = None
+    ) -> None:
         self.url = url.rstrip("/")
         self.connection = connection
+        self.headers = dict(headers or {})  # the app's token, for a kernel reading the open tables
 
     def tables(self) -> list[Table]:
         answer = json.loads(
@@ -512,7 +516,7 @@ class Remote:
         parts = urllib.parse.urlsplit(self.url + path)
         connection = http.client.HTTPConnection(parts.hostname or "127.0.0.1", parts.port or 80, timeout=600)
         target = parts.path + (f"?{parts.query}" if parts.query else "")
-        connection.request("POST", target, body, {"Content-Type": "application/octet-stream"})
+        connection.request("POST", target, body, {"Content-Type": "application/octet-stream", **self.headers})
         answer = connection.getresponse()
         if answer.status >= 400:
             raw = answer.read()

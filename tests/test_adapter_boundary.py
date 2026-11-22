@@ -114,3 +114,11 @@ def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None
 
     known = set(sab_adapter.DIALECTS) - {"databricks"}  # Databricks' starter says dialect "other"
     assert known | {"duckdb"} == set(connections.ADAPTER_DIALECTS)
+
+
+def test_a_kernel_reaches_an_open_table_only_through_the_adapter() -> None:
+    """Phase 2, Order 3: a kernel's DuckDB SQL naming an open table, and sab.table, read it as the adapter's
+    source (the open tables' door); only sab.table's plain-client fallback names the view's address."""
+    for name, allowed in (("client/sql_cell.py", 0), ("client/blades_client.py", 1)):
+        text = (PACKAGE / name).read_text(encoding="utf-8")
+        assert text.count("/workbench/tables/{") <= allowed, name  # the view's address, by name

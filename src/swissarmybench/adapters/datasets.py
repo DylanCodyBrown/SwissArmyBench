@@ -124,6 +124,25 @@ def query_to_arrow_stream(cursor: duckdb.DuckDBPyConnection, sql: str) -> bytes:
     return bytes(sink.getvalue().to_pybytes())
 
 
+def planned_arrow_stream(
+    cursor: duckdb.DuckDBPyConnection, relation: str, plan: Any
+) -> tuple[bytes, tuple[str, ...]]:
+    """The adapter's plan (its JSON) over `relation` (an open table's grid view) as an Arrow IPC stream, batch
+    by batch, and the parts folded: DuckDB folds the whole plan (sab_adapter.plan_sql, its values bound)."""
+    from swissarmybench.adapters import sab_adapter
+
+    asked = sab_adapter.plan_from(plan)
+    sql, params = sab_adapter.plan_sql(f"({relation}) AS rows", asked)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message="Arrow output on a DB-API result")
+        reader: Any = cursor.execute(sql, params).to_arrow_reader(sab_adapter.BATCH_ROWS)
+    sink = pa.BufferOutputStream()
+    with ipc.new_stream(sink, reader.schema) as writer:
+        for batch in reader:
+            writer.write_batch(batch)
+    return bytes(sink.getvalue().to_pybytes()), asked.parts()
+
+
 def arrow_stream_to_table(body: bytes, max_bytes: int) -> pa.Table:
     """Read an Arrow IPC stream, stopping as soon as the decoded size passes `max_bytes`.
 

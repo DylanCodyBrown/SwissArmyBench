@@ -23,7 +23,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from swissarmybench.adapters.blade_run import (
@@ -293,6 +293,42 @@ def read(connection: str, table: str, schema: str = "", limit: int | None = None
         raise
     connection_use.report(str(spec["name"]), "read")  # counted in a Workbench kernel only
     return rows
+
+
+def table(
+    name: str,
+    columns: Sequence[str] = (),
+    filters: Sequence[Sequence[Any]] = (),
+    sort: Sequence[str | Sequence[str]] = (),
+    limit: int | None = None,
+) -> Any:
+    """An open table as its grid shows it (its steps applied), as an Arrow table, read through the adapter
+    (Plans/adapter.plan.md): `sab.table("orders")`, or with a plan the app's DuckDB folds into the read:
+    `sab.table("orders", columns=["region", "amount"], filters=[("amount", ">", 100)],
+    sort=[("amount", "desc")], limit=50)`. Read again each time; the table stays the app's one copy."""
+    info = ensure_server()
+    plan = {
+        "columns": list(columns),
+        "filters": [list(f) for f in filters],
+        "sort": [s if isinstance(s, str) else list(s) for s in sort],
+        "limit": limit,
+    }
+    try:  # the adapter needs duckdb and pyarrow: the plain client (standard library only) reads the view
+        from swissarmybench.adapters import sab_adapter
+    except ImportError:
+        if columns or filters or sort or limit is not None:
+            raise ImportError(
+                "sab.table with columns, filters, sort or a limit needs duckdb and pyarrow."
+            ) from None
+        import pyarrow.ipc as ipc
+
+        return ipc.open_stream(_call_bytes(f"/workbench/tables/{_quote(name)}/arrow")).read_all()
+    door = sab_adapter.Remote(
+        f"http://127.0.0.1:{info['port']}/workbench/tables/adapter",
+        "Open tables",
+        {"Authorization": f"Bearer {info['token']}"},
+    )
+    return sab_adapter.make_table(sab_adapter.TableSource(door, name, sab_adapter.plan_from(plan)))
 
 
 def python_tables(connection: str) -> tuple[list[tuple[str, str]], Callable[[str, str], Any]]:

@@ -669,6 +669,7 @@ def bootstrap(
         ws,
         datasets.origins,
         table_reader.query_to_arrow_stream,  # type: ignore[arg-type]
+        table_reader.planned_arrow_stream,  # type: ignore[arg-type]
     )
     project_files = ProjectFiles()
     # What the extensions that are on hand back once they are built (services/hooks.py): the documents the
