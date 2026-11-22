@@ -86,9 +86,13 @@ class Pairing:
     role: str
     port: str = "endpoint"
     words: str = ""
+    # Widget properties the pairing also sets, each to a field of the endpoint's answer by its place
+    # (Choices answers the value then the label: a select's column of options is the label, 1).
+    sets: tuple[tuple[str, int], ...] = ()
 
     def to_json(self) -> dict[str, Any]:
-        return {"widget": self.widget, "role": self.role, "port": self.port, "words": self.words}
+        said = {"widget": self.widget, "role": self.role, "port": self.port, "words": self.words}
+        return said | ({"sets": dict(self.sets)} if self.sets else {})
 
 
 Maker = Callable[[Target, Mapping[str, Any], "Taken", "Target | None"], Made]
@@ -157,9 +161,19 @@ PATTERNS: dict[str, Pattern] = {
                 Step("label", "The label shown", "column", help="What the user reads; ?search= looks in it."),
             ),
             (
-                Pairing("select_box", "choices", "options_table", "A select box takes them as its options."),
                 Pairing(
-                    "input_select", "choices", "options_table", "A select input takes them as its options."
+                    "select_box",
+                    "choices",
+                    "options_table",
+                    "A select box takes them as its options.",
+                    (("options_column", 1),),
+                ),
+                Pairing(
+                    "input_select",
+                    "choices",
+                    "options_table",
+                    "A select input takes them as its options.",
+                    (("options_column", 1),),
                 ),
             ),
             code.make_choices,
@@ -432,6 +446,13 @@ class Registry:
         return [w.to_json() for w in pattern.widgets if w.role == role] if pattern is not None else []
 
 
+def _pairing(given: Mapping[str, Any]) -> Pairing:
+    """An extension's pairing as its fields: `sets` as {property: the answer's field's place}."""
+    sets = given.get("sets") or {}
+    pairs = tuple((str(k), int(v)) for k, v in (sets.items() if isinstance(sets, Mapping) else sets))
+    return Pairing(**{k: v for k, v in given.items() if k != "sets"}, sets=pairs)
+
+
 def from_extension(raw: Any, extension: str) -> Pattern:
     """An extension's API_PATTERNS item: a Pattern, or {id, label, question, steps, widgets, make, fit?,
     defaults?, tables?, roles?} (steps and widgets as Step and Pairing, or their fields)."""
@@ -442,7 +463,7 @@ def from_extension(raw: Any, extension: str) -> Pattern:
     if not callable(make) or not str(given.get("id") or "").strip():
         raise ValueError(f"{extension}'s API pattern needs an id and a make(target, fields, taken, other).")
     steps = tuple(s if isinstance(s, Step) else Step(**s) for s in given.get("steps") or ())
-    widgets = tuple(w if isinstance(w, Pairing) else Pairing(**w) for w in given.get("widgets") or ())
+    widgets = tuple(w if isinstance(w, Pairing) else _pairing(w) for w in given.get("widgets") or ())
     label = str(given.get("label") or given["id"])
     return Pattern(
         str(given["id"]).strip().lower(),

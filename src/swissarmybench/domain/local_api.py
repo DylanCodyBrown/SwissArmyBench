@@ -408,6 +408,13 @@ def _bare(kind: str) -> str:
     return (found.group(1) if found else text).strip()
 
 
+def answer_fields(endpoint: Endpoint, models: Mapping[str, Model]) -> list[str]:
+    """The fields of the model an endpoint answers (one, or a list of them), in the order written; none
+    when its answer is not one of API.py's models."""
+    found = _model_of(_bare(endpoint.returns), models)
+    return list(found.fields) if found is not None else []
+
+
 def body_of(endpoint: Endpoint) -> Param | None:
     return next((p for p in endpoint.params if p.where == "body"), None)
 

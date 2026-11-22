@@ -577,7 +577,12 @@ class LocalApi:
         found: list[dict[str, Any]] = []
         for e in api.endpoints:
             made_by, of = pattern_rules.pattern_at(text, e.line)
+            answer = rules.answer_fields(e, api.models)
             for w in self.patterns.pairings(made_by, e.name) if made_by else []:
+                # A property the pairing sets to a field of the answer (a select's column: the label).
+                places = dict(w.get("sets") or {})
+                sets = {p: answer[i] for p, i in places.items() if 0 <= int(i) < len(answer)}
+                w = {k: v for k, v in w.items() if k != "sets"} | ({"sets": sets} if sets else {})
                 found.append(w | {"endpoint": f"{e.method} {e.path}", "pattern": made_by, "of": of})
         return found
 
