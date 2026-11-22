@@ -62,10 +62,8 @@ def describe() -> dict[str, Any]:
 
 
 def private_project(services: Any) -> bool:
-    """Is the open project marked private (.sab/project.json `private: true`)?"""
-    projects = getattr(services, "sab_projects", None)
-    check = getattr(projects, "private", None)
-    return bool(check()) if callable(check) else False
+    """Is the open project marked private (.sab/project.json `private: true`)? (the base's seam)"""
+    return bool(services.seams.project_private())
 
 
 def routes(services: Any) -> list[Any]:
@@ -86,12 +84,12 @@ def routes(services: Any) -> list[Any]:
         app_version=app_version,
         plugin_version=VERSION,
     )
-    services.copilot = service  # its stop, and tests
+    services.extension[ID] = service  # its own place on the record: its stop, and tests
     return door.routes(service)
 
 
 async def stop(services: Any) -> None:
-    service = getattr(services, "copilot", None)
+    service = services.extension.get(ID)
     if service is not None:
         await service.stop()
 

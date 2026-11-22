@@ -77,7 +77,7 @@ def _partition_m(tmdl: str) -> str:
 def test_import_change_one_query_then_export_the_round_trip(tmp_path: Path, standin: made_up.StandIn) -> None:
     pbix = fake.fake_pbix(tmp_path)
     with make_client(tmp_path) as client:
-        client.app.state.ctx.powerbi_project.reader = fake.reader  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["powerbi"].project.reader = fake.reader  # type: ignore[attr-defined]
         saved_connection(client)
         body = {"path": str(pbix), "folder": str(tmp_path / "projects")}
         folder = Path(ok(client.post("/powerbi/import", json=body, headers=AUTH))["folder"])

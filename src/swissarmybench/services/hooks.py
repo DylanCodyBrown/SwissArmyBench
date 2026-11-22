@@ -17,11 +17,29 @@ default: nothing held. The base never names the extension that fills one.
   canvas_put        a widget put on a canvas page (Build on the APIs page)
   dataset_aliases   a project's one dataset connection name that resolves through a setting of its own (a
                     Power BI project's Read Power BI from): DuckDB SQL and a kernel's %%dax cell follow it
+  api_uses          the canvases' widget instances and Events that name a local sandbox API's endpoint
+                    (Payload shapes; [] with no extension making canvases)
+  query_hints       tables worth one COUNTROWS per dataset name (an app registration's access report)
+
+Seams, below, is the other direction (craft review 2026-11-22): what the base offers an extension's
+composition root, typed, so a base rename is a type error there instead of a feature going quiet:
+
+  project_folder    the open project's folder (None: none open)
+  opened_folder     the folder a project was last made or opened in (the mode reads its type), and set_opened
+  project_private   whether the open project is marked private (nothing of it sent anywhere)
+  project_opened    the listeners told when a project is opened or made (folder, its manifest's extra)
+  project_saved     the listeners told when the open project is saved (its folder)
+  live_listeners    the listeners every live notice is told to, as it is sent
+  variable_names    this computer's variables, by name (never a value)
+  connection_tables what a connection's tables are (services/connection_tables.py): names, kind, places,
+                    listed, read_named, prepare
+  local_api         the project's local sandbox API's endpoints and pairings (services/local_api.py)
+  actions           every API's actions as the canvas names them, and what a built app carries
 """
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -78,3 +96,64 @@ class Hooks:
     # Build's widget (services/actions.py): {"canvas"?, "page"?, "widget", "values", "wire"} put on a page,
     # answered {"canvas", "id"}. None: no extension makes canvases.
     canvas_put: Callable[[dict[str, Any], str], Awaitable[dict[str, Any]]] | None = None
+    # The canvases' widget instances and Events naming an endpoint (services/local_api.py's Payload shapes).
+    api_uses: Callable[[], list[dict[str, Any]]] = field(default=lambda: [])
+    # Tables worth one COUNTROWS, per dataset name (a Power BI project's tables: its app registration report).
+    query_hints: Callable[[], dict[str, str]] = field(default=dict)
+
+
+# ===== what the base offers an extension (Seams) =====
+
+
+class ConnectionTablesSeam(Protocol):
+    """What a connection's tables are (services/connection_tables.py ConnectionTables)."""
+
+    def names(self) -> list[str]: ...
+
+    def kind(self, name: str) -> tuple[str, str]: ...
+
+    async def places(self, name: str) -> list[Any]: ...
+
+    async def listed(self, name: str, most: int = 500) -> list[str] | None: ...
+
+    async def read_named(self, reference: str) -> Any: ...
+
+    async def prepare(self, text: str) -> Any: ...
+
+
+class LocalApiSeam(Protocol):
+    """The project's local sandbox API (services/local_api.py LocalApi): its endpoints and their pairings."""
+
+    def endpoint_names(self) -> list[str]: ...
+
+    def endpoint_fields(self) -> dict[str, list[str]]: ...
+
+    def paired(self) -> list[dict[str, Any]]: ...
+
+
+class ActionsSeam(Protocol):
+    """Every API's actions (services/actions.py Actions): as the canvas's one picker names them, and the files
+    a built app carries."""
+
+    def refs(self) -> list[dict[str, Any]]: ...
+
+    def carried(self, used: str) -> dict[str, str]: ...
+
+
+ProjectOpened = Callable[[str, Mapping[str, Any]], Awaitable[None]]
+ProjectSaved = Callable[[str], Awaitable[None]]
+
+
+@dataclass
+class Seams:
+    project_folder: Callable[[], str | None]
+    opened_folder: Callable[[], str | None]
+    set_opened: Callable[[str | None], None]
+    project_private: Callable[[], bool]
+    project_opened: list[ProjectOpened]
+    project_saved: list[ProjectSaved]
+    live_listeners: list[Callable[[dict[str, Any]], None]]
+    variable_names: Callable[[], list[str]]
+    connection_tables: ConnectionTablesSeam
+    local_api: LocalApiSeam
+    actions: ActionsSeam

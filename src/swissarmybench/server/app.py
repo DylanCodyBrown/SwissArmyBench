@@ -88,6 +88,7 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 from swissarmybench.bootstrap import bootstrap
 from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.domain import workbench_pages
+from swissarmybench.extensions import manifest
 from swissarmybench.server import (
     routes_actions,
     routes_agent,
@@ -211,12 +212,12 @@ def create_app(
     # the secret) and its Session page words.
     secret_paths = (
         routes_sandbox.DATA_PREFIX,
-        *(p for extension in ctx.switched_on for p in getattr(extension, "SECRET_PATHS", ())),
+        *(p for extension in ctx.switched_on for p in manifest(extension).SECRET_PATHS),
     )
     for extension in ctx.switched_on:
-        session_log_rules.RULES.update(getattr(extension, "SESSION_RULES", None) or {})
+        session_log_rules.RULES.update(manifest(extension).SESSION_RULES or {})
     # The catalog's extensions that are not on: a call on their routes says which one it needs.
-    on_ids = {str(getattr(extension, "ID", "")).lower() for extension in ctx.switched_on}
+    on_ids = {manifest(extension).ID.lower() for extension in ctx.switched_on}
     missing = [e for e in ctx.extensions.catalog if e.id not in on_ids]
 
     async def session(request: Request) -> Response:
@@ -397,7 +398,7 @@ def create_app(
                 *(
                     route
                     for extension in ctx.switched_on
-                    if not getattr(extension, "FOLDER", None)
+                    if not manifest(extension).FOLDER
                     for route in extension.routes(ctx)
                 ),
                 # Each catalog extension that is not on here: its door answers which extension it is.
@@ -497,5 +498,5 @@ def _mount_folder_extensions(app: Starlette, ctx: Any) -> None:
 
     ctx.extensions.mount, ctx.extensions.unmount = mount, unmount
     for extension in ctx.switched_on:
-        if getattr(extension, "FOLDER", None):
+        if manifest(extension).FOLDER:
             mount(str(extension.ID))

@@ -336,15 +336,22 @@ src/swissarmybench/
                          (`# ===== name:`) so workbook.py carries only what its design uses
   bootstrap.py           the composition root: builds the adapters, hands them to the services; bootstrap() runs
                          its parts by area in order (_adapters, _connection_runs, _workspace_and_beta, _data, ...,
-                         _exports), each reading what it needs from Built (the one typed record of what is made
-                         so far; a closure reads a later one when it runs), then Services from it
+                         _exports, _doors), each reading what it needs from Built (the one typed record of what is
+                         made so far; a closure reads a later one when it runs; persist and state_file(name): no
+                         state file when off), then _check_wired (every part built, every LATE_BOUND attribute
+                         set: a wrong order fails at start), then Services, a typed view of Built by field name;
+                         _seams: what the base offers an extension (services/hooks.py Seams). Wiring only: each
+                         use case is its service's (review B2, 2026-11-22). A ceiling that only shrinks
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
                          SWISSARMYBENCH_EXTENSIONS: extension_on(id)), their modules, every project type's
                          mode as data (the base's BASE_MODE, each extension's MODE); the library's folder
                          extensions (folders(): library/extensions/<id>/ loaded as the package sab_ext_<id>,
                          or kept with its error, its missing REQUIRES, a package of its id winning; use_library:
                          the server's library; SWISSARMYBENCH_EXTENSION_FOLDERS for tests), a folder's MODE and
-                         New project files from its contract.json; contract(module): any extension's contract.json
+                         New project files from its contract.json; contract(module): any extension's contract.json;
+                         manifest(module): every module attribute an extension may declare, read once into one
+                         typed Manifest, an unknown upper-case name reported (its commands' OLD_NAMES and
+                         OLD_ARGS read with its commands)
 
   domain/                the model and its rules. Standard library and sqlglot only; no I/O, no clock
     datasets.py          Column, DatasetInfo, names, the dataset errors
@@ -797,6 +804,7 @@ src/swissarmybench/
                          first window is open; not a browser-window sign-in, nor one the user took away this
                          session), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
+    analysis_blades.py   analysis blades (BladeService.analysis_blades): listed, found, run on a grid's view
     connections.py       connections: the list, the forms, test before saving, password sources
     found_connections.py Find connections on this computer: the scan off the loop (Cancel), the last list in memory,
                          import (each a connection by ConnectionService.save, its password a variable declared not
@@ -847,8 +855,9 @@ src/swissarmybench/
                          theirs (register("structures"/"apis")); one failing source skipped
     sandbox.py           the project's sandbox: add (an open grid's view, a connection's table read once, a file,
                          columns), remove, Reset (the agent's on Allow), baseline, checkpoints, the adapter's door
-                         (source_tables, read_arrow, query_arrow: the connection's SQL made DuckDB's, write_arrow:
-                         counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias:
+                         (DataDoor, sandbox.door, over its SandboxCore port: source_tables, read_arrow,
+                         query_arrow: the connection's SQL made DuckDB's, write_arrow: counted, an open grid
+                         following), [Sandbox] in DuckDB SQL (SandboxAlias:
                          the `sandbox` tables kind), the Catalog's Sandbox section; listing sorted, variant (a grid's
                          view or a structure's records, named apart, never written back), mock (Mocked as a
                          connection), edit (its grid's cells, rows added and deleted: typed, counted, Reset undoes),
@@ -857,7 +866,8 @@ src/swissarmybench/
                          connection's from the shared catalog, put back after Reset and Restore); mock_dialects
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
                          (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
-                         the session; api writes), log, address, the endpoint wizard (pattern_list; plan: the
+                         the session; api writes), log, address, the endpoint wizard handed over to
+                         local_api_wizard.py (EndpointWizard over its ApiFile port: pattern_list; plan: the
                          tables, the patterns ranked, a pattern's steps and its code, nothing written; scaffold: a
                          pattern's endpoints appended to API.py, a dry run the code only; its key kept by the
                          sandbox; paired: each pattern-made endpoint with its widget, for the Canvas); its
@@ -963,7 +973,11 @@ src/swissarmybench/
                          the Workbench windows hold, a canvas, what stops with a kernel or a window, an app's
                          own file, the cells shown live, a new project's app; a project's dataset connection
                          names resolving through its own setting (dataset_aliases: connection tables' DuckDB SQL and
-                         a kernel's %%dax cell, GET /connections/sql/alias); each a plain default with none on
+                         a kernel's %%dax cell, GET /connections/sql/alias), api_uses (the canvases' endpoint
+                         uses), query_hints (an app registration's COUNTROWS tables); each a plain default with
+                         none on. Seams, the other way: what the base offers an extension, typed (the project's
+                         folder, opened and saved listeners, live listeners, variable names, connection tables,
+                         the local API, the actions); an extension's own services go in services.extension[id]
     data_export.py       data.ipynb -> data.py (New project, Export data.py, the Streamlit extension's Save as)
     projects.py          projects: a new one, the files the Workbench opens, Export data.py
     sab_projects.py      a project is a folder: new (scaffolded in the projects folder or where named, opened,
@@ -990,7 +1004,8 @@ src/swissarmybench/
                          pruned, the folder looked at for a pull's change (catalog_changed), a bad file left alone;
                          the listing, one table, the ERD's model, the Explorer's tables
     library_setup.py     Set up this computer: the vaults checked in child processes, the checklist, Move to
-                         a vault
+                         a vault; SharedProjects: each shared project's connections not working here, and one
+                         opened that only works here said once
     vault_names.py       a key vault's names kept as they are read (the form, Set up this computer, a kernel's
                          load), written only when they change; given as its variables (the Settings and secrets tab, the ${ list,
                          context.md, the checklist, a kernel's names); read again once the first window is open
@@ -998,7 +1013,9 @@ src/swissarmybench/
                          them: "Names from <time>: Read again"); a deleted or renamed vault's file follows
     project_scope.py     the open project's documents, and import: documents from another project folder or a
                          loose file into the project; an older project's connections and blades
-                         into the library (services/library.py's take)
+                         into the library (services/library.py's take); ProjectUse: what the project uses, one
+                         answer (its tables and documents, the connections it uses and where, a folder's named
+                         connections), given its ports (UseSources)
     app_registrations.py the library's app registrations: list, add, remove, the access report (Test, Check again;
                          never on a timer; audited: Power BI, and each Microsoft connection signing in with it), a
                          connection's Access section
@@ -1273,7 +1290,10 @@ src/swissarmybench/
   client/html_cells.py   an HTML cell's names read in the kernel (%%sab_html): tables, figures and values
                          told by their shape; the marks that say a variable changed
   cli/                   the agent command layer: commands.py (the one registry of every page action,
-                         named by app area: tabs_, table_, column_, cell_, steps_...), api.py (HTTP + event socket as the
+                         named by app area: tabs_, table_, column_, cell_, steps_...; the help commands, AREAS,
+                         the order and the dispatcher, a ceiling that only shrinks), commands_<area>.py (each
+                         area's commands, 2026-11-22), command_kit.py (Arg, Command, the registrar, the shared
+                         helpers; re-exported by commands.py), api.py (HTTP + event socket as the
                          agent), main.py (the `sab` terminal command; `sab pack new` runs here, no server)
   mcp/index.md, guide/   the agent's index (read first: the resource swissarmybench://index, and `guide` with no
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
@@ -1711,12 +1731,14 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          (where it lives), header (a rename follows every canvas), properties live, set a default,
                          check a value, copy (Copy to project / to library), project_widgets (an export's widgets/),
                          delete (the agent's on Allow), Run in place, the
-                         headless check, previews' state
+                         headless check, previews' state; its ports WidgetProject, WidgetTables, WidgetApis
     services/canvas.py   Canvases: open (validated), command (versioned: another window's change refused with the
                          canvas as it is now; a file changed on disk read first), undo, redo, state (missing, marks,
                          notes said once), play, check, export (the agent's on Allow), replace (one change: a
                          build's Restore), rename_widget; an inserted widget wired to its pattern's endpoint in
-                         the same change (paired: the base's local_api.paired)
+                         the same change (paired: the base's local_api.paired); its port CanvasProject;
+                         api_uses (the base's hooks.api_uses: canvas_wiring.api_uses over CanvasFiles.in_folder)
+                         and put (hooks.canvas_put: Build's widget)
     services/launch.py   Launches: Launch (a build, then its run with sab_perf.py beside; analyzer from the first
                          load), Relaunch, Stop, builds (list, files, compare two or with now, Restore), the analyzer
                          (attach, the proxy's tap, session, hints, save into the build, a saved one)

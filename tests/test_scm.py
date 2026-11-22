@@ -57,7 +57,7 @@ def ok(response: Any) -> Any:
 
 def fresh(client: TestClient) -> None:
     """Forget when GitHub was last asked (it is asked at most once a minute)."""
-    client.app.state.ctx.git._remote.clear()  # type: ignore[attr-defined]
+    client.app.state.ctx.extension["git"]._remote.clear()  # type: ignore[attr-defined]
 
 
 def answer(client: TestClient, approve: bool) -> threading.Thread:

@@ -110,10 +110,6 @@ def routes(services: Any) -> list[Any]:
         else:
             await services.live.broadcast({"type": "projects_changed"})
 
-    def project() -> str | None:
-        found = services.sab_projects.state().get("project") or {}
-        return str(found["folder"]) if found.get("folder") else None
-
     service = SourceControl(
         services.ws,
         lambda token: github.GitHubClient(api, web, token),
@@ -126,9 +122,9 @@ def routes(services: Any) -> list[Any]:
         client_id=_env("SWISSARMYBENCH_GITHUB_CLIENT_ID", CLIENT_ID),
         pulled=pulled,
         known_secrets=lambda: github.known_secrets(services),
-        project=project,
+        project=services.seams.project_folder,
     )
-    services.git = service  # tests
+    services.extension[ID] = service  # its own place on the record (tests)
     # The base's Team box (Settings): one repository for the team library and its projects/.
     from swissarmybench_git.services.team import TeamPort
 
@@ -138,8 +134,8 @@ def routes(services: Any) -> list[Any]:
         await services.live.broadcast({"type": "sync_changed"})
 
     # The footer's mark follows a save and an opened project (no polling: it reads the files here).
-    services.sab_projects.saved.append(changed)
-    services.sab_projects.opened.append(changed)
+    services.seams.project_saved.append(changed)
+    services.seams.project_opened.append(changed)
     return door.routes(service)
 
 

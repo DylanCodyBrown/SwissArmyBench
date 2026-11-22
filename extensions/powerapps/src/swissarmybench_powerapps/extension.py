@@ -5,6 +5,7 @@ composition root: it builds its adapters and hands them to its service.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -157,8 +158,8 @@ def routes(services: Any) -> list[Any]:
 
     def opened(folder: str | None) -> None:
         # The open code app is the open project: its .sab/project.json's type sets the mode.
-        if folder is not None or services.projects.opened == service.folder:
-            services.projects.opened = folder
+        if folder is not None or services.seams.opened_folder() == service.folder:
+            services.seams.set_opened(folder)
 
     processes = runner.Runner()
     project_files = files.ProjectFiles(Path(services.settings.state_dir) / "powerapps.json")
@@ -175,7 +176,6 @@ def routes(services: Any) -> list[Any]:
         prefix=door.LIVE_PREFIX,
         opened=opened,
     )
-    services.powerapps = service  # its stop, and tests
 
     async def environments() -> list[dict[str, Any]]:
         # Listed once when none are yet (pac env list: the user's or the agent's own action).
@@ -200,18 +200,25 @@ def routes(services: Any) -> list[Any]:
         environment_id=lambda: str(service.project_state().get("app", {}).get("environment_id") or ""),
         sources=lambda: list(service.project_state().get("sources") or []),
     )
-    services.powerapps_notebook = notebook  # its stop, and tests
+    # Its own place on the record: its stop, and tests.
+    services.extension[ID] = Own(service, notebook)
     return door.routes(service, notebook)
+
+
+@dataclass
+class Own:
+    """The Power Apps extension's own services (services.extension["powerapps"])."""
+
+    powerapps: Any
+    notebook: Any
 
 
 async def stop(services: Any) -> None:
     """When the server stops: the dev server and the data notebooks' kernels with it."""
-    service = getattr(services, "powerapps", None)
-    if service is not None:
-        await service.stop_all()
-    notebook = getattr(services, "powerapps_notebook", None)
-    if notebook is not None:
-        await notebook.stop_all()
+    own = services.extension.get(ID)
+    if own is not None:
+        await own.powerapps.stop_all()
+        await own.notebook.stop_all()
 
 
 def commands() -> dict[str, Any]:

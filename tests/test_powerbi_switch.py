@@ -84,9 +84,9 @@ def test_the_switch_reaches_sql_dax_cells_and_compare(
     pbix = fake.fake_pbix(tmp_path)
     with make_client(tmp_path) as client:
         ctx: Any = client.app.state.ctx  # type: ignore[attr-defined]
-        ctx.powerbi_project.reader = fake.reader
+        ctx.extension["powerbi"].project.reader = fake.reader
         running = desktop.FakeDesktop()
-        live = ctx.powerbi_live
+        live = ctx.extension["powerbi"].live
         live._discover, live._opener, live._windows = desktop.instances, lambda port: running, lambda: True
         live.stop()
         saved_connection(client)
@@ -133,7 +133,7 @@ def test_the_switch_reaches_sql_dax_cells_and_compare(
         assert compared["counts"]["right_only"] == 1  # the fake's second customer
 
         # The file: DAX that is not a whole table is refused in words; a whole table reads the file.
-        ctx.powerbi_project.live = None
+        ctx.extension["powerbi"].project.live = None
         refused = client.post(
             "/connections/sql/alias/dax",
             json={"name": "Sales model", "dax": "EVALUATE TOPN(1, 'Sales')"},

@@ -176,7 +176,7 @@ def test_the_kernels_route_takes_its_key_only(client: TestClient, app_folder: Pa
 
 def _service(client: TestClient) -> Any:
     """The notebook service the extension built for this app (the composition root's services)."""
-    return client.app.state.ctx.powerapps_notebook  # type: ignore[attr-defined]
+    return client.app.state.ctx.extension["powerapps"].notebook  # type: ignore[attr-defined]
 
 
 # ===== data.ts and Use in app =====

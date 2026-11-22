@@ -232,7 +232,7 @@ def test_only_the_composition_root_and_the_server_build_adapters() -> None:
     assert named <= allowed
 
 
-@pytest.mark.parametrize("folder", ["domain", "services", "adapters", "server"])
+@pytest.mark.parametrize("folder", ["domain", "services", "adapters", "server", "cli"])
 def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
     long = {
         path.name: lines
@@ -260,6 +260,17 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # 4,450 (2026-11-22, 1.9.1): a period groups a date as it is, a text date cast first (about 10).
 # api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
 ONE_FILE = {"adapter.py": 4450, "api_adapter.py": 3000}
+
+# The composition root and the command registry (craft review 2026-11-22, review B2): ceilings at their size
+# after their use cases went to the services and the commands to cli/commands_<area>.py. They only shrink:
+# lower one when a file gets shorter, and put new code in a service or an area's module, never here.
+SHRINKING = {"bootstrap.py": 2332, "cli/commands.py": 473}
+
+
+@pytest.mark.parametrize("name", sorted(SHRINKING))
+def test_the_composition_root_and_the_registry_only_shrink(name: str) -> None:
+    lines = len((PACKAGE / name).read_text(encoding="utf-8").splitlines())
+    assert lines <= SHRINKING[name], f"{name} is {lines} lines, over its ceiling of {SHRINKING[name]}"
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

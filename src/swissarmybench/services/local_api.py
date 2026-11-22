@@ -104,6 +104,7 @@ class LocalApi:
         now: Callable[[], float] = time.time,
         catalog: Any = None,
         publish: Callable[[dict[str, str]], None] = lambda values: None,
+        api_uses: Callable[[], list[dict[str, Any]]] = lambda: [],
     ) -> None:
         self.ws = ws
         self._project = project
@@ -141,7 +142,7 @@ class LocalApi:
         # SAB_API_BASE), so an app Play or Launch starts afterwards reaches it; {} when it stops.
         self.publish: Callable[[dict[str, str]], None] = publish
         # The canvases' widget instances that name an endpoint (the Streamlit extension's; none without it).
-        self.api_uses: Callable[[], list[dict[str, Any]]] = lambda: []
+        self.api_uses: Callable[[], list[dict[str, Any]]] = api_uses
         # The endpoint wizard (services/local_api_wizard.py) and its patterns: the base's nine and each
         # extension's (its API_PATTERNS; bootstrap).
         self.wizard = EndpointWizard(self)

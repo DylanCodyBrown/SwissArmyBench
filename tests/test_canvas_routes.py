@@ -28,7 +28,7 @@ ORDERS = pa.table({"month": ["2026-01", "2026-02"], "region": ["North", "South"]
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, FakeRunner, Path]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs._runner = runner  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["streamlit"].live_runs._runner = runner  # type: ignore[attr-defined]
         assert push(client, "orders", ORDERS).status_code == 200
         project = tmp_path / "shop"
         project.mkdir()

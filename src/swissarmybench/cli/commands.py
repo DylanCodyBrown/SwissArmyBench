@@ -436,7 +436,8 @@ def _add_extensions() -> None:
             given = made() if callable(made) else {}
         except Exception:  # a folder extension's own code (the library's): its commands left out, never all
             given = {}
-        known = {area for area, _ in AREAS} | {a[0] for a in getattr(module, "AREAS", ()) or ()}
+        declared = extensions.manifest(module)
+        known = {area for area, _ in AREAS} | {a[0] for a in declared.AREAS}
         for name, cmd in (given if isinstance(given, dict) else {}).items():
             # A command in no area would leave the registry unordered: only one under an area is taken.
             if isinstance(cmd, Command) and any(name == a or name.startswith(a + "_") for a in known):
@@ -447,10 +448,11 @@ def _add_extensions() -> None:
             if name not in REGISTRY:
                 GONE_NAMES.setdefault(name, said)
         # Its old names and arguments, one release (as the base's OLD_NAMES and OLD_ARGS).
+        # (its commands' own metadata: extensions.COMMAND_NAMES, read here with its commands)
         OLD_NAMES.update(getattr(module, "OLD_NAMES", {}))
         OLD_ARGS.update(getattr(module, "OLD_ARGS", {}))
         known = {area for area, _ in AREAS}
-        AREAS = AREAS + tuple(a for a in getattr(module, "AREAS", ()) if a[0] not in known)
+        AREAS = AREAS + tuple(a for a in declared.AREAS if a[0] not in known)
     _arrange()  # an extension's commands in an area of the base's (workbench_canvas...) go with it
 
 

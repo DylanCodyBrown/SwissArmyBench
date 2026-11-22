@@ -22,8 +22,8 @@ the app is the BI base without it (no Canvas, no Widgets; its tools say which ex
 
 from __future__ import annotations
 
-import json
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -100,7 +100,6 @@ def routes(services: Any) -> list[Any]:
     """Its routes, its services built from the base's (bootstrap's Services), and the base's hooks filled."""
     from swissarmybench.server import streamlit_proxy
     from swissarmybench.services.ports import BACKGROUND
-    from swissarmybench.settings import Settings
     from swissarmybench_streamlit.adapters.build_files import BuildFiles
     from swissarmybench_streamlit.adapters.streamlit_files import AppFiles, parquet_of
     from swissarmybench_streamlit.adapters.widget_files import (
@@ -115,30 +114,21 @@ def routes(services: Any) -> list[Any]:
     from swissarmybench_streamlit.server.live_runs import LiveRuns
     from swissarmybench_streamlit.server.previews import Previewer
     from swissarmybench_streamlit.server.streamlit_apps import Runner
-    from swissarmybench_streamlit.services.canvas import Canvases
+    from swissarmybench_streamlit.services.canvas import Canvases, CanvasProject
     from swissarmybench_streamlit.services.launch import Launches
     from swissarmybench_streamlit.services.open_tables import OpenTables
-    from swissarmybench_streamlit.services.widgets import Widgets
+    from swissarmybench_streamlit.services.widgets import WidgetApis, WidgetProject, Widgets, WidgetTables
 
     # A widget run alone and a canvas's Play: written to a temporary folder of the app's own and run in the
     # project's Python (Streamlit is never this app's dependency), passed through at /streamlit/run/.
     app_files = AppFiles()
     runner = Runner(report=lambda *e: services.process_event("streamlit", *e))
     live_runs = LiveRuns(app_files, runner)
-    settings = getattr(services, "settings", None) or Settings()
-    library = getattr(services, "library", None)
+    settings = services.settings
+    library = services.library
     documents = services.documents
-
-    def project_folder() -> str | None:
-        projects = getattr(services, "sab_projects", None)
-        project = (projects.state().get("project") or {}) if projects is not None else {}
-        folder = project.get("folder")
-        return str(folder) if folder else None
-
-    def variable_names() -> list[str]:
-        listing = getattr(getattr(services, "variables", None), "listing", None)
-        found = (listing().get("variables") or []) if listing else []
-        return [str(v.get("name")) for v in found if isinstance(v, dict) and v.get("name")]
+    seams = services.seams  # what the base offers (services/hooks.py Seams), typed
+    project_folder = seams.project_folder
 
     def project_python() -> str | None:
         folder = project_folder()
@@ -154,25 +144,18 @@ def routes(services: Any) -> list[Any]:
     # read through the connection-tables contract: the one gate, so each connection's query limit holds.
     from swissarmybench_streamlit.domain.widget_properties import module_tables
 
-    connection_tables = getattr(services, "connection_tables", None)
+    connection_tables = seams.connection_tables
 
     def data_tables() -> list[str]:
         folder = project_folder()
         return module_tables(read_text(str(Path(folder) / "data.py"))) if folder else []
 
-    def connection_names() -> set[str]:
-        return set(connection_tables.names()) if connection_tables is not None else set()
-
     async def connection_listing() -> dict[str, list[str] | None]:
         out: dict[str, list[str] | None] = {}
-        if connection_tables is None:
-            return out
         for name in connection_tables.names():
             try:
                 saved, kind = connection_tables.kind(name)
-                if (
-                    kind == "sandbox"
-                ):  # the project's sandbox: its made-up copies, listed now (never live data)
+                if kind == "sandbox":  # the project's sandbox: its made-up copies (never live data)
                     out[saved] = sorted(f"[{saved}].{p.table}" for p in await connection_tables.places(saved))
                     continue
                 out[name] = await connection_tables.listed(name)
@@ -181,83 +164,40 @@ def routes(services: Any) -> list[Any]:
         return out
 
     async def read_connection_table(reference: str) -> bytes:
-        if connection_tables is None:
-            raise LookupError("Connections are not here.")
         table = await connection_tables.read_named(reference)
         found: bytes = await services.ws.workers.run(BACKGROUND, parquet_of, table)
         return found
 
+    # Every API's actions through api_adapter (the base's services/actions.py): the one picker's list (the
+    # local sandbox API's endpoints and each library API's actions), and what a built app carries.
+    actions = seams.actions
     widgets = Widgets(
         services.ws,
-        WidgetFiles(
-            library.folder if library is not None else None,
-            made=library.made if library else lambda: None,
-            project=project_folder,
-        ),
+        WidgetFiles(library.folder, made=library.made, project=project_folder),
         live_runs,
         services.agent.approvals,
-        tables=tables.columns,
-        table_data=tables.data,
-        project_python=project_python,
+        project=WidgetProject(
+            folder=project_folder,
+            python=project_python,
+            data_tables=data_tables,
+            variables=lambda: set(os.environ),
+            variable_names=seams.variable_names,
+        ),
+        tables=WidgetTables(
+            columns=tables.columns,
+            data=tables.data,
+            connections=lambda: set(connection_tables.names()),
+            connection_listing=connection_listing,
+            read_connection=read_connection_table,
+        ),
+        apis=WidgetApis(
+            endpoints=lambda: [a["ref"] for a in actions.refs()],
+            endpoint_fields=lambda: {a["ref"]: a["fields"] for a in actions.refs() if a["fields"]},
+            api_files=actions.carried,
+            excel_files=excel_files,  # the Excel widgets' adapter.py and sab_excel.py, beside the pages
+        ),
         previews=PreviewFiles(Path(settings.state_dir) / "widget-previews"),
-        variables=lambda: set(os.environ),
-        variable_names=variable_names,
-        project_folder=project_folder,
-        data_tables=data_tables,
-        connections=connection_names,
-        connection_listing=connection_listing,
-        read_connection_table=read_connection_table,
     )
-    widgets.excel_files = excel_files  # the Excel widgets' adapter.py and sab_excel.py, beside the pages
-    # An endpoint property's picker: the project's local sandbox API (the base's API.py), when it is there.
-    local_api = getattr(services, "local_api", None)
-    if local_api is not None:
-        widgets.endpoints = local_api.endpoint_names
-        widgets.endpoint_fields = local_api.endpoint_fields
-        # Every API's actions through api_adapter (the base's services/actions.py): the one picker's list
-        # (the local sandbox API's endpoints and each library API's actions), and what a built app carries.
-        actions = getattr(services, "actions", None)
-        if actions is not None:
-            widgets.endpoints = lambda: [a["ref"] for a in actions.refs()]
-            widgets.endpoint_fields = lambda: {a["ref"]: a["fields"] for a in actions.refs() if a["fields"]}
-            widgets.api_files = actions.carried
-
-        def api_uses() -> list[dict[str, Any]]:
-            """Each canvas widget instance whose endpoint property names one of API.py's, and each Event
-            wired to call one (Payload shapes)."""
-            from swissarmybench_streamlit.domain import canvas_model
-
-            folder = project_folder()
-            if folder is None:
-                return []
-            out: list[dict[str, Any]] = []
-            for file in sorted(Path(folder).glob("*.canvas.json")):
-                try:
-                    canvas = json.loads(file.read_text(encoding="utf-8"))
-                    nodes = list(canvas_model.walk(canvas))
-                except (OSError, ValueError, KeyError, TypeError):
-                    continue
-                for page, node in nodes:
-                    values = node.get("values") or {}
-                    if node.get("kind") == "widget" and values.get("endpoint"):
-                        out.append(
-                            {"canvas": file.name, "page": page.get("name"), "instance": node.get("id"),
-                             "widget": node.get("widget"), "values": values}
-                        )  # fmt: skip
-                    for port, wire in (
-                        (node.get("wires") or {}).items() if node.get("kind") == "widget" else ()
-                    ):
-                        actions = wire.get("actions") if isinstance(wire, dict) else None
-                        for action in actions if isinstance(actions, list) else ():
-                            if isinstance(action, dict) and action.get("do") == "call":
-                                out.append(
-                                    {"canvas": file.name, "page": page.get("name"),
-                                     "instance": node.get("id"), "widget": node.get("widget"),
-                                     "event": port, "action": action}
-                                )  # fmt: skip
-            return out
-
-        local_api.api_uses = api_uses
     # The Canvas: the project's <app>.canvas.json files, every change rule-checked, kept and undoable.
     canvases = Canvases(
         services.ws,
@@ -266,25 +206,21 @@ def routes(services: Any) -> list[Any]:
         live_runs,
         services.agent.approvals,
         app_files,
-        project_folder=project_folder,
-        read_data_py=lambda folder: read_text(str(Path(folder) / "data.py")),
-        list_folder=folder_names,
-        real_path=lambda path: os.path.realpath(os.path.expanduser(path)),
+        project=CanvasProject(
+            folder=project_folder,
+            read_data_py=lambda folder: read_text(str(Path(folder) / "data.py")),
+            list_folder=folder_names,
+            real_path=lambda path: os.path.realpath(os.path.expanduser(path)),
+            core_files=services.scaffold.export_core,
+        ),
         builds=BuildFiles(),
-        core_files=getattr(getattr(services, "scaffold", None), "export_core", None),
+        paired=seams.local_api.paired,  # a dropped widget wires itself to its endpoint
     )
     # Launch, Builds and the Performance Analyzer (Visual Studio's F5, its history, its profiler).
     launches = Launches(canvases, live_runs, BuildFiles())
     canvases.launches = launches
-    if getattr(services, "local_api", None) is not None:  # a dropped widget wires itself to its endpoint
-        canvases.paired = services.local_api.paired
     # Each widget's preview, rendered headless once (Play's own builder and run) and kept by its hash.
     previewer = Previewer(widgets, live_runs)
-    services.widgets = widgets
-    services.canvases = canvases
-    services.launches = launches
-    services.live_runs = live_runs
-    services.previewer = previewer
     # Play follows live data: a table a playing page reads, written again into its run when it changes (a
     # sandbox write, a grid's steps, a reload, data.py), and its open pages run again by themselves.
     from swissarmybench_streamlit.services.live_tables import LiveTables
@@ -303,40 +239,21 @@ def routes(services: Any) -> list[Any]:
             return False
 
     live_tables = LiveTables(live_runs, widgets.tables_for, project_data_py, is_data_py)
-    listeners = getattr(getattr(services.ws, "live", None), "listeners", None)
-    if isinstance(listeners, list):
-        listeners.append(live_tables.heard)
-    services.live_tables = live_tables
+    seams.live_listeners.append(live_tables.heard)
 
     hooks = services.hooks
     hooks.app_document = GoneApp()  # an old .stapp.json: said in one line
     hooks.project_app = project_app
     hooks.app_pages = canvas_pages
-
-    async def canvas_put(body: dict[str, Any], who: str) -> dict[str, Any]:
-        """Build's widget (the APIs page): put on the named canvas's page (else the project's first canvas
-        and its first page), its values set, its In wired."""
-        listed = {c["name"]: c["path"] for c in canvases.listing()["canvases"]}
-        wanted = str(body.get("canvas") or next(iter(listed), ""))
-        if wanted not in listed:
-            raise ValueError("The project has no canvas yet: New canvas on the Canvas page makes one.")
-        name = (await canvases.open({"path": listed[wanted]}, who))["canvas"]
-        insert = {"kind": "insert_widget", "widget": body["widget"]} | (
-            {"page": body["page"]} if body.get("page") else {}
-        )
-        made = (await canvases.command(name, insert, who))["made"]
-        if body.get("values"):
-            await canvases.command(name, {"kind": "set_values", "id": made, "values": body["values"]}, who)
-        if body.get("wire"):
-            await canvases.wire(name, {"id": made, **body["wire"]}, who)
-        return {"canvas": wanted, "canvas_id": name, "id": made}
-
-    hooks.canvas_put = canvas_put
-    web_root = getattr(settings, "web_root", Settings().web_root)
+    hooks.canvas_put = canvases.put  # Build's widget on the APIs page
+    hooks.api_uses = canvases.api_uses  # the local sandbox API's Payload shapes
+    web_root = settings.web_root
     # Share… (the base's services/sharing.py): a launched canvas app's own port, tunnelled to the organization
     from swissarmybench_streamlit.services import sharing_target
 
-    services.share_target = sharing_target.wire(services, live_runs, runner, canvases.title_of)
+    share_target = sharing_target.wire(services, live_runs, runner, canvases.title_of)
+    # Its own services, on its own place of the record (never an attribute of the base's).
+    services.extension[ID] = Own(widgets, canvases, launches, live_runs, previewer, live_tables, share_target)
     return [
         *routes_widgets.routes(widgets, previewer, web_root),
         *routes_canvases.routes(canvases, web_root),
@@ -362,20 +279,28 @@ class GoneApp:
         raise ValueError(OLD_SAID)
 
 
+@dataclass
+class Own:
+    """The Streamlit extension's own services (services.extension["streamlit"]): for its stop and tests."""
+
+    widgets: Any
+    canvases: Any
+    launches: Any
+    live_runs: Any
+    previewer: Any
+    live_tables: Any
+    share_target: Any
+
+
 async def stop(services: Any) -> None:
     """When the server stops: no Streamlit process outlives it, nor its temporary folder."""
-    previewer = getattr(services, "previewer", None)
-    if previewer is not None:
-        await previewer.stop()
-    launches = getattr(services, "launches", None)
-    if launches is not None:
-        await launches.stop_all()
-    live_runs = getattr(services, "live_runs", None)
-    if live_runs is not None:
-        await live_runs.stop_all()
-    shared = getattr(services, "share_target", None)
-    if shared is not None:
-        await shared.close_all()
+    own = services.extension.get(ID)
+    if own is None:
+        return
+    await own.previewer.stop()
+    await own.launches.stop_all()
+    await own.live_runs.stop_all()
+    await own.share_target.close_all()
 
 
 def canvas_pages(path: str, text: str) -> list[tuple[str, list[tuple[str, int]]]]:

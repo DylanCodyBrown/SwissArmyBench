@@ -112,6 +112,7 @@ from swissarmybench.domain.project_scope import APP_FOLDER
 from swissarmybench.domain.sab_files import APP_GITIGNORE, APP_IGNORE_FILE
 from swissarmybench.domain.steps import describe_steps
 from swissarmybench.domain.table_cells import Origin as TableOrigin
+from swissarmybench.extensions import manifest
 from swissarmybench.server import api_runs, api_runtime, blade_runner, dialog_runner, file_manager
 from swissarmybench.server.blade_templates import TEMPLATES
 from swissarmybench.server.claude_finder import Finder as ClaudeFinder
@@ -164,7 +165,7 @@ from swissarmybench.services.folders import Folders
 from swissarmybench.services.found_connections import FoundConnections
 from swissarmybench.services.grids import GridService
 from swissarmybench.services.grids import view_rows as grid_view_rows
-from swissarmybench.services.hooks import Hooks
+from swissarmybench.services.hooks import Hooks, Seams
 from swissarmybench.services.inbox import Inbox
 from swissarmybench.services.intellisense import Intellisense
 from swissarmybench.services.library import Library
@@ -311,6 +312,10 @@ class Services:
     project_files: Any
     export_writer: Any
     process_event: Callable[..., None]
+    # What the base offers the extensions, typed (services/hooks.py Seams), and each extension's own services
+    # by its id (its routes() puts them there: never an attribute of the base's own).
+    seams: Seams
+    extension: dict[str, Any]
 
 
 def usage_documents(
@@ -339,7 +344,7 @@ def usage_documents(
 def _scaffold_of(project_type: str) -> Any:
     """The scaffold of the extension whose mode is this project type (None: none is on here)."""
     for module in extension_modules.enabled():
-        if (getattr(module, "MODE", None) or {}).get("type") == project_type:
+        if (extension_modules.manifest(module).MODE or {}).get("type") == project_type:
             return getattr(module, "scaffold", None)
     return None
 
@@ -358,7 +363,7 @@ def _blade_store(settings: Settings, library_folder: LibraryFolder, on_extension
         # The built-in starter pack ships inside the package, so each version brings its own.
         starters=Path(__file__).resolve().parent / "starters",
         # Each extension that is on: its own starters (its module's STARTERS folder).
-        more_starters=lambda: [Path(s) for m in on_extensions if (s := getattr(m, "STARTERS", None))],
+        more_starters=lambda: [Path(s) for m in on_extensions if (s := manifest(m).STARTERS)],
         # A connection's tables are always listed: one saved with no listing query gets its starter's.
         listing=lambda b: blade_tables.listing_for(b.kind, b.template, b.dialect, TEMPLATES),
     )
@@ -500,9 +505,9 @@ def _extensions(
         folders=FolderExtensions(file_manager.trash, file_manager.show),
         install_packages=install_packages,
         panels={
-            str(getattr(m, "ID", "")).lower(): str(m.PANEL)
+            extension_modules.manifest(m).ID.lower(): extension_modules.manifest(m).PANEL
             for m in on_extensions
-            if isinstance(getattr(m, "PANEL", None), str) and str(m.PANEL).startswith("/")
+            if extension_modules.manifest(m).PANEL.startswith("/")
         },
     )
     update_helper.kept = extensions.kept_wheels
@@ -682,6 +687,7 @@ def _app_registrations(
     library_folder: LibraryFolder,
     variables: Any,
     tables_of: Callable[[str], Any],
+    query_hints: Callable[[], dict[str, str]],
 ) -> AppRegistrations:
     """The library's app registrations, each one's users being the connections that read its variables; a
     connection's tables from its loaded catalog (Azure SQL's SELECT TOP 0 on them)."""
@@ -705,6 +711,7 @@ def _app_registrations(
         variables.values,
         every_connection,
         tables_of=tables_of,
+        query_hints=query_hints,
     )
     return app_registrations
 
@@ -867,6 +874,8 @@ class Built:
     navigation: Navigation
     desktop: Desktop
     lineage: Lineage
+    seams: Seams
+    extension: dict[str, Any]
 
     def state_file(self, name: str) -> Path | None:
         """A state file's path in the state folder, or None when this server writes no state files."""
@@ -1647,7 +1656,13 @@ def _variables_part(b: Built) -> None:
         b.approvals,
     )
     b.app_registrations = _app_registrations(
-        ws, b.connections, blade_store, library_folder, variables, b.catalogs.places
+        ws,
+        b.connections,
+        blade_store,
+        library_folder,
+        variables,
+        b.catalogs.places,
+        lambda: b.hooks.query_hints(),
     )
     b.datasets.variables = variables  # a query's ${NAME}: a bound parameter; a path's, read here
     b.structures.variables = variables
@@ -1831,6 +1846,7 @@ def _sandbox_part(b: Built) -> None:
         data_url=lambda key: f"http://127.0.0.1:{b.port}/sandbox/data/{key}",
         catalog=b.catalogs,
         publish=publish_api,
+        api_uses=lambda: b.hooks.api_uses(),  # the canvases' (an extension's), through the hooks
     )
     b.explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
     # Every API's actions through api_adapter (Plans/api-adapter.plan.md): the library's and the local one's.
@@ -2124,10 +2140,11 @@ def _exports(b: Built) -> None:
         api_adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
     )
     for extension in b.on_extensions:
-        for raw in getattr(extension, "API_TARGETS", ()) or ():
-            api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
-        for raw in getattr(extension, "API_PATTERNS", ()) or ():  # the endpoint wizard's patterns
-            local_api.patterns.add(api_pattern_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
+        declared = extension_modules.manifest(extension)
+        for raw in declared.API_TARGETS:
+            api_export.registry.add(api_target_rules.from_extension(raw, declared.ID))
+        for raw in declared.API_PATTERNS:  # the endpoint wizard's patterns
+            local_api.patterns.add(api_pattern_rules.from_extension(raw, declared.ID))
     b.scaffold = _scaffold(b)
     local_api.target_ids = api_export.registry.ids
     local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]
@@ -2264,6 +2281,8 @@ def _doors(b: Built) -> None:
     b.export_writer = export_writer
     b.navigation = Navigation(ws, JsonFile(b.state_file("rail.json")))
     b.desktop = Desktop(SystemShell(info_file_path()), ws.audit, qt_version())
+    b.seams = _seams(b)
+    b.extension = {}  # each extension's own services, by its id (server/app.py mounts them)
     b.lineage = Lineage(
         ws,
         b.hooks,
@@ -2272,6 +2291,39 @@ def _doors(b: Built) -> None:
         b.project_files,
         workbench.lineage_values,
         kernel_for=workbench.kernel_for,
+    )
+
+
+def _seams(b: Built) -> Seams:
+    """What the base offers an extension's composition root (services/hooks.py Seams), typed."""
+    sab_projects, projects = b.sab_projects, b.projects
+
+    def project_folder() -> str | None:
+        folder = (sab_projects.state().get("project") or {}).get("folder")
+        return str(folder) if folder else None
+
+    def opened_folder() -> str | None:
+        return str(projects.opened) if projects.opened else None
+
+    def set_opened(folder: str | None) -> None:
+        projects.opened = folder
+
+    def variable_names() -> list[str]:
+        found = b.variables.listing().get("variables") or []
+        return [str(v.get("name")) for v in found if isinstance(v, dict) and v.get("name")]
+
+    return Seams(
+        project_folder=project_folder,
+        opened_folder=opened_folder,
+        set_opened=set_opened,
+        project_private=sab_projects.private,
+        project_opened=sab_projects.opened,
+        project_saved=sab_projects.saved,
+        live_listeners=b.live.listeners,
+        variable_names=variable_names,
+        connection_tables=b.connection_tables,
+        local_api=b.local_api,
+        actions=b.actions,
     )
 
 

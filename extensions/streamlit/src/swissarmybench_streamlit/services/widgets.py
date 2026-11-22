@@ -30,6 +30,7 @@ import contextlib
 import json
 import time
 from collections.abc import Awaitable, Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from swissarmybench.domain import changes as change_rules
@@ -51,6 +52,43 @@ PLACES: tuple[str, ...] = ("project", "library", "prebuilt")
 Renamed = Callable[[str, str], Awaitable[int]]
 
 
+@dataclass(frozen=True)
+class WidgetProject:
+    """The open project as the Widgets window reads it (the root's port): its folder, its Python, the tables
+    its data.py makes, this server's environment's names and this computer's variables' names."""
+
+    folder: Callable[[], str | None] = lambda: None
+    python: Callable[[], str | None] = lambda: None
+    data_tables: Callable[[], list[str]] = list
+    variables: Callable[[], set[str]] = set
+    variable_names: Callable[[], list[str]] = list
+
+
+@dataclass(frozen=True)
+class WidgetTables:
+    """The tables a table property may name (the root's port): the open ones (each one's columns, its rows as
+    Parquet), the connections' [Conn].table (their names, their listed tables, one read as Parquet)."""
+
+    columns: Callable[[], dict[str, list[str] | None]] = dict
+    data: Callable[[str], Awaitable[bytes]] | None = None
+    connections: Callable[[], set[str]] | None = None
+    connection_listing: Callable[[], Awaitable[dict[str, list[str] | None]]] | None = None
+    read_connection: Callable[[str], Awaitable[bytes]] | None = None
+
+
+@dataclass(frozen=True)
+class WidgetApis:
+    """What an endpoint property and a built app read of the APIs (the root's port): every action as the
+    picker names it ("GET /orders"), each one's body fields, and the files a built app carries to call them
+    (the base's services/actions.py) and to read and make workbooks (adapter.py, sab_excel.py). None: not
+    known here."""
+
+    endpoints: Callable[[], list[str]] | None = None
+    endpoint_fields: Callable[[], dict[str, list[str]]] | None = None
+    api_files: Callable[[str], dict[str, str]] | None = None
+    excel_files: Callable[[str], dict[str, str]] | None = None
+
+
 class Widgets:
     def __init__(
         self,
@@ -58,35 +96,38 @@ class Widgets:
         files: Any,
         live: Any,
         approvals: Any,
-        tables: Callable[[], dict[str, list[str] | None]] = dict,
-        table_data: Callable[[str], Awaitable[bytes]] | None = None,
-        project_python: Callable[[], str | None] = lambda: None,
+        project: WidgetProject | None = None,
+        tables: WidgetTables | None = None,
+        apis: WidgetApis | None = None,
         previews: Any = None,
         renamed: Renamed | None = None,
-        variables: Callable[[], set[str]] = set,
-        variable_names: Callable[[], list[str]] = list,
-        project_folder: Callable[[], str | None] = lambda: None,
-        data_tables: Callable[[], list[str]] = list,
-        connections: Callable[[], set[str]] | None = None,
-        connection_listing: Callable[[], Awaitable[dict[str, list[str] | None]]] | None = None,
-        read_connection_table: Callable[[str], Awaitable[bytes]] | None = None,
     ) -> None:
+        project, tables, apis = project or WidgetProject(), tables or WidgetTables(), apis or WidgetApis()
         self.ws = ws
         self._files = files  # adapters/widget_files.py WidgetFiles
         self.live = live
         self._approvals = approvals
-        self._tables = tables  # the open tables: name -> its columns
-        self._table_data = table_data  # an open table's rows as Parquet
-        self._project_python = project_python
+        self._tables = tables.columns  # the open tables: name -> its columns
+        self._table_data = tables.data  # an open table's rows as Parquet
+        self._project_python = project.python
         self._previews = previews  # adapters/widget_files.py PreviewFiles
         self.renamed = renamed  # every canvas's instances follow a rename (services/canvas.py)
-        self._variables = variables
-        self._variable_names = variable_names  # the Variables page's names (a variable property's list)
-        self._project_folder = project_folder
-        self._data_tables = data_tables  # the tables the project's data.py makes (data.ipynb's)
-        self._connections = connections  # the saved connections' names ([Conn].table)
-        self._connection_listing = connection_listing  # each connection's tables, as far as it is listed
-        self._read_connection_table = read_connection_table  # [Conn].table as Parquet, through the contract
+        self._variables = project.variables
+        self._variable_names = project.variable_names  # the variables' names (a variable property's list)
+        self._project_folder = project.folder
+        self._data_tables = project.data_tables  # the tables the project's data.py makes (data.ipynb's)
+        self._connections = tables.connections  # the saved connections' names ([Conn].table)
+        self._connection_listing = tables.connection_listing  # each connection's tables, as far as listed
+        self._read_connection_table = tables.read_connection  # [Conn].table as Parquet, through the contract
+        # Every API's actions as the picker names them ("GET /orders": the base's services/actions.py), for
+        # an endpoint property's picker and check, and each one's body fields (an Event's body mapping).
+        self.endpoints = apis.endpoints
+        self.endpoint_fields = apis.endpoint_fields
+        # What a built app carries to call APIs' actions (the base's actions' carried: api_adapter.py,
+        # sab_actions.json, a library API's client), given the app's canvas and code as text, and to read
+        # and make workbooks (adapter.py, sab_excel.py: the Excel widgets call them).
+        self.api_files = apis.api_files
+        self.excel_files = apis.excel_files
         self._moved: dict[str, str] = {}  # a renamed widget's old name -> its name now (this session)
 
     # ===== reading =====
@@ -146,18 +187,6 @@ class Widgets:
             return set(self._connections())
         except Exception:
             return None
-
-    # The project's local sandbox API's endpoints ("GET /orders": the base's services/local_api.py), for an
-    # endpoint property's picker and check (None: not known here).
-    endpoints: Callable[[], list[str]] | None = None
-    # Each endpoint's body fields (an Event's body mapping), the same seam.
-    endpoint_fields: Callable[[], dict[str, list[str]]] | None = None
-
-    # What a built app carries to call APIs' actions (the base's services/actions.py carried: api_adapter.py,
-    # sab_actions.json, a library API's client), given the app's canvas and code as text.
-    api_files: Callable[[str], dict[str, str]] | None = None
-    # What it carries to read and make workbooks (adapter.py, sab_excel.py: the Excel widgets call them).
-    excel_files: Callable[[str], dict[str, str]] | None = None
 
     def carried(self, canvas: Mapping[str, Any], built: Mapping[str, Any]) -> dict[str, str]:
         used = json.dumps(canvas, ensure_ascii=False) + "\n".join(str(b.code) for b in built.values())

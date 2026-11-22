@@ -75,9 +75,9 @@ def test_edit_in_power_bi_desktop_and_the_local_source(tmp_path: Path) -> None:
     pbix = fake.fake_pbix(tmp_path)
     with make_client(tmp_path) as client:
         ctx: Any = client.app.state.ctx  # type: ignore[attr-defined]
-        ctx.powerbi_project.reader = fake.reader
+        ctx.extension["powerbi"].project.reader = fake.reader
         running = desktop.FakeDesktop()
-        live = ctx.powerbi_live
+        live = ctx.extension["powerbi"].live
         live._discover, live._opener, live._windows = desktop.instances, lambda port: running, lambda: True
         live.stop()
         body = {"path": str(pbix), "folder": str(tmp_path / "projects"), "dataset": {"none": True}}

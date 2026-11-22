@@ -249,7 +249,7 @@ def standin(monkeypatch: pytest.MonkeyPatch) -> Iterator[made_up.StandIn]:
 def test_a_pbix_imported_as_a_project_ready_to_work(tmp_path: Path, standin: made_up.StandIn) -> None:
     pbix = fake.fake_pbix(tmp_path)
     with make_client(tmp_path) as client:
-        client.app.state.ctx.powerbi_project.reader = fake.reader  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["powerbi"].project.reader = fake.reader  # type: ignore[attr-defined]
         saved_connection(client)  # the Finance workspace: the stand-in's three datasets
         body = {"path": str(pbix), "folder": str(tmp_path / "projects")}
         planned = ok(client.post("/powerbi/import", json=body | {"dry_run": True}, headers=AGENT))
@@ -350,7 +350,7 @@ def test_a_power_bi_file_opened_with_the_app_is_offered_on_its_page(tmp_path: Pa
     assert desktop.file_kind("Sales.pbix", False, False) == ""  # no extension on: not opened
     pbix = fake.fake_pbix(tmp_path)
     with make_client(tmp_path) as client:
-        client.app.state.ctx.powerbi_project.reader = fake.reader  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["powerbi"].project.reader = fake.reader  # type: ignore[attr-defined]
         opens = ok(client.get("/app/opens", headers=AGENT))["opens"]
         assert opens[".pbix"] == "/powerbi/opened"
         shown = ok(client.post("/powerbi/opened", json={"path": str(pbix)}, headers=AUTH))

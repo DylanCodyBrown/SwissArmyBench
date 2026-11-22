@@ -6,6 +6,7 @@ to its service.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from swissarmybench_powerbi import __version__
@@ -145,7 +146,6 @@ def routes(services: Any) -> list[Any]:
         approvals=services.agent.approvals,
         read_report=report_files.read,
     )
-    services.powerbi_export = service  # tests
     from swissarmybench_powerbi.adapters import pbix_reader
     from swissarmybench_powerbi.adapters.files import StateFiles
     from swissarmybench_powerbi.server import routes_project
@@ -191,9 +191,9 @@ def routes(services: Any) -> list[Any]:
     service.kept = project.kept  # part 1's export reads the round trip
     services.hooks.dataset_aliases = project.aliases  # [Sales model].T, %%dax Sales model: E's switch
     _standins(project, live)
-    services.powerbi_live = live  # tests hand it a fake
-    services.app_registrations.query_hints = project.query_hints
-    services.powerbi_project = project  # tests hand it a fake reader
+    services.hooks.query_hints = project.query_hints  # an app registration's access report
+    # Its own place on the record: its stop, and tests (they hand the project a fake reader, live a fake).
+    services.extension[ID] = Own(service, project, live)
     return door.routes(service) + routes_project.routes(project) + routes_project.live_routes(live)
 
 
@@ -203,10 +203,19 @@ def commands() -> dict[str, Any]:
     return COMMANDS
 
 
+@dataclass
+class Own:
+    """The Power BI extension's own services (services.extension["powerbi"])."""
+
+    export: Any
+    project: Any
+    live: Any
+
+
 async def stop(services: Any) -> None:
-    live = getattr(services, "powerbi_live", None)
-    if live is not None:
-        live.stop()
+    own = services.extension.get(ID)
+    if own is not None:
+        own.live.stop()
 
 
 def _standins(project: Any, live: Any) -> None:
