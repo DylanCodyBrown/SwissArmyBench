@@ -1,0 +1,11 @@
+# When a region's month is flagged on the review (made-up figures).
+
+[[thresholds]]
+metric = "revenue"
+warn = 0.9
+alert = 0.8
+
+[[thresholds]]
+metric = "orders"
+warn = 0.95
+alert = 0.85
