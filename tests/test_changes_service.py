@@ -67,3 +67,30 @@ def test_a_connection_a_variable_and_a_notebook(client: TestClient, tmp_path: Pa
     found = ok(client.get("/changes", params={"action": "search", "kind": "variable"}, headers=AGENT))
     assert [c["object"]["name"] for c in found["changes"]] == ["SALES_REGION"]
     assert client.get("/changes", params={"action": "nonsense"}, headers=AGENT).status_code == 400
+
+
+def test_an_endpoint_the_wizard_adds_and_one_edited_by_hand_with_the_api_not_running(
+    client: TestClient, tmp_path: Path
+) -> None:
+    """The sweep, 2026-11-22: API.py's endpoints reached the change log only while the API ran (its file
+    watch). The wizard's own write says who made them; a hand edit is seen the next time API.py is read."""
+    project = tmp_path / "shop"
+    ok(client.post("/project/new", json={"path": str(project)}, headers=AUTH))
+    orders = pa.table({"order_id": [1, 2], "region": ["North", "South"]})
+    push(client, "orders", orders)
+    ok(client.post("/sandbox/tables", json={"from": "grid", "table": "orders"}, headers=AUTH))
+    ok(client.post("/local-api/scaffold", json={"table": "orders", "pattern": "table"}, headers=AGENT))
+    made = last(client, "endpoint:API.py GET /orders")
+    assert made is not None and made["who"] == "agent" and made["words"].startswith("Added")
+    # A hand edit: one endpoint taken out. The next read of API.py (any page's) sees it.
+    api = project / "API.py"
+    text = api.read_text(encoding="utf-8")
+    start = text.index('@endpoint("DELETE"')
+    api.write_text(text[:start].rstrip() + "\n", encoding="utf-8")
+    ok(client.get("/local-api", headers=AUTH))
+    gone = last(client, "endpoint:API.py DELETE /orders/{key}")
+    assert gone is not None and gone["who"] == "app" and gone["words"].startswith("Removed")
+    # A file that does not parse for a moment (half typed) removes nothing from the log's view.
+    api.write_text(text[:start] + "def broken(:\n", encoding="utf-8")
+    ok(client.get("/local-api", headers=AUTH))
+    assert last(client, "endpoint:API.py GET /orders")["words"].startswith("Added")
