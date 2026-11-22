@@ -1708,11 +1708,12 @@ def _server_update_then_insert(w: _ServerWrite, key: Sequence[str]) -> list[str]
 
 
 def _distinct(rows: pa.Table) -> pa.Table:
-    """Each distinct row once (DuckDB over the Arrow table: no copy of it)."""
+    """Each distinct row once (DuckDB over the Arrow table: no copy of it), in one chunk (DuckDB's threads
+    may answer in several: they would be batches of their own)."""
     con = duckdb.connect()
     try:
         con.register("sab_rows", rows)
-        return con.sql("SELECT DISTINCT * FROM sab_rows").to_arrow_table()
+        return con.sql("SELECT DISTINCT * FROM sab_rows").to_arrow_table().combine_chunks()
     finally:
         con.close()
 
