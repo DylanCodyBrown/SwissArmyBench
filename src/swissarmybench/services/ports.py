@@ -48,6 +48,11 @@ class Views(Protocol):
     """A dataset run through a grid's steps: the compiled view, its windows and counts, and the
     relation other queries read it by (the view cache, adapters/views.py)."""
 
+    def adapted(self, cursor: SqlSession) -> SqlSession:
+        """The cursor with its rows only through the adapter (a grid's queries: windows, counts, profiles,
+        analyses, the SQL box)."""
+        ...
+
     def compile(
         self, cursor: SqlSession, info: DatasetInfo, steps: list[Step], settings: ViewSettings
     ) -> CompiledView: ...

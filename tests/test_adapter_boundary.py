@@ -125,6 +125,9 @@ def test_a_sandbox_api_reaches_its_data_only_through_the_adapter() -> None:
 ENGINE_MOVED = {
     "adapters/export.py": ("batches",),  # every export's rows (CSV, Excel, Parquet, Markdown)
     "adapters/datasets.py": ("query_table", "query_to_arrow_stream"),  # "+" tab, SQL box, a kernel's view
+    # Phase 4: the engine's cursor (Adapted): a grid's windows, its steps' counts and the view cache, the SQL
+    # box, the analyses and profiles all execute through it.
+    "adapters/views.py": ("execute",),
 }
 DIRECT_ROWS = {"to_arrow_reader", "to_arrow_table", "fetch_arrow_table", "fetchall", "fetchmany", "fetchone"}
 
@@ -145,6 +148,38 @@ def test_the_engine_paths_that_moved_read_rows_only_through_the_adapter() -> Non
             assert not called & DIRECT_ROWS, (
                 f"{name} {function} reads rows itself: {sorted(called & DIRECT_ROWS)}"
             )
+
+
+def _calls(path: str, function: str) -> set[str]:
+    tree = ast.parse((PACKAGE / path).read_text(encoding="utf-8"))
+    body = next(
+        f
+        for f in ast.walk(tree)
+        if isinstance(f, ast.FunctionDef | ast.AsyncFunctionDef) and f.name == function
+    )
+    return {
+        n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")
+        for n in ast.walk(body)
+        if isinstance(n, ast.Call)
+    }
+
+
+def test_every_grid_query_and_engine_cursor_reaches_rows_through_the_adapter() -> None:
+    """Phase 4, step 4 (the owner: "everything, the engine too"): every grid query (windows, counts, the
+    view cache, the SQL box, profiles, analyses, regression, time series) is handed the adapted cursor, and
+    the two engine paths that take a cursor themselves (an Analyze run, a highlight's check) adapt theirs."""
+    assert "adapted" in _calls("services/workspace.py", "grid_query")
+    assert "adapted" in _calls("services/analyze.py", "_on_view")
+    assert "adapted" in _calls("services/grids.py", "set_highlights")
+    assert "query" in _calls("adapters/views.py", "execute")
+
+
+def test_a_file_connections_open_as_grid_reads_through_the_adapter() -> None:
+    """Phase 4, step 3: a file connection's file is the adapter's Files read (DuckDB's types)."""
+    assert {"read", "Files"} <= _calls("adapters/datasets.py", "load_adapted")
+    text = (PACKAGE / "services" / "datasets.py").read_text(encoding="utf-8")
+    found = text[text.index("class ConnectionTables") :]
+    assert "adapted=True" in found[: found.index("def opened_from")]  # ConnectionTables.load_file
 
 
 def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None:
