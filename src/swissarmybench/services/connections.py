@@ -36,6 +36,8 @@ class ConnectionService:
         models: RelationshipModels | None = None,
         catalogs: LoadedCatalogs | None = None,
         colours: Colours | None = None,
+        approvals: Approvals | None = None,
+        open_view: Callable[[str], Awaitable[bytes]] | None = None,
     ) -> None:
         self._blades = blades
         self._templates = templates
@@ -56,8 +58,8 @@ class ConnectionService:
         self.variable_check: CodeCheck | None = None
         # sab.write for the agent (connections_write), set once built: the user's Allow (services/agent.py)
         # and an open table's grid view as an Arrow IPC stream (services/table_cells.py).
-        self.approvals: Approvals = NoOneToAsk()  # the user's Allow (set by bootstrap)
-        self.open_view: Callable[[str], Awaitable[bytes]] | None = None
+        self.approvals: Approvals = approvals if approvals is not None else NoOneToAsk()
+        self.open_view: Callable[[str], Awaitable[bytes]] | None = open_view
 
     def listing(self) -> dict[str, Any]:
         """Every connection: databases first, then files, then key vaults (each with its entries: a

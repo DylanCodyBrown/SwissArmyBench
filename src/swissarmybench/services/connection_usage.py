@@ -43,6 +43,7 @@ class ConnectionUsage:
         origin_of: Callable[[str], Origin],
         environ: Mapping[str, str],
         now: Callable[[], float],
+        figures_of: Callable[[str], dict[str, Any] | None] = lambda name: None,
     ) -> None:
         self.ws = ws
         self._blades = blades
@@ -62,7 +63,7 @@ class ConnectionUsage:
         # More cards than the library's: the open project's Sandbox (services/sandbox.py card).
         self.extra_cards: Callable[[], list[dict[str, Any]]] = lambda: []
         # A connection's running figures (services/call_stats.py figures_of), None while it has none.
-        self.figures_of: Callable[[str], dict[str, Any] | None] = lambda name: None
+        self.figures_of: Callable[[str], dict[str, Any] | None] = figures_of
 
     # ===== the calls =====
 

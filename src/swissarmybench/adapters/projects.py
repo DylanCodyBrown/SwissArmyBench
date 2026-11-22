@@ -79,6 +79,19 @@ class ProjectFiles:
         write_atomic(file, text.encode("utf-8"))
         return str(file)
 
+    @staticmethod
+    def code_texts(folder: str) -> list[tuple[str, str, str]]:
+        """A folder's top notebooks and scripts as (whole path, file name, text), by name; one that cannot
+        be read as UTF-8 text is left out (a shared project's connections, services/project_scope.py)."""
+        texts = []
+        for path in sorted(Path(folder).glob("*")):
+            if path.suffix.lower() in (".ipynb", ".py") and path.is_file():
+                try:
+                    texts.append((str(path), path.name, path.read_text(encoding="utf-8")))
+                except (OSError, UnicodeDecodeError):
+                    continue
+        return texts
+
     def relative(self, folder: str, path: str) -> str | None:
         """A file's path inside the project, with forward slashes (None: it is outside)."""
         try:

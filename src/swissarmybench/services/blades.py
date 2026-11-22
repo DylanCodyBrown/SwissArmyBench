@@ -39,7 +39,6 @@ from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain import sandbox as sandbox_rules
 from swissarmybench.domain import vault_names as vault_rules
-from swissarmybench.domain.analysis import whole_view_queries
 from swissarmybench.domain.blades import (
     Blade,
     BladeCodeError,
@@ -52,12 +51,10 @@ from swissarmybench.domain.blades import (
 )
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.connections import code_names, connection_kind, opens_in_code
-from swissarmybench.domain.datasets import DatasetInfo
-from swissarmybench.domain.grids import Grid
 from swissarmybench.domain.packages import blade_feature, connection_feature, missing_packages
+from swissarmybench.services.analysis_blades import AnalysisBlades
 from swissarmybench.services.catalogs import CatalogService
 from swissarmybench.services.changes import connection_change, raised
-from swissarmybench.services.ports import BACKGROUND, SqlSession
 from swissarmybench.services.vault_names import KeptVaultNames
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -165,13 +162,14 @@ class BladeService:
         reveal: Callable[[str], None] | None = None,
         kept_names: KeptVaultNames | None = None,
         stream_blade: StreamBlade | None = None,
+        open_table: Callable[[str, Any, str], Awaitable[dict[str, Any]]] | None = None,
     ) -> None:
         self.ws = ws
         # The blade IDE's Run: a blade in a child process, its output streamed (server/blade_runner.py).
         self._stream_blade = stream_blade
         # Its Problems (services/intellisense.py lint, set by bootstrap) and its Open as grid.
         self.lint: Callable[[Any, str], Awaitable[dict[str, Any]]] | None = None
-        self.open_table: Callable[[str, Any, str], Awaitable[dict[str, Any]]] | None = None
+        self.open_table: Callable[[str, Any, str], Awaitable[dict[str, Any]]] | None = open_table
         # Runs going now (their stop, for Cancel) and each blade's last run (its table for Open as grid).
         self._runs: dict[str, Callable[[], None]] = {}
         self._last_runs: dict[str, dict[str, Any]] = {}
@@ -186,6 +184,8 @@ class BladeService:
         self._packages = packages
         # Run a blade in a child process: "catalog", "test" or "analysis" (server/blade_runner.py).
         self._run_blade = run_blade
+        # Analysis blades (AnalysisBlades, below): the Analyze page's own analyses.
+        self.analysis_blades = AnalysisBlades(ws, blades, self._typed_values, run_blade)
         # A web call blade saved (its Return as table, its inputs): its API's tables are made again
         # (services/api_explorer.py), by the API's name.
         self.web_call_saved: list[Callable[[str], Awaitable[None]]] = []
@@ -1050,55 +1050,6 @@ class BladeService:
             return False
         await self.ws.live.broadcast({"type": "variables_changed"})
         return True
-
-    # ===== analysis blades: the user's own analyses in the Analyze menu =====
-
-    def analyses(self) -> dict[str, Any]:
-        """The analysis blades, for the Analyze menu: name, description, favourite."""
-        found = [b for b in self._blades.all() if b.kind == "analysis"]
-        return {"analyses": [{"name": b.name, "description": b.description, "tags": b.tags} for b in found]}
-
-    def analysis_blade(self, name: str) -> Blade:
-        """An analysis blade by its name (the Analyze page reads its contract from its code)."""
-        blade = self._blades.get(name)
-        if blade.kind != "analysis":
-            raise BladeError(f"{blade.name} is not an analysis blade.")
-        return blade
-
-    async def analyze(
-        self, name: str, grid: Grid, info: DatasetInfo, body: dict[str, Any], who: str
-    ) -> dict[str, Any]:
-        """Run the analysis blade `name` on the grid's rows as it shows them (its steps), in a child
-        process: {"title", "cards"}, ready for Visualizations."""
-        blade = self._blades.get(name)
-        if blade.kind != "analysis":
-            raise BladeError(f"{blade.name} is not an analysis blade.")
-        columns = body.get("columns") or []
-        if not isinstance(columns, list) or not all(isinstance(c, str) for c in columns):
-            raise BladeError("columns is a list of the grid's column names.")
-        ws = self.ws
-        limit = ws.settings.max_analysis_rows
-
-        def read(cur: SqlSession) -> Any:
-            with ws.views.reading(cur, info, grid.steps, grid.settings) as rows:
-                how_many, every = whole_view_queries(f"({rows}) AS src")
-                counted = cur.execute(how_many).fetchone()
-                if counted and int(counted[0]) > limit:
-                    raise BladeError(
-                        f"{counted[0]:,} rows is more than an analysis blade takes ({limit:,}): "
-                        "filter the grid first."
-                    )
-                return cur.execute(every).to_arrow_table()
-
-        table = await ws.grid_query(grid, None, BACKGROUND, read)
-        typed = self._typed_values(blade, body)
-        answer = await self._run_blade(blade, "analysis", typed, {"table": table, "columns": columns})
-        ws.audit.write(who, "blade_analysis", info.name, blade=blade.name)
-        return {
-            "title": answer.get("title") or blade.name,
-            "cards": answer.get("cards", []),
-            "blade": blade.name,
-        }
 
     def run_failure(
         self, message: str, missing_module: str | None, name: str | None = None, template: Any = None

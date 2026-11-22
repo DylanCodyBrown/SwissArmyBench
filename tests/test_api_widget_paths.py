@@ -83,7 +83,7 @@ def test_a_page_value_not_set_says_which_box_and_a_variable_fills_its_box(
 @pytest.fixture
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, Path]]:
     with make_client(tmp_path) as client:
-        client.app.state.ctx.live_runs.use_runner(FakeRunner())  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["streamlit"].live_runs.use_runner(FakeRunner())  # type: ignore[attr-defined]
         project = tmp_path / "shop"
         project.mkdir()
         yield client, project

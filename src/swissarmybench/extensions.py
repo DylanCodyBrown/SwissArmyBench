@@ -14,6 +14,8 @@ installed ones here; nothing else in the shared code names one.
                     packages, a package of the same id winning); use_library(path): the server's library
   contract(module)  its contract.json (domain/project_contract.py), the project type it adds
   modes()           every project type's mode, as data: the base's (BI) and each on extension's MODE
+  manifest(module)  its manifest: every module attribute an extension may declare, read once into one typed
+                    record (Manifest); an upper-case name that is none of them is reported (`unknown`)
   mode_of(type)     a project type's mode (an unknown or missing type: the base's)
 
 A mode is the working set a project type sets (Plans/editions.plan.md, "Project modes"): the canvas kinds,
@@ -41,6 +43,77 @@ from typing import Any
 from swissarmybench.domain import extension_folders as folder_rules
 from swissarmybench.domain import project_contract
 from swissarmybench.domain.packages import pip_name
+
+
+@dataclass(frozen=True)
+class Manifest:
+    """Every module attribute an extension may declare (craft review 2026-11-22: one list, read once). A name
+    the base reads is a field here; a misspelt one is in `unknown`, never quietly "not there"."""
+
+    ID: str = ""
+    NAME: str = ""
+    VERSION: str = ""
+    DESCRIPTION: str = ""
+    ADDS: tuple[Any, ...] = ()
+    PACKAGE: str = ""
+    PROJECT_TYPE: str = ""
+    FRONT_END: tuple[Any, ...] = ()
+    AREAS: tuple[Any, ...] = ()  # (prefix, title) of its commands' areas
+    MODE: Any = None  # its project type's mode, as data
+    BASE_MODE_ADDS: Any = None  # what it adds to the base's mode, by field
+    FAMILIES: tuple[Any, ...] = ()
+    STARTERS: str = ""  # its starter pack's folder
+    SECRET_PATHS: tuple[Any, ...] = ()  # its routes' prefixes that carry a secret in the address
+    SESSION_RULES: Any = None  # the Session page's words for its audit entries
+    RAIL: tuple[Any, ...] = ()  # the rail's areas it adds
+    PANEL: str = ""  # its card's and Settings' panel route
+    PAGE_ACTIONS: tuple[Any, ...] = ()  # the buttons it adds to the base's pages
+    INLINE_COMPLETION: Any = None  # the editors' inline completion routes
+    OPENS: Any = None  # the files it opens, {".suffix": a route}
+    API_TARGETS: tuple[Any, ...] = ()  # the local sandbox API's framework targets it adds
+    API_PATTERNS: tuple[Any, ...] = ()  # the endpoint wizard's patterns it adds
+    REQUIRES: tuple[Any, ...] = ()  # a folder extension's packages
+    CONTRACT: Any = None  # a folder extension's contract.json, as read
+    FOLDER: str = ""  # a folder extension's folder
+    # The upper-case names its module holds that are none of the above (its own constants, or a misspelling).
+    unknown: tuple[str, ...] = ()
+
+
+_MANIFEST_NAMES = tuple(f for f in Manifest.__dataclass_fields__ if f != "unknown")
+# Its commands' own metadata, read by the registry with its commands (cli/commands.py), never here: reading
+# them may import its commands, which import the registry.
+COMMAND_NAMES = ("OLD_NAMES", "OLD_ARGS")
+_TUPLES = {f for f, x in Manifest.__dataclass_fields__.items() if x.default == ()}
+_TEXT = {f for f, x in Manifest.__dataclass_fields__.items() if x.default == ""}
+_manifests: dict[int, tuple[ModuleType, Manifest]] = {}
+
+
+def manifest(module: ModuleType) -> Manifest:
+    """An extension module's manifest, read once (a folder extension read again is a new module)."""
+    kept = _manifests.get(id(module))
+    if kept is not None and kept[0] is module:
+        return kept[1]
+    given: dict[str, Any] = {}
+    for name in _MANIFEST_NAMES:
+        value = getattr(module, name, None)
+        if value is None:
+            continue
+        if name in _TUPLES:
+            value = tuple(value) if isinstance(value, list | tuple) else ()
+        elif name in _TEXT:
+            value = str(value)
+        given[name] = value
+    unknown = tuple(
+        sorted(
+            n
+            for n in vars(module)
+            if n.isupper() and not n.startswith("_") and n not in _MANIFEST_NAMES and n not in COMMAND_NAMES
+        )
+    )
+    made = Manifest(**given, unknown=unknown)
+    _manifests[id(module)] = (module, made)
+    return made
+
 
 GROUP = "swissarmybench.extensions"
 VARIABLE = "SWISSARMYBENCH_EXTENSIONS"
@@ -398,7 +471,7 @@ def base_mode(on: list[ModuleType] | None = None) -> dict[str, Any]:
     """The base's mode, with what each on extension adds to it (its BASE_MODE_ADDS: lists, by field)."""
     mode = {k: list(v) if isinstance(v, list) else v for k, v in BASE_MODE.items()}
     for module in enabled() if on is None else on:
-        adds = getattr(module, "BASE_MODE_ADDS", None)
+        adds = manifest(module).BASE_MODE_ADDS
         for key, values in (adds if isinstance(adds, dict) else {}).items():
             if key in _MODE_FIELDS and isinstance(values, list | tuple):
                 mode[key] = list(dict.fromkeys([*mode[key], *(str(v) for v in values)]))
@@ -413,7 +486,7 @@ def inline_completions(on: list[ModuleType]) -> list[dict[str, Any]]:
     name or no complete route is left out. Not a project type's: every mode carries them."""
     out: list[dict[str, Any]] = []
     for module in on:
-        raw = getattr(module, "INLINE_COMPLETION", None)
+        raw = manifest(module).INLINE_COMPLETION
         if not isinstance(raw, dict) or not raw.get("name") or not raw.get("complete"):
             continue
         said: dict[str, Any] = {k: str(raw.get(k) or "") for k in _INLINE_FIELDS}
@@ -431,8 +504,7 @@ def page_actions(on: list[ModuleType]) -> list[dict[str, str]]:
     page, id or label is left out."""
     out: list[dict[str, str]] = []
     for module in on:
-        raw = getattr(module, "PAGE_ACTIONS", None)
-        for action in raw if isinstance(raw, list | tuple) else ():
+        for action in manifest(module).PAGE_ACTIONS:
             if isinstance(action, dict) and all(action.get(k) for k in ("page", "id", "label")):
                 out.append({k: str(action.get(k) or "") for k in _ACTION_FIELDS})
     return out
@@ -442,7 +514,7 @@ def opens() -> dict[str, str]:
     """The files the on extensions open: each one's OPENS, {".suffix": a route}."""
     out: dict[str, str] = {}
     for module in enabled():
-        raw = getattr(module, "OPENS", None)
+        raw = manifest(module).OPENS
         for suffix, route in raw.items() if isinstance(raw, dict) else ():
             if (
                 isinstance(suffix, str)
@@ -460,7 +532,7 @@ def modes() -> list[dict[str, Any]]:
     on = enabled()
     out = [base_mode(on)]
     for module in on:
-        mode = _mode(getattr(module, "MODE", None))
+        mode = _mode(manifest(module).MODE)
         if mode is not None and mode["type"] not in {m["type"] for m in out}:
             out.append(mode)
     providers = inline_completions(on)
@@ -478,7 +550,7 @@ def areas() -> list[dict[str, Any]]:
     """The rail's areas the on extensions add (each one's RAIL: {area, name, icon, mark?}), as data."""
     out: list[dict[str, Any]] = []
     for module in enabled():
-        for raw in getattr(module, "RAIL", ()) or ():
+        for raw in manifest(module).RAIL:
             if (
                 isinstance(raw, dict)
                 and isinstance(raw.get("area"), str)

@@ -130,7 +130,7 @@ class Analyze:
         """The analysis blades' contracts (the toolbar's Yours): one whose CONTRACT cannot be read is left
         out here and says why when it is asked for by name."""
         found: list[C.Contract] = []
-        for listed in self._blades.analyses()["analyses"]:
+        for listed in self._blades.analysis_blades.analyses()["analyses"]:
             try:
                 found.append(self._contract(f"{C.BLADE}{listed['name']}"))
             except (ValueError, LookupError):
@@ -141,7 +141,7 @@ class Analyze:
         """An analysis's contract: a built-in's by its id, an analysis blade's (blade:<name>) read from
         its code (domain/analysis_contracts.py blade_contract: never run)."""
         if isinstance(analysis, str) and analysis.startswith(C.BLADE):
-            blade = self._blades.analysis_blade(analysis.removeprefix(C.BLADE))
+            blade = self._blades.analysis_blades.analysis_blade(analysis.removeprefix(C.BLADE))
             try:
                 return C.blade_contract(blade.name, blade.description, blade.code)
             except C.ContractError as error:
@@ -717,7 +717,11 @@ class Analyze:
         result: dict[str, Any]
         if c.id.startswith(C.BLADE):
             name = c.id.removeprefix(C.BLADE)
-            return dict(await self._blades.analyze(name, grid, info, {"columns": request["columns"]}, who))
+            return dict(
+                await self._blades.analysis_blades.analyze(
+                    name, grid, info, {"columns": request["columns"]}, who
+                )
+            )
         if c.id in ("benford", "fit", "together"):
             reference = None
             if request.get("expected") == "grid":

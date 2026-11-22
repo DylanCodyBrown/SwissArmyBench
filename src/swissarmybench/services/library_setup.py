@@ -20,6 +20,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import library_setup as rules
 from swissarmybench.domain import portability
+from swissarmybench.domain import project_explorer as explorer_rules
 from swissarmybench.domain.blades import Blade, BladeError
 from swissarmybench.domain.connections import connection_kind
 from swissarmybench.services.workspace import Workspace
@@ -173,3 +174,64 @@ class LibrarySetup:
     def forget(self) -> None:
         """The meta store folder moved: every vault is checked again."""
         self._checked.clear()
+
+
+class SharedProjects:
+    """Shared projects (2026-11-18): each one's connections that do not work here (the checklist's), and a
+    shared project opened or made whose connections only work on this machine, said once.
+
+    Its ports: the shared projects folder (None: none), where a project folder is ("shared", "local"), the
+    projects in a folder (a scan off the loop), the connections a project folder names (services/
+    project_scope.py ProjectUse.named_in), this computer's connection names, a blade and its secrets' status,
+    and the notice (the library's, said to the pages)."""
+
+    def __init__(
+        self,
+        shared_folder: Callable[[], str | None],
+        where: Callable[[str], str],
+        scan: Callable[[str], list[str]],
+        named_in: Callable[[str], list[str]],
+        here: Callable[[], list[str]],
+        blade: Callable[[str], Blade],
+        secret_status: Callable[[Blade], dict[str, bool]],
+        notice: Callable[[str], Awaitable[None]],
+    ) -> None:
+        self._shared_folder = shared_folder
+        self._where = where
+        self._scan = scan
+        self._named_in = named_in
+        self._here = here
+        self._blade = blade
+        self._secret_status = secret_status
+        self._notice = notice
+
+    async def listing(self, not_working: set[str]) -> list[rules.SharedProject]:
+        """Each shared project and the connections it names that do not work here."""
+        folder = self._shared_folder()
+        if not folder:
+            return []
+        here = {name.casefold() for name in self._here()}
+        out = []
+        for path in await asyncio.to_thread(self._scan, folder):
+            named = await asyncio.to_thread(self._named_in, path)
+            missing = [n for n in named if n.casefold() not in here or n.casefold() in not_working]
+            name = path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]
+            out.append(rules.SharedProject(name, path, tuple(missing)))
+        return out
+
+    async def opened(self, folder: str, _extra: Any = None) -> None:
+        """A shared project opened (or made): its connections that only work on this machine, said once."""
+        if self._where(folder) != "shared":
+            return
+        local = 0
+        for name in await asyncio.to_thread(self._named_in, folder):
+            try:
+                blade = self._blade(name)
+                status = self._secret_status(blade)
+            except Exception:  # noqa: S112 (a teammate's connection not here: the checklist says so)
+                continue
+            sources = ["keyring" if status.get(s) else "" for s in blade.secrets]
+            local += bool(portability.check(blade.code, blade.template, sources))
+        said = explorer_rules.local_only_words(local)
+        if said:
+            await self._notice(said)

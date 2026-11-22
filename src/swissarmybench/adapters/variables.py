@@ -114,6 +114,21 @@ class ProcessEnvironment:
             self._environ[name] = value
 
 
+# The local sandbox API's address and key in this server's environment (what sab.api reads).
+API_NAMES = ("SAB_API_URL", "SAB_API_KEY", "SAB_API_BASE")
+
+
+def publish_api(values: Mapping[str, str], environ: MutableMapping[str, str] | None = None) -> None:
+    """Where the local sandbox API runs, put in this server's environment while it runs (services/local_api.py
+    publish), so an app Play or Launch starts afterwards reaches it; a name not given is taken out."""
+    environ = os.environ if environ is None else environ
+    for name in API_NAMES:
+        if name in values:
+            environ[name] = values[name]
+        else:
+            environ.pop(name, None)
+
+
 def backup_copies(folder: Path) -> Callable[[list[Path]], str]:
     """A dated backup of files about to change (the password move): each copied into `folder`, which is
     made on the first copy. Says where ("" when nothing was copied)."""

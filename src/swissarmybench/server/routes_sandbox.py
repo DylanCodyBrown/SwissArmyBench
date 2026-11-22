@@ -62,13 +62,13 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
     async def adapter_tables(request: Request) -> Response:
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        return json_response(await sandbox.source_tables(await read_json(request)))
+        return json_response(await sandbox.door.source_tables(await read_json(request)))
 
     async def adapter_read(request: Request) -> Response:
         """adapter.Remote's read: the batches streamed as an Arrow IPC stream, as DuckDB makes them."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        reader, folded = await sandbox.read_arrow(await read_json(request))
+        reader, folded = await sandbox.door.read_arrow(await read_json(request))
         return StreamingResponse(
             _ipc(reader), media_type=ARROW_STREAM, headers={"X-Sab-Folded": ",".join(folded)}
         )
@@ -77,7 +77,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         """adapter.Remote's query: the connection's own SQL, its answer an Arrow IPC stream."""
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
-        reader = await sandbox.query_arrow(await read_json(request), "api")
+        reader = await sandbox.door.query_arrow(await read_json(request), "api")
         return StreamingResponse(_ipc(reader), media_type=ARROW_STREAM)
 
     async def adapter_write(request: Request) -> Response:
@@ -85,7 +85,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
         if not allowed(request):
             return error_as(PermissionError("That key is not a running local sandbox API's."), 403)
         given = {k: str(v) for k, v in request.query_params.items()}
-        return json_response(await sandbox.write_arrow(given, await request.body(), "api"))
+        return json_response(await sandbox.door.write_arrow(given, await request.body(), "api"))
 
     async def adapter_write_all(request: Request) -> Response:
         """adapter.Remote's write_all: a JSON line naming each write and its stream's bytes, then the Arrow
@@ -107,7 +107,7 @@ def routes(sandbox: Sandbox, keys: Callable[[], set[str]] = set) -> list[BaseRou
             )
         if at != len(rest):
             return error_as(ValueError("The streams' bytes are not what the JSON line said."), 422)
-        counts = await sandbox.write_all_arrow(said.get("connection"), writes, "api")
+        counts = await sandbox.door.write_all_arrow(said.get("connection"), writes, "api")
         return json_response({"counts": counts})
 
     async def listing(request: Request) -> Response:

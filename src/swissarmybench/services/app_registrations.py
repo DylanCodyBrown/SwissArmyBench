@@ -64,6 +64,8 @@ class AppRegistrations:
         values: Callable[[list[str]], Any],  # async: variable names -> their values on this computer
         connections: Callable[[], list[tuple[str, str, str]]],  # (name, kind, code) of every connection
         computer: Callable[[], str] = platform.node,
+        tables_of: Callable[[str], Any] | None = None,
+        query_hints: Callable[[], dict[str, str]] = dict,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -72,9 +74,9 @@ class AppRegistrations:
         self._connections = connections
         self._computer = computer
         # Tables worth one COUNTROWS, per dataset name (an extension's hint: a Power BI project's tables).
-        self.query_hints: Callable[[], dict[str, str]] = dict
+        self.query_hints: Callable[[], dict[str, str]] = query_hints
         # A connection's tables from its loaded catalog ((database, schema, table)), for SELECT TOP 0.
-        self.tables_of: Callable[[str], Any] | None = None
+        self.tables_of: Callable[[str], Any] | None = tables_of
 
     def get(self, name: str) -> rules.Registration:
         found = next((r for r in self._files.all() if r.name.casefold() == str(name or "").casefold()), None)

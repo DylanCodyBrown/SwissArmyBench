@@ -138,7 +138,14 @@ class _Kernel:
 
 
 class Environment:
-    def __init__(self, ws: Workspace, sources: Sources, libraries: Libraries, approvals: Approvals) -> None:
+    def __init__(
+        self,
+        ws: Workspace,
+        sources: Sources,
+        libraries: Libraries,
+        approvals: Approvals,
+        project_python: Any = None,
+    ) -> None:
         self.ws = ws
         self._s = sources
         self._libraries = libraries
@@ -149,7 +156,7 @@ class Environment:
         self._settling: asyncio.TimerHandle | None = None
         # One Python per project (services/project_python.py; the composition root hands it over): the
         # project's own .venv as it is made, the one session's words, a notebook's older environment offered.
-        self.project_python: Any = None
+        self.project_python: Any = project_python
         self._tasks: set[asyncio.Task[None]] = set()
 
     # ===== the notice =====

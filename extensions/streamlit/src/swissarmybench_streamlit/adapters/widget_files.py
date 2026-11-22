@@ -156,6 +156,18 @@ class CanvasFiles:
     def exists(path: str) -> bool:
         return os.path.isfile(path)
 
+    @staticmethod
+    def in_folder(folder: str) -> list[tuple[str, str]]:
+        """A project folder's top canvases (<app>.canvas.json) as (file name, text), by name; one that cannot
+        be read is left out."""
+        found = []
+        for file in sorted(Path(folder).glob("*.canvas.json")):
+            try:
+                found.append((file.name, file.read_text(encoding="utf-8")))
+            except (OSError, UnicodeDecodeError):
+                continue
+        return found
+
 
 class PreviewFiles:
     def __init__(self, folder: Path | None) -> None:

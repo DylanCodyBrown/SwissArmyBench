@@ -34,9 +34,9 @@ def test_edit_shows_its_dry_run_on_the_page_and_pages_opens_the_report_dialog(tm
     pbix = fake.fake_pbix(tmp_path)
     with make_client(tmp_path) as client:
         ctx: Any = client.app.state.ctx  # type: ignore[attr-defined]
-        ctx.powerbi_project.reader = fake.reader
+        ctx.extension["powerbi"].project.reader = fake.reader
         running = desktop.FakeDesktop()
-        live = ctx.powerbi_live
+        live = ctx.extension["powerbi"].live
         live._discover, live._opener, live._windows = desktop.instances, lambda port: running, lambda: True
         live.stop()
         body = {"path": str(pbix), "folder": str(tmp_path / "projects"), "dataset": {"none": True}}

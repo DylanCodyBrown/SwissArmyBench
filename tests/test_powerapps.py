@@ -381,7 +381,7 @@ def test_push_dry_run_then_the_agents_push_waits_for_allow(
 def test_a_custom_connector_dry_run_then_made(client: TestClient, tmp_path: Path, tools_dir: Path) -> None:
     ok(new_app(client, tmp_path))
     auth = {"type": "api_key", "in": "header", "name": "X-Orders-Key"}
-    client.app.state.ctx.powerapps.use_api_documents(lambda name: (OPENAPI, auth))  # type: ignore[attr-defined]
+    client.app.state.ctx.extension["powerapps"].powerapps.use_api_documents(lambda name: (OPENAPI, auth))  # type: ignore[attr-defined]
     dry = ok(client.post("/powerapps/custom-connector", json={"api": "Made-up Orders"}, headers=AGENT))
     assert dry["dry_run"] and set(dry["files"]) == {"apiDefinition.swagger.json", "apiProperties.json"}
     folder = tmp_path / "apps" / "expense-tracker" / "connectors" / "made-up-orders"

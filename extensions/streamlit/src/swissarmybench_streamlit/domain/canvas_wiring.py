@@ -467,6 +467,31 @@ def api_calls(canvas: Mapping[str, Any]) -> list[str]:
     return sorted(found)
 
 
+def api_uses(canvases: Sequence[tuple[str, Mapping[str, Any]]]) -> list[dict[str, Any]]:
+    """Each widget instance whose endpoint property names an endpoint, and each Event wired to call one, of
+    the canvases given as (file name, canvas): what the local sandbox API's Payload shapes read (the base's
+    hooks.api_uses). A canvas that does not walk (not a canvas's shape) names none."""
+    out: list[dict[str, Any]] = []
+    for name, canvas in canvases:
+        try:
+            nodes = _walk(canvas)
+        except (KeyError, TypeError):
+            continue
+        for page, node in nodes:
+            if node.get("kind") != "widget":
+                continue
+            where = {"canvas": name, "page": page.get("name"), "instance": node.get("id")}
+            values = node.get("values") or {}
+            if values.get("endpoint"):
+                out.append(where | {"widget": node.get("widget"), "values": values})
+            for port, wire in (node.get("wires") or {}).items():
+                actions = wire.get("actions") if isinstance(wire, dict) else None
+                for action in actions if isinstance(actions, list) else ():
+                    if isinstance(action, dict) and action.get("do") == "call":
+                        out.append(where | {"widget": node.get("widget"), "event": port, "action": action})
+    return out
+
+
 def tables(canvas: Mapping[str, Any]) -> set[str]:
     """The tables the canvas's wires read (each to be written beside the app as data/<stem>.parquet)."""
     found: set[str] = set()

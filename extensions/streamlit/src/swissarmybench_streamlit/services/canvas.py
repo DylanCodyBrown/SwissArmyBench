@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import json
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping
@@ -60,15 +61,23 @@ class Open:
     seen: dict[str, list[str]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class CanvasProject:
+    """The open project as the Canvas reads it (the root's port): its folder, its data.py's text, a folder's
+    names, a path as it really is, and the base's scaffold's adapter.py and connections.py for an export."""
+
+    folder: Callable[[], str | None] = lambda: None
+    read_data_py: Callable[[str], str | None] = lambda folder: None
+    list_folder: Callable[[str], list[str]] = lambda folder: []
+    real_path: Callable[[str], str] = lambda path: path
+    core_files: Callable[[list[str]], Awaitable[dict[str, Any]]] | None = None
+
+
 def canvas_id(path: str) -> str:
     return "cv" + hashlib.sha256(path.encode("utf-8")).hexdigest()[:10]
 
 
 class Canvases:
-    # Each endpoint a wizard's pattern made, with the widget that pairs with it (the base's
-    # local_api.paired; nothing without a local sandbox API): what a dropped widget wires itself to.
-    paired: Callable[[], list[dict[str, Any]]] = staticmethod(lambda: [])
-
     def __init__(
         self,
         ws: Any,
@@ -77,34 +86,69 @@ class Canvases:
         live: Any,
         approvals: Approvals,
         app_files: Any,
-        project_folder: Callable[[], str | None] = lambda: None,
-        read_data_py: Callable[[str], str | None] = lambda folder: None,
-        list_folder: Callable[[str], list[str]] = lambda folder: [],
-        real_path: Callable[[str], str] = lambda path: path,
+        project: CanvasProject | None = None,
         builds: Any = None,
         now: Callable[[], float] = time.time,
-        core_files: Callable[[list[str]], Awaitable[dict[str, Any]]] | None = None,
+        paired: Callable[[], list[dict[str, Any]]] = lambda: [],
     ) -> None:
+        project = project or CanvasProject()
         self.ws = ws
         self._files = files  # adapters/widget_files.py CanvasFiles
         self._widgets = widgets  # services/widgets.py Widgets
         self._live = live  # server/live_runs.py LiveRuns
         self._approvals = approvals
         self._app_files = app_files  # adapters/streamlit_files.py AppFiles (the export's writer)
-        self._project_folder = project_folder
-        self._read_data_py = read_data_py
-        self._list_folder = list_folder
-        self._real = real_path
+        self._project_folder = project.folder
+        self._read_data_py = project.read_data_py
+        self._list_folder = project.list_folder
+        self._real = project.real_path
+        # Each endpoint a wizard's pattern made, with the widget that pairs with it (the base's
+        # local_api.paired; nothing without a local sandbox API): what a dropped widget wires itself to.
+        self.paired = paired
         self._builds = builds  # adapters/build_files.py BuildFiles (Launch's builds/ in the project)
         # The base's project scaffold (services/scaffold.py export_core): adapter.py and connections.py for an
         # export whose widgets read a connection's table.
-        self._core_files = core_files
+        self._core_files = project.core_files
         self._now = now
         self._open: dict[str, Open] = {}
         self.launches: Any = (
             None  # services/launch.py Launches (Launch, Builds, the analyzer), set by the root
         )
         widgets.renamed = self.rename_widget
+
+    # ===== what the base asks of the canvases (its hooks) =====
+
+    def api_uses(self) -> list[dict[str, Any]]:
+        """Each canvas widget instance of the open project whose endpoint property names one of API.py's, and
+        each Event wired to call one (the local sandbox API's Payload shapes: the base's hooks.api_uses)."""
+        folder = self._project_folder()
+        if folder is None:
+            return []
+        canvases = []
+        for name, text in self._files.in_folder(folder):
+            try:
+                canvases.append((name, json.loads(text)))
+            except ValueError:
+                continue
+        return wiring.api_uses(canvases)
+
+    async def put(self, body: dict[str, Any], who: str) -> dict[str, Any]:
+        """Build's widget (the APIs page; the base's hooks.canvas_put): put on the named canvas's page (else
+        the project's first canvas and its first page), its values set, its In wired."""
+        listed = {c["name"]: c["path"] for c in self.listing()["canvases"]}
+        wanted = str(body.get("canvas") or next(iter(listed), ""))
+        if wanted not in listed:
+            raise ValueError("The project has no canvas yet: New canvas on the Canvas page makes one.")
+        name = (await self.open({"path": listed[wanted]}, who))["canvas"]
+        insert = {"kind": "insert_widget", "widget": body["widget"]} | (
+            {"page": body["page"]} if body.get("page") else {}
+        )
+        made = (await self.command(name, insert, who))["made"]
+        if body.get("values"):
+            await self.command(name, {"kind": "set_values", "id": made, "values": body["values"]}, who)
+        if body.get("wire"):
+            await self.wire(name, {"id": made, **body["wire"]}, who)
+        return {"canvas": wanted, "canvas_id": name, "id": made}
 
     # ===== open =====
 

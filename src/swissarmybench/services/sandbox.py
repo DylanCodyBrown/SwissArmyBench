@@ -231,6 +231,8 @@ class Sandbox:
         self.version = 0  # every change: [Sandbox]'s reads in DuckDB SQL are read again
         self.changed: list[Callable[[list[str]], Awaitable[None]]] = []  # tables a write touched
         self._key_note = ""  # why a table came in without its key (add's answer)
+        # The adapter's door: a local sandbox API's reads, queries and writes (DataDoor, below).
+        self.door = DataDoor(self)
 
     # ===== which sandbox =====
 
@@ -816,101 +818,27 @@ class Sandbox:
             raise LookupError(f"The sandbox has no table named {name}.")
         return await self._run(files.arrow, real)
 
-    # ===== an API's reads and writes =====
+    # ===== the API's data door (DataDoor, below), and what it asks of the sandbox =====
 
-    # ===== the adapter's door: a local sandbox API's adapter.Remote (Plans/adapter.plan.md) =====
+    def open_files(self) -> Files:
+        """The open project's sandbox file (Conflict: no project open)."""
+        return self._files()
 
-    async def _one_of(self, connection: Any, wanted: Any) -> str:
-        """The sandbox table `wanted` (any case) among those `connection` is mocked over."""
-        client = await self.client(connection)
-        listed: list[str] = list(client["tables"])
-        by_case = {t.casefold(): t for t in listed}
-        asked = str(wanted or "").casefold()
-        # a name in its source's schema (dbo.orders) is the sandbox table read from it (orders)
-        table = by_case.get(asked) or by_case.get(asked.rpartition(".")[2])
-        if table is None:
-            has = ", ".join(client["tables"][:12]) or "none"
-            raise NotFound(
-                f"The sandbox has no table {wanted} from {client.get('connection')} (it has: {has})."
-            )
-        return table
+    async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        """One call on the sandbox's file, off the loop."""
+        return await self._run(fn, *args)
 
-    async def source_tables(self, body: Any) -> dict[str, Any]:
-        """The adapter's tables(source) for one connection: each table's columns, types and key."""
-        given = body if isinstance(body, dict) else {}
-        client = await self.client(given.get("connection"))
-        files = self._files()
-        return {
-            "tables": [{"name": t, "columns": await self._run(files.columns, t)} for t in client["tables"]]
-        }
+    @property
+    def lock(self) -> asyncio.Lock:
+        """Held while a write changes the file and its sandbox.json together."""
+        return self._lock
 
-    async def read_arrow(self, body: Any) -> tuple[Any, tuple[str, ...]]:
-        """The adapter's read: {"connection", "table", "plan"}; the batches as DuckDB makes them (a reader the
-        route streams), and the plan's parts folded."""
-        given = body if isinstance(body, dict) else {}
-        table = await self._one_of(given.get("connection"), given.get("table"))
-        files = self._files()
-        try:
-            found: tuple[Any, tuple[str, ...]] = await self._run(files.read, table, given.get("plan"))
-        except ValueError:
-            raise
-        except Exception as error:  # DuckDB's own words (a type a filter's value does not cast to)
-            raise SandboxError(rules.db_words(error)) from error
-        return found
+    def stamp(self) -> str:
+        return _stamp(self._now())
 
-    async def write_arrow(self, given: dict[str, str], data: bytes, who: str = "api") -> dict[str, int]:
-        """The adapter's write: an Arrow IPC stream's rows into one table ({"connection", "table", "key",
-        "mode"}), counted in the change log as any API write is (Reset undoes it)."""
-        table = await self._one_of(given.get("connection"), given.get("table"))
-        key = [k for k in str(given.get("key") or "").split(",") if k]
-        mode = str(given.get("mode") or "insert")
-        files = self._files()
-        async with self._lock:
-            try:
-                counts: dict[str, int] = await self._run(files.write_arrow, table, data, key, mode)
-            except ValueError:
-                raise
-            except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
-                raise SandboxError(rules.db_words(error)) from error
-            meta = files.read_meta()
-            for op, counted in (("insert", "inserted"), ("update", "updated"), ("delete", "deleted")):
-                rules.noted(meta.log, table, op, counts[counted])
-            rows = sum(counts.values())
-            rules.touched(meta, [table] if rows else [], _stamp(self._now()))
-            files.write_meta(meta)
-        await self._told([table], "", "")
-        self.ws.audit.write(who, "sandbox_write", table, rows=rows)
-        return counts
-
-    async def write_all_arrow(
-        self, connection: Any, writes: list[dict[str, Any]], who: str = "api"
-    ) -> list[dict[str, int]]:
-        """The adapter's write_all: several writes ({"table", "key", "mode", "data": an Arrow IPC stream's
-        bytes}) in one transaction, all or none; each counted in the change log as any API write is."""
-        planned = []
-        for given in writes:
-            table = await self._one_of(connection, given.get("table"))
-            key = [str(k) for k in given.get("key") or []]
-            planned.append((table, given["data"], key, str(given.get("mode") or "insert")))
-        files = self._files()
-        async with self._lock:
-            try:
-                done: list[dict[str, int]] = await self._run(files.write_all_arrow, planned)
-            except ValueError:
-                raise
-            except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
-                raise SandboxError(rules.db_words(error)) from error
-            meta = files.read_meta()
-            for (table, _, _, _), counts in zip(planned, done, strict=True):
-                for op, counted in (("insert", "inserted"), ("update", "updated"), ("delete", "deleted")):
-                    rules.noted(meta.log, table, op, counts[counted])
-            changed = [t for (t, _, _, _), c in zip(planned, done, strict=True) if sum(c.values())]
-            rules.touched(meta, list(dict.fromkeys(changed)), _stamp(self._now()))
-            files.write_meta(meta)
-        await self._told(list(dict.fromkeys(t for t, _, _, _ in planned)), "", "")
-        for (table, _, _, _), counts in zip(planned, done, strict=True):
-            self.ws.audit.write(who, "sandbox_write", table, rows=sum(counts.values()))
-        return done
+    async def wrote(self, tables: list[str]) -> None:
+        """Tables a write through the door changed: the pages, the listeners and their open grids told."""
+        await self._told(tables, "", "")
 
     # ===== edited in its grid (the owner approved "Edit sandbox rows in a grid", 2026-11-21) =====
 
@@ -1075,6 +1003,138 @@ class Sandbox:
         client = dict(meta.tables[mine[0]].get("client") or {})
         return client | {"tables": mine, "dialect": client.get("dialect") or "duckdb"}
 
+    async def _table(self, files: Files, wanted: Any) -> tuple[str, list[str]]:
+        name = rules.check_table_name(wanted)
+        real = await self._run(files.table_name, name)
+        if real is None:
+            raise NotFound(f"The sandbox has no table named {name}.")
+        return real, [c["name"] for c in await self._run(files.columns, real)]
+
+
+class SandboxCore(Protocol):
+    """What the data door asks of the sandbox (Sandbox): its connection's mock, its file, a call off the loop,
+    the write lock, a stamp, the pages told of a write, the audit log."""
+
+    ws: Any
+
+    async def client(self, connection: Any) -> dict[str, Any]: ...
+
+    def open_files(self) -> Files: ...
+
+    async def run(self, fn: Callable[..., Any], *args: Any) -> Any: ...
+
+    @property
+    def lock(self) -> asyncio.Lock: ...
+
+    def stamp(self) -> str: ...
+
+    async def wrote(self, tables: list[str]) -> None: ...
+
+
+class DataDoor:
+    """The adapter's door into the project's sandbox (Plans/adapter.plan.md): what a local sandbox API's
+    adapter.Remote reads, queries and writes through /sandbox/data/<key>/ (tables, read, query, write,
+    write_all), each table one a connection is mocked over; every write counted in the change log as any API
+    write is (Reset undoes it). Split from Sandbox (craft review 2026-11-22), which keeps the tables, Reset,
+    checkpoints and the grid."""
+
+    def __init__(self, sandbox: SandboxCore) -> None:
+        self._sandbox = sandbox
+
+    async def _one_of(self, connection: Any, wanted: Any) -> str:
+        """The sandbox table `wanted` (any case) among those `connection` is mocked over."""
+        client = await self._sandbox.client(connection)
+        listed: list[str] = list(client["tables"])
+        by_case = {t.casefold(): t for t in listed}
+        asked = str(wanted or "").casefold()
+        # a name in its source's schema (dbo.orders) is the sandbox table read from it (orders)
+        table = by_case.get(asked) or by_case.get(asked.rpartition(".")[2])
+        if table is None:
+            has = ", ".join(client["tables"][:12]) or "none"
+            raise NotFound(
+                f"The sandbox has no table {wanted} from {client.get('connection')} (it has: {has})."
+            )
+        return table
+
+    async def source_tables(self, body: Any) -> dict[str, Any]:
+        """The adapter's tables(source) for one connection: each table's columns, types and key."""
+        given = body if isinstance(body, dict) else {}
+        client = await self._sandbox.client(given.get("connection"))
+        files = self._sandbox.open_files()
+        return {
+            "tables": [
+                {"name": t, "columns": await self._sandbox.run(files.columns, t)} for t in client["tables"]
+            ]
+        }
+
+    async def read_arrow(self, body: Any) -> tuple[Any, tuple[str, ...]]:
+        """The adapter's read: {"connection", "table", "plan"}; the batches as DuckDB makes them (a reader the
+        route streams), and the plan's parts folded."""
+        given = body if isinstance(body, dict) else {}
+        table = await self._one_of(given.get("connection"), given.get("table"))
+        files = self._sandbox.open_files()
+        try:
+            found: tuple[Any, tuple[str, ...]] = await self._sandbox.run(files.read, table, given.get("plan"))
+        except ValueError:
+            raise
+        except Exception as error:  # DuckDB's own words (a type a filter's value does not cast to)
+            raise SandboxError(rules.db_words(error)) from error
+        return found
+
+    async def write_arrow(self, given: dict[str, str], data: bytes, who: str = "api") -> dict[str, int]:
+        """The adapter's write: an Arrow IPC stream's rows into one table ({"connection", "table", "key",
+        "mode"}), counted in the change log as any API write is (Reset undoes it)."""
+        table = await self._one_of(given.get("connection"), given.get("table"))
+        key = [k for k in str(given.get("key") or "").split(",") if k]
+        mode = str(given.get("mode") or "insert")
+        files = self._sandbox.open_files()
+        async with self._sandbox.lock:
+            try:
+                counts: dict[str, int] = await self._sandbox.run(files.write_arrow, table, data, key, mode)
+            except ValueError:
+                raise
+            except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
+                raise SandboxError(rules.db_words(error)) from error
+            meta = files.read_meta()
+            for op, counted in (("insert", "inserted"), ("update", "updated"), ("delete", "deleted")):
+                rules.noted(meta.log, table, op, counts[counted])
+            rows = sum(counts.values())
+            rules.touched(meta, [table] if rows else [], self._sandbox.stamp())
+            files.write_meta(meta)
+        await self._sandbox.wrote([table])
+        self._sandbox.ws.audit.write(who, "sandbox_write", table, rows=rows)
+        return counts
+
+    async def write_all_arrow(
+        self, connection: Any, writes: list[dict[str, Any]], who: str = "api"
+    ) -> list[dict[str, int]]:
+        """The adapter's write_all: several writes ({"table", "key", "mode", "data": an Arrow IPC stream's
+        bytes}) in one transaction, all or none; each counted in the change log as any API write is."""
+        planned = []
+        for given in writes:
+            table = await self._one_of(connection, given.get("table"))
+            key = [str(k) for k in given.get("key") or []]
+            planned.append((table, given["data"], key, str(given.get("mode") or "insert")))
+        files = self._sandbox.open_files()
+        async with self._sandbox.lock:
+            try:
+                done: list[dict[str, int]] = await self._sandbox.run(files.write_all_arrow, planned)
+            except ValueError:
+                raise
+            except Exception as error:  # DuckDB's own words (a key taken, a type): nothing was written
+                raise SandboxError(rules.db_words(error)) from error
+            meta = files.read_meta()
+            for (table, _, _, _), counts in zip(planned, done, strict=True):
+                for op, counted in (("insert", "inserted"), ("update", "updated"), ("delete", "deleted")):
+                    rules.noted(meta.log, table, op, counts[counted])
+            changed = [t for (t, _, _, _), c in zip(planned, done, strict=True) if sum(c.values())]
+            rules.touched(meta, list(dict.fromkeys(changed)), self._sandbox.stamp())
+            files.write_meta(meta)
+        await self._sandbox.wrote(list(dict.fromkeys(t for t, _, _, _ in planned)))
+        for (table, _, _, _), counts in zip(planned, done, strict=True):
+            self._sandbox.ws.audit.write(who, "sandbox_write", table, rows=sum(counts.values()))
+        return done
+
     async def query_arrow(self, body: Any, who: str = "api") -> Any:
         """The adapter's query: {"connection", "sql", "params"}: the connection's own SQL and marks made
         DuckDB SQL over the sandbox's tables it is mocked over (domain/sandbox_dialects.py, this backend's
@@ -1082,7 +1142,7 @@ class Sandbox:
         API write is (Reset undoes it), a view, a query's table or a sequence made or dropped as before. What
         cannot be emulated is refused in one sentence with its line."""
         given = body if isinstance(body, dict) else {}
-        client = await self.client(given.get("connection"))
+        client = await self._sandbox.client(given.get("connection"))
         dialect = str(client.get("dialect") or "duckdb")
         params = given.get("params") or []
         if not isinstance(params, (list, dict)):
@@ -1090,28 +1150,28 @@ class Sandbox:
         made = dialects.to_duckdb(given.get("sql"), dialect, params, client["tables"])
         if str(client.get("kind") or "") in ("dataverse", "dataverse_web") and made.kind != "select":
             raise SandboxError("Dataverse's SQL endpoint is read-only: SELECT only.")
-        files = self._files()
+        files = self._sandbox.open_files()
         if dialects.is_definition(made.kind):
             await self._define(files, made, client)
             return files.counted(0)
         if made.kind == "select":
             try:
-                return await self._run(files.query_arrow, made.sql, made.params)
+                return await self._sandbox.run(files.query_arrow, made.sql, made.params)
             except Exception as error:  # DuckDB's own words (a missing column, a type)
                 raise SandboxError(rules.db_words(error)) from error
-        async with self._lock:
+        async with self._sandbox.lock:
             try:
-                answer, count = await self._run(files.change_arrow, made.sql, made.params)
+                answer, count = await self._sandbox.run(files.change_arrow, made.sql, made.params)
             except Exception as error:  # DuckDB's own words: nothing was written
                 raise SandboxError(rules.db_words(error)) from error
             meta = files.read_meta()
             rules.noted(meta.log, made.table or "", made.kind, count)
             if count and made.table:
-                rules.touched(meta, [made.table], _stamp(self._now()))
+                rules.touched(meta, [made.table], self._sandbox.stamp())
             files.write_meta(meta)
         touched = [made.table] if made.table else []
-        await self._told(touched, "", "")
-        self.ws.audit.write(who, "sandbox_write", ", ".join(touched), rows=count)
+        await self._sandbox.wrote(touched)
+        self._sandbox.ws.audit.write(who, "sandbox_write", ", ".join(touched), rows=count)
         return answer.to_reader()
 
     async def _define(
@@ -1122,15 +1182,15 @@ class Sandbox:
         that connection's table from then on (sandbox.json: source "made"); Reset and Restore undo it."""
         verb, what = made.kind.split(" ", 1)
         name = str(made.table)
-        async with self._lock:
+        async with self._sandbox.lock:
             meta = files.read_meta()
             mine = next((t for t in meta.tables if t.casefold() == name.casefold()), None)
             by_api = mine is not None and (meta.tables[mine].get("source") or {}).get("kind") == "made"
-            there = await self._run(files.kind_of, name)
+            there = await self._sandbox.run(files.kind_of, name)
             if there in ("table", "view") and not by_api:
                 raise SandboxError(rules.not_made(name, verb))
             try:
-                await self._run(files.define, made.sql, made.params)
+                await self._sandbox.run(files.define, made.sql, made.params)
             except Exception as error:  # DuckDB's own words (it is there already, or not there)
                 raise SandboxError(rules.db_words(error)) from error
             if mine is not None and (verb == "drop" or mine != name):
@@ -1138,18 +1198,11 @@ class Sandbox:
                 meta.log.pop(mine, None)
             if verb == "create" and what in ("view", "table"):
                 kept = {k: v for k, v in client.items() if k != "tables"}
-                meta.tables[name] = rules.made_record(what, kept, _stamp(self._now()))
+                meta.tables[name] = rules.made_record(what, kept, self._sandbox.stamp())
             files.write_meta(meta)
-        await self._told([name] if what != "sequence" else [], "", "")
-        self.ws.audit.write("api", "sandbox_define", name, what=made.kind)
+        await self._sandbox.wrote([name] if what != "sequence" else [])
+        self._sandbox.ws.audit.write("api", "sandbox_define", name, what=made.kind)
         return {"kind": made.kind, "table": name}
-
-    async def _table(self, files: Files, wanted: Any) -> tuple[str, list[str]]:
-        name = rules.check_table_name(wanted)
-        real = await self._run(files.table_name, name)
-        if real is None:
-            raise NotFound(f"The sandbox has no table named {name}.")
-        return real, [c["name"] for c in await self._run(files.columns, real)]
 
 
 class SandboxAlias:

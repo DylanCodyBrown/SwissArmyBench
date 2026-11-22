@@ -196,6 +196,7 @@ select = ["E", "F", "W", "I", "UP", "B", "S", "RUF"]
 "extensions/streamlit/src/swissarmybench_streamlit/commands.py" = ["E501"]
 # The command catalog: one-line help prose per command and argument, read by the agent as written.
 "src/swissarmybench/cli/commands.py" = ["E501"]
+"src/swissarmybench/cli/commands_*.py" = ["E501"]
 # The Accounting extension: its commands' help prose (as the base's), workbook.py's lines as the user reads
 # them, and the builder's queries over the blocks' own tables (every name through _quote; a block's query is
 # the user's, run in a DuckDB of its own with no files or network).

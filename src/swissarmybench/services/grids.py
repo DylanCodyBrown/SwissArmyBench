@@ -42,6 +42,25 @@ def truncate(rows: list[list[Any]], limit: int) -> list[list[int]]:
     return cut
 
 
+async def view_rows(ws: Workspace, name: str, places: list[int]) -> tuple[list[str], list[list[Any] | None]]:
+    """An open table's first grid's view rows at these places (its steps applied), with the columns shown:
+    what a sandbox grid's edit names (services/sandbox.py). A place past the end is None."""
+    grid, info = ws.grids.first_for(name), ws.store.get(name)
+    if grid is None or info is None:
+        raise LookupError(f"{name} is not open in Grids.")
+
+    def read(cursor: Any) -> tuple[list[str], list[list[Any] | None]]:
+        shown: list[str] = []
+        out: list[list[Any] | None] = []
+        for place in places:
+            window = ws.views.window(cursor, info, grid.steps, grid.settings, place, place + 1, None)
+            shown = [c.name for c in window.columns]
+            out.append(list(window.rows[0]) if window.rows else None)
+        return shown, out
+
+    return await ws.grid_query(grid, None, INTERACTIVE, read)
+
+
 class GridService:
     def __init__(self, ws: Workspace, origin_of: Callable[[str], Origin] | None = None) -> None:
         self.ws = ws

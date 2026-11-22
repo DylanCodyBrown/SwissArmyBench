@@ -104,7 +104,7 @@ def test_the_stamp_holds_no_name_or_value() -> None:
 def played(tmp_path: Path) -> Iterator[tuple[TestClient, Path, str, str]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs.use_runner(runner)  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["streamlit"].live_runs.use_runner(runner)  # type: ignore[attr-defined]
         project = tmp_path / "shop"
         ok(client.post("/project/new", json={"path": str(project)}, headers=AUTH))
         csv = tmp_path / "orders.csv"
@@ -191,7 +191,7 @@ def test_data_pys_tables_follow_its_export(played: tuple[TestClient, Path, str, 
     assert (folder / "data.py").read_bytes() == (project / "data.py").read_bytes()
     made = "import pandas as pd\n\nregions = pd.DataFrame({'r': ['West']})\n"
     (project / "data.py").write_text(made, encoding="utf-8")
-    live = ctx.live_tables
+    live = ctx.extension["streamlit"].live_tables
     live.heard({"type": "file_changed", "path": str(project / "data.py"), "by": "app"})
     assert len(client.portal.call(live.refresh)) == 1  # type: ignore[union-attr]
     assert (folder / "data.py").read_text(encoding="utf-8") == made and _version(folder) == 1

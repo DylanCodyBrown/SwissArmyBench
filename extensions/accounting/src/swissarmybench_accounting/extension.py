@@ -106,8 +106,7 @@ def routes(services: Any) -> list[Any]:
     from swissarmybench_accounting.service import Accounting
 
     def project_folder() -> str | None:
-        current = services.sab_projects.current
-        found = current.folder if current is not None else services.projects.opened
+        found = services.seams.project_folder() or services.seams.opened_folder()
         return str(found) if found else None
 
     async def store_table(name: str, table: Any, kind: str, new_grid: bool, who: str) -> Any:

@@ -241,7 +241,7 @@ ORDERS = pa.table({"month": ["2026-01", "2026-02"], "region": ["North", "South"]
 def served(tmp_path: Path) -> Iterator[tuple[TestClient, FakeRunner, Path]]:
     with make_client(tmp_path) as client:
         runner = FakeRunner()
-        client.app.state.ctx.live_runs.use_runner(runner)  # type: ignore[attr-defined]
+        client.app.state.ctx.extension["streamlit"].live_runs.use_runner(runner)  # type: ignore[attr-defined]
         assert push(client, "orders", ORDERS).status_code == 200
         project = tmp_path / "shop"
         project.mkdir()
@@ -349,7 +349,7 @@ def test_the_analyzer_records_only_while_attached_and_names_the_widget(
     assert launched["analyzer"] is True
     run = Path(runner.started[-1][1])
     assert (run / "sab_perf.on").is_file()  # F5 with the analyzer: recording from the first load
-    launches = client.app.state.ctx.launches  # type: ignore[attr-defined]
+    launches = client.app.state.ctx.extension["streamlit"].launches  # type: ignore[attr-defined]
     key = launched["url"].rstrip("/").rsplit("/", 1)[-1]
     tables = [n for _, n in model.walk(ok(client.get(base, headers=AUTH))["model"]) if n["kind"] == "widget"]
     table = next(n["id"] for n in tables if n["widget"] == "data_table")
