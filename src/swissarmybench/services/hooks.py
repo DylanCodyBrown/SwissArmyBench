@@ -14,13 +14,14 @@ default: nothing held. The base never names the extension that fills one.
   share_targets     the app kinds that can be shared with the organization (services/sharing.py ShareTarget:
                     an app's own 127.0.0.1 port opened and closed), by kind ({}: nothing to share)
   sharing           the base's Sharing, for a target whose app stops (its link ends with it: app_stopped)
+  canvas_put        a widget put on a canvas page (Build on the APIs page)
   dataset_aliases   a project's one dataset connection name that resolves through a setting of its own (a
                     Power BI project's Read Power BI from): DuckDB SQL and a kernel's %%dax cell follow it
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -74,3 +75,6 @@ class Hooks:
     # Share a running app (services/sharing.py): the kinds that can be; the base's Sharing for their stops.
     share_targets: dict[str, Any] = field(default_factory=dict)
     sharing: Any = None
+    # Build's widget (services/actions.py): {"canvas"?, "page"?, "widget", "values", "wire"} put on a page,
+    # answered {"canvas", "id"}. None: no extension makes canvases.
+    canvas_put: Callable[[dict[str, Any], str], Awaitable[dict[str, Any]]] | None = None

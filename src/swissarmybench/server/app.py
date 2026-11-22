@@ -22,6 +22,7 @@ and does nothing but read the request, call the use case and shape the answer:
                            one moved, the code that named it pointed at the new one
   routes_apis.py           Add API: an OpenAPI document or a form made into API_<name>.py and a connection
   routes_api_explorer.py   the APIs page: the library's APIs, their operations, search, send, save a web call
+  routes_actions.py        every API's actions through api_adapter: list, describe, run, discover, build
   routes_structures.py     Structures: JSON, YAML, XML and TOML as documents, their steps, Open as grid, Save
   routes_folders.py        the page's own file picker: a folder's contents, its quick places, New folder
   routes_file_dialogs.py   the system's own file dialog, on the user's click (403 for the agent)
@@ -84,6 +85,7 @@ from swissarmybench.bootstrap import bootstrap
 from swissarmybench.domain import session_log as session_log_rules
 from swissarmybench.domain import workbench_pages
 from swissarmybench.server import (
+    routes_actions,
     routes_agent,
     routes_analysis,
     routes_analyze,
@@ -365,6 +367,7 @@ def create_app(
                 *routes_apis.routes(ctx.apis),
                 *routes_structures.routes(ctx.structures),
                 *routes_api_explorer.routes(ctx.api_explorer),
+                *routes_actions.routes(ctx.actions),
                 *routes_folders.routes(ctx.folders),
                 *routes_file_dialogs.routes(ctx.file_dialogs),
                 *routes_intellisense.routes(ctx.intellisense),

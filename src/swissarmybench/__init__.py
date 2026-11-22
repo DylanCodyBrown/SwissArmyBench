@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from swissarmybench.client.analyze_client import analyze
+    from swissarmybench.client.api_client import records, run
     from swissarmybench.client.blades_client import blade, blades, load, read, table
     from swissarmybench.client.blades_client import blade as connection
     from swissarmybench.client.completion import complete
@@ -55,6 +56,8 @@ __all__ = [
     "load",
     "push",
     "read",
+    "records",
+    "run",
     "show_structure",
     "sql",
     "structure",
@@ -69,6 +72,9 @@ __all__ = [
 _LAZY: dict[str, tuple[str, str]] = {
     "push": ("swissarmybench.client.push_client", "push"),
     "api": ("swissarmybench.client.api_client", "api"),
+    # Any API's action through api_adapter, its one envelope: sab.run("Orders", "list_orders", {...}).
+    "run": ("swissarmybench.client.api_client", "run"),
+    "records": ("swissarmybench.client.api_client", "records"),
     "load": ("swissarmybench.client.blades_client", "load"),
     "blade": ("swissarmybench.client.blades_client", "blade"),
     "blades": ("swissarmybench.client.blades_client", "blades"),

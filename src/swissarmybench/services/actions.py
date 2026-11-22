@@ -1,0 +1,401 @@
+"""Every API's actions through api_adapter (Plans/api-adapter.plan.md; the owner, 2026-11-22: "every API,
+yours or outside, goes through api_adapter"). The library's APIs (apis/<name>/) and the project's own local
+sandbox API (`local`) are read from their specifications only; each call is api_adapter's run, one envelope.
+
+  list      every action of every API: its method, path, whether it writes, its learned kind, its drift line
+            and what it maps to
+  describe  one action: its inputs and body fields, its learned contract (learn()), the last call this session
+  run       one call (inputs checked first); a call that writes, by the agent, waits for the user's Allow; the
+            endpoint's shape kept (apis/<name>/shapes/<action>.json, types only), its change said once
+  shape     the kept shape and the contract; answer a rename offered (taken or declined, remembered)
+  discover  the read-only probe, on the user's Allow once per API this session (the agent's too): each read
+            endpoint called once at its smallest page, the shapes kept, values not
+  build     a notebook cell, a script function, or a widget on a canvas page (the Streamlit extension's,
+            through hooks.canvas_put); nothing built until asked
+
+A library API's calls run in a child process through its API blade (its sign-in, its secrets resolved there);
+the local sandbox API's through its running process (services/local_api.py: its own Allow for the agent's
+writes). Values are never written anywhere: a shape holds paths and types only; the last call is memory only.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import Awaitable, Callable
+from dataclasses import replace
+from typing import Any, Protocol
+
+from swissarmybench.domain import api_actions as rules
+from swissarmybench.domain import apis as api_rules
+from swissarmybench.domain.api_actions import LOCAL, BuildError
+from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+
+DISCOVER_CALLS = 20  # calls a discovery makes at most
+
+
+class Files(Protocol):
+    def read(self, path: str) -> str | None: ...
+
+    def write(self, path: str, text: str) -> None: ...
+
+
+class Approvals(Protocol):
+    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
+
+
+def _join(folder: str, *parts: str) -> str:
+    return "/".join([folder.rstrip("/\\"), *parts])
+
+
+class Actions:
+    def __init__(
+        self,
+        ws: Workspace,
+        explorer: Any,  # services/api_explorer.py Explorer: the library's APIs, their blades, save_call
+        local_api: Any,  # services/local_api.py LocalApi: state(full), call
+        files: Files,  # the library's and the project's files (written whole, only when the bytes change)
+        project: Callable[[], str | None],
+        approvals: Approvals,
+        today: Callable[[], str],
+        to_thread: Callable[..., Awaitable[Any]] = asyncio.to_thread,
+        hooks: Any = None,  # services/hooks.py Hooks: canvas_put (a widget on a canvas page)
+        api_adapter: Any = None,  # adapters/api_adapter.py, the module (the composition root hands it in)
+    ) -> None:
+        self.ws = ws
+        self._explorer = explorer
+        self._local = local_api
+        self._files = files
+        self._project = project
+        self._approvals = approvals
+        self._today = today
+        self._thread = to_thread
+        self._hooks = hooks
+        self._aa = api_adapter
+        self._allowed: set[str] = set()  # the APIs whose discovery the user allowed this session
+        self._last: dict[tuple[str, str], dict[str, Any]] = {}  # the last call of each action (memory only)
+
+    # ===== the actions, from each API's specification =====
+
+    def _library_api(self, name: str) -> dict[str, Any] | None:
+        for api in self._explorer._apis():
+            if api["name"].casefold() == name.casefold():
+                return dict(api)
+        return None
+
+    async def _spec(self, name: str) -> tuple[str, dict[str, Any], dict[str, Any] | None]:
+        """An API's name, its specification and its library entry (None: the local sandbox API)."""
+        if name.casefold() == LOCAL:
+            state = await self._local.state(full=True)
+            if not state.get("exists"):
+                raise NotFound(
+                    "The project has no local sandbox API: New local sandbox API… makes its API.py."
+                )
+            return LOCAL, dict(state.get("openapi") or {}), None
+        api = self._library_api(name)
+        if api is None:
+            raise NotFound(f"There is no API called {name}: actions(action=list) names them.")
+        return str(api["name"]), self._explorer._document(api), api
+
+    def _actions_of(self, name: str, doc: dict[str, Any]) -> dict[str, Any]:
+        """The specification's actions, each named as the APIs page names its operation (a web call's)."""
+        found = self._aa.actions(doc, name)
+        try:
+            named = {(o.method, o.path): o.name for o in api_rules.parse_spec(doc, "").operations}
+        except api_rules.ApiError:
+            named = {}
+        return {(n := named.get((a.method, a.path), a.name)): replace(a, name=n) for a in found.values()}
+
+    async def _action(self, api: str, action: str) -> tuple[str, Any, dict[str, Any], dict[str, Any] | None]:
+        name, doc, entry = await self._spec(api)
+        found = self._actions_of(name, doc)
+        one = found.get(action) or next(
+            (a for a in found.values() if a.name.casefold() == action.casefold()), None
+        )
+        if one is None:
+            raise NotFound(f"{name} has no action {action}: actions(action=list, api={name}) names them.")
+        return name, one, found, entry
+
+    # ===== the kept shapes =====
+
+    def _shape_path(self, api: str, entry: dict[str, Any] | None, action: str) -> str | None:
+        file = self._aa.shape_file(action)
+        if entry is not None:
+            return _join(str(entry["folder"]), rules.SHAPES_FOLDER, file)
+        folder = self._project()
+        return _join(folder, rules.LOCAL_SHAPES, file) if folder else None
+
+    def _shape(self, path: str | None) -> dict[str, Any]:
+        text = self._files.read(path) if path else None
+        try:
+            found = json.loads(text) if text else {}
+        except ValueError:
+            return {}
+        return found if isinstance(found, dict) else {}
+
+    def _write_shape(self, path: str | None, shape: dict[str, Any]) -> None:
+        if path is None:
+            return
+        text = self._aa.text(shape)
+        if self._files.read(path) != text:  # only when its bytes change
+            self._files.write(path, text)
+
+    async def _kept(
+        self, api: str, entry: dict[str, Any] | None, action: str, answer: dict[str, Any], who: str
+    ) -> None:
+        path = self._shape_path(api, entry, action)
+        kept, change = self._aa.keep(self._shape(path), answer, self._today())
+        if kept:
+            self._write_shape(path, kept)
+        if change:  # said once: the Session log, the pages, the agent's next read
+            words = self._aa.drift_words(change, kept.get("changed", ""))
+            self.ws.audit.write(who, "api_shape_changed", f"{api} {action}", words=words)
+            await self.ws.live.broadcast(
+                {"type": "api_shape_changed", "api": api, "action": action, "words": words}
+            )
+
+    # ===== list and describe =====
+
+    async def list(self, body: Any = None, who: str = "user") -> dict[str, Any]:
+        """Every API's actions ({"api"?: one}): each with its learned kind, drift line and what it maps to."""
+        given = body if isinstance(body, dict) else {}
+        names = [str(given["api"])] if given.get("api") else [a["name"] for a in self._explorer._apis()]
+        if not given.get("api"):
+            state = await self._local.state()
+            if state.get("exists"):
+                names.append(LOCAL)
+        apis: list[dict[str, Any]] = []
+        for name in names:
+            try:
+                real, doc, entry = await self._spec(name)
+                found = self._actions_of(real, doc)
+            except (NotFound, self._aa.ActionError) as error:
+                apis.append({"api": name, "problem": str(error), "actions": []})
+                continue
+            listed = []
+            for one in found.values():
+                learned = self._aa.learn(self._shape(self._shape_path(real, entry, one.name)), one)
+                listed.append(
+                    {
+                        "name": one.name,
+                        "method": one.method,
+                        "path": one.path,
+                        "summary": one.summary,
+                        "writes": one.writes,
+                        "kind": learned["kind"],
+                        "learned": learned["learned"],
+                        "drift": learned["drift"],
+                        "maps_to": learned["maps_to"],
+                        "offers": len(learned["offers"]),
+                    }
+                )
+            apis.append(
+                {"api": real, "local": entry is None, "allowed": real in self._allowed, "actions": listed}
+            )
+        return {"apis": apis}
+
+    async def describe(self, api: str, action: str, who: str = "user") -> dict[str, Any]:
+        name, one, _, entry = await self._action(api, action)
+        kept = self._shape(self._shape_path(name, entry, one.name))
+        return {
+            "api": name,
+            "action": one.to_json(),
+            "contract": self._aa.learn(kept, one),
+            "shape": kept,
+            "last": self._last.get((name, one.name)),
+        }
+
+    async def shape(self, api: str, action: str, who: str = "user") -> dict[str, Any]:
+        """The kept shape (paths and types, both ways) and its contract: what the widgets read."""
+        described = await self.describe(api, action, who)
+        return {k: described[k] for k in ("api", "shape", "contract")}
+
+    async def answer_offer(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"api", "action", "from", "to", "take": bool}: a rename offered once, answered and remembered."""
+        given = body if isinstance(body, dict) else {}
+        name, one, _, entry = await self._action(str(given.get("api") or ""), str(given.get("action") or ""))
+        path = self._shape_path(name, entry, one.name)
+        kept = self._shape(path)
+        offer = next((o for o in kept.get("offers") or [] if o.get("from") == given.get("from")), None)
+        if offer is None:
+            raise NotFound(f"{name} {one.name} offers no rename of {given.get('from')}.")
+        kept = self._aa.answered(kept, str(offer["from"]), str(offer["to"]), bool(given.get("take")))
+        self._write_shape(path, kept)
+        self.ws.audit.write(who, "api_rename_answered", f"{name} {one.name}", take=bool(given.get("take")))
+        return {"api": name, "contract": self._aa.learn(kept, one)}
+
+    # ===== run =====
+
+    async def run(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"api", "action", "inputs"?, "required"?: [paths]}: one call, its one envelope. A call that writes,
+        made by the agent, waits for the user's Allow (the local sandbox API asks itself)."""
+        given = body if isinstance(body, dict) else {}
+        name, one, _, entry = await self._action(str(given.get("api") or ""), str(given.get("action") or ""))
+        inputs = dict(given.get("inputs") or {}) if isinstance(given.get("inputs"), dict) else {}
+        if entry is not None and one.writes and who == "agent":
+            detail = f"{one.method} {one.path} on {name}: it changes something outside the app."
+            if not await self._approvals.ask(name, f"call {one.name}", detail):
+                raise Refused("The user declined (or did not answer): nothing was sent.")
+        path = self._shape_path(name, entry, one.name)
+        kept = self._shape(path)
+        options = {
+            "known": kept.get("returned"),
+            "renames": kept.get("renames") or {},
+            "required": [str(p) for p in given.get("required") or []],
+            "who": who,
+        }
+        if entry is None:
+            answer = await self._run_local(one, inputs, options, who)
+        else:
+            answer = await self._run_library(name, one, inputs, options)
+        await self._kept(name, entry, one.name, answer, who)
+        self._last[(name, one.name)] = {
+            "at": self._today(),
+            "inputs": inputs,
+            "status": answer["status"],
+            "ok": answer["ok"],
+            "kind": answer["kind"],
+            "paging": answer["paging"],
+            "sent": answer["sent"],
+            "records": len(answer.get("records") or ()),
+        }
+        self.ws.audit.write(who, "api_action", f"{name} {one.name}", status=answer["status"])
+        return answer
+
+    async def _run_library(
+        self, name: str, one: Any, inputs: dict[str, Any], options: dict[str, Any]
+    ) -> dict[str, Any]:
+        """One run in a child process through the API blade (its sign-in), api_adapter's run there."""
+        variables = getattr(self._explorer, "variables", None)
+        if variables is not None:  # an input's ${NAME} (12.7): its value sent
+            inputs = await variables.resolve_all(inputs, f"{name} {one.name}")
+        command = _child_command(
+            f"_aa.run(_aa.Action.from_json(_j.loads({json.dumps(json.dumps(one.to_json()))})), "
+            f"_j.loads({json.dumps(json.dumps(inputs, default=str))}), api=_aa.from_client(conn), "
+            f"**_j.loads({json.dumps(json.dumps(options, default=str))}))"
+        )
+        return await self._in_child(name, command)
+
+    async def _in_child(self, name: str, command: str) -> dict[str, Any]:
+        explorer = self._explorer
+        done = await explorer._blades.run_read(explorer._api_blade(name), command, "", {})
+        rows = done["table"].to_pylist()
+        if not rows:
+            raise Conflict(f"{name}'s API blade answered nothing.")
+        found = json.loads(str(rows[0]["envelope"]))
+        return found if isinstance(found, dict) else {}
+
+    async def _run_local(
+        self, one: Any, inputs: dict[str, Any], options: dict[str, Any], who: str
+    ) -> dict[str, Any]:
+        """One run through the running local sandbox API (its process; its own Allow for the agent's)."""
+        loop = asyncio.get_running_loop()
+        api = self._aa.Api("", _local_send(self._aa, self._local, loop, who), LOCAL)
+        return dict(await self._thread(lambda: self._aa.run(one, inputs, api=api, retries=0, **options)))
+
+    # ===== discover =====
+
+    async def discover(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"api"}: the read-only probe on the user's Allow (asked once per API this session; the agent's
+        too), each read endpoint once at its smallest page; the shapes kept, values not; what each maps to."""
+        given = body if isinstance(body, dict) else {}
+        name, doc, entry = await self._spec(str(given.get("api") or ""))
+        found = self._actions_of(name, doc)
+        reads = sum(1 for a in found.values() if not a.writes)
+        if name not in self._allowed:
+            detail = (
+                f"Discover {name}: up to {min(reads, DISCOVER_CALLS)} read-only calls (one GET per read "
+                "endpoint, the smallest page). Nothing that writes is called; no value is kept."
+            )
+            if not await self._approvals.ask(name, "discover the API", detail):
+                raise Refused("The user declined (or did not answer): nothing was called.")
+            self._allowed.add(name)
+        known = {n: self._shape(self._shape_path(name, entry, n)) for n in found}
+        if entry is None:
+            loop = asyncio.get_running_loop()
+            api = self._aa.Api("", _local_send(self._aa, self._local, loop, who), LOCAL)
+            learned = await self._thread(lambda: self._aa.discover(found, api, known, DISCOVER_CALLS))
+        else:
+            actions = {n: a.to_json() for n, a in found.items()}
+            found_text, known_text = json.dumps(json.dumps(actions)), json.dumps(json.dumps(known))
+            command = _child_command(
+                "_aa.discover({n: _aa.Action.from_json(a) for n, a in _j.loads(" + found_text + ").items()}, "
+                "api=_aa.from_client(conn), known=_j.loads(" + known_text + f"), max_calls={DISCOVER_CALLS})"
+            )
+            learned = await self._in_child(name, command)
+        for action, answer in learned["answers"].items():
+            await self._kept(name, entry, action, answer, who)
+        self.ws.audit.write(who, "api_discovered", name, calls=learned["calls"])
+        await self.ws.live.broadcast({"type": "api_shape_changed", "api": name, "action": None, "words": ""})
+        contracts = {
+            n: self._aa.learn(self._shape(self._shape_path(name, entry, n)), a) for n, a in found.items()
+        }
+        return {
+            "api": name,
+            "calls": learned["calls"],
+            "skipped": learned["skipped"],
+            "pairs": learned["pairs"],
+            "failed": {n: a["error"] for n, a in learned["answers"].items() if not a["ok"]},
+            "contracts": contracts,
+        }
+
+    # ===== build =====
+
+    async def build(self, body: Any, who: str = "user") -> dict[str, Any]:
+        """{"api", "action", "as": cell | function | widget, "inputs"?, "canvas"?, "page"?}: what the endpoint
+        builds into, by its learned shape. A cell's or a function's code is answered (the page puts it where
+        the user picks); a widget is put on a canvas page (the Streamlit extension's)."""
+        given = body if isinstance(body, dict) else {}
+        made = str(given.get("as") or "")
+        if made not in rules.BUILDS:
+            raise ValueError(f"Build as one of {', '.join(rules.BUILDS)}.")
+        name, one, _, entry = await self._action(str(given.get("api") or ""), str(given.get("action") or ""))
+        contract = self._aa.learn(self._shape(self._shape_path(name, entry, one.name)), one)
+        kind = str(contract["kind"])
+        api_name = name if entry is not None else LOCAL
+        if made == "cell":
+            inputs = dict(given.get("inputs") or {})
+            return {"as": "cell", "code": rules.cell(api_name, one.to_json(), inputs, kind)}
+        if made == "function":
+            return {"as": "function", "code": rules.function(api_name, one.to_json(), kind)}
+        try:
+            plan = rules.widget(name, one.to_json(), kind, entry is None)
+        except BuildError as error:
+            raise Conflict(str(error)) from None
+        put = getattr(self._hooks, "canvas_put", None)
+        if put is None:
+            raise Conflict("A widget goes on a canvas page: the Streamlit extension makes canvases.")
+        if plan.get("as_table"):  # another API's records: its web call with Return as table on, the one gate
+            await self._explorer.save_call(name, one.name, {"as_table": True}, who)
+        placed = await put({k: given.get(k) for k in ("canvas", "page") if given.get(k)} | plan, who)
+        return {"as": "widget", "widget": plan["widget"], **placed}
+
+
+def _child_command(expression: str) -> str:
+    """The read box a library API's run is: api_adapter run in the child, its envelope as one row."""
+    return (
+        "import json as _j\n"
+        "from swissarmybench.adapters import api_adapter as _aa\n"
+        f"_answer = {expression}\n"
+        "[{'envelope': _j.dumps(_answer, default=str)}]"
+    )
+
+
+def _local_send(aa: Any, local_api: Any, loop: asyncio.AbstractEventLoop, who: str) -> Any:
+    """api_adapter's send for the local sandbox API: each request one call of its running process."""
+
+    def send(request: Any) -> Any:
+        path, query = request.parts()
+        body = json.loads(request.body) if request.body else None
+        sent = {"method": request.method, "path": path, "query": query, "body": body}
+        try:
+            done = asyncio.run_coroutine_threadsafe(local_api.call(sent, who), loop).result(timeout=180)
+        except (Conflict, Refused) as error:
+            return aa.Response(0, {}, str(error).encode())
+        said = done.get("body")
+        raw = json.dumps(said).encode() if said is not None else b""
+        if int(done.get("status") or 0) >= 400 and done.get("error"):
+            raw = json.dumps({"error": done["error"]}).encode()
+        return aa.Response(int(done.get("status") or 0), {"content-type": "application/json"}, raw)
+
+    return send
