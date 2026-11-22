@@ -181,6 +181,35 @@ def test_with_follow_off_nothing_moves_and_the_session_page_lists_both_with_link
     expect(page.locator(f".card[data-card='{card}']")).to_be_in_viewport(timeout=10000)
 
 
+def test_changes_shows_only_what_changed_something_with_its_words(
+    browser: Browser,  # noqa: F811
+    server: dict[str, Any],  # noqa: F811
+    tables: str,
+) -> None:
+    """The change log's events on the Session page (Plans/changes.plan.md): a step the agent adds says what
+    it changed under its line; Changes hides the lines that changed nothing (a card added)."""
+    call(server, "PUT", "/session-log/follow", {"on": False})
+    page = home(browser, tables)
+    grid = grid_of(tables)
+    step = {"kind": "filter", "params": {"column": "amount", "op": ">", "value": 6}}
+    call(server, "POST", f"/grids/{grid}/steps", {"steps": [step]}, agent=True)
+    add_card(server)
+    page.locator(".nav-rail [data-area='session']").click()
+    session = page.locator(".area-page[data-page='session']")
+    steps = session.locator(".session-entry[data-action='steps']").first
+    expect(steps.locator(".session-change")).to_contain_text(f"{ORDERS}: steps added 1 filter")
+    expect(session.locator(".session-entry[data-action='add_card']").first).to_be_visible()
+    session.locator(".session-changes").click()
+    expect(session.locator(".session-changes")).to_have_attribute("aria-pressed", "true")
+    expect(session.locator(".session-entry[data-action='add_card']")).to_have_count(0)
+    expect(session.locator(".session-entry[data-action='steps']").first).to_be_visible()
+    shot(page, "session-changes")
+    session.locator(".session-changes").click()  # put back: remembered in this browser
+    expect(session.locator(".session-entry[data-action='add_card']").first).to_be_visible()
+    last = call(server, "GET", f"/changes?action=last&object=table:{ORDERS}")["change"]
+    assert last["who"] == "agent" and last["diff"]["steps"]["added"] == ["1 filter"]
+
+
 def test_typing_in_a_box_is_never_interrupted(
     browser: Browser,  # noqa: F811
     server: dict[str, Any],  # noqa: F811

@@ -24,7 +24,11 @@ The project scaffold (adapter.py 1.1.0, added to only; each change its own commi
   DELETE ... WHERE a hundred keys; each answer read (`Dialect.drains`), never a commit or rollback.
   `NO_TRANSACTION` ("Trino writes row batches without a transaction: a failure part-way leaves the rows
   already written.") in its dry run's and its write's notes; a failed batch says the rows before it were
-  written; a truncate with rows refused (it could clear the table and then fail).
+  written; a truncate with rows refused (it could clear the table and then fail). 1.3.0 (branch stats-changes,
+  the owner's open decision): a truncate with rows is one CREATE OR REPLACE TABLE ... AS where the catalog has it
+  (Iceberg's: its types and properties kept, all or none, `TRINO_REPLACE`); elsewhere still refused.
+- 1.2.0 (branch stats-changes): `observe(hook)`, each read's, query's and write's facts for the statistics
+  (Plans/stats.plan.md); `fingerprint(schema)`.
 - `Counts.notes`; a source's own `planned()` (planned() asks it first); `statements()` (what a write runs, in
   the source's own SQL, for a dry run's report); `table_name` quotes each part of a three-part name.
 - The SQL Server and Trino Write starters are thin callers (`SqlWrite.by_adapter`), their names, modes, keys,
@@ -35,7 +39,8 @@ The project scaffold (adapter.py 1.1.0, added to only; each change its own commi
   (tests/trino_standin.py answers reads only), the starters' statement-recording stand-ins (unchanged tests),
   and tests/test_sql_server_real.py's new adapter test for a real server (not run: none named here).
 
-The app: Trino's card says it writes row batches without a transaction (replace refused); sab.write and
+The app: Trino's card says it writes row batches without a transaction (replace refused; one statement on Iceberg
+since 1.3.0); sab.write and
 connections_write write to Trino (were refused) and through SQL Server's section; bootstrap() is its parts by
 area, each reading from `Built` (the one typed record of what is made so far), no behaviour change.
 

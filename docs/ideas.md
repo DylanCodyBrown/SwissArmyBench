@@ -8176,16 +8176,60 @@ api_adapter.py: any API's answer in, one envelope out, with active payload detec
 and drift handling (fields bound by path; added, missing, retyped and moved fields adapt; an unsure rename offered once,
 never guessed). Plan: Plans/api-adapter.plan.md.
 
-## Real-time statistics (the owner, 2026-11-22): decided
+## Real-time statistics (the owner, 2026-11-22): built (branch stats-changes)
 Every call through either adapter records time in parts, size, outcome and who, never values; calls kept this session,
 running figures per endpoint and table kept with the project (.sab/stats.json). The agent's stats tool and plain-word
-hints. Plan: Plans/stats.plan.md.
+hints. Plan: Plans/stats.plan.md. Decided while building:
+- adapter.py 1.2.0 has observe(hook) like api_adapter's: a read's or query's facts when its stream ends (or is
+  dropped), a write's when it returns. A read is counted batch by batch; a write's rows are never wrapped (a Python
+  generator reader cost DuckDB its native Arrow scan: 272 to 441 ms on a 10M read pulled by DuckDB), its bytes from the
+  table given. No hook, no wrapping: an export pays nothing.
+- Three ears, one record: the connection slots' finished calls (the Queries window's finished entry is the source of a
+  connection call's record, so there is no second list; the wait in line and the total come from the ticket), joined
+  with the facts its child process sends back (adapter.observe in the child; a SQL source's own SELECT timed there, its
+  folded parts the ones the SELECT sent), taken out of the answer at the gate so no route answers differently;
+  adapter.observe in the server (the sandbox, a file connection; the app's own engine session, a grid's windows and the
+  open tables, is not a call); api_adapter's envelopes (services/actions.py says each run with its `where`;
+  api_adapter.observe hears any other run in this process, never one Actions says itself).
+- Who and where: the caller from the request (the slots' Caller: user, agent, background; a kernel's notebook or script
+  and cell). A widget and its page, or an endpoint, come in a run's `where` ({"widget", "page"}): the field is there for
+  the canvas's API widgets (branch api-adapter-2) to send; nothing sends it yet.
+- The figures per table, connection and endpoint keep their last 200 times and sizes (the percentiles), are written a
+  few seconds after the calls settle and when the project changes, byte-stable; .sab/.gitignore lists stats.json and
+  changes.jsonl (an older project's file gets the lines at its next save).
+- The connection call counts stay as they are (the kernel's reports count there too); the card's calls carry the
+  figures. The Performance Analyzer's call timings are not folded in (its own per-rerun records, a Streamlit launch's).
+- Not built: the Environment page's Used in with each use's cost (that page is branch environment's).
+
+## Trino's replace (the owner's open decision, adapter phase 5): built as one statement (branch stats-changes)
+A truncate with rows on Trino is one CREATE OR REPLACE TABLE ... AS where the catalog has it (Iceberg's), its columns
+cast to their own types (information_schema) and its properties said again (SHOW CREATE TABLE's WITH): all or none.
+Hive's catalog refuses it and nothing changes (the old words: clear first, then insert). At most 100,000 values in the
+one statement (Trino's query length), else refused before anything runs. The Write to Trino starter's replace works
+through it; the card says Writes: append, create, replace, upsert, delete.
 never guessed). Plan: Plans/api-adapter.plan.md (its "Built" and "Not yet" sections). Decided while building: the
 shapes are kept beside each API in the library (the local sandbox API's in .sab/api-shapes/); "seen" is a day so a
 same-shape call changes no byte most days; a rename is offered only when exactly one new field of the same type is alike;
 a write is never sent twice after a passing error (429 only); discovery's Allow is remembered for the session.
 
-## The change log (the owner, 2026-11-22): decided
+## The change log (the owner, 2026-11-22): built (branch stats-changes)
 Every change to a project's objects (table structure, connection, API and shape, endpoint, widget, canvas, code,
 setting, library) is one event in .sab/changes.jsonl (Git-ignored, everything kept, never values); the agent's changes
-tool answers the last change on an object. Plan: Plans/changes.plan.md.
+tool answers the last change on an object. Plan: Plans/changes.plan.md. Decided while building:
+- One event: the service that changes something puts the change on the audit entry it already writes (`change=`), or
+  writes `changed`; the audit (Heard) hands it to the Session page and the log, so both hear the same event. The
+  Session page's entry shows the change's words under its own, and Changes shows only those (the first step of the one
+  log: the Session page reads the change log's events; the audit file and the beta log stay as they are).
+- The difference is by name only, with types the one thing shown (a column's, a learned field's); every other part's
+  values are fingerprinted (a setting's host, a step's filter value, a cell's source, an endpoint's SQL): the words say
+  "settings changed host", never its value. A variable is said by name and how it is kept; its value is never even
+  fingerprinted (the service gives the words).
+- Who: the user or the agent from the audit; the app for what it sees changing (an API's learned shape, API.py's
+  endpoints when the running API restarts). With no project open the events stay in memory for the session.
+- Raised today for: a table's steps (and undo, redo) and view columns, its data arriving with other columns or another
+  source, a connection's settings, header and code, an API's specification on Refresh's apply, an endpoint's learned
+  shape, API.py's endpoints (while it runs), a widget's code or properties and each canvas page, a notebook's cells and
+  a script's definitions on save, a variable, a connection's queries-at-once limits, a new notebook environment's
+  libraries and packages installed in the app's Python. Not yet: the Environment page's libraries pinned, updated or
+  removed (branch environment raises them with services/changes.py raised), API.py edited while its API is not running
+  (its save on the Scripts page is a script's change), a Settings switch.

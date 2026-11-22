@@ -71,3 +71,6 @@ one refusal shape), `facts` (times and sizes, never a value).
   keep working. `apis_make_into_blades(name)` makes one into the library's blades from the address it was
   read from or an openapi.json beside it (else give `spec_path` or `spec_url`); only when asked; the old
   file stays.
+
+- Each action's running figures (calls, usual time, failures) are on its What it answers line;
+  `stats(action="endpoint", name="<API> <action>")` gives them with each call's parts.

@@ -1,6 +1,8 @@
 # Real-time statistics for every call (the owner, 2026-11-22)
 
-Status: decided; not built. Build after adapter phase 5 and the API adapter merge (both adapters emit the records).
+Status: built (branch stats-changes, 2026-11-22): adapter.py 1.2.0 observe(), services/call_stats.py, the stats tool, the
+Connections and APIs pages' figures; decisions in docs/ideas.md "Real-time statistics". Not built: the Environment page's
+Used in with each use's cost (its page is branch environment's), the Performance Analyzer's timings folded in.
 
 > "We should build real-time stats into the back end for the agent to read about the API calls: the time, the size of
 > the return, along with the shape we've already saved, and we can do the same for connectors. There should be enough

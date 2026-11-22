@@ -250,3 +250,14 @@ cell with no connection, `sab.sql(query)`. Joins across connections work.
 - `connections_cancel_query(id)` stops one: yours at once, the user's only on their Allow.
   `connections_set_limits(name, total, agent, wait)` changes a connection's (total 1 to 64, your share at
   most the total), written into its library file's `[queries]` table and shared with the team library.
+
+## Statistics: how each call went (`stats`)
+- `stats(action="summary")`: this session's calls (connections' reads, queries and writes; APIs' actions), the
+  busiest tables, connections and endpoints with their running figures (count, p50 and p95 in ms, error rate,
+  typical rows, bytes and pages, the wait for a slot, last called; kept with the project in .sab/stats.json).
+- `stats(action="slowest")`, `"errors"`, `"table"` / `"connection"` / `"endpoint"` with `name` (`Shop.orders`,
+  `Shop`, `Orders list_orders`): each call's time in parts (wait, connect, first row or byte, total), size, what the
+  source folded and what DuckDB did after, outcome, who and where, the result's fingerprint. Never a value.
+- `stats(action="hints")`: what to change, in words: filter at the source (a read of millions of rows naming no
+  columns, or filtered after), ask for larger pages, keep it as a table (the same read again and again), a
+  connection's line, a failing object. Use it before tuning a widget, a table or an endpoint.

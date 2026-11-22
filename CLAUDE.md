@@ -171,6 +171,8 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   nothing written to disk except explicit exports, saved dashboards, the library folder (on the user's saves
   and the one-time move into it), the open project's folder (its `.sab/` on Save and Autosave, New
   project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
+  `.sab/stats.json` (the calls' running figures: names, times, sizes) and `.sab/changes.jsonl` (the change log: names,
+  types, fingerprints), both Git-ignored and never a value (Plans/stats.plan.md, Plans/changes.plan.md, 2026-11-22),
   `.sab/api_examples.json` only on Try it's Keep as its example:
   the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
   sandbox API never touches live data, its process gets only the sandbox, through the adapter's door, and no
@@ -582,7 +584,15 @@ src/swissarmybench/
                          as DuckDB SQL, Lineage as a flowchart LR, Deliverables, Running it with the Function App
                          checklist, Open issues), "None." when empty; names and types only; the same bytes
     session_log.py       the Session page's log: each audit entry's words, area and object (a grid, a card, a
-                         relationship, a connection, a cell), names and counts only; the filter; Follow
+                         relationship, a connection, a cell), names and counts only; the filter; Follow; a change's
+                         words beside its entry (`change`), the `changed` entry of its own
+    call_stats.py        every call's statistics (Plans/stats.plan.md): one record from the adapter's facts, a
+                         finished slot ticket with its child's facts, api_adapter's (time in parts, size, folded vs
+                         DuckDB, outcome, who and where, fingerprint; never a value); running figures (p50, p95,
+                         errors, typical sizes); .sab/stats.json's text; hints in words; the stats tool's views
+    changes.py           the change log (Plans/changes.plan.md): one change (the object, a difference by name, types
+                         the only thing shown, words, fingerprints before and after; never a value), a notebook's or
+                         a script's parts (document_shape), .sab/changes.jsonl's lines, last, history, since, search
     write_capability.py  what each connection kind writes (its operations, how) or why it is read-only; the Write
                          starters each kind has (by their tags); a kind is connection_tables' (TABLE_KINDS), a
                          database's or file's its template: the Connections page's Writes / Read-only
@@ -690,8 +700,16 @@ src/swissarmybench/
     found_connections.py Find connections on this computer: the scan off the loop (Cancel), the last list in memory,
                          import (each a connection by ConnectionService.save, its password a variable declared not
                          set); the agent's scan and import on the user's Allow
-    session_log.py       the Session page: the audit heard (Heard), this session's entries in memory, the
+    session_log.py       the Session page: the audit heard (Heard: the file, the Session page, then the change log),
+                         this session's entries in memory (Changes: only those that changed something), the
                          `session_entry` notice; Follow the agent (follow.json; 403 for the agent)
+    call_stats.py        the statistics' three ears: adapter.observe here (the app's own session left out), the
+                         slots' on_finished (a connection's call with its child's facts), api_adapter's envelopes
+                         (Actions says its own; observe hears the rest); the last 3,000 calls in memory, the open
+                         project's figures in .sab/stats.json (a few seconds after calls settle, only on change)
+    changes.py           the change log: raised (a change on the audit entry a service writes: `change=`), the log
+                         that hears it (stamped, appended to the open project's .sab/changes.jsonl, else memory), a
+                         connection's settings and sign-in as it names them; the changes tool's views
     connection_usage.py  the Connections page: the cards (status, calls), a connection's references (the
                          documents: recent, open, the project's: one seam), configuration (never a value),
                          and its calls this session (the app's runs, a Workbench kernel's report; memory only)
@@ -879,8 +897,12 @@ src/swissarmybench/
                          for the statistics), keep() and text() (an endpoint's shape, types only, byte-stable),
                          learn() (the widgets' contract), discover() (read-only probe, the mapping, master and detail
                          pairs), table(answer) (records through adapter). Allowed 3,000 lines; it only grows
-                         Arrow answer). Version 1.1.0. Allowed 3,500 lines (one file); it only grows (design
+                         Arrow answer); observe(hook) (each read's, query's and write's facts as it ends, for the
+                         statistics; no hook, nothing wrapped); Trino's replace one CREATE OR REPLACE TABLE ... AS
+                         (Iceberg). Version 1.3.0. Allowed 3,650 lines (one file); it only grows (design
                          principle 12b)
+    call_stats.py        the open project's .sab/stats.json read, and written atomically only when it changes
+    changes.py           the open project's .sab/changes.jsonl read, and one line appended per change
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -965,7 +987,8 @@ src/swissarmybench/
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
                          explorer, library,
-                         shared_catalog, team, found_connections, script_ide, debugger, sharing, actions). Every route serves
+                         shared_catalog, team, found_connections, script_ide, debugger, sharing, actions, call_stats,
+                         changes). Every route serves
                          the agent too (the golden rule) but answering approvals, /blades/{name}/python and a
                          project's Show in folder and Delete
     security.py          the guard: 127.0.0.1, the token, Host and Origin; each request told to the server's life
@@ -1114,12 +1137,14 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          no project; /workspace?view=start lands on it; it makes way for a project opened there or
                          a table that arrives); variablesPage.ts the Variables page (open=variables:
                          by source, uses, Add variable, Show for a keyring secret; the key vaults and Add key vault); dataPage.ts the Data Catalog page (open=data, the rail's Data Catalog, after Variables on the rail: the one place to browse and find tables, dataBrowse.ts its tree and a table's detail); sessionPage.ts the Session page
-                         (this session's log, live, each entry a link; The agent / Me / Both; Follow the agent: main.ts brings
+                         (this session's log, live, each entry a link; The agent / Me / Both; Changes, each change's words under it; Follow the agent: main.ts brings
                          the grids, Analyze and the ERD to the front, workbenchPage.ts a cell; never while the user
                          types; the rail's count); findConnections.ts the Connections page's Find connections on this computer… (the scan gated
                          with Cancel, the list: search, Select all, Already added, no connection yet, the amber mark;
                          Import); connectionsWindow.ts the
                          Connections page (cards, a card's detail: references, configuration, calls; no APIs);
+                         callFigures.ts a connection's or an endpoint's running figures, small and out of the way
+                         (the card's "usually 140 ms", the detail's Calls, the APIs page's What it answers line);
                          connectionSlots.ts a card's live "Running 3 of 8 · 1 waiting", the detail's limits and
                          Queries in progress…; queriesWindow.ts the Queries window (?panel=queries&connection=:
                          running and waiting queries, the SQL highlighted, Cancel, Finished); slotWait.ts a

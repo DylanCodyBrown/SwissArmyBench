@@ -4965,3 +4965,53 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
 - The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,032 passed, 45 skipped, none failed.
 - Not checked: Edge; Windows; a real outside API (only the stand-ins and recorded payloads); YAML answers (no PyYAML
   in this venv); the canvas's Events and API widgets through api_adapter (not built).
+
+## The statistics, the change log and Trino's replace (branch stats-changes, 2026-11-22; DuckDB 2.0.0, pyarrow 26.0.1, sqlglot 30.24.0)
+- adapter.py 1.2.0, observe(hook) (tests/test_adapter_observe.py, 7): a read's facts when its stream ends (rows,
+  bytes, batches, columns returned and asked, first row and total, folded and DuckDB's parts, fingerprint), a stream
+  dropped half way still said, the same shape the same fingerprint, a query naming a source (connect timed), a
+  failure's kind and never its words, a failing hook never failing the call, no hook: the reader as the source gave
+  it. Every adapter test with it (405 passed under -n 4; test_adapter's memory test failed once under load, 21 of 21
+  alone, as on the earlier phases).
+- Speed and memory on Larkfield large (10,001,903 order lines, made in 17.6 s, a 274 MB DuckDB file, deleted after),
+  DuckDB.file, hook off against on, 20 alternated runs, medians: a whole 10M-row read 342 / 341 ms (-0.4%), RSS growth
+  4 / 3 MB; 3 columns filtered (2,251,923 rows) 89 / 91 ms (+3.2%, the machine's noise; fastest of 30: 82.0 / 83.0 ms,
+  +1.2%), RSS 23 / 24 MB; a 1M-row write into DuckDB 53 / 52 ms (-0.6%), RSS 77 / 61 MB. The wrapper alone (244
+  in-memory batches of 50,000 x 8): 0.2 us a batch plain, 0.5 wrapped, 0.7 with the bytes counted. The first try
+  wrapped a write's rows too and counted nbytes: the write +31.9% (DuckDB pulling a Python generator reader loses its
+  parallel Arrow scan: 272 -> 441 ms on the 10M read), so a write is never wrapped.
+- The statistics (tests/test_call_stats.py 7, tests/test_call_stats_service.py 5): a ticket and its child's facts one
+  record (the wait and total from the ticket, the rest from the facts; a failure's words not kept), an API envelope an
+  endpoint's record with its `where`, p50 and p95 over 101 calls, the error rate, .sab/stats.json byte-stable, a file
+  of another format or not JSON read as none, the hints (3,200,000 rows naming no columns with filters done after:
+  filter at the source; 40 pages: larger pages; the same read six times: keep it as a table), the views and a bad one
+  refused; through the gate the child's facts taken out of the answer; nothing written when nothing changed; the
+  app's own session not a call; the figures following the project (the first one's written as the next opens);
+  api_adapter's observe leaving a run Actions says itself; through the app a sqlite connection's table read by a
+  DuckDB query naming it: one call with its connect, first row, 25 rows, filters folded, a fingerprint, no value;
+  the connection's figures 3 calls (catalog, count, read) on /stats/figures and its card.
+- The change log (tests/test_changes.py 7, tests/test_changes_service.py 2): a table's columns (retyped said with
+  both types) and steps, no event when nothing moved, a setting's value never in it, given words winning, the lines
+  read back with a bad one skipped, last/history/since/search, a script's definitions and the rest of its module, a
+  canvas page's items, API.py's endpoints without their lines; through the app a project's .sab/changes.jsonl a line
+  per change (a table opened, its step, its data again with a column more), a step's value and a new column's values
+  never in it, the Session page's changes=1, a connection saved, a variable by name (its value never), a notebook's
+  second cell. Every suite that raises one passed (476 passed).
+- Trino's replace (tests/test_adapter_trino.py, 6; the stand-in answers SHOW CREATE TABLE and keeps a WITH clause as
+  Trino's): one CREATE OR REPLACE TABLE ... WITH (format, partitioning) AS SELECT each column CAST to its own type
+  (BIGINT kept for an int32 column) FROM VALUES, no DELETE or INSERT run, the counts 3 in and 2 out; a catalog that
+  refuses it (Hive's "Replacing tables is not supported"): the old words, nothing changed; too big for one statement:
+  refused before anything ran; the dry run's note; statements(). The Write to Trino starter's replace dry run says it
+  (tests/test_starters_write.py: 273 passed with the other write starters).
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,086 passed, 46 skipped, 2 failed under load
+  that pass alone (test_beta_log's beta mode off and on, test_agent_index's resources over MCP: 23 of 23 alone). In
+  earlier partial runs under load, test_workbench's kernel streaming and busy reader, test_actions' drift (a live
+  server's shape file read back) and test_canvas_routes' widget run alone failed and passed alone.
+- In Chromium (`-n 2`, the Streamlit Python): test_session_page (4, the new Changes one among them),
+  test_connection_queries_page, test_connection_access_page, test_connection_colours_page, test_api_learned_page,
+  test_add_api_page, test_structures_apis_page, test_local_apis_page: 21 passed.
+- Not checked: Edge; Windows; a real Trino with an Iceberg or Hive catalog (the stand-in only); a real SQL Server's
+  reads through the statistics (its typed read_arrow path is timed the same way as sqlite's, not run against one); a
+  widget's or an endpoint's `where` (nothing sends it yet); the figures on the Connections and APIs pages by eye (no
+  screenshot taken); API.py's endpoints changed while its API runs, end to end (the shapes and the diff are tested,
+  the restart's loop is not).
