@@ -357,6 +357,21 @@ class Explorer:
 
     # ===== saving a web call =====
 
+    async def table_call(self, name: str, operation: str, records: str, who: str = "user") -> None:
+        """Return as table on for an operation's web call that is not one yet, its records at `records`
+        (where the learned shape or the specification keeps them: $.items); a call that already is a table
+        stays as the user set it (Build's widget asks: services/actions.py)."""
+        explored = self._explored(name)
+        op = self._operation(explored, operation)
+        blade_name = op.get("blade") or web_calls.name_of(explored["name"], op["id"])
+        try:
+            call = self._blades.get(blade_name).to_json().get("web_call") or {}
+        except (KeyError, LookupError, ValueError):
+            call = {}
+        if call.get("as_table"):
+            return
+        await self.save_call(name, operation, {"as_table": True, "records": records or "$"}, who)
+
     async def save_call(self, name: str, operation: str, body: Any, who: str = "user") -> dict[str, Any]:
         """The authored call as its web call blade: {"inputs"?, "body"?, "as_table"?, "records"?, "shape"?,
         "header"?, "columns"?, "flatten"?, "paging"?, "conversion"?, "structure"? (a response read for the

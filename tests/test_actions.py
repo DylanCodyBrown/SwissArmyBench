@@ -369,10 +369,26 @@ def test_build_a_widget_on_the_projects_canvas(live: int, service: Service, tmp_
     if not ask(live, "GET", "/streamlit/canvases")["canvases"]:
         ask(live, "POST", "/streamlit/canvases", {"name": "app"})
     ask(live, "POST", "/actions/run", {"api": "Orders", "action": "list_orders"})
+    # "insert": false is the plan alone, for a widget as for a cell: nothing placed, nothing switched on.
+    asked = {"api": "Orders", "action": "list_orders", "as": "widget", "insert": False}
+    planned = ask(live, "POST", "/actions/build", asked)
+    assert planned["widget"] == "data_table" and "id" not in planned and planned["plan"]["widget"]
+    assert not ask(live, "GET", "/blades/Orders.list_orders")["web_call"].get("as_table")
     built = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "list_orders", "as": "widget"})
     assert built["widget"] == "data_table" and built["id"]
     canvas = json.dumps(ask(live, "GET", f"/streamlit/canvases/{built['canvas_id']}"))
     assert "[Orders].list_orders" in canvas
+    # The table the widget names reads (the sweep, 2026-11-22: Return as table was switched on with its
+    # records at "$" though the answer keeps them in $.items, so the API's tables failed to list and the
+    # widget showed nothing): its records are where the learned shape says.
+    opened = ask(live, "POST", "/connections/Orders/open", {"table": "list_orders"})
+    assert opened["shown"] == 25, opened
+    # A call the user already set as a table keeps the user's settings when a widget is built on it again.
+    mine = {"as_table": True, "records": "$.items", "paging": "first"}
+    ask(live, "PUT", "/apis/Orders/calls/list_orders", mine)
+    ask(live, "POST", "/actions/build", {"api": "Orders", "action": "list_orders", "as": "widget"})
+    kept = ask(live, "GET", "/blades/Orders.list_orders")["web_call"]
+    assert kept["paging"] == "first" and kept["records"] == "$.items"
     # Another API's record is an API metric and its write an API form: any API's action, through api_adapter.
     one = ask(live, "POST", "/actions/build", {"api": "Orders", "action": "get_order", "as": "widget"})
     assert one["widget"] == "api_metric"
