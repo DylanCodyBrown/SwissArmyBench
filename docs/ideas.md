@@ -9112,3 +9112,55 @@ Decided (confirm or change):
 
 Not done: the per-kind connection record (item 12), the front-end half of item 10, the canvas RUNTIME (review
 C's), the approvals (review B1's).
+## Review fixes C, 2026-11-22 (decisions and open notes)
+
+Decisions:
+
+- **The runtime is read by the domain, from the package.** `domain/canvas_build.py` reads
+  `server/sab_canvas.py` with `pkgutil.get_data` at import: the one read the domain does (said in its
+  docstring). The other way, every service handing the text in, would have touched every caller of the
+  builder for no gain; `domain/scaffold.py` already carries a module's text the same way.
+- **The runtime's lint settings.** Its bookkeeping swallows errors on purpose (a page must never stop for the
+  analyzer's marks or the viewer's values, and a built app has nowhere to log): `S110` is off for that one
+  file. mypy checks it with `import-not-found` off for that module only (it imports what sits beside it in
+  a built app, and Streamlit, which is never the app's dependency).
+- **The page waits for its rules.** Each page awaits `GET /app/rules` once at its start (the Workbench page
+  at its top, before the old-address redirect); until then every question answers "none". The window names
+  and the two pages' words stay in `workbenchPages.ts`: they are the page's own identity, set before any
+  request (a window is named before it can be found by another).
+- **The old app file.** The backend still knows `.stapp.json` (it refuses it in one line: the Streamlit
+  extension's hook); the shared front-end files no longer name it or say "A Streamlit app": the kind and its
+  words come with the rules. The Apps landing's own words are neutral now.
+- **A question is asynchronous.** `confirm()` blocked; `askYesNo` answers later. Closing a document with
+  unsaved changes returns at once and closes on yes. The agent's `file.close` on an unsaved document therefore
+  answers before the user did, as its other waits do.
+- **Browser tests answer the app's question.** `tests/e2e/asks.py`: `accept_asks(page)` where a test accepted
+  every browser dialog, `answer_ask(page)` for one question. Playwright's handler runs only before an action
+  on the same page, so a test that then waits on another page answers explicitly.
+- **The Canvas keeps its own tabs and the server's undo.** `canvasKit`'s history and tabs are for a canvas
+  whose document lives in the page (the Excel canvas). The widget Canvas's undo, redo and page changes are the
+  server's versioned commands, shared by every window: its heading now says so instead of claiming both.
+- **The Canvas's menu is the one menu in the Canvas's look.** `showEntries` takes the classes, so the Canvas
+  keeps its keys, ticks and submenus (and its tests their selectors) and gains arrow keys, Escape and staying
+  inside the window. Source Control's menu is VS Code's copy and stays.
+- **The command list's host is typed from the page.** `CommandHost = typeof commandHost`: 64 names without a
+  hand-written interface; a renamed page function is a type error in the list.
+
+Open:
+
+- `notebookView` is still one function of about 1,800 lines. Only what needed no closure state moved
+  (`notebookCells.ts`). The cell drawing (`make`, 325 lines), the Tables group (`redraw`, `apply`) and the SQL
+  and DAX heads all read and write the view's shared variables; pulling them out needs a state record first,
+  and only browser tests cover it. Worth doing as its own change, a part at a time.
+- The Workbench page's remaining headings (projects, modes, the three bars, the Data Explorer, the notices at
+  its end) each hold state the others read; the same host pattern would take them next.
+- `canvasPage.ts` is still one file of about 1,480 lines.
+- The form's sign-in panels and the starters' groups still name kinds on the page in places the review did not
+  list (a template's `connection === "python"` form, `template !== "folder"`): they follow the connection's
+  category, not its dialect, and were left.
+- Two browser tests fail now and then under two workers and pass alone, on this branch and on the branch it
+  came from (measured on the base page's own build: 1 of 3 runs): the structure tab's edit-in-place
+  (`fill` then `press` on a row the tree may redraw) and the Environment pane's kernel table shape.
+- Run from a worktree with `PYTHONPATH` set (the environment's editable install points at the main checkout),
+  `test_script_export`'s fresh-Python test and `test_updater`'s uv test fail because the new Python inherits
+  the path; both pass without it.

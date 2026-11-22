@@ -5,14 +5,16 @@
  *
  *   [PAGES]   /notebooks (the window named sab-notebooks) and /scripts (sab-scripts): the Workbench's one page
  *             code, each window its own page, said by its path. The old /workbench?kind=... goes to its page
- *             (the server's redirect: domain/workbench_pages.py holds the same rule).
- *   [KINDS]   a notebook (.ipynb) opens only on the Notebooks page, a .py only on the Scripts page, from
- *             anywhere; a Streamlit app's canvas and a workbook design stay beside the notebooks.
+ *             (the server's redirect).
+ *   [KINDS]   which page a file or a kind opens on, and the one line a wrong-kind take is refused with, are
+ *             the server's rules (domain/workbench_pages.py), read as data: loadPageRules takes GET
+ *             /app/rules once at a page's start and pageRules.ts applies it. This file holds no copy.
  *   [OPEN]    openOnPage: the page's own window opens the file (asked through the server, as the agent's
  *             workbench_window is: nothing reloads), else that page's window, opened on it.
  */
 import { api, token } from "./api";
 import { errorHere } from "./errorNote";
+import * as rules from "./pageRules";
 
 export type CodePage = "notebooks" | "scripts";
 export const CODE_PAGES: readonly CodePage[] = ["notebooks", "scripts"];
@@ -27,27 +29,30 @@ export function openCanvasFile(path: string): void {
   window.open(`/streamlit/canvas?path=${encodeURIComponent(path)}`, "sab-canvas")?.focus();
 }
 
-/** The page a file opens on (null: neither). */
-export function pageOfPath(path: string | null | undefined): CodePage | null {
-  const name = (path ?? "").replace(/\\/g, "/").split("/").pop()?.toLowerCase() ?? "";
-  if (name.endsWith(".py")) return "scripts";
-  if (name.endsWith(".ipynb") || name.endsWith(".stapp.json") || name.endsWith(".design.json")) return "notebooks";
-  return null;
+let asked: Promise<void> | null = null;
+
+/** The server's page rules, taken once (a page awaits this before its first question; a failure leaves every
+ *  question answering "none", and the server refuses a wrong take by itself). */
+export function loadPageRules(): Promise<void> {
+  asked ??= api<{ pages: rules.PageRules }>("/app/rules").then(
+    (found) => rules.usePageRules(found.pages),
+    () => {
+      asked = null; // asked again by the next page move
+    },
+  );
+  return asked;
 }
 
-/** A document kind's page: a notebook and an app the Notebooks page, a script the Scripts page. */
-export function pageOfKind(kind: string | null | undefined): CodePage | null {
-  return kind === "script" ? "scripts" : kind === "notebook" || kind === "app" ? "notebooks" : null;
-}
+const asPage = (page: string | null): CodePage | null => (page === "notebooks" || page === "scripts" ? page : null);
 
-const KIND_WORDS: Record<string, string> = { notebook: "A notebook", app: "A Streamlit app", script: "A script" };
+/** The page a file opens on (null: neither): the server's table. */
+export const pageOfPath = (path: string | null | undefined): CodePage | null => asPage(rules.pageOfPath(path));
+
+/** A document kind's page (null: it has none): the server's table. */
+export const pageOfKind = (kind: string | null | undefined): CodePage | null => asPage(rules.pageOfKind(kind));
 
 /** The one line a document of `kind` dropped on `page` is refused with (null: it belongs there). */
-export function wrongPage(kind: string | null | undefined, page: CodePage): string | null {
-  const home = pageOfKind(kind);
-  if (!home || home === page) return null;
-  return `${KIND_WORDS[kind!]} opens on the ${PAGE_WORDS[home]} page, not here.`;
-}
+export const wrongPage = (kind: string | null | undefined, page: CodePage): string | null => rules.wrongPage(kind, page);
 
 /** The page this window is (by its path; an old /workbench address by its ?kind=). */
 export function thisPage(): CodePage {
@@ -88,6 +93,7 @@ export function bringPage(page: CodePage, address = pageUrl(page), words: Record
 
 /** Open `path` on its page (`cell`: a notebook's cell; `line`: a script's line), in that page's window. */
 export async function openOnPage(path: string, at: { cell?: number | null; line?: number | null } = {}): Promise<void> {
+  await loadPageRules();
   const page = pageOfPath(path) ?? "notebooks";
   const command = at.cell ? "file.openCell" : at.line ? "file.openAt" : "file.open";
   const args = { path, ...(at.cell ? { cell: at.cell } : {}), ...(at.line ? { line: at.line } : {}) };

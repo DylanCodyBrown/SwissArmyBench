@@ -12,7 +12,7 @@
  * ROUTING: POST /agent/inbox {kind, title, text, note}
  */
 import { api } from "./api";
-import { button, extraMenuItems, h, openDialog, toast } from "./dom";
+import { button, h, openDialog, toast } from "./dom";
 import type { ErrorDetail } from "./workbenchErrors";
 import { errorHere } from "./errorNote";
 
@@ -89,24 +89,3 @@ export function codeItem(where: string, what: { text: string; problem: { message
   return { kind: "code", title: `Code from ${where}`, text: code };
 }
 
-/** A small menu at the pointer (right-click): each choice runs and the menu goes. */
-export function contextMenu(event: MouseEvent, items: { label: string; run: () => void }[]): void {
-  event.preventDefault();
-  items = [...items, ...extraMenuItems()];
-  document.querySelector(".menu")?.remove();
-  const menu = h("div", { class: "menu", role: "menu" }, ...items.map((i) => h("button", { type: "button", role: "menuitem", onclick: () => { menu.remove(); i.run(); } }, i.label)));
-  document.body.append(menu);
-  menu.style.top = `${Math.min(event.clientY, innerHeight - menu.offsetHeight - 8)}px`;
-  menu.style.left = `${Math.min(event.clientX, innerWidth - menu.offsetWidth - 8)}px`;
-  (menu.querySelector("button") as HTMLButtonElement | null)?.focus();
-  const away = (e: Event): void => {
-    if (!menu.contains(e.target as Node)) {
-      menu.remove();
-      document.removeEventListener("mousedown", away);
-    }
-  };
-  setTimeout(() => document.addEventListener("mousedown", away));
-  menu.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") menu.remove();
-  });
-}

@@ -16,7 +16,7 @@
  */
 import { bringPage } from "./workbenchPages";
 import { api } from "./api";
-import { button, clear, h, icon, toast } from "./dom";
+import { askYesNo, button, clear, h, icon, toast } from "./dom";
 import { busy, busyClick, loadingBlock, room } from "./loading";
 import { tablePreview } from "./pythonConnectionForm";
 import { clearError, errorHere, errorNote, showError } from "./errorNote";
@@ -40,6 +40,8 @@ interface TreeGroup {
 export interface Tree {
   connection: string;
   kind: string;
+  /** Its groups as the page draws them, by its kind (the server's: connection_usage.group_facts). */
+  group_facts?: { icon: string; relationships: boolean; open_single: boolean };
   group: string;
   state: { state: string; error?: string };
   groups: TreeGroup[];
@@ -105,7 +107,7 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
   };
 
   const openAll = async (g: TreeGroup): Promise<void> => {
-    if (!confirm(`Open all ${g.count} tables of ${g.schema}? Each opens as its own grid.`)) return;
+    if (!(await askYesNo(`Open all ${g.count} tables of ${g.schema}? Each opens as its own grid.`))) return;
     try {
       const got = await busy(section, `Opening ${g.count} tables of ${g.schema}…`, api<{ opened: unknown[]; failed: { table: string; error: string }[] }>(`/connections/${path}/open-dataset`, "POST", { dataset: g.schema }), { errorIn: false });
       const failed = got.failed.length ? ` ${got.failed.length} could not: ${got.failed.map((f) => f.table).join(", ")}.` : "";
@@ -159,7 +161,8 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
       .filter(({ shown }) => shown.length || !words);
     const total = tree.groups.reduce((n, g) => n + g.count, 0);
     count.textContent = String(total);
-    const single = tree.groups.length === 1 && tree.kind !== "powerbi";
+    const facts = tree.group_facts ?? { icon: "folder", relationships: false, open_single: true }; // the server's, by its kind
+    const single = tree.groups.length === 1 && facts.open_single;
     clear(
       list,
       groups.length
@@ -180,12 +183,12 @@ export function tablesSection(name: string, onOpened: () => void = () => undefin
                   h(
                     "summary",
                     {},
-                    h("span", { class: "conn-tree-group-name" }, icon(tree!.kind === "powerbi" ? "diagram" : "folder"), title, h("span", { class: "count" }, String(g.count))),
+                    h("span", { class: "conn-tree-group-name" }, icon(facts.icon), title, h("span", { class: "count" }, String(g.count))),
                     h(
                       "span",
                       { class: "conn-tree-actions" },
                       g.count > 1 ? button("Open all", busyClick("Opening…", () => openAll(g)), { icon: "grids", class: "small line" }) : null,
-                      tree!.kind === "powerbi" ? button("Import its relationships", busyClick(`Reading ${g.schema}'s relationships…`, () => importRelationships(g)), { icon: "diagram", class: "small line" }) : null,
+                      facts.relationships ? button("Import its relationships", busyClick(`Reading ${g.schema}'s relationships…`, () => importRelationships(g)), { icon: "diagram", class: "small line" }) : null,
                       first ? button("Query in a notebook", () => void queryInNotebook(first.sql), { icon: "notebook", class: "small line" }) : null,
                     ),
                   ),

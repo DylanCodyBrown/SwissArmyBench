@@ -7,6 +7,7 @@ Made-up data only."""
 
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Iterator
 from pathlib import Path
@@ -25,6 +26,7 @@ from swissarmybench_streamlit.domain import canvas_wiring as wiring
 from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain.canvas_model import WidgetFacts
+from tests import canvas_runtime
 from tests.conftest import AUTH, make_client, push
 from tests.streamlit_helpers import FakeRunner
 
@@ -313,7 +315,7 @@ def test_map_columns_keys_its_pickers_by_the_columns_it_maps() -> None:
     assert 'key=key(f"f_{field}_{_of}")' in code and "hashlib.sha256" in code
 
 
-def test_the_api_widgets_call_through_the_runtimes_one_action() -> None:
+def test_the_api_widgets_call_through_the_runtimes_one_action(monkeypatch: pytest.MonkeyPatch) -> None:
     """Every API widget's call is the runtime's action(): api_adapter's run, its one envelope. No widget has a
     request of its own, and the older api_call is the same call (kept for the widgets written on it)."""
     for name in ("api_table", "api_form", "api_button", "api_metric"):
@@ -321,8 +323,9 @@ def test_the_api_widgets_call_through_the_runtimes_one_action() -> None:
         assert "def _call(" not in code and "urllib" not in code and "api_call(" not in code, name
         assert " action(endpoint" in code and "said(answer)" in code, name
         assert "action" in code.split("from sab_canvas import", 1)[1].split("\n", 1)[0], name
-    assert "def action(" in build.RUNTIME and "import api_adapter as aa" in build.RUNTIME
-    older = build.RUNTIME.split("def api_call(", 1)[1].split("\n\n\n", 1)[0]
+    runtime = canvas_runtime.load(monkeypatch)
+    assert "import api_adapter as aa" in inspect.getsource(runtime.action)
+    older = inspect.getsource(runtime.api_call)
     assert "action(" in older and "urllib" not in older
 
 
@@ -505,38 +508,27 @@ def test_play_records_an_outs_columns_and_the_canvas_offers_them(
     assert state["wiring"]["columns"]["w1.value"] == ["region", "amount", "store"]
 
 
-def test_a_local_play_knows_this_computers_user_a_shared_one_does_not() -> None:
-    import inspect
-
+def test_a_local_play_knows_this_computers_user_a_shared_one_does_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from swissarmybench_streamlit.server import streamlit_apps
 
     text = inspect.getsource(streamlit_apps.start)
     assert 'environ.pop("SAB_LOCAL_VIEWER", None)' in text and "if not shared:" in text
     assert streamlit_apps.local_user() == __import__("getpass").getuser()
     # the runtime trusts App Service's sign-in headers only on App Service, else st.user, else this computer
-    runtime = build.RUNTIME
-    assert 'if os.environ.get("WEBSITE_SITE_NAME"):' in runtime and 'UNKNOWN = "unknown"' in runtime
+    runtime = canvas_runtime.load(monkeypatch)
+    assert 'if os.environ.get("WEBSITE_SITE_NAME"):' in inspect.getsource(runtime.viewer_info)
+    assert runtime.UNKNOWN == "unknown"
 
 
 # ===== the viewer's other claims (the owner approved, 2026-11-21) =====
 
 
 def _runtime(monkeypatch: pytest.MonkeyPatch, headers: dict[str, str], user: Any = None) -> dict[str, Any]:
-    """sab_canvas's own text run with stand-ins for Streamlit (its request's headers, st.user) and the
-    widgets module: what viewer_info() reads."""
-    import sys
-    import types
-
-    st = types.ModuleType("streamlit")
-    st.context = types.SimpleNamespace(headers=headers)  # type: ignore[attr-defined]
-    st.user = user or types.SimpleNamespace(is_logged_in=False)  # type: ignore[attr-defined]
-    st.session_state = {}  # type: ignore[attr-defined]
-    widgets = types.ModuleType("sab_widgets")
-    monkeypatch.setitem(sys.modules, "streamlit", st)
-    monkeypatch.setitem(sys.modules, "sab_widgets", widgets)
-    namespace: dict[str, Any] = {"__name__": "sab_canvas_test", "__file__": "/nowhere/sab_canvas.py"}
-    exec(compile(build.RUNTIME, "sab_canvas.py", "exec"), namespace)  # noqa: S102 (the app's own runtime)
-    return namespace
+    """sab_canvas imported with stand-ins for Streamlit (its request's headers, st.user) and the widgets
+    module: what viewer_info() reads. Its names, as a dictionary."""
+    return dict(vars(canvas_runtime.load(monkeypatch, headers, user)))
 
 
 def _principal(claims: list[tuple[str, str]], role_typ: str = "roles") -> str:

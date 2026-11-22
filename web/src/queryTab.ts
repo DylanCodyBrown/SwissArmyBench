@@ -86,13 +86,15 @@ export interface QueryConnection {
 /** The connections a query can run on (Query from, and the New query page): the one rule. A database
  *  connection runs a query in its own SQL; Dataverse's Web API side does not (only its SQL endpoint). */
 export async function queryConnections(): Promise<QueryConnection[]> {
-  const { connections } = await api<{ connections: { name: string; connection: string; type?: string; tables_kind?: string | null; needs_password?: { message?: string } | null }[] }>("/connections");
+  // Which connections run a query, in DAX or their own SQL, and each one's kind in words: the server's
+  // answer for the kind (facts.query: domain/connection_usage.py kind_facts), not a rule of this page.
+  const { connections } = await api<{ connections: { name: string; facts?: { query: { dax: boolean; type: string } | null } | null; needs_password?: { message?: string } | null }[] }>("/connections");
   return connections
-    .filter((c) => c.connection === "database" && c.tables_kind !== "dataverse_web")
+    .filter((c) => !!c.facts?.query)
     .map((c) => ({
       name: c.name,
-      dax: c.tables_kind === "powerbi",
-      type: c.type || (c.tables_kind === "powerbi" ? "Power BI workspace" : "Database"),
+      dax: c.facts!.query!.dax,
+      type: c.facts!.query!.type,
       needsPassword: c.needs_password ? (c.needs_password.message ?? "Needs a password on this computer") : null,
     }));
 }

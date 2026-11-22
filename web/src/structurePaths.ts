@@ -46,16 +46,9 @@ export function matchPaths(value: Value, words: string, limit = 1000): Part[][] 
   return found;
 }
 
-const SUFFIXES = [".json", ".yaml", ".yml", ".xml", ".toml"];
-const NOT_STRUCTURES = [".canvas.json", ".design.json", ".stapp.json"];
-
-/** Whether a file opens as a structure's tab beside the code. */
-export function isStructurePath(path: string | null | undefined): boolean {
-  const parts = (path ?? "").replace(/\\/g, "/").split("/");
-  const name = (parts.pop() ?? "").toLowerCase();
-  if (!name || name.startsWith(".") || parts.includes(".sab")) return false;
-  return SUFFIXES.some((s) => name.endsWith(s)) && !NOT_STRUCTURES.some((s) => name.endsWith(s));
-}
+/** Whether a file opens as a structure's tab beside the code, and the endings a structure's file may have:
+ *  the server's rule, applied (pageRules.ts; this file keeps no list). */
+export { isStructurePath, structureSuffixes } from "./pageRules";
 
 /** A structure's format from its file's suffix (yml is YAML). */
 export function formatOfPath(path: string): "json" | "yaml" | "xml" | "toml" | null {

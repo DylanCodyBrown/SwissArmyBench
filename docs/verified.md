@@ -6057,3 +6057,43 @@ on branch review-b2 from claude/vibrant-mendel-j04osj. Checked in this worktree 
 - Browser files in Chrome (the e2e launch pointed at this machine's Chrome for the run only, not committed):
   canvas, canvas gaps, local APIs, script files, Scripts IDE, widget packs, widget wiring, widgets, widgets
   shared, API learned: 28 passed.
+## Review fixes C, 2026-11-22 (branch review-c)
+
+The craft review's front-end and canvas-runtime part (docs/reviews/craft-review-2026-11-22.md items 6, 11, the
+front-end half of 10, the front end's repetition, a unit-test habit), on the owner's "fix it all".
+
+- **The canvas runtime is a real module.** `canvas_build.RUNTIME` (940 lines kept as a string) is the Streamlit
+  extension's `server/sab_canvas.py`; the builder reads its text once from the package (`pkgutil.get_data`).
+  ruff, mypy and the formatter now see it: one unused loop name, two untyped returns and one attribute set on a
+  module were fixed, two expressions were re-wrapped and one import sorted. A built app's `sab_canvas.py` text
+  differs by those lines only; its behaviour is the same (every canvas, widget, Play, launch and export test
+  passes; `examples/field_service` and `examples/forms_recon` hold no built app, so their byte-for-byte tests did
+  not need their KEEP switch). The tests import the module with stand-ins for Streamlit
+  (`tests/canvas_runtime.py`) instead of `exec` and string search.
+- **The pages keep no copy of a backend rule.** The canvas state's Ins each carry `sources` (the kinds of
+  source the type takes and the Outs that fit: `canvas_wiring.sources`, the same two predicates `check_in`
+  uses); `canvasWiring.ts` has no `fits`. `GET /app/rules` answers `workbench_pages.rules()` (the page of a
+  file, a file's kind, the wrong-page sentence, a structure's suffixes); `pageRules.ts` applies it. A vault
+  secret's variable is the server's (`POST /connections/vaults/secrets {named}` for a typed name). Every
+  connection listing carries `facts` (`connection_usage.kind_facts`), the tree `group_facts`, the form
+  `secrets_legend`; `connectionsWindow.ts`, `connectionTree.ts`, `queryTab.ts` and `dataBrowse.ts` compare no
+  dialect (`tests/test_served_rules.py` reads the files for it). The page's functions run in Node on the
+  server's own tables and answer as the server's functions do (`tests/test_page_rules.py`).
+- **workbenchPage.ts**: 3,659 lines to 2,971. The command list, the code's zoom and full screen, the
+  file-changed watcher and the restore each moved unchanged into a module of their own (the moved command
+  list compared line by line with the original: the same text but for the host's prefix on the seven names
+  that change). `notebookCells.ts` holds the notebook's stateless cell rules.
+- **One drag-to-resize** (`dom.ts dragResize`) for eight handlers and canvasKit's grip; **one question**
+  (`askYesNo`, `askText`) for the 32 calls of the browser's `confirm()` and `prompt()`; **one menu**
+  (`showEntries`, under `showMenu`): the agent's context menu and the Canvas's menus are it now.
+- **Front end unit tests through Node** (`tests/web_unit.py`): page rules, the Workbench's zoom, a notebook
+  cell's rules, beside the two that were there.
+
+Checks: `ruff check .`, `ruff format --check .`, `mypy` (1,057 files), `npm run typecheck`: clean. Quick suite
+at four workers: 5,448 passed, 40 skipped, 5 failed, none of them this branch's: three pass alone (a kernel's
+busy reader, Copilot's private project, the desktop shell: load), and two (the export's fresh-Python test, the
+updater's uv test) fail only because this worktree's PYTHONPATH reaches the new Python: they pass without it.
+Browser files in Chromium (two workers): 51 files on the final build (the Workbench, notebooks, scripts, the
+Canvas, widgets, the two test apps, connections, structures, the Data page, navigation, the Environment, the
+grid page's test_ui.py, and every file whose question or menu changed): 250 passed, 0 failed.
+tests/e2e/test_ask_page.py is new (the question's focus, Escape, Cancel, Enter; no browser dialog opens).

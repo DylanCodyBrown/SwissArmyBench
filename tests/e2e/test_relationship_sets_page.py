@@ -18,6 +18,7 @@ from swissarmybench.domain.relationships import read_set
 
 # The grid tests' fixtures (browser, server) are imported by name, which pytest needs and ruff reads
 # as a redefinition in every test that takes them.
+from tests.e2e.asks import answer_ask
 from tests.e2e.test_ui import browser, call, grid_of, open_grid, server  # noqa: F401
 
 # Screenshots of the dialog, when a folder is named (SAB_SHOTS=<folder>): PNG at device scale 2.
@@ -78,9 +79,9 @@ def test_find_accept_check_and_share_a_set(browser: Browser, server: dict[str, A
         expect(renamed).to_be_visible()
         assert (team / "sample_store_2026.relationships.json").is_file()
         assert not (team / "sample_store.relationships.json").exists()
-        page.once("dialog", lambda d: d.accept())
         renamed.get_by_role("button", name="More for Sample store 2026").click()
         page.locator(".menu").get_by_text("Delete").click()
+        answer_ask(page)
         expect(dialog.locator(".set-item")).to_have_count(0)
         assert not (team / "sample_store_2026.relationships.json").exists()
     finally:
@@ -225,8 +226,8 @@ def test_deleting_a_connection_says_how_many_relationships_went(
     try:
         page.locator(".nav-rail [data-area='connections']").click()
         page.locator(".connection-card", has_text="FI-Atlas").first.click()
-        page.once("dialog", lambda d: d.accept())
         page.locator(".connection-detail-tools").get_by_role("button", name="Remove").click()
+        answer_ask(page)
         expect(
             page.locator(".toast", has_text="Removed 40 relationships that came from FI-Atlas")
         ).to_be_visible()

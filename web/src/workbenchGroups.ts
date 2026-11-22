@@ -19,7 +19,7 @@
  *   [SAVE]     the layout as plain data (the groups, their tabs, the sizes, the focused group), which the
  *              page keeps with its session restore
  */
-import { button, h, icon } from "./dom";
+import { button, dragResize, h, icon } from "./dom";
 
 // ===== kinds =====
 
@@ -322,23 +322,18 @@ export function mountGroups<T extends TabLike>(host: GroupsHost<T>): Groups<T> {
       el.setAttribute("aria-valuenow", String(Math.round(f * 100)));
     };
     const fraction = (): number => (node.sizes[i - 1] ?? 1) / ((node.sizes[i - 1] ?? 1) + (node.sizes[i] ?? 1));
-    el.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      const a = el.previousElementSibling!.getBoundingClientRect();
-      const b = el.nextElementSibling!.getBoundingClientRect();
-      const start = across ? a.left : a.top;
-      const total = across ? b.right - a.left : b.bottom - a.top;
-      el.setPointerCapture(e.pointerId);
-      el.classList.add("dragging");
-      const move = (m: PointerEvent): void => set(((across ? m.clientX : m.clientY) - start) / total);
-      const up = (): void => {
-        el.classList.remove("dragging");
-        el.removeEventListener("pointermove", move);
-        el.removeEventListener("pointerup", up);
-        host.changed();
-      };
-      el.addEventListener("pointermove", move);
-      el.addEventListener("pointerup", up);
+    let start = 0;
+    let total = 1;
+    dragResize(el, {
+      dragging: "dragging",
+      start: () => {
+        const a = el.previousElementSibling!.getBoundingClientRect();
+        const b = el.nextElementSibling!.getBoundingClientRect();
+        start = across ? a.left : a.top;
+        total = across ? b.right - a.left : b.bottom - a.top;
+      },
+      move: (_dx, _dy, m) => set(((across ? m.clientX : m.clientY) - start) / total),
+      end: () => host.changed(),
     });
     el.addEventListener("keydown", (e) => {
       const back = across ? "ArrowLeft" : "ArrowUp";

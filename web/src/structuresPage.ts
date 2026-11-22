@@ -25,7 +25,7 @@
  */
 import { api, ApiError, onNotice } from "./api";
 import { openAreaPage, type PageElement } from "./areaPage";
-import { button, h, icon, openDialog, toast } from "./dom";
+import { askYesNo, button, h, icon, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
 import { promptForError } from "./missingPackages";
@@ -35,6 +35,7 @@ import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mount
 import { effectiveTheme } from "./theme";
 import { errorHere, errorMark, errorNote } from "./errorNote";
 import { makeVariant } from "./dataSandbox";
+import { structureSuffixes } from "./structurePaths";
 
 /** The page's name, in one place (the owner chose it, 2026-11-17): the rail, the title, the tabs. */
 
@@ -153,7 +154,7 @@ function drawPage(): void {
     if (made) await go(made.id);
   };
   const openFile = async (): Promise<void> => {
-    const path = await chooseFile({ title: `Open a ${STRUCTURES.toLowerCase().replace(/s$/, "")}`, mode: "file", suffixes: [".json", ".yaml", ".yml", ".xml", ".toml"] });
+    const path = await chooseFile({ title: `Open a ${STRUCTURES.toLowerCase().replace(/s$/, "")}`, mode: "file", suffixes: structureSuffixes() });
     if (!path) return;
     const made = await call<Summary>("/structures/open", "POST", { path });
     if (made) await go(made.id);
@@ -213,7 +214,7 @@ function drawPage(): void {
           { class: `structures-tab${s.id === front ? " current" : ""}`, role: "tab", "aria-selected": s.id === front ? "true" : "false", "data-structure": s.id },
           h("button", { type: "button", class: "structures-tab-name", onclick: () => void go(s.id) }, icon(s.origin.kind === "api" ? "bolt" : "json"), s.name, s.dirty ? h("span", { class: "structures-dirty", "aria-label": "Unsaved" }, "●") : null),
           h("button", { type: "button", class: "structures-tab-close", "aria-label": `Close ${s.name}`, title: "Close", onclick: async () => {
-            if (s.dirty && !window.confirm(`${s.name} has changes that are not saved. Close it?`)) return;
+            if (s.dirty && !(await askYesNo(`${s.name} has changes that are not saved. Close it?`))) return;
             await call(`/structures/${encodeURIComponent(s.id)}`, "DELETE");
             if (front === s.id) front = null;
             await load();

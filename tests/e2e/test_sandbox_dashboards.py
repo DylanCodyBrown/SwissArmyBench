@@ -10,6 +10,7 @@ import pyarrow as pa
 from playwright.sync_api import Browser, expect
 
 from swissarmybench.client import push_client, visualizations_client
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, open_grid, server  # noqa: F401
 
 
@@ -18,6 +19,7 @@ def test_save_change_and_open_an_earlier_version(browser: Browser, server: dict[
     url = push_client.push(sales, name="dash_sales", new_grid=True)
     page = open_grid(browser, url, width=1280, height=900)
     page.on("dialog", lambda dialog: dialog.accept())
+    accept_asks(page)
     toast = page.locator(".toast").last
     try:
         visualizations_client.add_card(

@@ -22,6 +22,7 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from tests import libraries_standin
+from tests.e2e.asks import answer_ask
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
 NOTEBOOK = {
@@ -150,6 +151,7 @@ def test_a_project_has_its_own_python_and_one_session(browser: Browser, own_serv
     scripts.on("dialog", accept)
     knob.click()
     scripts.get_by_role("menuitem", name="Restart the project's Python session").click()
+    asked.append(answer_ask(scripts))  # the app's own question (dom.ts askYesNo)
     expect(notebooks.locator(".toast", has_text="The project's Python session was restarted")).to_be_visible(
         timeout=30000
     )

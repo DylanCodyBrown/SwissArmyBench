@@ -411,6 +411,73 @@ export function openDialog(title: string, wide = false, options: { history?: boo
   return { dialog, body, foot, close };
 }
 
+// ===== one question, on the app's own dialog (never the browser's prompt() or confirm()) =====
+
+const ASK_HEADING = 70; // a question longer than this is read in the dialog's body
+
+export interface AskOptions {
+  /** The dialog's heading (default: the question's first line). */
+  title?: string;
+  /** The primary button's word (default OK) and the other's (default Cancel). */
+  ok?: string;
+  cancel?: string;
+}
+
+/** The question's dialog: its paragraphs (a blank line apart), its two buttons, the answer once it closes.
+ *  Escape, Cancel and Close answer `none`; focus goes back to where it was. */
+function ask<T>(question: string, options: AskOptions, none: T, build: (parts: DialogParts, answer: (value: T) => void) => HTMLElement): Promise<T> {
+  const before = document.activeElement as HTMLElement | null;
+  const paragraphs = question.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  // A short question is its own heading; a long one is read under a plain heading.
+  const heading = options.title ?? ((paragraphs[0] ?? "").length <= ASK_HEADING ? (paragraphs[0] ?? "") : "Swiss Army Bench");
+  const parts = openDialog(heading, false, { history: false });
+  parts.dialog.classList.add("ask");
+  parts.dialog.dataset.question = question; // the whole question, as asked (a test reads it)
+  return new Promise<T>((resolve) => {
+    let said = none;
+    const answer = (value: T): void => {
+      said = value;
+      parts.close();
+    };
+    // A question that is the heading is not said twice: only the rest is under it.
+    const shown = heading === paragraphs[0] ? paragraphs.slice(1) : paragraphs;
+    parts.body.append(...shown.map((p) => h("p", { class: "ask-words", style: "white-space: pre-line" }, p)));
+    const first = build(parts, answer);
+    if (!parts.body.childElementCount) parts.body.remove(); // the heading said it all: no empty strip under it
+    parts.dialog.addEventListener("close", () => {
+      resolve(said);
+      if (before?.isConnected) before.focus();
+    });
+    first.focus();
+  });
+}
+
+/** A yes-or-no question: Enter on the focused primary button (or a click) says yes; Cancel, Escape and Close
+ *  say no. */
+export function askYesNo(question: string, options: AskOptions = {}): Promise<boolean> {
+  return ask<boolean>(question, options, false, (parts, answer) => {
+    const yes = button(options.ok ?? "OK", () => answer(true), { class: "primary ask-ok" });
+    parts.foot.append(button(options.cancel ?? "Cancel", () => answer(false), { class: "ask-cancel" }), yes);
+    return yes;
+  });
+}
+
+/** A one-line answer (a name): Enter or OK gives the text as typed; Cancel, Escape and Close give null. */
+export function askText(question: string, value = "", options: AskOptions = {}): Promise<string | null> {
+  return ask<string | null>(question, options, null, (parts, answer) => {
+    const input = h("input", { type: "text", class: "ask-text", value, spellcheck: "false", "aria-label": options.title ?? question.split("\n")[0] ?? "Answer" }) as HTMLInputElement;
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      answer(input.value);
+    });
+    parts.body.append(input);
+    parts.foot.append(button(options.cancel ?? "Cancel", () => answer(null), { class: "ask-cancel" }), button(options.ok ?? "OK", () => answer(input.value), { class: "primary ask-ok" }));
+    queueMicrotask(() => input.select());
+    return input;
+  });
+}
+
 /** Close every open dialog (the newest first), as their own Close buttons do. */
 export function closeDialogs(): void {
   for (const dialog of [...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].reverse()) dialog.close();
@@ -502,44 +569,172 @@ export function setMenuExtras(extras: (() => MenuExtra[]) | null): void {
 
 export const extraMenuItems = (): MenuExtra[] => menuExtras?.() ?? [];
 
-/** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
-export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
-  document.querySelector(".menu")?.remove();
-  const extra = extraMenuItems().map((e): MenuItem => [e.icon, e.label, e.run]);
-  if (extra.length) items = items.length ? [...items, "-", ...extra] : extra;
-  const menu = h(
-    "div",
-    { class: "menu context-menu", role: "menu", "aria-label": label },
-    h("div", { class: "menu-label" }, label),
-    ...items.map((item) =>
-      item === "-"
-        ? h("div", { class: "menu-rule", role: "separator" })
-        : h("button", { type: "button", role: "menuitem", disabled: Boolean(item[3]), title: item[3], onclick: () => { menu.remove(); item[2](); } }, icon(item[0]), item[1]),
-    ),
-  );
+/** One drag of a handle (a splitter, a grip): what every drag-to-resize shares. */
+export interface DragOptions {
+  /** As the pointer goes down: measure here. Answering false: no drag (the handle is off). */
+  start?: (down: PointerEvent) => void | false;
+  /** The pointer's distance from where it went down, with the event itself. */
+  move: (dx: number, dy: number, event: PointerEvent) => void;
+  /** Once it lets go, or the drag is cancelled. */
+  end?: () => void;
+  /** A class worn while it drags, by `on` (default: the handle). */
+  dragging?: string;
+  on?: HTMLElement;
+  /** Keep the pointer's press from handlers further out (a grip inside something that itself drags). */
+  stop?: boolean;
+}
+
+/** Drag-to-resize, once (the craft review of 2026-11-22: nine hand-written copies): the handle captures the
+ *  pointer, so the drag follows it over frames and out of the window; `move` hears the distance from where
+ *  it went down; letting go or a cancelled pointer ends it, always, and the listeners go with it. The keys
+ *  stay each handle's own (they differ: a width, a fraction, a grid's cells). */
+export function dragResize(handle: HTMLElement, options: DragOptions): void {
+  handle.addEventListener("pointerdown", (down) => {
+    if (down.button !== 0 && down.pointerType === "mouse") return;
+    if (options.start?.(down) === false) return;
+    down.preventDefault();
+    if (options.stop) down.stopPropagation();
+    try {
+      handle.setPointerCapture(down.pointerId);
+    } catch {
+      // a pointer that is already gone: the drag ends on the next event
+    }
+    const worn = options.on ?? handle;
+    if (options.dragging) worn.classList.add(options.dragging);
+    const moved = (event: PointerEvent): void => options.move(event.clientX - down.clientX, event.clientY - down.clientY, event);
+    const up = (): void => {
+      if (options.dragging) worn.classList.remove(options.dragging);
+      handle.removeEventListener("pointermove", moved);
+      handle.removeEventListener("pointerup", up);
+      handle.removeEventListener("pointercancel", up);
+      options.end?.();
+    };
+    handle.addEventListener("pointermove", moved);
+    handle.addEventListener("pointerup", up);
+    handle.addEventListener("pointercancel", up);
+  });
+}
+
+/** A menu's entry with everything a menu here shows: its words, an icon, a key at the right, a tick, a rule
+ *  above it (the start of a group), a menu of its own beside it. */
+export interface MenuEntry {
+  label: string;
+  icon?: string;
+  run?: () => void;
+  /** It cannot be used now; `why` says so as its tooltip. */
+  disabled?: boolean;
+  why?: string;
+  /** Its key, shown at the right. */
+  key?: string;
+  /** A tick (a checkbox entry). */
+  checked?: boolean;
+  /** A rule above it: the start of a group. */
+  group?: boolean;
+  /** A menu of its own, opened beside it (on a click or resting on it): given where. */
+  sub?: (x: number, y: number) => void;
+}
+
+export interface MenuLook {
+  /** The classes of the menu, an entry and a rule (default: the app's context menu). */
+  menu?: string;
+  item?: string;
+  rule?: string;
+  /** Its label as a heading at the top (default: yes). */
+  heading?: boolean;
+  /** Close on a press outside it (default: yes; no: the caller closes it with its own floating panels). */
+  away?: boolean;
+  /** Before an entry's `run`: the caller's own closing (its submenus). */
+  closing?: () => void;
+}
+
+/** The app's one menu (the craft review of 2026-11-22: five menus had each their own): at the pointer, kept
+ *  inside the window, the first entry focused, arrow keys move, Escape closes, a press outside closes. Every
+ *  menu is this one: showMenu's plain entries, and a menu with keys, ticks and submenus (the Canvas's). */
+export function showEntries(x: number, y: number, label: string, entries: MenuEntry[], look: MenuLook = {}): HTMLElement {
+  const plain = !look.menu;
+  if (plain) document.querySelector(".menu")?.remove();
+  const menu = h("div", { class: look.menu ?? "menu context-menu", role: "menu", "aria-label": label });
+  if (look.heading !== false) menu.append(h("div", { class: "menu-label" }, label));
+  const close = (): void => menu.remove();
+  for (const item of entries) {
+    if (item.group) menu.append(h("div", { class: look.rule ?? "menu-rule", role: "separator" }));
+    const row = h(
+      "button",
+      {
+        type: "button",
+        role: item.checked === undefined ? "menuitem" : "menuitemcheckbox",
+        class: look.item,
+        disabled: Boolean(item.disabled || item.why),
+        title: item.why,
+        "aria-checked": item.checked === undefined ? undefined : String(item.checked),
+        "aria-haspopup": item.sub ? "menu" : undefined,
+      },
+      item.icon !== undefined ? icon(item.icon) : null,
+      // A menu with ticks keeps their column, so its words line up.
+      plain ? null : h("span", { class: "cvs-check" }, item.checked ? "✓" : ""),
+      plain ? item.label : h("span", {}, item.label),
+      item.key ? h("kbd", { class: "cvs-menu-key" }, item.key) : null,
+      item.sub ? h("span", { class: "cvs-sub" }, "▸") : null,
+    );
+    row.addEventListener("click", () => {
+      if (item.sub) {
+        const r = row.getBoundingClientRect();
+        item.sub(r.right, r.top);
+        return;
+      }
+      close();
+      look.closing?.();
+      item.run?.();
+    });
+    if (item.sub) row.addEventListener("mouseenter", () => row.click());
+    menu.append(row);
+  }
   // A modal dialog makes the rest of the page inert: a menu opened from one lives inside it (as toasts do).
   ([...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].pop() ?? document.body).append(menu);
   menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - menu.offsetWidth - 8))}px`;
   menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - menu.offsetHeight - 8))}px`;
   (menu.querySelector("button:not(:disabled)") as HTMLButtonElement | null)?.focus();
-  setTimeout(() => {
-    const away = (event: Event): void => {
-      if (!menu.contains(event.target as Node)) {
-        menu.remove();
-        document.removeEventListener("mousedown", away);
-        document.removeEventListener("contextmenu", away);
-      }
-    };
-    document.addEventListener("mousedown", away);
-    document.addEventListener("contextmenu", away);
-  });
+  if (look.away !== false) {
+    setTimeout(() => {
+      const away = (event: Event): void => {
+        if (!menu.contains(event.target as Node)) {
+          close();
+          document.removeEventListener("mousedown", away);
+          document.removeEventListener("contextmenu", away);
+        }
+      };
+      document.addEventListener("mousedown", away);
+      document.addEventListener("contextmenu", away);
+    });
+  }
   menu.addEventListener("keydown", (event) => {
     const buttons = [...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
-    if (event.key === "Escape") menu.remove();
-    else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();
+    if (event.key === "Escape") {
+      close();
+      look.closing?.();
+    } else if (event.key === "ArrowDown") buttons[(at + 1) % buttons.length]?.focus();
     else if (event.key === "ArrowUp") buttons[(at - 1 + buttons.length) % buttons.length]?.focus();
     else return;
     event.preventDefault();
+    event.stopPropagation(); // the key was the menu's: a page's own arrows and Escape do not also act
   });
+  return menu;
+}
+
+/** A menu at the pointer, kept inside the window; arrow keys move, Escape closes. */
+export function showMenu(x: number, y: number, label: string, items: MenuItem[]): void {
+  const extra = extraMenuItems().map((e): MenuItem => [e.icon, e.label, e.run]);
+  if (extra.length) items = items.length ? [...items, "-", ...extra] : extra;
+  const entries: MenuEntry[] = [];
+  let rule = false;
+  for (const item of items) {
+    if (item === "-") {
+      rule = true;
+      continue;
+    }
+    entries.push({ icon: item[0], label: item[1], run: item[2], why: item[3], group: rule });
+    rule = false;
+  }
+  showEntries(x, y, label, entries);
 }

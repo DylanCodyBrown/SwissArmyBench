@@ -9,7 +9,7 @@
  * as it was saved until that table is pushed again.
  */
 import { api } from "./api";
-import { button, clear, dateTime, h, openDialog, toast } from "./dom";
+import { askYesNo, button, clear, dateTime, h, openDialog, toast } from "./dom";
 import { errorHere, errorNote } from "./errorNote";
 
 interface Saved {
@@ -32,7 +32,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
   const list = h("div", { class: "dashboards" });
 
   const open = async (dashboard: string, version?: number): Promise<void> => {
-    if (cardsNow && !window.confirm(`Replace the ${cardsNow} card${cardsNow === 1 ? "" : "s"} on the Analyze board with ${dashboard}?`)) return;
+    if (cardsNow && !(await askYesNo(`Replace the ${cardsNow} card${cardsNow === 1 ? "" : "s"} on the Analyze board with ${dashboard}?`))) return;
     try {
       const r = await api<{ cards: number; live: number; as_saved: number }>(`/dashboards/${encodeURIComponent(dashboard)}/open`, "POST", version ? { version } : {});
       toast(`Opened ${dashboard}: ${r.cards} card${r.cards === 1 ? "" : "s"}${r.as_saved ? `, ${r.as_saved} as saved until their tables are open` : ""}.`);
@@ -79,8 +79,8 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
             h("span", { class: "toolbar-gap" }),
             button("Open", () => void open(d.name), { icon: "expand", class: "primary" }),
             button("History", () => void history(d.name, row), { icon: "rows" }),
-            button("Delete", () => {
-              if (!window.confirm(`Delete ${d.name} and its ${d.versions} version${d.versions === 1 ? "" : "s"}?`)) return;
+            button("Delete", async () => {
+              if (!(await askYesNo(`Delete ${d.name} and its ${d.versions} version${d.versions === 1 ? "" : "s"}?`))) return;
               void api(`/dashboards/${encodeURIComponent(d.name)}`, "DELETE").then(refresh, (e: Error) => errorHere(e));
             }, { icon: "trash", class: "ghost" }),
           ),

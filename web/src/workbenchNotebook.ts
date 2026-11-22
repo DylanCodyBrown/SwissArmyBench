@@ -50,6 +50,7 @@
  *
  * ROUTING: POST /workbench/tables/arrange (the rules are the server's: domain/table_cells.py)
  */
+import { cellData, drawn, hasSource, isApp, isHeading, runTime, snippetLanguage, twoFaced } from "./notebookCells";
 import { inlineSource } from "./inlineCompletion";
 import { cellConnections, markConnections, onConnectionColours } from "./connectionColours";
 import { api } from "./api";
@@ -196,28 +197,15 @@ const offeredKinds = (own: CellKind): CellKind[] => KINDS.filter((k) => !ROUTED.
  *  (no connection of its own) where the mode runs SQL in its kernel; null: the Python kernel. */
 const routeOf = (cell: { kind: CellKind; connection: string | null }): CellRoute | null =>
   cell.kind === "sql" ? (cell.connection ? null : cellRoute("sql")) : ROUTED.includes(cell.kind) ? cellRoute(cell.kind) : null;
-/** The kinds with two faces: the code while it is edited, what it draws when it is not. */
-const drawn = (kind: CellKind): boolean => kind === "html";
 /** A Markdown or HTML cell: it goes on a Streamlit page as text (docs/ideas.md, text cells on the canvas). */
 const isText = (kind: CellKind): boolean => kind === "markdown" || kind === "html";
 /** A cell whose `{{ name }}` values are filled from the kernel: an HTML cell, or a Markdown cell with names. */
 const filledCell = (cell: { kind: CellKind; source: string; editor: CodeEditor | null }): boolean =>
   cell.kind === "html" || (cell.kind === "markdown" && htmlNames(cell.editor ? cell.editor.value() : cell.source).length > 0);
-/** A cell that shows something drawn in place of its code while it is not being edited. */
-const twoFaced = (cell: { kind: CellKind }): boolean => drawn(cell.kind);
 // A DAX cell names its dataset's own tables, never the kernel's: it gets no uses line (a `-- uses` one it has goes).
 const usesForm = (kind: CellKind): UsesForm => (kind === "sql" || kind === "dax" ? "sql" : kind === "html" ? "html" : "python");
-/** A cell that runs on a source picked in its head: SQL on a connection, DAX on a dataset. */
-const hasSource = (kind: CellKind): kind is "sql" | "dax" => kind === "sql" || kind === "dax";
 const empty = (kind: CellKind = "code", connection: string | null = null): CellData => ({ kind, source: "", connection, outputs: [], execution_count: null });
 
-/** How long a run took, as its head says it: "320 ms", "4.2 s", "2 min 5 s". */
-function runTime(ms: number): string {
-  if (ms < 1000) return `${Math.max(1, Math.round(ms))} ms`;
-  if (ms < 60_000) return `${(ms / 1000).toFixed(1)} s`;
-  const s = Math.round(ms / 1000);
-  return `${Math.floor(s / 60)} min ${s % 60} s`;
-}
 
 /** A run's time beside its count (feel-b, 2026-11-19): "Running… 3 s" once it has taken a second, then the
  *  time it took. The returned function ends it. The cell keeps its head's name box shown from then on. */
@@ -348,10 +336,8 @@ export interface NotebookView {
   present: (on?: boolean) => boolean;
 }
 
-const isApp = (role: string): boolean => role === "tables" || role === "table" || role === "transformations";
 
 // Mermaid (lazy/diagram.ts), loaded the first time a Markdown cell holds a ```mermaid block.
-const isHeading = (role: string): boolean => role === "tables" || role === "table";
 
 export function notebookView(
   initial: CellData[],
@@ -1376,22 +1362,7 @@ export function notebookView(
     edited();
   };
 
-  const dataOf = (c: Cell): CellData => ({
-    kind: c.kind,
-    source: sourceOf(c),
-    connection: hasSource(c.kind) ? c.connection : null,
-    // An HTML cell keeps its last run's output: the filled design (what plain Jupyter shows) and the values.
-    // A table's cell: its table is drawn again on opening (it runs by itself), so no rows go in the file.
-    outputs: c.kind === "markdown" || c.role === "transformations" ? [] : c.kind === "html" ? (c.htmlRun?.output ? [c.htmlRun.output] : []) : c.area.outputs(),
-    execution_count: c.execution_count,
-    number: c.number,
-    role: c.role,
-    table: c.table,
-    grouped: c.grouped,
-    steps: c.role === "transformations" ? c.steps : null,
-    height: twoFaced(c) || c.kind === "tsx" ? (c.design?.height() ?? null) : null,
-    ...(c.name ? { name: c.name } : {}),
-  });
+  const dataOf = (c: Cell): CellData => cellData(c, sourceOf(c)); // notebookCells.ts: a cell as it is saved
 
   // ===== a cell's name (docs/ideas.md, named cells): shown in its head, kept in its metadata =====
 
@@ -1423,8 +1394,6 @@ export function notebookView(
   // ===== snippets: text for a cell, from the starter pack or the user's own (starters.ts) =====
 
   /** The language of the snippets a cell of this kind takes (none: Markdown, SQL, the app's cells). */
-  const snippetLanguage = (cell: Cell): SnippetLanguage | null =>
-    isApp(cell.role) ? null : cell.kind === "dax" ? "dax" : cell.kind === "html" ? "html" : cell.kind === "markdown" ? "markdown" : cell.kind === "code" ? "streamlit" : null;
 
   /** Put a filled snippet into a cell, where it was dropped or at the cursor (an empty cell takes it
    *  whole). A Streamlit piece names the cell it goes into, unless it has a name. */

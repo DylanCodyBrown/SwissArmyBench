@@ -14,6 +14,10 @@ connection and an overview of its configuration and how many times it has been c
   [STATUS]      a cheap word for a card, never a run: failing (its last call or its catalog failed),
                 needs (a password is in none of its places), works (its last call worked), ready.
   [SETTINGS]    a form's settings as the configuration shows them: never one that names a password.
+  [KIND FACTS]  what the pages draw for a connection's kind, as data (kind_facts, group_facts,
+                secrets_legend): its group on the Connections page, how code names it, which detail actions
+                it has, whether a query tab runs on it, its tree's group icon. The pages name no kind (the
+                owner's front end / back end rule): a new kind is added here, never in web/.
 
 Standard library only; no I/O (the files' text is given).
 """
@@ -26,7 +30,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import notebooks, table_cells
+from swissarmybench.domain import dataverse, lakes, notebooks, powerbi, table_cells
 
 CALL_KINDS: tuple[str, ...] = ("catalog", "query", "read", "test", "connect")
 STATUSES: tuple[str, ...] = ("works", "ready", "needs", "failing", "resuming")
@@ -326,3 +330,86 @@ def sign_in_of(code: str, sign_ins: Iterable[Mapping[str, Any]]) -> str | None:
         if mark and mark in code:
             return str(way.get("label") or "") or None
     return None
+
+
+# ===== what the pages draw for a connection's kind =====
+
+LAKE_GROUP: str = "Lakes and SharePoint"  # the Connections page's group (the form's templates say the same)
+_NO_SQL_CELL: tuple[str, ...] = (lakes.SHAREPOINT, lakes.SHAREPOINT_DOCS)  # read by code only
+
+
+def reads_by_code(dialect: str | None) -> bool:
+    """Whether a connection is read through its own code (sab.read) rather than a SQL session of its own:
+    Dataverse, a lake, SharePoint."""
+    return dataverse.is_dataverse(dialect) or lakes.is_kind(dialect)
+
+
+def in_code(name: str, connection: str, dialect: str | None) -> str:
+    """How code names a connection, in one line: a Power BI workspace's DAX cells, your own Python's
+    sab.read, a key vault's sab.blade, a database's sab.connection and SQL cell."""
+    cell = f'"{name}"' if re.search(r"\s", name) else name
+    if dialect == powerbi.DIALECT:
+        return f'sab.dax("{name}/<dataset>", …)  ·  %%dax {name}/<dataset>'
+    if connection == "vault":
+        return f'sab.blade("{name}")'
+    if connection == "python" or reads_by_code(dialect):
+        sql = "" if connection == "python" or dialect in _NO_SQL_CELL else f"  ·  %%sql {cell}"
+        return f'sab.connection("{name}")  ·  sab.read("{name}", table){sql}'
+    return f'sab.connection("{name}")  ·  %%sql {cell}'
+
+
+def group_facts(tables_kind: str | None) -> dict[str, Any]:
+    """A connection's tree as the pages draw it: its groups' icon, whether each group imports its own
+    relationships (a Power BI dataset), whether a lone group opens by itself."""
+    datasets = tables_kind == "powerbi"
+    return {
+        "icon": "diagram" if datasets else "folder",
+        "relationships": datasets,
+        "open_single": not datasets,
+    }
+
+
+def kind_facts(
+    name: str, connection: str, dialect: str | None, tables_kind: str | None, type_label: str = ""
+) -> dict[str, Any]:
+    """One connection as the pages treat it, by its kind: every decision a page would otherwise make by
+    naming a dialect."""
+    lake = lakes.is_kind(tables_kind)
+    group = {"file": "Files", "python": "Your own code"}.get(connection, "")
+    if connection == "database":
+        group = LAKE_GROUP if lake else "Databases"
+    elif lake:
+        group = LAKE_GROUP
+    actions: list[str] = []
+    if dialect == "sqlserver" and connection == "database":
+        actions.append("import_relationships")  # its foreign keys into the ERD
+    if tables_kind == "dataverse_web":
+        actions.append("sql_endpoint")  # saved for the Web API: one click moves it to its SQL endpoint
+    runs_queries = connection == "database" and tables_kind != "dataverse_web"
+    datasets = tables_kind == "powerbi"
+    return {
+        "group": group,
+        "in_code": in_code(name, connection, dialect),
+        # A Test of it runs its own code (what each box gave), not a SQL session's connect.
+        "test_reads": connection == "python" or reads_by_code(dialect),
+        # A Test says what the server is: the detail is drawn again with it (SQL Server's card lines).
+        "test_tells_about": dialect == "sqlserver",
+        "actions": actions,
+        # A query tab runs on it (Query from, the New query page): in DAX or its own SQL; its kind in words.
+        "query": (
+            {"dax": datasets, "type": type_label or ("Power BI workspace" if datasets else "Database")}
+            if runs_queries
+            else None
+        ),
+        "has_tables": bool(tables_kind) and tables_kind != "api",
+        "on_connections_page": tables_kind != "api",  # an API has the APIs page
+        "tree": group_facts(tables_kind),
+    }
+
+
+def secrets_legend(dialect: str | None) -> str:
+    """The form's heading over a connection's secrets: an app registration's values (two ids and a secret)
+    for Power BI and Dataverse, passwords for the rest."""
+    return (
+        "App registration" if dialect == powerbi.DIALECT or dataverse.is_dataverse(dialect) else "Passwords"
+    )

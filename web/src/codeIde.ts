@@ -24,7 +24,7 @@
  *
  * Run is gated with the one loading state (loading.ts busy over the Result, Cancel aborting the host's work).
  */
-import { button, h, icon, showMenu } from "./dom";
+import { button, dragResize, h, icon, showMenu } from "./dom";
 import type { CodeEditor, CodeEditorOptions, EditorLanguage, IntelProblem, Problem } from "./lazy/codeEditor";
 import { busy } from "./loading";
 
@@ -251,26 +251,18 @@ export function runPanel(options: RunPanelOptions = {}): RunPanel {
   function splitter(area: () => HTMLElement): HTMLElement {
     within = area;
     const split = h("div", { class: "ide-split", role: "separator", "aria-orientation": "horizontal", "aria-label": "Resize the panel", tabindex: "0" });
-    split.addEventListener("pointerdown", (down) => {
-      down.preventDefault();
-      const start = down.clientY;
-      const from = element.getBoundingClientRect().height;
-      if (folded) setFolded(false);
-      split.setPointerCapture(down.pointerId);
-      const move = (e: PointerEvent): void => {
+    let from = 0;
+    dragResize(split, {
+      start: () => {
+        from = element.getBoundingClientRect().height;
+        if (folded) setFolded(false);
+      },
+      move: (_dx, dy) => {
         const max = Math.max(120, area().getBoundingClientRect().height - 80);
-        element.style.height = `${Math.round(Math.min(max, Math.max(60, from + start - e.clientY)))}px`;
+        element.style.height = `${Math.round(Math.min(max, Math.max(60, from - dy)))}px`;
         options.layout?.();
-      };
-      split.addEventListener("pointermove", move);
-      split.addEventListener(
-        "pointerup",
-        () => {
-          split.removeEventListener("pointermove", move);
-          keep(options.remember, "panel", String(Math.round(element.getBoundingClientRect().height)));
-        },
-        { once: true },
-      );
+      },
+      end: () => keep(options.remember, "panel", String(Math.round(element.getBoundingClientRect().height))),
     });
     split.addEventListener("keydown", (e) => {
       if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;

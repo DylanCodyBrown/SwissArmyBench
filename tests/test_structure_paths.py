@@ -1,6 +1,6 @@
 """A structure's paths as words and as code, its search and which files are a structure's tab, in the page
 (web/src/structurePaths.ts: pure functions) as the page runs them: bundled by the page's own esbuild and
-called by Node, against the server's own rules (domain/structures.py, domain/workbench_pages.py) and the
+called by Node, against the server's own rules (domain/structures.py) and the
 shared cases (tests/golden/structure_code.json). Skipped where Node or the page's packages are not there.
 Made-up data."""
 
@@ -15,7 +15,6 @@ from typing import Any
 import pytest
 
 from swissarmybench.domain import structures as rules
-from swissarmybench.domain import workbench_pages
 
 WEB = Path(__file__).resolve().parents[1] / "web"
 ESBUILD = WEB / "node_modules" / ".bin" / "esbuild"
@@ -48,6 +47,7 @@ def run(tmp_path_factory: pytest.TempPathFactory) -> Any:
         [
             str(ESBUILD),
             str(WEB / "src" / "structurePaths.ts"),
+            "--bundle",  # with pageRules.ts, which it re-exports (tests/test_page_rules.py covers that part)
             "--format=esm",
             f"--outfile={folder / 'paths.mjs'}",
         ],
@@ -87,28 +87,7 @@ def test_the_pages_search_finds_what_the_servers_finds_in_the_same_order(run: An
     assert len(run(["matchPaths", {"items": list(range(50))}, "1", 3])[0]) == 3
 
 
-def test_the_page_tells_a_structures_file_apart_as_the_server_does(run: Any) -> None:
-    paths = [
-        "orders.json",
-        "config.yaml",
-        "config.YML",
-        "feed.xml",
-        "pyproject.toml",
-        r"C:\work\shop\structures\gates.json",
-        "sales.canvas.json",
-        "workbook.design.json",
-        "old.stapp.json",
-        ".sab/project.json",
-        "/home/me/shop/.sab/model.json",
-        ".hidden.json",
-        "load.py",
-        "data.ipynb",
-        "orders.jsonl",
-        "",
-    ]
-    assert run(*[["isStructurePath", p] for p in paths]) == [
-        workbench_pages.is_structure_path(p) for p in paths
-    ]
+def test_the_page_reads_a_files_format_and_an_errors_place(run: Any) -> None:
     assert run(["formatOfPath", "a.yml"], ["formatOfPath", "a.toml"], ["formatOfPath", "a.py"]) == [
         "yaml",
         "toml",

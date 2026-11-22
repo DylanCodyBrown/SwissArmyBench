@@ -20,6 +20,7 @@ from swissarmybench_streamlit.domain import widget_contract as contract
 from swissarmybench_streamlit.domain import widget_packs as packs
 from swissarmybench_streamlit.domain import widget_properties as props
 from swissarmybench_streamlit.domain import widgets as rules
+from tests import canvas_runtime
 from tests.test_widgets_apptest import PREBUILT, PYTHON, needs_streamlit
 
 
@@ -74,7 +75,7 @@ def test_every_pack_widget_reads_its_properties_without_a_problem() -> None:
         assert not [p.name for p in found if p.problem], name
 
 
-def test_the_inputs_share_their_properties_marker_and_error_look() -> None:
+def test_the_inputs_share_their_properties_marker_and_error_look(monkeypatch: pytest.MonkeyPatch) -> None:
     """Their one required marker and error look are the runtime's (sab_canvas.marked, problem), once."""
     common = {"label", "help_text", "required", "disabled", "validation_message"}
     for name, widget in PACKED.items():
@@ -86,10 +87,12 @@ def test_the_inputs_share_their_properties_marker_and_error_look() -> None:
             "marked(label, required)" in widget.code or name == "input_data_editor"
         )
         assert "problem(validation_message" in widget.code and "def _problem" not in widget.code, name
-    assert (
-        ':red[\\\\*]" if needed else text' in build.RUNTIME
-        and 'st.markdown(f":red[{message}]")' in build.RUNTIME
-    )
+    runtime = canvas_runtime.load(monkeypatch)
+    assert runtime.marked("Name", True) == "Name :red[\\*]" and runtime.marked("Name", False) == "Name"
+    said: list[str] = []
+    runtime.st.markdown = said.append
+    runtime.problem("Pick a date.")
+    assert said == [":red[Pick a date.]"]
 
 
 def test_the_widgets_that_read_data_take_a_table_and_those_that_hand_it_on_a_save_event() -> None:

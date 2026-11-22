@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Locator, Page, expect
 
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_NBKINDS_SHOTS")
@@ -36,6 +37,7 @@ def window(server: dict[str, Any], command: str, **args: Any) -> Any:
 def workbench(browser: Browser, server: dict[str, Any], query: str = "") -> Page:
     page = browser.new_context(viewport={"width": 1500, "height": 950}, device_scale_factor=2).new_page()
     page.on("dialog", lambda d: d.accept())
+    accept_asks(page)
     page.goto(f"http://127.0.0.1:{server['port']}/workbench{query}#token={server['token']}")
     expect(page.locator(".wb-codex")).to_be_visible(timeout=20000)  # its explorer (2026-11-21)
     return page

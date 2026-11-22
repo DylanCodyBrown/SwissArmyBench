@@ -26,7 +26,7 @@
  * …/run, …/check, /streamlit/widgets/properties (live), …/check-name, …/check-value, …/context.
  */
 import { api, connect, onNotice, requireSession } from "./api";
-import { button, clear, h, icon } from "./dom";
+import { askYesNo, button, clear, h, icon } from "./dom";
 import { errorHere, showError } from "./errorNote";
 import { inlineSource } from "./inlineCompletion";
 import type { CodeEditor } from "./lazy/codeEditor";
@@ -39,6 +39,7 @@ import { pythonIntel, showProblems } from "./workbenchIntel";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type Prop, propertyField } from "./widgetFields";
 import { headingElement, headingOf } from "./widgetPacks";
+import { loadPageRules } from "./workbenchPages";
 
 export interface WidgetEntry {
   name: string;
@@ -455,8 +456,8 @@ function drawProps(): void {
         { class: "wg-props-foot" },
         button(
           "Delete widget",
-          () => {
-            if (!current || !confirm(`Delete ${current.name} from the library?`)) return;
+          async () => {
+            if (!current || !(await askYesNo(`Delete ${current.name} from the library?`))) return;
             void api(`/streamlit/widgets/${encodeURIComponent(current.name)}`, "DELETE")
               .then(async () => {
                 current = null;
@@ -634,6 +635,7 @@ async function copyCurrent(to?: "project" | "library", from: HTMLElement = copyB
 async function start(): Promise<void> {
   watchTheme();
   if (!(await requireSession())) return;
+  await loadPageRules();
   layout();
   search.addEventListener("input", () => {
     query = search.value;

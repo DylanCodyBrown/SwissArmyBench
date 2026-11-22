@@ -20,9 +20,9 @@
  * The editor side (the squiggle, the end-of-line message, the hover and Ctrl+. fixes) is placed by the
  * notebook and the script from `problemsFor`.
  */
-import { button, h, toast } from "./dom";
+import { button, h, showMenu, toast } from "./dom";
 import type { Missing } from "./missingPackages";
-import { contextMenu, currentDocument, errorText, sendToAgent } from "./workbenchAgent";
+import { currentDocument, errorText, sendToAgent } from "./workbenchAgent";
 import type { Problem } from "./lazy/codeEditor";
 
 export interface Fix {
@@ -178,13 +178,15 @@ export function errorPanel(detail: ErrorDetail, traceback: HTMLElement | null, a
     parts.push(h("details", { class: "wb-err-section" }, h("summary", {}, "Traceback ", copy), traceback));
   }
   const panel = h("div", { class: "wb-err", role: "group", "aria-label": entry.type }, ...parts);
-  panel.addEventListener("contextmenu", (e) =>
-    contextMenu(e, [
-      { label: "Send this error to the agent", run: () => send(false) },
-      { label: "Send it with a question…", run: () => send(true) },
-      { label: "Copy the error", run: () => void navigator.clipboard?.writeText(errorText(detail, traceback?.textContent ?? "")).then(() => toast("Copied"), () => undefined) },
-    ]),
-  );
+  // The app's one menu (dom.ts showMenu: arrow keys, Escape, kept inside the window).
+  panel.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    showMenu(e.clientX, e.clientY, "This error", [
+      ["agent", "Send this error to the agent", () => send(false)],
+      ["agent", "Send it with a question…", () => send(true)],
+      ["copy", "Copy the error", () => void navigator.clipboard?.writeText(errorText(detail, traceback?.textContent ?? "")).then(() => toast("Copied"), () => undefined)],
+    ]);
+  });
   return panel;
 }
 

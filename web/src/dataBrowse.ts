@@ -56,6 +56,7 @@ export interface BrowseConnection {
   name: string;
   type: string;
   tables_kind: string;
+  group_icon?: string;
   group: string;
   state: { state: string; error?: string };
   loaded: boolean;
@@ -216,7 +217,7 @@ export function mountBrowse(ctx: BrowseContext): Browse {
   const groupNode = (c: BrowseConnection, g: BrowseGroup, tables: Node[], open: boolean): Node => ({
     key: `group/${c.name}/${g.database}/${g.schema}`,
     label: g.schema || g.database || c.name,
-    icon: c.tables_kind === "powerbi" ? "diagram" : "folder",
+    icon: c.group_icon ?? "folder", // the server's, by its kind (datasets, or schemas)
     kind: "group",
     connection: c,
     group: g,

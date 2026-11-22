@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_SCRIPTS_SHOTS")
@@ -49,6 +50,7 @@ def page_of(browser: Browser, server: dict[str, Any], where: str, width: int = 1
     )
     page = context.new_page()
     page.on("dialog", lambda d: d.accept())
+    accept_asks(page)
     page.goto(f"http://127.0.0.1:{server['port']}/{where}#token={server['token']}")
     expect(page.locator(".wb-codex" if where != "workspace" else ".nav-rail")).to_be_visible(timeout=20000)
     return page

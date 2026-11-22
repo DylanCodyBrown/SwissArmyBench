@@ -16,7 +16,7 @@
  *          POST /projects/dictionary (routes_projects.py)
  */
 import { api } from "./api";
-import { button, clear, h, icon, plural } from "./dom";
+import { askText, button, clear, h, icon, plural } from "./dom";
 import { variableBox } from "./variableBox";
 import { errorHere, errorNote } from "./errorNote";
 
@@ -166,8 +166,8 @@ export function drawRunSettings(body: HTMLElement, path: string | null, vaults: 
         detail,
       );
     };
-    const add = button("Variable", () => {
-      const name = prompt("The variable's name");
+    const add = button("Variable", async () => {
+      const name = await askText("The variable's name");
       if (!name) return;
       rows.push({ name: name.trim(), from: "env" });
       settings.variables.push({ name: name.trim(), why: "added", looks_secret: false, from: "env", words: "This computer" });

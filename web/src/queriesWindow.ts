@@ -18,7 +18,7 @@
 
 import { api, connect, onNotice } from "./api";
 import { limitsForm, type SlotStatus } from "./connectionSlots";
-import { button, clear, h, icon, toast } from "./dom";
+import { askYesNo, button, clear, h, icon, toast } from "./dom";
 import { errorHere } from "./errorNote";
 import type { EditorLanguage } from "./lazy/codeEditor";
 import { effectiveTheme } from "./theme";
@@ -358,7 +358,7 @@ export async function mountQueriesWindow(): Promise<void> {
   };
 
   // ===== the keys: arrows move, Enter opens, Delete cancels (asked first) =====
-  list.addEventListener("keydown", (e: KeyboardEvent) => {
+  list.addEventListener("keydown", async (e: KeyboardEvent) => {
     const all = shown();
     if (!all.length) return;
     let index = Math.max(0, all.findIndex((q) => q.id === selected));
@@ -377,7 +377,7 @@ export async function mountQueriesWindow(): Promise<void> {
     } else if (e.key === "Delete") {
       e.preventDefault();
       const q = all[index];
-      if (q && confirm(`Cancel ${q.who}'s ${q.what} on ${q.connection}?`)) void cancel(q);
+      if (q && (await askYesNo(`Cancel ${q.who}'s ${q.what} on ${q.connection}?`))) void cancel(q);
     }
   });
 

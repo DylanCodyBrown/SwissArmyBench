@@ -25,7 +25,7 @@
  *          [ERROR TOAST]   process_error notice -> the table that did not open, and why
  */
 import { api, onNotice, type Budget, type Notice } from "./api";
-import { button, closeDialogs, formatCount, h, openDialog } from "./dom";
+import { askYesNo, button, closeDialogs, formatCount, h, openDialog } from "./dom";
 import { loadingBlock } from "./loading";
 import { errorHere, errorToast } from "./errorNote";
 
@@ -149,8 +149,8 @@ function datasetRow(d: Dataset): HTMLElement {
         void api("/grids", "POST", { dataset: d.name }).then(closeDialogs, (e: Error) => errorHere(e));
       }, { class: "primary" })
     : null;
-  const remove = button(`Remove ${d.name}`, () => {
-    if (!confirm(`Remove ${d.name} from memory? ${closed ? "Nothing" : "Its tabs close too; nothing"} is saved.`)) return;
+  const remove = button(`Remove ${d.name}`, async () => {
+    if (!(await askYesNo(`Remove ${d.name} from memory? ${closed ? "Nothing" : "Its tabs close too; nothing"} is saved.`))) return;
     void api(`/datasets/${encodeURIComponent(d.name)}`, "DELETE").catch((e: Error) => errorHere(e));
   }, { icon: "trash", iconOnly: true, class: "ghost" });
   return h(

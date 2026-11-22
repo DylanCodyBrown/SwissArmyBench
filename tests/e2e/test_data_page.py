@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.asks import accept_asks
 from tests.e2e.test_ui import browser, call, server  # noqa: F401
 
 SHOTS = os.environ.get("SWISSARMYBENCH_DATA_SHOTS")
@@ -89,6 +90,7 @@ def home(browser: Browser, server: dict[str, Any], dark: bool = False) -> Page:
     context.grant_permissions(["clipboard-read", "clipboard-write"])
     page = context.new_page()
     page.on("dialog", lambda d: d.accept())
+    accept_asks(page)
     page.goto(f"http://127.0.0.1:{server['port']}/workspace#token={server['token']}")
     expect(page.locator(".nav-rail")).to_be_visible(timeout=20000)
     return page

@@ -18,6 +18,7 @@ from urllib.parse import quote
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.domain import sql_server
+from tests.e2e.asks import answer_ask
 from tests.e2e.test_ui import browser, call, not_now, open_grid, orders_url, server  # noqa: F401
 from tests.test_sql_server import MSSQL_SAID, _stand_in
 
@@ -228,12 +229,6 @@ def test_the_script_export_asks_before_it_writes_when_a_connection_runs_only_her
         folder = tmp_path / "jobs"
         folder.mkdir()
         asked: list[str] = []
-
-        def answer(dialog: Any) -> None:
-            asked.append(dialog.message)
-            dialog.dismiss() if len(asked) == 1 else dialog.accept()
-
-        workbench.on("dialog", answer)
         for attempt in (1, 2):
             menu(workbench, "Document menu", "Export as one Python script…")
             chooser = workbench.locator(".file-chooser")
@@ -245,6 +240,7 @@ def test_the_script_export_asks_before_it_writes_when_a_connection_runs_only_her
             expect(chooser.locator("[role=status]")).to_contain_text("folder")
             chooser.get_by_label("File name").fill("warehouse_automation.py")
             chooser.get_by_role("button", name="Save here").click()
+            asked.append(answer_ask(workbench, yes=attempt == 2))  # the app's own question
             if attempt == 1:  # declined: nothing written
                 expect(workbench.locator(".toast").last).to_contain_text("Nothing was exported.")
                 assert not (folder / "warehouse_automation.py").exists()

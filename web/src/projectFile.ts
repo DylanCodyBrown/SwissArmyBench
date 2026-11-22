@@ -19,7 +19,7 @@
  *          [ASKED]    another program asked to open a project while unsaved work is open
  */
 import { api, ApiError, onNotice, type Notice } from "./api";
-import { button, h, openDialog, toast } from "./dom";
+import { askYesNo, button, h, openDialog, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
 import { busy } from "./loading";
 import { projectTypes, type ProjectType, typeCard } from "./projectTypes";
@@ -180,7 +180,7 @@ async function withQuestion(path: string, body: Record<string, unknown>, questio
     if (!(e instanceof ApiError) || e.status !== 409) throw e;
     await loadProject().catch(() => undefined);
     const lost = wouldLose() ?? "There are unsaved changes.";
-    if (!confirm(`${lost}\n\n${question}`)) return null;
+    if (!(await askYesNo(`${lost}\n\n${question}`))) return null;
     return api<ProjectState>(path, "POST", { ...body, discard: true });
   }
 }
@@ -197,7 +197,7 @@ export async function openProject(path?: string, gate?: HTMLElement): Promise<Pr
   let opened = (await gated(withQuestion("/project/open", { path: chosen }, `Let them go and open ${baseName(chosen)}?`))) as Opened | null;
   if (!opened) return null;
   if (opened.not_a_project) {
-    if (!confirm(`${baseName(opened.not_a_project)} is not a project yet.\n\nMake this folder a project? Nothing in it is written over.`)) return null;
+    if (!(await askYesNo(`${baseName(opened.not_a_project)} is not a project yet.\n\nMake this folder a project? Nothing in it is written over.`))) return null;
     opened = (await gated(withQuestion("/project/open", { path: chosen, make: true }, `Let them go and open ${baseName(chosen)}?`))) as Opened | null;
     if (!opened) return null;
   }
@@ -422,7 +422,7 @@ export async function copyProject(folder?: string): Promise<string | null> {
   if (!source) return null;
   const target = await chooseFile({ title: `Copy ${baseName(source)} to`, mode: "save", start: folderOf(source), name: `${baseName(source)} copy` });
   if (!target) return null;
-  const data = confirm("Copy the rows kept in .sab/data too?\n\nOK: with them. Cancel: without (data is sensitive).");
+  const data = await askYesNo("Copy the rows kept in .sab/data too?\n\nData is sensitive: without them, only the project's own files are copied.", { title: "Copy its rows too?", ok: "With the rows", cancel: "Without" });
   const done = await api<{ copied: string }>("/project/copy", "POST", { path: target, data, ...(folder ? { folder } : {}) });
   toast(`Copied to ${done.copied}`);
   return done.copied;
@@ -479,7 +479,7 @@ export async function answerAsked(): Promise<void> {
   if (!asked || askedShown === asked) return;
   askedShown = asked;
   const lost = wouldLose() ?? "There are unsaved changes.";
-  if (confirm(`${lost}\n\nLet them go and open ${baseName(asked)}?`)) {
+  if (await askYesNo(`${lost}\n\nLet them go and open ${baseName(asked)}?`)) {
     await api("/project/open", "POST", { path: asked, discard: true });
   } else {
     await api("/project/open", "POST", { cancel: true });

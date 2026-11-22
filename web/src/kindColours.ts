@@ -7,16 +7,14 @@
  * per theme): fixed, not a setting (the owner's simplicity pass, 2026-11-21).
  */
 
+import * as rules from "./pageRules";
 export type Kind = "app" | "notebook" | "script";
 const listeners: (() => void)[] = [];
 
-/** A file's kind by its name: a Streamlit app's file, a notebook, a script (null: none of them). */
+/** A file's kind by its name's ending (null: none of them): the server's table, applied (pageRules.ts). */
 export function kindOfPath(path: string | null | undefined): Kind | null {
-  const name = (path ?? "").toLowerCase();
-  if (name.endsWith(".stapp.json")) return "app";
-  if (name.endsWith(".ipynb")) return "notebook";
-  if (name.endsWith(".py")) return "script";
-  return null;
+  const kind = rules.kindOfPath(path);
+  return kind === "app" || kind === "notebook" || kind === "script" ? kind : null;
 }
 
 /** The open project's folder (null: none open); workbenchPage.ts keeps it current. Every notebook is a

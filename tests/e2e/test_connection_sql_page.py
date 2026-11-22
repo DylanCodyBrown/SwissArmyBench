@@ -14,6 +14,7 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, expect
 
+from tests.e2e.asks import answer_ask
 from tests.e2e.test_ui import browser, call, open_grid, orders_url, server  # noqa: F401
 from tests.e2e.test_workbench_page import open_workbench, start, wait_until
 from tests.test_connection_tables import CATALOG
@@ -76,13 +77,8 @@ def test_the_connections_tree_opens_copies_and_a_sql_cell_names_the_connection(
     assert page.evaluate("navigator.clipboard.readText()") == "[Shop].orders"
     # Open all: a confirm with the count, each its own grid.
     asked: list[str] = []
-
-    def answer(d: Any) -> None:
-        asked.append(d.message)
-        d.accept()
-
-    page.once("dialog", answer)
     tree.get_by_role("button", name="Open all").click()
+    asked.append(answer_ask(page))
     expect(page.locator(".toast", has_text="3 tables of main are open.")).to_be_visible(timeout=60000)
     assert asked and "Open all 3 tables of main" in asked[0]
     names = {d["name"] for d in call(server, "GET", "/datasets")["datasets"]}
