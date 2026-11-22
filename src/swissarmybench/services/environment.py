@@ -29,6 +29,7 @@ from swissarmybench.domain.dictionary import plain_type
 from swissarmybench.domain.environment import Document, Item, Used
 from swissarmybench.domain.environments import LIBRARIES
 from swissarmybench.domain.project_scope import CANVAS_SUFFIX
+from swissarmybench.services.changes import raised
 from swissarmybench.services.ports import BACKGROUND
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -799,9 +800,30 @@ class Environment:
             else rules.without_pin(text, item.name)
         )
         changed = await self._write(folder, new)
-        self.ws.audit.write(who, "environment_pin" if pinned else "environment_unpin", item.name)
+        version = item.more["version"]
+        said = f"Pinned {item.name} at {version}" if pinned else f"Unpinned {item.name}"
+        change = (
+            _library_change(item.name, version, not pinned, version, bool(pinned), said) if changed else {}
+        )
+        self.ws.audit.write(who, "environment_pin" if pinned else "environment_unpin", item.name, **change)
         await self.changed()
         return {"name": item.name, "pinned": bool(pinned), "changed": changed}
+
+    async def _versions(self, python: str) -> dict[str, str]:
+        """The project's Python's libraries by their key, each with its version, as installed right now."""
+        found = await asyncio.to_thread(self._libraries.installed, python)
+        return {rules.library_key(name): version for name, version in found.items()}
+
+    def _said(self, who: str, action: str, names: str, changes: list[dict[str, Any]]) -> None:
+        """One audit entry for what was asked; the change log's events with it (services/changes.py): on
+        the entry itself for one library, an entry of its own for each of several."""
+        changes = [c for c in changes if c]
+        if len(changes) == 1:
+            self.ws.audit.write(who, action, names, **changes[0])
+            return
+        self.ws.audit.write(who, action, names)
+        for change in changes:
+            self.ws.audit.write(who, "changed", change["change"]["object"]["name"], **change)
 
     async def _change(self, specs: list[str], upgrade: bool, who: str, words: str) -> None:
         python, _ = self._libraries.python_of(self._folder())
@@ -823,12 +845,24 @@ class Environment:
         else:
             names = [rules.check_library(_field(body, "name"))]
         folder = self._own_folder()
+        python, _ = self._libraries.python_of(folder)
+        was = await self._versions(python)
         await self._change(names, False, who, f"Install {', '.join(names)}")
         text = await asyncio.to_thread(self._libraries.read_requirements, folder)
         for name in names:
             text = rules.with_library(text, name)
         await self._write(folder, text)
-        self.ws.audit.write(who, "environment_install", ", ".join(names))
+        now = await self._versions(python)
+        self._said(
+            who,
+            "environment_install",
+            ", ".join(names),
+            [
+                _library_change(n, was.get(rules.library_key(n)), None, now.get(rules.library_key(n), ""),
+                                None, f"Installed {n}")
+                for n in names
+            ],
+        )  # fmt: skip
         await self.changed()
         return {"installed": names[0]} if len(names) == 1 else {"installed": names}
 
@@ -863,7 +897,12 @@ class Environment:
             if self._latest.get(key) and now.get(key) == self._latest[key]:
                 del self._latest[key]
         await self._write(folder, text)
-        self.ws.audit.write(who, "environment_update", ", ".join(i.name for i in chosen))
+        changes = []
+        for item in chosen:
+            old, new = item.more["version"], now.get(rules.library_key(item.name), "")
+            said = f"Updated {item.name} from {old} to {new}" if old and new else f"Updated {item.name}"
+            changes.append(_library_change(item.name, old, None, new, None, said if old != new else ""))
+        self._said(who, "environment_update", ", ".join(i.name for i in chosen), changes)
         await self.changed()
         return {
             "updated": [{"name": i.name, "version": now.get(rules.library_key(i.name), "")} for i in chosen]
@@ -884,9 +923,25 @@ class Environment:
                 raise Refused(f"{item.name} could not be removed.", details=out[-2000:])
         text = await asyncio.to_thread(self._libraries.read_requirements, folder)
         await self._write(folder, rules.without_library(text, item.name))
-        self.ws.audit.write(who, "environment_uninstall", item.name)
+        change = raised("library", item.name, {"library": {"version": item.more["version"]}}, None,
+                        f"Removed the library {item.name}")  # fmt: skip
+        self.ws.audit.write(who, "environment_uninstall", item.name, **change)
         await self.changed()
         return {"removed": True, "kind": "library", "name": item.name}
+
+
+def _library_change(
+    name: str, was: str | None, was_pinned: bool | None, now: str, pinned: bool | None, words: str
+) -> dict[str, Any]:
+    """The change log's event for a library (services/changes.py raised): its version and whether it is
+    pinned, before and after, by name. {} when neither moved and nothing is said."""
+
+    def shape(version: str | None, pin: bool | None) -> dict[str, Any] | None:
+        if version is None:
+            return None
+        return {"library": {"version": version} | ({} if pin is None else {"pinned": "yes" if pin else "no"})}
+
+    return raised("library", name, shape(was or None, was_pinned), shape(now, pinned), words)
 
 
 def read_documents(paths: Iterable[str], read: Callable[[str], tuple[str, str, float]]) -> list[Document]:

@@ -291,6 +291,44 @@ def test_libraries_pin_update_and_install(client: TestClient, project: Path) -> 
     assert bad.status_code == 400
 
 
+def test_a_librarys_pin_update_install_and_removal_are_in_the_change_log(
+    client: TestClient, project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sweep, 2026-11-22 (Plans/changes.plan.md: "a library added, updated, pinned or removed")."""
+
+    async def uninstall(python: str, names: list[str]) -> tuple[int | None, str]:
+        return 0, "Uninstalled"
+
+    monkeypatch.setattr(environments, "uninstall", uninstall)
+
+    def last(name: str) -> Any:
+        got = ok(client.get("/changes", params={"action": "last", "object": f"library:{name}"}, headers=AUTH))
+        return got["change"]
+
+    open_project(client, project)
+    fake_venv(project, {"duckdb": "1.4.2", "pandas": "2.3.3", "pip": "25.0"})
+    (project / "requirements.txt").write_text("duckdb\npandas\n", encoding="utf-8")
+    ok(client.get("/environment/libraries", params={"check": "1"}, headers=AUTH))
+    assert last("duckdb") is None
+    ok(client.post("/environment/libraries/pin", json={"name": "duckdb"}, headers=AUTH))
+    assert last("duckdb")["words"] == "Pinned duckdb at 1.4.2" and last("duckdb")["who"] == "user"
+    ok(client.post("/environment/libraries/update", json={"name": "duckdb"}, headers=AUTH))
+    assert last("duckdb")["words"] == "Updated duckdb from 1.4.2 to 1.4.3"
+    ok(client.post("/environment/libraries/pin", json={"name": "duckdb", "pinned": False}, headers=AUTH))
+    assert last("duckdb")["words"] == "Unpinned duckdb"
+    # A pin that changes nothing (already as asked) says nothing new.
+    ok(client.post("/environment/libraries/pin", json={"name": "duckdb", "pinned": False}, headers=AUTH))
+    asked = {"action": "history", "object": "library:duckdb"}
+    assert len(ok(client.get("/changes", params=asked, headers=AUTH))["changes"]) == 3
+    ok(client.post("/environment/libraries/install", json={"names": ["polars", "rich"]}, headers=AUTH))
+    assert last("polars")["words"] == "Installed polars" and last("rich")["words"] == "Installed rich"
+    ok(client.post("/environment/remove", json={"kind": "library", "name": "pandas"}, headers=AUTH))
+    assert last("pandas")["words"] == "Removed the library pandas"
+    # The Session page's Changes shows them too, and the log is the project's file.
+    lines = (project / ".sab" / "changes.jsonl").read_text(encoding="utf-8").splitlines()
+    assert sum('"library"' in line for line in lines) == 6
+
+
 def test_the_agents_install_waits_for_allow(client: TestClient, project: Path) -> None:
     open_project(client, project)
     fake_venv(project, {"duckdb": "1.4.2"})
