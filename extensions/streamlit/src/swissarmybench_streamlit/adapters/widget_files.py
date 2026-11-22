@@ -187,20 +187,8 @@ class PreviewFiles:
         path = self.path(key)
         if path is not None:
             write_atomic(path, data)
-
-    def failed(self, key: str) -> str | None:
-        path = self.path(key)
-        if path is None:
-            return None
-        try:
-            return path.with_suffix(".failed").read_text(encoding="utf-8")
-        except OSError:
-            return None
-
-    def fail(self, key: str, said: str) -> None:
-        path = self.path(key)
-        if path is not None:
-            write_atomic(path.with_suffix(".failed"), said[:2000])
+            # An older version kept a failure beside it (<key>.failed) and never tried again: gone with it.
+            path.with_suffix(".failed").unlink(missing_ok=True)
 
 
 _CARRIED = {"adapter": "adapters/adapter.py", "sab_excel": "sab_excel.py"}

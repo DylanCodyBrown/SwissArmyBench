@@ -17659,19 +17659,110 @@ html[data-theme="dark"] .cvs-preview:has(> img),
 html[data-theme="hc-dark"] .cvs-preview:has(> img) {
   background: #171614;
 }
-.cvs-preview-wait {
+/* What a widget's box shows until its picture is made, or when it could not be (canvasPage.ts paintPreview):
+   a card with the widget's icon and name and one line (Preview is being made…, or the failure's words with
+   Try again), never an empty box. Smaller boxes keep the icon and the name only. */
+.cvs-widget-preview,
+.cvs-card-preview {
+  container-type: size; /* their own height: the placeholder fits what room there is */
+}
+.cvs-widget-preview {
+  container-name: cvs-box;
+}
+.cvs-big-image .cvs-ph {
+  min-height: 120px;
+}
+.cvs-ph {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
-  border-radius: 4px;
-  background: repeating-linear-gradient(135deg, var(--surface) 0 8px, var(--bg) 8px 16px);
-  color: transparent;
-}
-.cvs-preview-failed {
+  padding: 6px 8px;
   display: flex;
-  gap: 4px;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  gap: 3px;
+  overflow: hidden;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--muted);
+}
+.cvs-ph.failed {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg));
+}
+.cvs-ph-icon {
+  display: inline-flex;
+  color: var(--muted);
+}
+.cvs-ph.failed .cvs-ph-icon {
+  color: var(--warn);
+}
+.cvs-ph-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.cvs-ph-name {
+  max-width: 100%;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cvs-ph-line {
+  max-width: 100%;
   font-size: 0.75rem;
-  color: var(--error);
+  line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.cvs-ph.failed .cvs-ph-line {
+  color: var(--fg);
+}
+.cvs-ph:not(.failed) .cvs-ph-line::after {
+  content: "";
+  display: inline-block;
+  width: 0.7em;
+  height: 0.7em;
+  margin-left: 5px;
+  vertical-align: -1px;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: cvs-ph-turn 0.9s linear infinite;
+}
+@keyframes cvs-ph-turn {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cvs-ph:not(.failed) .cvs-ph-line::after { animation: none; }
+}
+.cvs-ph-again {
+  pointer-events: auto;
+}
+/* A short box: one row. Being made: the icon and the name. Failed: its words and Try again (the name is
+   under the box already), then only the button. */
+@container cvs-box (max-height: 96px) {
+  .cvs-ph { flex-direction: row; gap: 6px; padding: 2px 8px; }
+  .cvs-ph:not(.failed) .cvs-ph-line { display: none; }
+  .cvs-ph.failed .cvs-ph-name { display: none; }
+  .cvs-ph.failed .cvs-ph-line { -webkit-line-clamp: 1; text-align: left; }
+}
+@container cvs-box (max-height: 40px) {
+  .cvs-ph.failed .cvs-ph-line { display: none; }
+}
+@container cvs-box (max-height: 26px) {
+  .cvs-ph-icon { display: none; }
+}
+/* The instance's own title lies over the box's top: the card starts below it. */
+.cvs-widget:has(.cvs-instance-text) .cvs-ph {
+  padding-top: 30px;
 }
 .cvs-card-name {
   margin-top: 4px;

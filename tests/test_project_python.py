@@ -434,3 +434,23 @@ def test_every_table_in_the_environment_is_read_by_name_without_a_grid(client: T
     assert again["grids"] == []  # read by name: still no grid made for it
     missing = client.get("/workbench/tables/nothing_here/arrow", headers=AUTH)
     assert missing.status_code == 404 and "is in the Environment" in missing.text
+
+
+def test_the_venv_carries_what_the_projects_type_needs() -> None:
+    """Canvas previews, 2026-11-22: a Streamlit canvas's project whose requirements.txt leaves Streamlit out
+    still gets it in its `.venv` (its contract's requirements); requirements.txt's own line wins."""
+    assert rules.venv_packages("", ["streamlit>=1.43"]) == [
+        "ipykernel",
+        "openpyxl",
+        "xlrd",
+        "streamlit>=1.43",
+    ]
+    assert rules.venv_packages("streamlit==1.50.0\n", ["streamlit>=1.43"])[-1] == "streamlit==1.50.0"
+
+
+def test_the_streamlit_canvas_asks_for_streamlit_in_every_project_that_offers_it() -> None:
+    from swissarmybench import extensions
+
+    assert "streamlit>=1.43" in extensions.requirements_of("streamlit")
+    assert "streamlit>=1.43" in extensions.requirements_of("bi")  # its canvas is offered in a BI project
+    assert extensions.requirements_of("no-such-type") == []

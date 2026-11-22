@@ -6162,3 +6162,72 @@ Python takes the checkout's 0.0.32 and so "did not start", as noted on other bra
 helper, but the app it starts is the new one, which never clears its cache, so its first window draws (and it
 removes the old `desktop\profile\cache` folder itself). Until then, after an update shows a white window: close
 it and open Swiss Army Bench again (the second start always drew).
+## Canvas previews, 2026-11-22 (branch canvas-previews)
+
+The owner: "The pre-built widgets are not rendering on my machine"; the Canvas board's boxes were empty
+(Windows, the released desktop app 0.0.32). Each reason a box could end up empty, found and fixed:
+
+- **A failure was kept for good.** `PreviewFiles.fail` wrote `<key>.failed` in the state folder's
+  widget-previews/, `Widgets.preview` answered `failed` from it, and the route asked the previewer only for
+  `coming`: a preview that failed once (asked while the project's `.venv` was still being made, so
+  `Widgets.python()` fell back to a Python without Streamlit: "Streamlit is not in this Python") was never
+  tried again, not even after a restart, until the widget's file changed. On top, `Previews.want` kept every
+  key in `_wanted` for the session. Now a failure is in memory only (`Previewer._failed`: its words, kind,
+  time, tries, the missing-package answer), with a back-off (the machine's: 15 s doubling to 5 min; the
+  widget's own: 60 s doubling to 30 min); an ask after the back-off, `retry=1` (Try again; the agent's
+  `widgets_preview retry`), and the `project_python` notice (ready, or no project) or `project_changed` try
+  it again (`widget_previews` tells the pages to ask). An older `.failed` file is never read and goes when the
+  picture is made.
+- **The board's boxes waited behind the gallery's 113.** The Widgets pane drew a card per widget at once, and
+  each card asked for its preview: 113 previews queued first, made one at a time (about 3 to 8 s each here),
+  while the page gave up asking after 90 tries (3 minutes) and left the board's boxes as striped placeholders
+  whose words were transparent: an empty box. Now the board asks with `first=1` (the front of the queue, a
+  queued one moved there), the gallery asks for a card only when it scrolls into view (IntersectionObserver),
+  and the page never gives up while a box shows the widget (the `widget_preview` notice answers at once, a
+  slow look every 2 to 6 s meanwhile). Measured here with five widgets on the board: all five pictures in 15
+  s (light) and 21 s (dark) from opening the page, before any gallery card's.
+- **The photographer could draw nothing on Windows and say so nowhere.** Qt's offscreen platform plugin is
+  documented for headless Linux; Qt WebEngine on it outside Linux is not something Qt's platform notes cover
+  and was reported not to work on Windows (forum.qt.io). The photographer's way is now chosen per system
+  (`shooter_ways`): Linux the offscreen platform (a hidden window after it only with a display); Windows and
+  macOS a hidden window of the system's own platform first (a frameless Qt.Tool window, never activated,
+  placed left of the whole virtual desktop: Qt WebEngine paints it as any window, and `grab()` reads it), the
+  offscreen platform after it; the way that worked kept for the session. A picture all of one colour of a box
+  that shows text or a chart, input, image or frame is retried four times a second apart, then a failure
+  ("The picture came out blank."), and the next way is tried; a browser that did not start the same.
+- **The probe gave up before the time limit.** The shooter's probe stopped after 120 tries (about 30 s) while
+  the whole shot had 60 s: a first Streamlit page on a slow machine (the engine's start, pandas and Plotly
+  imported) was "The widget did not finish drawing.". The probe now runs until the limit, which is 90 s.
+- **A missing Streamlit was silent.** The failure now carries the one missing-package answer; the Canvas puts
+  the one prompt up once a page ("Streamlit widgets will not work without streamlit.": into the project's
+  Python by the Environment's Install, else the app's own), its box says "Needs streamlit to draw." with an
+  Install button, and every failed box is asked again once it is installed. A Streamlit project's
+  contract.json now names `streamlit>=1.43` (it was empty), and a project's `.venv` is made with what its
+  type needs (`venv_packages(text, for_type)`; `extensions.requirements_of`: the type's extension's
+  requirements, and for the base's BI type those of each on extension whose canvas it offers), so a
+  requirements.txt that leaves Streamlit out still gets it; requirements.txt's own line wins.
+- **What a box shows until then** (front end, on the owner's word for this fix): a card with the widget's
+  icon and name and "Preview is being made…" (a small turning ring; still with reduced motion), or the
+  failure's first line with Try again (its whole words in the title); short boxes one row; the instance's own
+  title above it. The previews are kept per theme in the page (they were per name: a theme change showed the
+  other theme's state), a picture that 404s is asked for again.
+
+Tests: tests/test_widget_previews.py (a failure tried again on each cause, never inside its back-off; the
+board's first; the old `.failed` file; the photographer per system, its environment and command; a blank
+picture or a browser that did not start tries the next way, a widget's own failure does not; the real
+photographer over a made-up page: a drawn box photographed, a blank one a failure), tests/test_project_python.py
+(the type's requirements in the `.venv`; Streamlit asked for in Streamlit and BI projects), and
+tests/e2e/test_canvas_previews.py (the board's boxes with the preview route answered by the test: being made,
+failed with Try again sending retry=1, needs Streamlit with the prompt once; the board asked first, the
+gallery only for the cards in view). Pictures of the board with real previews (Chromium, 1600x950, light and
+dark, five prebuilt widgets on made-up data) looked at; not committed.
+
+Not reproduced here (Linux, no display): the hidden-window way on Windows and macOS; its choice and fallback
+are unit tested, the real shot only through the offscreen way.
+
+Checks: `ruff check .`, `ruff format --check .`, `mypy` (1,116 files), `npm run typecheck`: clean. Quick suite at
+four workers: 5,731 passed, 40 skipped, 3 failed before docs/architecture-map.md was written again (it was
+already stale on the branch this came from: the cli folder's 41 modules drawn as 4); the other two are the
+export's fresh-Python test and the updater's uv test, which fail only from a worktree with PYTHONPATH set (see
+docs/ideas.md). Browser files in Chromium (two workers): the Canvas, its gaps, the previews, widget packs,
+wiring and the Widgets window: 18 passed.

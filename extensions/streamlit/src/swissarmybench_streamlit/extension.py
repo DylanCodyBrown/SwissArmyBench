@@ -220,7 +220,8 @@ def routes(services: Any) -> list[Any]:
     launches = Launches(canvases, live_runs, BuildFiles())
     canvases.launches = launches
     # Each widget's preview, rendered headless once (Play's own builder and run) and kept by its hash.
-    previewer = Previewer(widgets, live_runs)
+    previewer = Previewer(widgets, live_runs, notify=services.ws.live.broadcast)
+    seams.live_listeners.append(previewer.heard)  # the project's Python ready: a failed one again
     # Play follows live data: a table a playing page reads, written again into its run when it changes (a
     # sandbox write, a grid's steps, a reload, data.py), and its open pages run again by themselves.
     from swissarmybench_streamlit.services.live_tables import LiveTables

@@ -546,8 +546,10 @@ def widgets_delete(a: dict[str, Any]) -> Any:
     "A widget's small rendered preview (PNG): its state (ready with its address, coming, failed with why)",
     req("name", "The widget's name."),
     opt("theme", "light or dark."),
+    opt("retry", "A failed one tried again now (its back-off not waited for).", "bool"),
 )
 def widgets_preview(a: dict[str, Any]) -> Any:
+    again = "&retry=1" if a.get("retry") else ""
     return api.call(
-        "GET", f"/streamlit/widgets/{_q(a['name'])}/preview?theme={_q(a.get('theme') or 'light')}"
+        "GET", f"/streamlit/widgets/{_q(a['name'])}/preview?theme={_q(a.get('theme') or 'light')}{again}"
     )

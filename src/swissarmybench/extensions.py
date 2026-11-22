@@ -543,6 +543,29 @@ def modes() -> list[dict[str, Any]]:
     return out
 
 
+def requirements_of(project_type: str | None) -> list[str]:
+    """What a project of this type needs in its own `.venv` beyond its requirements.txt: its extension's
+    contract.json requirements; the base's type, those of each on extension whose canvas it offers (its
+    BASE_MODE_ADDS' canvases: the Streamlit canvas in every BI project, so its widgets draw). A broken
+    contract adds nothing."""
+    on = enabled()
+    out: list[str] = []
+    for module in on:
+        found = manifest(module)
+        mode = found.MODE if isinstance(found.MODE, dict) else {}
+        adds = found.BASE_MODE_ADDS if isinstance(found.BASE_MODE_ADDS, dict) else {}
+        own = mode.get("type") == project_type
+        lent = project_type in (None, BASE_MODE["type"]) and bool(adds.get("canvases"))
+        if not (own or lent):
+            continue
+        try:
+            said = contract(module)
+        except Exception:  # a broken contract.json is said where it is read; nothing here
+            said = None
+        out += [str(r) for r in (said or {}).get("requirements") or []]
+    return list(dict.fromkeys(out))
+
+
 _AREA_FIELDS = ("area", "name", "icon", "mark", "panel")  # panel: only when an area names one
 
 

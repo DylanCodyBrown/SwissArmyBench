@@ -140,7 +140,7 @@ low by design and its D says little; the measure bites for the components that h
 | git | an extension | 9 | 0 | 7 | 1.00 | 17 | 4 | 0.24 | 0.24 |
 | powerapps | an extension | 20 | 0 | 20 | 1.00 | 39 | 15 | 0.38 | 0.38 |
 | powerbi | an extension | 18 | 0 | 23 | 1.00 | 48 | 8 | 0.17 | 0.17 |
-| streamlit | an extension | 31 | 0 | 15 | 1.00 | 57 | 3 | 0.05 | 0.05 |
+| streamlit | an extension | 31 | 0 | 15 | 1.00 | 58 | 3 | 0.05 | 0.05 |
 
 ### The modules most depended on
 

@@ -958,6 +958,7 @@ LATE_BOUND = (
     "project_python.end_session",
     "project_python.session_kernel",
     "project_python.forget_environment",
+    "project_python.type_requirements",
     "workbench.project",
     "workbench.moved_environment",
     "connection_usage.extra_cards",
@@ -1676,6 +1677,7 @@ def _variables_part(b: Built) -> None:
     project_python.end_session = b.workbench.end_session
     project_python.session_kernel = b.workbench.session_kernel
     project_python.forget_environment = b.documents.forget_environment
+    project_python.type_requirements = lambda f: extension_modules.requirements_of(b.projects.type_of(f))
     b.workbench.project = project_python.session
     b.workbench.moved_environment = project_python.moved
     b.environment = Environment(

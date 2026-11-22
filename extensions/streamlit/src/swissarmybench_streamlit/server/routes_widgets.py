@@ -16,7 +16,8 @@ POST   /streamlit/widgets/{name}/upgrade         {"apply"?, "code"?}: Upgrade to
 DELETE /streamlit/widgets/{name}                 the agent's waits for the user's Allow
 POST   /streamlit/widgets/{name}/run             {"values"?, "code"?, "window"?, "python"?}: Run in place
 POST   /streamlit/widgets/{name}/check           the same headless (AppTest): its errors
-GET    /streamlit/widgets/{name}/preview?theme=  the preview's state (asked for when it is not made)
+GET    /streamlit/widgets/{name}/preview?theme=   the preview's state (asked for when it is not made;
+                                                  &first=1: the board's, first; &retry=1: a failed one now)
 GET    /streamlit/widgets/{name}/preview.png?key= the preview itself
 """
 
@@ -98,10 +99,12 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
 
     async def preview(request: Request) -> Response:
         name, theme = name_of(request), request.query_params.get("theme") or "light"
-        said = widgets.preview(name, theme)
-        if said["state"] == "coming" and previews is not None:
-            previews.want(name, theme)
-        return json_response(said)
+        if previews is None:
+            return json_response(widgets.preview(name, theme))
+        asked = request.query_params
+        return json_response(
+            previews.state(name, theme, first=asked.get("first") == "1", retry=asked.get("retry") == "1")
+        )
 
     async def preview_png(request: Request) -> Response:
         data = widgets.preview_png(str(request.query_params.get("key") or ""))
