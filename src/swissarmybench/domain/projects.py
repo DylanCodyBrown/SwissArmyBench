@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from swissarmybench.domain import cell_facts, dictionary, table_cells
+from swissarmybench.domain.code_tree import made_from
 from swissarmybench.domain.codegen import variable_name
 from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 
@@ -327,7 +328,9 @@ def folder_title(path: str | None) -> str:
 
 def project_files(names: Iterable[str]) -> list[str]:
     """Which of a project folder's files the Workbench opens, in order: data.ipynb first, then the
-    app's canvas, then the other notebooks, then scripts. data.py is an export: it is not opened."""
+    app's canvas, then the other notebooks, then scripts. data.py is an export: it is not opened, and
+    neither are the project scaffold's other made files (adapter.py, connections.py, the sandbox mirror:
+    domain/code_tree.py made_from; the Scripts page lists them under Project code)."""
 
     def rank(name: str) -> int:
         lowered = name.lower()
@@ -343,5 +346,6 @@ def project_files(names: Iterable[str]) -> list[str]:
         if n.lower().endswith((".py", ".ipynb", ".canvas.json", ".stapp.json", ".design.json"))
         and not n.startswith(".")
         and n.lower() != DATA_FILE
+        and made_from(n) is None
     ]
     return sorted(wanted, key=lambda n: (rank(n), n.lower()))[:MAX_FILES]
