@@ -59,6 +59,8 @@ class Library(Protocol):
 
     def write(self, path: str, text: str) -> None: ...
 
+    def remove(self, folder: str) -> None: ...
+
 
 class Blades(Protocol):
     """The blades (services/blades.py): an API's web call blades are saved and removed there."""
@@ -265,6 +267,25 @@ class Apis:
         if plan.taken:
             raise Conflict(plan.taken)
         answer = plan.to_json()
+        try:
+            return answer | await self._added(plan, body, who)
+        except Exception:
+            if plan.existing is None:  # a new API that did not go through leaves nothing of itself
+                await self._undo(plan, who)
+            raise
+
+    async def _undo(self, plan: _Plan, who: str) -> None:
+        """A new API's add that failed part way: its web call blades, its connection and its folder go."""
+        api = plan.names.connection
+        names = [web_calls.name_of(api, op.name) for op in plan.spec.operations]
+        for name in (*names, api):
+            try:
+                await self._blades.remove(name, who)
+            except Exception:  # noqa: S110 (not made yet: nothing to take away)
+                pass
+        self._library.remove(plan.folder)
+
+    async def _added(self, plan: _Plan, body: Any, who: str) -> dict[str, Any]:
         self._library.write(plan.path, plan.text)  # the library's apis/<name>/
         tables = len(plan.spec.tables())
         count = len(plan.spec.operations)
@@ -299,7 +320,7 @@ class Apis:
         self.ws.audit.write(
             who, "add_api", f"{plan.names.connection}: {plan.path}", connection=plan.names.connection
         )
-        return answer | {"saved": saved, "written": plan.path, "web_calls": [c["name"] for c in calls]}
+        return {"saved": saved, "written": plan.path, "web_calls": [c["name"] for c in calls]}
 
     def _library_relative(self, folder: str) -> str:
         return "apis/" + folder.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1]

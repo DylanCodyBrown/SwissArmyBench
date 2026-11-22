@@ -833,6 +833,35 @@ def test_add_api_writes_the_client_and_its_connection_in_one_step(
     assert standin.API_KEY not in on_disk and "API_Orders" in on_disk
 
 
+def test_an_add_that_is_refused_leaves_nothing_behind(
+    client: TestClient, service: Service, tmp_path: Path
+) -> None:
+    """The sweep, 2026-11-22: an Add API the connection's save refused (a key given with no source said for
+    it) left the API's folder, its file and its web call blades behind: the APIs page then listed an API
+    with "no openapi.json", and the same Add again said the name was taken."""
+    service.mode = "api_key_header"
+    folder = tmp_path / "state" / "library" / "apis" / "Orders"
+    body = {"spec_url": service.url + "/openapi.json", "secrets": {"ORDERS_API_KEY": standin.API_KEY}}
+    refused = client.post("/apis", json=body, headers=AGENT)
+    assert refused.status_code == 400 and "ORDERS_API_KEY" in refused.text
+    assert not folder.exists()
+    assert client.get("/apis", headers=AUTH).json()["apis"] == []
+    blades = client.get("/blades", headers=AUTH).json()["blades"]
+    assert not [b["name"] for b in blades if b["name"].startswith("Orders")]
+    assert client.get("/connections/Orders", headers=AUTH).status_code == 404
+    variables = client.get("/variables", headers=AUTH).json()["variables"]
+    assert not [v["name"] for v in variables if v["name"].startswith("ORDERS_")]
+    # Said right, the same Add goes through: nothing of the refused one is in its way.
+    keyed = body | {"variables": [{"name": "ORDERS_API_KEY", "from": "keyring"}]}
+    added = client.post("/apis", json=keyed, headers=AGENT)
+    assert added.status_code == 200, added.text
+    assert (folder / "openapi.json").is_file() and len(added.json()["web_calls"]) == 5
+    # An API that is there keeps everything when an add over it is refused.
+    again = client.post("/apis", json=body | {"secrets": {"NOT_ITS_KEY": "made-up"}}, headers=AGENT)
+    assert again.status_code in (400, 409)
+    assert (folder / "openapi.json").is_file() and (folder / "API_Orders.py").is_file()
+
+
 def test_re_import_shows_the_changes_then_writes_and_keeps_the_mapping(
     client: TestClient, service: Service, tmp_path: Path
 ) -> None:
