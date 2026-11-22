@@ -5,7 +5,44 @@ Status: agreed; phase 1 built (branch `adapter`, 2026-11-21): Order 1 and the st
 `adapter-3`, 2026-11-22): `query`, the mock clients gone, the writes of Dataverse, SharePoint lists and the lakes,
 the Catalog's listing, file connections, the engine's first paths (the owner's answers after phase 2); phase 4 built
 (branch `adapter-4`, 2026-11-22): the Write starters and one `sab.write`, every database's listing, a file
-connection's Open as grid, the engine's cursor (the owner's answers after phase 3).
+connection's Open as grid, the engine's cursor (the owner's answers after phase 3); phase 5 built (branch
+`adapter-5`, 2026-11-22): SQL Server's and Trino's writes in the adapter, so every write is the adapter's but
+the Excel sheet's; bootstrap() split by area over one typed record (the owner's answers after phase 4).
+
+### What is built (phase 5)
+
+The project scaffold (adapter.py 1.1.0, added to only; each change its own commit):
+- **SQL Server and Azure SQL writes**, their own section: the target's types from sys.columns
+  (`server_columns`, `ServerColumn`), keyed rows staged in a #temp table of exactly those types with each
+  value's size (setinputsizes, mssql-python's every-or-none rule), one MERGE ... WITH (HOLDLOCK) (refused:
+  UPDATE then INSERT in the same transaction), an update and a delete joined to the staged rows or keys,
+  TRUNCATE for a truncate (refused by a foreign key: DELETE FROM), `identity_insert`, Azure's passing errors
+  (`transient`) running the whole write again on a fresh connection (`Sql(reopen=)`) after 1, 2, 4 s. Its dry
+  run: the keys staged, one COUNT join, rolled back. Through mssql-python only (never ODBC; an older pyodbc
+  connection is still told its sizes and fast_executemany).
+- **Trino writes**, row batches without a transaction: INSERT ... VALUES, MERGE INTO ... USING (VALUES ...),
+  DELETE ... WHERE a hundred keys; each answer read (`Dialect.drains`), never a commit or rollback.
+  `NO_TRANSACTION` ("Trino writes row batches without a transaction: a failure part-way leaves the rows
+  already written.") in its dry run's and its write's notes; a failed batch says the rows before it were
+  written; a truncate with rows refused (it could clear the table and then fail).
+- `Counts.notes`; a source's own `planned()` (planned() asks it first); `statements()` (what a write runs, in
+  the source's own SQL, for a dry run's report); `table_name` quotes each part of a three-part name.
+- The SQL Server and Trino Write starters are thin callers (`SqlWrite.by_adapter`), their names, modes, keys,
+  batch_size, identity_insert and dry_run kept; tests/test_adapter_boundary.py enforces 15 of the 16 Write
+  functions (the Excel sheet's moves with the Excel module).
+- Proven against tests/sqlserver_standin.py (SQL Server at mssql-python's seam over DuckDB, the rows kept; also
+  through the SqlServer connection's own object), a stand-in of trino.dbapi's connection over DuckDB
+  (tests/trino_standin.py answers reads only), the starters' statement-recording stand-ins (unchanged tests),
+  and tests/test_sql_server_real.py's new adapter test for a real server (not run: none named here).
+
+The app: Trino's card says it writes row batches without a transaction (replace refused); sab.write and
+connections_write write to Trino (were refused) and through SQL Server's section; bootstrap() is its parts by
+area, each reading from `Built` (the one typed record of what is made so far), no behaviour change.
+
+What changes for the user (docs/ideas.md "One adapter", phase 5): Trino's replace is refused; SQL Server's
+create makes the table, then writes in a second transaction (dropped again on a failure, as before); a
+replace a foreign key refuses TRUNCATE for clears with DELETE FROM; the multi-row VALUES path (only reachable by
+hand) is gone; a copy of the old SQL Server starter is refused in one line that says what to do.
 
 ### What is built (phase 4)
 

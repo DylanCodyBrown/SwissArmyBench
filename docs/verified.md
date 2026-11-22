@@ -4874,6 +4874,55 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   test_write_starters_page and test_catalog_page 19 passed; a project's own adapter.py (one that fails on
   import) beside API.py never stands in for the app's (tests/test_adapter_sandbox.py).
 
+## The adapter's fifth phase (2026-11-22, branch adapter-5; DuckDB 2.0.0, pyarrow 26.0.1, sqlglot 30.24.0)
+- SQL Server's and Azure SQL's writes through the adapter (tests/test_adapter_sql_server.py, 8 tests) against
+  tests/sqlserver_standin.py, SQL Server at mssql-python's seam over DuckDB (the adapter's T-SQL run there after
+  fixed rewrites: brackets, #temp tables, table hints, MERGE's BY TARGET, UPDATE and DELETE with a JOIN, the
+  T-SQL types; a connection a transaction at a time, its #temp tables its own and gone on a rollback; checked
+  first that DuckDB 2.0 takes MERGE INTO, UPDATE ... FROM, DELETE ... USING and a temp table rolled back): every
+  mode's rows read back (Unicode kept, a decimal at its scale, NaN as NULL), the sizes given (every parameter
+  typed for mssql-python, then cleared), the dry run's staged keys counted by one join and gone with its
+  rollback, two passing errors (a dropped link, a database not available) run whole on fresh connections (the
+  rows once), a refusal that does not pass not tried again and its batch named, MERGE and TRUNCATE refused and
+  done another way (said), identity and computed columns refused unless identity_insert, the statements said;
+  and the same merge through the SqlServer connection's own object (domain/sql_server.py's RUNTIME) found by
+  source_from. The Write starter's tests (tests/test_starters_write.py, its statement-recording stand-in for
+  mssql-python and for pyodbc) unchanged but the multi-row VALUES one (that path went), replaced by batches sized
+  by the target's width (four nvarchar(max) columns: 1,000, 1,000, 500 rows).
+- Trino's writes (tests/test_adapter_trino.py, 3 tests) against a stand-in of trino.dbapi's connection over DuckDB
+  (no transaction: its rollback raises; tests/trino_standin.py answers reads only, the same five orders to any
+  query, so it cannot prove a write): a merge a batch at a time (two statements for three rows), insert, update,
+  delete and a truncate with no rows read back; the dry run's note; a truncate with rows refused in the dry run
+  and the write, the rows untouched; a second batch failing leaves the first written, its Batch and "the 2 rows
+  before it were written". The starter's: MERGE refused by the connector in Trino's words, "Trino writes row
+  batches without a transaction: nothing was written."; replace refused in its dry run.
+- Not run: a real SQL Server (tests/test_sql_server_real.py has the adapter's write in every mode for one;
+  SWISSARMYBENCH_SQLSERVER_TEST named none here) and a real Trino.
+- Larkfield Goods large (10,001,903 order lines, made in 21.8 s; deleted after), each case in a process of its
+  own, RSS growth after it (peak in brackets, imports and the rows given included). Reads (the read path did not
+  change): a filter and a limit (1,000 rows) 0.25 s, 31 MB (209); a product range streamed (7,072,358 rows)
+  0.30 s, 31 MB (274); totals by product (12,000 rows) 0.14 s, 30 MB (163); every row streamed 0.32 s, 32 MB
+  (278); a join in query (15 rows) 0.07 s, 33 MB (128). Phase 3's: 33, 35, 33, 38 and 32 MB. Writes of 1,000,000
+  order lines (54 MB of Arrow given, batches of 1,000) to a driver that takes each batch and keeps nothing (the
+  adapter's own cost): SQL Server insert 3.34 s, 4 MB; SQL Server merge (staged, MERGE) 3.23 s, 4 MB; Trino
+  insert 2.33 s, 2 MB; SQLite's generic write of the same rows to a real file 5.95 s, 3 MB. The SQL Server write
+  keeps the rows it was given for a passing error's run again: no copy (4 MB). End to end through the stand-ins,
+  50,000 rows merged into 25,000: SQL Server 52.3 s, 27 MB (the stand-in's DuckDB executemany is the time), Trino
+  5.8 s, 64 MB (DuckDB parsing each 1,000-row VALUES statement).
+- bootstrap(): 1,169 lines before, 35 after (bootstrap.py 1,872 to 2,134 lines: the Built record and each part's
+  head); 17 parts by area, the longest the sandbox's seams (114) and the doors' list (_services, 111).
+- The suites (`-n 4 --dist loadfile`; the machine shared with other builders, load average 15 to 26 on 4 cores).
+  Steps 1 and 2: the quick suite 4,994 passed, 45 skipped, 2 failed: phase 2's test that Trino is read-only
+  (updated: any other dialect with no transactions and no write of its own still is) and test_desktop_shell
+  (passes alone, once the page is built). After step 3: 4,998 passed, 38 skipped, 3 failed under load, each on
+  the brief's known list: test_sharing (21 passed alone), test_desktop_shell (passes alone on a second run),
+  test_performance's million-row targets (sort_window 0.7 to 1.2 s against 0.5 s alone; the base commit's code
+  1.09 and 1.17 s under the same load). In Chromium (`-n 2`, the test bed up, the Streamlit Python):
+  test_write_starters_page, test_sql_server_page, test_real_world and test_local_apis_page: steps 1 and 2 20
+  passed, 3 failed (use cases 1, 4 and 5: the notebook's Save as not on disk in time; each passes alone, use case
+  4 also on the base commit's code); after step 3 22 passed, 1 failed (use case 5, the same; passes alone three
+  times running).
+
 ## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
 - Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite
   (`pytest -n 4 --dist loadfile tests --ignore=tests/e2e`) after the removals and after the route guard; the e2e

@@ -14,14 +14,17 @@ one a target) and its call (`PostgreSQL write`, its `mode` a placeholder):
 - `connections_list` gives each connection's `writes`: "Writes: <its operations>" or "Read-only: <why>".
   Never write to a read-only one. Power BI is read-only (write its source, then refresh it). Dataverse
   writes through its Web API (its SQL endpoint is read-only).
-- Through the adapter: PostgreSQL, MySQL and MariaDB, SQLite, Oracle, ODBC (append, create, replace,
-  upsert, delete: its INSERT, UPDATE and DELETE in one transaction; an upsert updates the rows whose keys
-  are there and inserts the others), files (CSV, JSON, Parquet, partitioned Parquet), Dataverse,
-  SharePoint lists, a Delta table, a lake file. Their dry run is the adapter's `planned()`: counts read from
-  the target as it is.
-- Their own write still: SQL Server and Azure SQL (rows staged in a #temp table of the target's types,
-  one MERGE WITH (HOLDLOCK), Azure's passing errors retried, `identity_insert`; keys default to the primary
-  key), Trino (no transactions: a statement at a time, MERGE where the connector has it), an Excel sheet.
+- Every write is the adapter's but an Excel sheet's (its own until the Excel module): PostgreSQL, MySQL and
+  MariaDB, SQLite, Oracle, ODBC (append, create, replace, upsert, delete: its INSERT, UPDATE and DELETE in
+  one transaction; an upsert updates the rows whose keys are there and inserts the others), files (CSV,
+  JSON, Parquet, partitioned Parquet), Dataverse, SharePoint lists, a Delta table, a lake file. Their dry run
+  is the adapter's `planned()`: counts read from the target as it is.
+- SQL Server and Azure SQL: the rows staged in a #temp table of the target's own types, one MERGE WITH
+  (HOLDLOCK), TRUNCATE for a replace, Azure's passing errors running the whole write again; the starter's
+  `identity_insert`; keys default to the primary key. Its dry run stages the keys and counts by one join.
+- Trino: row batches without a transaction (its dry run says so: a failure part-way leaves the rows already
+  written; a failed batch says how many rows before it were written); MERGE where the connector has it. A
+  replace (truncate with rows) is refused: clear the table first (truncate with no rows), then insert.
 - Writing to an API: the APIs page's Write rows with this call.
 
 ## The rule: a dry run first

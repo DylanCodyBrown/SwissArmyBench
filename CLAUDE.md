@@ -302,7 +302,10 @@ has the rules and why. Three layers, imports pointing inwards, nothing deeper th
 src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
-  bootstrap.py           the composition root: builds the adapters, hands them to the services
+  bootstrap.py           the composition root: builds the adapters, hands them to the services; bootstrap() runs
+                         its parts by area in order (_adapters, _connection_runs, _workspace_and_beta, _data, ...,
+                         _exports), each reading what it needs from Built (the one typed record of what is made
+                         so far; a closure reads a later one when it runs), then Services from it
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
                          SWISSARMYBENCH_EXTENSIONS: extension_on(id)), their modules, every project type's
                          mode as data (the base's BASE_MODE, each extension's MODE)
@@ -850,12 +853,17 @@ src/swissarmybench/
                          sandbox's gated cursor, the app's session as it is), Remote (the sandbox through
                          /sandbox/data/<key>/tables|read|query|write, a kernel's open tables with the token), Sql
                          (any DB-API connection; DIALECTS as data: quote, marks, LIMIT/OFFSET/FETCH, catalog; the
-                         plan folded, writes in one transaction), OData (Dataverse's Web API; writes in $batch
+                         plan folded, writes in one transaction; SQL Server's and Azure SQL's writes their own
+                         section: staged in the target's types from sys.columns, MERGE WITH (HOLDLOCK), TRUNCATE,
+                         identity_insert, passing errors run again whole on a fresh connection (reopen); Trino's
+                         row batches without a transaction, NO_TRANSACTION said, a truncate with rows refused),
+                         statements() (what a write runs, for a dry run's report), OData (Dataverse's Web API; writes in $batch
                          change sets, choice labels, keys, 429), Rows (the lakes and SharePoint by their own read
                          and writes: Delta, a file, a list's Graph calls), Files (a file connection's CSV, Parquet,
                          JSON: COPY's options, a format, a partitioned folder); arrow_of (rows of any shape), a SQL
                          write's Batch beside the driver's error (batch_of); to_json and to_ipc (an endpoint's
-                         Arrow answer). Allowed 3,000 lines (one file); it only grows (design principle 12b)
+                         Arrow answer). Version 1.1.0. Allowed 3,500 lines (one file); it only grows (design
+                         principle 12b)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -993,15 +1001,18 @@ src/swissarmybench/
                          DAX, HTML, Markdown, Write; the Streamlit extension brings its 52), listed apart, found by name, Copy as your own (tests/test_starters*.py);
                          Write: 16 functions (write_to_*: one public typed function a target, for functions.py) and
                          17 calls (a cell's text: the call only, dry_run=True; one a target, its mode a placeholder;
-                         each points at sab.write); 13 of the functions write only through the adapter (SQL
-                         Server, Trino and the Excel sheet their own: docs/ideas.md "One adapter")
+                         each points at sab.write); 15 of the functions write only through the adapter (the
+                         Excel sheet its own until the Excel module: docs/ideas.md "One adapter"; Trino's replace
+                         refused: no transaction)
   client/push_client.py  push(), ensure_server()
   client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
-                         write_sql.py each database's quoting, marks, values, types and transaction (SqlWrite;
-                         SqlServerWrite: sys.columns' types, #temp staging, MERGE WITH (HOLDLOCK), retried whole on
-                         Azure's passing errors); by_adapter (the Dataverse, SharePoint list, Delta and lake file
-                         starters: the dry run the adapter's planned(), then its write; SqlWrite.by_adapter and
+                         write_sql.py each database's quoting, marks, values, types and checks (SqlWrite;
+                         SqlServerWrite: the columns from the adapter's sys.columns read, computed and identity
+                         columns, triggers, keys defaulting to the primary key; its write the adapter's, a copy of
+                         the old starter refused in one line: GONE_METHODS); by_adapter (the Dataverse, SharePoint list, Delta and lake file
+                         starters: the dry run the adapter's planned(), then its write; SqlWrite.by_adapter (the
+                         adapter's statements and notes said; SQL Server and Trino count in a dry run only) and
                          FileWrite.by_adapter the SQL databases' and files'); write (sab.write: any connection, rows
                          of any shape or an open table's name, the adapter's five modes) and write_with (the
                          agent's connections_write runs it in a child process). Standard library only (the adapter
@@ -1312,7 +1323,8 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          workspace of three made-up datasets), dataverse_standin.py (a Dataverse environment's
                          Web API, its metadata and its sign-ins: a made-up company's accounts, contacts and
                          opportunities), dataverse_tds_standin.py (its SQL endpoint at python-tds's seam: a
-                         made-up SQLite file), test_sql_server_real.py (a real SQL Server when
+                         made-up SQLite file), sqlserver_standin.py (SQL Server at mssql-python's seam over
+                         DuckDB, the rows kept: the adapter's T-SQL run there), test_sql_server_real.py (a real SQL Server when
                          SWISSARMYBENCH_SQLSERVER_TEST names one), orders_service.py (a made-up web service
                          on 127.0.0.1, for a Python connection), api_standins.py (Add API's made-up
                          orders service, every sign-in it takes stood in for), devtunnel_standin.py (Microsoft's

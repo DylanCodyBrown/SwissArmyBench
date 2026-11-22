@@ -1202,11 +1202,13 @@ BigQuery, Redshift, Databricks), and a key vault.
 - **Databases** (SQL Server and Azure SQL, PostgreSQL, MySQL and MariaDB, SQLite, Oracle, Trino, ODBC):
   append, create table (the rows' types made the database's), replace (every row, in one transaction),
   upsert (insert, or update where a key matches) and delete (the rows whose keys are the rows' keys).
-  PostgreSQL, MySQL and MariaDB, SQLite, Oracle and ODBC write as sab.write does: their own INSERT,
-  UPDATE and DELETE in one transaction (an upsert updates the rows whose keys are there and inserts the
-  others). SQL Server stages the rows in a temporary table of the target's own types and MERGEs them; Azure's
-  passing errors run the whole write again. Trino writes where the catalog's connector does (Iceberg,
-  Delta Lake, Hive), a statement at a time.
+  Every one writes as sab.write does, through the adapter. PostgreSQL, MySQL and MariaDB, SQLite, Oracle and
+  ODBC: their own INSERT, UPDATE and DELETE in one transaction (an upsert updates the rows whose keys are
+  there and inserts the others). SQL Server stages the rows in a temporary table of the target's own types
+  and MERGEs them; Azure's passing errors run the whole write again; a replace whose TRUNCATE a foreign key
+  refuses clears with DELETE instead, in the same transaction. Trino writes where the catalog's connector
+  does (Iceberg, Delta Lake, Hive), row batches without a transaction: its dry run says so, a failure part-way
+  says how many rows were already written, and replace is refused (clear the table first, then append).
 - **Dataverse** through its Web API (its SQL endpoint is read-only): create, update, upsert (by an
   alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
   labels (Won, not 1).
