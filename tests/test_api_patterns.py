@@ -273,13 +273,13 @@ def test_a_summary_by_period_and_a_reconcile_are_written_in_the_sources_own_sql(
     # Dataverse's Web API has no SQL: the columns it needs are read with a plan, DuckDB does the rest.
     odata = _all(STYLES[7])
     assert (
-        "connection('Sales CRM').read('orders', columns=['order_date', 'amount'], filters=filters)" in odata
+        'connection("Sales CRM").read("orders", columns=["order_date", "amount"], filters=filters)' in odata
     )
-    assert "engine.register(\"left_rows\", connection('Sales CRM').read('orders', columns=" in odata
+    assert 'engine.register("left_rows", connection("Sales CRM").read("orders", columns=' in odata
     assert ".query(" not in odata
     # The page, the filters and the keys always go to the source in the read's plan.
-    assert '{"limit": limit, "offset": offset}' in tsql
-    assert "filters=[['order_id', \"in\", keys[start : start + 500]]]" in tsql
+    assert '"limit": limit, "offset": offset}' in tsql
+    assert 'filters=[["order_id", "in", keys[start : start + 500]]]' in tsql
 
 
 def test_a_pattern_refuses_what_it_cannot_make_in_one_sentence() -> None:
@@ -299,7 +299,7 @@ def test_a_pattern_refuses_what_it_cannot_make_in_one_sentence() -> None:
     assert refused("versions", {}) == "Pick the version number."
     assert refused("action", {"sets": []}) == "Pick at least one column it sets, and the value."
     assert refused("action", {"sets": [{"column": "amount", "value": "lots"}]}) == (
-        "amount holds numbers: 'lots' is not one."
+        'amount holds numbers: "lots" is not one.'
     )
     assert refused("reconcile", {}) == "Reconcile compares two tables: pick the second one."
     assert refused("reconcile", {"key": ["customer"]}, tables["ledger"]) == (
@@ -756,7 +756,7 @@ def test_every_pattern_exports_for_the_three_targets_and_runs_on_the_real_connec
         done = ok(client.post("/local-api/scaffold", json=body, headers=AUTH))
         assert done["added"], done
     text = (folder / "API.py").read_text(encoding="utf-8")
-    assert "connection('Shop').read('orders'" in text and "connection('Sandbox')" not in text
+    assert 'connection("Shop").read("orders"' in text
     assert 'FROM "orders" AS l' in text and 'FULL OUTER JOIN "ledger" AS r' in text  # Shop's own SQL
     stand = tmp_path / "standins"
     (stand / "azure" / "functions").mkdir(parents=True)

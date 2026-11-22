@@ -8214,3 +8214,66 @@ a write is never sent twice after a passing error (429 only); discovery's Allow 
 Every change to a project's objects (table structure, connection, API and shape, endpoint, widget, canvas, code,
 setting, library) is one event in .sab/changes.jsonl (Git-ignored, everything kept, never values); the agent's changes
 tool answers the last change on an object. Plan: Plans/changes.plan.md.
+
+## The endpoint wizard and its patterns (the owner approved, 2026-11-21): built, with the decisions made
+Branch endpoint-wizard, 2026-11-22. One wizard (New endpoint…) replaces New endpoint from a table; nine patterns
+as data (domain/api_patterns.py: what a pattern is, the registry; api_pattern_code.py: each one's template, fit
+and defaults); the agent's `api` tool gained `patterns`, `plan` and a richer `scaffold` (no new tool).
+Decided while building:
+- **Steps are data, one request draws them.** A step is one of seven kinds (column, columns, choice, text, table,
+  totals, sets); a pattern lists its own. The page has no rule: POST /local-api/plan answers the tables, the
+  ranking with its sentences, a pattern's steps with their columns and defaults, the code and the one thing
+  missing. An extension adds a pattern as data (its API_PATTERNS), as it adds an export target.
+- **Ranking.** Each pattern scores a table's shape and says why in one sentence (a key, a text column, a number
+  beside a category or a date, a status column, a version number, columns shared with another sandbox table).
+  Table is first unless the table has a version number column; a pattern that cannot fit is last, says what it
+  needs and cannot be picked (Versions without a whole-number version; Reconcile alone in the sandbox).
+- **One template a pattern, through the adapter only.** read's plan carries the filters, columns, sort, page and
+  keys; Summary is a plan with group and totals (the adapter folds it or does it over the stream itself). A
+  summary by period and Reconcile are ONE statement in the source's own SQL through `query` (written by sqlglot
+  in the connection's dialect: quoting, DATETRUNC, OFFSET/FETCH), and where the source has no SQL (Dataverse's
+  Web API, SharePoint), cannot FULL JOIN (MySQL) or the two tables are on two connections, the endpoint reads
+  only the columns it needs and DuckDB works over the two streams; its data words say "DuckDB does part of it
+  over the stream (its source cannot)". Values never go into SQL text but a validated date and whole numbers.
+- **Action is one write of several rows**, checked first (every key there; an optional "only while status is
+  open"), all or none because the adapter's write is. An action that writes TWO tables in one transaction needs
+  the adapter (below); the template does not pretend to it.
+- **Bulk upload** checks in the endpoint (unknown column, required, type, a key sent twice; insert-only: a key
+  already there, looked up 500 keys a read), answers the first 200 problems on a dry run, refuses with the first
+  problem otherwise, then one write. A row's missing columns are written blank (said in its docstring).
+- **Export needs no library**: sab_api.download(rows, "orders.csv" | "orders.xlsx") (the .xlsx written with
+  zipfile; a date as text). An answer that is not text goes through API Gateway as base64 (the Lambda target).
+  Export names no widget pairing yet: a download link on a canvas needs the API's address and key in the page.
+- **sab_api changed by adding**: download and Download; the most literal path answers (/orders/search before
+  /orders/{key}, whichever was written first: the patterns' paths sit beside Table's); a parameter typed
+  `date | None` is converted (it was left as text: `str(origin) == "types.UnionType"` never held).
+- **The marker** is one comment under the block's banner (`# pattern: summary of orders`); an endpoint belongs
+  to the nearest marker above it with no other banner between. Nothing reads the code back to rewrite it.
+- **Imports** are merged into API.py's own lines (`from sab_api import ...` grows); where the file imports the
+  datetime module by name, the block is written with `datetime.date` (the forms_recon example needed it).
+- **Generated code reads as a formatter leaves it**: double quotes (the Table pattern's too), a long column list
+  one a line, one parameter a line.
+- **A dropped widget wires itself** when exactly one endpoint pairs with it, else to the one over the table its
+  nearest neighbour already uses (its own container first, then its page); with none near it is left unwired,
+  never guessed. It is part of the insert (one Undo) and said once on the Canvas. Only the user's or the agent's
+  insert does it: a value given with the insert is never overwritten.
+- **forms_recon**: its hand-written logic stays (forms with versions kept long, the PIVOT column store, the
+  reconciliation with tolerances are not pattern-shaped). Rebuilt with the wizard: a reconciliation's runs (Search
+  over recon_runs, replacing list_runs), and added: a form picker's Choices, a run's counts by status (Summary
+  of recon_results), its results as a CSV file (Export). Its e2e test reads the runs from the new path.
+
+Notes for the adapter's builder (adapter.py was not touched here):
+- **Remote.read sends its plan as JSON without `default=`**: a filter value that is a date fails ("Object of
+  type date is not JSON serializable"); Remote.query already passes `default=_json_value`. The patterns send
+  dates as ISO text until then (Search's from_/to_ filters, the stream summary's since).
+- **A transaction over several writes** (`with connection(name).transaction(): ...`, or write() taking several
+  tables' rows): what an Action over two tables (a status and its audit row) needs to be all or none.
+- **planned() on Connection** (it is a module function taking a source): Bulk upload's dry run would say the
+  write's own counts from it instead of looking the keys up itself.
+- **A plan's group by an expression** (a date's month): a summary by period would then be a plan for every
+  source, not a statement for SQL sources and DuckDB over the stream for the others.
+- **`like` in any case**: the patterns' text search is the source's own LIKE (case-sensitive in DuckDB and
+  PostgreSQL, not in SQL Server by default); a plan operator that says "contains, any case" would make it one
+  behaviour.
+Not built: an Export widget pairing; the wizard remembering the last fields per table; Compare / Take the new one
+for a pattern block after an app update (the code is the user's once added, by the owner's rule).

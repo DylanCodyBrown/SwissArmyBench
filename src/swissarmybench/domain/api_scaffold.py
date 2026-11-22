@@ -17,8 +17,11 @@ Pure text: standard library only.
 from __future__ import annotations
 
 import ast
+import io
+import json
 import keyword
 import re
+import tokenize
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -38,6 +41,22 @@ class Source:
     connection: str
     dialect: str = "duckdb"
     schema: str = ""
+
+
+def py(value: Any, indent: int | None = None) -> str:
+    """A value written as Python the way a formatter leaves it: double quotes; a long list of names one a
+    line when `indent` (the line's own) is given."""
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, Mapping):
+        return "{" + ", ".join(f"{py(k)}: {py(v)}" for k, v in value.items()) + "}"
+    if isinstance(value, (list, tuple)):
+        flat = "[" + ", ".join(py(v) for v in value) + "]"
+        if indent is None or len(flat) + indent <= 88:
+            return flat
+        pad = " " * (indent + 4)
+        return "[\n" + "".join(f"{pad}{py(v)},\n" for v in value) + " " * indent + "]"
+    return repr(value)
 
 
 def _ident(text: str) -> str:
@@ -69,6 +88,7 @@ def imports_missing(text: str, block: str = "") -> str:
     the block reads of sab_api, TypedDict, and date or datetime (API.py would not start without them)."""
     imported = set(re.findall(r"^\s*from\s+[\w.]+\s+import\s+([^\n#]+)", text, re.M))
     names = {n.strip().split(" as ")[-1] for line in imported for n in line.strip("() ").split(",")}
+    names |= set(re.findall(r"^import\s+(\w+)\s*$", text, re.M))  # a module by its own name
     used = _used(block) if block else {"TypedDict", "ApiError", "connection", "endpoint", "records"}
     lines = []
     if "TypedDict" in used and "TypedDict" not in names:
@@ -80,6 +100,31 @@ def imports_missing(text: str, block: str = "") -> str:
     if wanted:
         lines.append(f"from sab_api import {', '.join(wanted)}  # noqa: E402")
     return "\n".join(lines) + ("\n" if lines else "")
+
+
+def fitted(text: str, block: str) -> str:
+    """A block made to stand in this API.py: where the file imports the datetime module by its name
+    (`import datetime`), the block's `date` and `datetime` are written `datetime.date` and
+    `datetime.datetime` (importing the class would hide the module the file's own code uses). Only the
+    code's own names: never a word in a string or a comment."""
+    if not re.search(r"^import datetime\s*$", text, re.M) or re.search(
+        r"^from datetime import [^\n]*\bdatetime\b", text, re.M
+    ):
+        return block
+    spots: list[tuple[int, int]] = []
+    before = ""
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(block).readline):
+            if token.type == tokenize.NAME and token.string in ("date", "datetime") and before != ".":
+                spots.append(token.start)
+            if token.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT):
+                before = token.string
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return block
+    lines = block.split("\n")
+    for row, column in reversed(spots):
+        lines[row - 1] = lines[row - 1][:column] + "datetime." + lines[row - 1][column:]
+    return "\n".join(lines)
 
 
 def with_imports(text: str, needs: str) -> tuple[str, str]:
@@ -161,7 +206,7 @@ def crud(
     ]
     if not all(field_lines):
         bad = next(n for n, line in zip(names, field_lines, strict=True) if not line)
-        raise ScaffoldError(f"The column {bad!r} is not a Python name, so it cannot be a field of {model}.")
+        raise ScaffoldError(f"The column {py(bad)} is not a Python name, so it cannot be a field of {model}.")
     head = [
         "",
         "",
@@ -181,7 +226,7 @@ def crud(
 def _style_words(source: Source) -> str:
     if source.kind == "duckdb":
         return 'connection("Sandbox") through the adapter'
-    return f"connection({source.connection!r}) through the adapter"
+    return f"connection({py(source.connection)}) through the adapter"
 
 
 def _decorators(path: str) -> dict[str, str]:
@@ -200,18 +245,18 @@ def _styled(
     """One style for every source: the adapter's read and write on connection(name), so the same code runs
     on the sandbox here and on the real connection in an export."""
     deco = _decorators(path)
-    c = f"connection({source.connection!r})"
-    t = repr(f"{source.schema}.{table}" if source.schema else table)
+    c = f"connection({py(source.connection)})"
+    t = py(f"{source.schema}.{table}" if source.schema else table)
     return f'''{deco["list"]}
 def list_{stem}(limit: int = 50, offset: int = 0) -> list[{model}]:
     """{table}: a page of its rows."""
-    return records({c}.read({t}, sort=[[{key!r}, "asc"]], limit=limit, offset=offset))
+    return records({c}.read({t}, sort=[[{py(key)}, "asc"]], limit=limit, offset=offset))
 
 
 {deco["get"]}
 def get_{stem}(key: {key_type}) -> {model}:
     """{table}: one row by {key}."""
-    found = records({c}.read({t}, filters=[[{key!r}, "=", key]], limit=1))
+    found = records({c}.read({t}, filters=[[{py(key)}, "=", key]], limit=1))
     if not found:
         raise ApiError(404, f"No {table} row has {key} {{key}}.")
     return found[0]
@@ -220,17 +265,17 @@ def get_{stem}(key: {key_type}) -> {model}:
 {deco["create"]}
 def create_{stem}(row: {model}) -> {model}:
     """{table}: a new row from the body."""
-    {c}.write({t}, [{{c: v for c, v in row.items() if c in {names!r}}}])
+    {c}.write({t}, [{{c: v for c, v in row.items() if c in {py(names)}}}])
     return row
 
 
 {deco["update"]}
 def update_{stem}(key: {key_type}, row: {model}) -> {model}:
     """{table}: the body's columns set on one row."""
-    changes = {{c: v for c, v in row.items() if c in {names!r} and c != {key!r}}}
+    changes = {{c: v for c, v in row.items() if c in {py(names)} and c != {py(key)}}}
     if not changes:
         raise ApiError(422, "Send at least one column to change.")
-    done = {c}.write({t}, [changes | {{{key!r}: key}}], key=[{key!r}], mode="update")
+    done = {c}.write({t}, [changes | {{{py(key)}: key}}], key=[{py(key)}], mode="update")
     if not done.updated:
         raise ApiError(404, f"No {table} row has {key} {{key}}.")
     return get_{stem}(key)
@@ -239,7 +284,7 @@ def update_{stem}(key: {key_type}, row: {model}) -> {model}:
 {deco["delete"]}
 def delete_{stem}(key: {key_type}) -> None:
     """{table}: one row gone."""
-    done = {c}.write({t}, [{{{key!r}: key}}], key=[{key!r}], mode="delete")
+    done = {c}.write({t}, [{{{py(key)}: key}}], key=[{py(key)}], mode="delete")
     if not done.deleted:
         raise ApiError(404, f"No {table} row has {key} {{key}}.")
 '''

@@ -137,7 +137,9 @@ Write starters it calls) and **the app** (sab.write, the agent's command, the Ca
   held), test_adapter_grids.py, test_adapter_sandbox.py, test_adapter_boundary.py (every place outside the adapter
   that opens a driver or turns JSON into rows, listed; enforced for what moved). Larkfield's 10M order lines:
   docs/verified.md. Decisions and what each later step needs: docs/ideas.md "One adapter".
-- Not yet: contract.json, folder extensions, the endpoint wizard, the other connection kinds as backends, the
+- Built since (branch endpoint-wizard, 2026-11-22): the endpoint wizard and its nine patterns, on
+  connection(name).read / .query / .write (docs/ideas.md "The endpoint wizard").
+- Not yet: contract.json, folder extensions, the other connection kinds as backends, the
   export's file list (adapter.py beside sab_api.py), a kernel's grid, the answer path (Arrow to JSON), an Excel
   workbook as a source (Plans/excel.plan.md: it needs a `replace` write mode).
 

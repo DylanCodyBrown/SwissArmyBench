@@ -658,10 +658,22 @@ src/swissarmybench/
                          sab_api.py, adapter.py, connections.py: the real connections' own code; README with
                          the deploy steps, the checklist and the variables; no secret), exports/api/<target>/ a made
                          folder
-    api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
+    api_scaffold.py      the Table pattern: the CRUD set (list with limit and offset, get, create, update,
                          delete by a key; a TypedDict of the columns), one style for every source: the adapter's
-                         connection(name).read and .write (2026-11-22); the imports it needs (a date's too)
-                         written among API.py's own (with_imports)
+                         connection(name).read and .write (2026-11-22); the imports a block needs (a date's too)
+                         merged into API.py's own lines (imports_missing, with_imports); fitted (a file that
+                         imports the datetime module: datetime.date); py (a value written as a formatter leaves it)
+    api_patterns.py      the endpoint wizard's patterns as data (the owner, 2026-11-21): Step, Pairing, Pattern, the
+                         nine (table, choices, search, summary, bulk, action, versions, reconcile, export: each its
+                         own steps and the widgets that pair with its endpoints), Registry (ranked: a table's shape
+                         against every pattern with one sentence why; planned: a pattern's steps with their columns
+                         and defaults; make; role, pairings), from_extension (an extension's API_PATTERNS), the one
+                         marker comment (`# pattern: summary of orders`: marked, pattern_at)
+    api_pattern_code.py  each pattern's ONE template, filled from its fields and the table's catalog, its fit and
+                         its defaults: connection(name).read / .query / .write only; filters, columns, sort, page
+                         and keys in the read's plan; a summary by period and a reconcile one statement in the
+                         source's own SQL (sqlglot, its dialect), else only the needed columns read and DuckDB over
+                         the stream (Made.streams); Target, Taken, Made
     api_actions.py       an API's actions in the app (Plans/api-adapter.plan.md): `local` (the project's local sandbox
                          API), the shapes' folders (apis/<name>/shapes/, .sab/api-shapes/), Build's text (a notebook
                          cell, a script function: sab.run, sab.records) and widget plan (data_table on [API].action,
@@ -752,8 +764,12 @@ src/swissarmybench/
                          connection's from the shared catalog, put back after Reset and Restore); mock_dialects
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
                          (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
-                         the session; api writes), log, address, scaffold (New endpoint from a table, appended to
-                         API.py; its key kept by the sandbox); state brief (full: the OpenAPI document)
+                         the session; api writes), log, address, the endpoint wizard (pattern_list; plan: the
+                         tables, the patterns ranked, a pattern's steps and its code, nothing written; scaffold: a
+                         pattern's endpoints appended to API.py, a dry run the code only; its key kept by the
+                         sandbox; paired: each pattern-made endpoint with its widget, for the Canvas); each
+                         endpoint's pattern and "DuckDB does part of it over the stream"; state brief (full: the
+                         OpenAPI document)
     api_export.py        Export for a target: the bundle, the made folder (only changed bytes, stale files gone,
                          a hand-edited file kept until Replace), the sandbox's copy on the tick (the agent's on Allow)
     apis.py              Add API: preview, add (into this computer's library, apis/<name>/: API_<name>.py, its API
@@ -1036,7 +1052,9 @@ src/swissarmybench/
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
     api_runtime.py       sab_api, what API.py imports (standard library; copied into each export): endpoint,
                          connection (use_clients; else the adapter's Connection), records (Arrow or a cursor),
-                         ApiError, handle (one request: every target calls it);
+                         ApiError, handle (one request: every target calls it; the most literal path answers:
+                         /orders/search before /orders/{key}); download (rows as a CSV file or an Excel workbook
+                         to save, written with the standard library);
                          the body checked against its model first (checked: 422 naming the field)
     api_host.py          a local sandbox API hosted (`python -I`): the app's client functions taken over first,
                          Starlette on 127.0.0.1, its key, the request log (a refusal's words and API.py line; the
@@ -1335,8 +1353,12 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          and one count; panes.ts groups the home page's tabs by connection;
                          localApis.ts the APIs page's Local sandbox APIs (one slim bar: name, where it runs, the
                          agent's session writes with Stop, Run / Stop, Open API.py, Properties folded: target, base
-                         path, description; "…": New endpoint, Will this work for real?, Export (its target said,
-                         never asked); endpointsPane: API.py's Endpoints panel on the Scripts page;
+                         path, description; "…": New endpoint…, Will this work for real?, Export (its target said,
+                         never asked); endpointsPane: API.py's Endpoints panel on the Scripts page (New endpoint…
+                         there too); each endpoint labelled by the pattern that made it;
+                         endpointWizard.ts New endpoint, the ONE wizard (a sandbox table, the patterns ranked by its
+                         shape with one sentence why, that pattern's own steps drawn from its data, the code kept
+                         current, Add to API.py; no rule of its own: POST /local-api/plan);
                          each endpoint's data words and Try it (the server's made-up request; a refusal as the one
                          error note with API.py's line; kept open over a redraw), problems with Go to line, the
                          request log and Output); on the Scripts page API.py's main Run is Run API and it takes no
@@ -1414,7 +1436,9 @@ plugin/                  the swissarmybench plugin: skills/swissarmybench-use (S
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
 examples/forms_recon/    the owner's first app POC as a test app, made by the app through the agent's commands: API.py
                          (forms with versions, entries stored long, a PIVOT column store, monthly reconciliations),
-                         three canvas pages, widgets/api_bridge.widget.py (the project's own widget);
+                         three canvas pages, widgets/api_bridge.widget.py (the project's own widget); its
+                         pattern-shaped endpoints made by the wizard (a form picker's choices, a reconciliation's
+                         runs, a run's counts by status, its results as a CSV file);
                          tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
 build.py                 build the page (release) and the one wheel
@@ -1463,7 +1487,9 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          a GET endpoint, a variable, a value, tables), an Event's actions (call, set, rerun), each
                          checked with the reason; any page's Outs (every_out: an app-wide value, a wire from another
                          page `cross`) and the app's own app.viewer; automatic wires by name (this page), readers,
-                         broken wires, each Out[Table]'s columns (declared, else as Play last saw them), the run order
+                         broken wires, each Out[Table]'s columns (declared, else as Play last saw them), the run order;
+                         pair_for (a widget just inserted and the endpoint a wizard's pattern pairs with it: the one
+                         match, else the one over the table its nearest neighbour uses, never a guess)
     domain/widget_upgrade.py  Upgrade to In/Out: a widget's session state keys rewritten as declarations (a preview)
     domain/canvas_model.py  the canvas file (<app>.canvas.json, byte-stable; pages of containers holding containers
                          and widget instances; the pixel engine at one layout's design width; sizing: columns, row
@@ -1506,7 +1532,8 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
     services/canvas.py   Canvases: open (validated), command (versioned: another window's change refused with the
                          canvas as it is now; a file changed on disk read first), undo, redo, state (missing, marks,
                          notes said once), play, check, export (the agent's on Allow), replace (one change: a
-                         build's Restore), rename_widget
+                         build's Restore), rename_widget; an inserted widget wired to its pattern's endpoint in
+                         the same change (paired: the base's local_api.paired)
     services/launch.py   Launches: Launch (a build, then its run with sab_perf.py beside; analyzer from the first
                          load), Relaunch, Stop, builds (list, files, compare two or with now, Restore), the analyzer
                          (attach, the proxy's tap, session, hints, save into the build, a saved one)

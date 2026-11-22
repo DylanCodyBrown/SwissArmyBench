@@ -493,6 +493,7 @@ class LocalApi:
             made = self.patterns.make(pattern.id, target, fields, self._taken(text), other)
         except scaffold_rules.ScaffoldError as error:
             return answer | {"problem": str(error), "code": "", "added": []}
+        made.text = scaffold_rules.fitted(text, made.text)
         needs = scaffold_rules.imports_missing(text, made.text)
         paired = [
             w | {"function": name} for name in made.added for w in self.patterns.pairings(pattern.id, name)
@@ -527,7 +528,7 @@ class LocalApi:
             await self.new(None, who)
         text = self._text() or rules.scaffold("api")
         made = self.patterns.make(pattern.id, target, fields, self._taken(text), other)
-        block = made.text
+        block = scaffold_rules.fitted(text, made.text)
         needs = scaffold_rules.imports_missing(text, block)
         if dry:
             return {"dry_run": True, "pattern": pattern.id, "code": block.lstrip("\n"), "imports": needs,

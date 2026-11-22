@@ -36,6 +36,10 @@ def shot(page: Page, name: str) -> None:
         page.screenshot(path=str(Path(SHOTS) / f"{name}.png"))
 
 
+# A reconciliation's runs: the wizard's Search pattern over recon_runs (its recon_id a filter).
+RUNS = "/recon_runs/search?recon_id=sales_ledger"
+
+
 def api(server: dict[str, Any], method: str, path: str, body: Any = None) -> Any:
     """The local sandbox API, called as the user's Try it calls it."""
     path, _, text = path.partition("?")
@@ -178,11 +182,11 @@ def test_design_a_form_upload_excel_reconcile_a_month_and_see_the_differences(
     frame.get_by_role("button", name="Run the reconciliation").click()
     # A run's row is listed as it starts and its counts are filled as it ends: wait for the counts.
     until(
-        lambda: [{k: r[k] for k in want} for r in api(server, "GET", "/recons/sales_ledger/runs")],
+        lambda: [{k: r[k] for k in want} for r in api(server, "GET", RUNS)],
         [want],
         120,
     )
-    run = api(server, "GET", "/recons/sales_ledger/runs")[0]
+    run = api(server, "GET", RUNS)[0]
     expect(frame.locator("[data-testid='stMetric']", has_text="Differences")).to_contain_text(
         "2", timeout=60000
     )

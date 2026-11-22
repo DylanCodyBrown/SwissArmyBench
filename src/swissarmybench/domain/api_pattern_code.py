@@ -27,7 +27,7 @@ from sqlglot import exp
 from swissarmybench.domain import api_scaffold as scaffold
 from swissarmybench.domain import local_api as api_rules
 from swissarmybench.domain import sandbox_dialects as dialects
-from swissarmybench.domain.api_scaffold import ScaffoldError, Source
+from swissarmybench.domain.api_scaffold import ScaffoldError, Source, py
 
 PERIODS = ("day", "month", "quarter", "year")
 TOTALS = ("count", "sum", "avg", "min", "max", "count_distinct")
@@ -122,7 +122,7 @@ def _fill(template: str, **values: Any) -> str:
 
 
 def _c(target: Target) -> str:
-    return f"connection({target.source.connection!r})"
+    return f"connection({py(target.source.connection)})"
 
 
 def _path(table: str) -> str:
@@ -167,7 +167,7 @@ def _named(target: Target, columns: Sequence[str], what: str) -> None:
     """Columns that become Python names (a model's fields, a function's parameters)."""
     bad = next((n for n in columns if not n.isidentifier() or keyword.iskeyword(n)), None)
     if bad is not None:
-        raise ScaffoldError(f"The column {bad!r} is not a Python name, so it cannot be {what}.")
+        raise ScaffoldError(f"The column {py(bad)} is not a Python name, so it cannot be {what}.")
 
 
 def _model(name: str, fields: Mapping[str, str], total: bool = False) -> str:
@@ -207,13 +207,13 @@ def _literal(target: Target, column: str, text: Any) -> Any:
         if kind == "float":
             return float(raw)
     except ValueError:
-        raise ScaffoldError(f"{column} holds numbers: {raw!r} is not one.") from None
+        raise ScaffoldError(f"{column} holds numbers: {py(raw)} is not one.") from None
     if kind == "bool":
         if raw.casefold() in ("true", "yes", "1", "on"):
             return True
         if raw.casefold() in ("false", "no", "0", "off"):
             return False
-        raise ScaffoldError(f"{column} is true or false, not {raw!r}.")
+        raise ScaffoldError(f"{column} is true or false, not {py(raw)}.")
     return raw
 
 
@@ -266,22 +266,24 @@ def make_choices(target: Target, fields: Mapping[str, Any], taken: Taken, other:
     types = target.types
     searched = types[label] == "str"
     shown = {n: types[n] for n in picked} | ({} if whole else {"rows": "int"})
-    filters = f'    filters = [[{label!r}, "like", f"%{{search}}%"]] if search else []\n' if searched else ""
-    given = "filters=filters, " if searched else ""
+    filters = (
+        f'    filters = [[{py(label)}, "like", f"%{{search}}%"]] if search else []\n' if searched else ""
+    )
+    narrowed = '"filters": filters, ' if searched else ""
     if whole:
-        body = (
-            f"    return records({_c(target)}.read({target.place!r}, columns={picked!r}, {given}"
-            f'sort=[[{label!r}, "asc"]], limit=limit))'
+        plan = (
+            f'    plan = {{"columns": {py(picked)}, {narrowed}"sort": [[{py(label)}, "asc"]], '
+            f'"limit": limit}}\n'
         )
+        body = plan + f"    return records({_c(target)}.read({py(target.place)}, plan))"
         words = f"its choices for a dropdown ({_words(picked)})"
         more = f"Sorted by {label}, `limit` at most"
     else:
-        narrowed = '"filters": filters, ' if searched else ""
         plan = (
-            f'    plan = {{"group": {picked!r}, "totals": [{{"fn": "count", "name": "rows"}}], '
-            f'{narrowed}"sort": [[{label!r}, "asc"]], "limit": limit}}\n'
+            f'    plan = {{"group": {py(picked)}, "totals": [{{"fn": "count", "name": "rows"}}], '
+            f'{narrowed}"sort": [[{py(label)}, "asc"]], "limit": limit}}\n'
         )
-        body = plan + f"    return records({_c(target)}.read({target.place!r}, plan))"
+        body = plan + f"    return records({_c(target)}.read({py(target.place)}, plan))"
         words = f"each {_words(picked)} it holds, once, with how many rows have it"
         more = "The group and the count are the read's plan: the source does them where it can"
     if searched:
@@ -333,12 +335,13 @@ def <<fn>>(
     """<<table>>: the rows that match, a page at a time.
 
     <<words>>The filters, the sort and the page go to the source."""
+    columns = <<columns>>
     filters: list[list] = []
-<<filters>>    if sort not in <<columns>>:
+<<filters>>    if sort not in columns:
         raise ApiError(422, "sort is one of the columns it answers.")
     way = "desc" if descending else "asc"
-    plan = {"columns": <<columns>>, "filters": filters, "sort": [[sort, way]]}
-    return records(<<c>>.read(<<t>>, plan | {"limit": limit, "offset": offset}))
+    plan = {"columns": columns, "filters": filters, "sort": [[sort, way]], "limit": limit, "offset": offset}
+    return records(<<c>>.read(<<t>>, plan))
 '''
 
 
@@ -364,7 +367,7 @@ def make_search(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
     params, filters, said = [], [], []
     if text_in:
         params.append('    q: str = "",\n')
-        filters.append(f'    if q:\n        filters.append([{text_in!r}, "like", f"%{{q}}%"])\n')
+        filters.append(f'    if q:\n        filters.append([{py(text_in)}, "like", f"%{{q}}%"])\n')
         said.append(f"?q= looks in {text_in}")
     for name in by:
         kind = types[name]
@@ -372,13 +375,13 @@ def make_search(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
             params.append(f"    from_{name}: {kind} | None = None,\n    to_{name}: {kind} | None = None,\n")
             filters.append(
                 f"    if from_{name} is not None:\n"
-                f'        filters.append([{name!r}, ">=", from_{name}.isoformat()])\n'
+                f'        filters.append([{py(name)}, ">=", from_{name}.isoformat()])\n'
                 f"    if to_{name} is not None:\n"
-                f'        filters.append([{name!r}, "<=", to_{name}.isoformat()])\n'
+                f'        filters.append([{py(name)}, "<=", to_{name}.isoformat()])\n'
             )
         else:
             params.append(f"    {name}: {kind} | None = None,\n")
-            filters.append(f'    if {name} is not None:\n        filters.append([{name!r}, "=", {name}])\n')
+            filters.append(f'    if {name} is not None:\n        filters.append([{py(name)}, "=", {name}])\n')
     if by:
         said.append(f"{_words(by)} narrow{'s' if len(by) == 1 else ''} it")
     made = _fill(
@@ -389,13 +392,13 @@ def make_search(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
         path=path,
         fn=fn,
         params="".join(params),
-        sort=repr(sort),
+        sort=py(sort),
         table=target.name,
         words=("; ".join(said) + ". ") if said else "",
         filters="".join(filters),
-        columns=repr(columns),
+        columns=py(columns, 4),
         c=_c(target),
-        t=repr(target.place),
+        t=py(target.place),
     )
     return Made(made, [fn])
 
@@ -419,7 +422,9 @@ def defaults_search(target: Target, other: Target | None) -> dict[str, Any]:
 _SUMMARY_PLAN = '''<<head>><<model>>
 
 @endpoint("GET", "<<path>>")
-def <<fn>>(<<params>>limit: int = 1000) -> list[<<model_name>>]:
+def <<fn>>(
+<<params>>    limit: int = 1000,
+) -> list[<<model_name>>]:
     """<<table>>: <<words>>.
 
     The group and the totals are the read's plan: the source does them where it can."""
@@ -574,13 +579,13 @@ def make_summary(target: Target, fields: Mapping[str, Any], taken: Taken, other:
         "table": target.name,
         "words": words,
         "c": _c(target),
-        "t": repr(target.place),
+        "t": py(target.place),
     }
     if not period:
         params, filters = [], []
         for name in group:
-            params.append(f"{name}: {types[name]} | None = None, ")
-            filters.append(f'    if {name} is not None:\n        filters.append([{name!r}, "=", {name}])\n')
+            params.append(f"    {name}: {types[name]} | None = None,\n")
+            filters.append(f'    if {name} is not None:\n        filters.append([{py(name)}, "=", {name}])\n')
         plan_totals = [
             {"fn": f, "name": name} | ({"column": column} if column else {}) for f, column, name in totals
         ]
@@ -589,9 +594,9 @@ def make_summary(target: Target, fields: Mapping[str, Any], taken: Taken, other:
             **common,
             params="".join(params),
             filters="".join(filters),
-            group=repr(group),
-            totals=repr(plan_totals),
-            sort=repr([[g, "asc"] for g in group]),
+            group=py(group),
+            totals=py(plan_totals),
+            sort=py([[g, "asc"] for g in group]),
         )
         return Made(text, [fn])
     quoted = '"' + when.replace('"', '""') + '"'
@@ -624,8 +629,8 @@ def make_summary(target: Target, fields: Mapping[str, Any], taken: Taken, other:
         **common,
         sql=sql,
         source=target.source.connection,
-        date=repr(when),
-        needed=repr(needed),
+        date=py(when),
+        needed=py(needed),
     )
     return Made(text, [fn], streams=True, words="DuckDB groups it over the stream")
 
@@ -758,26 +763,26 @@ def make_bulk(target: Target, fields: Mapping[str, Any], taken: Taken, other: Ta
     upper = stem.upper()
     taken.free(fn, model, f"_problem_{stem}", f"{upper}_COLUMNS", f"{upper}_REQUIRED")
     taken.open(path)
-    insert_only = _fill(_BULK_INSERT_ONLY, key_r=repr(key), table=target.name) if mode == "insert" else ""
+    insert_only = _fill(_BULK_INSERT_ONLY, key_r=py(key), table=target.name) if mode == "insert" else ""
     text = _fill(
         _BULK,
         head=_head("bulk", "Bulk upload", target),
         upper=upper,
-        kinds=repr(target.types),
-        required=repr(required),
+        kinds=py(target.types),
+        required=py(required),
         model_name=model,
         stem=stem,
         path=path,
         fn=fn,
         table=target.name,
         key=key,
-        key_r=repr(key),
+        key_r=py(key),
         also=f", a {key} already there" if mode == "insert" else "",
         insert_only=insert_only,
         updated="len(there)" if mode == "merge" else "0",
         c=_c(target),
-        t=repr(target.place),
-        mode=repr(mode),
+        t=py(target.place),
+        mode=py(mode),
     )
     return Made(text, [fn], [key])
 
@@ -867,16 +872,16 @@ def make_action(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
     body, done = _camel(name) + _camel(target.name), _camel(name) + _camel(target.name) + "Done"
     taken.free(fn, body, done)
     taken.open(path)
-    said = _words([f"{column} set to {value!r}" for column, value in sets.items()])
+    said = _words([f"{column} set to {py(value)}" for column, value in sets.items()])
     words = f"{name.replace('_', ' ')} the rows whose {key} is sent: {said}"
     only_text = ""
     if only:
         value = _literal(target, only, fields.get("only_value"))
         only_text = _fill(
-            _ACTION_ONLY, key_r=repr(key), key=key, only_r=repr(only), only=only, only_value=repr(value),
+            _ACTION_ONLY, key_r=py(key), key=key, only_r=py(only), only=only, only_value=py(value),
             only_said=str(value),
         )  # fmt: skip
-        words += f", only while {only} is {value!r}"
+        words += f", only while {only} is {py(value)}"
     text = _fill(
         _ACTION,
         head=_head("action", "Action", target),
@@ -888,12 +893,12 @@ def make_action(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
         table=target.name,
         words=words,
         c=_c(target),
-        t=repr(target.place),
-        read=repr(list(dict.fromkeys([key, *([only] if only else [])]))),
+        t=py(target.place),
+        read=py(list(dict.fromkeys([key, *([only] if only else [])]))),
         key=key,
-        key_r=repr(key),
+        key_r=py(key),
         only=only_text,
-        sets=", ".join(f"{column!r}: {value!r}" for column, value in sets.items()),
+        sets=", ".join(f"{py(column)}: {py(value)}" for column, value in sets.items()),
     )
     return Made(text, [fn], [key])
 
@@ -999,12 +1004,12 @@ def make_versions(target: Target, fields: Mapping[str, Any], taken: Taken, other
         key_type=target.types[of],
         table=target.name,
         of=of,
-        of_r=repr(of),
+        of_r=py(of),
         version=version,
-        version_r=repr(version),
-        names=repr(target.names),
+        version_r=py(version),
+        names=py(target.names),
         c=_c(target),
-        t=repr(target.place),
+        t=py(target.place),
     )
     return Made(text, added, [of, version])
 
@@ -1012,7 +1017,7 @@ def make_versions(target: Target, fields: Mapping[str, Any], taken: Taken, other
 def fit_versions(target: Target, others: Sequence[Target]) -> tuple[int, str]:
     version = _version(target)
     if version:
-        return 88, f"{target.name} has {version}: every version kept, the current one read, a new one added."
+        return 92, f"{target.name} has {version}: every version kept, the current one read, a new one added."
     return (
         0,
         f"{target.name} has no version number column (a whole number such as version): Versions needs one.",
@@ -1194,7 +1199,7 @@ def make_reconcile(target: Target, fields: Mapping[str, Any], taken: Taken, othe
     fields_of = {k: types[k] for k in keys} | {"result": "str"}
     for n in compare:
         fields_of |= {f"{n}_{left_stem}": types[n], f"{n}_{right_stem}": other.types[n]}
-    needed = repr([*keys, *compare])
+    needed = py([*keys, *compare])
     if folded:
         how = f"One statement in {target.source.connection}'s own SQL: the source joins the two tables."
 
@@ -1211,7 +1216,7 @@ def make_reconcile(target: Target, fields: Mapping[str, Any], taken: Taken, othe
 
         def run(sql: str) -> str:
             return _fill(
-                _RECONCILE_STREAMED, c=_c(target), t=repr(target.place), c2=_c(other), t2=repr(other.place),
+                _RECONCILE_STREAMED, c=_c(target), t=py(target.place), c2=_c(other), t2=py(other.place),
                 needed=needed, sql=sql,
             )  # fmt: skip
 
@@ -1219,12 +1224,12 @@ def make_reconcile(target: Target, fields: Mapping[str, Any], taken: Taken, othe
         _RECONCILE,
         head=_head("reconcile", "Reconcile", target, other),
         upper=upper,
-        differences=repr(["differing", *labels]),
-        all=repr(["matched", "differing", *labels]),
+        differences=py(["differing", *labels]),
+        all=py(["matched", "differing", *labels]),
         left_stem=left_stem,
         right_stem=right_stem,
-        missing_left=repr(labels[0]),
-        missing_right=repr(labels[1]),
+        missing_left=py(labels[0]),
+        missing_right=py(labels[1]),
         in_sql=f", in {target.source.connection}'s own SQL"
         if folded
         else ", in DuckDB SQL over the two streams",
@@ -1296,8 +1301,9 @@ def <<fn>>(limit: int = 100000) -> Download:
 
     It carries <<columns_said>>, sorted by <<sort>>: read from the source a batch at a time, `limit` rows at
     most."""
-    rows = <<c>>.read(<<t>>, columns=<<columns>>, sort=[[<<sort_r>>, "asc"]], limit=limit)
-    return download(rows, <<file>>)
+    columns = <<columns>>
+    plan = {"columns": columns, "sort": [[<<sort_r>>, "asc"]], "limit": limit}
+    return download(<<c>>.read(<<t>>, plan), <<file>>)
 '''
 
 
@@ -1325,11 +1331,11 @@ def make_export(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
         what="a CSV file" if kind == "csv" else "an Excel workbook",
         columns_said="every column" if every else _words(columns),
         sort=sort,
-        sort_r=repr(sort),
+        sort_r=py(sort),
         c=_c(target),
-        t=repr(target.place),
-        columns=repr(columns),
-        file=repr(f"{target.name}.{kind}"),
+        t=py(target.place),
+        columns=py(columns, 4),
+        file=py(f"{target.name}.{kind}"),
     )
     return Made(text, [fn])
 

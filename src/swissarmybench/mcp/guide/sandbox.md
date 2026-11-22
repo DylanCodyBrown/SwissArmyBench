@@ -13,7 +13,7 @@ reads and writes. A real connection is never reached from one ("No never run aga
   primary key (a connection's table takes its key from the shared catalog by itself).
 - `key` `{"table": "stock", "key": "sku"}`: a table's primary key, as the real database has it: a write that
   repeats or blanks it is refused in one sentence ("Duplicate key: a row with sku: A-1 is there already").
-  Reset and Restore keep it. New endpoint from a table sets its key when the table has none.
+  Reset and Restore keep it. New endpoint (a pattern that writes by a key) sets its key when the table has none.
 - `remove` `{"table"}`, `open` `{"table"}` (in Grids as `sandbox_<table>`, following every write).
 - `reset`: every table back to the baseline (waits for the user's Allow). `baseline`: the sandbox now is the
   baseline. `checkpoint` `{"name", "action": "save"|"delete"}`, `restore` `{"name"}`.
@@ -116,10 +116,31 @@ Every project has `API.py` at its top (New project makes it; `api(new)` for an o
   `rows`: bundle the sandbox for `connection("Sandbox")` (the agent's waits for Allow); without it the answer's
   `warnings` say those endpoints answer an error there.
 
-## New endpoint from a table
-- `scaffold` `{"table": "orders", "key": "order_id"}`: the CRUD set appended to API.py (list with `limit` and
-  `offset`, get, create, update, delete by the key; a TypedDict of the columns), one style for every source:
-  `connection(name).read(...)` and `.write(...)`, the table named in its schema (`dbo.orders`).
+## New endpoint: the wizard's patterns
+One wizard on the page (New endpoint…), one command for you: nine patterns, each with its own steps.
+- `patterns`: the nine as data (`steps`: what each asks; `widgets`: the canvas widgets that pair with it).
+  table (list, get, create, update, delete by a key), choices (a dropdown's value and label), search (a text
+  search, a filter per column, sort, page), summary (totals per group; by day, month, quarter or year), bulk
+  (many rows: checked, `?dry_run=true` lists the problems, then all or none), action (a named change to the rows
+  whose keys are sent, all or none), versions (a thing's versions, its current one, a new one), reconcile (two
+  tables by a key: matched, missing each side, differing), export (a CSV file or an Excel workbook).
+- `plan` `{"table": "orders"}`: every pattern `ranked` by the table's shape, each with `why` in one sentence
+  (`fits: false` says what it needs). With `"pattern": "summary"` too: that pattern's `plan.steps` (each one's
+  `options`: the columns that fit; its `value`: what the shape suggests, or what you sent in `fields`), and the
+  `code` it would add, or `problem`: the one thing still missing. Writes nothing.
+- `scaffold` `{"table": "orders", "pattern": "summary", "fields": {"group": ["region"], "totals": [{"fn": "sum",
+  "column": "amount"}]}}`: its endpoints appended to API.py (`added`), `paired`: the widget for each
+  (a bar chart's table In for `GET /orders/summary/region`). `"dry_run": true`:
+  the `code` and `imports` only. Reconcile takes `"other"`: its second table. Fields left out take the plan's
+  values. The older `{"table", "key"}` is the table pattern.
+- The code is one style for every source: `connection(name).read(...)` (filters, columns, sort, page and keys in
+  its plan), `.query(...)` in the source's own SQL where one statement does it (a summary by period, a
+  reconcile), `.write(...)` (one write: all or none). Where a source cannot do a part (Dataverse's Web API,
+  SharePoint, two connections), only the columns needed are read and DuckDB does it over the stream: the
+  endpoint's `data` says so. One comment marks the block (`# pattern: summary of orders`): `state`'s endpoints
+  carry `pattern` {id, label, of, role}. The code is the user's from then on: change it in API.py.
+- A widget inserted on a canvas wires itself to the endpoint its pattern pairs with (`canvas_insert_widget`'s answer
+  has `wired`): the one match, else the one over the table its nearest neighbour uses; never a guess.
 
 ## Widgets that use it, and their shapes
 - Prebuilt widgets: API table (a GET's rows, paged by `limit` and `offset`), API form (a POST or PUT from its body
