@@ -240,7 +240,9 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # it as it is, standard library + duckdb + pyarrow only), so it is allowed more than the others.
 # 3,000 (2026-11-22, phase 4): the file writes' formats and options, a partitioned folder, a write's batch,
 # rows of any shape (arrow_of), the widened catalogs and the open tables' view as a source.
-ONE_FILE = {"adapter.py": 3000}
+# 3,500 (2026-11-22, phase 5): SQL Server's write (staged, MERGE, retried; about 420 lines) and Trino's (about
+# 160) moved in from the Write starters (the owner: "then every write is the adapter's").
+ONE_FILE = {"adapter.py": 3500}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

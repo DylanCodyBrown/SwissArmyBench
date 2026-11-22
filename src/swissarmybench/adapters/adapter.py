@@ -20,8 +20,9 @@ It reads top to bottom in the order a call runs:
                     its source folded
   2. Sources        a source is three functions (tables, read, write), and query when it speaks SQL; DuckDB (a
                     file, or a connection given), Remote (the project's sandbox through the app, for a local
-                    sandbox API's process), Sql, OData, Rows, Files; source_from(client) wraps a
-                    connection's own client (or its file's path) in its backend
+                    sandbox API's process), Sql (SQL Server's writes and Trino's in sections of their
+                    own), OData, Rows, Files; source_from(client) wraps a connection's own client (or its
+                    file's path) in its backend
   3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
                     table, batches, key, mode): by a source's name (use() says how a name is found) or
                     the source itself; what a source could not fold is finished here, in DuckDB, over the
@@ -34,7 +35,7 @@ It reads top to bottom in the order a call runs:
 The standard library, duckdb and pyarrow only: an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.0.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.1.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -44,6 +45,12 @@ Version 1.0.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   1.0.0    Files' format, COPY options and partitioned folders; a failed SQL batch beside its error (Batch,
            batch_of); Sql's value; arrow_of; listed() and each dialect's listing; columns' and tables'
            descriptions and positions; the file and module named adapter (was sab_adapter)
+  1.1.0    SQL Server's and Azure SQL's writes (staged in the target's types from sys.columns, MERGE WITH
+           (HOLDLOCK), TRUNCATE, identity_insert, passing errors run again whole: Sql's reopen and
+           identity_insert; transient, ServerColumn, server_columns); Trino's writes (row batches without a
+           transaction, said in NO_TRANSACTION; a truncate with rows refused; Dialect.drains); Counts.notes;
+           a source's own planned() and statements() (what a write runs, for a dry run's report); a
+           three-part name quoted part by part
 """
 
 from __future__ import annotations
@@ -64,7 +71,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.0.0"  # the docstring's change list says what each version added
+VERSION = "1.1.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
