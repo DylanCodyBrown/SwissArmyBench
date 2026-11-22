@@ -23,9 +23,8 @@ from swissarmybench.services.workspace import Conflict, Workspace
 # The page areas an agent may ask for: what the page's own elements are called.
 # The Projects page (the rail's mark, the owner 2026-11-18) while it is open.
 AREAS: tuple[str, ...] = ("app", "ribbon", "grid", "steps", "analyze", "projects")
-# The old names, one release (the Sandbox is Visualizations, the owner, 2026-11-16, and Visualizations is
-# Analyze, 2026-11-19; the Start view is the Projects page, 2026-11-18).
-OLD_AREAS: dict[str, str] = {"sandbox": "analyze", "visualizations": "analyze", "start": "projects"}
+# The old name, one release (the Start view is the Projects page, 2026-11-18).
+OLD_AREAS: dict[str, str] = {"start": "projects"}
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 Answer = asyncio.Future[tuple[bytes, dict[str, str]]]
@@ -55,8 +54,8 @@ class Snapshots:
             raise ValueError("scale must be 1 or 2.")
         if not ws.live.page_open():
             raise Conflict(
-                "No Swiss Army Bench page is open to draw the snapshot. Ask the user to open the "
-                "Swiss Army Bench tab in VS Code."
+                "No Swiss Army Bench page is open to draw the snapshot. Ask the user to open Swiss Army "
+                "Bench."
             )
         snapshot_id = secrets.token_hex(6)
         waiting: Answer = asyncio.get_running_loop().create_future()

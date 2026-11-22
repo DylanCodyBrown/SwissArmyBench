@@ -43,7 +43,7 @@ password.
   columns are `table#1`, `col#3`; quoted text and long numbers are `‹…›`. A note's own words are the
   user's, as typed.
 - `app_beta_log(kind, since, limit)` reads events ("error,page", "2h"); `app_beta_notes` the notes,
-  each with its element, panels, last actions and the server errors before it. Read a note's
+  each with its element, last actions and the server errors before it. Read a note's
   `server_errors` ids in the log to see the stack. A picture is named only; it is in the zip.
 - `app_beta_log_export(path)` saves the zip (yours leaves the pictures out); `app_beta_log_clear`
   empties it. Off, nothing is logged and the menu item is gone; the files stay until cleared.

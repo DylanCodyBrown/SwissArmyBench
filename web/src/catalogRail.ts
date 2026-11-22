@@ -13,7 +13,7 @@
 import { api, errorText, query } from "./api";
 import { type BladeSummary, bladeLine, kindLabel, runBlade } from "./bladeEditor";
 import { connectionIcon, importRelationships, openConnections } from "./connectionsWindow";
-import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades, openPacks } from "./bladeLibrary";
+import { chooseBladeFiles, editBladeFolders, exportBlades, importBlades } from "./bladeLibrary";
 import { openImport } from "./projectImport";
 import { button, clear, formatCount, h, icon, type MenuItem, recall, remember, showMenu, toast } from "./dom";
 import { activeMode, familyShown, familyWords, onMode, whenMode } from "./modes";
@@ -514,7 +514,6 @@ export function mountRail(host: RailHost): Rail {
           blade.tags?.length ? h("span", { class: "blade-item-tags" }, blade.tags.join(" · ")) : null,
         ),
         blade.source === "folder" ? h("span", { class: "blade-file", title: blade.path ?? "" }, "file") : null,
-        blade.source === "pack" ? h("span", { class: "blade-file blade-pack", title: `${blade.pack ?? ""}, read-only` }, "pack") : null,
         button(blade.connection ? "Copy the sab.connection line" : "Copy the sab.blade line", () => copy(line, "the line"), { icon: "copy", iconOnly: true, class: "ghost", title: line }),
       );
       bladeList.append(item);
@@ -531,7 +530,7 @@ export function mountRail(host: RailHost): Rail {
         { class: "rail-head" },
         h("h2", { id: "blades-title" }, "Connections and blades"),
         button("New blade", () => void newBlade(), { icon: "plus", iconOnly: true, class: "ghost", title: "New blade" }),
-        // Import (review first), export, blade folders and packs in one "…" (design principle 8.14: no row of icons).
+        // Import (review first), export and blade folders in one "…" (design principle 8.14: no row of icons).
         button("Blades menu", (e?: Event) => {
           const at = ((e?.currentTarget as HTMLElement | null) ?? bladesHost).getBoundingClientRect();
           showMenu(at.left, at.bottom + 2, "Blades menu", [
@@ -540,7 +539,6 @@ export function mountRail(host: RailHost): Rail {
             ["export", "Export every blade", () => void exportBlades()],
             "-",
             ["folder", "Blade folders…", () => void editBladeFolders(() => void loadBlades())],
-            ["group", "Packs…", () => void openPacks(() => void loadBlades())],
           ]);
         }, { icon: "more", iconOnly: true, class: "ghost", title: "More" }),
       ),

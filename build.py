@@ -1,7 +1,6 @@
 """Build Swiss Army Bench: one wheel that is both the client and the server.
 
     python build.py            # the page (release build), then the wheel in dist/
-    python build.py --vsix     # also the optional VS Code extension, carrying that wheel
 
 The wheel is one package with two installs:
 
@@ -42,7 +41,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--vsix", action="store_true", help="Also package the VS Code extension.")
     parser.add_argument("--skip-npm-install", action="store_true", help="Use web/node_modules as it is.")
     args = parser.parse_args()
 
@@ -76,12 +74,6 @@ def main() -> None:
         text = (HERE / "installer" / name).read_text(encoding="utf-8").replace("__VERSION__", version)
         (HERE / "dist" / name).write_text(text, encoding="utf-8", newline="\n")
         print(f"Wrote dist/{name}")
-
-    if args.vsix:
-        extension = HERE / "vscode-extension"
-        if not args.skip_npm_install:
-            run([NPM, "ci"], extension)
-        run([NPM, "run", "package"], extension)
 
     print("\nInstall the server once per machine, and the client wherever you push from:")
     print(f'  uv tool install --force "{wheel}[server]"')

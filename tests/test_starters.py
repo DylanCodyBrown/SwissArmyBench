@@ -61,7 +61,7 @@ def filled(blade: dict[str, Any]) -> str:
 
 def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
     found = blades()
-    assert len(found) == 188
+    assert len(found) == 151
     counts = Counter(b["family"] for b in found)
     assert counts == {
         "Power BI": 13,
@@ -76,7 +76,7 @@ def test_every_starter_reads_and_is_in_one_of_the_families_in_order() -> None:
         "Controllers": 5,
         "Text and layout": 9,
         "Components": 9,
-        "Write": 70,
+        "Write": 33,
     }
     assert set(counts) == set(FAMILIES)
     names = [b["name"].casefold() for b in found]

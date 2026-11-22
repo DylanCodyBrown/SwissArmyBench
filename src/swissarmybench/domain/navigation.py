@@ -51,12 +51,8 @@ AREAS: tuple[str, ...] = (
     "extensions",
     "settings",
 )
-# The old names, one release (the owner, 2026-11-16: the Sandbox is Visualizations, the Diagram the ERD;
-# 2026-11-18: the Start view is the Projects page).
+# The old names, one release (2026-11-18: the Start view is the Projects page).
 SAME: dict[str, str] = {
-    "sandbox": "analyze",
-    "visualizations": "analyze",  # 2026-11-19: Visualizations is the Analyze page
-    "diagram": "erd",
     "start": "projects",
     "apps": "canvas",  # 2026-11-21: Apps is the Canvas
     "catalog": "data",  # 2026-11-21: the Data Catalog is the Catalog

@@ -148,7 +148,7 @@ GUIDE_TOPICS: dict[str, str] = {
     "apis": "APIs: the library's API and web call blades, the explorer, calls, Return as table, Refresh",
     "structures": "Structures: JSON, YAML, XML and TOML as documents, their steps, lineage, grids, saving",
     "sandbox": "Local sandbox APIs: the project's sandbox, API.py, mock clients, Run, Try it, Export",
-    "blades": "Blades and starters: saved code, the starter pack, packs",
+    "blades": "Blades and starters: saved code, the starter pack",
     "workbench": "The Workbench: notebooks, scripts, kernels, SQL, DAX, HTML and table cells, windows",
     "streamlit": "Streamlit: the Canvas and widgets (the extension's)",
     "projects": "Projects as folders: open, save, the recent ones, tables that need a fix",
@@ -898,7 +898,7 @@ _CARD_FIELDS = (
     opt("title", "Card title (up to 200 characters)."),
     opt(
         "body",
-        "note: markdown; diagram: Mermaid; graphviz: DOT; plotly/echarts: figure JSON; image: data URL.",
+        "note: markdown; diagram: Mermaid; plotly: figure JSON; image: data URL.",
     ),
     opt(
         "spec",
@@ -906,11 +906,11 @@ _CARD_FIELDS = (
         "y: {field?, aggregate: count|sum|mean|min|max}, color?: {field}, title?}.",
         "json",
     ),
-    opt("sql", "A SELECT over `grid`: a table card's rows, or what fills a plotly or echarts body."),
+    opt("sql", "A SELECT over `grid`: a table card's rows, or what fills a plotly body."),
     opt("size", '{"w": 2-12 columns, "h": 3-30 rows of 40px}.', "json"),
 )
 
-# What each card kind takes (visualizations_formats): the agent's whole drawing vocabulary in one answer.
+# What each card kind takes (analyze_formats): the agent's whole drawing vocabulary in one answer.
 _FORMATS: dict[str, Any] = {
     "board": "12 columns wide, rows of 40px; size {w: 2-12, h: 3-30}. Cards go in order; analyze_update "
     "moves (before) and resizes them. Page view prints them as letter or landscape pages.",
@@ -929,22 +929,16 @@ _FORMATS: dict[str, Any] = {
             "body": "Markdown: headings, lists, tables, code, quotes. An Analyze note is resizable like a text box."
         },
         "diagram": {"body": "Mermaid text: flowchart LR\n  A --> B"},
-        "graphviz": {"body": "DOT text: digraph { a -> b }"},
         "plotly": {
             "body": '{"data": [{"type": "bar", "x": ["a"], "y": [1]}], "layout": {}}',
             "note": 'No map traces. Colours may be "theme:accent" to follow the theme.',
             "bound": 'With grid and sql, a trace field naming a column ("x": "region") gets its values.',
         },
-        "echarts": {
-            "body": '{"xAxis": {"data": ["a"]}, "yAxis": {}, "series": [{"type": "bar", "data": [1]}]}',
-            "note": "No images, links or graphic layer; tooltips as text.",
-            "bound": "With grid and sql, the query's result is its dataset.source (encode by column name).",
-        },
         "image": {"body": "data:image/png;base64,...", "or": "file: a PNG, JPEG, GIF, WebP or SVG you saved"},
         "vegalite": {"note": "From the user's own Python (Altair) only; the agent draws with chart."},
     },
     "data": "Read tables with the table tools (columns, profiles, steps_run_sql). A chart card, or a plotly "
-    "or echarts card with sql (FROM grid, or its table's name: the grid as shown), computes on the grid "
+    "card with sql (FROM grid, or its table's name: the grid as shown), computes on the grid "
     "itself (first 5,000 rows), follows its steps, and big "
     "data never passes through you. Use key to replace a card you made before.",
 }
@@ -962,9 +956,9 @@ def card_formats(a: dict[str, Any]) -> Any:
     "analyze_add",
     "Add a card to the Analyze board (analyze_formats lists the kinds). Without grid it belongs to no table.",
     opt("grid", "Grid id: needed for chart and for table sql."),
-    opt("kind", "chart, note, table, diagram, graphviz, plotly, echarts or image."),
+    opt("kind", "chart, note, table, diagram, plotly or image."),
     *_CARD_FIELDS,
-    opt("file", "A picture, .md, .mmd or .dot file on this computer."),
+    opt("file", "A picture, .md or .mmd file on this computer."),
     opt("columns", "A table card's own column names.", "json"),
     opt("rows", "A table card's own rows: lists, one value per column.", "json"),
     opt("key", "Names the card: adding the same key again replaces it in place."),
@@ -3538,9 +3532,7 @@ def _outputs(lines: list[Any]) -> dict[str, Any]:
             )
         elif item.get("output_type") in ("execute_result", "display_data"):
             data = item.get("data", {})
-            cell = data.get("application/vnd.swissarmybench.html-cell+json") or data.get(
-                "application/vnd.swissarmygrid.html-cell+json"  # an output saved before the rename
-            )
+            cell = data.get("application/vnd.swissarmybench.html-cell+json")
             if isinstance(cell, dict):
                 # An HTML cell's run: the design with its names filled, and what filled it (the values
                 # go back to workbench_html_fill as they are; the marks to workbench_html_marks).
@@ -3628,27 +3620,6 @@ def workbench_script_settings(a: dict[str, Any]) -> Any:
             raise CommandError('set is {"arguments": "...", "variables": [...]}.')
         return api.call("PUT", "/workbench/scripts/settings", {"path": a["path"], **a["set"]})
     return api.call("GET", f"/workbench/scripts/settings?path={_q(a['path'])}")
-
-
-@command(
-    "workbench_script_run",
-    "Run as scheduled: the script as a fresh process with no app, its settings' arguments and variables; "
-    "its exit code, time, sources and log (the history keeps it)",
-    req("path", "The script (.py)."),
-    opt("python", "The Python (default: the script's own environment)."),
-)
-def workbench_script_run(a: dict[str, Any]) -> Any:
-    body = {"path": a["path"]} | ({"python": a["python"]} if a.get("python") else {})
-    return api.call("POST", "/workbench/scripts/run", body)
-
-
-@command(
-    "workbench_script_history",
-    "A script's run history (Run as scheduled and Run file), the newest first, with each run's log",
-    req("path", "The script (.py)."),
-)
-def workbench_script_history(a: dict[str, Any]) -> Any:
-    return api.call("GET", f"/workbench/scripts/history?path={_q(a['path'])}")
 
 
 @command(
@@ -3927,17 +3898,6 @@ def app_gates(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "app_panels",
-    "The panels' switches in Settings (all on at each start); with set, turn some off or on",
-    opt("set", '{"workbench.console": false, "grid.ribbon": true}', "json"),
-)
-def app_panels(a: dict[str, Any]) -> Any:
-    if a.get("set") is not None:
-        return api.call("PUT", "/panels", a["set"])
-    return api.call("GET", "/panels")
-
-
-@command(
     "app_session",
     "The Session page's log: what you (and the user) made or changed this session, newest first, each "
     "with its area and its object; and whether the user follows you (their switch, read-only to you)",
@@ -3946,20 +3906,6 @@ def app_panels(a: dict[str, Any]) -> Any:
 )
 def app_session(a: dict[str, Any]) -> Any:
     return api.call("GET", "/session-log", params={k: a.get(k) for k in ("who", "limit")})
-
-
-@command(
-    "app_kind_colours",
-    "Kind colours (app, notebook, script; kept across restarts); with set, choose (null: default)",
-    opt("set", '{"app": "#7b3fc4", "script": null}', "json"),
-)
-def app_kind_colours(a: dict[str, Any]) -> Any:
-    if a.get("set") is not None:
-        return api.call("PUT", "/kind-colours", a["set"])
-    return api.call("GET", "/kind-colours")
-
-
-# ===== the Variables page: this computer's variables (never a secret's value) =====
 
 
 @command(
@@ -4048,7 +3994,7 @@ def app_beta_log(a: dict[str, Any]) -> Any:
     return api.call("GET", "/beta/log", params={k: a.get(k) for k in ("kind", "since", "limit")})
 
 
-@command("app_beta_notes", "The user's beta notes: words, element, panels, last actions")
+@command("app_beta_notes", "The user's beta notes: words, element, last actions")
 def app_beta_notes(a: dict[str, Any]) -> Any:
     return api.call("GET", "/beta/notes")
 
@@ -4499,35 +4445,6 @@ def workbench_lineage_show(a: dict[str, Any]) -> Any:
 
 
 @command(
-    "workbench_cell_approve",
-    "Approve a cell's output in the front notebook (a later run that differs says so); remove=true undoes",
-    opt("number", "The cell's own number (default: the selected cell).", "int"),
-    opt("remove", "true: take the approval away.", "bool"),
-)
-def workbench_cell_approve(a: dict[str, Any]) -> Any:
-    args = {k: a[k] for k in ("number", "remove") if a.get(k) is not None}
-    return _window("cell.approve", args)
-
-
-@command("workbench_approvals", "The front notebook's approved cells: each one changed since approved or not")
-def workbench_approvals(a: dict[str, Any]) -> Any:
-    return _window("approvals.list", {})
-
-
-@command(
-    "workbench_approval_check",
-    "Compare a cell's output records with its approval (or, without one, make the approval)",
-    req("outputs", "The cell's output records (nbformat).", "json"),
-    opt("approved", "Its approval, as the notebook keeps it.", "json"),
-    values=True,
-)
-def workbench_approval_check(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST", "/workbench/approvals", {k: a[k] for k in ("outputs", "approved") if a.get(k) is not None}
-    )
-
-
-@command(
     "workbench_pop_out",
     "Move the front document (unsaved text, kernel) into a Workbench window of its own",
 )
@@ -4967,53 +4884,6 @@ def workbench_environment_choose(a: dict[str, Any]) -> Any:
     return api.call("POST", "/workbench/environment", {"path": a["path"], "python": a["python"]})
 
 
-# ===== packs: blades and relationship sets from a Claude Code plugin marketplace =====
-
-
-@command(
-    "packs_list", "Installed packs, editable ones (clones in the blade folders), and the commands to get more"
-)
-def packs_list(a: dict[str, Any]) -> Any:
-    return api.call("GET", "/packs")
-
-
-@command(
-    "packs_new",
-    "Make a new marketplace repository folder with one pack (and add it as a blade folder)",
-    req("folder", "The new folder."),
-    req("marketplace", "The marketplace's name."),
-    req("pack", "The first pack's name."),
-    opt("owner", "Who keeps it."),
-    opt("description", "What it holds."),
-)
-def packs_new(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("folder", "marketplace", "pack", "owner", "description") if a.get(k)} | {
-        "add_folder": True
-    }
-    return api.call("POST", "/packs/new", body)
-
-
-@command(
-    "packs_add",
-    "Copy saved blades and relationship sets into an editable pack",
-    req("pack", "The pack's folder (packs_list)."),
-    opt("blades", "Blade names.", "list"),
-    opt("sets", "Relationship set names.", "list"),
-    opt("replace", "Replace ones already there.", "bool"),
-)
-def packs_add(a: dict[str, Any]) -> Any:
-    return api.call(
-        "POST",
-        "/packs/add",
-        {
-            "pack": a["pack"],
-            "blades": a.get("blades") or [],
-            "sets": a.get("sets") or [],
-            "replace": bool(a.get("replace")),
-        },
-    )
-
-
 # ===== the rest of what the user can do (the golden rule) =====
 
 
@@ -5283,7 +5153,6 @@ AREAS: tuple[tuple[str, str], ...] = (
     ("workbench", "Workbench: notebooks, scripts, kernels, environments"),
     ("project", "Projects: a folder (its files, and .sab/: tables, steps, Analyze, relationships)"),
     ("projects", "The Project Explorer: every project as a card, sorted; the project types explained"),
-    ("packs", "Packs: blades and relationship sets from a Claude Code marketplace"),
     ("catalog", "Catalog explorer: a source database's tables and columns"),
     ("explorer", "Data Explorer: one search over connections, catalogs, open tables, variables, blades"),
     ("compare", "Compare (two grids side by side)"),
@@ -5315,43 +5184,25 @@ def _arrange() -> None:
 
 _arrange()
 
-# The old names, one release (as renamed.py keeps SwissArmyGrid's): the Sandbox became Visualizations (the
-# owner, 2026-11-16) and Visualizations became Analyze (the owner, 2026-11-19), so each sandbox_* and
-# visualizations_* command is its analyze_* one (the chart's code is analyze_chart_code); a tang became a relationship
-# set (the owner, 2026-11-17), so relationships_*_tang is relationships_*_set. Accepted by the dispatcher
-# (the `sab` command and an MCP call by name) but not listed: the tool list carries the new names only.
-_BOARD_NAMES = (
-    "all", "list", "formats", "add", "update", "dashboards", "theme", "delete", "select", "dashboard",
-    "theme_remove",
-)  # fmt: skip
-OLD_NAMES: dict[str, str] = (
-    {f"visualizations_{name}": f"analyze_{name}" for name in _BOARD_NAMES}
-    | {"visualizations_code": "analyze_chart_code"}
-    | {
-        "relationships_save_tang": "relationships_save_set",
-        "relationships_export_tang": "relationships_export_set",
-        "relationships_import_tang": "relationships_import_set",
-        "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
-    }
-)
+# The old names, one release: a tang became a relationship set (the owner, 2026-11-17), so
+# relationships_*_tang is relationships_*_set. Accepted by the dispatcher (the `sab` command and an MCP call by
+# name) but not listed: the tool list carries the new names only.
+OLD_NAMES: dict[str, str] = {
+    "relationships_save_tang": "relationships_save_set",
+    "relationships_export_tang": "relationships_export_set",
+    "relationships_import_tang": "relationships_import_set",
+    "projects_folder_set": "projects_folders",  # 2026-11-18: the local and shared projects folders
+}
 
 
 # An old argument's name, one release: (command, old) -> new. A tang became a relationship set.
 OLD_ARGS: dict[tuple[str, str], str] = {
     ("relationships_check", "tang"): "set",
-    ("packs_add", "tangs"): "sets",
 }
 
 
 # Commands that went, one release: an old call says why instead of "unknown".
 GONE_NAMES: dict[str, str] = {
-    # The project's sandbox took the word (2026-11-21): the board's old sandbox_* names are analyze_* now.
-    **{
-        f"sandbox_{name}": f"sandbox_{name} went (2026-11-21): the board is Analyze's, analyze_"
-        f"{'chart_code' if name == 'code' else name}; sandbox is the project's sandbox now."
-        for name in (*_BOARD_NAMES, "code")
-        if f"sandbox_{name}" != "sandbox"
-    },
     "analyze_shape": "analyze_shape went (2026-11-19): analyze_check(table, analysis) says whether a table suits "
     "an analysis, from its contract: what fits each slot, what is missing, the fixes.",
     "analyze_defaults": "analyze_defaults went (2026-11-19): analyze_plan(analysis, table) gives the columns a "
@@ -5362,7 +5213,7 @@ GONE_NAMES: dict[str, str] = {
 
 
 def current_name(name: str) -> str:
-    """A command's name as it is now: an old one (visualizations_add) is its new one (analyze_add)."""
+    """A command's name as it is now: an old one (relationships_save_tang) is its new one."""
     return OLD_NAMES.get(name, name)
 
 

@@ -12,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json
+from swissarmybench.server.http import actor, error_as, json_response, read_json
 from swissarmybench.services.folders import Folders
 
 
@@ -32,8 +32,6 @@ def routes(folders: Folders) -> list[BaseRoute]:
             return error_as(error, 404)
         except PermissionError as error:
             return error_as(error, 403)
-        except Exception as error:
-            return error_response(error)
 
     async def new_folder(request: Request) -> Response:
         try:
@@ -44,7 +42,5 @@ def routes(folders: Folders) -> list[BaseRoute]:
             return error_as(error, 409)
         except PermissionError as error:
             return error_as(error, 403)
-        except Exception as error:
-            return error_response(error)
 
     return [Route("/folders", browse), Route("/folders/new", new_folder, methods=["POST"])]

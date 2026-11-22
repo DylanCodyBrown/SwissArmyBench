@@ -336,9 +336,6 @@ _KNOWN = {
     "diagram",
     "analyze",
 }
-# The old keys: read as analyze, not carried (the Sandbox became Visualizations, 2026-11-16, and
-# Visualizations became Analyze, 2026-11-19).
-_KNOWN |= {"visualizations", "sandbox"}
 _KNOWN |= {"model", "autosave", MARK_KEY}
 
 
@@ -424,7 +421,7 @@ def read_manifest(text: str, folder: bool = False) -> tuple[Manifest, str | None
         tabs=_mapping(raw.get("tabs")),
         workbench=_mapping(raw.get("workbench")),
         diagram=_mapping(raw.get("diagram")),
-        visualizations=entry("analyze") or entry("visualizations") or entry("sandbox"),
+        visualizations=entry("analyze"),
         model=entry("model"),
         autosave=raw.get("autosave") is not False if folder else raw.get("autosave") is True,
         extra={k: v for k, v in raw.items() if k not in _KNOWN},

@@ -36,7 +36,5 @@ class ColoursFile:
 
     def write(self, text: str) -> None:
         path = self.path
-        if path is None or (path.is_file() and self.read() == text):
-            return
-        self._made()
-        write_atomic(path, text, newline="\n")
+        if path is not None and write_atomic(path, text, newline="\n", if_changed=True):
+            self._made()

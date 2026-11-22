@@ -29,7 +29,7 @@
  * The agent's: relationships_delete, _update, _undo, _save_set, _export_set, _rename_set, _delete_set.
  */
 import { api, download, grid } from "./api";
-import { append, button, clear, h, icon, openDialog, showMenu, toast, type MenuItem } from "./dom";
+import { append, button, clear, dateTime, h, icon, openDialog, showMenu, toast, type MenuItem } from "./dom";
 import { showAgentView } from "./panes";
 import { saveBlob } from "./profileView";
 import { currentModel, loadRelationships, projectScope, scopeSwitch, type Join, type RelationshipScope } from "./relationships";
@@ -46,7 +46,7 @@ interface SavedSet {
   saved_at: string;
   author: string;
   file: string;
-  where: "mine" | "shared" | "package" | "environment" | "pack";
+  where: "mine" | "shared" | "package" | "environment";
   set: boolean;
   tables: string[];
   open_tables: string[];
@@ -79,7 +79,7 @@ interface RunResult extends Join {
 }
 
 const KINDS = ["many-to-one", "one-to-one", "one-to-many", "many-to-many"];
-const WHERE: Record<SavedSet["where"], string> = { mine: "Mine", shared: "Shared", package: "Built in", environment: "Folder", pack: "Pack" };
+const WHERE: Record<SavedSet["where"], string> = { mine: "Mine", shared: "Shared", package: "Built in", environment: "Folder" };
 // Where a saved set can be renamed or deleted here (a pack's changes in its repository).
 const EDITABLE: SavedSet["where"][] = ["mine", "shared"];
 const STATUS: Record<RunResult["status"], [string, string]> = {
@@ -104,11 +104,6 @@ function ends(r: Join): Pick<Join, "from" | "from_columns" | "to" | "to_columns"
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-function when(iso: string): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
 
 /** A table cell that never widens its column: the text cut with an ellipsis, all of it in the tooltip. */
 function cut(text: string, cls = ""): HTMLTableCellElement {
@@ -135,8 +130,8 @@ export async function importRelationships(picked: File, after: () => Promise<voi
   } catch {
     model = undefined;
   }
-  // A saved set is JSON too, marked "swissarmybench" ("swissarmygrid" before the first rename): reviewed below.
-  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmybench" in model) && !("swissarmygrid" in model)) {
+  // A saved set is JSON too, marked "swissarmybench": reviewed below.
+  if (model && typeof model === "object" && !Array.isArray(model) && !("swissarmybench" in model)) {
     try {
       await api("/relationships", "POST", { model });
       await after();
@@ -237,7 +232,7 @@ export function openRelationships(startFinding = false): void {
 
   function setMenu(t: SavedSet, at: HTMLElement): void {
     const box = at.getBoundingClientRect();
-    const locked = EDITABLE.includes(t.where) ? undefined : t.where === "pack" ? "A pack's set changes in its repository" : "Read-only here";
+    const locked = EDITABLE.includes(t.where) ? undefined : "Read-only here";
     const items: MenuItem[] = [
       ["rename", "Rename…", () => renameSet(t), locked],
       ["export", "Export", () => void exportSaved(t.name)],
@@ -281,7 +276,7 @@ export function openRelationships(startFinding = false): void {
                     "div",
                     { class: "hint" },
                     `${plural(t.relationships, "join")} · ${t.open_tables.length} of ${t.tables.length} tables open`,
-                    t.saved_at ? ` · saved ${when(t.saved_at)}` : "",
+                    t.saved_at ? ` · saved ${dateTime(t.saved_at)}` : "",
                     t.author ? ` by ${t.author}` : "",
                   ),
                 ),

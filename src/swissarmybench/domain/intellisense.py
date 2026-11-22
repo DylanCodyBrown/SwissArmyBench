@@ -398,9 +398,7 @@ BUILTINS: frozenset[str] = frozenset(dir(builtins)) | {
     "__annotations__",
 }
 # Names a Workbench kernel always has (IPython's own, and the app's setup).
-KERNEL_NAMES: frozenset[str] = frozenset(
-    {"get_ipython", "display", "In", "Out", "exit", "quit", "sab", "sag"}
-)
+KERNEL_NAMES: frozenset[str] = frozenset({"get_ipython", "display", "In", "Out", "exit", "quit", "sab"})
 
 
 @dataclass(frozen=True)

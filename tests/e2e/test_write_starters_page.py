@@ -71,24 +71,27 @@ def test_a_write_starter_goes_into_a_cell_runs_dry_then_writes(
     cells = workbench.locator(".wb-cell")
     expect(cells.nth(1).locator(".monaco-editor")).to_be_visible(timeout=20000)
     listed = blades(workbench)
-    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write74", timeout=20000)
+    expect(listed.locator(".starter-family", has_text="Write")).to_have_text("Write37", timeout=20000)
     family(listed, "Write")
-    upsert = listed.locator(".starter-item", has_text="SQLite upsert")
+    upsert = listed.locator(".starter-item", has_text="SQLite write")
     expect(upsert.locator(".blade-kind")).to_have_text("Python")
     shot(workbench, "1-the-write-family")
     upsert.drag_to(cells.nth(1).locator(".monaco-editor"))
     form = workbench.locator("dialog[open]")
-    expect(form.locator("h2")).to_have_text("SQLite upsert")
+    expect(form.locator("h2")).to_have_text("SQLite write")
     expect(form.get_by_label("Connection", exact=True)).to_have_value("Shop", timeout=20000)  # its kind first
     expect(form.get_by_label("Table", exact=True)).to_have_value("orders")
     expect(form.get_by_label("Key column", exact=True)).to_have_value("order_id")  # an id: a key
     expect(form.get_by_label("Target", exact=True)).to_have_value("orders")
+    expect(form.get_by_label("Mode", exact=True)).to_have_value("append")  # one call a target: its mode
+    form.get_by_label("Mode", exact=True).fill("upsert")
     shot(workbench, "2-its-form")
     form.get_by_role("button", name="Insert").click()
     expect(form).to_have_count(0)
     source = window(server, "doc.read")["cells"][1]["source"]
     assert (
-        source.startswith("# SQLite upsert:")
+        source.startswith("# SQLite write:")
+        and 'mode="upsert"' in source
         and '    "Shop",' in source
         and "    orders,  # a DataFrame" in source
         and 'write_sqlite = sab.blade("Write to SQLite")' in source
@@ -134,9 +137,7 @@ def test_a_connections_detail_says_what_it_writes(
     shop_card.click()
     detail = page.locator(".connection-config")
     expect(detail.locator("dt", has_text="Writes")).to_be_visible(timeout=20000)
-    expect(detail).to_contain_text(
-        "SQLite append, SQLite create table, SQLite delete, SQLite replace, SQLite upsert"
-    )
+    expect(detail).to_contain_text("append, create, replace, upsert, delete")
     shot(page, "6-a-connections-writes")
     wait_until(lambda: True)
     page.close()

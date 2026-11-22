@@ -20,13 +20,9 @@ def test_each_window_names_the_places_it_has() -> None:
     assert rules.place(None, "home") == {"window": "home", "to": "home"}
     assert rules.place("home", "back") == {"window": "home", "to": "back"}
     assert rules.place("home", " analyze ") == {"window": "home", "to": "analyze"}
-    # The old names, one release (2026-11-16: the Sandbox is Visualizations, the Diagram the ERD;
-    # 2026-11-19: Visualizations is Analyze).
-    assert rules.place("home", " sandbox ") == {"window": "home", "to": "analyze"}
-    assert rules.place("workbench", "visualizations") == {"window": "workbench", "to": "analyze"}
-    assert rules.place("scripts", "diagram") == {"window": "scripts", "to": "erd"}
+    assert rules.place("scripts", "erd") == {"window": "scripts", "to": "erd"}
     # The old blades page went (2026-11-21): its window is the Scripts page's, one release.
-    assert rules.place("catalog", "diagram") == {"window": "scripts", "to": "erd"}
+    assert rules.place("catalog", "erd") == {"window": "scripts", "to": "erd"}
     # The Start view is the Projects page (the owner, 2026-11-18): its old name, one release.
     assert rules.place("home", "start") == {"window": "home", "to": "projects"}
     assert rules.place("workbench", " start ") == {"window": "workbench", "to": "projects"}
@@ -133,7 +129,7 @@ def test_a_place_that_is_not_one_says_what_is(window: str, to: object, words: st
 def test_the_window_is_told_and_the_audit_log_says_where(tmp_path: Path) -> None:
     with make_client(tmp_path) as client:
         # No home page open: said, not sent into nothing.
-        refused = client.post("/navigate", json={"to": "sandbox"}, headers=AGENT)
+        refused = client.post("/navigate", json={"to": "analyze"}, headers=AGENT)
         assert refused.status_code == 409 and "No home window is open" in refused.text
         assert client.post("/navigate", json={"to": "kitchen"}, headers=AGENT).status_code == 400
         with client.websocket_connect("/ws?workspace=1", headers=AUTH | HOST) as page:

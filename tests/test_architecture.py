@@ -38,9 +38,6 @@ SERVER_PACKAGES = (
 CLIENT_MODULES = (
     "swissarmybench",
     "swissarmybench.renamed",
-    # The old name, for one release: the same client under it.
-    "swissarmygrid",
-    "swissarmygrid.client.push_client",
     "swissarmybench.client",
     "swissarmybench.client.push_client",
     "swissarmybench.client.blades_client",
@@ -70,7 +67,6 @@ CLIENT_MODULES = (
     "swissarmybench.domain.blades",
     "swissarmybench.domain.catalogs",
     "swissarmybench.domain.html_cells",
-    "swissarmybench.domain.approvals",
     "swissarmybench.domain.notebooks",
     "swissarmybench.domain.streamlit_use",
     "swissarmybench.adapters.blade_run",
@@ -266,7 +262,7 @@ for module in {CLIENT_MODULES!r}:
 foreign = sorted(
     name for name in sys.modules
     if name.split(".")[0] not in sys.stdlib_module_names
-    and name.split(".")[0] not in ("swissarmybench", "swissarmygrid", "__main__")
+    and name.split(".")[0] not in ("swissarmybench", "__main__")
     and not name.startswith("_")
 )
 ours = sorted(name for name in sys.modules if name.startswith("swissarmybench"))

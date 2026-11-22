@@ -32,7 +32,6 @@ from swissarmybench.server.http import (
     json_response,
     read_json,
     refusal,
-    safely,
     with_body,
 )
 from swissarmybench.services.agent import AgentService
@@ -88,11 +87,8 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
     async def set_active(request: Request) -> Response:
         if actor(request) == "agent":
             return Response("Only the page reports which grid is in front.", status_code=403)
-        try:
-            body = await read_json(request)
-            return json_response(agent.set_active(body.get("grid") if isinstance(body, dict) else None))
-        except Exception as error:
-            return error_response(error)
+        body = await read_json(request)
+        return json_response(agent.set_active(body.get("grid") if isinstance(body, dict) else None))
 
     async def read_inbox(request: Request) -> Response:
         take = request.query_params.get("take") in ("1", "true")
@@ -111,12 +107,12 @@ def routes(agent: AgentService, inbox: Inbox) -> list[BaseRoute]:
     return [
         Route("/agent/approvals", list_approvals),
         Route("/agent/approvals/{approval_id}", resolve_approval, methods=["POST"]),
-        Route("/agent/describe/{dataset}", safely(describe)),
-        Route("/agent/profile/{dataset}", safely(profile)),
-        Route("/agent/read/{grid_id}", safely(read_grid)),
-        Route("/agent/export-approval/{grid_id}", safely(approve_export), methods=["POST"]),
+        Route("/agent/describe/{dataset}", describe),
+        Route("/agent/profile/{dataset}", profile),
+        Route("/agent/read/{grid_id}", read_grid),
+        Route("/agent/export-approval/{grid_id}", approve_export, methods=["POST"]),
         Route("/workspace/active", set_active, methods=["POST"]),
-        Route("/agent/context", safely(current)),
+        Route("/agent/context", current),
         Route("/agent/inbox", with_body(inbox.send), methods=["POST"]),
         Route("/agent/inbox", read_inbox),
     ]

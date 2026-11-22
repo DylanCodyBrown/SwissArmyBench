@@ -23,12 +23,11 @@ import pyarrow as pa
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmybench.renamed import env
 from tests import accounting_data as made_up
 from tests.e2e.test_ui import browser, call  # noqa: F401
 from tests.test_accounting_statements import make_template
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 ROOT = Path(__file__).resolve().parents[2]
 
 

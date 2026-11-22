@@ -12,16 +12,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import error_response, with_actor
+from swissarmybench.server.http import with_actor
 from swissarmybench.services.project_outline import ProjectOutline
 
 
 def routes(outline: ProjectOutline) -> list[BaseRoute]:
     async def read(request: Request) -> Response:
-        try:
-            text = await outline.build()
-        except Exception as error:
-            return error_response(error)
+        text = await outline.build()
         return Response(text, media_type="text/markdown; charset=utf-8")
 
     return [

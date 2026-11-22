@@ -35,7 +35,6 @@ html[data-theme="light"] {
   --changed: #dcf4e3;
   --selected: #dbe3ec;
   --row-hover: #f2f4f7;
-  --steel-sheen: linear-gradient(180deg, #f4f6f8 0%, #dfe4e9 100%);
   --shadow: 0 8px 24px rgba(28, 34, 40, 0.16);
   --focus-width: 2px;
   --cat-1: #c8102e; --cat-2: #3b6e96; --cat-3: #17722f; --cat-4: #a3248f;
@@ -75,7 +74,6 @@ html[data-theme="dark"] {
   --changed: #133d24;
   --selected: #253342;
   --row-hover: #1d2228;
-  --steel-sheen: linear-gradient(180deg, #262c33 0%, #1a1f24 100%);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
   --focus-width: 2px;
   --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
@@ -89,7 +87,6 @@ html[data-theme="dark"] {
 
 /* High contrast themes aim for 7:1 text, thick always-visible focus, strong borders. */
 html[data-theme="hc-light"] {
-  --steel-sheen: var(--surface-2); /* flat: no gradient under high contrast */
   color-scheme: light;
   --bg: #ffffff;
   --surface: #ffffff;
@@ -127,7 +124,6 @@ html[data-theme="hc-light"] {
 }
 
 html[data-theme="hc-dark"] {
-  --steel-sheen: var(--surface-2); /* flat: no gradient under high contrast */
   color-scheme: dark;
   --bg: #000000;
   --surface: #000000;
@@ -3827,25 +3823,10 @@ body.agent-view .titlebar {
   font-style: italic;
 }
 
-.tour-line,
-.tour-clue {
+.tour-line {
   margin: 0 0 10px;
   color: var(--muted);
   line-height: 1.4;
-}
-
-.tour-clue {
-  color: var(--fg);
-  font-size: 16px;
-}
-
-.tour-kicker {
-  margin: 0 0 6px;
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .tour-code {
@@ -3892,90 +3873,6 @@ body.agent-view .titlebar {
   margin-right: auto;
 }
 
-.tour-choices {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.tour-choice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--fg);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.tour-choice:hover:not(:disabled) {
-  border-color: var(--accent);
-}
-
-.tour-choice.right {
-  border-color: var(--ok);
-  background: var(--ok);
-  color: var(--ok);
-  font-weight: 600;
-}
-
-.tour-choice.wrong {
-  border-color: var(--error);
-  background: var(--error-soft);
-  animation: tour-shake 0.35s;
-}
-
-/* The score: a Swiss army knife with one blade opened per right answer. */
-.tour-knife {
-  position: relative;
-  width: 120px;
-  height: 70px;
-  margin: 0 auto 4px;
-}
-
-.tour-handle {
-  position: absolute;
-  left: 10px;
-  bottom: 6px;
-  width: 100px;
-  height: 22px;
-  border-radius: 11px;
-  background: var(--accent);
-  z-index: 1; /* closed blades fold away behind it */
-}
-
-.tour-handle::after {
-  content: "+";
-  position: absolute;
-  inset: 0;
-  color: var(--accent-fg);
-  font-weight: 800;
-  line-height: 22px;
-}
-
-.tour-blade {
-  position: absolute;
-  left: 22px;
-  bottom: 22px;
-  width: 8px;
-  height: 46px;
-  border-radius: 4px 4px 1px 1px;
-  background: var(--steel-sheen);
-  border: 1px solid var(--border-strong);
-  transform-origin: 50% 100%;
-  transform: translateX(calc(var(--i) * 15px)) translateY(6px) rotate(90deg) scaleY(0.6);
-  transition: transform 0.5s cubic-bezier(0.3, 1.5, 0.6, 1);
-  transition-delay: calc(var(--i) * 0.12s);
-}
-
-.tour-blade.open {
-  transform: translateX(calc(var(--i) * 15px)) rotate(calc(-30deg + var(--i) * 15deg));
-}
-
 @keyframes tour-pulse {
   50% {
     transform: scale(1.25);
@@ -3989,24 +3886,13 @@ body.agent-view .titlebar {
   }
 }
 
-@keyframes tour-shake {
-  25% {
-    transform: translateX(-5px);
-  }
-  75% {
-    transform: translateX(5px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .tour-spot,
-  .tour-card,
-  .tour-blade {
+  .tour-card {
     transition: none;
   }
 
   .tour-icon,
-  .tour-choice.wrong,
   .tour-btn.tour-new .icon-svg {
     animation: none;
   }
@@ -4388,79 +4274,6 @@ body.agent-view .titlebar {
 }
 
 /* ===== The Data shape cheat sheets (cheatSheets.ts) ===== */
-.cheat-sheet {
-  margin: 0 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.cheat-sheet > summary {
-  padding: 6px 10px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.cheat-body {
-  display: grid;
-  gap: 10px;
-  padding: 4px 12px 12px;
-}
-
-.cheat-pair {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 12px;
-}
-
-.cheat-good,
-.cheat-bad {
-  padding: 8px 10px;
-  border-left: 3px solid var(--ok);
-  border-radius: 6px;
-  background: var(--raised);
-}
-
-.cheat-bad {
-  border-left-color: var(--accent);
-}
-
-.cheat-bad p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.cheat-mock {
-  margin: 6px 0 0;
-}
-
-.cheat-mock figcaption {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.cheat-tips,
-.cheat-checks {
-  margin: 0;
-  padding-left: 1.2em;
-}
-
-.cheat-checks li {
-  margin: 2px 0;
-}
-
-.cheat-ok::marker {
-  content: "✓  ";
-  color: var(--ok);
-}
-
-.cheat-warn::marker {
-  content: "!  ";
-  color: var(--warn);
-  font-weight: 700;
-}
 
 /* ===== Time series and forecast (timeSeriesDialog.ts) ===== */
 .analysis-chart {
@@ -5510,101 +5323,6 @@ dialog.file-chooser {
   display: none;
 }
 
-.wb-data-section h3 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 0.82em;
-  font-weight: 650;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-}
-
-.wb-data-section h3 .btn {
-  padding: 3px 8px;
-  color: var(--fg);
-  font-size: 0.93rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.wb-data-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.wb-data-card {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--raised);
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.wb-data-card:hover {
-  border-color: var(--border-strong);
-}
-
-.wb-data-name {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.wb-data-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wb-data-count {
-  color: var(--muted);
-  font-size: 0.86em;
-  font-variant-numeric: tabular-nums;
-  font-weight: 400;
-  white-space: nowrap;
-}
-
-.wb-data-meta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 0.89em;
-}
-
-.wb-data-meta .icon-svg {
-  width: 13px;
-  height: 13px;
-}
-
-.wb-data-meta span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wb-data-empty {
-  color: var(--muted);
-  font-size: 0.89em;
-}
-
 /* A project's files: at the bottom, folded under their folder's name (hidden until a project exists). */
 .wb-files {
   margin-top: auto;
@@ -5908,37 +5626,6 @@ dialog.file-chooser {
 .wb-menu .km-notebook,
 .wb-menu .km-script {
   box-shadow: inset 2px 0 0 var(--kc);
-}
-
-.kind-colours {
-  display: grid;
-  gap: 6px;
-}
-
-.kind-colour {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 8px;
-  border-left: 3px solid var(--kc);
-}
-
-.kind-colour-icon {
-  display: flex;
-  color: var(--kc);
-}
-
-.kind-colour-name {
-  min-width: 8em;
-}
-
-.kind-colour input[type="color"] {
-  width: 44px;
-  height: 26px;
-  padding: 0 2px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: var(--raised);
 }
 
 .wb-tab {
@@ -7829,153 +7516,10 @@ body.dropping-file::after {
   display: none;
 }
 
-.cv-board.dropping {
-  outline: 2px dashed var(--kind-app);
-  outline-offset: -4px;
-}
-
-/* The grid: each row is 12 columns; a block sits in its own columns of its row. */
-.cv-row {
-  display: grid;
-  flex: none;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 8px;
-  align-items: start;
-}
-
-.cv-row.cv-insert {
-  min-height: 40px;
-}
-
-.cv-ghost {
-  z-index: 1;
-  align-self: stretch;
-  min-height: 40px;
-  border: 2px dashed var(--kind-app);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
-  pointer-events: none;
-}
-
 .cv-empty {
   margin: auto;
   padding: 14px;
   color: var(--muted);
-}
-
-.cv-block {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: 6px 8px 14px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--kc, var(--border-strong));
-  border-radius: 8px;
-  background: var(--raised);
-  cursor: grab;
-}
-
-.cv-block:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.cv-block.stale {
-  border-left-color: var(--warn);
-}
-
-.cv-block.gone {
-  border-color: var(--error);
-  border-left-color: var(--error);
-}
-
-.cv-block.dragging {
-  opacity: 0.45;
-}
-
-.cv-block.resizing {
-  outline: 2px solid var(--accent);
-}
-
-.cv-block-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.cv-block-head .spacer {
-  flex: 1;
-}
-
-.cv-block-name {
-  overflow: hidden;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cv-block-where,
-.cv-block-parts {
-  overflow: hidden;
-  font-size: 0.9em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cv-block-missing {
-  color: var(--error);
-  font-size: 0.9em;
-  overflow-wrap: anywhere;
-}
-
-/* Controllers (domain/controllers.py): a block the page's test failed on is red; a default read for
-   a maker that is not on the page is said quietly; a thin-cell hint offers its move. */
-.cv-block.failed {
-  border-color: var(--error);
-  border-left-color: var(--error);
-}
-
-.cv-block-default {
-  overflow: hidden;
-  font-size: 0.9em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cv-block-thin {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 6px;
-  font-size: 0.9em;
-}
-
-.cv-block-thin .btn {
-  min-height: 22px;
-  padding: 0 6px;
-  font-size: 1em;
-}
-
-.cv-size {
-  font-size: 0.8em;
-}
-
-.cv-live {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  background: var(--raised);
-}
-
-.cv-frame {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: var(--raised);
 }
 
 /* A cell being dragged to a canvas, a canvas's tab that takes it, the project's name by the tabs. */
@@ -8033,26 +7577,6 @@ body.dropping-file::after {
   opacity: 1;
 }
 
-/* The pane: a folding head like the files', the cells grouped under their document's name. */
-.wb-data-fold-head {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-}
-
-.wb-data-fold-head .wb-data-count {
-  margin-left: 4px;
-  letter-spacing: 0;
-}
-
 .wb-st-list {
   display: flex;
   flex-direction: column;
@@ -8087,11 +7611,6 @@ body.dropping-file::after {
   height: 14px;
 }
 
-/* A long "makes … · reads …" is cut short, never wider than the panel. */
-.wb-st .wb-data-list {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 /* Markdown and HTML cells go on a page too (text cells on the canvas): under their own heading, Text,
    each marked T (in the pane and on a canvas's block). */
 .wb-st-text-head {
@@ -8105,17 +7624,6 @@ body.dropping-file::after {
 
 .wb-st-cell.text {
   border-left-color: var(--muted);
-}
-
-/* The T mark, then the name at the start of the line (the check mark still at its end). */
-.wb-st-cell.text .wb-data-name {
-  align-items: center;
-  gap: 0;
-}
-
-.wb-st-cell.text .wb-data-label {
-  flex: 1;
-  min-width: 0;
 }
 
 .wb-st-t {
@@ -8163,39 +7671,6 @@ body.dropping-file::after {
 .wb-doc-body.moving {
   opacity: 0.55;
   pointer-events: none;
-}
-
-/* ===== panels turned off in Settings (panels.ts): gone, not folded ===== */
-
-body.panel-off-workbench-explorer .wb-explorer,
-body.panel-off-workbench-explorer .wb-status .wb-explorer-toggle,
-body.panel-off-workbench-streamlit .wb-data-section[data-panel="streamlit"],
-body.panel-off-workbench-console .wb-status .wb-console-toggle,
-body.panel-off-workbench-variables .wb-status .wb-variables-toggle,
-body.panel-off-workbench-status .wb-status,
-body.panel-off-grid-ribbon .ribbon,
-body.panel-off-grid-steps .steps-strip,
-body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusbar) {
-  display: none !important;
-}
-
-.panel-switches {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px 24px;
-}
-
-.panel-page {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.panel-page h4 {
-  margin: 0 0 2px;
-  color: var(--muted);
-  font-size: 0.86em;
-  font-weight: 600;
 }
 
 /* a snippet dragged over a cell of the Workbench; the Insert a snippet list */
@@ -8606,45 +8081,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   }
 }
 
-/* ===== approved outputs: "Changed since approved" (workbenchApprovals.ts) ===== */
-
-.wb-approval {
-  margin: 4px 0;
-  padding: 6px 10px;
-  border: 1px solid var(--warn);
-  border-left-width: 4px;
-  border-radius: 6px;
-  background: var(--warn-soft);
-}
-
-.wb-approval-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.wb-approval-word {
-  color: var(--warn);
-  font-weight: 650;
-}
-
-.wb-approval-diff {
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: 0.95em;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-
-.wb-approval-diff .add {
-  color: var(--ok);
-}
-
-.wb-approval-diff .del {
-  color: var(--error);
-}
-
 /* ===== Kind colours in the Data panel (kindColours.ts): a project's files by kind, the Streamlit cells
    pane by each cell's source document (a left edge, the heading and the @cell mark) ===== */
 .wb-file.km-app svg,
@@ -8675,21 +8111,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
 
 .wb-st-where svg,
 .wb-st-doc-name svg {
-  width: 13px;
-  height: 13px;
-}
-
-/* A canvas block: a left edge in its source document's kind colour (.cv-block's border), its
-   `doc @cellN` in that colour. */
-.cv-block-where {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--kc);
-}
-
-.cv-block-where svg {
-  flex: none;
   width: 13px;
   height: 13px;
 }
@@ -8937,101 +8358,12 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   font-weight: 600;
 }
 
-/* The selected block: a violet outline (the app's colour), and its wiring over the board. */
-.cv-block.selected {
-  outline: 2px solid var(--kind-app);
-  outline-offset: 1px;
-}
-
-.cv-wires {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 2;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.cv-wires path {
-  fill: none;
-  stroke: var(--kind-app);
-  stroke-width: 2;
-}
-
-/* A binding through session state: dashed, its key on it. */
-.cv-wires path.cv-wire-state {
-  stroke-dasharray: 6 4;
-}
-
-.cv-wires .cv-wire-key {
-  fill: var(--kind-app);
-  font-family: var(--mono, monospace);
-  font-size: 12px;
-  text-anchor: middle;
-  paint-order: stroke;
-  stroke: var(--bg);
-  stroke-width: 4px;
-}
-
-.cv-wires marker path,
-.cv-wires circle {
-  fill: var(--kind-app);
-  stroke: none;
-}
-
-.cv-wire-size {
-  color: var(--kind-app);
-  font-size: 0.9em;
-  font-weight: 600;
-}
-
-.cv-wire-name {
-  padding: 0 8px;
-  border: 1px solid var(--kind-app);
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--kind-app);
-}
-
 .cv-group {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding-left: 6px;
   border-left: 1px solid var(--border);
-}
-
-.cv-zoom-level {
-  min-width: 52px;
-  justify-content: center;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Play's preview: the page at a device's width, centred. */
-.cv-device {
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  min-height: 0;
-}
-
-.cv-device.cv-tablet .cv-frame,
-.cv-device.cv-phone .cv-frame {
-  flex: none;
-  margin: 16px 0;
-  border: 1px solid var(--border-strong);
-  border-radius: 18px;
-}
-
-.cv-device.cv-tablet .cv-frame {
-  width: 820px;
-  max-width: 100%;
-}
-
-.cv-device.cv-phone .cv-frame {
-  width: 390px;
-  max-width: 100%;
-  border-radius: 28px;
 }
 
 /* Notebook mode: a cell's run order state, Run up to here on the selected cell, Present. */
@@ -9179,93 +8511,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   background: var(--bg);
-}
-
-.wb-history {
-  display: grid;
-  grid-template-columns: minmax(280px, 0.9fr) 1.1fr;
-  min-height: 100%;
-}
-
-.wb-runs {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.wb-runs th,
-.wb-runs td {
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  white-space: nowrap;
-}
-
-.wb-runs th {
-  color: var(--muted);
-  font-weight: 600;
-}
-
-.wb-runs tbody tr {
-  cursor: pointer;
-}
-
-.wb-runs tbody tr.active {
-  background: var(--selected);
-}
-
-.wb-exit-bad,
-.wb-log-bad {
-  color: var(--error);
-  font-weight: 650;
-}
-
-.wb-run-detail {
-  border-left: 1px solid var(--border);
-}
-
-.wb-run-detail-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.wb-run-detail-head strong {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.wb-run-detail-body {
-  display: flex;
-  gap: 18px;
-  padding: 10px 12px;
-}
-
-.wb-run-sources {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 220px;
-}
-
-.wb-run-source-row {
-  display: flex;
-  gap: 14px;
-  justify-content: space-between;
-}
-
-.wb-run-log {
-  flex: 1;
-  min-width: 0;
-}
-
-.wb-run-log pre {
-  margin: 6px 0 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 /* Data mode: the dictionary (a table list, a page per table) and lineage's place. */
@@ -9445,21 +8690,6 @@ body.panel-off-grid-status .statusbar:not(.wb-status):not(.catalog-page .statusb
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* The selected block's row leaves room under it for its wiring's label (its width, the names it makes). */
-.cv-row:has(.cv-block.selected) {
-  margin-bottom: 30px;
-}
-
-.cv-wire-label {
-  position: absolute;
-  z-index: 3;
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  pointer-events: none;
-  margin-top: 2px;
 }
 
 .app-feeds .link {
@@ -10177,7 +9407,6 @@ html.rail-names .nav-rail-toggle {
   gap: 12px;
   padding: 0 12px 0 18px;
 }
-
 
 html.rail-names .nav-rail-name {
   display: block;
@@ -11773,17 +11002,11 @@ g.follow-pulse > path:first-of-type {
   color: var(--accent);
 }
 
-/* ===== CONNECTION COLOURS (connectionColours.ts): a stripe, an edge or a dot, never a background ===== */
+/* ===== CONNECTION COLOURS (connectionColours.ts): a connection's own box wears its colour as its highlight
+   (a border and a light tint, the owner 2026-11-21); what only names a connection wears a stripe ===== */
 /* --conn-a is the first connection's colour as this theme shows it (made readable by the server), --conn-b
-   the second's (a cell that uses two wears two marks). The rail's colours are never offered. */
-.conn-dot {
-  display: inline-block;
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--conn-a, var(--border-strong));
-}
+   the second's (a cell that uses two wears two marks). The rail's colours are never offered. The tint is
+   light enough that the theme's text stays readable on it. */
 
 .conn-swatch {
   flex: none;
@@ -11849,21 +11072,36 @@ g.follow-pulse > path:first-of-type {
   background: none;
 }
 
-/* The Connections page: the card's edge is its colour; the swatch sits in its corner. */
+/* The Connections page: the card is the connection's box, its border and tint its colour. */
 .connection-card-item {
   position: relative;
 }
 
-.connection-card-item > .conn-swatch {
-  position: absolute;
-  z-index: 1;
-  top: 10px;
-  right: 10px;
+.connection-card.conn-worn {
+  border: 2px solid var(--conn-a);
+  background: color-mix(in srgb, var(--conn-a) 9%, var(--raised));
 }
 
-.connection-card.conn-worn,
 .connection-card.conn-worn:hover {
-  border-left: 4px solid var(--conn-a);
+  border-color: var(--conn-a);
+  background: color-mix(in srgb, var(--conn-a) 16%, var(--raised));
+}
+
+/* The Data Catalog's connection row and a tab group's head: the connection's box, tinted in its colour. */
+.db-line.conn-worn {
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--conn-a) 10%, transparent);
+  box-shadow: inset 3px 0 0 var(--conn-a);
+}
+
+.tab-group-head.conn-worn {
+  background: color-mix(in srgb, var(--conn-a) 12%, transparent);
+  box-shadow: inset 0 0 0 1px var(--conn-a);
+  color: var(--fg);
+}
+
+.tab-group-head.conn-worn:hover {
+  background: color-mix(in srgb, var(--conn-a) 20%, transparent);
 }
 
 .connection-colour {
@@ -11947,7 +11185,6 @@ g.follow-pulse > path:first-of-type {
 }
 
 @media (forced-colors: active) {
-  .conn-dot,
   .conn-swatch,
   .conn-palette-swatch {
     forced-color-adjust: none;
@@ -17250,771 +16487,7 @@ body:has(> .tour) > .context-menu {
 
 /* ===== The canvas's property pane (canvasPane.ts; the owner, 2026-11-19): WinForms' Properties window. ===== */
 
-.wb-mode-body.cp {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 300px;
-  padding: 0 0 8px;
-}
-
-.cp-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-}
-
-.cp-target {
-  overflow: hidden;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cp-tools {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.cp-tools .cp-search {
-  flex: 1;
-  min-width: 0;
-}
-
-.cp-section {
-  padding: 0 12px;
-}
-
-.cp-section > summary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 0;
-  cursor: pointer;
-  user-select: none;
-}
-
-.cp-section[open] > summary {
-  margin-bottom: 4px;
-}
-
-.cp-count {
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--muted);
-  font-weight: 500;
-  letter-spacing: 0;
-}
-
-.cp-settings .app-section:last-child {
-  margin-bottom: 4px;
-}
-
-.cp > .cp-settings {
-  padding: 0 12px;
-}
-
-/* The grid: a name and its value a row, as a property grid has them. */
-.cp-grid {
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--raised);
-}
-
-.cp-category {
-  padding: 3px 8px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  font-size: 0.85em;
-  font-weight: 650;
-}
-
-.cp-row {
-  display: grid;
-  grid-template-columns: minmax(84px, 38%) minmax(0, 1fr);
-  align-items: center;
-  min-height: 30px;
-  border-bottom: 1px solid var(--border);
-}
-
-.cp-row:last-child {
-  border-bottom: 0;
-}
-
-.cp-row:focus-within {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.cp-name {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 2px 8px;
-  overflow: hidden;
-  color: var(--muted);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* A property the code sets is in full ink; one left at Streamlit's default is quiet. */
-.cp-row.set > .cp-name {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.cp-value {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 2px 6px 2px 0;
-}
-
-.cp-value .cp-input {
-  min-height: 26px;
-  border-color: transparent;
-  background: transparent;
-}
-
-.cp-value .cp-input:hover,
-.cp-value .cp-input:focus {
-  border-color: var(--border-strong);
-  background: var(--bg);
-}
-
-.cp-value input[type="checkbox"] {
-  margin: 0 8px;
-}
-
-.cp-bound {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 1px 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
-}
-
-.cp-bound code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cp-bound.cp-expression,
-.cp-bound[data-kind="expression"] {
-  background: var(--surface);
-}
-
-.cp-bind {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.cp-element-title {
-  margin-bottom: 4px;
-}
-
-.cp-element {
-  margin-bottom: 6px;
-}
-
-.cp-words {
-  position: sticky;
-  bottom: 0;
-  min-height: 3.2em;
-  margin-top: auto;
-  padding: 6px 12px;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.cp-list {
-  margin-bottom: 8px;
-}
-
-.cp-items {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.cp-list-title {
-  margin-bottom: 2px;
-  color: var(--muted);
-  font-size: 0.9em;
-  font-weight: 600;
-}
-
-.cp-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  text-align: left;
-}
-
-.cp-link .hint {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cp-lineage {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.cp-node.target {
-  border-color: var(--kind-app);
-  color: var(--kind-app);
-  font-weight: 600;
-}
-
-.cp-arrow {
-  color: var(--muted);
-}
-
-/* A table a block uses, opened beside the canvas. */
-.cp-table {
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--raised);
-}
-
-.cp-table-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-}
-
-.cp-steps {
-  margin: 0;
-  padding: 4px 8px 4px 28px;
-  border-bottom: 1px solid var(--border);
-  color: var(--muted);
-}
-
-.cp-table-scroll {
-  max-height: 260px;
-  overflow: auto;
-}
-
-.cp-rows {
-  width: max-content;
-  min-width: 100%;
-  border-collapse: collapse;
-}
-
-.cp-rows th,
-.cp-rows td {
-  max-width: 220px;
-  padding: 2px 8px;
-  overflow: hidden;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cp-rows th {
-  position: sticky;
-  top: 0;
-  background: var(--surface);
-}
-
-.cp-type {
-  margin-left: 6px;
-  font-weight: 400;
-}
-
-.cp-part {
-  margin-bottom: 10px;
-}
-
-.cp-state,
-.cp-cache {
-  margin-bottom: 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--raised);
-}
-
-.cp-state-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
-.cp-play-first {
-  padding: 0 8px;
-}
-
-.cp-cache > .btn {
-  margin: 4px 6px;
-}
-
-.cp-code {
-  max-height: 280px;
-  margin: 0 0 6px;
-  padding: 8px;
-  overflow: auto;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  font-size: 0.92em;
-  white-space: pre;
-}
-
-/* ===== The designer (workbenchCanvas.ts, canvasToolbox.ts; the owner, 2026-11-19): containers, snaplines,
-   the rubber band, the ruler, the Toolbox and the Document Outline. ===== */
-
-/* The page's own grid carries the twelve faint columns now (the board holds a sidebar beside it). */
-.cv-board {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 0;
-  padding: 12px;
-  overflow: auto;
-  background-color: var(--bg);
-  background-position: 12px 0;
-  background-size: calc(100% - 24px + 8px) 100%;
-  background-repeat: no-repeat;
-  position: relative;
-  background-image: none;
-}
-
-.cv-surface {
-  display: flex;
-  flex: none;
-  gap: 12px;
-  align-items: flex-start;
-  min-width: 0;
-}
-
-.cv-page {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  margin: 0 auto;
-}
-
-.cv-board[data-width="centered"] .cv-page {
-  max-width: 736px;
-}
-
-.cv-board[data-width="phone"] .cv-page {
-  max-width: 390px;
-}
-
-.cv-sidebar {
-  flex: none;
-  width: 244px;
-}
-
-.cv-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.cv-page > .cv-grid {
-  min-height: 120px;
-  background-image: repeating-linear-gradient(
-    to right,
-    transparent 0,
-    transparent calc((100% + 8px) / 12 - 8px),
-    var(--border) calc((100% + 8px) / 12 - 8px),
-    var(--border) calc((100% + 8px) / 12 - 7px),
-    transparent calc((100% + 8px) / 12 - 7px),
-    transparent calc((100% + 8px) / 12)
-  );
-  background-size: calc(100% + 8px) 100%;
-  background-repeat: no-repeat;
-}
-
-.cv-grid.cv-inner {
-  min-height: 44px;
-}
-
-.cv-grid.dropping {
-  outline: 2px dashed var(--kind-app);
-  outline-offset: 2px;
-}
-
-.cv-board.dropping {
-  outline: none;
-}
-
-.cv-grid-empty {
-  margin: 0;
-  padding: 10px 8px;
-  border: 1px dashed var(--border-strong);
-  border-radius: 6px;
-  text-align: center;
-}
-
-.cv-row-hidden {
-  display: none;
-}
-
-/* A layout container, drawn as what it is. */
-.cv-box {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  padding: 4px 8px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--kind-app) 4%, var(--surface));
-  cursor: grab;
-}
-
-.cv-box:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.cv-box.selected,
-.cv-block.selected {
-  outline: 2px solid var(--kind-app);
-  outline-offset: 1px;
-}
-
-.cv-box.dragging {
-  opacity: 0.45;
-}
-
-.cv-box.locked,
-.cv-block.locked {
-  cursor: default;
-}
-
-.cv-box-head {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-}
-
-.cv-box-head .spacer {
-  flex: 1;
-}
-
-.cv-box-name {
-  overflow: hidden;
-  color: var(--text);
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.cv-lock {
-  display: inline-flex;
-  color: var(--muted);
-}
-
-.cv-slots {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.cv-slots-columns {
-  display: grid;
-  gap: 8px;
-}
-
-.cv-slot {
-  min-width: 0;
-  padding: 4px;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-}
-
-.cv-box-expander > .cv-box-head::before {
-  content: "▸";
-}
-
-.cv-box-container {
-  border-style: solid;
-}
-
-.cv-box-sidebar {
-  min-height: 200px;
-  background: var(--surface);
-  cursor: default;
-}
-
-.cv-box-tabs {
-  display: flex;
-  gap: 2px;
-  border-bottom: 1px solid var(--border);
-}
-
-.cv-box-tab {
-  padding: 3px 10px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.cv-box-tab.active {
-  border-bottom-color: var(--kind-app);
-  color: var(--text);
-  font-weight: 600;
-}
-
-.cv-form-submit {
-  align-self: flex-start;
-  pointer-events: none;
-}
-
-/* Snaplines: where the moving block lines up with another; equal gaps marked. */
-.cv-guide {
-  position: absolute;
-  z-index: 5;
-  background: var(--accent);
-  pointer-events: none;
-}
-
-.cv-guide-v {
-  width: 1px;
-}
-
-.cv-guide-h {
-  height: 1px;
-}
-
-.cv-gap {
-  position: absolute;
-  z-index: 5;
-  height: 7px;
-  margin-top: -3px;
-  border-right: 1px solid var(--accent);
-  border-left: 1px solid var(--accent);
-  background: linear-gradient(var(--accent), var(--accent)) center / 100% 1px no-repeat;
-  pointer-events: none;
-}
-
-.cv-block.same-width,
-.cv-box.same-width {
-  box-shadow: 0 0 0 1px var(--accent);
-}
-
-.cv-band {
-  position: absolute;
-  z-index: 6;
-  border: 1px solid var(--kind-app);
-  background: color-mix(in srgb, var(--kind-app) 12%, transparent);
-  pointer-events: none;
-}
-
-.cv-ruler {
-  position: relative;
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.8em;
-  font-variant-numeric: tabular-nums;
-}
-
-.cv-ruler-column {
-  border-bottom: 2px solid var(--border-strong);
-  text-align: center;
-}
-
-.cv-ruler-width {
-  position: absolute;
-  top: -1px;
-  right: 0;
-  padding: 0 4px;
-  background: var(--bg);
-}
-
-.cv-sample {
-  max-width: 100%;
-  margin-top: 4px;
-  overflow: hidden;
-  border: 1px dashed var(--border-strong);
-  border-radius: 6px;
-  font-size: 0.85em;
-}
-
-.cv-sample-label {
-  display: block;
-  padding: 1px 6px;
-  background: var(--surface);
-}
-
-.cv-sample table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.cv-sample th,
-.cv-sample td {
-  max-width: 120px;
-  padding: 1px 6px;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The Toolbox. */
-.tb {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tb-group {
-  margin-bottom: 6px;
-}
-
-.tb-items {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  margin: 4px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.tb-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-height: 30px;
-  padding: 3px 8px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--raised);
-  cursor: grab;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.tb-item:hover,
-.tb-item:focus-visible {
-  border-color: var(--kind-app);
-}
-
-.tb-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* The Document Outline. */
-.ol {
-  display: flex;
-  flex-direction: column;
-}
-
-.ol-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding-right: 4px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.ol-row:hover {
-  background: var(--surface);
-}
-
-.ol-row.selected {
-  background: color-mix(in srgb, var(--kind-app) 14%, transparent);
-}
-
-.ol-row.hidden-item .ol-title {
-  color: var(--muted);
-  text-decoration: line-through;
-}
-
-.ol-title {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ol-row .spacer {
-  flex: 1;
-}
-
-.ol-row .ol-eye.off,
-.ol-row .ol-lock:not(.on) {
-  opacity: 0.4;
-}
-
-.ol-slot {
-  min-height: 22px;
-  padding-top: 2px;
-  padding-bottom: 2px;
-  font-size: 0.9em;
-}
-
-.ol-over {
-  outline: 2px dashed var(--kind-app);
-  outline-offset: -2px;
-}
-
 /* ===== Launch, Builds and the Performance Analyzer (canvasLaunch.ts, perfPage.ts; 2026-11-19) ===== */
-
-.cv-launch {
-  display: inline-flex;
-  gap: 2px;
-  align-items: center;
-  margin-left: 6px;
-  padding-left: 6px;
-  border-left: 1px solid var(--border);
-}
 
 .bd {
   display: grid;

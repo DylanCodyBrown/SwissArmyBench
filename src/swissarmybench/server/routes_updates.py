@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_body
 from swissarmybench.services.updates import Updates
 
 # The app's name in the status bar (the owner, 2026-11-17: "It's not an edition now it's the streamlit
@@ -46,5 +46,5 @@ def routes(updates: Updates, extensions: Callable[[], list[str]] = list) -> list
         Route("/updates", state),
         Route("/updates", with_body(updates.set), methods=["PUT"]),
         Route("/updates/check", check, methods=["POST"]),
-        Route("/updates/install", safely(install), methods=["POST"]),
+        Route("/updates/install", install, methods=["POST"]),
     ]

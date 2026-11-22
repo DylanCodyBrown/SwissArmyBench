@@ -4,8 +4,11 @@
  * grids, app cells ... reserve the rail colors for the rail"). [STATE + WIRE]
  *
  * A colour is this computer's, the same in every project (2026-11-17: connections are a library outside
- * any project); the server keeps it (colours.toml) and makes it readable in each theme. It is always a
- * stripe or a dot, never a background: text stays readable.
+ * any project); the server keeps it (colours.toml) and makes it readable in each theme. A connection's own
+ * box (its card, its row in the Data Catalog, a tab group's head) wears it as its highlight: a border and a
+ * light tint of the box (the owner, 2026-11-21: "it doesn't need to be a little dot it needs to be the
+ * highlighting for the box of the connection itself"); what only names a connection (a cell, a tab, a
+ * Session entry) wears a stripe. Text stays readable: the tint is light, the text the theme's own.
  *
  * Any element that names its connections wears them: `data-connections="Warehouse|Finance"` (one name or
  * several, in order). This module paints every such element on the page, now and as they are drawn (a
@@ -105,17 +108,8 @@ export function markConnections(el: HTMLElement, names: (string | null | undefin
   else delete el.dataset.connections;
 }
 
-/** A small dot in a connection's colour (a card's head, a group's head, a reference). */
-export function connectionDot(name: string): HTMLElement {
-  const dot = document.createElement("span");
-  dot.className = "conn-dot";
-  dot.dataset.connections = name;
-  dot.setAttribute("aria-hidden", "true");
-  return dot;
-}
-
 /** A connection's colour as a swatch: a click shows the palette (each colour as this theme shows it), Other…
- *  (any colour; the rail's are refused with the server's words) and Next free. On its card and its detail. */
+ *  (any colour; the rail's are refused with the server's words) and Next free. On its detail. */
 export function colourPicker(name: string): HTMLButtonElement {
   const swatch = h("button", {
     type: "button",
@@ -273,6 +267,6 @@ export function watchConnectionColours(): void {
 
 onNotice((notice) => {
   if (notice.type === "connection_colours_changed") take(notice as unknown as Listing);
-  else if (notice.type === "blades_changed" || notice.type === "kind_colours_changed" || notice.type === "project_changed") void loadConnectionColours();
+  else if (notice.type === "blades_changed" || notice.type === "project_changed") void loadConnectionColours();
 });
 onThemeChange(() => paint(document));

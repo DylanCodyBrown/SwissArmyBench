@@ -21,7 +21,7 @@
  */
 import { valueCards } from "./analysisCards";
 import { sendCards } from "./analyzeMenu";
-import { button, clear, formatCount, h, openDialog, toast } from "./dom";
+import { button, clear, formatCount, h, openDialog, plural, toast } from "./dom";
 import { state } from "./state";
 
 type Kind = "object" | "array" | "table" | "markdown" | "text" | "number" | "boolean" | "blank" | "short";
@@ -208,7 +208,6 @@ function raw(value: unknown, kind: Kind): HTMLElement {
 }
 
 /** "1 item", "2 items". */
-const plural = (n: number, word: string): string => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
 /** Pretty JSON with keys, strings, numbers and literals marked for colour. */
 function highlightJson(text: string): (Node | string)[] {

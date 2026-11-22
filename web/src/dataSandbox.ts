@@ -19,7 +19,7 @@
  *          /tables/mock, /reset, /baseline, /checkpoints, /checkpoints/restore
  */
 import { api, onNoticeWhile } from "./api";
-import { button, h, icon, openDialog, recall, remember, toast } from "./dom";
+import { button, dateTime, h, icon, openDialog, recall, remember, toast } from "./dom";
 import { errorHere } from "./errorNote";
 import { chooseFile } from "./fileChooser";
 import { busy, busyClick, loadingBlock } from "./loading";
@@ -129,8 +129,8 @@ export function sandboxPanel(): HTMLElement {
           t.origin_words ? h("div", { class: "muted sandbox-origin" }, t.origin_words) : ""),
         h("td", { class: "num" }, t.rows.toLocaleString()),
         h("td", {}, t.source_words, t.mockable ? mockPicker(t, got.mock_choices ?? []) : h("div", { class: "muted" }, clientWords(t.client))),
-        h("td", { class: "muted" }, when(t.added_at)),
-        h("td", { class: "muted" }, when(t.changed_at)),
+        h("td", { class: "muted" }, dateTime(t.added_at)),
+        h("td", { class: "muted" }, dateTime(t.changed_at)),
         h("td", { class: "muted" }, [t.changes.inserted && `${t.changes.inserted} inserted`, t.changes.updated && `${t.changes.updated} updated`, t.changes.deleted && `${t.changes.deleted} deleted`].filter(Boolean).join(", ")),
         h("td", { class: "sandbox-actions" },
           button("Open in Grids", busyClick("Opening…", (b) => act(b, "/sandbox/tables/open", { table: t.name }, "")), { icon: "rows" }),
@@ -215,7 +215,6 @@ export function sandboxPanel(): HTMLElement {
   return panel;
 }
 
-const when = (at: string | null): string => (at ? at.replace("T", " ").slice(0, 16) : "");
 
 /** Add table…: an open table, a file, or an empty table by its columns. */
 function chooseSource(added: () => void): void {

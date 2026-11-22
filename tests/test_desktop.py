@@ -72,13 +72,9 @@ def test_swissarmybench_opens_the_app_and_open_browser_opens_a_tab(
 
 
 def test_the_server_only_invocations_stay_the_server(monkeypatch: pytest.MonkeyPatch) -> None:
-    """VS Code's extension (no command, SWISSARMYBENCH_STARTED_BY=vscode) and the older `swissarmybench
-    --port N` or `--no-browser` start the server, not the app."""
+    """The older `swissarmybench --port N` or `--no-browser` start the server, not the app."""
     started: list[Any] = []
     monkeypatch.setattr(command, "start", lambda port, window=True: started.append((port, window)))
-    monkeypatch.setenv("SWISSARMYBENCH_STARTED_BY", "vscode")
-    assert run_main(monkeypatch) == 0 and started == [(None, True)]
-    monkeypatch.delenv("SWISSARMYBENCH_STARTED_BY")
     assert run_main(monkeypatch, "--port", "8790") == 0 and started[-1] == (8790, True)
     assert run_main(monkeypatch, "--no-browser") == 0 and started[-1] == (None, False)
     assert run_main(monkeypatch, "start", "--no-window") == 0 and started[-1] == (None, False)

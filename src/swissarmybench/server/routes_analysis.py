@@ -33,7 +33,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.proofs import proof as show_the_math
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.analysis import Analysis
 from swissarmybench.services.grids import GridService
 
@@ -50,7 +50,7 @@ def _one(
             raise ValueError(f"Send {example}.")
         return json_response(await analysis.run(name, grid, info, body, actor(request)))
 
-    return safely(handle)
+    return handle
 
 
 def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
@@ -78,7 +78,7 @@ def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
         return json_response(await analysis.code(str(body.get("analysis")), grid, info, body["body"]))
 
     return [
-        Route("/grids/{grid_id}/fit-test", safely(fit_test), methods=["POST"]),
+        Route("/grids/{grid_id}/fit-test", fit_test, methods=["POST"]),
         Route(
             "/grids/{grid_id}/outliers",
             _one(grids, analysis, "outliers", '{"column": name, "look": "amount"}'),
@@ -94,6 +94,6 @@ def routes(grids: GridService, analysis: Analysis) -> list[BaseRoute]:
             _one(grids, analysis, "predictors", '{"target": name}'),
             methods=["POST"],
         ),
-        Route("/grids/{grid_id}/analysis-code", safely(code), methods=["POST"]),
-        Route("/analysis-proof", safely(proof), methods=["POST"]),
+        Route("/grids/{grid_id}/analysis-code", code, methods=["POST"]),
+        Route("/analysis-proof", proof, methods=["POST"]),
     ]

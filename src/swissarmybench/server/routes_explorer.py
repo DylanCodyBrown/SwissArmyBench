@@ -17,7 +17,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, safely
+from swissarmybench.server.http import json_response
 from swissarmybench.services.explorer import Explorer
 
 
@@ -32,7 +32,7 @@ def routes(explorer: Explorer) -> list[BaseRoute]:
         return json_response(await explorer.table(dict(request.query_params)))
 
     return [
-        Route("/explorer/search", safely(search)),
-        Route("/explorer/browse", safely(browse)),
-        Route("/explorer/table", safely(table)),
+        Route("/explorer/search", search),
+        Route("/explorer/browse", browse),
+        Route("/explorer/table", table),
     ]

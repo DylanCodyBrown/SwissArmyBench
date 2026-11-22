@@ -393,7 +393,7 @@ def test_a_click_on_a_chart_whose_column_left_the_view_says_so(client: TestClien
 
 
 def test_a_click_value_given_as_text_is_read_as_the_columns_type(client: TestClient) -> None:
-    # `sab visualizations_select <card> --value 3` sends "3": the filter step was refused for a number column.
+    # `sab analyze_select <card> --value 3` sends "3": the filter step was refused for a number column.
     grid = grid_id(push(client, "o", big_table(100)))
     by_qty = chart(client, grid, {"mark": "bar", "x": {"field": "qty"}, "y": {"aggregate": "count"}})
     assert client.post(f"/cards/{by_qty}/select", json={"value": "3"}, headers=AUTH).status_code == 200
@@ -415,18 +415,19 @@ def test_a_heatmap_click_filters_on_both_axes(client: TestClient) -> None:
     assert row_count(client, grid) == 8
 
 
-def test_figures_images_and_dot_keep_their_text_and_bad_ones_say_why(client: TestClient) -> None:
+def test_figures_and_images_keep_their_text_and_bad_ones_say_why(client: TestClient) -> None:
     grid = grid_id(push(client, "small", pa.table({"a": [1, 2]})))
     figure = '{"data": [{"type": "bar", "x": ["a"], "y": [1]}], "layout": {}}'
     for kind, body in (
         ("plotly", figure),
-        ("echarts", '{"series": [{"type": "bar", "data": [1]}]}'),
-        ("graphviz", "digraph { a -> b }"),
         ("image", "data:image/png;base64,iVBORw0KGgo="),
     ):
         assert add(client, grid, {"kind": kind, "title": kind, "body": body}).status_code == 200
     shown = {c["kind"]: c for c in cards(client, grid)}
-    assert shown["plotly"]["body"] == figure and shown["graphviz"]["body"] == "digraph { a -> b }"
+    assert shown["plotly"]["body"] == figure
+    # Graphviz and ECharts went (2026-11-21): a card of either kind is refused.
+    for gone in ("graphviz", "echarts"):
+        assert add(client, grid, {"kind": gone, "body": "x"}).status_code == 400
     bad = add(client, grid, {"kind": "plotly", "body": "not json"})
     assert bad.status_code == 400 and "not JSON" in bad.text
     assert add(client, grid, {"kind": "image", "body": "https://example.com/x.png"}).status_code == 400

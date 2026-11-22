@@ -5,7 +5,7 @@
 // signs in has no section.
 
 import { api } from "./api";
-import { button, h, icon } from "./dom";
+import { button, dateTime, h, icon } from "./dom";
 import { errorNote } from "./errorNote";
 import { busyClick } from "./loading";
 
@@ -27,10 +27,6 @@ interface AccessBy {
 }
 
 /** "2026-11-19T10:04:00Z" in the reader's own time, to the minute. */
-function when(iso: string): string {
-  const at = new Date(iso);
-  return Number.isNaN(at.getTime()) ? iso : at.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
 
 function item(i: AccessItem): HTMLElement {
   const state = i.ok === true ? "ok" : i.ok === false ? "refused" : "unchecked";
@@ -71,7 +67,7 @@ export function accessSection(name: string): HTMLElement {
           "div",
           { class: "connection-access-by" },
           h("p", { class: "connection-access-line" }, h("strong", {}, by.registration), " ", by.line),
-          h("p", { class: "connection-access-when" }, `Last checked ${when(by.checked)}`, by.computer ? ` on ${by.computer}` : ""),
+          h("p", { class: "connection-access-when" }, `Last checked ${dateTime(by.checked)}`, by.computer ? ` on ${by.computer}` : ""),
           h("ul", { class: "connection-access-items" }, ...by.items.map(item)),
           button(
             "Check again",

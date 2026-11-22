@@ -331,7 +331,5 @@ _PYTHON_WORDS = (
         "from global if import in is lambda nonlocal not or pass raise return try while with yield".split()
     )
     | frozenset(name.lower() for name in dir(builtins))
-    | frozenset(
-        {"sab", "sag", "pd", "np", "plt", "df", "display", "get_ipython", "in", "out"}
-    )  # sag: the old alias
+    | frozenset({"sab", "pd", "np", "plt", "df", "display", "get_ipython", "in", "out"})
 )

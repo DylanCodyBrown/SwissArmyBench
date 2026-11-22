@@ -56,12 +56,10 @@ from swissarmybench.server.blade_runner import RefreshError
 from swissarmybench.server.http import (
     actor,
     error_as,
-    error_response,
     json_response,
     read_json,
     read_json_object,
     refusal,
-    safely,
 )
 from swissarmybench.services.blades import BladeService, ChangedOnDisk, IncompleteBlade, NeedsValues
 
@@ -98,8 +96,6 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return _incomplete(error)
         except VaultUnavailableError as error:
             return error_as(error, 409)
-        except Exception as error:
-            return error_response(error)
 
     # ===== the blade IDE (the owner, 2026-11-21) =====
 
@@ -117,14 +113,9 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return json_response(await blades.header_set(request.path_params["name"], body, actor(request)))
         except IncompleteBlade as error:
             return _incomplete(error)
-        except Exception as error:
-            return error_response(error)
 
     async def code(request: Request) -> Response:
-        try:
-            return json_response(blades.code(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(blades.code(request.path_params["name"]))
 
     async def run_blade(request: Request) -> Response:
         name = request.path_params["name"]
@@ -139,8 +130,6 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             blades.runnable_now(name)  # refused before the stream starts (a snippet, a secret blade)
         except NeedsValues as error:
             return _needs(error)
-        except Exception as error:
-            return error_response(error)
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
 
         async def work() -> None:
@@ -235,8 +224,6 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return json_response(blades.set_secrets(request.path_params["name"], body))
         except VaultUnavailableError as error:
             return error_as(error, 409)
-        except Exception as error:
-            return error_response(error)
 
     async def typed_body(request: Request) -> Any:
         """The values the user typed for this run, when the request carries any."""
@@ -256,8 +243,6 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return _needs(error)
         except RefreshError as error:
             return _run_failed(error, request.path_params["name"])
-        except Exception as error:
-            return error_response(error)
 
     async def test(request: Request) -> Response:
         try:
@@ -267,8 +252,6 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return _needs(error)
         except RefreshError as error:
             return _run_failed(error, request.path_params["name"])
-        except Exception as error:
-            return error_response(error)
 
     async def analyses(request: Request) -> Response:
         return json_response(blades.analyses())
@@ -285,18 +268,13 @@ def routes(blades: BladeService) -> list[BaseRoute]:
             return _needs(error)
         except RefreshError as error:
             return _run_failed(error, body.get("name") if isinstance(body, dict) else None)
-        except Exception as error:
-            return error_response(error)
 
     async def python(request: Request) -> Response:
         """What sab.blade() runs in the caller's Python. Secret values included: only the user's own
         Python asks (the token is the user's; the agent is refused)."""
         if actor(request) == "agent":
             return _agent_refused()
-        try:
-            return json_response(blades.for_python(request.path_params["name"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(blades.for_python(request.path_params["name"]))
 
     # ===== favourites, blade folders, export and import (portable blades) =====
 
@@ -359,37 +337,37 @@ def routes(blades: BladeService) -> list[BaseRoute]:
         return json_response(shown, status_code=200 if worked else 422)
 
     return [
-        Route("/blades", safely(list_blades)),
+        Route("/blades", list_blades),
         Route("/blades", save_blade, methods=["POST"]),
         Route("/blades/templates", templates),
-        Route("/blades/new", safely(new_blade), methods=["GET", "POST"]),
-        Route("/blades/table-name", safely(table_name)),
+        Route("/blades/new", new_blade, methods=["GET", "POST"]),
+        Route("/blades/table-name", table_name),
         Route("/blades/name-check", name_check),
         Route("/blades/runs/{run}/cancel", cancel_run, methods=["POST"]),
-        Route("/blades/folders", safely(folders), methods=["GET", "PUT"]),
-        Route("/blades/export", safely(export_all)),
-        Route("/blades/import", safely(import_blades), methods=["POST"]),
-        Route("/blades/inspect", safely(inspect_code), methods=["POST"]),
-        Route("/blades/fill", safely(fill_settings), methods=["POST"]),
-        Route("/blades/install", safely(install), methods=["POST"]),
+        Route("/blades/folders", folders, methods=["GET", "PUT"]),
+        Route("/blades/export", export_all),
+        Route("/blades/import", import_blades, methods=["POST"]),
+        Route("/blades/inspect", inspect_code, methods=["POST"]),
+        Route("/blades/fill", fill_settings, methods=["POST"]),
+        Route("/blades/install", install, methods=["POST"]),
         Route("/blades/analyses", analyses),
-        Route("/blades/starters", safely(starters)),
+        Route("/blades/starters", starters),
         Route("/grids/{grid_id}/blade-analysis", analyze, methods=["POST"]),
-        Route("/blades/{name}", safely(get_blade)),
+        Route("/blades/{name}", get_blade),
         Route("/blades/{name}", save_blade, methods=["PUT"]),
-        Route("/blades/{name}", safely(remove_blade), methods=["DELETE"]),
+        Route("/blades/{name}", remove_blade, methods=["DELETE"]),
         Route("/blades/{name}/secrets", set_secrets, methods=["PUT"]),
         Route("/blades/{name}/code", code),
         Route("/blades/{name}/header", header, methods=["GET", "PUT"]),
         Route("/blades/{name}/run", run_blade, methods=["GET", "POST"]),
-        Route("/blades/{name}/result/open", safely(open_result), methods=["POST"]),
-        Route("/blades/{name}/problems", safely(problems), methods=["POST"]),
+        Route("/blades/{name}/result/open", open_result, methods=["POST"]),
+        Route("/blades/{name}/problems", problems, methods=["POST"]),
         Route("/blades/{name}/refresh", refresh, methods=["POST"]),
         Route("/blades/{name}/test", test, methods=["POST"]),
         Route("/blades/{name}/python", python),
-        Route("/blades/{name}/pin", safely(pin), methods=["PUT"]),
-        Route("/blades/{name}/show", safely(show_file), methods=["POST"]),
-        Route("/blades/{name}/export", safely(export_one)),
-        Route("/blades/{name}/copy", safely(copy), methods=["POST"]),
-        Route("/blades/{name}/snippet", safely(snippet), methods=["GET", "POST"]),
+        Route("/blades/{name}/pin", pin, methods=["PUT"]),
+        Route("/blades/{name}/show", show_file, methods=["POST"]),
+        Route("/blades/{name}/export", export_one),
+        Route("/blades/{name}/copy", copy, methods=["POST"]),
+        Route("/blades/{name}/snippet", snippet, methods=["GET", "POST"]),
     ]

@@ -9,7 +9,7 @@
  * as it was saved until that table is pushed again.
  */
 import { api } from "./api";
-import { button, clear, h, openDialog, toast } from "./dom";
+import { button, clear, dateTime, h, openDialog, toast } from "./dom";
 import { errorHere, errorNote } from "./errorNote";
 
 interface Saved {
@@ -25,7 +25,6 @@ interface Version {
   cards: { kind: string; title: string }[];
 }
 
-const when = (iso: string): string => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
   const { body, foot, close } = openDialog("Dashboards", true);
@@ -56,7 +55,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
           h(
             "li",
             {},
-            h("strong", {}, when(v.saved)),
+            h("strong", {}, dateTime(v.saved)),
             h("span", { class: "hint" }, ` ${v.cards.length} card${v.cards.length === 1 ? "" : "s"}: ${v.cards.map((c) => c.title || c.kind).slice(0, 6).join(", ")}${v.cards.length > 6 ? "…" : ""}`),
             button("Open this version", () => void open(dashboard, v.version), { class: "ghost" }),
           ),
@@ -76,7 +75,7 @@ export function dashboardsDialog(cardsNow: number, redraw: () => void): void {
           { class: "dashboard-row" },
           h("div", { class: "dashboard-head" },
             h("strong", {}, d.name),
-            h("span", { class: "hint" }, `${d.cards} card${d.cards === 1 ? "" : "s"} · saved ${when(d.saved)}${d.versions > 1 ? ` · ${d.versions} versions` : ""}`),
+            h("span", { class: "hint" }, `${d.cards} card${d.cards === 1 ? "" : "s"} · saved ${dateTime(d.saved)}${d.versions > 1 ? ` · ${d.versions} versions` : ""}`),
             h("span", { class: "toolbar-gap" }),
             button("Open", () => void open(d.name), { icon: "expand", class: "primary" }),
             button("History", () => void history(d.name, row), { icon: "rows" }),

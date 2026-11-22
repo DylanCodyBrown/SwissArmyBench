@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, read_json, safely, with_body
+from swissarmybench.server.http import json_response, read_json, with_body
 from swissarmybench.services.debugger import Debugger
 
 
@@ -27,11 +27,11 @@ def routes(debugger: Debugger) -> list[BaseRoute]:
         return json_response(await debugger.variables(await read_json(request)))
 
     return [
-        Route("/workbench/debug", safely(state), methods=["GET"]),
+        Route("/workbench/debug", state, methods=["GET"]),
         Route("/workbench/debug/breakpoints", with_body(debugger.breakpoints), methods=["POST"]),
         Route("/workbench/debug/start", with_body(debugger.start), methods=["POST"]),
         Route("/workbench/debug/step", with_body(debugger.step), methods=["POST"]),
-        Route("/workbench/debug/variables", safely(variables), methods=["POST"]),
+        Route("/workbench/debug/variables", variables, methods=["POST"]),
         Route("/workbench/debug/evaluate", with_body(debugger.evaluate), methods=["POST"]),
         Route("/workbench/debug/stop", with_body(debugger.stop), methods=["POST"]),
     ]

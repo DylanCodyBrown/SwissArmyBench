@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, with_actor, with_body
+from swissarmybench.server.http import actor, json_response, with_actor, with_body
 from swissarmybench.services.sharing import Sharing
 
 
@@ -26,10 +26,7 @@ def routes(sharing: Sharing) -> list[BaseRoute]:
             "app": query.get("app"),
             "fresh": query.get("fresh") in ("1", "true"),
         }
-        try:
-            return json_response(await sharing.status(body, actor(request)))
-        except Exception as error:
-            return error_response(error)
+        return json_response(await sharing.status(body, actor(request)))
 
     return [
         Route("/sharing", status),

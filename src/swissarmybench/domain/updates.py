@@ -338,7 +338,7 @@ def update_question(version: str, at_risk: dict[str, Any]) -> str:
 # Install now put there (azure-identity for a connection) went. What nothing of the app's needs is the user's,
 # and goes `--with` into the new environment.
 
-_APP_ROOTS = ("swissarmybench", "swissarmygrid")
+_APP_ROOTS = ("swissarmybench",)
 _TOOLING = frozenset({"pip", "setuptools", "wheel", "uv"})
 _REQUIREMENT_NAME = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 

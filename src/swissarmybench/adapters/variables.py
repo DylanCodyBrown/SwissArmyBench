@@ -55,12 +55,11 @@ class VariableFiles:
             self._memory[key] = data
             return
         text = library.variables_toml(data) if key == "shared" else library.local_toml(data)
-        if path.is_file() and path.read_text(encoding="utf-8") == text:
-            return  # nothing changed: no file touched (a Git diff shows only the user's changes)
         if not path.is_file() and key == "local" and not (data or {}).get("values"):
             return  # no local value: no local file
-        self._made()
-        write_atomic(path, text, newline="\n")
+        # Nothing changed: no file touched (a Git diff shows only the user's changes).
+        if write_atomic(path, text, newline="\n", if_changed=True):
+            self._made()
 
     def read(self) -> tuple[Any, Any]:
         return self._read(self.shared, "shared"), self._read(self.local, "local")

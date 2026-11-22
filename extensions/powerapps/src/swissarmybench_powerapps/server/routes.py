@@ -67,7 +67,6 @@ from swissarmybench.server import streamlit_proxy
 from swissarmybench.server.http import (
     actor,
     answered,
-    error_response,
     json_lines,
     json_response,
     read_json,
@@ -255,17 +254,12 @@ def notebook_routes(notebook: TsNotebooks) -> list[BaseRoute]:
     async def run(r: Request) -> Response:
         body = await _body(r)
         if not (isinstance(body, dict) and body.get("stream")):
-            try:
-                return json_response(await notebook.run_all(body, actor(r), _origin(r)))
-            except Exception as error:
-                return error_response(error)
+            return json_response(await notebook.run_all(body, actor(r), _origin(r)))
         outputs = notebook.run(body, actor(r), _origin(r))
         try:  # the kernel started (or Deno missing, said as the usual answer) before the stream begins
             first: dict[str, Any] | None = await outputs.__anext__()
         except StopAsyncIteration:
             first = None
-        except Exception as error:
-            return error_response(error)
 
         return json_lines(_after(first, outputs))
 

@@ -37,13 +37,11 @@ def test_environment_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -
 
 def test_default_location(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("SWISSARMYBENCH_INFO", raising=False)
-    monkeypatch.delenv("SWISSARMYGRID_INFO", raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))  # never this machine's own (it may hold the old folder)
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
     assert info_file_path() == Path.home() / ".swissarmybench" / "server.json"
-    # Before the rename's first start, only the old state folder: its connection file (test_renamed.py).
-    (tmp_path / ".swissarmygrid").mkdir()
-    assert info_file_path() == tmp_path / ".swissarmygrid" / "server.json"
+    (tmp_path / ".swissarmygrid").mkdir()  # the old name's folder is not read any more
+    assert info_file_path() == tmp_path / ".swissarmybench" / "server.json"
 
 
 posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes")

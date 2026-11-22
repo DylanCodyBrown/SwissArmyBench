@@ -26,8 +26,6 @@ run them. The golden rule (the owner, 2026-11-14): the agent may do all of it to
   POST   /workbench/html/fill               {"html" or "markdown", "values"}: an HTML cell's design (a
                                             Markdown cell's text), its names filled
   POST   /workbench/kernels/{id}/html-marks {"names"}: a mark of what each name would draw now
-  POST   /workbench/approvals               {"outputs", "approved"?}: a cell's output as an approval keeps
-                                            it, or how it differs from its approval (domain/approvals.py)
   POST   /workbench/kernels/{id}/interrupt, /restart       DELETE /workbench/kernels/{id}
   POST   /workbench/handoffs  {"document", "kernel"?, "to"?}   a document moving to another window
   GET    /workbench/handoffs/{id}  taken yet?   POST .../take {"window"}   DELETE: not taken, it stays
@@ -40,7 +38,7 @@ from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain import workbench_pages
-from swissarmybench.server.http import actor, error_as, json_lines, json_response, read_json, safely
+from swissarmybench.server.http import actor, error_as, json_lines, json_response, read_json
 from swissarmybench.services.code_files import CodeFiles
 from swissarmybench.services.workbench import Workbench
 from swissarmybench.services.workbench_window import WindowRefused, WindowUnanswered, WorkbenchWindow
@@ -144,9 +142,6 @@ def routes(
             await workbench.html_marks(request.path_params["kernel"], await read_json(request))
         )
 
-    async def approval(request: Request) -> Response:
-        return json_response(workbench.approval(await read_json(request)))
-
     async def grid(request: Request) -> Response:
         return json_response(await workbench.grid(request.path_params["kernel"], await read_json(request)))
 
@@ -182,34 +177,33 @@ def routes(
         return json_response(workbench.flow(await read_json(request)))
 
     return [
-        Route("/workbench/home", safely(home)),
-        Route("/workbench/notebook/flow", safely(notebook_flow), methods=["POST"]),
-        Route("/workbench/open", safely(open_document), methods=["POST"]),
-        Route("/workbench/save", safely(save), methods=["POST"]),
-        Route("/workbench/pythons", safely(pythons)),
-        Route("/workbench/environments", safely(environments)),
-        Route("/workbench/environments", safely(create_environment), methods=["POST"]),
-        Route("/workbench/environment", safely(choose_environment), methods=["POST"]),
-        Route("/workbench/kernels", safely(start), methods=["POST"]),
-        Route("/workbench/statement", safely(statement), methods=["POST"]),
-        Route("/workbench/window", safely(window_command), methods=["POST"]),
-        Route("/workbench/window/{request}", safely(window_answer), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/execute", safely(execute), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/input", safely(answer_input), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/is-complete", safely(is_complete), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/complete", safely(complete), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/inspect", safely(inspect), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/variables", safely(variables)),
-        Route("/workbench/kernels/{kernel}/grid", safely(grid), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/structure", safely(structure), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/html-marks", safely(html_marks), methods=["POST"]),
-        Route("/workbench/html/fill", safely(html_fill), methods=["POST"]),
-        Route("/workbench/approvals", safely(approval), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/interrupt", safely(interrupt), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}/restart", safely(restart), methods=["POST"]),
-        Route("/workbench/kernels/{kernel}", safely(stop), methods=["DELETE"]),
-        Route("/workbench/handoffs", safely(hand_off), methods=["POST"]),
-        Route("/workbench/handoffs/{handoff}", safely(handoff)),
-        Route("/workbench/handoffs/{handoff}/take", safely(take_handoff), methods=["POST"]),
-        Route("/workbench/handoffs/{handoff}", safely(cancel_handoff), methods=["DELETE"]),
+        Route("/workbench/home", home),
+        Route("/workbench/notebook/flow", notebook_flow, methods=["POST"]),
+        Route("/workbench/open", open_document, methods=["POST"]),
+        Route("/workbench/save", save, methods=["POST"]),
+        Route("/workbench/pythons", pythons),
+        Route("/workbench/environments", environments),
+        Route("/workbench/environments", create_environment, methods=["POST"]),
+        Route("/workbench/environment", choose_environment, methods=["POST"]),
+        Route("/workbench/kernels", start, methods=["POST"]),
+        Route("/workbench/statement", statement, methods=["POST"]),
+        Route("/workbench/window", window_command, methods=["POST"]),
+        Route("/workbench/window/{request}", window_answer, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/execute", execute, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/input", answer_input, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/is-complete", is_complete, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/complete", complete, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/inspect", inspect, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/variables", variables),
+        Route("/workbench/kernels/{kernel}/grid", grid, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/structure", structure, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/html-marks", html_marks, methods=["POST"]),
+        Route("/workbench/html/fill", html_fill, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/interrupt", interrupt, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}/restart", restart, methods=["POST"]),
+        Route("/workbench/kernels/{kernel}", stop, methods=["DELETE"]),
+        Route("/workbench/handoffs", hand_off, methods=["POST"]),
+        Route("/workbench/handoffs/{handoff}", handoff),
+        Route("/workbench/handoffs/{handoff}/take", take_handoff, methods=["POST"]),
+        Route("/workbench/handoffs/{handoff}", cancel_handoff, methods=["DELETE"]),
     ]

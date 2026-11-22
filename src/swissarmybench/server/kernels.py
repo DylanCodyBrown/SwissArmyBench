@@ -33,12 +33,10 @@ _MAX_MATCHES: int = 300
 _MAX_HELP: int = 6_000
 _IDLE_POLL_SECONDS: float = 0.5
 # Run quietly once a kernel is ready: the package (sab.*, the %%sql cells, tables as grids) when that
-# Python has it. A Python without it still runs code; the Workbench says how to add it. `sag` is its old
-# alias (before the rename to Swiss Army Bench), kept for one release so an old notebook's cells still run.
+# Python has it. A Python without it still runs code; the Workbench says how to add it.
 _SETUP = (
     "try:\n"
     "    import swissarmybench as sab\n"
-    "    sag = sab\n"
     "    from swissarmybench.server.kernel_setup import setup as _sab_setup\n"
     "\n"
     "    _sab_setup()\n"

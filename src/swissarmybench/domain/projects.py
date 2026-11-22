@@ -25,7 +25,7 @@ table has one text. Pure rules, no I/O:
   zip       a notebook for a zip: its outputs dropped and a pasted table's rows taken out
   rows      which tables' rows a notebook's cells hold (a small paste written out): what the agent
             may write to disk only on the user's Allow (docs/ideas.md, 2026-11-15)
-  files     which of a folder's files the Workbench opens, data first; README, requirements
+  files     which of a folder's files the Workbench opens, data first; requirements
 """
 
 from __future__ import annotations
@@ -44,7 +44,6 @@ from swissarmybench.domain.streamlit_use import uses_streamlit, usual_name
 DATA_NOTEBOOK: str = "data.ipynb"
 DATA_FILE: str = "data.py"
 # The Streamlit pages' text helper beside data.py (the Streamlit extension writes it): never opened.
-TEXT_FILE: str = "sab_text.py"
 REQUIREMENTS_FILE: str = "requirements.txt"
 # The project's type (Plans/editions.plan.md: "a project folder's .sab/project.json records its type"):
 # the base's "bi", or an installed extension's (accounting). It sets the project's mode.
@@ -299,7 +298,7 @@ def data_requirements(text: str) -> list[str]:
         needed.append("duckdb")
     if "read_excel" in text:
         needed.append("openpyxl")
-    if re.search(r"\b(?:sab|sag)\.", text):  # sag: the old alias, in a notebook from before the rename
+    if re.search(r"\bsab\.", text):
         needed.append(
             "# swissarmybench: install Swiss Army Bench's wheel (data.py reads through one of its "
             "connections or blades)"
@@ -321,51 +320,6 @@ def merged_requirements(held: str | None, needed: Sequence[str]) -> str:
     return "\n".join(lines) + "\n"
 
 
-README: str = """\
-{title}: a Swiss Army Bench project.
-
-data.ipynb          the data's canvas: the tables and the variables everything starts from
-data.py             its export: what the pages and the notebooks import (`from data import ...`)
-{app:<19} the app's canvas
-pages/*.py          its export: Streamlit pages ({pages})
-requirements.txt    what to install
-
-To add the pages to your own Streamlit app: copy pages/*.py into your app's pages/ folder and
-data.py beside your app's main script, then install what requirements.txt lists.
-
-To change the data or the pages: unzip, and open the folder as a project in Swiss Army Bench's Workbench.
-
-No rows and no passwords are in this zip: data.py reads each table again the way it was loaded.
-{notes}"""
-
-
-def readme(
-    title: str,
-    pages: Sequence[str],
-    app: str,
-    fill_in: Sequence[str],
-    documents: Sequence[str],
-    texts: bool = False,
-) -> str:
-    """The zip's README.txt. `texts`: a page has a Markdown or HTML block that names a value, so
-    sab_text.py comes along (and says that nothing new is needed)."""
-    lines: list[str] = []
-    if texts:
-        lines.append(
-            f"\n{TEXT_FILE} fills the {{{{ names }}}} of the pages' Markdown and HTML blocks."
-            " It is standard library only, so they need nothing new installed: copy it beside data.py too.\n"
-        )
-    if fill_in:
-        lines.append(
-            "\nFILL IN: data.py cannot read "
-            + ", ".join(fill_in)
-            + " again (pasted, dropped, or sent from Python). Add the code that reads it to data.ipynb.\n"
-        )
-    if documents:
-        lines.append("\nThe notebooks and scripts the pages' cells are in: " + ", ".join(documents) + "\n")
-    return README.format(title=title, pages=", ".join(pages) or "none yet", app=app, notes="".join(lines))
-
-
 def folder_title(path: str | None) -> str:
     """A project's name from its folder's path: `C:/work/Sales` -> `Sales`."""
     return re.split(r"[\\/]", (path or "").rstrip("\\/"))[-1] or "project"
@@ -373,8 +327,7 @@ def folder_title(path: str | None) -> str:
 
 def project_files(names: Iterable[str]) -> list[str]:
     """Which of a project folder's files the Workbench opens, in order: data.ipynb first, then the
-    app's canvas, then the other notebooks, then scripts. data.py is an export, and sab_text.py the copy
-    that fills the pages' text blocks: neither is opened."""
+    app's canvas, then the other notebooks, then scripts. data.py is an export: it is not opened."""
 
     def rank(name: str) -> int:
         lowered = name.lower()
@@ -389,6 +342,6 @@ def project_files(names: Iterable[str]) -> list[str]:
         for n in set(names)
         if n.lower().endswith((".py", ".ipynb", ".canvas.json", ".stapp.json", ".design.json"))
         and not n.startswith(".")
-        and n.lower() not in (DATA_FILE, TEXT_FILE)
+        and n.lower() != DATA_FILE
     ]
     return sorted(wanted, key=lambda n: (rank(n), n.lower()))[:MAX_FILES]

@@ -25,10 +25,7 @@ from urllib.parse import urlencode
 
 from swissarmybench.client.push_client import info_file as info_file  # the server's connection file
 
-NOT_RUNNING = (
-    "Swiss Army Bench isn't running. Start it with the swissarmybench command (installed with uv), or "
-    "VS Code's Open Swiss Army Bench button."
-)
+NOT_RUNNING = "Swiss Army Bench isn't running. Start it with the swissarmybench command (installed with uv)."
 
 
 class CommandError(Exception):

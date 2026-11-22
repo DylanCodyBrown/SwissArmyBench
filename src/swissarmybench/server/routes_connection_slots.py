@@ -27,7 +27,7 @@ from starlette.routing import BaseRoute, Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from swissarmybench.domain import connection_slots as rules
-from swissarmybench.server.http import actor, error_response, json_response, read_json, refusal, safely
+from swissarmybench.server.http import actor, json_response, read_json, refusal
 from swissarmybench.services.connection_slots import CURRENT, Caller, ConnectionSlots
 
 
@@ -75,10 +75,7 @@ def routes(slots: ConnectionSlots, names: object) -> list[BaseRoute]:
     async def sql(request: Request) -> Response:
         if actor(request) == "agent":
             return refusal("A query's SQL is shown to the user only.", 403)
-        try:
-            return json_response(slots.sql(request.path_params["id"]))
-        except Exception as error:
-            return error_response(error)
+        return json_response(slots.sql(request.path_params["id"]))
 
     async def cancel(request: Request) -> Response:
         return json_response(await slots.cancel(request.path_params["id"], actor(request)))
@@ -98,8 +95,6 @@ def routes(slots: ConnectionSlots, names: object) -> list[BaseRoute]:
             return json_response(slots.limits(name))
         except rules.LimitsError as error:
             return refusal(str(error), 400, where=name)
-        except Exception as error:
-            return error_response(error)
 
     async def acquire(request: Request) -> Response:
         kernel = _short(request.headers.get("x-kernel"), 32)
@@ -113,13 +108,13 @@ def routes(slots: ConnectionSlots, names: object) -> list[BaseRoute]:
 
     return [
         Route("/connections/slots", status),
-        Route("/connections/slots/acquire", safely(acquire), methods=["POST"]),
+        Route("/connections/slots/acquire", acquire, methods=["POST"]),
         Route("/connections/slots/{id}/renew", renew, methods=["POST"]),
-        Route("/connections/slots/{id}/release", safely(release), methods=["POST"]),
+        Route("/connections/slots/{id}/release", release, methods=["POST"]),
         Route("/connections/queries", queries),
         Route("/connections/queries/cancel-mine", cancel_mine, methods=["POST"]),
         Route("/connections/queries/clear", clear, methods=["POST"]),
         Route("/connections/queries/{id}/sql", sql),
-        Route("/connections/queries/{id}/cancel", safely(cancel), methods=["POST"]),
+        Route("/connections/queries/{id}/cancel", cancel, methods=["POST"]),
         Route("/connections/{name}/limits", limits, methods=["GET", "PUT"]),
     ]

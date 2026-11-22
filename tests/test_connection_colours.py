@@ -88,21 +88,7 @@ def test_what_is_sent_is_checked() -> None:
     assert rules.check("#808080") == "#808080"  # a grey has no hue to clash with
     with pytest.raises(rules.ConnectionColourError, match="#rrggbb"):
         rules.check("teal")
-    # A kind colour the user chose is the rail's from then on.
-    with pytest.raises(rules.ConnectionColourError, match="green"):
-        rules.check("#0e7c7b", {"script": "#108080"})
     assert rules.kept("#ABCDEF") == "#abcdef" and rules.kept("nope") is None and rules.kept(3) is None
-
-
-def test_a_kept_colour_that_came_near_a_rail_colour_is_turned_away() -> None:
-    chosen = {"script": "#108080"}  # the scripts' green chosen as teal, after Warehouse was teal
-    turned = rules.shifted("#0e7c7b", chosen)
-    assert turned != "#0e7c7b" and rules.clash(turned, chosen) is None
-    assert rules.shifted("#0e7c7b") == "#0e7c7b"
-    # The palette leaves that colour out, and a new connection is not given it.
-    assert "#0e7c7b" not in [c for _, c in rules.palette(chosen)]
-    assert rules.next_free([], chosen) != "#0e7c7b"
-    assert rules.themes("#0e7c7b", chosen)["light"] != rules.themes("#0e7c7b")["light"]
 
 
 # ===== which connections a cell uses =====

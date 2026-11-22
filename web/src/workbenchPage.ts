@@ -77,13 +77,12 @@ import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFil
 import { mountLayout } from "./workbenchLayout";
 import { menuButton, type MenuEntry, openMenu } from "./workbenchMenu";
 import { back, canGoBack, forward, go, goHome, HOME_WINDOW, mountNav, setTitle, startNav, withParams } from "./nav";
-import { loadPanels, onPanels, panelOn, turnedOff } from "./panels";
 import { mountNavRail } from "./rail";
 import { type LandingDoc, mountLanding } from "./workbenchLanding";
 import { watchConnectionColours } from "./connectionColours";
-import { type Kind, kindIcon, kindOfPath, loadKindColours, notebookRole, notebookWord, onKindColours, setProjectFolder } from "./kindColours";
+import { type Kind, kindIcon, kindOfPath, notebookRole, notebookWord, onProjectFolder, setProjectFolder } from "./kindColours";
 import { areaOfKind, gatedRun } from "./gates";
-import { busyClick, markBusy } from "./loading";
+import { busyClick } from "./loading";
 import { type Missing, promptInstall } from "./missingPackages";
 import { openSettings } from "./settingsWindow";
 import { betaCommands, betaOn, exportBetaLog, mountBeta, setBeta } from "./betaNotes";
@@ -98,7 +97,7 @@ import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type CellData, type CellKind, notebookView, type NotebookView } from "./workbenchNotebook";
 import { scriptView, type ScriptView } from "./workbenchScript";
 import { type LineageGraph, type LineageNode, type LineageTarget, closePlacedLineage, lineageNoticed, openLineage } from "./workbenchLineage";
-import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunHistory, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, recordRunFile, runAsScheduled, runHistory, type RunRecord, runSettings } from "./workbenchDocModes";
+import { type Descriptions, type DictionaryTable, described, drawDictionary, drawLineageEmpty, drawOutline, drawRunSettings, type FlowState, type OutlineItem, readDictionary, readFlow, runSettings } from "./workbenchDocModes";
 import { excelView, type ExcelView, WORKBOOK_ENDING } from "./excelCanvas";
 import { activeMode, canvasAnywhere, cellRoute, modes, offersCanvas, onMode, refreshMode, whenMode } from "./modes";
 import { closeProject, copyProject, exportOutline, loadProject, mountProject, newProject as newProjectFolder, onBeforeSave, onProject, openProject as openProjectFolder, projectLabel, projectState, type ProjectState, reportLayout, saveProject } from "./projectFile";
@@ -395,7 +394,7 @@ let project: ProjectFiles | null = null;
 
 // A project opened or closed: the notebooks' kinds (data, app, plain) follow: their tabs, the Data
 // Explorer's files and the landing.
-onKindColours(() => {
+onProjectFolder(() => {
   drawTabs();
   if (project) listProject();
   landing.redraw();
@@ -711,7 +710,6 @@ function notebookModes(doc: Doc): void {
     title: "Outline",
     icon: "outline",
     where: "side",
-    panel: "workbench.outline",
     draw: (body) => {
       const flow = flows.get(doc);
       const view = doc.notebook!;
@@ -743,9 +741,8 @@ function present(doc: Doc, on?: boolean): boolean {
   return now;
 }
 
-// ----- Script mode: run settings, Run as scheduled, run history
+// ----- Script mode: run settings
 
-const historyAt = new Map<Doc, { at: number }>();
 let vaultNames: string[] = [];
 
 function scriptModes(doc: Doc): void {
@@ -753,37 +750,12 @@ function scriptModes(doc: Doc): void {
   if (isApiFile(doc)) {
     // API.py: its endpoints beside the code, Try it there (closed until asked for: design principle 8.14). Its
     // Run is Run API, so it has no run settings or history of a script's.
-    doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", panel: "workbench.endpoints", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
+    doc.modes.add({ id: "endpoints", title: "Endpoints", icon: "play", where: "side", draw: (body) => void import("./localApis").then((m) => m.endpointsPane(body)) });
     return;
   }
-  const chosen = { at: 0 };
-  historyAt.set(doc, chosen);
-  doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", panel: "workbench.runSettings", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
-  doc.modes.add({ id: "runHistory", title: "Run history", icon: "history", where: "bottom", panel: "workbench.runHistory", draw: (body) => drawRunHistory(body, doc.path, () => void runScheduled(doc), chosen) });
+  doc.modes.add({ id: "runSettings", title: "Run settings", icon: "sliders", where: "side", draw: (body) => drawRunSettings(body, doc.path, vaultNames, () => void readArguments(doc)) });
 }
 
-/** Run as scheduled: saved first, then the script as a fresh process with no app; the history shows it. */
-async function runScheduled(doc: Doc): Promise<RunRecord | null> {
-  if (!doc.script) return null;
-  if ((doc.dirty || !doc.path) && !(await save(doc))) return null;
-  scheduling.add(doc);
-  drawControls();
-  try {
-    const run = await runAsScheduled(doc.path!, doc.python);
-    historyAt.get(doc)!.at = 0;
-    if (!doc.modes?.isOpen("runHistory")) doc.modes?.toggle("runHistory", true);
-    else doc.modes.redraw("runHistory");
-    if (run.exit_code !== 0) errorHere(`Exit code ${run.exit_code ?? "stopped"}`);
-    return run;
-  } catch (e) {
-    errorHere(e);
-    return null;
-  } finally {
-    scheduling.delete(doc);
-    drawControls();
-  }
-}
-const scheduling = new Set<Doc>();
 const scriptArguments = new Map<Doc, string>();
 
 /** The run settings' arguments, for Run file (read when the script opens and when its settings change). */
@@ -893,11 +865,6 @@ function modeSwitch(doc: Doc): HTMLElement | null {
     pick("Present", "eye", presenting, () => void present(doc, true)),
   );
 }
-
-onPanels(() => {
-  for (const d of docs) d.modes?.follow();
-  drawStatus();
-});
 
 // ----- a document MOVES to another Workbench window (the owner, 2026-11-15) -----
 // Popped out into a window of its own, or moved back to the main window: its unsaved text, its cell
@@ -1212,12 +1179,8 @@ function openScript(path: string | null, text: string, modified: number | null):
     tablesChanged: () => doc === current && drawTablesTool(),
     // No live Streamlit cells (2026-11-21): no streamlit host.
     lineage: (number) => void showLineage({ document: docName(doc), cell: number }),
-    // Script mode: Run file takes the run settings' arguments, and is kept in the run history.
+    // Script mode: Run file takes the run settings' arguments.
     arguments: () => scriptArguments.get(doc) ?? "",
-    ranFile: (ok, seconds) => {
-      if (!doc.path) return;
-      void recordRunFile(doc.path, ok, seconds).then(() => doc.modes?.redraw("runHistory"), () => undefined);
-    },
     breakpoints: debug?.gutter,
     editorReady: (editor) => {
       scriptEditors.set(doc, editor);
@@ -1318,7 +1281,7 @@ async function showLineage(target?: LineageTarget & { number?: number }, into?: 
 
 /** A run in a document's console: the console opens to show it. */
 function useConsole(doc: Doc): void {
-  if (doc !== current || layout.state().console || !panelOn("workbench.console")) return;
+  if (doc !== current || layout.state().console) return;
   layout.toggle("console", true);
   drawStatus();
 }
@@ -1929,7 +1892,7 @@ function topEntries(): MenuEntry[] {
     { label: "Split right", icon: "splitRight", keys: "Ctrl+\\", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "right") },
     { label: "Split down", icon: "splitDown", disabled: !canSplit(current), title: canSplit(current) ? undefined : SPLIT_WHY, run: () => splitDoc(current, "down") },
     null,
-    ...(panelOn("workbench.explorer") ? [{ label: shown ? "Close the Data Explorer" : "Data Explorer", icon: "zoom", keys: "Ctrl+Shift+E", run: () => void runCommand("view.explorer") }] : []),
+    { label: shown ? "Close the Data Explorer" : "Data Explorer", icon: "zoom", keys: "Ctrl+Shift+E", run: () => void runCommand("view.explorer") },
     { label: "Layout: source only", icon: "max", keys: "Ctrl+Shift+1", run: () => void runCommand("view.focus") },
     { label: "Layout: standard", icon: "restore", run: () => void runCommand("view.standard") },
     null,
@@ -2040,14 +2003,11 @@ function drawControls(): void {
     : isApiFile(doc)
       ? button("Run API", busyClick("Starting…", (b) => runApi(doc, b)), { icon: "play", class: "primary", title: "Run the local sandbox API (F5)" })
       : button("Run file", () => void doc.script!.runFile(), { icon: "play", class: "primary", title: "Run file (F5)" });
-  // Script mode: Run as scheduled (a fresh process with no app); Notebook and Data mode: the view's switch.
   const debugButton = doc.debug ? button("Start debugging", () => void doc.debug!.start().catch((e: Error) => errorHere(e)), { icon: "bug", iconOnly: true, class: "ghost wb-debug-start", title: "Start debugging (Ctrl+Shift+D)" }) : null;
-  const scheduled = doc.script && !isApiFile(doc) ? button("Run as scheduled", () => void runScheduled(doc), { icon: "clock", class: "wb-run-scheduled", title: "The script as a schedule runs it: a fresh process with no app" }) : null;
-  if (scheduled && scheduling.has(doc)) markBusy(scheduled, "Running…"); // loading.ts
   const view = dataViews.get(doc)?.view ?? "cells";
   // No "+ Cell" on a script (the owner, 2026-11-17: "cell insert is available on the script page and it
   // shouldnt be"): cells are a notebook's.
-  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, scheduled, view === "cells" ? run : null, debugButton, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
+  host.replaceChildren(...[modeSwitch(doc), tablesHost, view === "cells" && doc.notebook ? addCell : null, view === "cells" ? run : null, debugButton, saveHere, more, fullButton].filter((e): e is HTMLElement => e !== null));
   drawTablesTool();
 }
 
@@ -3001,9 +2961,6 @@ const COMMANDS: Command[] = [
     const graph = await showLineage({ number: num(a, "number") });
     return { target: graph.nodes.find((n) => n.target)?.label ?? null, nodes: graph.nodes.length, mermaid: graph.mermaid };
   } },
-  { id: "cell.approve", group: "Cell", title: "Approve the cell's output", args: "number: the cell's own number (default: the selected cell); remove: true takes the approval away", when: isNotebook, whyNot: "the document in front is not a notebook", run: (a) => notebook().approve(num(a, "number"), a.remove === true) },
-  { id: "cell.unapprove", group: "Cell", title: "Remove the cell's approval", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => notebook().approve(undefined, true) },
-  { id: "approvals.list", agentOnly: true, group: "Cell", title: "The approved cells and how each output differs now", when: isNotebook, whyNot: "the document in front is not a notebook", run: () => ({ document: current!.title, approvals: notebook().approvals() }) },
   { id: "cell.goTo", group: "Cell", title: "Go to a cell by its number", args: "number: the cell's own number (as @cell7 links to it)", when: isCode, whyNot: "no notebook or script is in front", run: (a) => {
     const number = num(a, "number");
     if (number === undefined) throw new Error("Send the cell's number.");
@@ -3059,12 +3016,10 @@ const COMMANDS: Command[] = [
     return { cell: number };
   } },
   // The Workbench's modes (2026-11-15): Notebook, Script and Data (App mode went with app notebooks, 2026-11-21)
-  { id: "mode.panel", group: "View", title: "Show or hide a panel of the document in front (Outline, Run settings, Run history)", args: 'panel: "outline", "runSettings" or "runHistory"; show: true or false (default: the other way)', when: () => !!current?.modes, whyNot: "the document in front has no panels", run: (a) => {
+  { id: "mode.panel", group: "View", title: "Show or hide a panel of the document in front (Outline, Run settings)", args: 'panel: "outline" or "runSettings"; show: true or false (default: the other way)', when: () => !!current?.modes, whyNot: "the document in front has no panels", run: (a) => {
     const panel = text(a, "panel");
     const doc = current!;
-    const names: Record<string, string> = { outline: "Outline", runSettings: "Run settings", runHistory: "Run history" };
-    if (panel && names[panel] && !panelOn(`workbench.${panel}`)) throw new Error(turnedOff(names[panel]));
-    if (!panel || !doc.modes!.panels().some((p) => p.id === panel)) throw new Error(`The document in front has these panels: ${doc.modes!.panels().map((p) => p.id).join(", ") || "none (turned off in Settings)"}.`);
+    if (!panel || !doc.modes!.panels().some((p) => p.id === panel)) throw new Error(`The document in front has these panels: ${doc.modes!.panels().map((p) => p.id).join(", ") || "none"}.`);
     const show = a.show === undefined ? undefined : a.show === true;
     const open = doc.modes!.toggle(panel, show);
     drawStatus();
@@ -3077,8 +3032,6 @@ const COMMANDS: Command[] = [
     return (await refreshFlow(current!))?.cells ?? [];
   } },
   { id: "notebook.present", group: "Notebook", title: "Present: the notebook as a document (no code)", args: "on: true or false (default: the other way)", when: () => isNotebook() && !dataViews.has(current!), whyNot: "the document in front is not a notebook (data.ipynb has its own views)", run: (a) => ({ presenting: present(current!, a.on === undefined ? undefined : a.on === true) }) },
-  { id: "script.runScheduled", group: "Run", title: "Run as scheduled: the script as a fresh process with no app", when: isScript, whyNot: "the document in front is not a script", run: () => runScheduled(current!) },
-  { id: "script.history", agentOnly: true, group: "Run", title: "The script's run history", when: isScript, whyNot: "the document in front is not a script", run: async () => (current!.path ? runHistory(current!.path) : []) },
   { id: "data.view", group: "Data", title: "data.ipynb's view: Cells, Lineage or Dictionary", args: 'view: "cells", "lineage" or "dictionary"', when: () => !!current && dataViews.has(current), whyNot: "the document in front is not a project's data.ipynb", run: (a) => {
     const view = text(a, "view") ?? "cells";
     if (view !== "cells" && view !== "lineage" && view !== "dictionary") throw new Error('view is "cells", "lineage" or "dictionary".');
@@ -3104,7 +3057,7 @@ const COMMANDS: Command[] = [
   // View
   { id: "palette", group: "View", title: "Show every command", keys: "Ctrl+Shift+P", run: () => openPalette() },
   { id: "view.source", group: "View", title: "Go to the source", keys: "Ctrl+1", run: () => layout.focus("source") },
-  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: () => layout.focus("variables") },
+  { id: "view.variables", group: "View", title: "Go to Variables", keys: "Ctrl+3", run: () => layout.focus("variables") },
   { id: "view.nextPane", group: "View", title: "Next pane", keys: "F6", run: () => layout.cycle(1) },
   { id: "view.previousPane", group: "View", title: "Previous pane", keys: "Shift+F6", run: () => layout.cycle(-1) },
   // Full screen (the owner, 2026-11-21: "the ide pane should be fullscreenable"): the tabs and the editor fill
@@ -3115,17 +3068,17 @@ const COMMANDS: Command[] = [
   ...(PAGE === "scripts"
     ? [{ id: "search.scripts", group: "Find", title: "Search in scripts…", keys: "Ctrl+Shift+F", run: () => (searchScripts({ openAt: (p: string, line: number) => void openAt(p, line) }, () => (current?.script ? { path: () => current!.path, text: () => current!.script!.text(), python: () => current!.python, replaceText: (t: string) => current!.script!.replaceText(t), reveal: (line: number) => current!.script!.reveal(line) } : null)), { opened: true }) }]
     : []),
-  { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: (a) => {
+  { id: "view.explorer", group: "View", title: "Show or hide the Data Explorer", keys: "Ctrl+Shift+E", args: "show: true or false (default: the other way)", run: (a) => {
     const show = typeof a.show === "boolean" ? a.show : undefined;
     return { open: explorerPane.toggle(show), popped: false };
   } },
-  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.variables"), whyNot: turnedOff("Variables"), run: (a) => {
+  { id: "view.toggleRight", group: "View", title: "Show or hide Variables", args: "show: true or false (default: the other way)", run: (a) => {
     const shown = layout.toggle("right", typeof a.show === "boolean" ? a.show : undefined);
     if (shown) void variables.refresh();
     drawStatus();
     return { shown };
   } },
-  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", when: () => panelOn("workbench.console"), whyNot: turnedOff("The Console"), run: (a) => {
+  { id: "view.toggleConsole", group: "View", title: "Show or hide the console", args: "show: true or false (default: the other way)", run: (a) => {
     const shown = layout.toggle("console", typeof a.show === "boolean" ? a.show : undefined);
     drawStatus();
     return { shown };
@@ -3163,7 +3116,7 @@ const COMMANDS: Command[] = [
   // The open tables and the blades' variables (once the Data panel's; the Data Explorer finds them)
   { id: "data.list", agentOnly: true, group: "Data", title: "The open tables and the blades' variables (the Data Explorer finds more: explorer.search)", run: () => ({ tables: tables.map((t) => ({ name: t.name, rows: t.rows ?? null, source: t.source ?? "", steps: t.steps })), variables: bladeVariables.map((b) => ({ name: b.variable ?? b.name, blade: b.name, description: b.description })), explorer: explorerPane.popped() ? "popped" : explorerPane.isOpen() ? "open" : "closed" }) },
   // The Data Explorer (workbenchExplorer.ts, dataExplorer.ts): its search, its Insert, popping out and back
-  { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: async (a) => {
+  { id: "explorer.search", group: "Data", title: "Search the Data Explorer (it opens): its results as data", args: "text; kinds: a list of connections, tables, columns, structures, apis, variables, blades; connection; column: a column's exact name", run: async (a) => {
     const kinds = Array.isArray(a.kinds) ? a.kinds.map(String) : typeof a.kinds === "string" ? a.kinds.split(",") : [];
     const state: ExplorerState = { text: text(a, "text") ?? "", kinds, connection: text(a, "connection") ?? "", column: text(a, "column") ?? "", scroll: 0 };
     explorerPane.toggle(true);
@@ -3177,7 +3130,7 @@ const COMMANDS: Command[] = [
     return explorerInsert({ ...(typeof insert.sql === "string" ? { sql: insert.sql } : {}), ...(typeof insert.python === "string" ? { python: insert.python } : {}) });
   } },
   { id: "explorer.target", agentOnly: true, group: "Data", title: "Where the Data Explorer's Insert goes: the focused document and its cell", run: () => explorerTarget() },
-  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out: the Data page in a window of its own, with its search", when: () => panelOn("workbench.explorer"), whyNot: turnedOff("The Data Explorer"), run: () => popExplorer() },
+  { id: "explorer.popOut", group: "Data", title: "Pop the Data Explorer out: the Data page in a window of its own, with its search", run: () => popExplorer() },
   { id: "tables.transformations", group: "Tables", title: "Show a table's transformations (its read-only cell, wherever it lives)", args: "table: the table's name", run: (a) => {
     const table = text(a, "table");
     if (!table) throw new Error("Send the table's name.");
@@ -3430,14 +3383,6 @@ onNotice((notice) => {
   if (["grid_updated", "dataset_updated"].includes(notice.type)) lineageNoticed();
 });
 
-// A panel turned off in Settings is gone (grid.css, by <body>'s class); an open console or Variables
-// closes with it, and stays closed until it is turned on again and opened.
-onPanels(() => {
-  if (!panelOn("workbench.console") && layout.state().console) layout.toggle("console", false);
-  if (!panelOn("workbench.variables") && layout.state().right) layout.toggle("right", false);
-  drawStatus();
-});
-
 watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
 // The open project's mode changed (a project opened or closed): New's language and the cell kinds follow.
 onNotice((notice) => {
@@ -3451,8 +3396,6 @@ window.addEventListener("message", (e: MessageEvent) => {
   if (e.origin === location.origin && said?.sab === "open" && typeof said.path === "string") void open(said.path).catch((err: Error) => errorToast(err));
 });
 void Promise.all([
-  loadPanels(),
-  loadKindColours(),
   refreshHome(),
   loadConnections(),
   whenMode(),

@@ -47,12 +47,8 @@ from swissarmybench.domain.blades import (
     read_blade,
     write_blade,
 )
-from swissarmybench.renamed import env
 
 KEYRING_SERVICE: str = "SwissArmyBench"
-# The service SwissArmyGrid saved under before its rename (renamed.py): a secret found only there is
-# copied to the new service on its first read, so saved passwords keep working; the next release drops it.
-OLD_KEYRING_SERVICE: str = "SwissArmyGrid"
 # Whether a blade's secret is saved, kept this long (a listing asks for every blade's, and an operating
 # system's vault can take milliseconds an answer); a save or forget here clears it at once, so the time
 # only bounds a change made outside the app.
@@ -73,7 +69,6 @@ class BladeStore:
         folder: Path,
         folders_file: Path | None = None,
         pins_file: Path | None = None,
-        packs: Callable[[], list[tuple[Path, str]]] | None = None,
         starters: Path | None = None,
         made: Callable[[], object] | None = None,
         more_starters: Callable[[], list[Path]] | None = None,
@@ -91,8 +86,6 @@ class BladeStore:
         # The extensions' own starter blades (each an extension's STARTERS folder, while it is on).
         self._more_starters = more_starters or (lambda: [])
         self.folders_file = folders_file
-        # Installed packs' blades folders, with each pack's label: read-only blades from a marketplace.
-        self._packs = packs or (lambda: [])
         # The built-in starter pack (src/swissarmybench/starters/): read-only, shipped with the app, so a
         # new version brings new starters; listed apart (starters()), found by name after the rest.
         self.starters_folder = starters
@@ -179,10 +172,9 @@ class BladeStore:
             while target.name.casefold() in taken or target.exists():
                 target, number = root / f"{stem}-{number}{rules.SUFFIX}", number + 1
         text = self.text_of(blade)
-        if not (target.is_file() and target.read_text(encoding="utf-8") == text):
+        # Only this user may read it: a blade's code can name servers and accounts.
+        if write_atomic(target, text, mode=0o600, newline="\n", if_changed=True):
             self._made()
-            # Only this user may read it: a blade's code can name servers and accounts.
-            write_atomic(target, text, mode=0o600, newline="\n")
         if own is not None and own != target:
             own.unlink(missing_ok=True)  # it changed kind (a connection now a vault): its old file goes
         return target
@@ -229,7 +221,7 @@ class BladeStore:
             except (OSError, ValueError):
                 saved = []
             listed += [{"path": str(p), "from_env": False} for p in saved if isinstance(p, str)]
-        for part in env("SWISSARMYBENCH_BLADE_FOLDERS", "").split(os.pathsep):
+        for part in os.environ.get("SWISSARMYBENCH_BLADE_FOLDERS", "").split(os.pathsep):
             if part.strip():
                 listed.append({"path": part.strip(), "from_env": True})
         seen: set[str] = set()
@@ -299,13 +291,11 @@ class BladeStore:
                         problems.append({"path": str(path), "error": problem})
                     if blade is not None:
                         found.append(blade)
-        for root, label in self._packs():
-            found += self._pack_files(root, label, problems)
         self.problems = problems
         return found
 
     def _pack_files(self, root: Path, label: str, problems: list[dict[str, str]]) -> list[Blade]:
-        """Every blade file of a pack's folder (read again only when it changed), marked with the pack."""
+        """Every blade file of a starter folder (read again only when it changed), marked with `label`."""
         found: list[Blade] = []
         for path in sorted(root.rglob("*.py")) if root.is_dir() else []:
             try:
@@ -394,8 +384,8 @@ class BladeStore:
         return replace(blade, catalog_language=found[0], catalog_command=found[1])
 
     def all(self) -> list[Blade]:
-        """Saved blades, folder blades and pack blades; a saved blade comes first when two share a
-        name, then the first folder's (a clone being edited), then an installed pack's."""
+        """Saved blades and folder blades; a saved blade comes first when two share a name, then the first
+        folder's."""
         by_name: dict[str, Blade] = {}
         for blade in [*self._saved(), *self._scan()]:
             by_name.setdefault(blade.name.casefold(), blade)
@@ -415,20 +405,18 @@ class BladeStore:
         raise KeyError(name)
 
     def file_of(self, name: str) -> Path | None:
-        """The file a blade is kept in (the library's, a blade folder's, a pack's or a starter's)."""
+        """The file a blade is kept in (the library's, a blade folder's or a starter's)."""
         blade = self.get(name)
         return Path(blade.path) if blade.path else self.saved_file(blade.name)
 
     def set_header(self, name: str, changes: Mapping[str, Any]) -> Blade:
         """Change a blade's name, description, tags or table name: its file's header only, the code's bytes
-        untouched (domain/blades.py with_header). Nothing is written when nothing changes. A starter's and a
-        pack's are read-only."""
+        untouched (domain/blades.py with_header). Nothing is written when nothing changes. A starter's is
+        read-only."""
         with self._lock:
             blade = self.get(name)
             if blade.pack == rules.STARTERS:
                 raise BladeError(f"{blade.name} is a starter (read-only): copy it as your own to change.")
-            if blade.pack:
-                raise BladeError(f"{blade.name} comes from the pack {blade.pack}: change it in that pack.")
             path = self.file_of(blade.name)
             if path is None:
                 raise BladeError(f"{blade.name} has no file to change.")
@@ -471,15 +459,13 @@ class BladeStore:
         """A blade's code, written into its file after the header (the blade IDE: the owner, 2026-11-21). The
         header stays as it is but for its variable, which follows the code (a function renamed). Checked as
         any blade is (it must parse and make its variable); nothing is written when the bytes would not
-        change. A starter's and a pack's are read-only."""
+        change. A starter's is read-only."""
         with self._lock:
             blade = self.get(name)
             if blade.pack == rules.STARTERS:
                 raise BladeError(
                     f"{blade.name} is a starter (read-only): Copy as your own (blades_copy) to change it."
                 )
-            if blade.pack:
-                raise BladeError(f"{blade.name} comes from the pack {blade.pack}: change it in that pack.")
             if blade.kind == "secret":
                 raise BladeError(
                     f"{blade.name} is a secret blade: it has no code, only its variables' names."
@@ -516,11 +502,6 @@ class BladeStore:
                     raise BladeError(f"No blade named {previous_name!r} to change.") from None
             if previous is not None and previous.pack == rules.STARTERS:
                 raise BladeError(f"{previous.name} is a starter (read-only): copy it as your own to change.")
-            if previous is not None and previous.pack:
-                raise BladeError(
-                    f"{previous.name} comes from the pack {previous.pack}: change it in that pack's "
-                    "repository (a clone added as a blade folder), or save a copy under another name."
-                )
             blade = parse_blade(data, previous)
             renamed = previous is not None and previous.name.casefold() != blade.name.casefold()
             if previous is None or renamed:
@@ -589,11 +570,6 @@ class BladeStore:
                 return
             if blade.pack == rules.STARTERS:
                 raise BladeError(f"{blade.name} is a starter: it comes with the app and stays.")
-            if blade.pack:
-                raise BladeError(
-                    f"{blade.name} comes from the pack {blade.pack}. Uninstall or disable the pack in Claude "
-                    "Code (/plugin) to remove its blades."
-                )
             if blade.path:
                 raise BladeError(
                     f"{blade.name} is a file in your blade folder ({blade.path}). Delete or move the file "
@@ -629,14 +605,6 @@ class BladeStore:
     def _secret(self, name: str, secret: str) -> str | None:
         vault, user = self._keyring(), self._user(name, secret)
         value: str | None = vault.get_password(KEYRING_SERVICE, user)
-        if value is None:
-            # Saved before the rename: found under the old service, and copied across once.
-            value = vault.get_password(OLD_KEYRING_SERVICE, user)
-            if value is not None:
-                try:
-                    vault.set_password(KEYRING_SERVICE, user, value)
-                except Exception:  # noqa: S110 (a vault that will not write still gives the value)
-                    pass
         return value
 
     def _has_secret(self, name: str, secret: str) -> bool:
@@ -663,13 +631,12 @@ class BladeStore:
             self._saved_status.pop(self._user(name, secret), None)
 
     def _forget_secret(self, name: str, secret: str) -> None:
-        for service in (KEYRING_SERVICE, OLD_KEYRING_SERVICE):  # forgotten under the old name too
-            try:
-                self._keyring().delete_password(service, self._user(name, secret))
-            except VaultUnavailableError:
-                return
-            except Exception:  # noqa: S112 (keyring raises PasswordDeleteError for one never set)
-                continue
+        try:
+            self._keyring().delete_password(KEYRING_SERVICE, self._user(name, secret))
+        except VaultUnavailableError:
+            return
+        except Exception:
+            return
 
     def copy_secrets(self, source: str, target: str) -> None:
         """A blade kept under a new name (a project's, beside the library's own): the values saved under the

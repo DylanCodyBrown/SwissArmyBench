@@ -108,10 +108,11 @@ def connection(monkeypatch: pytest.MonkeyPatch) -> Callable[[Callable[[], Any]],
 # ===== every Write starter =====
 
 
-def test_the_write_family_is_54_calls_and_16_functions() -> None:
+def test_the_write_family_is_17_calls_and_16_functions() -> None:
     calls = [read_blade_file(p) for p in WRITERS]
     functions = [read_blade_file(p) for p in FUNCTIONS]
-    assert len(calls) == 54 and len(functions) == 16  # the lakes' and SharePoint's: 11 and 3
+    # One call a target, its mode a placeholder (the owner's simplicity pass, 2026-11-21: 54 became 17).
+    assert len(calls) == 17 and len(functions) == 16
     assert {b["family"] for b in calls + functions} == {"Write"}
     assert {b["language"] for b in calls} == {"python"} and {b["kind"] for b in calls} == {"snippet"}
     assert {b["kind"] for b in functions} == {"other"}
@@ -248,10 +249,7 @@ def test_every_writable_kind_has_a_starter_and_every_starter_names_writable_kind
     for kind in write_capability.READ_ONLY:
         assert write_capability.starters_for(kind, blades) == []
     words = write_capability.capability("postgres", blades)["words"]
-    assert (
-        words
-        == "Writes: PostgreSQL append, PostgreSQL create table, PostgreSQL delete, PostgreSQL replace, PostgreSQL upsert"
-    )
+    assert words == "Writes: append, create, replace, upsert, delete"
 
 
 def test_the_connections_page_says_what_each_connection_writes(client: TestClient) -> None:
@@ -263,20 +261,14 @@ def test_the_connections_page_says_what_each_connection_writes(client: TestClien
         assert client.post("/connections", json=body | {"variable": "conn"}, headers=AUTH).status_code == 200
     listed = {c["name"]: c for c in client.get("/connections", headers=AUTH).json()["connections"]}
     assert listed["Finance file"]["writes"]["writable"] is True
-    assert listed["Finance file"]["writes"]["starters"][0] == "SQLite append"
+    assert listed["Finance file"]["writes"]["starters"] == ["SQLite write"]
     assert listed["Planning"]["writes"]["words"].startswith("Read-only: ")
     cards = {c["name"]: c for c in client.get("/connections/usage", headers=AUTH).json()["connections"]}
     assert cards["Planning"]["writes"]["writable"] is False
     detail = client.get("/connections/Finance%20file/usage", headers=AUTH).json()
-    assert detail["writes"]["words"].startswith("Writes: SQLite append")
+    assert detail["writes"]["words"].startswith("Writes: append, create")
     forms = {t["id"]: t for t in client.get("/connections/types", headers=AUTH).json()["types"]}
-    assert forms["sqlserver"]["writes"]["starters"] == [
-        "SQL Server append",
-        "SQL Server create table",
-        "SQL Server delete",
-        "SQL Server replace",
-        "SQL Server upsert",
-    ]
+    assert forms["sqlserver"]["writes"]["starters"] == ["SQL Server write"]
     assert "writes" not in forms["azure_key_vault"]
 
 
@@ -319,18 +311,32 @@ def test_a_write_starters_form_offers_the_connections_of_its_kind_first(client: 
             ).status_code
             == 200
         )
-    form = client.get("/blades/SQLite%20upsert/snippet", headers=AUTH).json()
+    form = client.get("/blades/SQLite%20write/snippet", headers=AUTH).json()
     assert form["cell"] == "code" and form["cell_words"] == "a Python cell"
     assert form["options"]["connections"] == ["Zed shop", "Alpha CSV"]
     kinds = {p["name"]: p["kind"] for p in form["placeholders"]}
-    assert kinds == {"connection": "connection", "target": "text", "table": "table", "key column": "column"}
+    assert kinds == {
+        "connection": "connection",
+        "target": "text",
+        "table": "table",
+        "mode": "text",
+        "key column": "column",
+    }
     filled = client.post(
-        "/blades/SQLite%20upsert/snippet",
-        json={"values": {"connection": "Zed shop", "table": "orders", "key column": "order_id"}},
+        "/blades/SQLite%20write/snippet",
+        json={
+            "values": {
+                "connection": "Zed shop",
+                "table": "orders",
+                "mode": "upsert",
+                "key column": "order_id",
+            }
+        },
         headers=AUTH,
     ).json()
     assert '    "Zed shop",' in filled["text"] and "    orders,  # a DataFrame" in filled["text"]
-    assert 'keys=["order_id"]' in filled["text"] and filled["cell_name"] is None
+    assert 'keys=["order_id"]' in filled["text"] and 'mode="upsert"' in filled["text"]
+    assert filled["cell_name"] is None
 
 
 # ===== SQLite: every write, its dry run, its rollback =====
@@ -356,7 +362,7 @@ def rows_of(file: Path, table: str = "orders") -> list[tuple[Any, ...]]:
 
 
 def test_a_dry_run_changes_nothing_and_says_what_it_would_do(shop: Path) -> None:
-    report = run(cell("write_sqlite_upsert", dry_run=True), orders=ORDERS)
+    report = run(cell("write_sqlite", mode="upsert", dry_run=True), orders=ORDERS)
     said = str(report)
     assert said.startswith("Dry run: nothing was written. Set dry_run = False to write.")
     assert "Target    orders on Warehouse" in said and "Database  SQLite" in said
@@ -369,20 +375,22 @@ def test_a_dry_run_changes_nothing_and_says_what_it_would_do(shop: Path) -> None
 
 def test_append_upsert_replace_delete_and_create_give_the_right_rows(shop: Path) -> None:
     new = pd.DataFrame({"order_id": [4, 5], "region": ["East", "West"], "amount": [4.0, 5.0]})
-    done = run(cell("write_sqlite_append", dry_run=False), orders=new)
+    done = run(cell("write_sqlite", mode="append", dry_run=False), orders=new)
     assert done.counts == {"inserted": 2} and str(done).startswith(
         "Wrote orders on Warehouse: inserted 2 rows"
     )
     assert [r[0] for r in rows_of(shop)] == [1, 4, 5, 9]
-    upserted = run(cell("write_sqlite_upsert", dry_run=False), orders=ORDERS)
+    upserted = run(cell("write_sqlite", mode="upsert", dry_run=False), orders=ORDERS)
     assert upserted.counts == {"inserted": 2, "updated": 1}
     assert rows_of(shop)[:3] == [(1, "South", 1.5), (2, "East", 2.5), (3, "West", 3.5)]
-    gone = run(cell("write_sqlite_delete", dry_run=False), orders=pd.DataFrame({"order_id": [2, 3, 3, 77]}))
+    gone = run(
+        cell("write_sqlite", mode="delete", dry_run=False), orders=pd.DataFrame({"order_id": [2, 3, 3, 77]})
+    )
     assert gone.counts == {"deleted": 2}
     assert [r[0] for r in rows_of(shop)] == [1, 4, 5, 9]
-    replaced = run(cell("write_sqlite_replace", dry_run=False), orders=ORDERS)
+    replaced = run(cell("write_sqlite", mode="replace", dry_run=False), orders=ORDERS)
     assert replaced.counts == {"deleted": 4, "inserted": 3} and len(rows_of(shop)) == 3
-    made = run(cell("write_sqlite_create_table", dry_run=False, target="orders_copy"), orders=ORDERS)
+    made = run(cell("write_sqlite", mode="create", dry_run=False, target="orders_copy"), orders=ORDERS)
     assert made.counts == {"inserted": 3} and rows_of(shop, "orders_copy") == rows_of(shop)
     with sqlite3.connect(shop) as db:
         declared = db.execute("SELECT sql FROM sqlite_master WHERE name = 'orders_copy'").fetchone()[0]
@@ -390,7 +398,7 @@ def test_append_upsert_replace_delete_and_create_give_the_right_rows(shop: Path)
 
 
 def test_a_failing_batch_rolls_every_row_back_and_says_which(shop: Path) -> None:
-    text = cell("write_sqlite_append", dry_run=False).replace("batch_size=1000", "batch_size=2")
+    text = cell("write_sqlite", mode="append", dry_run=False).replace("batch_size=1000", "batch_size=2")
     rows = pd.DataFrame({"order_id": [20, 21, 22, 1], "region": ["A", "B", "C", "D"], "amount": [0.0] * 4})
     with pytest.raises(WriteError) as refused:
         run(text, orders=rows)
@@ -400,10 +408,10 @@ def test_a_failing_batch_rolls_every_row_back_and_says_which(shop: Path) -> None
 
 
 def test_a_write_says_when_the_table_changed_since_its_dry_run(shop: Path) -> None:
-    run(cell("write_sqlite_upsert", dry_run=True), orders=ORDERS)  # 1 to update, 2 to insert
+    run(cell("write_sqlite", mode="upsert", dry_run=True), orders=ORDERS)  # 1 to update, 2 to insert
     with sqlite3.connect(shop) as db:
         db.execute("INSERT INTO orders VALUES (2, 'East', 0.0)")
-    done = run(cell("write_sqlite_upsert", dry_run=False), orders=ORDERS)
+    done = run(cell("write_sqlite", mode="upsert", dry_run=False), orders=ORDERS)
     assert done.counts == {"inserted": 1, "updated": 2}
     assert "The dry run counted otherwise (updated 1 -> 2; inserted 2 -> 1)" in str(done)
 
@@ -411,26 +419,26 @@ def test_a_write_says_when_the_table_changed_since_its_dry_run(shop: Path) -> No
 def test_wrong_columns_keys_and_connections_are_refused_in_plain_words(shop: Path) -> None:
     wrong = pd.DataFrame({"order_id": [1], "colour": ["red"]})
     with pytest.raises(WriteError, match=r"orders has no column colour: rename or drop it in the rows first"):
-        run(cell("write_sqlite_append", dry_run=True), orders=wrong)
+        run(cell("write_sqlite", mode="append", dry_run=True), orders=wrong)
     twice = pd.DataFrame({"order_id": [1, 1], "region": ["a", "b"], "amount": [1.0, 2.0]})
     with pytest.raises(WriteError, match="1 keys are shared by more than one row"):
-        run(cell("write_sqlite_upsert", dry_run=True), orders=twice)
+        run(cell("write_sqlite", mode="upsert", dry_run=True), orders=twice)
     if importlib.util.find_spec("psycopg"):  # the starter imports its driver first (its package's mark)
         with pytest.raises(
             WriteError, match="Warehouse is a SQLite connection: this starter writes to PostgreSQL"
         ):
-            run(cell("write_postgresql_append", dry_run=True), orders=ORDERS)
+            run(cell("write_postgresql", mode="append", dry_run=True), orders=ORDERS)
     with pytest.raises(WriteError, match="orders is already on Warehouse"):
-        run(cell("write_sqlite_create_table", dry_run=True), orders=ORDERS)
+        run(cell("write_sqlite", mode="create", dry_run=True), orders=ORDERS)
 
 
 def test_a_duckdb_relation_and_an_arrow_table_are_rows_too(shop: Path) -> None:
     import duckdb
 
     relation = duckdb.sql("SELECT 30 AS order_id, 'North' AS region, 3.0 AS amount")
-    assert run(cell("write_sqlite_append", dry_run=False), orders=relation).counts == {"inserted": 1}
+    assert run(cell("write_sqlite", mode="append", dry_run=False), orders=relation).counts == {"inserted": 1}
     table = pa.table({"order_id": [31], "region": ["South"], "amount": [None]})
-    assert run(cell("write_sqlite_append", dry_run=False), orders=table).counts == {"inserted": 1}
+    assert run(cell("write_sqlite", mode="append", dry_run=False), orders=table).counts == {"inserted": 1}
     assert rows_of(shop)[-2:] == [(30, "North", 3.0), (31, "South", None)]
 
 
@@ -465,7 +473,7 @@ def test_postgresql_writes_through_copy_on_conflict_and_one_transaction(
     rows = pd.DataFrame(
         {"order_id": [1, 2, 3], "Region": ["North", "South", "East"], "amount": [1.25, 2.5, None]}
     )
-    made = run(cell("write_postgresql_create_table", dry_run=False, **target), orders=rows)
+    made = run(cell("write_postgresql", mode="create", dry_run=False, **target), orders=rows)
     assert made.counts == {"inserted": 3}
     with psycopg.connect(reader, autocommit=True) as db:
         db.execute("ALTER TABLE sab_writes.orders ADD PRIMARY KEY (order_id)")
@@ -476,23 +484,28 @@ def test_postgresql_writes_through_copy_on_conflict_and_one_transaction(
         )
     assert kinds == {"order_id": "bigint", "region": "text", "amount": "double precision"}  # Region: region
     dry = run(
-        cell("write_postgresql_upsert", dry_run=True, **target), orders=rows.assign(amount=[9.0, 9.0, 9.0])
+        cell("write_postgresql", mode="upsert", dry_run=True, **target),
+        orders=rows.assign(amount=[9.0, 9.0, 9.0]),
     )
     assert dry.planned == {"updated": 3, "inserted": 0}
     more = pd.DataFrame({"order_id": [3, 4], "Region": ["East", "West"], "amount": [3.0, 4.0]})
-    assert run(cell("write_postgresql_upsert", dry_run=False, **target), orders=more).counts == {
+    assert run(cell("write_postgresql", mode="upsert", dry_run=False, **target), orders=more).counts == {
         "inserted": 1,
         "updated": 1,
     }
     assert run(
-        cell("write_postgresql_append", dry_run=False, **target), orders=more.assign(order_id=[5, 6])
+        cell("write_postgresql", mode="append", dry_run=False, **target), orders=more.assign(order_id=[5, 6])
     ).counts == {"inserted": 2}
     with pytest.raises(WriteError, match="Nothing was written"):
-        run(cell("write_postgresql_append", dry_run=False, **target), orders=more.assign(order_id=[7, 1]))
+        run(
+            cell("write_postgresql", mode="append", dry_run=False, **target),
+            orders=more.assign(order_id=[7, 1]),
+        )
     assert run(
-        cell("write_postgresql_delete", dry_run=False, **target), orders=pd.DataFrame({"order_id": [5, 6]})
+        cell("write_postgresql", mode="delete", dry_run=False, **target),
+        orders=pd.DataFrame({"order_id": [5, 6]}),
     ).counts == {"deleted": 2}
-    replaced = run(cell("write_postgresql_replace", dry_run=False, **target), orders=rows)
+    replaced = run(cell("write_postgresql", mode="replace", dry_run=False, **target), orders=rows)
     assert replaced.counts == {"deleted": 4, "inserted": 3}
     with psycopg.connect(reader) as db:
         assert db.execute("SELECT order_id, region FROM sab_writes.orders ORDER BY 1").fetchall() == [
@@ -529,18 +542,20 @@ def test_mariadb_writes_with_on_duplicate_key_update(
 
     connection(opens)
     target = {"target": "sab_writes.orders"}
-    assert run(cell("write_mysql_append", dry_run=False, **target), orders=ORDERS).counts == {"inserted": 3}
+    assert run(cell("write_mysql", mode="append", dry_run=False, **target), orders=ORDERS).counts == {
+        "inserted": 3
+    }
     changed = ORDERS.assign(order_id=[3, 4, 5], amount=[30.0, 40.0, 50.0])
-    assert run(cell("write_mysql_upsert", dry_run=True, **target), orders=changed).planned == {
+    assert run(cell("write_mysql", mode="upsert", dry_run=True, **target), orders=changed).planned == {
         "updated": 1,
         "inserted": 2,
     }
-    assert run(cell("write_mysql_upsert", dry_run=False, **target), orders=changed).counts == {
+    assert run(cell("write_mysql", mode="upsert", dry_run=False, **target), orders=changed).counts == {
         "inserted": 2,
         "updated": 1,
     }
     assert run(
-        cell("write_mysql_delete", dry_run=False, **target), orders=pd.DataFrame({"order_id": [1, 2]})
+        cell("write_mysql", mode="delete", dry_run=False, **target), orders=pd.DataFrame({"order_id": [1, 2]})
     ).counts == {"deleted": 2}
     with opens() as db, db.cursor() as c:
         c.execute("SELECT order_id, amount FROM sab_writes.orders ORDER BY 1")
@@ -710,7 +725,9 @@ def test_sql_server_upsert_stages_the_rows_in_the_targets_types_then_merges_with
     sql_server: dict[str, Any],
 ) -> None:
     dry = run(
-        cell("write_sql_server_upsert", dry_run=True, target="dbo.orders", **{"key column": "order_id"}),
+        cell(
+            "write_sql_server", mode="upsert", dry_run=True, target="dbo.orders", **{"key column": "order_id"}
+        ),
         orders=ROWS,
     )
     assert dry.planned == {"updated": 1, "inserted": 2}  # one COUNT join against the staged keys
@@ -727,7 +744,13 @@ def test_sql_server_upsert_stages_the_rows_in_the_targets_types_then_merges_with
     ]  # a dry run: rolled back
     sql_server["log"].clear()
     done = run(
-        cell("write_sql_server_upsert", dry_run=False, target="dbo.orders", **{"key column": "order_id"}),
+        cell(
+            "write_sql_server",
+            mode="upsert",
+            dry_run=False,
+            target="dbo.orders",
+            **{"key column": "order_id"},
+        ),
         orders=ROWS,
     )
     assert done.counts == {"updated": 1, "inserted": 2}
@@ -780,7 +803,7 @@ def test_sql_server_sends_each_value_in_the_targets_exact_type(sql_server: dict[
             "price": [1.2345, float("nan")],  # NaN is NULL
         }
     )
-    text = cell("write_sql_server_append", dry_run=False, target="dbo.events")
+    text = cell("write_sql_server", mode="append", dry_run=False, target="dbo.events")
     assert run(text, orders=rows).counts == {"inserted": 2}
     if sql_server["driver"] == "pyodbc":
         sizes = calls(sql_server, "setinputsizes")[-1][1]
@@ -814,7 +837,9 @@ def test_sql_server_runs_the_whole_transaction_again_on_azures_passing_errors(
         "Database 'shop' on server 'made-up' is not currently available (40613)",
     )
     sql_server["failures"] = [("executemany", "INSERT INTO #sab_stage", passing), ("execute", "MERGE", busy)]
-    text = cell("write_sql_server_upsert", dry_run=False, target="dbo.orders", **{"key column": "order_id"})
+    text = cell(
+        "write_sql_server", mode="upsert", dry_run=False, target="dbo.orders", **{"key column": "order_id"}
+    )
     done = run(text, orders=ROWS)
     assert done.counts == {"updated": 1, "inserted": 2}
     assert len(sql_server["opened"]) == 3  # two passing errors: two fresh connections, each a whole try
@@ -849,7 +874,13 @@ def test_sql_server_falls_back_to_update_then_insert_when_merge_is_refused(
     refused = FakeOdbcError("42000", "MERGE is not supported in this version of SQL Server (40514)")
     sql_server["failures"] = [("execute", "MERGE", refused)]
     done = run(
-        cell("write_sql_server_upsert", dry_run=False, target="dbo.orders", **{"key column": "order_id"}),
+        cell(
+            "write_sql_server",
+            mode="upsert",
+            dry_run=False,
+            target="dbo.orders",
+            **{"key column": "order_id"},
+        ),
         orders=ROWS,
     )
     executed = [c[1] for c in calls(sql_server, "execute")]
@@ -862,7 +893,9 @@ def test_sql_server_falls_back_to_update_then_insert_when_merge_is_refused(
 def test_sql_server_keys_default_to_the_primary_key_and_identity_and_computed_columns_are_said(
     sql_server: dict[str, Any],
 ) -> None:
-    text = cell("write_sql_server_upsert", dry_run=True, target="dbo.orders", **{"key column": "order_id"})
+    text = cell(
+        "write_sql_server", mode="upsert", dry_run=True, target="dbo.orders", **{"key column": "order_id"}
+    )
     no_keys = text.replace('keys=["order_id"]', "keys=[]")
     assert "Keys      order_id" in str(run(no_keys, orders=ROWS))
     sql_server["primary"] = False
@@ -870,8 +903,8 @@ def test_sql_server_keys_default_to_the_primary_key_and_identity_and_computed_co
         run(no_keys, orders=ROWS)
     numbered = ROWS.assign(row_no=[7, 8, 9])
     with pytest.raises(WriteError, match="row_no is dbo.orders's identity column: SQL Server numbers it"):
-        run(cell("write_sql_server_append", dry_run=True, target="dbo.orders"), orders=numbered)
-    chosen = cell("write_sql_server_append", dry_run=False, target="dbo.orders").replace(
+        run(cell("write_sql_server", mode="append", dry_run=True, target="dbo.orders"), orders=numbered)
+    chosen = cell("write_sql_server", mode="append", dry_run=False, target="dbo.orders").replace(
         "identity_insert=False", "identity_insert=True"
     )
     run(chosen, orders=numbered)
@@ -882,7 +915,7 @@ def test_sql_server_keys_default_to_the_primary_key_and_identity_and_computed_co
     ]
     with pytest.raises(WriteError, match="total is computed by dbo.orders"):
         run(
-            cell("write_sql_server_append", dry_run=True, target="dbo.orders"),
+            cell("write_sql_server", mode="append", dry_run=True, target="dbo.orders"),
             orders=ROWS.assign(total=[1, 2, 3]),
         )
 
@@ -907,11 +940,19 @@ def test_sql_server_delete_deletes_by_a_join_on_the_staged_keys(sql_server: dict
     sql_server["matched"] = 2
     gone = pd.DataFrame({"order_id": [1, 2, 2]})
     assert run(
-        cell("write_sql_server_delete", dry_run=True, target="dbo.orders", **{"key column": "order_id"}),
+        cell(
+            "write_sql_server", mode="delete", dry_run=True, target="dbo.orders", **{"key column": "order_id"}
+        ),
         orders=gone,
     ).planned == {"deleted": 2}
     done = run(
-        cell("write_sql_server_delete", dry_run=False, target="dbo.orders", **{"key column": "order_id"}),
+        cell(
+            "write_sql_server",
+            mode="delete",
+            dry_run=False,
+            target="dbo.orders",
+            **{"key column": "order_id"},
+        ),
         orders=gone,
     )
     assert done.counts == {"deleted": 2}
@@ -969,7 +1010,9 @@ def test_trino_merges_a_batch_at_a_time_and_says_when_the_connector_cannot(
     world: dict[str, Any] = {}
     connection(lambda: FakeTrino(world))
     values = {"target": "iceberg.sales.orders"}
-    text = cell("write_trino_upsert", dry_run=False, **values).replace("batch_size=200", "batch_size=2")
+    text = cell("write_trino", mode="upsert", dry_run=False, **values).replace(
+        "batch_size=200", "batch_size=2"
+    )
     done = run(text, orders=ORDERS)
     merges = [sql for sql, _ in world["log"] if sql.startswith("MERGE")]
     assert len(merges) == 2  # three rows, two a statement
@@ -1021,11 +1064,11 @@ def test_dataverse_create_sends_change_sets_with_choice_labels_as_numbers(
     rows = pd.DataFrame({"name": ["Oak Hollow Tea", "Pine Ridge Bikes"], "accountnumber": ["AC-2001", "AC-2002"],
                          "industrycode": ["Retail", "Consulting"]})  # fmt: skip
     values = {"target": "account", "connection": "Sales CRM"}
-    dry = run(cell("write_dataverse_create", dry_run=True, **values), orders=rows)
+    dry = run(cell("write_dataverse", mode="create", dry_run=True, **values), orders=rows)
     assert dry.planned == {"inserted": 2} and crm.batches == []
     assert "Choices  industrycode: labels sent as their numbers" in str(dry)
     crm.throttle = 1  # the first $batch is asked to wait: it goes again
-    done = run(cell("write_dataverse_create", dry_run=False, **values), orders=rows)
+    done = run(cell("write_dataverse", mode="create", dry_run=False, **values), orders=rows)
     assert done.counts == {"inserted": 2}
     made = accounts(crm)
     assert made["AC-2001"]["industrycode"] == 19 and made["AC-2002"]["industrycode"] == 7
@@ -1037,7 +1080,7 @@ def test_dataverse_create_sends_change_sets_with_choice_labels_as_numbers(
     )
     with pytest.raises(WriteError, match="industrycode has no choice 'Bakery': its choices are"):
         run(
-            cell("write_dataverse_create", dry_run=False, **values),
+            cell("write_dataverse", mode="create", dry_run=False, **values),
             orders=rows.assign(industrycode=["Bakery", "Retail"]),
         )
 
@@ -1049,22 +1092,23 @@ def test_dataverse_upsert_update_and_delete_find_records_by_an_alternate_key(
     rows = pd.DataFrame(
         {"accountnumber": ["AC-1001", "AC-3001"], "name": ["Bluefin Outfitters Ltd", "Cedar Lane Pottery"]}
     )
-    dry = run(cell("write_dataverse_upsert", dry_run=True, **values), orders=rows)
+    dry = run(cell("write_dataverse", mode="upsert", dry_run=True, **values), orders=rows)
     assert dry.planned == {"updated": 1, "inserted": 1}
-    done = run(cell("write_dataverse_upsert", dry_run=False, **values), orders=rows)
+    done = run(cell("write_dataverse", mode="upsert", dry_run=False, **values), orders=rows)
     assert done.counts == {"inserted": 1, "updated": 1}
     assert accounts(crm)["AC-1001"]["name"] == "Bluefin Outfitters Ltd" and "AC-3001" in accounts(crm)
     with pytest.raises(ValueError, match="1 keys are not records of account: ac-9999"):
         run(
-            cell("write_dataverse_update", dry_run=True, **values),
+            cell("write_dataverse", mode="update", dry_run=True, **values),
             orders=pd.DataFrame({"accountnumber": ["AC-9999"], "name": ["x"]}),
         )
     updated = run(
-        cell("write_dataverse_update", dry_run=False, **values), orders=rows.assign(name=["Bluefin", "Cedar"])
+        cell("write_dataverse", mode="update", dry_run=False, **values),
+        orders=rows.assign(name=["Bluefin", "Cedar"]),
     )
     assert updated.counts == {"updated": 2} and accounts(crm)["AC-3001"]["name"] == "Cedar"
     gone = run(
-        cell("write_dataverse_delete", dry_run=False, **values),
+        cell("write_dataverse", mode="delete", dry_run=False, **values),
         orders=pd.DataFrame({"accountnumber": ["AC-3001", "AC-9999"]}),
     )
     assert gone.counts == {"deleted": 1} and "AC-3001" not in accounts(crm)
@@ -1074,7 +1118,9 @@ def test_dataverse_a_refused_change_set_is_rolled_back_and_named(crm: dataverse_
     values = {"target": "account", "connection": "Sales CRM"}
     rows = pd.DataFrame({"name": ["A", "B", "C"], "accountnumber": ["AC-4001", "AC-4002", "AC-4003"],
                          "numberofemployees": [1, 2, 3], "industrycode": [1, 1, 999]})  # fmt: skip
-    text = cell("write_dataverse_create", dry_run=False, **values).replace("batch_size=1000", "batch_size=2")
+    text = cell("write_dataverse", mode="create", dry_run=False, **values).replace(
+        "batch_size=1000", "batch_size=2"
+    )
     with pytest.raises(WriteError) as refused:
         run(text, orders=rows)
     said = str(refused.value)

@@ -53,13 +53,7 @@ class ExplorerSettings:
         if self._file is None:
             self._memory = dict(settings)
             return
-        text = write_settings(settings)
-        try:
-            if self._file.read_text(encoding="utf-8") == text:
-                return
-        except OSError:
-            pass
-        write_atomic(self._file, text)
+        write_atomic(self._file, write_settings(settings), if_changed=True)
 
 
 def _top(folder: Path) -> list[str]:

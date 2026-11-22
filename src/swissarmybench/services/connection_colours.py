@@ -11,7 +11,7 @@ library's colours.toml later, by a path). No secret is in it. Every window follo
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain import connection_colours as rules
@@ -39,12 +39,10 @@ class ConnectionColours:
         ws: Workspace,
         blades: BladeService,
         kept: Kept,
-        kinds: Callable[[], Mapping[str, str]] = dict,
     ) -> None:
         self.ws = ws
         self._blades = blades
         self._kept = kept
-        self._kinds = kinds  # the kind colours the user chose (services/kind_colours.py): the rail's
         # Connections whose colour is fixed, not chosen (the open project's Sandbox: its own indigo, none of
         # the palette's), set by bootstrap: [(name, colour)].
         self.fixed: Callable[[], list[tuple[str, str]]] = lambda: []
@@ -79,7 +77,7 @@ class ConnectionColours:
     def get(self) -> dict[str, Any]:
         """Each connection's colour (its kept one, or the next free one in turn), each theme's, and the
         palette."""
-        listed = rules.listing(self._pairs(), self._kinds())
+        listed = rules.listing(self._pairs())
         taken = {c["name"].casefold() for c in listed["connections"]}
         for name, colour in self.fixed():
             if name.casefold() not in taken:
@@ -89,7 +87,7 @@ class ConnectionColours:
                         "colour": colour,
                         "chosen": None,
                         "fixed": True,
-                        "themes": rules.themes(colour, self._kinds()),
+                        "themes": rules.themes(colour),
                     }
                 )
         return listed
@@ -102,8 +100,7 @@ class ConnectionColours:
         elif previous is None:
             if self._own(name) is None:
                 free = rules.next_free(
-                    [c for n, c in rules.assign(self._pairs(), self._kinds()).items() if n != name],
-                    self._kinds(),
+                    [c for n, c in rules.assign(self._pairs()).items() if n != name],
                 )
                 self._keep(name, free)
         elif previous != name:
@@ -113,11 +110,11 @@ class ConnectionColours:
 
     def colour_of(self, name: str) -> str | None:
         """The colour a connection wears now (kept, else the next free one in its turn)."""
-        return rules.assign(self._pairs(), self._kinds()).get(name)
+        return rules.assign(self._pairs()).get(name)
 
     def check(self, colour: Any) -> str | None:
         """A colour as sent, refused when it is one of the rail's (the message says which)."""
-        return rules.check(colour, self._kinds())
+        return rules.check(colour)
 
     async def set(self, name: str, body: Any, who: str = "user") -> dict[str, Any]:
         """Choose a connection's colour: {"colour": "#0e7c7b"} (null: the next free one in turn)."""

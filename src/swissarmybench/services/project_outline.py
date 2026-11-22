@@ -654,7 +654,7 @@ class ProjectOutline:
                     top = module.split(".")[0]
                     if top in own or module in own:
                         continue
-                    if top in ("swissarmybench", "swissarmygrid"):
+                    if top == "swissarmybench":
                         needed.append("swissarmybench")
                     elif not package_rules.provided(module) and not rules.standard(module):
                         needed.append(package_rules.pip_name(module)[0])

@@ -1,12 +1,12 @@
 # Writing data
 
 Writes are blades and cells (the owner, 2026-11-17). A Write function (`Write to SQL Server`, one a
-target) holds the statements; a Write starter (`SQL Server upsert`) is the call a cell gets:
+target) holds the statements; a Write starter (`SQL Server write`, one a target, its `mode` a placeholder) is the call a cell gets:
 `write_sql_server("Warehouse", "dbo.orders", orders, mode="upsert", keys=["order_id"], dry_run=True)`,
 reached by `write_sql_server = sab.blade("Write to SQL Server")` until the project has a functions.py.
 
 ## Which connections write
-- `connections_list` gives each connection's `writes`: "Writes: <its Write starters>" or
+- `connections_list` gives each connection's `writes`: "Writes: <its operations>" (its Write starters in `starters`) or
   "Read-only: <why>". Never write to a read-only one. Power BI is read-only (write its source, then
   refresh it). Dataverse writes through its Web API (its SQL endpoint
   is read-only). Trino writes where the catalog's connector does.
@@ -17,7 +17,7 @@ reached by `write_sql_server = sab.blade("Write to SQL Server")` until the proje
 - Writing to an API: the APIs page's Write rows with this call.
 
 ## The rule: a dry run first
-1. `blades_snippet` (name, values: connection, table, target, key column) gives the filled text;
+1. `blades_snippet` (name, values: connection, table, target, mode, key column) gives the filled text;
    `workbench_snippet_insert` puts it into a new cell. Its last argument is `dry_run=True`.
 2. Run it (`workbench_run`): it says the target, the rows and their types, the statements, the counts
    (how many insert, update, delete) and 5 sample rows. Nothing is written. Tell the user what it says.

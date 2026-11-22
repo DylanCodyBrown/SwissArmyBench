@@ -28,12 +28,11 @@ from playwright.sync_api import Browser, Locator, Page, expect
 from tools.testbed import testbed
 from tools.testbed.company import Company, make_company
 
-from swissarmybench.renamed import env
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = testbed.read_state()
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 LONG = 90_000  # milliseconds: a kernel's first start, a catalog's first load
 
 

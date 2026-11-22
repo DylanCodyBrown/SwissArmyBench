@@ -56,8 +56,6 @@ What a grid page does:
   project's own Python and is not installed with the app. App notebooks were replaced by widgets (2026-11-21).
 - **Tabs pop out:** any Workbench tab pops out into a window of its own (its unsaved changes and kernel go
   with it), and back.
-- **Panels:** Settings can switch off any panel of the Workbench or the grid page; every one is on
-  again the next time Swiss Army Bench starts.
 - **Projects:** a folder that starts with the data. `data.ipynb` is where you work on the tables and
   variables; `data.py` is its export, and what your notebooks and pages import (`from data import
   orders`). The app's canvas exports `pages/*.py` the same way.
@@ -93,9 +91,6 @@ What a grid page does:
   stay. With a project open, the ERD and **In use now** show only the tables the project uses (open,
   its own, or named in its notebooks' and scripts' code) and a join only when both ends are; **All
   tables** shows the rest, and the ERD says how many are not drawn.
-- **Packs:** blades and relationship sets a team keeps in a GitHub repository that is also a Claude Code
-  plugin marketplace. Install a pack with `/plugin install` and its blades and sets show up, marked with the
-  pack; `/plugin marketplace update` brings the team's latest.
 - **Analyze** (its own page on the rail): a toolbar of every analysis and one guided form beside the board.
   The table is already picked, the columns are picked for you as chips (only the ones that fit are offered,
   the rest listed with why), one sentence says what will run, and the result lands on the board by itself.
@@ -138,7 +133,7 @@ What a grid page does:
   the rows and the columns that differ). A compare survives a reload. The ≡ button beside +
   lists every table: open, closed (each with Open) and in your Python sessions.
 - **Analyze** (on the rail): a dashboard of cards for any table: Vega-Lite charts, notes,
-  result tables, Mermaid and Graphviz diagrams, Plotly and ECharts figures, and images. Every card
+  result tables, Mermaid diagrams, Plotly figures, and images. Every card
   resizes from its corner on a 12-column grid, and what it draws fills it. Charts open large with
   wheel zoom, and clicking a bar filters the grid. The page loads nothing from the internet: figures
   that need outside maps or pictures say so instead.
@@ -169,65 +164,48 @@ been checked against real versions is in [docs/verified.md](docs/verified.md); d
 open notes are in [docs/ideas.md](docs/ideas.md).
 
 New here? The **Tour** button (the question mark in the Application row) explains every word, grid to
-pack, by lighting up each one on the page, then plays a quick matching game.
+pack, by lighting up each one on the page.
 
 ## Renamed from SwissArmyGrid
 
 Swiss Army Bench was called SwissArmyGrid until this release. Everything has the new name: the package
 and the wheel (`swissarmybench`), the import (`import swissarmybench as sab`), the commands
 (`swissarmybench`, `sab`, `swissarmybench-mcp`, `swissarmybench-context`), the MCP server, the Claude Code
-plugin and its skill (`swissarmybench-use`), the VS Code extension, the state folder
+plugin and its skill (`swissarmybench-use`), the state folder
 (`~/.swissarmybench`), the environment variables (`SWISSARMYBENCH_*`), the blade header
 (`# /// swissarmybench-blade`) and the notebook metadata (`swissarmybench`).
 
-The old names still work for this release, and go in the next one:
+The old names went in 0.0.32 (the owner's simplicity pass, 2026-11-21): `import swissarmygrid`, the
+`swissarmygrid`, `sag`, `swissarmygrid-mcp` and `swissarmygrid-context` commands, the `SWISSARMYGRID_*`
+variables, `~/.swissarmygrid` (no longer moved: move it to `~/.swissarmybench` by hand), the old notebook
+metadata, blade header, keyring service and remembered page settings are no longer read.
 
-- `import swissarmygrid as sag` works, with a DeprecationWarning that names the new import. Code the app
-  writes (copied code, table cells, data.py) always uses the new names.
-- `swissarmygrid`, `sag`, `swissarmygrid-mcp` and `swissarmygrid-context` are still installed: each says
-  its new name in one line, then runs it. An already installed plugin or VS Code extension keeps working.
-- Old notebooks run: `%sag_run`, `%%sag_table`, `%%sag_html` and `%%sag` still work, and the old
-  `swissarmygrid` metadata, `# /// swissarmygrid-blade` headers, relationship sets, Streamlit apps and their saved
-  pages are read. Files are written with the new names.
-- On its first start the server moves `~/.swissarmygrid` to `~/.swissarmybench` and says so once in its
-  log; if it cannot (an old server still running from it, say), it reads the old folder where it is. An
-  existing `~/SwissArmyGrid` Workbench folder stays your folder while there is no `~/SwissArmyBench`.
-- `SWISSARMYBENCH_*` variables are read first, then the old `SWISSARMYGRID_*` ones.
-- Passwords saved in the system keyring under the old name are found, and copied to the new name on their
-  first read. The page's remembered settings (theme, zoom, Analyze's card sizes) are read from their
-  old keys when the new ones are empty.
-
-The installers remove the old `swissarmygrid` uv tool before installing the new one, which brings the old
-commands with it; by hand, that is `uv tool uninstall swissarmygrid`, then the install below. Update the
-VS Code extension too: the new one finds the new install (and still finds an old one). The GitHub
-repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
+The installers remove the old `swissarmygrid` uv tool before installing the new one; by hand, that is
+`uv tool uninstall swissarmygrid`, then the install below. The GitHub repository is now DylanCodyBrown/SwissArmyBench (the old address redirects).
 
 **Visualizations is now Analyze, and the analyses live there** (the owner, 2026-11-19): the rail's Analyze page has a
 toolbar of every analysis and one guided form beside the board; every result lands on the board by itself, and
 the grid page has no analysis on it. Each analysis has a data contract the form, the agent (`analyze_contracts`,
-`analyze_check`, `analyze_run`) and Python (`sab.analyze.benford(df)`) share. The old names work for one
-release: `?view=visualizations`, `visualizations_*` and `sandbox_*` tools, `sab.visualizations` (a warning).
+`analyze_check`, `analyze_run`) and Python (`sab.analyze.benford(df)`) share. The old names
+(`?view=visualizations`, `visualizations_*` and `sandbox_*` tools, `sab.visualizations`) went in 0.0.32.
 
 **The Sandbox is now Visualizations, and the Diagram is the ERD** (the owner, 2026-11-16): the rail, the
-pages' titles, the menus (Send to Analyze) and the help. The old names work for one release too:
-`sab.sandbox(...)` (a DeprecationWarning; write `sab.visualizations(...)`), the agent's `sandbox_*` commands
-(each runs its `visualizations_*` one, by `sab` and by an MCP call; only the new names are listed),
-`app_navigate` to `sandbox` or `diagram`, `app_snapshot` of `sandbox`, the addresses `?view=sandbox` and
-`?view=diagram` (each replaced by the new word), and a `.sab/project.json` saved with a `sandbox` key.
+pages' titles, the menus (Send to Analyze) and the help. The old names (`sab.sandbox`, `app_navigate` to
+`sandbox` or `diagram`, `?view=sandbox`, `?view=diagram`, a project.json's `sandbox` key) went in 0.0.32.
 
 **A tang is now a relationship set** (the owner, 2026-11-17: "drop tang its cheesy"): a saved, shared set of
 relationships, a `.relationships.json` file in the library's `relationship-sets/` folder, and the dialog
 is **Relationships** (**Saved sets**, **Save as a set…**). On its first start this version writes the
 library's `tangs/*.tang` as `relationship-sets/*.relationships.json` and keeps the old folder in
 `~/.swissarmybench/backup/before-relationship-sets-<date>/` (said once on the page). The old names work
-for one release: `.tang` files (in a library, a shared folder, a pack's `tangs/` folder, an import), the
+for one release: `.tang` files (in a library, a shared folder, an import), the
 routes `/relationships/tangs` and `/relationships/tang`, the agent's `relationships_save_tang`,
 `relationships_export_tang` and `relationships_import_tang` (each runs its `_set` one; only the new names
-are listed), `relationships_check`'s `tang` and `packs_add`'s `tangs` arguments.
+are listed), `relationships_check`'s `tang` argument.
 
 ## Install it: one package, two installs
 
-From a release (each release carries the wheel, the VS Code extension and two installers), one line:
+From a release (each release carries the wheel and two installers), one line:
 
 ```powershell
 irm https://github.com/DylanCodyBrown/SwissArmyBench/releases/latest/download/install.ps1 | iex
@@ -275,10 +253,7 @@ import swissarmybench as sab
 sab.push(orders)  # a grid named "orders" opens; push again to refresh it in place
 ```
 
-Visual Studio Code is optional. Everything installs with uv; the extension in `vscode-extension/`
-only points VS Code at what uv installed: Swiss Army Bench's MCP tools become VS Code's own tools (agent
-mode), and an Open Swiss Army Bench button (the editor and notebook toolbars, the status bar) starts the
-server when it is not running and opens it in its own window. It needs VS Code 1.101 or later. Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
+Where this is going (workspaces, `sab.create_workspace()`, an in-app Python terminal,
 saved workspaces, a relationships view): [Plans/standalone-workspaces.plan.md](Plans/standalone-workspaces.plan.md).
 
 Grids open as tabs in one window, the workspace (`/workspace`): the first push opens it, and
@@ -431,7 +406,7 @@ cell, the side bar or an agent uses it. Each load runs in its own process, a cou
 waits, and the SQL cell's suggestions pick it up as it lands. One that signs in with a browser window
 (MFA) is not loaded at start-up, only on first use. **Refresh catalog** reads it again after the
 database changes. Catalogs stay in memory only. Connections are kept with the
-blades (so folders, packs, the catalog and Refresh work the same) but listed apart.
+blades (so folders, the catalog and Refresh work the same) but listed apart.
 
 A **Power BI workspace** is a connection too: one connection reaches every dataset (semantic model)
 in the workspace, each read with DAX through Power BI's Execute Queries request. Its form asks for the
@@ -586,7 +561,7 @@ Analyze can wear its own theme (the grid keeps the app's): twenty built in, high
 colourblind-safe first, every one readable by construction; import your own as a small JSON file (and remove an imported
 one with the button beside the picker). The PDF and the markdown export take it.
 
-`sab.visualizations(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly, Altair or graphviz
+`sab.analyze(fig, "Title", key="monthly")` puts a matplotlib, seaborn, Plotly or Altair
 figure, a picture, a DataFrame's first rows, Markdown text or a file on the Analyze board; the same `key`
 replaces the card in place when the cell runs again.
 
@@ -679,45 +654,11 @@ conn = psycopg.connect(host="db.example", user="reader", password=secret("passwo
   code. Passwords are never settings: they stay `secret("...")`, and the import review lets you type them
   straight into this computer's vault.
 
-### Packs: blades and relationship sets from a Claude Code plugin marketplace
-
-A **pack** is a Claude Code plugin with a `blades/` folder (`.blade.py` files) and a `relationship-sets/`
-folder (`.relationships.json` files; an older pack's `tangs/` folder still reads, one release). A team keeps its packs in a GitHub repository that is a plugin marketplace
-(`.claude-plugin/marketplace.json`); each person installs a pack once in Claude Code:
-
-```
-/plugin marketplace add <owner>/<repository>
-/plugin install sales@team-blades
-```
-
-- **Installed packs** are found in Claude Code's plugin folder (`~/.claude`, or `CLAUDE_CONFIG_DIR`, or
-  `SWISSARMYBENCH_CLAUDE_DIR`; the cache follows `CLAUDE_CODE_PLUGIN_CACHE_DIR`). Their blades are on the
-  blades page and their relationship sets in the Relationships window, marked **pack**, read-only: Claude Code
-  replaces the installed copy on every update. **Save a copy** keeps your own; Test and Refresh the
-  catalog work without saving. A pack switched off in Claude Code adds nothing.
-- **Updates:** `/plugin marketplace update team-blades`. A pack with no `version` (as made here) is
-  updated by every commit.
-- **Making one:** **Packs** on the blades page, then **New marketplace**, or from a terminal:
-
-  ```
-  sab pack new ./team-blades --pack sales --owner "Sales team"
-  ```
-
-  It writes the marketplace, one pack and a README with the commands, and (from the page) adds the
-  folder as a blade folder. Push it to GitHub.
-- **Adding to one:** a clone of the repository in your blade folders is an **editable** pack. **Add to
-  pack** copies chosen blades and relationship sets into it (files already there are kept unless you ask to
-  replace them); then commit, open a pull request, and once it is merged everyone updates.
-- **Trust:** a pack's blades are its maintainers' code, run on your computer when you use one, as with
-  any plugin you install. Secrets never travel in a pack, only their names. The agent cannot list,
-  make or fill packs.
-
 **This repository is a marketplace too.** `/plugin marketplace add DylanCodyBrown/SwissArmyBench`
-offers two plugins: `swissarmybench` (the user guide as a skill, and the agent tools, the
+offers the `swissarmybench` plugin (the user guide as a skill, and the agent tools, the
 `swissarmybench-mcp` server the installer puts on your computer; remove a copy you added by hand so the
-tools are not listed twice) and `sample-store`, an example pack with a made-up blade and a relationship
-set holding the ten relationships of `examples/sample_store.py` (push its tables with
-`python examples/sample_store.py --push`, then **Check** the set).
+tools are not listed twice). Packs (a plugin carrying blades and relationship sets) went 2026-11-21: a
+team shares blades through its team library.
 
 The agent reads catalogs with `catalog_list`, `catalog_schemas`, `catalog_tables`, `catalog_columns`
 (with a first SELECT quoted for the source) and `catalog_search`.
@@ -800,8 +741,8 @@ adds to each prompt what you sent your agent from the Workbench (right-click an 
 Send to the agent: once, then it is marked read; the `agent_inbox` tool reads it too) and a short
 summary of the table in front (grid, row count, columns and types, steps; never cell values), the way an
 IDE hands Claude the open file. It prints nothing when no server is running.
-Build the one wheel (the page inside it) with `python build.py`; `python build.py --vsix`
-packages the VS Code extension around it too.
+Build the one wheel (the page inside it) with `python build.py`. (The optional VS Code extension went
+2026-11-21, the owner's simplicity pass: the agent's tools come from the swissarmybench MCP server.)
 
 ## Launch Claude
 
@@ -928,8 +869,7 @@ counting the user's actions: `python tools/testbed/testbed.py up`, then
 `python -m pytest -q tests/e2e/test_real_world.py`, then `python tools/testbed/testbed.py down`. Without
 it up, those tests skip and say why.
 
-`tools\screenshots.py` photographs every screen into `docs\screenshots\`, and
-`tools\vscode_check.py <url> <png>` checks a grid inside VS Code's browser.
+`tools\screenshots.py` photographs every screen into `docs\screenshots\`.
 
 ## Credits
 

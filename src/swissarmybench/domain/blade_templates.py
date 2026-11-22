@@ -7,6 +7,35 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+# The built-in starter pack every install has (src/swissarmybench/starters/): read-only, Copy as your own, and
+# brought up to date by each new version of the app. Its families, in the order the blade list shows.
+STARTERS = "Swiss Army Bench starters"
+FAMILIES: tuple[str, ...] = (
+    "Power BI",
+    "Dataverse",
+    "SharePoint",
+    "Excel",
+    "Files",
+    "DAX",
+    "HTML",
+    "Markdown",
+    "Streamlit",
+    "Controllers",
+    "Text and layout",
+    "Components",
+    "Write",
+)
+# Starters of other families listed in the Write family too (docs/ideas.md, "Writing data"): Excel's
+# writers, and Power BI's refreshes (after the source is written, the model is refreshed).
+CROSS_LISTED: dict[str, tuple[str, ...]] = {
+    "Write": (
+        "Excel write table",
+        "Excel range as table",
+        "Power BI refresh dataset",
+        "Power BI refresh and wait",
+    ),
+}
+
 
 @dataclass(frozen=True)
 class Template:

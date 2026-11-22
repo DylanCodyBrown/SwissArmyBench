@@ -10,7 +10,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, safely, with_body
+from swissarmybench.server.http import json_response, with_body
 from swissarmybench.services.desktop import Desktop
 
 
@@ -19,6 +19,6 @@ def routes(desktop: Desktop) -> list[BaseRoute]:
         return json_response(await desktop.status())
 
     return [
-        Route("/desktop", safely(status)),
+        Route("/desktop", status),
         Route("/desktop/open", with_body(desktop.open), methods=["POST"]),
     ]

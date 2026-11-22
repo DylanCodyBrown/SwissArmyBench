@@ -13,15 +13,12 @@
  * (Panels) is gone, its toggle too. A panel draws itself when it opens and when its document asks.
  */
 import { button, h, icon } from "./dom";
-import { panelOn } from "./panels";
 
 export interface ModePanel {
   id: string;
   title: string;
   icon: string;
   where: "left" | "side" | "bottom";
-  /** Its switch in Settings (Panels): "workbench.properties". */
-  panel: string;
   /** Draw the panel's body (called when it opens, and on `redraw`). */
   draw: (body: HTMLElement) => void;
   /** Its head's own buttons (Reset state). */
@@ -38,8 +35,6 @@ export interface ModeFrame {
   /** Draw the open panels again (or the one named). */
   redraw: (id?: string) => void;
   panels: () => ModePanel[];
-  /** Panels turned off in Settings close. */
-  follow: () => void;
   /** The panel's body, while it is open. */
   body: (id: string) => HTMLElement | null;
 }
@@ -79,7 +74,7 @@ export function modeFrame(host: HTMLElement, changed: () => void): ModeFrame {
   function toggle(id: string, show?: boolean): boolean {
     const panel = panels.find((p) => p.id === id);
     if (!panel) return false;
-    const want = (show ?? !open.has(id)) && panelOn(panel.panel);
+    const want = show ?? !open.has(id);
     const where = panel.where === "left" ? left : panel.where === "side" ? side : bottom;
     if (want && !open.has(id)) {
       // One panel a side: another one there gives way.
@@ -110,10 +105,7 @@ export function modeFrame(host: HTMLElement, changed: () => void): ModeFrame {
         if (body) panel.draw(body);
       }
     },
-    panels: () => panels.filter((p) => panelOn(p.panel)),
-    follow: () => {
-      for (const panel of panels) if (open.has(panel.id) && !panelOn(panel.panel)) toggle(panel.id, false);
-    },
+    panels: () => panels,
     body: (id) => bodies.get(id) ?? null,
   };
 }
@@ -124,17 +116,3 @@ export function options(select: HTMLSelectElement, list: [string, string][], val
   return select;
 }
 
-/** "Today 14:02", "Yesterday 16:20", "12 November 17:12". */
-export function when(seconds: number, now = new Date()): string {
-  const at = new Date(seconds * 1000);
-  const time = at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  const day = (d: Date): string => d.toDateString();
-  if (day(at) === day(now)) return `Today ${time}`;
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  if (day(at) === day(yesterday)) return `Yesterday ${time}`;
-  return `${at.getDate()} ${at.toLocaleString("en-GB", { month: "long" })} ${time}`;
-}
-
-/** "4.2 seconds" */
-export const took = (seconds: number): string => `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} ${seconds === 1 ? "second" : "seconds"}`;

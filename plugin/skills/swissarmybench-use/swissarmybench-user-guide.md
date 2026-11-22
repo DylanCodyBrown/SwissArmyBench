@@ -100,7 +100,7 @@ The page has these parts:
 
 - **Tab bar.** Each open grid has its own tab (Analyze, ERD and the Workbench are on the rail). Right-click a table's tab for **Compare with…**, **Rename** and **Close**. After the last tab: + starts a new table from a query (see below), the folder opens a file, and ≡ opens **Tables**, one list of the open tables, the closed ones and the tables in your Python sessions (see Tables, below).
 - **Title.** The dataset name, and its version from the second push on (a new push to the same dataset raises it). Beside it, the **steps strip**: how many steps the grid has (a sort made by clicking a header counts), with Undo, Redo, Clear and Edit steps. Hover the count to see the steps in plain words, each with a remove button. The steps as code are the table's own read-only cell in the Workbench (see The Workbench: every table has its own cell).
-- **Application row.** Above the ribbon, on every tab: the project's group (its name, Save, Save as…, Close, **Autosave**) and **Zoom**. The **Tour** (a guided walk down the rail: it opens each place in turn and lights up the control it is talking about, with two small made-up tables it opens to show things on and closes again at the end, then a quick game; Escape stops it and brings you back) is on the **Projects** page (**Home** at the top of the rail); on your first visit a **New here?** bubble sits beside it.
+- **Application row.** Above the ribbon, on every tab: the project's group (its name, Save, Save as…, Close, **Autosave**) and **Zoom**. The **Tour** (a guided walk down the rail: it opens each place in turn and lights up the control it is talking about, with two small made-up tables it opens to show things on and closes again at the end; Escape stops it and brings you back) is on the **Projects** page (**Home** at the top of the rail); on your first visit a **New here?** bubble sits beside it.
 - **Ribbon.** Two rows under the Application row, each named for what its buttons act on. **Table** works on the whole view. **Column** works on the selected column or columns. A cell's tools are on its right-click menu. Buttons that have nothing to act on are greyed out, and the caption under each row name says what it is looking at.
 - **Grid.** The rows, with the column headers above them.
 - **The grid has the whole page.** The steps themselves (Table Transformations) open in a tab of their own from Edit steps, and SQL is written in the notebook.
@@ -244,11 +244,10 @@ The ≡ button beside + opens **Tables**. **Open tables** are the ones with a ta
 
 ### Settings
 
-Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser), **Panels**, and the setup prompt for connecting an agent.
+Open **Settings** with the cog at the bottom of the rail (or the Workbench's **…** menu): a page of its own, over the page you were on. Everything applies as you change it, so there is no Save and no Close: the rail or Back takes you on. It holds the theme (for this browser) and the setup prompt for connecting an agent.
 
-**Panels** has a switch for each panel: in the Workbench the Data Explorer, the Console, Variables and the status bar; on the grid page the ribbon, the steps strip and the status bar. A panel switched off is gone from every open window at once, and stays off through a reload; every panel is on again the next time Swiss Army Bench starts. The Workbench's mode panels have switches too: Outline, Run settings and Run history; and on every page, the navigation rail.
 
-**Kind colours** gives each kind of Workbench document its colour: app pages violet, notebooks blue, scripts green. Pick another with a kind's colour box (it is made readable in every theme); **Default** puts the theme's own back. Your choice is kept when Swiss Army Bench starts again, and every window follows at once.
+Each kind of Workbench document has its colour: app pages violet, notebooks blue, scripts green (each theme has its own readable shade).
 
 ![The Settings window: the theme, the setup prompt with its copy button.](images/02-preferences.png)
 
@@ -389,7 +388,7 @@ The Compare row in the ribbon switches the mode.
 
 ## Analyze
 
-Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, diagrams (Mermaid and Graphviz), Plotly, ECharts and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when grids close.
+Analyze (on the rail; it was called Visualizations, and the Sandbox before that) is where every analysis is run and where every result lands: a toolbar of the analyses across the top, and under it one board for every table, where charts, notes, result tables, Mermaid diagrams, Plotly and Vega-Lite figures and images live. Each card names the table it is drawn on; a card that belongs to no table (an analysis's result, a note added here, or anything from Python) says where it came from, and stays when grids close.
 
 **Resize a card** by dragging the grip in its bottom right corner: it snaps to the dashboard's twelve columns and rows, and the chart inside redraws to fill it. With the grip focused, the arrow keys do the same (left and right for width, up and down for height); a double-click returns the card's usual size. Sizes are kept in this browser.
 
@@ -496,15 +495,14 @@ Anything that shows details can go to the Analyze board, as a readable note and,
 sab.analyze(fig)  # matplotlib or seaborn: a picture
 sab.analyze(plotly_fig, "Sales by month")  # Plotly: drawn live, in the theme
 sab.analyze(chart)  # Altair: drawn as Vega-Lite
-sab.analyze(dot)  # a graphviz Digraph
 sab.analyze(frame, "Top stores")  # a DataFrame or Arrow table: its first 100 rows
 sab.analyze("## Findings\n- North leads")  # Markdown: a note
-sab.analyze("chart.png")  # a file: a picture, .md, .mmd, .dot
-sab.analyze(text, kind="mermaid")  # Mermaid, DOT or ECharts text
+sab.analyze("chart.png")  # a file: a picture, .md, .mmd
+sab.analyze(text, kind="mermaid")  # Mermaid or Plotly text
 sab.analyze(fig, key="monthly", size=(8, 10))
 ```
 
-`key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing. `sab.sandbox(...)`, its old name, still works for this release (with a warning).
+`key=` names the card, so running the cell again replaces it where it is, at the size you gave it, instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Nothing is drawn automatically: the script decides what is worth showing.
 
 `sab.analyze` also runs every analysis, by the same contracts and the same checker as the page:
 
@@ -518,7 +516,7 @@ sab.analyze.contract("benford")  # the analysis's data contract
 sab.analyze.sample("benford")  # its made-up sample, as a DataFrame
 ```
 
-On a DataFrame the analysis runs in your own Python (the function `swissarmybench.stats` has, so the numbers are the page's) and returns a plain dictionary; when the app is running its cards land on the board too (`board=False` keeps them off). A table that does not fit raises `ValueError` with what is missing and how to make it fit. `sab.visualizations` is the old name of the card call: it works for one release, with a warning.
+On a DataFrame the analysis runs in your own Python (the function `swissarmybench.stats` has, so the numbers are the page's) and returns a plain dictionary; when the app is running its cards land on the board too (`board=False` keeps them off). A table that does not fit raises `ValueError` with what is missing and how to make it fit.
 
 ### How an agent sees the grids
 
@@ -554,9 +552,8 @@ A saved set of relationships is a **relationship set** (it was called a tang unt
 - **In your saved sets**, in your library's `relationship-sets/` folder, or
 - **In a shared folder**: the blade folders (a team share or a repository, set with Blade folders on the blades page). A set saved there is in your coworkers' list the next time they open this window, marked **Shared**, with who saved it and when.
 
-**Saved sets** at the top lists every set found, searchable by name, description, tag or author, with how many of its tables you have open. **Apply** uses one (merged into what you use now; the toast says if it changed a join you had, with **Undo**). **Check** runs a set against your tables before you trust it. Its **⋯** menu **Renames** it (its file too), **Exports** it, or **Deletes** its file (a pack's or a built-in set is changed in its own repository instead). **Import relationships** opens a set's file: you see what it holds and what it would change before applying it, and can keep it in your saved sets or share it. **Export** downloads the joins in use as a `.relationships.json` file. Older `.tang` files still read for this release. Ordinary JSON files in those folders are left alone; older model files (`~/.swissarmybench/models`, `SWISSARMYBENCH_MODELS`) still work.
+**Saved sets** at the top lists every set found, searchable by name, description, tag or author, with how many of its tables you have open. **Apply** uses one (merged into what you use now; the toast says if it changed a join you had, with **Undo**). **Check** runs a set against your tables before you trust it. Its **⋯** menu **Renames** it (its file too), **Exports** it, or **Deletes** its file (a built-in set cannot be deleted). **Import relationships** opens a set's file: you see what it holds and what it would change before applying it, and can keep it in your saved sets or share it. **Export** downloads the joins in use as a `.relationships.json` file. Older `.tang` files still read for this release. Ordinary JSON files in those folders are left alone; older model files (`~/.swissarmybench/models`, `SWISSARMYBENCH_MODELS`) still work.
 
-Relationship sets also come in packs (see Blades): an installed pack's sets are listed marked **Pack**, and **Add to pack** shares yours through the team's repository.
 
 Draw diagram adds a copy of the diagram to the Analyze board; the ERD tab always shows the joins in use. Tables are matched by the names you pushed them with, so push with the names the set uses. An agent can do all of this for you too (its delete of a saved set waits for your Allow).
 
@@ -1111,7 +1108,7 @@ columns appear as `table#1`, `col#3`.
 
 ## Blades
 
-**Blades** on the rail opens the Scripts page's **Blades** pane, below its files; a blade opens there as a tab. The old blades page's address (`/catalog`, `/catalog?blade=<name>`) goes there too. The pane's **…** holds **Import blades…** (you review each first), **Import from a project…**, **Export every blade**, **Blade folders…** and **Packs…**. A connection's tables are on the **Connections** page (its tree) and in the **Data Explorer**; the blades page has no catalog panel.
+**Blades** on the rail opens the Scripts page's **Blades** pane, below its files; a blade opens there as a tab. The old blades page's address (`/catalog`, `/catalog?blade=<name>`) goes there too. The pane's **…** holds **Import blades…** (you review each first), **Import from a project…**, **Export every blade** and **Blade folders…**. A connection's tables are on the **Connections** page (its tree) and in the **Data Explorer**; the blades page has no catalog panel.
 
 - **A blade** is any Python that reaches outside Python to load something: a table, an API, a vault, an analysis. Each blade is a `.blade.py` file in your library (or a blade folder), and its screen is an IDE where you write it. Press **New blade** and pick what it starts as (**A table (a DataFrame)**, **Any code**, **Secret blade**, **Snippet**, or an analysis): the file is made in the library's `blades/` folder and opens in the IDE. If you edit the file in your own editor instead, the IDE takes the change at once; with unsaved changes of yours it asks **Reload** or **Keep mine**. Connections are added on the Connections page. Then in any Python: `conn = sab.blade("Warehouse")`.
 - **The blade's IDE:** one slim bar at the top: **Back**, the name (a dot while something is unsaved), **Save** (Ctrl+S), **Save as…** (a new name, checked as you type), **Cancel** (back to the file; it asks first if you changed anything), **▶ Run** (F5 or Ctrl+Enter; **Stop** while it runs), **Properties**, and **…** (**Show its file**, **Export**, **Remove**). The editor completes names, shows signatures and help on hover, and underlines problems as you type (the Workbench's own, with Copilot's suggestions when that extension is on). **Run** runs the blade as Test does (its own Python, its passwords and vaults) with what is in the editor, saved or not: the panel at the bottom opens on **Output** (what it prints), then **Result** (a table with its row count and **Open as grid**, or a value's text; a failure shows the error panel and marks the line). **Problems** lists what the checker found; click one to go to its line. **Properties** (closed until you open it) holds the **Name**, **Description**, **Tags** and **Its table is called**, written into the file's header. Save writes the file only when it changed. A starter is read-only: Save says so, with **Copy as your own**.
@@ -1124,7 +1121,6 @@ columns appear as `table#1`, `col#3`.
 - **Find a blade:** the search box above the blades matches names, descriptions and tags, and the tag chips under it narrow the list. The star pins a favourite to the top.
 - **Share a blade:** **Export** on its screen downloads it as one `.blade.py` file (its code under a short header; passwords never go in it). The download arrow above the blades exports them all as a zip. To bring blades in, press the up arrow or drop the files on the blades: you see each blade's code first, and choose what happens when a name is taken. Importing runs nothing. **Fill in your values** on an import offers the values your other blades use for its server, database, user and path.
 - **Blade folders:** the folder button lists folders to search for `.blade.py` files (a team's Git repository, say). Only files that start with the blade header count. A blade from a folder shows **file**; its screen writes only the file's header, and its **Remove** is yours to do in the folder.
-- **Packs:** a team can keep blades and relationship sets in a GitHub repository that is a Claude Code plugin marketplace. Install a pack once in Claude Code (`/plugin marketplace add <owner>/<repository>`, then `/plugin install <pack>@<marketplace>`) and its blades show here marked **pack**. They are read-only, since Claude Code replaces them on every update (`/plugin marketplace update`): **Copy as your own** to change one; **Test** works as it is. **Packs** above the blades lists what is installed, makes a **New marketplace** (also `sab pack new <folder>` in a terminal) and, for a clone of the repository in your blade folders, **Add to pack** copies your blades and relationship sets in, ready to commit.
 - **New blade** (the Blades pane's **+**, or **New blade** in the palette) asks only a name and a kind: **Table**, **Code**, **Analysis**, **Connection**, **Snippet** or **Secret**. It makes a blank blade that already works: comments say what to write, and the body uses a few made-up rows, so **Run** works at once. It opens as a tab with the cursor in its body and **Properties** open.
 - **Properties** holds every field of the file's header that the blade's kind has: name, description, tags, family; what it hands back; a table blade's table name; a connection's SQL dialect, rows to open, queries at once, the agent's share and the wait, and how its tables are listed (and a Python connection's Read a table); a snippet's language and cell name; a vault's variables; a secret blade's variable names. Each is checked as you type. The editor shows the code after the header; Save writes both. Save refuses code that does not compile or lacks its kind's part (a table blade's function must return its table), marking the line.
 - Your agent does the same: `blades_new(name, kind)`, `blades_header_set` (any header field), `blades_update` (the code), `blades_table_name_check`. It never gets a password's value.
@@ -1207,9 +1203,11 @@ BigQuery, Redshift, Databricks), and a key vault.
   workbook's other sheets kept). Excel write table and Excel range as table are listed here too.
 - **APIs**: the APIs page's Write rows with this call.
 
-Drop one onto a Python cell (or **Insert a snippet…**): the form asks for the connection (those of its
-kind first), the rows (an open table, or any DataFrame or DuckDB relation by its name), the target
-table and the key columns. The cell gets the call only, `write_sqlite("Shop", "orders", orders,
+There is one starter a target (**SQLite write**, **SQL Server write**, **Delta write**...). Drop one onto a
+Python cell (or **Insert a snippet…**): the form asks for the connection (those of its kind first), the
+rows (an open table, or any DataFrame or DuckDB relation by its name), the target table, the **mode**
+(append, create, replace, upsert, delete: the starter's comment lists its own) and the key columns (for
+the modes that find rows). The cell gets the call only, `write_sqlite("Shop", "orders", orders,
 mode="upsert", keys=["order_id"], dry_run=True)`, with the line that fetches the function above it
 (the function itself is the Write family's **Write to SQLite**: Copy as your own to change it). Every
 call ends `dry_run=True`: run it and it says what it would do (the
@@ -1400,20 +1398,12 @@ made, all the way back to the data:
   plays, from the page itself: choose another region on the page and the cards follow.
 - Click a card or a node to mark both; double-click (or Enter) to go to that cell. Escape closes it.
 
-### Approved outputs: the notebook checks itself
+### A notebook run without the app
 
-Right-click a cell's output and choose **Approve the output** (or More: Approve the output). The
-output is kept in the notebook. When a later run gives something different, the cell says **⚠ Changed
-since approved** in amber, with what changed: the lines of text, a table's rows and columns, and the
-values that differ. **Approve this output** makes the new output the approved one; **Remove the
-approval** in the menu takes it away. The approvals are saved in the notebook file.
+    python -m swissarmybench.client.standalone sales.ipynb
 
-To check a notebook without the app (a scheduled run, a build): run
-
-    python -m swissarmybench.client.standalone sales.ipynb --check-approved
-
-It runs every cell in the notebook's own folder and ends with exit code 1 and a report naming each
-cell that failed or whose output changed.
+It runs every cell in the notebook's own folder and ends with exit code 1 and a report naming the cell
+that failed.
 
 ### Widgets and the Canvas (a Streamlit app)
 
@@ -1688,10 +1678,8 @@ own). The status bar shows the document in front's panels as toggles.
   shows the notebook as a document: its text and outputs, no code.
 - **Script:** **Run settings** holds the arguments and each environment variable the script needs (the
   ones it reads, by line; each connection's password) with where it comes from: **This computer**, a
-  **Plain value**, or a **Key vault**'s secret. Values are never shown but a plain one's. **Run as
-  scheduled** runs the script the way a schedule would: a fresh process with no app. **Run history**
-  lists its runs (Run file too) with their exit code, time, sources and log (kept until Swiss Army Bench
-  stops).
+  **Plain value**, or a **Key vault**'s secret. Values are never shown but a plain one's. **Run file**
+  runs the script with those arguments.
 - **Data** (`data.ipynb`): **Cells | Lineage | Dictionary**. The **Dictionary** lists each table's
   columns with their types in plain words and where each comes from (the file, or the grid's step that
   made it). Type a description: it is kept in data.ipynb and written into data.py as comments.

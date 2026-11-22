@@ -23,11 +23,10 @@ lives in this package and never pushes, fast to start.
 
 from __future__ import annotations
 
+import os
 import sys
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
-
-from swissarmybench.renamed import env
 
 if TYPE_CHECKING:
     from swissarmybench.client.analyze_client import analyze
@@ -37,10 +36,6 @@ if TYPE_CHECKING:
     from swissarmybench.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
     from swissarmybench.client.sql_cell import dax, sql
     from swissarmybench.client.structures_client import show_structure, structure, structure_table
-    from swissarmybench.client.visualizations_client import sandbox as sandbox  # the old name, one release
-    from swissarmybench.client.visualizations_client import (
-        visualizations as visualizations,  # the old name, one release
-    )
     from swissarmybench.client.watcher import start as watch
     from swissarmybench.client.watcher import stop as unwatch
 
@@ -84,9 +79,6 @@ _LAZY: dict[str, tuple[str, str]] = {
     # The Analyze page from Python: sab.analyze.benford(df), sab.analyze.contract("odds"), and anything
     # visual as a card on its board: sab.analyze(fig).
     "analyze": ("swissarmybench.client.analyze_client", "analyze"),
-    # The old names, one release (renamed.py): a DeprecationWarning, then the same card call.
-    "visualizations": ("swissarmybench.client.visualizations_client", "visualizations"),
-    "sandbox": ("swissarmybench.client.visualizations_client", "sandbox"),
     "complete": ("swissarmybench.client.completion", "complete"),
     # Structures (JSON, YAML, XML, TOML): a saved one's value, its records as a table, a value shown.
     "structure": ("swissarmybench.client.structures_client", "structure"),
@@ -116,7 +108,7 @@ def __dir__() -> list[str]:
 # already the decision to use the grid. The watcher's own autostart makes the final call (and honors
 # SWISSARMYBENCH_WATCH=0); this only avoids loading it when it cannot start: IPython has to be
 # loaded already for it to be running, so a plain script, the server and the MCP never pay for the import.
-if env("SWISSARMYBENCH_WATCH", "") == "1" or "IPython" in sys.modules:
+if os.environ.get("SWISSARMYBENCH_WATCH", "") == "1" or "IPython" in sys.modules:
     from swissarmybench.client.watcher import autostart
 
     autostart()

@@ -145,8 +145,8 @@ function syncSoon(how: Move): void {
 /** Show what `url` names (Back, Forward, a reload, the agent): the history is not written again. */
 export async function showPlace(url: URL): Promise<void> {
   const named = url.searchParams.get("view");
-  if (named === "analyze" || named === "visualizations" || named === "sandbox") setView("agent", "replace");
-  else if (named === "erd" || named === "diagram") setView("erd", "replace");
+  if (named === "analyze") setView("agent", "replace");
+  else if (named === "erd") setView("erd", "replace");
   else if (named === "query") await openQueryDraft(url.searchParams.get("from"), "replace");
   else if (named === "start") {
     // The old Start view (one release): the Projects page (projectsPage.ts), in this entry's place.
@@ -494,6 +494,7 @@ function arrange(tabs: Map<string, HTMLElement>): HTMLElement[] {
       {
         type: "button",
         class: "tab-group-head",
+        ...(connection ? { "data-connections": connection } : {}), // its box wears the colour
         draggable: "true",
         "aria-expanded": String(!collapsed),
         title: collapsed ? `Show ${name}'s tables` : `Fold ${name}'s tables`,
@@ -507,7 +508,6 @@ function arrange(tabs: Map<string, HTMLElement>): HTMLElement[] {
           else if (dragging) moveTab(dragging, members[0]!);
         },
       },
-      connection ? h("span", { class: "conn-dot", "data-connections": connection, "aria-hidden": "true" }) : null,
       h("span", { class: "tab-group-name" }, name),
       collapsed ? h("span", { class: "tab-group-count" }, String(members.length)) : null,
     );

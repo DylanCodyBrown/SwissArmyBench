@@ -59,10 +59,8 @@ REQUIRES_PYTHON: str = ">=3.10"
 # What a cell's `sab.<name>(...)` becomes, or that it only shows something in the app.
 _CALLS: dict[str, str] = {"sql": "run_sql", "dax": "run_dax", "read": "read_table"}
 _MADE: frozenset[str] = frozenset({"blade", "connection"})
-_SHOWS: frozenset[str] = frozenset(
-    {"push", "visualizations", "sandbox", "watch", "unwatch", "load", "complete"}  # sandbox: the old name
-)
-_PACKAGE_NAMES: frozenset[str] = frozenset({"swissarmybench", "swissarmygrid"})
+_SHOWS: frozenset[str] = frozenset({"push", "watch", "unwatch", "load", "complete"})
+_PACKAGE_NAMES: frozenset[str] = frozenset({"swissarmybench"})
 # A cell's last bare expression that only shows a value (its methods), or display() anywhere.
 _SHOWING_METHODS: frozenset[str] = frozenset(
     {"head", "tail", "describe", "sample", "info", "show", "style", "to_html", "plot", "hist"}
@@ -300,13 +298,12 @@ def _translate_magics(cell: _Cell, source: str) -> str:
             "config",
             "sql_connections",
             "sab_connections",
-            "sag_connections",
             "who",
             "whos",
         ):
             out.append(f"{indent}{'pass  ' if indent else ''}# {line.strip()}: only the notebook's, left out")
             continue
-        if mark == "%" and word in ("sql_connect", "sab_connect", "sag_connect"):
+        if mark == "%" and word in ("sql_connect", "sab_connect"):
             out.append(f"{indent}{'pass  ' if indent else ''}# {line.strip()}: the later SQL cells name it")
             continue
         if mark == "%" and word in ("time", "timeit") and len(words) > 1:
@@ -842,7 +839,7 @@ def plan(
             continue
         working = _Cell(label)
         held = table_cells.split_uses(cell.source)[1].strip("\n")
-        if held.lstrip().startswith(("%%sql", "%%sab", "%%sag", "%%dax")):
+        if held.lstrip().startswith(("%%sql", "%%sab", "%%dax")):
             problems.append(
                 Problem(label, "a SQL cell written as a code cell: open it in the Workbench once", index)
             )
@@ -858,7 +855,7 @@ def plan(
             continue
         # %sql_connect: the SQL cells after it run on that connection.
         for line in held.split("\n"):
-            found_connect = re.match(r"^\s*%(?:sql|sab|sag)_connect\s+(.+)$", line)
+            found_connect = re.match(r"^\s*%(?:sql|sab)_connect\s+(.+)$", line)
             if found_connect:
                 try:
                     default = " ".join(shlex.split(found_connect.group(1))) or default
@@ -1340,7 +1337,7 @@ def references(cells: Sequence[ExportCell], code_names: Mapping[str, str]) -> li
             continue
         source = table_cells.split_uses(cell.source)[1]
         for line in source.split("\n"):
-            connect = re.match(r"^\s*%(?:sql|sab|sag)_connect\s+(.+)$", line)
+            connect = re.match(r"^\s*%(?:sql|sab)_connect\s+(.+)$", line)
             if connect:
                 default = connect.group(1).strip().strip("'\"")
         working = _Cell("")

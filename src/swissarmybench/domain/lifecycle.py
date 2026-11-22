@@ -28,7 +28,6 @@ PAGE_PATHS: tuple[str, ...] = ("/session",)
 # Asking whether the server is there, or when it stops, is not work: the desktop app's own /health checks
 # (at its start and with each page it opens) kept the server up 10 minutes after the app closed.
 NOT_WORK_PATHS: tuple[str, ...] = ("/health", "/lifecycle")
-NOTICE_GONE = "The tray icon is gone: Swiss Army Bench now runs while it's open."
 
 
 @dataclass

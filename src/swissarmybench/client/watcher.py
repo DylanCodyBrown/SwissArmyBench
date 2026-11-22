@@ -41,7 +41,6 @@ from time import monotonic
 from typing import Any
 
 from swissarmybench.client import push_client, table_cells
-from swissarmybench.renamed import env
 
 log = logging.getLogger("swissarmybench.watcher")
 
@@ -528,6 +527,6 @@ def autostart() -> None:
     """Called when swissarmybench is imported. Starts the watcher in Jupyter, IPython or the interactive
     window, where importing the package is already the decision to use the grid; never in the server, the
     MCP or a test run. SWISSARMYBENCH_WATCH=0 or 1 overrides."""
-    mode = env("SWISSARMYBENCH_WATCH", "")
+    mode = os.environ.get("SWISSARMYBENCH_WATCH", "")
     if mode == "1" or (mode != "0" and _in_ipython()):
         start()

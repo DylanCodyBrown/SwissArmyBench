@@ -1,5 +1,5 @@
 # ruff: noqa: F811
-"""sab.visualizations from Python: a card of no table (badged "Python"), an Altair-style Vega-Lite chart drawn
+"""sab.analyze from Python: a card of no table (badged "Python"), an Altair-style Vega-Lite chart drawn
 from its inline data, a key that replaces a card in place, and a table of its own rows."""
 
 from __future__ import annotations

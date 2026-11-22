@@ -58,8 +58,6 @@ Properties (name, description, tags, table name) at the right. The code's bytes 
   becomes a named Python cell, ready for a canvas.
 
 ## Packs (blades and relationship sets from a Claude Code marketplace)
-- `packs_list`: installed packs (read-only; Save a copy to change one) and editable clones.
-- `packs_new` makes a marketplace folder; `packs_add` copies saved blades and relationship sets into an editable pack.
 
 ## On the Scripts page (2026-11-21)
 

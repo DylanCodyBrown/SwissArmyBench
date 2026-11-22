@@ -7,7 +7,7 @@ written: the audit log, saved dashboards, the connection file and the model libr
   the connection file  where the running server is, and its token (owner-only)
   the model library    relationship sets and models: the shipped ones, the user's, SWISSARMYBENCH_MODELS
   preferences          small JSON files the user's own choices are kept in: the kind colours
-                       (kind_colours.json), a script's run settings (run_settings.json: arguments and
+                       a script's run settings (run_settings.json: arguments and
                        where each variable comes from; a plain value only, never a secret's)
 
 (Blades and their folders are adapters/blades.py; exports are adapters/export.py.)
@@ -39,7 +39,6 @@ from swissarmybench.domain.relationships import (
     set_file_name,
     write_set,
 )
-from swissarmybench.renamed import env, home_state_folder
 
 # ===== the audit log =====
 # The audit log: one JSON line per action, never a cell value (plan section 6, rule 9).
@@ -211,8 +210,8 @@ class ThemeFiles:
 
 def info_file_path() -> Path:
     """Where the connection file lives. SWISSARMYBENCH_INFO overrides it (tests use this)."""
-    override: str | None = env("SWISSARMYBENCH_INFO")
-    return Path(override) if override else home_state_folder() / "server.json"
+    override: str | None = os.environ.get("SWISSARMYBENCH_INFO", "")
+    return Path(override) if override else (Path.home() / ".swissarmybench") / "server.json"
 
 
 def write_info_file(path: Path, info: dict[str, Any]) -> None:
@@ -271,8 +270,8 @@ SHARED_DEPTH = 4
 _SKIPPED_DIRS = frozenset(
     {"__pycache__", "node_modules", "site-packages", ".venv", "venv", "env", "build", "dist"}
 )
-# Where a set may be renamed or deleted: the person's own and the shared folders. The package's, a
-# pack's (from a marketplace: changed in its repository) and SWISSARMYBENCH_MODELS' are read-only.
+# Where a set may be renamed or deleted: the person's own and the shared folders. The package's and
+# SWISSARMYBENCH_MODELS' are read-only.
 EDITABLE = ("mine", "shared")
 
 
@@ -284,7 +283,6 @@ class ModelFiles:
         self,
         state_dir: Path,
         shared: Callable[[], list[str]] | None = None,
-        packs: Callable[[], list[tuple[Path, str]]] | None = None,
         library: Callable[[], Path] | None = None,
         made: Callable[[], object] | None = None,
     ) -> None:
@@ -293,8 +291,6 @@ class ModelFiles:
         # The library's relationship-sets/ (Plans/library.plan.md): where a saved set goes.
         self._library = library
         self._shared = shared or (lambda: [])
-        # Installed packs' relationship-sets folders (adapters/packs.py): read-only sets from a marketplace.
-        self._packs = packs or (lambda: [])
 
     @property
     def mine(self) -> Path:
@@ -320,10 +316,11 @@ class ModelFiles:
             (self.mine, "mine"),
         ]
         folders += [
-            (Path(p), "environment") for p in env("SWISSARMYBENCH_MODELS", "").split(os.pathsep) if p.strip()
+            (Path(p), "environment")
+            for p in os.environ.get("SWISSARMYBENCH_MODELS", "").split(os.pathsep)
+            if p.strip()
         ]
         folders += [(Path(p), "shared") for p in self.shared_folders()]
-        folders = [(folder, "pack") for folder, _ in self._packs()] + folders  # a clone wins over its install
         return folders
 
     def _set_files(self, folder: Path, deep: bool) -> list[Path]:
@@ -350,13 +347,13 @@ class ModelFiles:
             if not folder.is_dir():
                 continue
             plain = sorted(p for p in folder.glob("*.json") if not is_set_file(p.name))
-            for path in plain if where not in ("shared", "pack") else []:
+            for path in plain if where != "shared" else []:
                 try:
                     model = parse_model(json.loads(path.read_text(encoding="utf-8")))
                     found[model.name] = (model, str(path))
                 except (OSError, ValueError) as error:
                     problems.append(f"{path.name}: {error}")
-            for path in self._set_files(folder, deep=where in ("shared", "pack")):
+            for path in self._set_files(folder, deep=where == "shared"):
                 try:
                     if path.stat().st_size > 2_000_000:
                         raise RelationshipSetError("larger than 2 MB")

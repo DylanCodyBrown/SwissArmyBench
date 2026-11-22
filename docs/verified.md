@@ -10,7 +10,7 @@ still an assumption. Last updated 2026-10-23.
 | 3 | MCP library | Verified, mcp 2.3.0 | `mcp.server.mcpserver.MCPServer` with `@server.tool(description=...)` and `run("stdio")`; transports stdio, sse, streamable-http. The launcher is a separate stdio process calling the grid server over HTTP, so no routes are mounted into the MCP app. |
 | 4 | Arrow data exchange interface | Verified | The push client converts pandas (`Table.from_pandas`), Polars and other objects with `__arrow_c_stream__` (`pa.table(obj)`), DuckDB relations (`to_arrow_table()`) and lists of dicts, with pyarrow 26. Dates keep their type end to end. |
 | 5 | sqlglot | Verified, 30.24.0 | Parses the DuckDB dialect for the SQL box subset; WITH clauses live under the `with_` argument (not `with`) in this version; table functions parse as `exp.Table` with a function `this`. |
-| 6 | VS Code | Verified, 1.143.0 | "Simple Browser: Show" opens the integrated browser as a real Chromium page (not an iframe); the grid, WebSocket, panel and title all work. Older versions use a sandboxed iframe and append `?id=&vscodeBrowserReqId=`; the page reads the grid id from the path and the token from the fragment, so both work. `tools/vscode_check.py` reproduces the check. Debugger-variable menu: not checked (VS Code extension not built). |
+| 6 | VS Code | Verified, 1.143.0 | "Simple Browser: Show" opens the integrated browser as a real Chromium page (not an iframe); the grid, WebSocket, panel and title all work. Older versions use a sandboxed iframe and append `?id=&vscodeBrowserReqId=`; the page reads the grid id from the path and the token from the fragment, so both work. (tools/vscode_check.py went with the VS Code extension, 2026-11-21.) Debugger-variable menu: not checked (VS Code extension not built). |
 | 7 | Licenses and sizes | Verified | AG Grid Community MIT; Monaco 0.57 MIT; Vega 6.4, Vega-Lite 6.5, vega-embed 7.3 BSD-3-Clause; xlsxwriter 3.3 BSD-2-Clause; DuckDB MIT; pyarrow Apache-2.0; sqlglot MIT; Starlette and uvicorn BSD-3. Bundles (2026-11-15): main 1.4 MB (loads with the page), charts 0.83 MB and Monaco 4.4 MB (the Workbench's editors and the "+" tab's SQL box share it; each loads on first use). The release wheel is 5.9 MiB (19.5 MiB unpacked). Check the company's open-source policy before wider sharing. |
 | 8 | Company policy on sending client data to an AI service | Not checked | A connected agent sees cell values (the privacy levels were removed on 2026-11-12), so check this before connecting an agent to client data. |
 | 9 | Windows sandbox options | Not checked | Milestone 9 is not built. |
@@ -4743,3 +4743,12 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
 - Not checked: Windows (the RSS test skips there), a real host's read past one Arrow stream of more than a few
   thousand rows (the tests' are small), the child process's memory on a DuckDB file's Open (its answer is still one
   base64 Arrow IPC in a JSON line).
+
+## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
+- Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite
+  (`pytest -n 4 --dist loadfile tests --ignore=tests/e2e`) after the removals and after the route guard; the e2e
+  files covering each change in Chromium (catalog, navigation, analyze, rail, tour, sandbox, lineage, workbench
+  modes, write starters, errors, variables, data, connection colours, canvas and widgets with the Streamlit Python).
+- color-mix() (the connection card's tint) is drawn by Chromium and Qt WebEngine 6.12's Chromium.
+- Not checked: Edge (the e2e ran in Chromium here); a Windows file with CRLF endings under the byte comparison of
+  write_atomic(if_changed=True) (it writes once more, by design).

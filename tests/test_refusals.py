@@ -145,3 +145,22 @@ def test_a_refused_connection_test_says_what_where_and_the_source_s_own_words(tm
             assert "Connection refused" in str(said["error"])
             assert said["where"] == "Warehouse"
             assert "Is the server running" in str(said.get("details", "")) + str(said["error"])
+
+
+def test_every_route_is_guarded_once_at_the_app() -> None:
+    """The simplicity pass (2026-11-21): no route module writes its own guard; the app puts every async
+    handler under one (http.guarded), so a crash in any route answers the one shape."""
+    from starlette.applications import Starlette
+    from starlette.requests import Request
+    from starlette.responses import Response
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    from swissarmybench.server.http import guarded
+
+    async def crashes(request: Request) -> Response:
+        raise RuntimeError("made-up failure")
+
+    app = Starlette(routes=guarded([Route("/boom", crashes, methods=["POST"])]))
+    body = _shaped(TestClient(app).post("/boom"), 500)
+    assert "made-up failure" in str(body)

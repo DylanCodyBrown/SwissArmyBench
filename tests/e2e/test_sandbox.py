@@ -1,6 +1,6 @@
 # ruff: noqa: F811
-"""Analyze in a real browser: the dashboard grid, resizing, and the Plotly, ECharts, Graphviz and
-image cards, with what they may and may not do in the page.
+"""Analyze in a real browser: the dashboard grid, resizing, and the Plotly and image cards, with what they
+may and may not do in the page (Graphviz and ECharts went, 2026-11-21: a saved card of either says so).
 
 Cards of the new kinds are served by a stand-in for GET /cards (the server learns those kinds in
 the next step); chart cards are real. Made-up data only.
@@ -67,31 +67,15 @@ PLOTLY = json.dumps(
         "layout": {"title": {"text": "Made-up units"}, "images": [{"source": "https://example.com/x.png"}]},
     }
 )
-ECHARTS = json.dumps(
-    {
-        "xAxis": {"type": "category", "data": ["Mon", "Tue", "Wed"]},
-        "yAxis": {"type": "value"},
-        "series": [{"type": "line", "data": [3, 7, 5], "symbol": "image://https://example.com/pin.png"}],
-        "graphic": [{"type": "image", "style": {"image": "https://example.com/track.png"}}],
-        "tooltip": {"trigger": "axis", "renderMode": "html"},
-    }
-)
-DOT = (
-    'digraph orders { orders -> customers [label="customer_id"]; orders -> products; '
-    'customers [URL="javascript:alert(1)"]; }'
-)
 
 
-def test_plotly_echarts_graphviz_and_image_cards_draw_and_load_nothing_from_outside(
-    browser: Browser, orders_url: str
-) -> None:
+def test_plotly_and_image_cards_draw_and_load_nothing_from_outside(browser: Browser, orders_url: str) -> None:
     page = open_sandbox(
         browser,
         orders_url,
         [
             card("plotly", "Plotly units", PLOTLY),
-            card("echarts", "ECharts week", ECHARTS),
-            card("graphviz", "Graphviz joins", DOT),
+            card("graphviz", "Graphviz joins", "digraph { a -> b }"),
             card("image", "Matplotlib picture", f"data:image/png;base64,{PNG}"),
         ],
     )
@@ -103,19 +87,12 @@ def test_plotly_echarts_graphviz_and_image_cards_draw_and_load_nothing_from_outs
         ),
     )
     cards = page.locator(".cards > .card")
-    expect(cards).to_have_count(4)
+    expect(cards).to_have_count(3)
     plotly = page.locator(".card-plotly .figure")
     expect(plotly.locator("svg.main-svg").first).to_be_visible(timeout=20000)
     expect(plotly).to_contain_text("Made-up units")
-    expect(page.locator(".card-echarts .figure canvas").first).to_be_visible(timeout=20000)
-    graph = page.locator(".card-graphviz .diagram svg")
-    expect(graph).to_be_visible(timeout=20000)
-    expect(graph).to_contain_text("customers")
-    # The DOT URL became no link at all.
-    links = (
-        "s => [...s.querySelectorAll('*')].flatMap(e => [...e.attributes]).filter(a => /href/i.test(a.name))"
-    )
-    assert graph.evaluate(links + ".every(a => a.value.startsWith('#'))")
+    # A dashboard saved with a kind that went says so in its card.
+    expect(page.locator(".card-graphviz")).to_contain_text("no longer drawn", timeout=20000)
     expect(page.locator(".card-image img")).to_have_attribute("alt", "Matplotlib picture")
     assert page.locator(".card-image img").evaluate("i => i.complete && i.naturalWidth === 2")
     page.wait_for_timeout(500)
@@ -132,12 +109,16 @@ def test_a_figure_that_needs_the_internet_or_is_not_json_says_so(browser: Browse
             card(
                 "plotly", "Plotly map", json.dumps({"data": [{"type": "scattergeo", "lat": [1], "lon": [2]}]})
             ),
-            card("echarts", "ECharts broken", "{not json"),
+            card("plotly", "Plotly broken", "{not json"),
             card("image", "Linked picture", "https://example.com/plot.png"),
         ],
     )
-    expect(page.locator(".card-plotly")).to_contain_text("they load from the internet", timeout=20000)
-    expect(page.locator(".card-echarts")).to_contain_text("not JSON", timeout=20000)
+    expect(page.locator(".card-plotly").filter(has_text="Plotly map")).to_contain_text(
+        "they load from the internet", timeout=20000
+    )
+    expect(page.locator(".card-plotly").filter(has_text="Plotly broken")).to_contain_text(
+        "not JSON", timeout=20000
+    )
     expect(page.locator(".card-image")).to_contain_text("Unsupported image format")
     expect(page.locator(".card-image img")).to_have_count(0)
     page.close()

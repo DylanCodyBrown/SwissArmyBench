@@ -61,10 +61,8 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   flow order, edges, Mermaid text, and each node's value summarised (a table's shape, first rows and
   row change; a value; an error). Values are the user's data. `workbench_lineage_show` opens the
   overlay on the user's screen.
-- An approved output is kept in the notebook's cell metadata; a later run that differs is "Changed
-  since approved". `workbench_cell_approve(number)` (`remove`), `workbench_approvals` (each one's state),
-  `workbench_approval_check(outputs, approved)` (no window). Headless:
-  `python -m swissarmybench.client.standalone data.ipynb --check-approved` (exit 1 and a report).
+- Headless: `python -m swissarmybench.client.standalone data.ipynb` runs a notebook top to bottom (exit 1 on a
+  failed cell).
 
 ## Every table has a read-only cell
 - Each open table has a cell holding its grid steps as one DuckDB query over the table by its own name,
@@ -100,12 +98,11 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   or code, and their question).
 
 ## The modes (each document's own panels, beside it in its group)
-- Kind colours: app pages violet, notebooks blue, scripts green; `app_kind_colours` reads or sets them.
+- Kind colours: app pages violet, notebooks blue, scripts green (fixed, per theme).
 - Notebook: `workbench_window` "notebook.runOrder" (each cell notRun, edited, outOfDate with the names
   made again), "notebook.outline", "run.upToHere", "notebook.present"; "mode.panel" opens a panel.
 - Script: `workbench_script_settings` (arguments; each variable's source: env, value or vault, never a
-  secret's value), `workbench_script_run` (Run as scheduled: a fresh process with no app; exit code,
-  time, sources, log), `workbench_script_history` (memory only).
+  secret's value); Run file takes its arguments.
 - Data (data.ipynb): "data.view" (cells, lineage, dictionary), "dictionary.list", "dictionary.describe"
   (kept in data.ipynb, written into data.py); `project_dictionary` reads a saved project's.
 

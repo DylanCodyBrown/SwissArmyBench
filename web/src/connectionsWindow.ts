@@ -251,6 +251,7 @@ interface Card {
 
 interface Writes {
   writable: boolean;
+  operations: string[];
   starters: string[];
   how: string;
   note: string;
@@ -258,11 +259,12 @@ interface Writes {
   words: string;
 }
 
-/** A connection's writes in its detail: each Write starter (its name: the Blades page has it), or why not. */
+/** A connection's writes in its detail: its operations and its Write starter (its name: the Blades page has
+ *  it), or why not. */
 function writesTerm(w: Writes | null | undefined): HTMLElement[] {
   if (!w) return [];
   if (!w.writable) return term("Read-only", w.reason);
-  const said = w.starters.length ? w.starters.join(", ") : w.how;
+  const said = w.starters.length ? `${w.operations.join(", ")} (${w.starters.join(", ")})` : w.how;
   return term("Writes", h("span", { class: "connection-writes-list" }, said, w.note ? h("span", { class: "hint" }, ` (${w.note})`) : ""));
 }
 
@@ -649,8 +651,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       h(
         "li",
         { class: "connection-card-item" },
-        // Its colour (connectionColours.ts): the card's edge, and the swatch that chooses it.
-        c.connection === "vault" ? null : colourPicker(c.name),
+        // Its colour (connectionColours.ts) is the card's own highlight: its border and a tint of its box (the
+        // owner, 2026-11-21: "the highlighting for the box of the connection itself"); chosen on its detail.
         h(
           "a",
           {
@@ -753,7 +755,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     if (mine !== drawing) return;
     const c = listed;
     const config = usage.configuration;
-    const readOnly = c?.source === "pack";
+    const readOnly = c?.source === "starter";
     const path = encodeURIComponent(name);
     const swatch = config.kind === "vault" ? null : colourPicker(name);
     setHeading(name, " ", statusPill(usage));

@@ -100,10 +100,6 @@ def make_client(tmp_path: Path, **overrides: Any) -> TestClient:
     settings = Settings(
         state_dir=tmp_path / "state",
         export_dir=tmp_path / "exports",
-        # Never this machine's own Claude Code plugins: a test lays out its own packs here.
-        claude_dir=overrides.pop("claude_dir", tmp_path / "claude"),
-        # Never this computer's own sign-in entries: the old ones are looked for under a temporary home.
-        legacy_home=overrides.pop("legacy_home", tmp_path / "home"),
         # Never this machine's own SwissArmyBench folder: the app makes it the first time it is needed.
         workbench_dir=overrides.pop("workbench_dir", tmp_path / "home" / "SwissArmyBench"),
         projects_dir=overrides.pop("projects_dir", tmp_path / "home" / "Swiss Army Bench Projects"),

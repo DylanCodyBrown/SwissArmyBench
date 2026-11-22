@@ -5,8 +5,8 @@ uvicorn + in-memory DuckDB) that lives while the app is open: tabular data in li
 profiling, SQL, export, verified code generation, charts and an MCP door for agents. The owner, 2026-11-18:
 "Change that to the primary install. It's not an extension it is the app framework now and it should have been
 since the start." The browser stays possible (`swissarmybench open --browser`), secondary. It runs only on the
-user's machine. This repository is the whole product: the Python package at the root, its page in `web/`, and
-the optional VS Code extension in `vscode-extension/`.
+user's machine. This repository is the whole product: the Python package at the root and its page in `web/` (the VS Code
+extension went 2026-11-21, the simplicity pass).
 
 One package, two installs (`python build.py` builds the wheel, page inside): the plain wheel is a
 standard-library-only push client for any Python environment; the `[server]` extra is the app (the server and
@@ -21,13 +21,10 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   project is saved first (Autosave on) or the stop waits. No tray, no start at sign-in, no watchdog.
 
 - **Renamed (the owner, 2026-11-15):** SwissArmyGrid is now Swiss Army Bench: `swissarmybench`, alias `sab`.
-  Write only the new names; the old ones are read for one release (`renamed.py`, README "Renamed from
-  SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
+  Write only the new names; the old ones are no longer read (removed 2026-11-21, the simplicity pass; README
+  "Renamed from SwissArmyGrid"). The GitHub repository is DylanCodyBrown/SwissArmyBench (renamed; the old address redirects).
 - **Renamed (the owner, 2026-11-16):** the Sandbox is **Visualizations** and the Diagram the **ERD**
-  (`visualizations_*` commands, `sab.visualizations`, `?view=visualizations`, `?view=erd`). The old names
-  answer for one release: `sab.sandbox` (a warning), `sandbox_*` (until 2026-11-21, when the project's sandbox
-  took the word: GONE_NAMES says each is analyze_*), app_navigate's and app_snapshot's `sandbox`/`diagram`, the old addresses, a project.json's
-  `sandbox` key. Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
+  (`?view=erd`); both old names were removed 2026-11-21 (the simplicity pass). Internal names (aiPanel.ts, sandbox*.ts, the `agent` view, CSS classes) kept the old word.
 - **Renamed (the owner, 2026-11-19): Visualizations is Analyze, and the analyses live there** ("Let's move the
   analyze from the table bar to the visualizations pane and then rename the visualizations pane Analyze" /
   "Every analysis should automatically push to the analysis visualization area" / "make it stupid simple";
@@ -38,10 +35,9 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   the column picking, the made-up sample, the fixes ("Make it fit": grid steps, never applied by itself), the
   ranking (Check this table), the agent (`analyze_contracts`, `analyze_check`, `analyze_plan`, `analyze_run`)
   and Python (`sab.analyze.<analysis>(df)`) all read through one checker (domain/analyze.py). Write `analyze_*`,
-  `sab.analyze`, `?view=analyze`. The old names answer for one release: `visualizations_*` and `sandbox_*`
-  (OLD_NAMES; the chart's code is `analyze_chart_code`), `sab.visualizations` (warns once) and `sab.sandbox`,
-  app_navigate's and app_snapshot's `visualizations`/`sandbox`, `?view=visualizations`, a project.json's
-  `visualizations` key (written as `analyze`). Files on disk and internal names kept the old word
+  `sab.analyze`, `?view=analyze` (the chart's code is `analyze_chart_code`). The old names (`visualizations_*`,
+  `sandbox_*`, `sab.visualizations`, `sab.sandbox`, their addresses and project.json keys) were removed
+  2026-11-21 (the simplicity pass). Files on disk and internal names kept the old word
   (`.sab/visualizations.json`, client/visualizations_client.py, aiPanel.ts, sandbox*.ts).
 - **What a connection is (the owner, 2026-11-17): "any connection ... exposes tables that we can write
   duckdb against" / "that is the definition of a connection here".** Every connection kind lists its tables
@@ -93,7 +89,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   writes the code after the file's header (PUT /blades/{name} {code, stamp}; only when the bytes change; the
   header's variable follows a renamed function); an edit made outside is noticed (the stamp, looked at every
   2 s: taken at once with nothing unsaved, else Reload / Keep mine; a Save over it is 409), never silently
-  overwritten. A starter's or a pack's Save is refused: Copy as your own. Run is Test's child process with the
+  overwritten. A starter's Save is refused: Copy as your own. Run is Test's child process with the
   output streamed (POST /blades/{name}/run), the result a table (Open as grid) or a value, a failure the error
   panel with the line marked. The agent: `blades_update(code, stamp)`, `blades_run`, `blades_problems`,
   `blades_copy(code)`; Show its file stays the user's click (403 for the agent). The catalog checkbox and the
@@ -150,7 +146,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   projects (a folder: data.ipynb and its export data.py, the canvas), named
   cells, the Data Explorer (one search over everything that holds data, in the Workbench's pane, its own
   window or the grid page's Ctrl+K), tabs that pop out into windows of their own (and move
-  back) with their unsaved text and kernel, Settings' Panels (switches, all on at each start) and Kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
+  back) with their unsaved text and kernel, fixed kind colours (app violet, notebook blue, script green), the Workbench's modes (Notebook, Script, Data: each document's own panels; App mode went with app notebooks), the
   Analyze page (every analysis by its contract, results landing on its board), compare's diff, tie-out,
   Copy code on analysis results (the analysis as Python, on the clipboard), and the built-in starter pack
   (Power BI actions, Excel and file functions, DAX, HTML and Streamlit snippets dropped into cells; Components:
@@ -294,12 +290,9 @@ has the rules and why. Three layers, imports pointing inwards, nothing deeper th
 `tests/test_architecture.py` checks all of it.
 
 ```
-src/swissarmygrid/       the old name, one release: `import swissarmygrid` is this package under it (a warning)
 src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
-  renamed.py             the old name (SwissArmyGrid) for one release: SWISSARMYGRID_* read after the new
-                         variables, the state folder moved on first start, the old commands; the next
-                         release removes it, src/swissarmygrid/ and every OLD_* name (tests/test_renamed.py)
+  renamed.py             `env` only, for client/sql_cell.py (the adapter branch's file); goes when it merges
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
   bootstrap.py           the composition root: builds the adapters, hands them to the services
   extensions.py          the extensions that are on (entry points `swissarmybench.extensions`, or
@@ -517,18 +510,13 @@ src/swissarmybench/
     errors.py            the error panel's words: what an error means and the fixes (replace, import, install,
                          run the cell that makes a name, a table open in Grids' cell); where a SQL error points,
                          the missing table (DuckDB's own-table "Did you mean" dropped)
-    packs.py             a pack (a Claude Code plugin with blades/ and relationship-sets/): names, the new marketplace's
-                         files, Claude Code's install record read loosely, which plugins are switched off
-    panels.py            the panels Settings can turn off: their ids, pages and names; all on at the start
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
                          (the package check, settings, the vault by managed identity, connections)
     lineage.py           a cell's or a block's lineage back to the data: makes and reads, @cell links, a
                          table's grid steps and origin, data.ipynb, controllers; nodes, edges, Mermaid
-    approvals.py         approved outputs: a cell's outputs as a snapshot, the comparison, its lines, no
-                         rows in a zip. Standard library only and standalone (an export can inline it)
-    kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's default, a
-                         chosen colour made readable in every theme, never amber
+    kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's fixed one,
+                         never amber; the readability rule the connection colours use (fitted)
     notebook_flow.py     Notebook mode: each cell's state from the run order (notRun, edited, outOfDate
                          with the names made again) and the Outline (headings, named cells)
     intellisense.py      the editors' intelligence around Jedi: docstrings (Google, NumPy, reST) for each
@@ -546,8 +534,7 @@ src/swissarmybench/
                          module's imports rewritten when it is renamed (import_rewrite, move_plan), a copy's
                          name, a library's source that may be shown read-only (library_file)
     script_runs.py       Script mode: run settings (arguments; each variable's source: this computer, a
-                         plain value, a key vault, never a secret's value), the variables a script needs,
-                         a scheduled run's plan, a run's record
+                         plain value, a key vault, never a secret's value), the variables a script needs
     dictionary.py        Data mode: data.ipynb's data dictionary (plain-word types, descriptions kept in
                          data.ipynb's metadata and written into data.py, where each column comes from)
     updates.py           versions (PEP 440), PyPI's and GitHub's release lists, which is offered, the
@@ -744,15 +731,12 @@ src/swissarmybench/
                          a Script over the project; the app's names; Ruff or pyflakes where there; a worker
                          thread, a one-second budget, superseded requests skipped); what each editor shows,
                          for the agent (workbench_complete, workbench_signature, workbench_problems)
-    panels.py            the panels' switches: in memory, shared by every window (panels_changed)
     modes.py             project modes: the open project's type (.sab/project.json) to its mode (canvases,
                          families, languages, cell kinds, tool group, export); GET /app/mode, app_mode; the rail's
                          areas the on extensions add (GET /app/areas: their RAIL, and the footer's mark route)
     navigation.py        app_navigate: a window sent Home, Back, Forward or to a view (the page moves itself);
                          the rail's names switch (GET/PUT /rail, rail.json, rail_changed; app_rail)
     lineage.py           a lineage with each step's value: from the kernel, a playing page, the grid
-    kind_colours.py      the kind colours: shared by every window (kind_colours_changed), kept across
-                         restarts (kind_colours.json)
     script_ide.py        the Scripts IDE: its tree (the project's code, the library's, Generated), go to definition,
                          references and rename over the project's modules (the editors' one Jedi world), search
                          and replace, Format (Ruff in the script's Python), Fine-tune as a script; each write said
@@ -762,7 +746,7 @@ src/swissarmybench/
     code_files.py        code files that update themselves everywhere: `file_changed` {path, hash, by} on the app's
                          writes (touched) and on a look every few seconds at the project's and library's .py and
                          .ipynb (off the loop); its listeners (a made file saved by hand: project_scope.saw)
-    script_runs.py       a script's run settings (run_settings.json), Run as scheduled, its run history
+    script_runs.py       a script's run settings (run_settings.json): Run file's arguments, the Variables page
                          (memory only)
     beta_log.py          beta mode (beta.json, SWISSARMYBENCH_BETA wins), the log's events, notes, export, clear
     updates.py           the update check (start, every six hours; the switch), Update to X (asks only when
@@ -836,7 +820,6 @@ src/swissarmybench/
     tieout.py            the tie-out report on a compare's two grids
     processes.py         Python sessions offering tables: the registry and the Open list
     snapshots.py         a PNG of the page, drawn by the page (app_snapshot); nothing is kept
-    packs.py             list packs, make a marketplace, add saved blades and relationship sets to an editable pack
 
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
     sab_adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `sab_adapter`)
@@ -913,20 +896,18 @@ src/swissarmybench/
     workbench.py         the Workbench's files (saved on the user's click), recent files, each document's Python
     intellisense.py      Jedi's Project and Environment per folder and Python, the project's modules read,
                          pyflakes, Ruff in the document's Python (on stdin; never installed by itself), DuckDB's parser
-    packs.py             installed packs in Claude Code's plugin folder, editable ones in the blade
-                         folders; writing a new marketplace and a pack's files
 
   server/                the HTTP door, and everything that starts a process
     app.py               asks bootstrap for the services, mounts the routes behind the guard
     http.py              reading requests, shaping answers, each error as its status in the one refusal shape
                          (domain/refusals.py; refusal(), error_as(); UTF-8; the guard, an unknown address and a
                          method not taken answer it too; cli/api.py reads a words-only one as its words); the
-                         handler wrappers every route module uses instead of its own try/except: safely,
-                         with_body, with_actor, answered, json_lines (a run streamed as JSON lines)
+                         handler wrappers: with_body, with_actor, answered, json_lines (a run streamed as JSON
+                         lines); guarded (app.py): every route's handler under safely once, no route its own
     routes_*.py          one per feature: read the request, call the use case, shape the answer
                          (datasets, grids, analysis, analyze, regression, timeseries, tieout, agent, cards, catalog, blades, relationships,
-                         processes, snapshots, packs, connections, apis, folders, workbench, table_cells, lineage,
-                         projects, project_scope, project_outline, panels, navigation, kind_colours, script_runs, session_log,
+                         processes, snapshots, connections, apis, folders, workbench, table_cells, lineage,
+                         projects, project_scope, project_outline, navigation, script_runs, session_log,
                          structures, api_explorer, intellisense, sab_projects, project_explorer,
                          connection_swap, variables, connection_colours, connection_tables, connection_slots, sandbox, local_api,
                          explorer, library,
@@ -948,7 +929,6 @@ src/swissarmybench/
                          keys (the page's first), Open in browser, a file handed over the channel or dropped on a
                          window (its real path), the channel's quit, the server it starts (off the window
                          thread; Starting… meanwhile) and tells when its last window closed
-    legacy_tray.py       an older version's tray and start-at-sign-in entry, removed once (said once)
     updater.py           Update to X's helper: a copy run by the base Python once the app stopped, it
                          installs with uv, checks the version, starts the app, or the old one and a note;
                          Install and Remove an extension the same way (launch_change)
@@ -979,14 +959,13 @@ src/swissarmybench/
     streamlit_proxy.py   live pages passed through this server under their own secret (their websockets too),
                          so a page's frame policy stays `frame-src 'self'`: the Streamlit extension's apps and
                          the Power Apps extension's dev server mount it with their own prefix
-    script_runner.py     Run as scheduled: `python <script> <arguments>` as a fresh process with no app
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (136 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
+  starters/              the built-in starter pack (99 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
                          DAX, HTML, Markdown, Write; the Streamlit extension brings its 52), listed apart, found by name, Copy as your own (tests/test_starters*.py);
                          Write: 16 functions (write_to_*: one public typed function a target, for functions.py) and
-                         54 calls (a cell's text: the call only, dry_run=True), for the connections that write
+                         17 calls (a cell's text: the call only, dry_run=True; one a target, its mode a placeholder)
   client/push_client.py  push(), ensure_server()
   client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
@@ -1021,7 +1000,7 @@ src/swissarmybench/
                          (never a table cell's own result: the grid would apply its steps twice)
   client/lineage_values.py  a value summarised for a lineage card (a table's shape and first rows), in the
                          kernel, and as sab_lineage.py beside a playing page (it notes each block's values)
-  client/standalone.py   connections and blades without the app; a notebook run headless (--check-approved)
+  client/standalone.py   connections and blades without the app; a notebook run headless
   client/table_cells.py  a table's read-only cell run in the kernel (%%sab_table, %sab_run): it starts
                          from the original its maker made (a reference, never a copy), so a second run
                          changes nothing
@@ -1034,8 +1013,8 @@ src/swissarmybench/
                          arguments) and the guide's topics (swissarmybench://guide/<topic>, guide(topic=...))
   mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (282 of them).
                          It holds no logic; add a command in cli/commands.py and it appears
-web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid,
-                         Graphviz, Plotly and ECharts (each loads when first needed; svgSafe cleans drawings);
+web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid
+                         and Plotly (each loads when first needed; svgSafe cleans drawings);
                          lazyLoad.ts the one loader each for Monaco and the diagrams (loadEditors, loadDiagrams);
                          lazyPages.ts the rail's pages that load when first opened (APIs, Structures, Code App,
                          Source Control, Extensions: their names, whether a plug-in page is on, stand-in layers
@@ -1106,9 +1085,9 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          resting over its header (its profile: range, blanks, distinct, a histogram);
                          tour.ts is the first-time tour (on the Projects page only: a card per
                          place in the rail's order that goes there and lights up the real control,
-                         two made-up tables staged and closed again, back to where it started; then
-                         a matching game; nav.ts returnTo; loaded when first opened);
-                         catalogRail.ts (the blades list, its "…": import, export, blade folders, packs; the
+                         two made-up tables staged and closed again, back to where it started;
+                         nav.ts returnTo; loaded when first opened);
+                         catalogRail.ts (the blades list, its "…": import, export, blade folders; the
                          catalog tree only where a page gives it a place: the Workbench's "+ Table") is the
                          Scripts page's Blades pane (the blades page went 2026-11-21: /catalog redirects there,
                          ?blade=<name> that blade's tab); bladeEditor.ts is the
@@ -1211,11 +1190,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          a DAX cell (its dataset picker, Monaco's DAX grammar) is drawn in
                          workbenchNotebook.ts, its completion in workbenchCompletion.ts;
                          workbenchLineage.ts (the Lineage overlay: Mermaid flow, a value card per step;
-                         window.openLineage), workbenchApprovals.ts (Approve the output, the amber note);
+                         window.openLineage);
                          cellClipboard.ts (a cell's name as typed, a script marker's words, a copied cell
                          pasted in any window; no live Streamlit cells: app notebooks went, 2026-11-21);
                          projects (New project, Open project, Export data.py) are in workbenchPage.ts;
-                         kindColours.ts the kind colours (Settings' section, the tokens on <html>) and a
+                         kindColours.ts the kind colours (fixed: grid.css's tokens) and a
                          notebook's kind (in a project data.ipynb the data notebook; every other plain:
                          notebookRole, kindIcon);
                          projectFile.ts a project as a folder, shared by the home page and the Workbench
@@ -1239,8 +1218,10 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          blank grid) and a built table's tray; the project's group in the
                          Application row (Save, Copy to…, Close, Autosave) and the strip of tables to fix;
                          connectionColours.ts each connection's colour worn by whatever names it
-                         (data-connections: tabs, cells, blocks, cards, the Data Explorer's results, Session entries), the
-                         swatch and palette; panes.ts groups the home page's tabs by connection;
+                         (data-connections): its own box (a card, the Data Catalog's row, a tab group's head) as
+                         its border and a light tint, what names it (tabs, cells, Session entries) as a stripe;
+                         the swatch and palette on its detail; dom.ts dateTime and plural, the pages' one date
+                         and one count; panes.ts groups the home page's tabs by connection;
                          localApis.ts the APIs page's Local sandbox APIs (one slim bar: name, where it runs, the
                          agent's session writes with Stop, Run / Stop, Open API.py, Properties folded: target, base
                          path, description; "…": New endpoint, Will this work for real?, Export (its target said,
@@ -1269,7 +1250,7 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          menu; none: the install help), Desktop's one question, Settings' Claude;
                          the Workbench's modes: workbenchModes.ts (each document's own panels beside it
                          in its group, the status bar's toggles), workbenchDocModes.ts (Notebook's Outline,
-                         Script's Run settings and Run history, Data's Dictionary and Lineage's place)
+                         Script's Run settings, Data's Dictionary and Lineage's place)
                          The grid page has no SQL box and no steps panel (decision 13): stepsStrip.ts is the
                          strip under the title; stepsPanel.ts shows only in its own window (?panel=steps)
 web/build.mjs            the page's build (npm run build, build:release, watch): each page (main, workbench,
@@ -1303,7 +1284,7 @@ tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge v
                          orders service, every sign-in it takes stood in for), devtunnel_standin.py (Microsoft's
                          devtunnel stood in for: sign-in with a device code, tunnels, access, host's lines), github_standin.py (GitHub's REST
                          and Git Data APIs and the device flow over in-memory repositories of made-up files)
-tools/                   screenshots.py, vscode_check.py; testbed/: the real-world test bed (testbed.py up|down:
+tools/                   screenshots.py; testbed/: the real-world test bed (testbed.py up|down:
                          PostgreSQL and MariaDB on ports of their own, made-up files; company.py, the made-up
                          company; standins.py, Power BI's Company model and Azure Key Vault) for
                          tests/e2e/test_real_world.py (eleven use cases, action counts, agent parity; 11: a widget on
@@ -1315,15 +1296,14 @@ tools/                   screenshots.py, vscode_check.py; testbed/: the real-wor
                          (`python -m tools.testbed.large_company --scale large --out <folder>`)
 plugin/                  the swissarmybench plugin: skills/swissarmybench-use (SKILL.md, guide), .mcp.json,
                          hooks/hooks.json (the prompt hook: what was sent to the agent, the table in front)
-.claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/ and the pack)
+.claude-plugin/          marketplace.json: this repository is a Claude Code marketplace (plugin/)
 examples/sample_store.py made-up nine-table store with a relationship answer key (test bed for autodetection)
 examples/forms_recon/    the owner's first app POC as a test app, made by the app through the agent's commands: API.py
                          (forms with versions, entries stored long, a PIVOT column store, monthly reconciliations),
                          three canvas pages, widgets/api_bridge.widget.py (the project's own widget);
                          tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
                          (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
-examples/packs/          sample-store: an example pack (a made-up blade, the store's relationship set)
-build.py                 build the page (release) and the one wheel; --vsix also packages the extension
+build.py                 build the page (release) and the one wheel
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
 tools/smoke_install.py   start the installed server, push the sample store, check it all arrived (used by releases)
@@ -1496,8 +1476,6 @@ web/src/gates.ts         a project type's gates (GET /app/gates): a closed area 
                          by their area: gatedRun; an address on a closed area covered by it: a popover over the
                          page), Settings' switch, the first-open pop-up once per project, the mode's own tour cards
 web/src/areaMarks.ts     the footer's marks an extension's area answers (GET /app/areas' mark route), generic
-vscode-extension/        the optional VS Code extension (TypeScript): the uv install's MCP tools as VS Code tools,
-                         and an Open Swiss Army Bench button (starts the server when needed, opens its window)
 extensions/powerapps/     the Power Apps extension (swissarmybench-powerapps; entry point
                          powerapps = swissarmybench_powerapps.extension; project type codeapp): Power Apps code
                          apps built with Microsoft's own command lines (pa for the app, pac for environments and

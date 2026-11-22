@@ -1198,15 +1198,12 @@ def path_between(relationships: tuple[Relationship, ...], start: str, end: str) 
 #
 # The columns and their types are what the tables held when the set was saved: running a set against
 # the open tables says when a column has gone or changed type, and an ERD can be drawn from it alone.
-# For one release the old .tang files (marked "tang", or "swissarmygrid": "tang" from before the first
-# rename) still read; everything written is a .relationships.json.
+# For one release the old .tang files (marked "tang") still read; everything written is a .relationships.json.
 
 SET_MARK = "relationship-set"
 OLD_SET_MARKS = ("tang",)  # the old name, one release
 SET_FORMAT = 1
-# The marker's key: "swissarmybench"; one saved before the first rename has SwissArmyGrid's, still read.
 SET_KEY = "swissarmybench"
-OLD_SET_KEY = "swissarmygrid"
 SET_SUFFIX = ".relationships.json"
 OLD_SET_SUFFIX = ".tang"  # the old name, one release: read, never written
 SET_SUFFIXES = (SET_SUFFIX, OLD_SET_SUFFIX)
@@ -1240,7 +1237,7 @@ def same_set(left: Model, right: Model) -> bool:
 def is_set_text(raw: Any) -> bool:
     """Parsed JSON that is marked as a relationship set (or an old tang)."""
     marks = (SET_MARK, *OLD_SET_MARKS)
-    return isinstance(raw, dict) and (raw.get(SET_KEY) in marks or raw.get(OLD_SET_KEY) in marks)
+    return isinstance(raw, dict) and raw.get(SET_KEY) in marks
 
 
 def read_set(text: str) -> Model:
@@ -1263,6 +1260,6 @@ def read_set(text: str) -> Model:
             f"{SET_FORMAT}."
         )
     try:
-        return parse_model({k: v for k, v in raw.items() if k not in (SET_KEY, OLD_SET_KEY, "format")})
+        return parse_model({k: v for k, v in raw.items() if k not in (SET_KEY, "format")})
     except ValueError as error:
         raise RelationshipSetError(f"This relationship set does not hold together: {error}") from None

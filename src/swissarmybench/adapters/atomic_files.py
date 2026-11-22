@@ -138,15 +138,10 @@ class TextFolder:
         folder = self.folder
         if folder is None:
             return False
-        path = folder / name
-        data = text.encode("utf-8")
-        try:
-            if path.read_bytes() == data:
-                return False
-        except OSError:
-            pass
-        self._made()
-        return write_atomic(path, data)
+        written = write_atomic(folder / name, text.encode("utf-8"), if_changed=True)
+        if written:
+            self._made()
+        return written
 
 
 class JsonFile:

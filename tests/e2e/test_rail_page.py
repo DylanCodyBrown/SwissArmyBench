@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 import re
-import urllib.error
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -378,11 +377,7 @@ def test_the_rail_has_no_switch_and_nothing_repeats_it(
     for name in ("Settings", "Connections", "Blades and catalog"):
         expect(page.locator(".app-row").get_by_role("button", name=name, exact=True)).to_have_count(0)
     page.locator(".nav-rail [data-area='settings']").click()
-    panels = page.locator(".area-page[data-page='settings'] fieldset", has_text="Panels")
-    expect(panels.get_by_role("group", name="Grid page")).to_be_visible()
-    expect(panels.get_by_label("Navigation rail")).to_have_count(0)
-    with pytest.raises(urllib.error.HTTPError):
-        call(server, "PUT", "/panels", {"app.rail": False}, agent=True)
+    expect(page.locator(".area-page[data-page='settings'] fieldset", has_text="Panels")).to_have_count(0)
     page.go_back()
     expect(rail(page)).to_be_visible()
     page.context.close()

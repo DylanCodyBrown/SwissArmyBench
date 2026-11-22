@@ -14,7 +14,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.tieout import TieOut
 
 
@@ -32,7 +32,7 @@ def routes(tie_out: TieOut) -> list[BaseRoute]:
         return json_response(await tie_out.show(cmp, await read_json(request), actor(request)))
 
     return [
-        Route("/compares/{compare_id}/tie-out/show", safely(show), methods=["POST"]),
-        Route("/compares/{compare_id}/tie-out", safely(options)),
-        Route("/compares/{compare_id}/tie-out", safely(run), methods=["POST"]),
+        Route("/compares/{compare_id}/tie-out/show", show, methods=["POST"]),
+        Route("/compares/{compare_id}/tie-out", options),
+        Route("/compares/{compare_id}/tie-out", run, methods=["POST"]),
     ]

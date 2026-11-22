@@ -10,7 +10,7 @@ because charts are computed on request from the grid's current steps. Agent-made
 so the page can mark them.
 
 A card may also belong to no table (`add_free`): a note, a figure, a picture or a table of rows sent
-from Python (`sab.visualizations`), the agent or Visualizations' own Add note. It stays when grids close. A
+from Python (`sab.analyze`), the agent or Visualizations' own Add note. It stays when grids close. A
 `key` names a card, so sending the same key again replaces that card's content in its place.
 
 Saved dashboards (the `Dashboards` port): Save freezes every card as drawn, a chart's points and a
@@ -44,7 +44,7 @@ _ORIGINS: dict[str, str] = {"python": "Python", "agent": "Agent", "user": "Analy
 # A card saved before the Sandbox became Visualizations (2026-11-16) is badged with the new name.
 _ORIGIN_NOW: dict[str, str] = {"Sandbox": "Analyze", "Visualizations": "Analyze"}
 # A diagram is Mermaid text (an ERD from GET /relationships/erd, or any flowchart), drawn by the page.
-# Graphviz is DOT text; Plotly and ECharts are a figure as JSON text; an image is a data: URL. The page
+# Plotly is a figure as JSON text; an image is a data: URL. The page
 # draws each (web/src/lazy/), so the server only checks that the text is there and not too big.
 # A vegalite card is a whole Vega-Lite spec with its data inline (an Altair chart's to_dict()): the user's
 # own Python's or the page's, never the agent's (Vega compiles its expressions; the agent has `chart`).
@@ -53,27 +53,21 @@ _KINDS: tuple[str, ...] = (
     "note",
     "table",
     "diagram",
-    "graphviz",
     "plotly",
-    "echarts",
     "vegalite",
     "image",
 )
 _BODY_LIMITS: dict[str, int] = {
     "note": 20_000,
     "diagram": 50_000,
-    "graphviz": 100_000,
     "plotly": 2_000_000,
-    "echarts": 2_000_000,
     "vegalite": 2_000_000,
     "image": 8_000_000,
 }
 _BODY_WORDS: dict[str, str] = {
     "note": "markdown text",
     "diagram": "Mermaid text",
-    "graphviz": "Graphviz (DOT) text",
     "plotly": 'a Plotly figure as JSON text ({"data": [...], "layout": {...}})',
-    "echarts": "an ECharts option as JSON text",
     "vegalite": "a Vega-Lite spec as JSON text, its data inline",
     "image": "a data: URL of a PNG, JPEG, GIF, WebP or SVG picture",
 }
@@ -168,7 +162,7 @@ def check_card(body: Any) -> Card:
         limit = _BODY_LIMITS[kind]
         if not isinstance(text, str) or (kind != "note" and not text.strip()) or len(text) > limit:
             raise ValueError(f"A {kind} card's body is {_BODY_WORDS[kind]}, at most {limit:,} characters.")
-        if kind in ("plotly", "echarts", "vegalite"):
+        if kind in ("plotly", "vegalite"):
             try:
                 figure = json.loads(text)
             except ValueError as error:
@@ -182,7 +176,7 @@ def check_card(body: Any) -> Card:
         if kind == "image" and not text.startswith("data:image/"):
             raise ValueError("An image card's body is a data:image/... URL.")
         out["body"] = text
-        if kind in ("plotly", "echarts") and body.get("sql") is not None:
+        if kind == "plotly" and body.get("sql") is not None:
             if not isinstance(body["sql"], str) or not body["sql"].strip():
                 raise ValueError("A figure's sql is a SELECT over its grid; the result fills the figure.")
             out["sql"] = body["sql"]
@@ -289,7 +283,7 @@ def _frozen(card: Card) -> Card:
     """What a chart or query card showed, to keep in a saved dashboard."""
     if card["kind"] == "chart" and "vega_lite" in card:
         return {"vega_lite": card["vega_lite"], "points": card.get("points"), "note": card.get("note")}
-    if "sql" in card and card["kind"] in ("plotly", "echarts"):
+    if "sql" in card and card["kind"] == "plotly":
         return {"body": card["body"]}  # as drawn: the query's result inside
     if "sql" in card and "columns" in card:
         return {"columns": card["columns"], "rows": card["rows"], "capped": card.get("capped", False)}
@@ -400,7 +394,7 @@ class Cards:
                 shown["vega_lite"] = vega_lite(spec, data, compiled.columns)
                 shown["note"] = data["note"]
                 shown["points"] = len(data["values"])
-            elif card["kind"] in ("plotly", "echarts") and "sql" in card:
+            elif card["kind"] == "plotly" and "sql" in card:
                 # The grid's own table name reads the grid as it looks (its steps), like `grid` does.
                 names = {i.name for i in ws.store.all()}
                 guarded = guard(card["sql"], names, compiled.sql, grid_alias=info.name, grammar=ws.grammar)
@@ -680,7 +674,7 @@ class Cards:
 
     async def add_free(self, body: Any, who: str) -> dict[str, Any]:
         """A card that belongs to no table: any kind but a chart or a table's query, which need a
-        grid's view. `"origin": "python"` marks one sent by sab.visualizations."""
+        grid's view. `"origin": "python"` marks one sent by sab.analyze."""
         card = check_card(body)
         _not_the_agents(card, who)
         if card["kind"] == "chart" or "sql" in card:
@@ -870,7 +864,7 @@ def _click_filter(field: str, family: str, value: Any, time_unit: str | None) ->
 
 
 def _as_family(value: Any, family: str) -> Any:
-    """A value an agent gave as text (`sab visualizations_select --value 3`) as its column's type; any
+    """A value an agent gave as text (`sab analyze_select --value 3`) as its column's type; any
     other value as it came (the filter step says what is wrong with it)."""
     if not isinstance(value, str):
         return value

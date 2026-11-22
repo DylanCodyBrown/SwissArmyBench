@@ -27,9 +27,6 @@ def test_uv_tool_folders_in_order_without_repeats() -> None:
     assert found == [
         Path("/a/swissarmybench/bin/python"),
         Path("/home/me/.local/share/uv/tools/swissarmybench/bin/python"),
-        # The uv tool SwissArmyGrid was installed as, before the rename (test_renamed.py).
-        Path("/a/swissarmygrid/bin/python"),
-        Path("/home/me/.local/share/uv/tools/swissarmygrid/bin/python"),
     ]
 
 

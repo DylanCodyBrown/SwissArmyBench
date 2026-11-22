@@ -34,12 +34,10 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_project_scope.py  what belongs to the open project: its documents, and importing into it
   routes_project_outline.py  the project's outline: ARCHITECTURE.md, read or written
   routes_script_export.py  Export as one Python script: a notebook or script as one .py
-  routes_panels.py         the panels' switches in Settings (memory only: all on at each start)
   routes_modes.py          project modes: the open project's type and its working set (canvases, families)
   (each extension's)       an extension that is on brings its own routes (swissarmybench/extensions.py)
   routes_explorer.py       the Data Explorer's search: connections, catalogs, open tables, variables, blades
   routes_navigation.py     app_navigate: a window sent Home, Back, Forward or to a view (the page moves)
-  routes_kind_colours.py   the kind colours in Settings (kept across restarts)
   routes_library.py        the library: its folder (Settings), what is in it, the move's notice
   routes_app_registrations.py  app registrations (a library item) and their access reports
   routes_team.py           Settings' Team box: join, start or leave a team (one GitHub repository)
@@ -50,7 +48,7 @@ and does nothing but read the request, call the use case and shape the answer:
   routes_connection_colours.py   each connection's colour (kept in its record), the cells' connections
   routes_session_log.py    the Session page: this session's log of what was made, Follow the agent
   routes_variables.py      the Variables page: this computer's variables, their sources and uses
-  routes_script_runs.py    a script's run settings, Run as scheduled and its run history
+  routes_script_runs.py    a script's run settings
   routes_beta_log.py       beta mode, the beta log and the beta notes (beta_requests.py times requests)
   routes_updates.py        the update check, its Settings switch, Update to X
   routes_extensions.py     the Extensions page: the catalog, Install and Remove (the updater's helper)
@@ -112,15 +110,12 @@ from swissarmybench.server import (
     routes_found_connections,
     routes_grids,
     routes_intellisense,
-    routes_kind_colours,
     routes_library,
     routes_lifecycle,
     routes_lineage,
     routes_local_api,
     routes_modes,
     routes_navigation,
-    routes_packs,
-    routes_panels,
     routes_processes,
     routes_project_explorer,
     routes_project_outline,
@@ -147,9 +142,9 @@ from swissarmybench.server import (
     routes_workbench,
 )
 from swissarmybench.server.beta_requests import BetaRequests
+from swissarmybench.server.http import guarded
 from swissarmybench.server.routes_connection_slots import CallerAtTheDoor
 from swissarmybench.server.security import (
-    OLD_WEBSOCKET_SUBPROTOCOL,
     WEBSOCKET_SUBPROTOCOL,
     LocalOnlyGuard,
     cookie_name,
@@ -226,7 +221,7 @@ def create_app(
     async def live(websocket: WebSocket) -> None:
         # Echo our subprotocol only when the client offered it (browsers do; others may not).
         offered: list[str] = websocket.scope.get("subprotocols", [])
-        ours = [p for p in (WEBSOCKET_SUBPROTOCOL, OLD_WEBSOCKET_SUBPROTOCOL) if p in offered]
+        ours = [p for p in (WEBSOCKET_SUBPROTOCOL,) if p in offered]
         await websocket.accept(subprotocol=ours[0] if ours else None)
         ctx.live.add(
             websocket,
@@ -342,88 +337,91 @@ def create_app(
         return [str(c["name"]) for c in ctx.connections.listing()["connections"]]
 
     app = Starlette(
-        routes=[
-            *routes_datasets.routes(ctx.datasets),
-            *routes_grids.routes(ctx.grids, ctx.profiles, ctx.sql, ctx.exports, ctx.codes),
-            *routes_analysis.routes(ctx.grids, ctx.analysis),
-            *routes_analyze.routes(ctx.analyze),
-            *routes_regression.routes(ctx.grids, ctx.regression),
-            *routes_timeseries.routes(ctx.grids, ctx.timeseries),
-            *routes_agent.routes(ctx.agent, ctx.inbox),
-            *routes_cards.routes(ctx.cards),
-            *routes_catalog.routes(ctx.catalogs),
-            *routes_blades.routes(ctx.blades),
-            # Before the routes that read /connections/{name}: /connections/slots and /connections/queries.
-            *routes_connection_slots.routes(
-                ctx.connection_slots,
-                lambda: [str(c["name"]) for c in ctx.connections.listing()["connections"]],
-            ),
-            *routes_connection_swap.routes(ctx.connection_swap),
-            *routes_connection_tables.routes(ctx.connection_tables, ctx.blades, ctx.connections),
-            *routes_found_connections.routes(ctx.found_connections),
-            *routes_connections.routes(
-                ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
-            ),
-            *routes_apis.routes(ctx.apis),
-            *routes_structures.routes(ctx.structures),
-            *routes_api_explorer.routes(ctx.api_explorer),
-            *routes_folders.routes(ctx.folders),
-            *routes_file_dialogs.routes(ctx.file_dialogs),
-            *routes_intellisense.routes(ctx.intellisense),
-            *routes_script_ide.routes(ctx.script_ide),
-            *routes_debugger.routes(ctx.debugger),
-            *routes_workbench.routes(ctx.workbench, ctx.workbench_window, ctx.code_files),
-            *routes_table_cells.routes(ctx.table_cells),
-            *routes_lineage.routes(ctx.lineage),
-            *routes_projects.routes(ctx.projects),
-            *routes_sab_projects.routes(ctx.sab_projects),
-            *routes_project_explorer.routes(ctx.project_explorer),
-            *routes_project_scope.routes(ctx.project_scope),
-            *routes_project_outline.routes(ctx.project_outline),
-            *routes_script_export.routes(ctx.script_exports),
-            *routes_panels.routes(ctx.panels),
-            *routes_modes.routes(ctx.modes),
-            # Each extension that is on: its routes, given the services (its own are built from them).
-            *(route for extension in ctx.switched_on for route in extension.routes(ctx)),
-            # Each catalog extension that is not on here: its door answers which extension it is.
-            *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
-            *routes_explorer.routes(ctx.explorer),
-            *routes_navigation.routes(ctx.navigation),
-            *routes_kind_colours.routes(ctx.kind_colours),
-            *routes_library.routes(ctx.library, ctx.library_setup),
-            *routes_team.routes(ctx.team),
-            *routes_sharing.routes(ctx.sharing),
-            *routes_sandbox.routes(ctx.sandbox, ctx.local_api.data_keys),
-            *routes_local_api.routes(ctx.local_api, ctx.api_export),
-            *routes_app_registrations.routes(ctx.app_registrations),
-            *routes_shared_catalog.routes(ctx.shared_catalog),
-            *routes_connection_colours.routes(ctx.connection_colours),
-            *routes_session_log.routes(ctx.session_log),
-            *routes_variables.routes(ctx.variables),
-            *routes_script_runs.routes(ctx.script_runs),
-            *routes_beta_log.routes(ctx.beta),
-            *routes_updates.routes(ctx.updates, ctx.extensions.names),
-            *routes_lifecycle.routes(ctx.lifecycle),
-            *routes_desktop.routes(ctx.desktop),
-            *routes_extensions.routes(ctx.extensions),
-            *routes_claude.routes(ctx.claude),
-            *routes_relationships.routes(ctx.models, ctx.finder, ctx.keys, ctx.compares, ctx.project_tables),
-            *routes_tieout.routes(ctx.tie_out),
-            *routes_packs.routes(ctx.packs),
-            *routes_processes.routes(ctx.sessions),
-            *routes_snapshots.routes(ctx.snapshots),
-            WebSocketRoute("/ws", live),
-            Route("/g/{grid_id}", grid_page),
-            # The bare address goes to the app's page; the browser keeps the #token fragment across it.
-            Route("/", lambda request: RedirectResponse("/workspace", status_code=307)),
-            Route("/session", session, methods=["GET", "POST"]),
-            Route("/workspace", workspace_page),
-            Route("/catalog", catalog_page),
-            Route("/workbench", workbench_page),
-            Route("/notebooks", code_page),
-            Route("/scripts", code_page),
-            Mount("/static", CheckedStaticFiles(directory=settings.web_root, check_dir=False)),
-        ],
+        # Every route's handler answers a crash in the one refusal shape (http.guarded): no route module
+        # writes its own guard.
+        routes=guarded(
+            [
+                *routes_datasets.routes(ctx.datasets),
+                *routes_grids.routes(ctx.grids, ctx.profiles, ctx.sql, ctx.exports, ctx.codes),
+                *routes_analysis.routes(ctx.grids, ctx.analysis),
+                *routes_analyze.routes(ctx.analyze),
+                *routes_regression.routes(ctx.grids, ctx.regression),
+                *routes_timeseries.routes(ctx.grids, ctx.timeseries),
+                *routes_agent.routes(ctx.agent, ctx.inbox),
+                *routes_cards.routes(ctx.cards),
+                *routes_catalog.routes(ctx.catalogs),
+                *routes_blades.routes(ctx.blades),
+                # Before the routes that read /connections/{name}: /connections/slots, /connections/queries.
+                *routes_connection_slots.routes(
+                    ctx.connection_slots,
+                    lambda: [str(c["name"]) for c in ctx.connections.listing()["connections"]],
+                ),
+                *routes_connection_swap.routes(ctx.connection_swap),
+                *routes_connection_tables.routes(ctx.connection_tables, ctx.blades, ctx.connections),
+                *routes_found_connections.routes(ctx.found_connections),
+                *routes_connections.routes(
+                    ctx.connections, ctx.blades, ctx.catalog_loading, ctx.connection_usage
+                ),
+                *routes_apis.routes(ctx.apis),
+                *routes_structures.routes(ctx.structures),
+                *routes_api_explorer.routes(ctx.api_explorer),
+                *routes_folders.routes(ctx.folders),
+                *routes_file_dialogs.routes(ctx.file_dialogs),
+                *routes_intellisense.routes(ctx.intellisense),
+                *routes_script_ide.routes(ctx.script_ide),
+                *routes_debugger.routes(ctx.debugger),
+                *routes_workbench.routes(ctx.workbench, ctx.workbench_window, ctx.code_files),
+                *routes_table_cells.routes(ctx.table_cells),
+                *routes_lineage.routes(ctx.lineage),
+                *routes_projects.routes(ctx.projects),
+                *routes_sab_projects.routes(ctx.sab_projects),
+                *routes_project_explorer.routes(ctx.project_explorer),
+                *routes_project_scope.routes(ctx.project_scope),
+                *routes_project_outline.routes(ctx.project_outline),
+                *routes_script_export.routes(ctx.script_exports),
+                *routes_modes.routes(ctx.modes),
+                # Each extension that is on: its routes, given the services (its own are built from them).
+                *(route for extension in ctx.switched_on for route in extension.routes(ctx)),
+                # Each catalog extension that is not on here: its door answers which extension it is.
+                *(Route(f"/{e.id}/{{rest:path}}", not_installed(e.name, e.id), methods=ANY) for e in missing),
+                *routes_explorer.routes(ctx.explorer),
+                *routes_navigation.routes(ctx.navigation),
+                *routes_library.routes(ctx.library, ctx.library_setup),
+                *routes_team.routes(ctx.team),
+                *routes_sharing.routes(ctx.sharing),
+                *routes_sandbox.routes(ctx.sandbox, ctx.local_api.data_keys),
+                *routes_local_api.routes(ctx.local_api, ctx.api_export),
+                *routes_app_registrations.routes(ctx.app_registrations),
+                *routes_shared_catalog.routes(ctx.shared_catalog),
+                *routes_connection_colours.routes(ctx.connection_colours),
+                *routes_session_log.routes(ctx.session_log),
+                *routes_variables.routes(ctx.variables),
+                *routes_script_runs.routes(ctx.script_runs),
+                *routes_beta_log.routes(ctx.beta),
+                *routes_updates.routes(ctx.updates, ctx.extensions.names),
+                *routes_lifecycle.routes(ctx.lifecycle),
+                *routes_desktop.routes(ctx.desktop),
+                *routes_extensions.routes(ctx.extensions),
+                *routes_claude.routes(ctx.claude),
+                *routes_relationships.routes(
+                    ctx.models, ctx.finder, ctx.keys, ctx.compares, ctx.project_tables
+                ),
+                *routes_tieout.routes(ctx.tie_out),
+                *routes_processes.routes(ctx.sessions),
+                *routes_snapshots.routes(ctx.snapshots),
+                WebSocketRoute("/ws", live),
+                Route("/g/{grid_id}", grid_page),
+                # The bare address goes to the app's page; the browser keeps the #token fragment across it.
+                Route("/", lambda request: RedirectResponse("/workspace", status_code=307)),
+                Route("/session", session, methods=["GET", "POST"]),
+                Route("/workspace", workspace_page),
+                Route("/catalog", catalog_page),
+                Route("/workbench", workbench_page),
+                Route("/notebooks", code_page),
+                Route("/scripts", code_page),
+                Mount("/static", CheckedStaticFiles(directory=settings.web_root, check_dir=False)),
+            ]
+        ),
         middleware=[
             Middleware(
                 LocalOnlyGuard,

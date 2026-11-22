@@ -36,7 +36,7 @@ def _group(name: Any, path: str | None, project: str | None, namespace: dict[str
         return "scope" if name.module_name in ("__main__", "", None) or module == path else "library"
     if project and module.startswith(project):
         return "project"
-    if name.module_name.split(".")[0] in ("swissarmybench", "swissarmygrid"):
+    if name.module_name.split(".")[0] == "swissarmybench":
         return "app"
     return "library"
 

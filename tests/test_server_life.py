@@ -6,7 +6,6 @@ waits. The tray and start at sign-in are gone, and what an older version left is
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import subprocess
 import sys
@@ -15,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 from swissarmybench.domain import lifecycle as rules
-from swissarmybench.server import legacy_tray
 from swissarmybench.server import lifecycle as server_lifecycle
 from swissarmybench.services.lifecycle import Lifecycle
 from tests.conftest import AGENT, AUTH, make_client
@@ -197,63 +195,6 @@ def test_a_saved_project_is_saved_before_the_stop(tmp_path: Path) -> None:
         assert "Autosave is off" in asyncio.run(life._before_stop())
         projects.current.autosave = True
         assert asyncio.run(life._before_stop()) == "" and not projects.dirty()
-
-
-# ===== the tray and start at sign-in, gone =====
-
-
-def test_the_old_sign_in_entries_and_tray_are_removed_once(tmp_path: Path) -> None:
-    home = tmp_path / "home"
-    state = tmp_path / "state"
-    state.mkdir()
-    linux = home / ".config" / "autostart" / legacy_tray.DESKTOP_NAME
-    linux.parent.mkdir(parents=True)
-    linux.write_text("[Desktop Entry]\nExec=/x/python -m swissarmybench.server tray\n", encoding="utf-8")
-    mac = home / "Library" / "LaunchAgents" / f"{legacy_tray.LABEL}.plist"
-    mac.parent.mkdir(parents=True)
-    mac.write_text("<plist>swissarmybench.server tray</plist>", encoding="utf-8")
-    windows = home / "AppData" / "Roaming" / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
-    windows.mkdir(parents=True)
-    (windows / legacy_tray.SHORTCUT_NAME).write_bytes(b"made-up shortcut")
-    # A stand-in for the old tray: a process of its own, its pid in tray.json.
-    standin = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(60)  # swissarmybench tray stand-in"]
-    )
-    (state / "tray.json").write_text(json.dumps({"pid": standin.pid}), encoding="utf-8")
-    ended: list[int] = []
-
-    def end(pid: int) -> None:
-        ended.append(pid)
-        standin.terminate()
-
-    try:
-        assert legacy_tray.remove_old_tray(state, home, platform="linux", environ={}, end=end)
-        assert not linux.exists() and not (state / "tray.json").exists() and ended == [standin.pid]
-        assert standin.wait(10) is not None
-        assert legacy_tray.remove_old_tray(state, home, platform="darwin", environ={})
-        assert not mac.exists()
-        assert legacy_tray.remove_old_tray(state, home, platform="win32", environ={})
-        assert not (windows / legacy_tray.SHORTCUT_NAME).exists()
-        # Once gone, nothing more to say.
-        assert not legacy_tray.remove_old_tray(state, home, platform="linux", environ={})
-        # An autostart entry that is someone else's (not the tray's command) is left alone.
-        linux.write_text("[Desktop Entry]\nExec=other-app\n", encoding="utf-8")
-        assert not legacy_tray.remove_old_tray(state, home, platform="linux", environ={})
-        assert linux.exists()
-    finally:
-        if standin.poll() is None:
-            standin.kill()
-
-
-def test_the_page_is_told_once(tmp_path: Path) -> None:
-    state = tmp_path / "state"
-    state.mkdir(parents=True)
-    (state / "tray.json").write_text(json.dumps({"pid": 2**22 + 7}), encoding="utf-8")
-    with make_client(tmp_path) as client:
-        notices = client.post("/library/notices", headers=AUTH).json()["notices"]
-        assert rules.NOTICE_GONE in [n["text"] for n in notices]
-        assert client.post("/library/notices", headers=AUTH).json()["notices"] == []
-    assert not (state / "tray.json").exists()
 
 
 # ===== a real run: a server, a page, the grace =====

@@ -17,7 +17,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from swissarmybench.domain.updates import FEEDS
-from swissarmybench.renamed import env, home_state_folder, workbench_folder
 
 MIB: int = 1024 * 1024
 GIB: int = 1024 * MIB
@@ -53,49 +52,42 @@ def physical_memory_bytes() -> int:
 
 
 def _state_dir() -> Path:
-    override = env("SWISSARMYBENCH_STATE")
-    return Path(override) if override else home_state_folder()
+    override = os.environ.get("SWISSARMYBENCH_STATE", "")
+    return Path(override) if override else (Path.home() / ".swissarmybench")
 
 
 def _workbench_dir() -> Path:
     """The user's own folder for notebooks and scripts: SwissArmyBench in the home folder (made the first
     time it is needed); SWISSARMYBENCH_WORKBENCH_DIR overrides it (tests, so none lands in a real home)."""
-    override = env("SWISSARMYBENCH_WORKBENCH_DIR")
-    return Path(override) if override else workbench_folder()
+    override = os.environ.get("SWISSARMYBENCH_WORKBENCH_DIR", "")
+    return Path(override) if override else (Path.home() / "SwissArmyBench")
 
 
 def _projects_dir() -> Path:
     """The projects folder (the Project Explorer's): "Swiss Army Bench Projects" in the home folder until
     Settings' Projects folder names another (projects.json); SWISSARMYBENCH_PROJECTS_DIR overrides it (tests,
     so none lands in a real home)."""
-    override = env("SWISSARMYBENCH_PROJECTS_DIR")
+    override = os.environ.get("SWISSARMYBENCH_PROJECTS_DIR", "")
     return Path(override) if override else Path.home() / "Swiss Army Bench Projects"
-
-
-def _claude_dir() -> Path:
-    """Claude Code's folder, where installed plugins (packs) live: SWISSARMYBENCH_CLAUDE_DIR (tests),
-    else Claude Code's own CLAUDE_CONFIG_DIR, else ~/.claude."""
-    override = env("SWISSARMYBENCH_CLAUDE_DIR") or os.environ.get("CLAUDE_CONFIG_DIR")
-    return Path(override) if override else Path.home() / ".claude"
 
 
 def _claude_standin() -> Path | None:
     """SWISSARMYBENCH_CLAUDE_STANDIN (tests): a JSON file says which Claude was found; launches are written
     beside it, so nothing is probed and no terminal opens."""
-    override = env("SWISSARMYBENCH_CLAUDE_STANDIN")
+    override = os.environ.get("SWISSARMYBENCH_CLAUDE_STANDIN", "")
     return Path(override) if override else None
 
 
 def _find_home() -> Path | None:
     """SWISSARMYBENCH_FIND_HOME (tests): Find connections on this computer looks only under this folder, as
     if it were the home folder (the system's own folders below it too)."""
-    override = env("SWISSARMYBENCH_FIND_HOME")
+    override = os.environ.get("SWISSARMYBENCH_FIND_HOME", "")
     return Path(override) if override else None
 
 
 def _find_system() -> str | None:
     """SWISSARMYBENCH_FIND_SYSTEM (tests): windows, mac or linux, the layout of the folders found."""
-    override = env("SWISSARMYBENCH_FIND_SYSTEM")
+    override = os.environ.get("SWISSARMYBENCH_FIND_SYSTEM", "")
     return override if override in ("windows", "mac", "linux") else None
 
 
@@ -104,7 +96,7 @@ def _seconds(name: str, default: float) -> Callable[[], float]:
 
     def read() -> float:
         try:
-            return float(env(f"SWISSARMYBENCH_LIFE_{name}", str(default)))
+            return float(os.environ.get(f"SWISSARMYBENCH_LIFE_{name}", str(default)))
         except ValueError:
             return default
 
@@ -114,7 +106,7 @@ def _seconds(name: str, default: float) -> Callable[[], float]:
 def _update_feeds() -> tuple[str, ...]:
     """Where the update check asks (PyPI, then GitHub). SWISSARMYBENCH_UPDATE_FEED names one address
     instead (a stand-in on 127.0.0.1 in tests), or "none": the check never asks anything."""
-    override = env("SWISSARMYBENCH_UPDATE_FEED", "\0")
+    override = os.environ.get("SWISSARMYBENCH_UPDATE_FEED", "\0")
     if override == "\0":
         return FEEDS
     return () if override.strip().lower() in ("", "none", "0", "off") else (override.strip(),)
@@ -123,7 +115,7 @@ def _update_feeds() -> tuple[str, ...]:
 def _default_dataset_cap() -> int:
     """1 GiB per dataset (room for Excel's 1,048,576 rows on a wide table), or
     SWISSARMYBENCH_MAX_DATASET_MB when set; always within the total budget."""
-    override = env("SWISSARMYBENCH_MAX_DATASET_MB", "")
+    override = os.environ.get("SWISSARMYBENCH_MAX_DATASET_MB", "")
     return int(override) * MIB if override.isdigit() and int(override) > 0 else GIB
 
 
@@ -169,9 +161,6 @@ class Settings:
     # The update check (services/updates.py): the one request that leaves the computer, at start and every
     # six hours, while the Settings switch is on (the owner's call, 2026-11-16). No feeds: never.
     update_feeds: tuple[str, ...] = field(default_factory=_update_feeds)
-    # The older versions' start-at-sign-in entries are looked for (and removed, once) under this home folder
-    # instead of the user's own (tests); None: the user's (server/legacy_tray.py).
-    legacy_home: Path | None = None
     # The server's life follows the app's windows (services/lifecycle.py; the owner, 2026-11-18): it stops
     # this long after the last window closed (a reload must not end it), this long after its start when no
     # window came, and this long after the last request of a client that is not a page (the agent, VS Code,
@@ -259,8 +248,6 @@ class Settings:
     # (the file chooser's first look at it, or a save into it).
     workbench_dir: Path = field(default_factory=_workbench_dir)
     projects_dir: Path = field(default_factory=_projects_dir)
-    # Claude Code's folder: installed plugins that carry blades and relationship sets (packs) are read here.
-    claude_dir: Path = field(default_factory=_claude_dir)
 
     @property
     def library_dir(self) -> Path:

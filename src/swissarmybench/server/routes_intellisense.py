@@ -15,7 +15,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench.services.intellisense import Intellisense
 
 
@@ -41,7 +41,7 @@ def routes(intel: Intellisense) -> list[BaseRoute]:
         return json_response(await intel.problems(request.query_params.get("path") or None, actor(request)))
 
     return [
-        Route("/workbench/intel/problems", safely(problems)),
-        Route("/workbench/intel/problems", safely(report), methods=["PUT"]),
-        Route("/workbench/intel/{kind}", safely(ask), methods=["POST"]),
+        Route("/workbench/intel/problems", problems),
+        Route("/workbench/intel/problems", report, methods=["PUT"]),
+        Route("/workbench/intel/{kind}", ask, methods=["POST"]),
     ]

@@ -19,10 +19,9 @@ from typing import Any
 import pytest
 from playwright.sync_api import Browser, Page, expect
 
-from swissarmybench.renamed import env
 from tests.e2e.test_ui import browser  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 
 
 def start(tmp: Path, extensions: str) -> tuple[subprocess.Popen[bytes], dict[str, Any]]:

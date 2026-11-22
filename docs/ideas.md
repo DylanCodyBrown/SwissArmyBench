@@ -7892,3 +7892,23 @@ shows the front kernel's values; neither browses, deletes or manages the project
 Decided (2026-11-21): one process for the project as RStudio, a table shared at once, the ${NAME} settings page merged
 into the Environment page, the .venv in the project folder, Remove with an "Also delete it in Python" tick.
 Plan: Plans/environment.plan.md.
+**The "Now" part: built (branch simplify-2, 2026-11-21).** One commit an item, each saying what a user on the old
+thing now sees:
+- Removed: the SwissArmyGrid old names (renamed.py keeps `env` only, for client/sql_cell.py until the adapter
+  merges; its %%sag magic stays there too); the Sandbox and Visualizations old names; the old tray's cleanup;
+  Settings' Panels (the Endpoints panel keeps its status-bar toggle); custom kind colours (the fixed tokens stay);
+  the tour's matching game; ECharts and Graphviz (no app drawing used either: only the two card kinds went; a saved
+  card of either says it is no longer drawn); Packs (the starter pack's constants moved to blade_templates.py);
+  approved outputs and --check-approved; Run as scheduled and the run history (Run settings stay: Run file's
+  arguments and the Variables page read them); the VS Code extension.
+- The Write starters: 54 calls became 17, one a target, the mode a text placeholder (the snippet machinery has no
+  dropdown); the Connections page says a kind's operations.
+- Cleanups: every route guarded once (http.guarded at the app; 252 safely wrappers and 35 generic excepts went;
+  five route files the adapter branch owns keep theirs); the app canvas's leftovers (html_cells' pages, sab_text,
+  lineage's page walk, ~1,200 lines of dead CSS); bootstrap's self-contained parts as module-level helpers (the
+  services' wiring waits for the adapter); nine "write when changed" adapters on write_atomic(if_changed=True);
+  dom.ts's dateTime and plural.
+- The connection colour is its box's border and tint; the dot and the card's corner swatch went.
+- Not done here, and why: the base's .stapp.json recognition (the Streamlit extension's one-line "gone" for an old
+  app canvas needs it); streamlit_use.py (still used); the server's VS Code opener path in live_updates; the rest of
+  bootstrap's split and cleanup 4 (after the adapter).

@@ -211,18 +211,6 @@ def test_a_name_imported_from_data_goes_back_into_data_ipynb() -> None:
     assert all(n.cell != 1 or n.document != BOOK for n in graph.nodes)  # the import line is no step
 
 
-def test_a_block_on_a_page_reads_the_other_blocks_first() -> None:
-    doc = book(
-        cell(1, 'region = "West"'),
-        cell(2, 'region = st.selectbox("Region", ["East", "West"])', name="Region filter"),
-        cell(3, "st.metric('Total', region)", name="Total"),
-    )
-    page = [(BOOK, 3), (BOOK, 2)]
-    graph = rules.trace((BOOK, 3), {BOOK: doc}, {}, page=page)
-    assert [n.cell for n in graph.nodes] == [2, 3]
-    assert graph.nodes[-1].on_page and graph.nodes[0].on_page
-
-
 def test_a_script_cell_is_green_and_a_notebook_blue() -> None:
     doc = book(cell(1, "a = 1"), cell(2, "b = a"), path=SCRIPT)
     graph = rules.trace((SCRIPT, 2), {SCRIPT: doc}, {})
@@ -423,29 +411,3 @@ def test_the_agent_reads_a_lineage_as_data(served: Any, tmp_path: Path) -> None:
     said = _ok(client.post("/workbench/lineage", headers=AGENT, json={"document": path, "cell": 4}))
     assert said["nodes"][-1]["label"] == "Total"
     assert REGISTRY["workbench_lineage"].values is True  # its values come back marked as the user's data
-
-
-# ===== approved outputs over HTTP =====
-
-
-def test_an_output_is_approved_then_compared_over_http(served: Any) -> None:
-    client, _ = served
-    first = [{"output_type": "stream", "name": "stdout", "text": "total 390\n"}]
-    made = _ok(
-        client.post("/workbench/approvals", headers=AUTH, json={"outputs": first, "at": "2026-11-15T10:00"})
-    )
-    approval = made["approval"]
-    assert approval["at"] == "2026-11-15T10:00" and made["changed"] is False
-    same = _ok(
-        client.post("/workbench/approvals", headers=AUTH, json={"outputs": first, "approved": approval})
-    )
-    assert same == {"changed": False}
-    later = [{"output_type": "stream", "name": "stdout", "text": "total 400\n"}]
-    changed = _ok(
-        client.post("/workbench/approvals", headers=AUTH, json={"outputs": later, "approved": approval})
-    )
-    assert changed["changed"] is True and "+total 400" in changed["summary"]
-    bad = client.post(
-        "/workbench/approvals", headers=AUTH, json={"outputs": later, "approved": {"snapshot": 1}}
-    )
-    assert bad.status_code == 400

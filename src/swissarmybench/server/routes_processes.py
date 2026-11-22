@@ -18,7 +18,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import error_response, json_response, read_json, safely
+from swissarmybench.server.http import json_response, read_json
 from swissarmybench.services.processes import Sessions
 
 _QUIET_PREFIX = "/processes/"
@@ -56,20 +56,17 @@ def routes(sessions: Sessions) -> list[BaseRoute]:
         return json_response({"processes": sessions.listing()})
 
     async def open_table(request: Request) -> Response:
-        try:
-            body: Any = await read_json(request)
-            name = body.get("name") if isinstance(body, dict) else None
-            if not isinstance(name, str):
-                raise ValueError('Send {"name": "<table name>"}.')
-        except Exception as error:
-            return error_response(error)
+        body: Any = await read_json(request)
+        name = body.get("name") if isinstance(body, dict) else None
+        if not isinstance(name, str):
+            raise ValueError('Send {"name": "<table name>"}.')
         if not sessions.open_table(request.path_params["process"], name):
             return Response("That Python session or table is no longer there.", status_code=404)
         return json_response({"queued": True}, status_code=202)
 
     return [
         Route("/processes", listing),
-        Route("/processes/{process}/sync", safely(sync), methods=["POST"]),
+        Route("/processes/{process}/sync", sync, methods=["POST"]),
         Route("/processes/{process}/requests", requests),
         Route("/processes/{process}/open", open_table, methods=["POST"]),
     ]

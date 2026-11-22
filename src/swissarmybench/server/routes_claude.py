@@ -19,10 +19,8 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.server.http import (
     actor,
-    error_response,
     json_response,
     read_json,
-    safely,
     with_actor,
     with_body,
 )
@@ -36,19 +34,16 @@ def routes(claude: Claude) -> list[BaseRoute]:
     async def prompt(request: Request) -> Response:
         if claude.context_md is None:
             return json_response({"path": None, "first": False, "changed": [], "line": ""})
-        try:
-            return json_response(await claude.context_md.prompt())
-        except Exception as error:
-            return error_response(error)
+        return json_response(await claude.context_md.prompt())
 
     async def launch(request: Request) -> Response:
         body = await read_json(request) if await request.body() else {}
         return json_response(await claude.launch(body, actor(request)))
 
     return [
-        Route("/claude", safely(state)),
+        Route("/claude", state),
         Route("/claude", with_body(claude.choose), methods=["PUT"]),
         Route("/claude/context", with_actor(claude.summary)),
         Route("/claude/context/prompt", prompt),
-        Route("/claude/launch", safely(launch), methods=["POST"]),
+        Route("/claude/launch", launch, methods=["POST"]),
     ]

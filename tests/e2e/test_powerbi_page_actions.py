@@ -7,17 +7,17 @@ With SWISSARMYBENCH_SHOTS set to a folder, the test also saves screenshots there
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 from playwright.sync_api import Browser, expect
 
-from swissarmybench.renamed import env
 from tests import powerbi_pbix_fake as fake
 from tests.e2e.test_powerbi_project_page import server  # noqa: F401
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 
 
 def test_edit_in_power_bi_desktop_and_another_reports_pages(browser: Browser, server: dict[str, Any]) -> None:

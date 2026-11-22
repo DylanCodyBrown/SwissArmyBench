@@ -29,7 +29,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_streamlit.services.widgets import Widgets
 
 
@@ -109,18 +109,18 @@ def routes(widgets: Widgets, previews: Any, web_root: Path | None) -> list[BaseR
 
     return [
         Route("/streamlit/widget", window),
-        Route("/streamlit/widgets", safely(listing), methods=["GET", "POST"]),
-        Route("/streamlit/widgets/check-name", safely(check_name)),
-        Route("/streamlit/widgets/properties", safely(properties), methods=["POST"]),
-        Route("/streamlit/widgets/check-value", safely(check_value), methods=["POST"]),
-        Route("/streamlit/widgets/stop", safely(stop), methods=["POST"]),
-        Route("/streamlit/widgets/context", safely(context)),
-        Route("/streamlit/widgets/{name}", safely(one), methods=["GET", "PUT", "PATCH", "DELETE"]),
-        Route("/streamlit/widgets/{name}/property", safely(set_property), methods=["POST"]),
-        Route("/streamlit/widgets/{name}/copy", safely(copy), methods=["POST"]),
-        Route("/streamlit/widgets/{name}/upgrade", safely(upgrade), methods=["POST"]),
-        Route("/streamlit/widgets/{name}/run", safely(run), methods=["POST"]),
-        Route("/streamlit/widgets/{name}/check", safely(check), methods=["POST"]),
-        Route("/streamlit/widgets/{name}/preview", safely(preview)),
-        Route("/streamlit/widgets/{name}/preview.png", safely(preview_png)),
+        Route("/streamlit/widgets", listing, methods=["GET", "POST"]),
+        Route("/streamlit/widgets/check-name", check_name),
+        Route("/streamlit/widgets/properties", properties, methods=["POST"]),
+        Route("/streamlit/widgets/check-value", check_value, methods=["POST"]),
+        Route("/streamlit/widgets/stop", stop, methods=["POST"]),
+        Route("/streamlit/widgets/context", context),
+        Route("/streamlit/widgets/{name}", one, methods=["GET", "PUT", "PATCH", "DELETE"]),
+        Route("/streamlit/widgets/{name}/property", set_property, methods=["POST"]),
+        Route("/streamlit/widgets/{name}/copy", copy, methods=["POST"]),
+        Route("/streamlit/widgets/{name}/upgrade", upgrade, methods=["POST"]),
+        Route("/streamlit/widgets/{name}/run", run, methods=["POST"]),
+        Route("/streamlit/widgets/{name}/check", check, methods=["POST"]),
+        Route("/streamlit/widgets/{name}/preview", preview),
+        Route("/streamlit/widgets/{name}/preview.png", preview_png),
     ]

@@ -7,8 +7,8 @@
  *
  * A dashboard: cards sit on a 12-column grid and each one is resized from its corner (or with the
  * arrow keys on that grip); what it draws fills it and redraws at the new size. Card kinds: Vega-Lite
- * charts (from the table), Markdown notes, SQL result tables, Mermaid and Graphviz diagrams, Plotly
- * and ECharts figures (JSON), and images (a picture from Python: matplotlib, seaborn and the like).
+ * charts (from the table), Markdown notes, SQL result tables, Mermaid diagrams, Plotly figures (JSON),
+ * and images (a picture from Python: matplotlib, seaborn and the like).
  * Every renderer but Vega-Lite and Markdown loads only when its first card draws.
  * The column profile is a popup now (profileView.openColumnProfile), and the agent's activity is
  * listed in Settings (agentAccess.ts).
@@ -44,7 +44,7 @@ import { errorHere, errorNote, showError } from "./errorNote";
 import { analyzeParts, cardActions, handleAnalyzeNotice, type CardAnalysis } from "./analyzePage";
 import { loadDiagrams } from "./lazyLoad";
 
-type CardKind = "chart" | "note" | "table" | "diagram" | "graphviz" | "plotly" | "echarts" | "vegalite" | "image";
+type CardKind = "chart" | "note" | "table" | "diagram" | "plotly" | "vegalite" | "image";
 
 interface Card {
   id: string;
@@ -80,9 +80,7 @@ const DEFAULT_SIZE: Record<CardKind, { w: number; h: number }> = {
   note: { w: 4, h: 6 },
   table: { w: 6, h: 8 },
   diagram: { w: 6, h: 10 },
-  graphviz: { w: 6, h: 10 },
   plotly: { w: 6, h: 10 },
-  echarts: { w: 6, h: 10 },
   vegalite: { w: 6, h: 10 },
   image: { w: 6, h: 10 },
 };
@@ -92,9 +90,7 @@ const KIND_ICONS: Record<CardKind, string> = {
   note: "note",
   table: "table",
   diagram: "diagram",
-  graphviz: "lineage",
   plotly: "profile",
-  echarts: "profile",
   vegalite: "profile",
   image: "image",
 };
@@ -104,9 +100,7 @@ const KIND_NAMES: Record<CardKind, string> = {
   note: "Note",
   table: "Result",
   diagram: "Diagram",
-  graphviz: "Graph",
   plotly: "Plotly figure",
-  echarts: "ECharts chart",
   vegalite: "Vega-Lite chart",
   image: "Image",
 };
@@ -119,7 +113,7 @@ function sizeOf(card: Card): { w: number; h: number } {
     const [w, h] = saved.split("x").map(Number);
     if (w && h) return clampSize(w, h);
   }
-  return card.size ? clampSize(card.size.w, card.size.h) : DEFAULT_SIZE[card.kind];
+  return card.size ? clampSize(card.size.w, card.size.h) : (DEFAULT_SIZE[card.kind] ?? DEFAULT_SIZE.diagram);
 }
 
 function clampSize(w: number, h: number): { w: number; h: number } {
@@ -192,7 +186,7 @@ function resizeGrip(card: Card, element: HTMLElement): HTMLElement {
   });
   grip.addEventListener("dblclick", () => {
     forget(`sandbox.size.${card.id}`);
-    set(card.size ? clampSize(card.size.w, card.size.h) : DEFAULT_SIZE[card.kind], false, Boolean(card.size));
+    set(card.size ? clampSize(card.size.w, card.size.h) : (DEFAULT_SIZE[card.kind] ?? DEFAULT_SIZE.diagram), false, Boolean(card.size));
   });
   return grip;
 }
@@ -224,14 +218,8 @@ let chartsModule: Promise<typeof import("./lazy/charts")> | null = null;
 
 
 let plotlyModule: Promise<typeof import("./lazy/plotly")> | null = null;
-let echartsModule: Promise<typeof import("./lazy/echarts")> | null = null;
-let graphvizModule: Promise<typeof import("./lazy/graphviz")> | null = null;
 const plotly = (): Promise<typeof import("./lazy/plotly")> =>
   (plotlyModule ??= import(/* external */ "/static/build/lazy/plotly.js" as string) as Promise<typeof import("./lazy/plotly")>);
-const echarts = (): Promise<typeof import("./lazy/echarts")> =>
-  (echartsModule ??= import(/* external */ "/static/build/lazy/echarts.js" as string) as Promise<typeof import("./lazy/echarts")>);
-const graphviz = (): Promise<typeof import("./lazy/graphviz")> =>
-  (graphvizModule ??= import(/* external */ "/static/build/lazy/graphviz.js" as string) as Promise<typeof import("./lazy/graphviz")>);
 // A picture from Python, inline: <img> never runs what an SVG carries and never loads from outside.
 const IMAGE_DATA = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
 
@@ -579,7 +567,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     ]), { icon: "more", iconOnly: true, class: "ghost" }),
     h("span", { class: "danger-gap" }, button("Remove", () => void api(`/cards/${card.id}`, "DELETE").then(() => render()), { icon: "trash", iconOnly: true, class: "ghost" })),
   );
-  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind])), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Analyze"}` }, card.dataset ?? card.origin ?? "Analyze"), actions);
+  const header = h("div", { class: "card-header" }, h("span", { class: "card-kind-icon", title: KIND_NAMES[card.kind] }, icon(KIND_ICONS[card.kind] ?? "file")), h("h3", {}, card.title || (card.kind === "chart" ? chartTitle(card) : KIND_NAMES[card.kind])), h("span", { class: "badge card-table", title: card.dataset ? `Drawn on ${card.dataset}` : `From ${card.origin ?? "Analyze"}` }, card.dataset ?? card.origin ?? "Analyze"), actions);
   const element = h(
     "article",
     { class: `card card-${card.kind} ${card.pinned ? "pinned" : ""} ${card.new_page ? "new-page" : ""}`, "data-card": card.id, "aria-label": card.title || KIND_NAMES[card.kind] },
@@ -606,12 +594,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     content.append(slot);
     pictures.set(card.id, async () => { const svg = slot.querySelector("svg"); return svg ? svgToPng(svg) : null; });
     void loadDiagrams().then((m) => m.drawDiagram(slot, card.body ?? "", dark)).catch((e: unknown) => failed(slot, e));
-  } else if (card.kind === "graphviz") {
-    const slot = h("div", { class: "diagram", role: "img", "aria-label": card.title || "Graph" });
-    content.append(slot);
-    pictures.set(card.id, async () => { const svg = slot.querySelector("svg"); return svg ? svgToPng(svg) : null; });
-    void graphviz().then((m) => m.drawGraphviz(slot, card.body ?? "", dark)).catch((e: unknown) => failed(slot, e));
-  } else if (card.kind === "plotly" || card.kind === "echarts") {
+  } else if (card.kind === "plotly") {
     const slot = h("div", { class: "figure", role: "img", "aria-label": card.title || KIND_NAMES[card.kind] });
     content.append(slot);
     let drawnFigure: { resize: () => void; toPng: () => string | Promise<string> } | null = null;
@@ -619,7 +602,7 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
     fitDrawing(slot, async () => {
       try {
         if (drawnFigure) return drawnFigure.resize();
-        drawnFigure = card.kind === "plotly" ? await (await plotly()).drawPlotly(slot, card.body ?? "", dark) : (await echarts()).drawECharts(slot, card.body ?? "", dark);
+        drawnFigure = await (await plotly()).drawPlotly(slot, card.body ?? "", dark);
       } catch (e) {
         failed(slot, e);
       }
@@ -667,6 +650,9 @@ function cardElement(card: Card, order: string[], index: number): HTMLElement {
         large: workspace.dataset.panel === "max",
       });
     });
+  } else if (card.kind !== "chart") {
+    // A kind no longer drawn (Graphviz and ECharts went, 2026-11-21), from a dashboard saved before.
+    content.append(errorNote("This kind of card is no longer drawn: add it again as a Mermaid diagram or a Plotly figure.", { where: card.title || undefined, dismiss: false }));
   }
   return element;
 }

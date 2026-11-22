@@ -21,7 +21,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import json_response, read_json, safely, with_body
+from swissarmybench.server.http import json_response, read_json, with_body
 from swissarmybench.services.sab_projects import SabProjects
 
 
@@ -36,7 +36,7 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
         return json_response(await projects.forget(await read_json(request)))
 
     return [
-        Route("/project", safely(state), methods=["GET"]),
+        Route("/project", state, methods=["GET"]),
         Route("/project/new", with_body(projects.new), methods=["POST"]),
         Route("/project/open", with_body(projects.open), methods=["POST"]),
         Route("/project/save", with_body(projects.save), methods=["POST"]),
@@ -45,6 +45,6 @@ def routes(projects: SabProjects) -> list[BaseRoute]:
         Route("/project/fix", with_body(projects.fix), methods=["POST"]),
         Route("/project/autosave", with_body(projects.set_autosave), methods=["POST"]),
         Route("/project/private", with_body(projects.set_private), methods=["POST"]),
-        Route("/project/layout", safely(layout), methods=["POST"]),
-        Route("/project/recent/remove", safely(forget), methods=["POST"]),
+        Route("/project/layout", layout, methods=["POST"]),
+        Route("/project/recent/remove", forget, methods=["POST"]),
     ]

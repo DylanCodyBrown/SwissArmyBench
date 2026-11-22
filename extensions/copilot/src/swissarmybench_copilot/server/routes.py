@@ -22,7 +22,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely, with_actor, with_body
+from swissarmybench.server.http import actor, json_response, read_json, with_actor, with_body
 from swissarmybench_copilot.services.copilot import Copilot
 
 
@@ -48,12 +48,12 @@ def routes(copilot: Copilot) -> list[BaseRoute]:
         Route("/copilot", with_actor(copilot.state)),
         Route("/copilot/toggle", with_body(copilot.toggle), methods=["POST"]),
         Route("/copilot/install", with_actor(copilot.install), methods=["POST"]),
-        Route("/copilot/panel", safely(panel), methods=["GET", "POST"]),
+        Route("/copilot/panel", panel, methods=["GET", "POST"]),
         Route("/copilot/sign-in", with_actor(copilot.sign_in), methods=["POST"]),
         Route("/copilot/sign-in/finish", with_actor(copilot.finish), methods=["POST"]),
         Route("/copilot/sign-out", with_actor(copilot.sign_out), methods=["POST"]),
-        Route("/copilot/inline", safely(inline)),
-        Route("/copilot/complete", safely(complete), methods=["POST"]),
-        Route("/copilot/cancel", safely(cancel), methods=["POST"]),
-        Route("/copilot/event", safely(event), methods=["POST"]),
+        Route("/copilot/inline", inline),
+        Route("/copilot/complete", complete, methods=["POST"]),
+        Route("/copilot/cancel", cancel, methods=["POST"]),
+        Route("/copilot/event", event, methods=["POST"]),
     ]

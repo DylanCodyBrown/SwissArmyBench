@@ -63,23 +63,6 @@ def test_the_page_follows_the_theme(browser: Browser, warehouse: str) -> None:
     page.close()
 
 
-def test_a_theme_remembered_before_the_rename_is_still_followed(browser: Browser, warehouse: str) -> None:
-    """Swiss Army Bench was SwissArmyGrid: a setting this browser kept under the old prefix is read while
-    the new key is empty (web/src/dom.ts, test_renamed.py), and the new key wins once it is set."""
-    page = open_page(browser, warehouse)
-    page.evaluate("localStorage.setItem('swissarmygrid.theme', 'hc-dark')")
-    page.reload()
-    page.goto(warehouse)
-    expect(page.locator("html")).to_have_attribute("data-theme", "hc-dark")
-    page.evaluate("localStorage.setItem('swissarmybench.theme', 'hc-light')")
-    page.reload()
-    page.goto(warehouse)
-    expect(page.locator("html")).to_have_attribute("data-theme", "hc-light")
-    for key in ("swissarmygrid.theme", "swissarmybench.theme"):
-        page.evaluate(f"localStorage.removeItem('{key}')")
-    page.close()
-
-
 def test_the_rail_takes_this_tab_to_the_blades_page(browser: Browser, orders_url: str) -> None:
     """A rail click moves this tab (the owner, 2026-11-16: "the open in new tab is optional")."""
     page = open_grid(browser, orders_url)
@@ -296,68 +279,6 @@ def test_a_long_blade_name_never_hides_the_blade_buttons(
     for item in listing.locator(".blade-item").all():
         expect(item.get_by_role("button", name="Copy the sab.blade line")).to_be_in_viewport()
     page.close()
-
-
-def test_a_packs_blade_is_read_only_and_a_new_marketplace_takes_blades(
-    browser: Browser, server: dict[str, Any], warehouse: str, tmp_path: Path
-) -> None:
-    import json as json_module
-
-    from swissarmybench.domain.blades import write_blade
-
-    # A made-up installed pack in this server's own Claude folder (never the machine's).
-    root = Path(server["tmp"]) / "claude" / "plugins" / "cache" / "team-blades" / "sales" / "1a2b3c4d5e6f"
-    (root / "blades").mkdir(parents=True)
-    (root / ".claude-plugin").mkdir()
-    (root / ".claude-plugin" / "plugin.json").write_text('{"name": "sales"}', encoding="utf-8")
-    (root / "blades" / "till.blade.py").write_text(
-        write_blade({"name": "Till export", "kind": "other", "code": "rows = [1, 2]\n", "variable": "rows"}),
-        encoding="utf-8",
-    )
-    record = {"plugins": {"sales@team-blades": [{"installPath": str(root), "version": "1a2b3c4d5e6f"}]}}
-    (root.parents[3] / "installed_plugins.json").write_text(json_module.dumps(record), encoding="utf-8")
-    repo = tmp_path / "data-blades"
-    page = open_page(browser, warehouse)
-    try:
-        till = blade_item(page, "Till export")
-        expect(till.locator(".blade-pack")).to_have_text("pack")
-        till.locator(".blade-name").click()
-        expect(page.locator(".code-ide .ide-readonly")).to_have_text("read-only")
-        page.get_by_role("button", name="Properties").click()
-        expect(page.locator(".code-ide:visible")).to_contain_text("From the pack sales@team-blades")
-        page.locator(".code-ide:visible").get_by_role("button", name="More").click()
-        page.get_by_role("menuitem", name="Copy as your own").click()
-        expect(blade_item(page, "Till export copy")).to_have_count(1)
-        # The Packs window: the installed pack, the commands, and a new marketplace repository.
-        blades_menu(page, "Packs…")
-        packs = page.locator("dialog")
-        expect(packs.locator(".set-item", has_text="sales")).to_contain_text("version 1a2b3c4d5e6f")
-        expect(packs).to_contain_text("/plugin install <pack>@<marketplace>")
-        packs.get_by_role("button", name="New marketplace repository").click()
-        form = page.locator("dialog").last
-        form.get_by_label("New folder").fill(str(repo))
-        form.get_by_label("Marketplace name").fill("data-blades")
-        form.get_by_label("First pack's name").fill("bakery")
-        form.get_by_role("button", name="Create").click()
-        clone = page.locator("dialog .set-item", has_text="editable clone")
-        expect(clone).to_contain_text("bakery", timeout=10000)
-        clone.get_by_role("button", name="Add blades and sets").click()
-        adding = page.locator("dialog").last
-        adding.get_by_label("Blade Till export copy").check()
-        adding.get_by_role("button", name="Add", exact=True).click()
-        expect(page.locator(".toast").last).to_contain_text("Added 1 files to bakery")
-        written = repo / "packs" / "bakery" / "blades" / "till_export_copy.blade.py"
-        assert "rows = [1, 2]" in written.read_text(encoding="utf-8")
-        assert page.errors == []  # type: ignore[attr-defined]
-    finally:
-        page.close()
-        call(server, "PUT", "/blades/folders", {"folders": []})
-        import shutil
-
-        shutil.rmtree(root.parents[3])
-
-
-# ===== the blade screen (the owner, 2026-11-17) =====
 
 
 def test_the_blades_pane_has_no_catalog_panel(browser: Browser, warehouse: str) -> None:

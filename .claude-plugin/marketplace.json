@@ -3,7 +3,7 @@
   "owner": {
     "name": "Swiss Army Bench"
   },
-  "description": "Swiss Army Bench for Claude Code: the user guide and the agent tools, and an example pack of blades and relationship sets.",
+  "description": "Swiss Army Bench for Claude Code: the user guide and the agent tools.",
   "plugins": [
     {
       "name": "swissarmybench",
@@ -14,17 +14,6 @@
         "data",
         "duckdb",
         "grid"
-      ]
-    },
-    {
-      "name": "sample-store",
-      "source": "./examples/packs/sample-store",
-      "description": "An example pack: a made-up blade and a relationship set with the made-up store's ten relationships.",
-      "keywords": [
-        "swissarmybench",
-        "blades",
-        "relationships",
-        "example"
       ]
     }
   ]

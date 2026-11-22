@@ -25,7 +25,7 @@ from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_streamlit.services.canvas import Canvases
 
 
@@ -76,13 +76,13 @@ def routes(canvases: Canvases, web_root: Path | None) -> list[BaseRoute]:
 
     return [
         Route("/streamlit/canvas", page),
-        Route("/streamlit/canvases", safely(listing), methods=["GET", "POST"]),
-        Route("/streamlit/canvases/{canvas}", safely(one), methods=["GET", "DELETE"]),
-        Route("/streamlit/canvases/{canvas}/command", safely(command), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/undo", safely(undo), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/redo", safely(redo), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/play", safely(play), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/stop", safely(stop), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/check", safely(check), methods=["POST"]),
-        Route("/streamlit/canvases/{canvas}/export", safely(export), methods=["POST"]),
+        Route("/streamlit/canvases", listing, methods=["GET", "POST"]),
+        Route("/streamlit/canvases/{canvas}", one, methods=["GET", "DELETE"]),
+        Route("/streamlit/canvases/{canvas}/command", command, methods=["POST"]),
+        Route("/streamlit/canvases/{canvas}/undo", undo, methods=["POST"]),
+        Route("/streamlit/canvases/{canvas}/redo", redo, methods=["POST"]),
+        Route("/streamlit/canvases/{canvas}/play", play, methods=["POST"]),
+        Route("/streamlit/canvases/{canvas}/stop", stop, methods=["POST"]),
+        Route("/streamlit/canvases/{canvas}/check", check, methods=["POST"]),
+        Route("/streamlit/canvases/{canvas}/export", export, methods=["POST"]),
     ]

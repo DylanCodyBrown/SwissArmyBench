@@ -28,7 +28,7 @@ A project is a folder; connections, APIs, vaults, blades, variables: the library
 | `apis_`; `sandbox_`, `api_` | APIs; local sandbox APIs | `apis_call`; `sandbox`, `api` |
 | `structures_` | JSON, YAML, XML, TOML | `structures_open`, `structures_show` |
 | `explorer_`, `catalog_` | Data page: browse, find | `explorer_browse`, `explorer_search` |
-| `blades_`, `packs_` | saved code, starters, packs | `blades_list`, `blades_new` |
+| `blades_` | saved code, starters | `blades_list`, `blades_new` |
 | `workbench_` | notebooks, scripts, kernels | `workbench_run`, `workbench_window` |
 | `widgets_`, `canvas_` | widgets, the canvas, wiring, launches | `widgets_new`, `canvas_insert_widget`, `canvas_wire` |
 | `project_`, `projects_` | project folders, the home page | `project_new`, `projects_list` |

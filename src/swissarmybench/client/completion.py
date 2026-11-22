@@ -14,6 +14,7 @@ no server, or a slow one, Tab simply offers nothing from here. Standard library 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import time
@@ -23,7 +24,6 @@ import urllib.request
 from typing import Any
 
 from swissarmybench.client.push_client import _read_info
-from swissarmybench.renamed import env
 
 _TIMEOUT_SECONDS: float = 1.0
 _CATALOGS_FOR_SECONDS: float = 30.0
@@ -39,7 +39,7 @@ _catalogs: tuple[float, list[str]] = (0.0, [])
 def sql_before(text: str) -> str | None:
     """The SQL written so far when the cursor (the end of `text`) is inside SQL, else None: a `%%sql`
     cell, or an open string literal (triple-quoted or on this line) that holds a SQL word."""
-    if text.lstrip().startswith(("%%sql", "%sql", "%%sab", "%%sag")):  # %%sag: the old name
+    if text.lstrip().startswith(("%%sql", "%sql", "%%sab")):
         return text
     opened: str | None = None
     start = 0
@@ -102,7 +102,7 @@ def _search(catalog: str, text: str) -> dict[str, Any]:
 def _cell_connection(sql: str) -> str | None:
     """The connection a `%%sql` cell names on its first line (or the %sql_connect one), if any."""
     first = sql.lstrip().split("\n", 1)[0]
-    if not first.startswith(("%%sql", "%%sab", "%%sag")) or first.startswith("%%sql_"):
+    if not first.startswith(("%%sql", "%%sab")) or first.startswith("%%sql_"):
         return None
     from swissarmybench.client import sql_cell  # only for a %%sql cell
 
@@ -196,5 +196,5 @@ def complete() -> bool:
 
 def autostart() -> None:
     """On import in Jupyter or IPython, unless SWISSARMYBENCH_COMPLETE=0."""
-    if env("SWISSARMYBENCH_COMPLETE", "") != "0":
+    if os.environ.get("SWISSARMYBENCH_COMPLETE", "") != "0":
         complete()

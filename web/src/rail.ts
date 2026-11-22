@@ -42,14 +42,11 @@
  *
  * Another window's area reaches the window that shows it as a message from this origin ({sab: "area"});
  * a window opened for it is given the area in its address (?view=analyze, ?open=settings, ?kind=script).
- * The Sandbox is Analyze and the Diagram the ERD (the owner, 2026-11-16): the old ?view=sandbox
- * and ?view=diagram still land there (panes.ts), and the address is replaced with the new word.
  */
 import { api, onNotice, token } from "./api";
 import { h, icon } from "./dom";
-import { type Kind, loadKindColours } from "./kindColours";
+import type { Kind } from "./kindColours";
 import { goHome, hasLayer, HOME_URL, layerShown, onAddress, openLayer, type PageKind, PROJECTS_URL, setAreaRunner, visit, withParams } from "./nav";
-import { loadPanels, onPanels } from "./panels";
 import { onUnseen } from "./sessionPage";
 // The APIs, Structures, Code App (a plug-in: shown while it is on), Source Control (a plug-in: shown while the
 // backend names its area) and Extensions pages' layers, on every page with the rail; each page loads when first
@@ -129,8 +126,8 @@ function currentArea(url: URL): Area | null {
   if (kind === "workbench" && url.searchParams.get("pane") === "blades") return "blades"; // the Scripts page's Blades
   if (kind === "workbench") return areaOfKind(url.searchParams.get("kind")) ?? (thisPage() === "scripts" ? "scripts" : "notebooks");
   const view = kind === "home" ? url.searchParams.get("view") : null;
-  if (view === "analyze" || view === "visualizations" || view === "sandbox") return "analyze";
-  if (view === "erd" || view === "diagram") return "erd"; // the old words, one release
+  if (view === "analyze") return "analyze";
+  if (view === "erd") return "erd";
   if (view === "start") return "projects"; // the old Start view's address (one release): Projects
   return "grids"; // the grids (and the steps and Key Finder windows, which are a grid's)
 }
@@ -446,10 +443,6 @@ export function mountNavRail(page: PageKind): void {
     goArea(area, newWindow);
     return true;
   });
-  // The rail on or off: the page's width changes, so the grid, Monaco and the canvas measure again.
-  onPanels(() => window.requestAnimationFrame(() => window.dispatchEvent(new Event("resize"))));
-  void loadPanels();
-  void loadKindColours(); // the code areas wear the kind colours chosen in Settings
   // Another window's rail: the area it asked this window for (a message from this origin only).
   window.addEventListener("message", (e: MessageEvent) => {
     const said = e.data as { sab?: unknown; area?: unknown } | null;

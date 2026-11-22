@@ -44,7 +44,6 @@ export interface LineageNode {
   table: string | null;
   step: number | null;
   target: boolean;
-  on_page: boolean;
 }
 
 interface ValueItem {
@@ -269,7 +268,7 @@ export async function openLineage(target: LineageTarget, host: LineageHost, into
           "aria-label": `${node.label}, ${node.where || KINDS[node.kind]}`,
           dataset: { node: node.id },
         },
-        h("div", { class: "wb-lin-card-head" }, h("span", { class: "wb-lin-label" }, node.label), node.on_page ? h("span", { class: "wb-lin-page", title: "On the page" }, "page") : null),
+        h("div", { class: "wb-lin-card-head" }, h("span", { class: "wb-lin-label" }, node.label)),
         h("div", { class: "hint wb-lin-where" }, node.where || KINDS[node.kind]),
         value?.error ? h("div", { class: "wb-lin-error" }, errorNote(value.error, { dismiss: false })) : null,
         ...items.map((item) => itemView(item, items.length > 1)),

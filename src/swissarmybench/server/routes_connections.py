@@ -45,7 +45,7 @@ from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain.blades import VaultUnavailableError
 from swissarmybench.server.blade_runner import RefreshError
-from swissarmybench.server.http import actor, error_as, error_response, json_response, read_json, safely
+from swissarmybench.server.http import actor, error_as, json_response, read_json
 from swissarmybench.services.blades import BladeService, NeedsValues
 from swissarmybench.services.catalog_loading import CatalogLoading
 from swissarmybench.services.connection_usage import ConnectionUsage
@@ -82,8 +82,6 @@ def routes(
             return json_response(await connections.save(await read_json(request), previous, actor(request)))
         except VaultUnavailableError as error:
             return error_as(error, 409)
-        except Exception as error:
-            return error_response(error)
 
     async def vaults(request: Request) -> Response:
         return json_response(connections.vaults())
@@ -96,8 +94,6 @@ def routes(
         except RefreshError as error:
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     async def load_catalog(request: Request) -> Response:
         return json_response(loading.load(request.path_params["name"], actor(request)))
@@ -113,8 +109,6 @@ def routes(
         except RefreshError as error:
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     async def preview(request: Request) -> Response:
         try:
@@ -125,8 +119,6 @@ def routes(
         except RefreshError as error:
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     async def import_relationships(request: Request) -> Response:
         try:
@@ -138,8 +130,6 @@ def routes(
         except RefreshError as error:
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     async def datasets(request: Request) -> Response:
         try:
@@ -152,8 +142,6 @@ def routes(
         except RefreshError as error:
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     async def variables(request: Request) -> Response:
         return json_response(connections.variables(await read_json(request)))
@@ -167,8 +155,6 @@ def routes(
         except RefreshError as error:
             failed = blades.run_failure(str(error), error.missing_module, request.path_params.get("name"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     async def source(request: Request) -> Response:
         return json_response(await connections.source(await read_json(request)))
@@ -185,28 +171,26 @@ def routes(
             name = said.get("name") if isinstance(said.get("name"), str) else None
             failed = blades.run_failure(str(error), error.missing_module, name or None, said.get("template"))
             return json_response(failed, status_code=422)
-        except Exception as error:
-            return error_response(error)
 
     return [
-        Route("/connections", safely(listing)),
+        Route("/connections", listing),
         Route("/connections", save, methods=["POST"]),
-        Route("/connections/types", safely(types)),
-        Route("/connections/usage", safely(overview)),
-        Route("/connections/{name}/usage", safely(used_by)),
-        Route("/connections/{name}/used", safely(report), methods=["POST"]),
-        Route("/connections/{name}/update-driver", safely(update_driver), methods=["POST"]),
+        Route("/connections/types", types),
+        Route("/connections/usage", overview),
+        Route("/connections/{name}/usage", used_by),
+        Route("/connections/{name}/used", report, methods=["POST"]),
+        Route("/connections/{name}/update-driver", update_driver, methods=["POST"]),
         Route("/connections/test", test, methods=["POST"]),
-        Route("/connections/vaults", safely(vaults)),
+        Route("/connections/vaults", vaults),
         Route("/connections/vaults/secrets", vault_names, methods=["POST"]),
-        Route("/connections/source", safely(source), methods=["POST"]),
-        Route("/connections/variables", safely(variables), methods=["POST"]),
+        Route("/connections/source", source, methods=["POST"]),
+        Route("/connections/variables", variables, methods=["POST"]),
         Route("/connections/{name}/tables", tables, methods=["POST"]),
-        Route("/connections/{name}/catalog", safely(load_catalog), methods=["POST"]),
+        Route("/connections/{name}/catalog", load_catalog, methods=["POST"]),
         Route("/connections/{name}/open", open_table, methods=["POST"]),
         Route("/connections/{name}/preview", preview, methods=["POST"]),
         Route("/connections/{name}/relationships", import_relationships, methods=["POST"]),
         Route("/connections/{name}/datasets", datasets),
-        Route("/connections/{name}", safely(details)),
+        Route("/connections/{name}", details),
         Route("/connections/{name}", save, methods=["PUT"]),
     ]

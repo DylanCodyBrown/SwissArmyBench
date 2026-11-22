@@ -3,7 +3,7 @@
 blue, scripts green on tabs, the group's band, the Streamlit cells pane and canvas blocks; App mode
 (Properties for a block and the page settings, the wiring, undo, duplicate, align, zoom, the starter
 gallery, Play's preview and the State panel); Notebook mode (run order, edited and out-of-date cells,
-the Outline, Run up to here, Present); Script mode (run settings, Run as scheduled, run history); Data
+the Outline, Run up to here, Present); Script mode (run settings); Data
 mode (data.ipynb's Cells | Lineage | Dictionary). Made-up data only.
 
 With SWISSARMYBENCH_MODES_SHOTS set to a folder, the tests also save screenshots there (2x)."""
@@ -11,6 +11,7 @@ With SWISSARMYBENCH_MODES_SHOTS set to a folder, the tests also save screenshots
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -21,11 +22,10 @@ import pytest
 from playwright.sync_api import Browser, Page, expect
 
 from swissarmybench.client import push_client
-from swissarmybench.renamed import env
 from tests.e2e.test_table_cells_page import close_tables, window
 from tests.e2e.test_ui import browser, call, server, until  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_MODES_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_MODES_SHOTS", "") or None
 ORDERS = pd.DataFrame(
     {
         "order_id": [10482, 10377, 10611, 10295, 10540, 10123],
@@ -182,9 +182,7 @@ print(f"region {options.region} host {host} folder {folder}")
 """
 
 
-def test_script_mode_run_settings_run_as_scheduled_and_history(
-    browser: Browser, server: dict[str, Any], tmp_path: Path
-) -> None:
+def test_script_mode_run_settings(browser: Browser, server: dict[str, Any], tmp_path: Path) -> None:
     path = tmp_path / "daily_sales.py"
     path.write_text(SCRIPT, encoding="utf-8")
     page = open_window(browser, server, path)
@@ -215,19 +213,7 @@ def test_script_mode_run_settings_run_as_scheduled_and_history(
     assert held["arguments"] == "--region East"
     assert any(v["name"] == "WAREHOUSE_HOST" and v["words"] == "Plain value" for v in held["variables"])
     shot(page, "script-run-settings")
-    # Run as scheduled: a fresh process; its run in the history, with its exit code and log.
-    window(server, "script.runScheduled")
-    history = page.locator(".wb-mode-runHistory")
-    expect(history.locator(".wb-runs tbody tr")).to_have_count(1, timeout=30000)
-    expect(history.locator(".wb-run-log")).to_contain_text("region East host db1.example.test folder reports")
-    expect(history.locator(".wb-runs tbody tr").first).to_contain_text("Run as scheduled")
-    # Run file (the kernel's) joins the history.
-    window(server, "run.primary")
-    expect(history.locator(".wb-runs tbody tr")).to_have_count(2, timeout=30000)
-    expect(history.locator(".wb-runs tbody tr").first).to_contain_text("Run file")
-    history.locator(".wb-runs tbody tr").nth(1).click()
-    expect(history.locator(".wb-run-detail")).to_contain_text("Run as scheduled")
-    shot(page, "script-history")
+    expect(page.get_by_role("button", name="Run as scheduled")).to_have_count(0)  # it went, 2026-11-21
     page.context.close()
 
 

@@ -28,7 +28,7 @@ _MAX_VARIABLES: int = 500
 _MAX_PREVIEW: int = 200
 _PREVIEW_SECONDS: float = 1.0
 # IPython's own names, and the names the Workbench's setup makes.
-_HIDDEN = frozenset({"In", "Out", "exit", "quit", "get_ipython", "open", "sab", "sag"})  # sag: the old alias
+_HIDDEN = frozenset({"In", "Out", "exit", "quit", "get_ipython", "open", "sab"})
 
 
 def _count(n: int, word: str) -> str:

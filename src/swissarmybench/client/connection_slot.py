@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import threading
 import time
 import urllib.error
@@ -23,7 +24,6 @@ from collections.abc import Iterator
 from typing import Any
 
 from swissarmybench.client.push_client import _read_info
-from swissarmybench.renamed import env
 
 _TIMEOUT_SECONDS = 5.0
 WAIT_POLL_SECONDS = 0.5
@@ -35,7 +35,7 @@ class SlotGaveUp(RuntimeError):
 
 
 def kernel_id() -> str:
-    return env("SWISSARMYBENCH_KERNEL", "")
+    return os.environ.get("SWISSARMYBENCH_KERNEL", "")
 
 
 def kernel_headers() -> dict[str, str]:

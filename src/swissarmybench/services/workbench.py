@@ -10,7 +10,6 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from typing import Any, Protocol
 
 from swissarmybench.domain import (
-    approvals,
     dictionary,
     errors,
     html_cells,
@@ -658,28 +657,6 @@ class Workbench:
         if kernel is None:
             return {}
         return await kernel.lineage_values(names)
-
-    # ===== approved outputs (domain/approvals.py) =====
-
-    @staticmethod
-    def approval(body: Any) -> dict[str, Any]:
-        """A cell's outputs as an approval keeps them, and (with "approved") how they differ from it.
-
-        {"outputs": [...nbformat records], "approved"?: an approval, "at"?: when (for a new one)}
-        -> {"approval": the outputs approved now, "changed": false} or, with "approved",
-           {"changed": true, "difference": {...}, "summary": ["rows: 3 → 2", ...]}"""
-        if not isinstance(body, dict) or not isinstance(body.get("outputs"), list):
-            raise ValueError('Send {"outputs": [the output records of a cell], "approved"?: its approval}.')
-        outputs = [o for o in body["outputs"][: rules.MAX_OUTPUTS_PER_CELL] if isinstance(o, dict)]
-        found = approvals.snapshot(outputs)
-        held = approvals.check_approval(body.get("approved"))
-        if held is None:
-            at = body.get("at") if isinstance(body.get("at"), str) else None
-            return {"approval": approvals.approval(found, at[:40] if at else None), "changed": False}
-        diff = approvals.compare(held, found)
-        if diff is None:
-            return {"changed": False}
-        return {"changed": True, "difference": diff, "summary": approvals.summary(diff)}
 
     # ===== HTML cells =====
 

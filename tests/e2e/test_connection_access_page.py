@@ -21,11 +21,10 @@ import pytest
 from playwright.sync_api import Browser, expect
 
 from swissarmybench.domain import sql_server
-from swissarmybench.renamed import env
 from tests import powerbi_standin as made_up
 from tests.e2e.test_ui import browser, call  # noqa: F401
 
-SHOTS = env("SWISSARMYBENCH_SHOTS") or None
+SHOTS = os.environ.get("SWISSARMYBENCH_SHOTS", "") or None
 ROOT = Path(__file__).resolve().parents[2]
 REG = {"name": "Contoso BI", "tenant": "BI_TENANT", "client": "BI_CLIENT", "secret": "BI_SECRET"}
 

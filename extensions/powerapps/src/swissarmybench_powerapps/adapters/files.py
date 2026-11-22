@@ -87,11 +87,4 @@ class ProjectFiles:
             return {}
 
     def save_state(self, data: dict[str, Any]) -> None:
-        self._state.parent.mkdir(parents=True, exist_ok=True)
-        text = json.dumps(data, indent=2, sort_keys=True) + "\n"
-        try:
-            if self._state.read_text(encoding="utf-8") == text:
-                return
-        except OSError:
-            pass
-        self._state.write_text(text, encoding="utf-8")
+        write_atomic(self._state, json.dumps(data, indent=2, sort_keys=True) + "\n", if_changed=True)

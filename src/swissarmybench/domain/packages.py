@@ -95,9 +95,7 @@ CALL_NEEDS: dict[str, str] = {
 }
 
 # Never installed by pip: the standard library, and Swiss Army Bench itself (sab.blade gives it).
-_PROVIDED: frozenset[str] = frozenset(
-    {*sys.stdlib_module_names, "swissarmybench", "swissarmygrid", "__future__"}  # and its old name
-)
+_PROVIDED: frozenset[str] = frozenset({*sys.stdlib_module_names, "swissarmybench", "__future__"})
 
 
 @dataclass(frozen=True)

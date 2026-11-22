@@ -25,7 +25,6 @@
 import { api, onNotice } from "./api";
 import { button, h, icon, openDialog, setMenuExtras, showMenu, toast } from "./dom";
 import { chooseFile } from "./fileChooser";
-import { panelList } from "./panels";
 import type { Command } from "./workbenchCommands";
 import { errorHere } from "./errorNote";
 
@@ -326,7 +325,6 @@ export function openNote(target: Element): void {
       page,
       window: context.window,
       element: info,
-      panels: panelList().filter((p) => p.on).map((p) => p.id),
       tabs: context.tabs(),
       actions: [...actions],
       page_errors: [...pageErrors],

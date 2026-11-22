@@ -131,9 +131,9 @@ if ($Wheel) {
     }
 }
 
-# 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes (this one keeps the old commands working).
+# 3. Swiss Army Bench was SwissArmyGrid: its old uv tool goes.
 if ((ListTools) -match '^swissarmygrid ') {
-    Write-Host "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it; its old commands still work)..."
+    Write-Host "Removing the old SwissArmyGrid tool (Swiss Army Bench replaces it)..."
     Quiet { uv tool uninstall swissarmygrid }
 }
 

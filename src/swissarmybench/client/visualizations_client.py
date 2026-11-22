@@ -3,11 +3,10 @@
     sab.analyze(fig)                          # matplotlib or seaborn: a PNG picture
     sab.analyze(plotly_fig, "Sales by month") # Plotly: drawn live, in the theme
     sab.analyze(altair_chart)                 # Altair: drawn as Vega-Lite (its data inline)
-    sab.analyze(digraph)                      # graphviz: drawn from its DOT text
     sab.analyze(frame)                        # a DataFrame or Arrow table: its first 100 rows
     sab.analyze("## Findings\\n...")           # Markdown text: a note
-    sab.analyze("chart.png")                  # a file: a picture, .md note, .dot, .mmd, .vl.json
-    sab.analyze(text, kind="mermaid")         # Mermaid, DOT or ECharts text, named
+    sab.analyze("chart.png")                  # a file: a picture, .md note, .mmd, .vl.json
+    sab.analyze(text, kind="mermaid")         # Mermaid or Plotly text, named
 
 `key="..."` names the card, so running the cell again replaces it in place (its size and position
 stay) instead of adding another. `size=(w, h)` is 2 to 12 columns by 3 to 30 rows. Returns the card's
@@ -15,10 +14,7 @@ id. It duck-types what it is given, so nothing here imports matplotlib, Plotly o
 library only, like the rest of the client.
 
 `sab.analyze` itself (the analyses, the contracts, the samples) is client/analyze_client.py; this
-module keeps its name and holds the card's making. `sab.visualizations` and `sab.sandbox` are the old
-names (the Sandbox became Visualizations, the owner, 2026-11-16; Visualizations became Analyze,
-2026-11-19): each works for one release, with a DeprecationWarning (sab.visualizations' once a session),
-and goes with renamed.py.
+module keeps its name and holds the card's making.
 """
 
 from __future__ import annotations
@@ -30,7 +26,6 @@ import io
 import json
 import math
 import os
-import warnings
 from pathlib import Path
 from typing import Any
 
@@ -43,10 +38,7 @@ _KIND_NAMES: dict[str, str] = {
     "note": "note",
     "mermaid": "diagram",
     "diagram": "diagram",
-    "dot": "graphviz",
-    "graphviz": "graphviz",
     "plotly": "plotly",
-    "echarts": "echarts",
     "vegalite": "vegalite",
     "vega-lite": "vegalite",
     "altair": "vegalite",
@@ -66,33 +58,7 @@ _TEXT_FILES: dict[str, str] = {
     ".markdown": "note",
     ".mmd": "diagram",
     ".mermaid": "diagram",
-    ".dot": "graphviz",
-    ".gv": "graphviz",
 }
-
-
-_warned: list[bool] = [False]
-
-
-def visualizations(
-    thing: object,
-    title: str | None = None,
-    *,
-    key: str | None = None,
-    size: tuple[int, int] | None = None,
-    kind: str | None = None,
-) -> str:
-    """The old name of `sab.analyze(thing)`, for one release (Visualizations is Analyze now): it warns
-    once a session, then adds the card as before."""
-    if not _warned[0]:
-        _warned[0] = True
-        warnings.warn(
-            "sab.visualizations is now sab.analyze: Visualizations is called Analyze. "
-            "The old name goes in the next release.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-    return add_card(thing, title, key=key, size=size, kind=kind)
 
 
 def add_card(
@@ -118,24 +84,6 @@ def add_card(
     return str(answer["card"])
 
 
-def sandbox(
-    thing: object,
-    title: str | None = None,
-    *,
-    key: str | None = None,
-    size: tuple[int, int] | None = None,
-    kind: str | None = None,
-) -> str:
-    """The oldest name of `sab.analyze(thing)`, for one release (the Sandbox is Analyze now)."""
-    warnings.warn(
-        "sab.sandbox is now sab.analyze: the Sandbox is called Analyze. "
-        "The old name goes in the next release.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return add_card(thing, title, key=key, size=size, kind=kind)
-
-
 def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
     """The card for `thing`: {"kind", "body"} or a table's {"kind", "columns", "rows"}. No server."""
     named = _kind(kind)
@@ -152,8 +100,6 @@ def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
         return {"kind": "plotly", "body": thing.to_json()}
     if module == "altair" and hasattr(thing, "to_dict"):
         return {"kind": "vegalite", "body": json.dumps(thing.to_dict(), default=_plain)}
-    if module == "graphviz" and isinstance(getattr(thing, "source", None), str):
-        return {"kind": "graphviz", "body": thing.source}  # type: ignore[attr-defined]
     figure = _figure(thing)
     if figure is not None:
         buffer = io.BytesIO()
@@ -168,8 +114,8 @@ def card_for(thing: object, kind: str | None = None) -> dict[str, Any]:
         return table
     raise TypeError(
         f"Can't put a {type(thing).__name__} on the Analyze board. It takes a matplotlib, seaborn, Plotly, "
-        "Altair or graphviz figure, a PIL image, picture bytes, a DataFrame or Arrow table, Markdown "
-        "text, a file path, or Mermaid, DOT or ECharts text with kind=."
+        "Altair figure, a PIL image, picture bytes, a DataFrame or Arrow table, Markdown "
+        "text, a file path, or Mermaid or Plotly text with kind=."
     )
 
 
@@ -199,9 +145,7 @@ def _from_file(path: Path, named: str | None) -> dict[str, Any]:
         return {"kind": "vegalite", "body": text}
     if suffix == ".json":
         return _from_dict(json.loads(text), None)
-    raise ValueError(
-        f"Name what {path.name} is with kind= (markdown, mermaid, dot, plotly, echarts, vegalite)."
-    )
+    raise ValueError(f"Name what {path.name} is with kind= (markdown, mermaid, plotly, vegalite).")
 
 
 def _from_dict(spec: dict[str, Any], named: str | None) -> dict[str, Any]:
@@ -212,7 +156,7 @@ def _from_dict(spec: dict[str, Any], named: str | None) -> dict[str, Any]:
         elif "data" in spec and isinstance(spec["data"], list):
             named = "plotly"
         else:
-            raise ValueError("Name what this dict is with kind= (plotly, echarts or vegalite).")
+            raise ValueError("Name what this dict is with kind= (plotly or vegalite).")
     return {"kind": named, "body": json.dumps(spec, default=_plain)}
 
 

@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
-from swissarmybench.server.http import actor, error_response, json_response, read_json, safely
+from swissarmybench.server.http import actor, json_response, read_json
 from swissarmybench_powerbi.services.export import PowerBIExport
 
 
@@ -25,10 +25,7 @@ def routes(export: PowerBIExport) -> list[BaseRoute]:
         return json_response(await export.plan(await read_json(request)))
 
     async def run(request: Request) -> Response:
-        try:
-            done = await export.export(await read_json(request), actor(request))
-        except Exception as error:
-            return error_response(error)
+        done = await export.export(await read_json(request), actor(request))
         if "zip" in done:
             return Response(
                 done.pop("zip"),
@@ -45,8 +42,8 @@ def routes(export: PowerBIExport) -> list[BaseRoute]:
         return json_response(export.open(await read_json(request), actor(request)))
 
     return [
-        Route("/powerbi/plan", safely(plan), methods=["POST"]),
+        Route("/powerbi/plan", plan, methods=["POST"]),
         Route("/powerbi/export", run, methods=["POST"]),
-        Route("/powerbi/report", safely(upload), methods=["POST"]),
-        Route("/powerbi/open", safely(open_it), methods=["POST"]),
+        Route("/powerbi/report", upload, methods=["POST"]),
+        Route("/powerbi/open", open_it, methods=["POST"]),
     ]

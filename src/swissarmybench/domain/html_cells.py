@@ -17,16 +17,12 @@ Pure rules, no I/O, standard library only (the kernel's side, client/html_cells.
             the canvas, 2026-11-15): a value is always text, its Markdown and markup characters
             escaped; inside code (a `span` or a fenced block) plain words and numbers only
   objects   a Python value as its record, told by its shape: a table, a figure or picture, a value
-  pages     a Markdown or HTML block on a Streamlit page fills its names by these same rules
   scripts   the cell in a .py file: `# %% [7] [html] height=320`, then the HTML as one Python string
             that does nothing when the file runs
   frame     the Content-Security-Policy of the frame a design is drawn in
 
 In a notebook file the cell is a code cell that starts with `%%html` (IPython's own cell magic, so
 plain Jupyter draws it when run); domain/notebooks.py reads and writes it.
-
-This module imports nothing of Swiss Army Bench: a Streamlit page with a Markdown or HTML block that
-names a value carries a copy of it (`sab_text.py`), so the page fills its names without this app.
 """
 
 from __future__ import annotations
@@ -39,7 +35,7 @@ import io
 import json
 import math
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -614,40 +610,6 @@ def record_of(value: Any, name: str) -> dict[str, Any]:
         return table_of(value) or picture_of(value, name) or text_value(value)
     except Exception as error:
         return text_value(f"({name} could not be shown: {type(error).__name__})")
-
-
-# ===== pages: a Markdown or HTML block on a Streamlit page =====
-#
-#     import sab_text as _sab_text
-#     st.markdown(_sab_text.page_markdown(r"""Total for {{ region }}""", {"region": lambda: region}))
-#
-# Each name is read where the page stands when the block runs (the block that makes it ran first: the
-# run order counts the names); a name no block made says "not found".
-
-Getters = Mapping[str, Callable[[], Any]]
-
-
-def page_values(getters: Getters) -> dict[str, dict[str, Any]]:
-    """Each name's record, read through its getter (a NameError: the page does not hold it)."""
-    found: dict[str, dict[str, Any]] = {}
-    for name, get in list(getters.items())[:MAX_NAMES]:
-        try:
-            held = get()
-        except NameError:
-            found[name] = missing_value(name)
-            continue
-        found[name] = record_of(held, name)
-    return found
-
-
-def page_markdown(text: str, getters: Getters) -> str:
-    """A Markdown block's text with its names filled, for `st.markdown`."""
-    return fill_markdown(text, page_values(getters)).html
-
-
-def page_html(text: str, getters: Getters) -> str:
-    """An HTML block's HTML with its names filled, for `st.html`."""
-    return fill(text, page_values(getters)).html
 
 
 # ===== scripts: the cell in a .py file =====
