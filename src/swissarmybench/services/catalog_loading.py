@@ -122,13 +122,17 @@ class CatalogLoading:
 
     def at_start(self) -> list[str]:
         """Every connection's catalog, in the background, but the ones that sign in with a window (they
-        wait for first use) and the ones past the catalog limit. The names started."""
+        wait for first use), the ones past the catalog limit, and one the user took away this session (it
+        was removed on purpose a moment ago: Load or first use brings it). The names started."""
         if not self._enabled:
             return []
         started: list[str] = []
         room = self.ws.settings.max_catalogs - len(self._catalogs.loaded_names())
+        taken_away = self._catalogs.taken_away()
         for listed in self._blades.listing()["blades"]:
             if not rules.has_catalog(listed.get("connection")) or not listed.get("has_catalog"):
+                continue
+            if str(listed["name"]).casefold() in taken_away:
                 continue
             blade = self._blades.get(str(listed["name"]))
             if rules.signs_in_interactively(blade.code) or len(started) >= room:

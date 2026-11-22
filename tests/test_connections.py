@@ -566,6 +566,33 @@ def test_catalogs_load_themselves_when_saved_at_start_up_and_on_first_use(tmp_pa
         assert client.post("/connections/Nope/catalog", headers=AUTH).status_code == 404
 
 
+def test_a_catalog_taken_away_is_not_loaded_again_by_start_ups_loads(tmp_path: Path) -> None:
+    """The sweep, 2026-11-22: start-up's loads run a moment after the first window opens (or the wait),
+    and brought back a catalog the user had just removed (tests/e2e/test_data_page.py failed by turns on
+    it). One taken away this session waits for Load or first use, like a sign-in with a window."""
+    import time
+
+    from tests.conftest import make_client
+
+    (tmp_path / "orders.csv").write_text("order_id,region\n1,North\n", encoding="utf-8")
+    with make_client(tmp_path) as client:  # loading off: saved, not loaded
+        body = csv_with_catalog(client, tmp_path / "orders.csv", "Orders")
+        assert client.post("/connections", json=body, headers=AUTH).status_code == 200
+        kept = body | {"name": "Kept"}
+        assert client.post("/connections", json=kept, headers=AUTH).status_code == 200
+    with make_client(tmp_path, auto_load_catalogs=True, catalogs_start_wait_seconds=1.5) as client:
+        # Before start-up's loads: the user loads one and takes it away again.
+        assert client.post("/connections/Orders/catalog", headers=AUTH).status_code == 200
+        _wait_for(client, "Orders", None, True)
+        assert client.delete("/catalogs/Orders", headers=AUTH).status_code == 200
+        _wait_for(client, "Kept", None, True)  # start-up's loads ran: the other one is there
+        time.sleep(1.0)
+        assert _wait_for(client, "Orders", None, False)["catalog_loaded"] is False
+        # Load (or first use) still brings it.
+        assert client.post("/connections/Orders/catalog", headers=AUTH).status_code == 200
+        _wait_for(client, "Orders", None, True)
+
+
 def test_a_form_not_named_yet_can_be_tested(client: TestClient, tmp_path: Path) -> None:
     (tmp_path / "orders.csv").write_text("order_id\n1\n", encoding="utf-8")
     draft = csv_connection(tmp_path / "orders.csv") | {"name": ""}
