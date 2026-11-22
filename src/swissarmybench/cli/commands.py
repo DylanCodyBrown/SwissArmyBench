@@ -1007,7 +1007,7 @@ def update_card(a: dict[str, Any]) -> Any:
 
 @command(
     "analyze_dashboards",
-    "Saved dashboards; with name, its versions and cards. Saving and opening are the user's.",
+    "Saved dashboards; with name, its versions and cards (analyze_dashboard saves, opens and deletes).",
     opt("name", "A dashboard's name."),
 )
 def dashboards(a: dict[str, Any]) -> Any:
