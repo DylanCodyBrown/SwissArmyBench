@@ -76,6 +76,14 @@ def test_an_endpoints_fields_and_made_up_request_come_from_its_model() -> None:
         "body": None,
     }
     assert rules.made_up(by["one_order"], api.models)["path"] == {"order_id": 101}
+    # An optional filter starts empty (the sweep, 2026-11-22: a Summary's ?status= started as "made-up
+    # status", so Try it's first Send answered 0 rows and looked broken); one with no default is made up.
+    filtered = rules.parse(
+        'from sab_api import endpoint\n\n\n@endpoint("GET", "/orders/summary")\n'
+        "def summary(year: int, status: str | None = None, limit: int = 1000) -> list[dict]:\n"
+        "    return []\n"
+    ).endpoints[0]
+    assert rules.made_up(filtered, {})["query"] == {"year": 3, "status": None, "limit": 1000}
     # The made-up body fits the OpenAPI schema the same model gives.
     schema = rules.openapi(api)["components"]["schemas"]["Order"]
     assert list(schema["properties"]) == list(rules.made_up(by["add_order"], api.models)["body"])

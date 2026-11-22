@@ -467,15 +467,16 @@ def made_up_value(kind: str, name: str, models: Mapping[str, Model], depth: int 
 
 def made_up(endpoint: Endpoint, models: Mapping[str, Model]) -> dict[str, Any]:
     """A made-up request for an endpoint: {"path": {name: value}, "query": {name: value}, "body": value or
-    None}. A query parameter with a default starts from it. Try it starts from this, with what the
+    None}. A query parameter with a default starts from it and an optional one with none starts empty (a
+    made-up filter would answer no rows); a required one is made up. Try it starts from this, with what the
     endpoint's learned shape knows over it (domain/api_actions.py tried); the agent reads the same in
     `api(state)`."""
     out: dict[str, Any] = {"path": {}, "query": {}, "body": None}
     for p in endpoint.params:
         if p.where == "body":
             out["body"] = made_up_value(p.type, p.name, models)
-        elif p.where == "query" and p.default is not None:
-            out["query"][p.name] = p.default
+        elif p.where == "query" and not p.required:
+            out["query"][p.name] = p.default  # an optional one with no default starts empty (None)
         else:
             out[p.where][p.name] = made_up_value(p.type, p.name, models)
     return out

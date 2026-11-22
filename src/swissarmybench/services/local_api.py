@@ -697,7 +697,9 @@ class LocalApi:
         path = str(given.get("path") or "/")
         if method not in rules.METHODS or not path.startswith("/"):
             raise ApiFileError("A call is {method: GET|POST|PUT|PATCH|DELETE, path: /...}.")
-        query = given.get("query") if isinstance(given.get("query"), dict) else {}
+        asked = given.get("query")
+        # An optional parameter left empty (None) is not sent.
+        query = {k: v for k, v in asked.items() if v is not None} if isinstance(asked, dict) else {}
         payload = given.get("body")
         if not self.running() or self._runner is None:
             raise Conflict("The local sandbox API is not running: Run it first.")
