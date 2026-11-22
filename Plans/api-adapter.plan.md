@@ -1,6 +1,6 @@
 # The API adapter: any payload in, one shape out (the owner, 2026-11-22)
 
-Status: decided; not built. Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
+Status: decided; not built. Cared for as design principle 12b (equal to adapter.py). Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
 
 > "How do we handle API actions. They don't have to go through the adapter but I feel like they need their own to
 > standardize outputs. Kinda like how Power Automate online standardizes" / "api_adapter.py and we should think more
