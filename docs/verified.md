@@ -5555,3 +5555,84 @@ The checks before the push:
   another module in the same process, the same on the starting commit (docs/ideas.md "The sweep": the gate's
   cover on the Scripts page, left for the owner).
 - ruff, ruff format, mypy (1,036 files), the page's typecheck and build: clean.
+
+## Test app one: BI review, 2026-11-22 (branch test-app-bi)
+
+The app: `examples/bi_review/`, Larkfield Goods' monthly sales review (tools/testbed/large_company.py, small
+scale: 10,042 order lines, made up). `examples/bi_review/build.py` builds it the way a user's agent does, one
+command of cli/commands.py at a time against a real server; `tests/test_bi_review_app.py` runs that build on a
+live server (tests/live_server.py) and checks each part (14 tests, about 40 s, twice the same); the browser
+test `tests/e2e/test_bi_review_app.py` builds it on the browser tests' server and plays it through the pages
+(3 tests, about 60 s). The one thing the user does is the user's: an export's Allow, and the save that keeps
+the Analyze board's table cards and two structures' rows (answered as the user, never by the agent).
+
+What was walked, and what it said:
+- Project: New project (BI), Autosave on and off, Save (with Keep its rows for the two structure tables, on
+  Allow), Close, Open again (every table back, no problem left, each grid's steps), Copy project to.
+- Connections: a folder of Parquet files whose box is `${LARKFIELD_DIR}` (written into its code as
+  `os.environ["LARKFIELD_DIR"]`), the DuckDB file, a SQLite archive, a CSV file, a Python connection with its
+  variable (TARGET_GROWTH): each tested, its tables listed with their DuckDB SQL names; a colour (a rail colour
+  refused in words), the queries' limits, the queries' list; DuckDB SQL over three connections in one "+" query
+  (only the needed columns sent to the database, the Parquet file read once); a query on the warehouse in its
+  own SQL; customers swapped to the archive, undone, swapped again (before its steps: they went on after).
+- Grids: every step kind (transform twice, rename, filter, sql, bucket, categorize, sort, columns, distinct,
+  limit) on customers, a categorize first sent in the wrong shape (said plainly) and put right with Edit, undo
+  and redo; group_by on a second grid; profile and a column's profile; compare (192 matched) and a tie-out by
+  region on revenue and orders (8 of 8 tie); the Key Finder; relationships found (7 at full confidence) plus
+  order_lines to orders by hand (orders.order_id is not unique on purpose), the ERD as Mermaid and as a card,
+  a relationship set saved and listed; exports as CSV, Parquet and Excel, each on the user's Allow.
+- Analyze: Check this table on sales_lines ranks 12 analyses "fits now"; each run, and profile and check: every
+  contract on the toolbar, each with its cards on the board; Make it fit on the archive's text dates (one grid
+  step) and the time series run on them; the board saved as a dashboard.
+- Workbench: data.ipynb with a Markdown cell, `%%sql 'Larkfield Warehouse' -> region_orders`, `%%sql ->
+  monthly` over the open table, a Python cell with `# uses monthly @cell3`, an HTML cell; run whole in the
+  project's one session (4 cells, the design "Best region: North Vale"); scripts/monthly_review.py run in the
+  same kernel, its `headline` read from the notebook's side; lineage to the data; the tables' read-only cells;
+  Export data.py; the notebook checked as one automation (one problem: the DuckDB cell over an open table names
+  no connection) and the script exported and run with plain Python (exit 0, the same 3,337 orders).
+- Structures: a JSON plan (a filter and a rename, Open as grid, Save as into structures/) and TOML thresholds
+  (a sort, Open as grid, saved as JSON); YAML only with PyYAML (not on this machine: the app's missing-package
+  answer).
+- The Excel deliverable: scripts/review_workbook.py, the starter "Excel make a workbook" over DuckDB SQL on the
+  open table: workbooks/monthly_review.xlsx with its title, the table and a total row of SUM formulas.
+- Read back: ARCHITECTURE.md (five connections named with their portability, order_lines from its connection,
+  the user's two scripts as the deliverables), the change log (tables, the notebook saved by the agent, the
+  scripts; no variable's value), the statistics (no error; the warehouse the busiest), the Environment's five
+  tabs (a table, the session's variable best_region, the setting LARKFIELD_DIR with its connection as a use, a
+  structure, a library), Power BI's export plan (dry run: order_lines goes; the DuckDB and SQLite tables say
+  Power Query has no reader for them, with Include its rows).
+- In Chromium: the grids' tab row grouped by connection (Larkfield Files' group among them), the ERD's diagram,
+  the Analyze board holding every analysis's cards, the Connections page's five cards, the Environment's tables,
+  data.ipynb in the Notebooks page with its SQL, Python and HTML cells and the tables' cells.
+
+Bugs found on the way, each fixed with a test (one commit each):
+1. A file connection's file opened as a grid was saved as this disk's path, its connection and the variable it
+   read lost (services/connections.py, services/datasets.py, domain/sab_files.py; its swap, tab group and
+   outline follow: services/connection_swap.py, services/grids.py, services/project_outline.py).
+2. `%%sql 'Name' -> result` was read back as one connection called "Name -> result" and written again quoted
+   whole, so the kernel looked for that connection (domain/notebooks.py sql_line; a repointed cell the same).
+3. data.py left out a SQL cell that keeps its result, so the next cell's name was made by nothing and the import
+   failed (domain/projects.py: such a cell is written as sab.sql).
+4. Script export: an import above a script's first cell was not seen by the cells after it: their sab.sql stayed
+   (sab undefined in the export) and the connection was not written out (domain/script_export.py).
+5. Analyze said "every row has a different region_id" of a column of 8 values: an identifier by its name is said
+   so (domain/analysis_facts.py).
+6. A dashboard named with a space was refused as "Dataset name ... is not allowed" (services/charts.py); the
+   analyze_dashboards tool said saving was the user's only (cli/commands.py).
+7. ARCHITECTURE.md listed the scaffold's adapter.py and connections.py as the user's deliverable scripts with
+   every name inside them (domain/project_scope.py: the scaffold's files are made files).
+8. The agent's save of a notebook or script was logged as the user's (services/workbench.py).
+9. A connection whose box names a variable did not use it on the Settings and secrets tab (services/variables.py).
+
+The checks, on the final tree:
+- ruff, ruff format, mypy (1,038 files), the page's typecheck: clean.
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,324 passed, 50 skipped, 1 failed
+  (test_performance's million rows, under the run's load: it passes alone, with this app's test beside it),
+  and this app's 14 errored in a worker an earlier test's app had locked DuckDB's default connection in: the
+  builder now uses a DuckDB of its own (the same 14 pass after any other app test in one process).
+  test_desktop_shell needs the page's build (`npm run build`), not there in the first run.
+- In Chromium (the e2e conftest's browser pointed at this machine's Chromium for the run only, never
+  committed): this app's 3, and the ten browser test files the fixes could touch (test_swap_connection_page,
+  test_project_outline_page, test_environment_page, test_sab_projects, test_table_cells_page,
+  test_variables_page, test_sandbox_dashboards, test_query_from_page, test_project_session_page,
+  test_rail_pages): 27 passed.
