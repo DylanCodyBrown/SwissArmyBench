@@ -42,6 +42,8 @@ html[data-theme="light"] {
   /* Kind colours: app pages violet, notebooks blue, scripts green (domain/kind_colours.py holds the
      same; Settings may choose others). A thin edge or a mark beside the icon, never a background. */
   --kind-app: #7b3fc4; --kind-notebook: #1f63b0; --kind-script: #2b7238;
+  --method-get: #dff3ef; --method-get-fg: #0b5c50; --method-post: #e2edfa; --method-post-fg: #1d4f91;
+  --method-put: #fbefd6; --method-put-fg: #6e4500; --method-delete: #fbe3e5; --method-delete-fg: #a3141f;
   /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
   --busy-cover: rgba(255, 255, 255, 0.72);
   --busy-spin: #525c66;
@@ -79,6 +81,8 @@ html[data-theme="dark"] {
   --cat-1: #ff6b73; --cat-2: #7fb2dc; --cat-3: #56d364; --cat-4: #f778ba;
   --cat-5: #e3b341; --cat-6: #39c5cf; --cat-7: #a99cf0; --cat-8: #b1bac4;
   --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
+  --method-get: #123530; --method-get-fg: #7fdccb; --method-post: #172a43; --method-post-fg: #9cc6f2;
+  --method-put: #3a2d12; --method-put-fg: #f2c46d; --method-delete: #401b1f; --method-delete-fg: #ff9a94;
   /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
   --busy-cover: rgba(18, 21, 24, 0.72);
   --busy-spin: #a2acb6;
@@ -117,6 +121,8 @@ html[data-theme="hc-light"] {
   --cat-1: #0033a0; --cat-2: #8a3b00; --cat-3: #005c00; --cat-4: #7a0066;
   --cat-5: #4d4000; --cat-6: #004d57; --cat-7: #9e0000; --cat-8: #2b2b2b;
   --kind-app: #5a1a9e; --kind-notebook: #0a4a94; --kind-script: #0d5a1d;
+  --method-get: #ffffff; --method-get-fg: #004d40; --method-post: #ffffff; --method-post-fg: #0033a0;
+  --method-put: #ffffff; --method-put-fg: #5c3a00; --method-delete: #ffffff; --method-delete-fg: #8a0000;
   /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
   --busy-cover: rgba(255, 255, 255, 0.85);
   --busy-spin: #000000;
@@ -154,6 +160,8 @@ html[data-theme="hc-dark"] {
   --cat-1: #8cc8ff; --cat-2: #ffb870; --cat-3: #7dff7d; --cat-4: #ff9ae0;
   --cat-5: #ffd400; --cat-6: #6ff1ff; --cat-7: #ff9a9a; --cat-8: #e0e0e0;
   --kind-app: #d4bfff; --kind-notebook: #a3cdff; --kind-script: #8ff09a;
+  --method-get: #000000; --method-get-fg: #6ff1ff; --method-post: #000000; --method-post-fg: #8cc8ff;
+  --method-put: #000000; --method-put-fg: #ffd400; --method-delete: #000000; --method-delete-fg: #ff9a9a;
   /* The loading state (loading.ts): the cover over what is busy, its spinner's arc and track. */
   --busy-cover: rgba(0, 0, 0, 0.85);
   --busy-spin: #ffffff;
@@ -168,6 +176,8 @@ html[data-theme="hc-dark"] {
     --fg: #e8ecef; --muted: #a2acb6; --border: #343c45; --border-strong: #707b86;
     --accent: #ff6b73; --accent-fg: #1c0a0c; --accent-soft: #3d1c21; --focus: #c4ccd4;
     --kind-app: #b79cf2; --kind-notebook: #7db3ee; --kind-script: #6fc77d;
+    --method-get: #123530; --method-get-fg: #7fdccb; --method-post: #172a43; --method-post-fg: #9cc6f2;
+    --method-put: #3a2d12; --method-put-fg: #f2c46d; --method-delete: #401b1f; --method-delete-fg: #ff9a94;
     --busy-cover: rgba(18, 21, 24, 0.72); --busy-spin: #a2acb6; --busy-track: #343c45;
   }
 }
@@ -3242,24 +3252,40 @@ body.agent-view .titlebar {
   max-height: 60vh;
   overflow: auto;
   margin: 0;
-  padding: 6px 6px 6px 30px;
+  padding: 6px;
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   background: var(--raised);
   box-shadow: var(--shadow);
   text-align: left;
+  list-style: none;
+  counter-reset: step;
 }
 
 .steps-list[hidden] {
   display: none;
 }
 
+/* Each step one row: its number, its words, and its remove × in one column at the right (every row's ×
+   lined up under the one above, however long the words). */
 .steps-list li {
-  padding-left: 2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  counter-increment: step;
 }
 
-.steps-list li > * {
-  vertical-align: middle;
+.steps-list li::before {
+  flex: none;
+  min-width: 20px;
+  color: var(--muted);
+  content: counter(step) ".";
+  text-align: right;
+}
+
+.steps-list li > .btn {
+  flex: none;
+  margin-left: auto;
 }
 
 .steps-list li.off .steps-words {
@@ -3267,7 +3293,7 @@ body.agent-view .titlebar {
 }
 
 .steps-list .steps-words {
-  display: inline-block;
+  flex: 1 1 auto;
   max-width: 440px;
   margin-right: 8px;
   overflow: hidden;
@@ -10498,7 +10524,9 @@ body.sql-window dialog[open] textarea.code-input {
   overflow: hidden;
   border: 0;
   background: none;
-  color: var(--accent);
+  /* The text's own colour: a page of entries is not a wall of accent; the accent shows where the pointer
+     or the focus is (the whole row says it is a link on hover). */
+  color: var(--fg);
   font: inherit;
   text-align: left;
   text-overflow: ellipsis;
@@ -10506,7 +10534,10 @@ body.sql-window dialog[open] textarea.code-input {
   cursor: pointer;
 }
 
-.session-link:hover {
+.session-link:hover,
+.session-link:focus-visible,
+.session-entry:hover .session-link {
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -11612,26 +11643,34 @@ g.follow-pulse > path:first-of-type {
   display: inline-block;
   min-width: 52px;
   padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--method-get-fg) 35%, transparent);
   border-radius: 4px;
   font-family: var(--mono, ui-monospace, monospace);
   font-size: 11px;
   font-weight: 700;
   text-align: center;
-  color: var(--accent-fg);
-  background: var(--cat-1);
+  /* Its own calm colours (GET teal, POST blue, PUT and PATCH amber, DELETE red), never the accent. */
+  color: var(--method-get-fg);
+  background: var(--method-get);
 }
 
 .api-method.m-post {
-  background: var(--cat-2);
+  border-color: color-mix(in srgb, var(--method-post-fg) 35%, transparent);
+  color: var(--method-post-fg);
+  background: var(--method-post);
 }
 
 .api-method.m-put,
 .api-method.m-patch {
-  background: var(--cat-3);
+  border-color: color-mix(in srgb, var(--method-put-fg) 35%, transparent);
+  color: var(--method-put-fg);
+  background: var(--method-put);
 }
 
 .api-method.m-delete {
-  background: var(--error);
+  border-color: color-mix(in srgb, var(--method-delete-fg) 35%, transparent);
+  color: var(--method-delete-fg);
+  background: var(--method-delete);
 }
 
 .api-explorer {
@@ -17440,6 +17479,23 @@ html.rail-names .nav-rail .nav-rail-item[data-gated] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The instance's own title over the widget's default preview (canvasPage.ts instanceText). */
+.cvs-instance-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 8px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--raised);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
 .cvs-missing {
   padding: 6px;
   font-size: 0.78rem;
@@ -19408,6 +19464,8 @@ body.wb-full .wb-col-right {
 .sandbox-never-live { color: var(--sandbox); }
 .connection-card.fam-sandbox { border-left: 4px solid var(--sandbox); }
 .connection-card.fam-sandbox .connection-card-icon { color: var(--sandbox); }
+/* The Sandbox card's status words: the status row's place at the left, across the card (no calls beside). */
+.connection-card-log { grid-row: 2; grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sandbox-mocked select { margin-top: 2px; }
 .sandbox-cell-edit .error-note { margin-top: 2px; max-width: 420px; box-shadow: 0 2px 8px rgb(0 0 0 / 18%); }
 

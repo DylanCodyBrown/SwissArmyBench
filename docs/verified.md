@@ -5668,3 +5668,57 @@ The checks, on the final tree:
   test_project_outline_page, test_environment_page, test_sab_projects, test_table_cells_page,
   test_variables_page, test_sandbox_dashboards, test_query_from_page, test_project_session_page,
   test_rail_pages): 27 passed.
+
+## Screenshot leftovers, 2026-11-22 (branch screen-fixes)
+
+The small things the screenshot pass left ("fix the small things the screenshots found"). A real server from this
+checkout (its state in a temporary folder), made-up data only (a shop project: customers, orders with a year
+column, a relationship, three grid steps, the profile on the board, a sandbox table, a five-method OpenAPI
+document, a canvas with a title and a bar chart, a notebook with one SQL cell, a separate Python session with a
+pandas Series under sab.watch()), photographed in Chromium at 1600 by 950, light and dark, before and after. The
+pictures stay outside the repository. Each one looked at.
+
+1. The ERD marked a referenced key "PK,FK" (customers.cust_key). FK now marks only the column that refers to
+   another table (the many side: many-to-one's from, one-to-many's to, one-to-one's from, both ends of
+   many-to-many); a key only referred to is PK; PK,FK only for a declared key that also refers elsewhere (a 1:1
+   extension table). domain/relationships.py mermaid_erd; tests/test_relationships.py.
+2. A year read "2,018" on the Analyze board's profile. A label column (its name's words: year, fy, id, key, code,
+   zip, postcode, sku, CustomerKey's key; or whole numbers from 1800 to 2200 at both ends) now shows its values
+   without separators, amounts and counts keep theirs: the server's table profile (domain/analysis_cards.py
+   is_label_column, plain) and the page's twins (dom.ts isLabelColumn, plainNumber) in analysisCards.ts (a
+   column's profile: its value statistics and top values; the table's profile; a row's card) and headerCard.ts
+   (a header's Range and Mean). tests/test_analyze_rules.py.
+3. A pandas Series was "? × ? · a table in Python": pandas 3 gives a Series `__arrow_c_stream__`, so the watcher
+   took it for an Arrow table of unknown shape. A pandas or Polars Series is now a variable (client/watcher.py),
+   its size "7 values" (client/kernel_variables.py), its type "Series" (domain/environment.py).
+   tests/test_environment.py.
+4. SQL cells drew JOIN, LEFT, AND, IN, IS, NULL grey (Monaco's SQL grammar tokens them as operators, which its
+   vs themes draw slate grey) beside the blue keywords. The grammar is taken with its word operators as keywords
+   (lazy/codeEditor.ts sqlWords, registered as the sql tokens provider's factory, so the language still loads
+   lazily); the symbols (=, <, +) take the text's colour in our own sab-light and sab-dark themes (VS Code's
+   Light+ and Dark+), and in the diff editor's Modern themes. monacoSql.d.ts types the grammar's module.
+5. The Session page was a wall of accent-red links, and a canvas change read "Sales / Page 1: items changed w1
+   title". Links are the text's colour, the accent and underline on hover or focus (grid.css .session-link); a
+   canvas page's change says which widget and which property, never a value: "Changed the text of title on
+   Page 1", "Added bar_chart to Page 1", "Moved or resized kpi_card on Overview" (domain/changes.py
+   canvas_words, used by change() for the canvas kind, so the Streamlit extension is untouched).
+   tests/test_changes.py.
+6. The Sandbox card's "No changes since the baseline" sat at the right (the calls' place); it is now the status
+   row at the left, across the card (connectionsWindow.ts, grid.css .connection-card-log).
+7. The GET badge was the accent red (red there reads as delete). Method badges have their own tokens per theme
+   (--method-get teal, --method-post blue, --method-put amber for PUT and PATCH, --method-delete red; a tint and
+   its text, each pair 6.4:1 or better in light and dark; high contrast themes plain with coloured text).
+8. The steps dropdown's × followed each row's words; each row is now a flex row with its number, its words and
+   the × in one column at the right (a CSS counter for the numbers).
+9. The Canvas board showed each widget's default preview. Decided: no picture per instance (a Streamlit run and a
+   Qt photograph per edit, and the preview cache keyed by the widget file's hash and theme would grow with every
+   value); the instance's own title, label, heading, header, text or caption is laid over the preview's top where
+   it differs from the widget's default (canvasPage.ts instanceText; no change in extensions/streamlit).
+
+Checks: ruff, ruff format, mypy (1,038 files), the page's typecheck and build: clean. Python tests
+(test_relationships, test_analyze_rules, test_analyze_http, test_environment, test_watch, test_changes,
+test_session_log, test_architecture, test_cards, test_sandbox_cards, test_workbench, test_engine_files, `-n 4`):
+595 passed, 1 failed under the run's load (test_workbench's streaming kernel test; it passes alone).
+Browser tests in this machine's Chromium (the launch pointed there for the run only, never committed), `-n 2`:
+test_session_page, test_environment_page, test_relationships_page, test_steps_page, test_sandbox_gaps_page,
+test_canvas_gaps_page, test_connection_sql_page, test_add_api_page: 20 passed, 3 skipped (no Streamlit here).

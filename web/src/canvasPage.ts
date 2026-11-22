@@ -587,6 +587,7 @@ function drawNode(node: Node): HTMLElement {
           button("Remove", () => void send("delete", { id: node.id }), { class: "ghost" }),
         )
       : preview(node.widget ?? "", "cvs-widget-preview"),
+    missing ? null : instanceText(node, known?.properties ?? []),
     h("div", { class: "cvs-widget-name" }, known?.name ?? node.widget ?? ""),
     node.hidden ? h("div", { class: "cvs-hidden-mark", title: "Hidden in the app" }, icon("eye-off")) : null,
     h("div", { class: "cvs-handle", "data-handle": "se", "aria-hidden": "true" }),
@@ -1065,6 +1066,23 @@ const previews = new Map<string, { state: string; url?: string; said?: string }>
 
 /** Yours first, then the prebuilt ones in the server's order: the starter packs, then by group (Buttons, Inputs...). */
 const grouped = (): WidgetEntry[] => [...widgets].sort((a, b) => Number(a.prebuilt) - Number(b.prebuilt));
+
+/** The instance's own words over its preview. The picture is the widget's, drawn once with its defaults (one
+ *  per widget file and theme: server/previews.py); a picture per instance would mean a Streamlit run and a
+ *  photograph per edit, so the instance's title (or label, heading, text) is laid over its top instead, only
+ *  where it differs from the default the picture shows. Never a table, a wire or a secret: text properties. */
+const INSTANCE_TEXT = ["title", "label", "heading", "header", "text", "caption"];
+function instanceText(node: Node, properties: { name: string; default: unknown }[]): HTMLElement | null {
+  const values = node.values ?? {};
+  for (const name of INSTANCE_TEXT) {
+    const value = values[name];
+    const plain = properties.find((p) => p.name === name)?.default;
+    if (typeof value === "string" && value.trim() && value !== plain && !value.startsWith("out:")) {
+      return h("div", { class: "cvs-instance-text", title: `${name}: ${value}` }, value);
+    }
+  }
+  return null;
+}
 
 /** A widget's rendered preview: the picture when it is made, a placeholder until then, its mark when it failed. */
 function preview(name: string, className: string): HTMLElement {

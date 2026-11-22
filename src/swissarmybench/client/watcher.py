@@ -133,6 +133,8 @@ def _table_kind(cls: type) -> str | None:
         return "relation"
     if root == "duckdb" and cls.__name__ == "DuckDBPyConnection":
         return CONNECTION
+    if root in ("pandas", "polars") and cls.__name__ == "Series":
+        return None  # one column of values, not a table (pandas 3 gives it __arrow_c_stream__): a variable
     if hasattr(cls, "__arrow_c_stream__"):  # a query client's result, and anything else Arrow can read
         return "arrow"
     return None

@@ -68,6 +68,53 @@ def test_the_erd_marks_keys_and_joins() -> None:
     assert "orders }o--|| customers : \"two 'rows' orphaned\"" in mermaid_erd(noted, {})
 
 
+def test_the_erd_marks_fk_only_on_the_referring_side() -> None:
+    # The referenced key is PK only (never PK,FK); the many side's column is FK.
+    model = parse_model(
+        {
+            "tables": {"customers": {}, "orders": {"primary_key": ["order_id"]}, "lines": {}},
+            "relationships": [
+                {
+                    "from": "orders",
+                    "from_columns": ["cust_key"],
+                    "to": "customers",
+                    "to_columns": ["cust_key"],
+                },
+                {
+                    "from": "orders",
+                    "from_columns": ["order_id"],
+                    "to": "lines",
+                    "to_columns": ["order_id"],
+                    "kind": "one-to-many",
+                },
+            ],
+        }
+    )
+    text = mermaid_erd(model, {})
+    assert "key cust_key PK" in text.split("customers {")[1].split("}")[0]
+    assert "PK,FK" not in text
+    orders = text.split("orders {")[1].split("}")[0]
+    assert "key order_id PK" in orders and "key cust_key FK" in orders
+    assert "key order_id FK" in text.split("lines {")[1].split("}")[0]
+    # A declared key that also refers elsewhere (a 1:1 extension table) is both.
+    ext = parse_model(
+        {
+            "tables": {"customers": {"primary_key": ["id"]}, "profiles": {"primary_key": ["id"]}},
+            "relationships": [
+                {
+                    "from": "profiles",
+                    "from_columns": ["id"],
+                    "to": "customers",
+                    "to_columns": ["id"],
+                    "kind": "one-to-one",
+                }
+            ],
+        }
+    )
+    text = mermaid_erd(ext, {})
+    assert "key id PK,FK" in text.split("profiles {")[1] and "key id PK\n" in text.split("customers {")[1]
+
+
 def test_the_routes_merge_replace_and_draw(client: TestClient) -> None:
     grid = grid_id(push(client, "orders", pa.table({"order_id": [1, 2], "cust": ["a", "b"]})))
     # An agent may set relationships: keys and joins are metadata, not cell values.

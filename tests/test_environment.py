@@ -438,3 +438,18 @@ def test_the_watcher_looks_at_once_after_a_cell_runs() -> None:
     finally:
         watcher.stop()
         scan.join(5)
+
+
+def test_a_series_is_a_variable_of_values_never_a_table_of_unknown_size() -> None:
+    # pandas 3 gives a Series __arrow_c_stream__: one column of values, never an unknown size as a table.
+    pd = pytest.importorskip("pandas")
+    from swissarmybench.client import kernel_variables, watcher
+
+    namespace = {
+        "monthly": pd.Series([1.5, 2.0, 3.25, 4.0, 5.0, 6.0, 7.0]),
+        "orders": pd.DataFrame({"a": [1]}),
+    }
+    assert [t.name for t in watcher.find_tables(namespace)] == ["orders"]
+    assert kernel_variables.names(namespace) == [
+        {"name": "monthly", "type": "pandas.Series", "size": "7 values"}
+    ]

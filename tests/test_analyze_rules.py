@@ -670,3 +670,42 @@ def test_the_shape_notes_say_what_stands_in_the_way() -> None:
     assert "note is all blank." in texts
     assert "Identifiers (never analysed): id." in texts
     assert Z.table_notes("none", 0, [])[0] == {"level": "warn", "text": "none has no rows."}
+
+
+def test_a_year_or_an_identifier_reads_without_separators() -> None:
+    # The profile's Lowest and Highest: 2018, never 2,018; an amount keeps its commas.
+    from swissarmybench.domain import analysis_cards as K
+
+    assert (
+        K.is_label_column("order_year") and K.is_label_column("CustomerKey") and K.is_label_column("cust_id")
+    )
+    assert K.is_label_column("made", 2015, 2024) and not K.is_label_column("amount", 15, 20240)
+    assert not K.is_label_column("amount") and not K.is_label_column("idle_minutes", 0, 90000)
+    body = K.profile_cards(
+        {
+            "rows": 3,
+            "duplicate_rows": 0,
+            "columns": [
+                {
+                    "column": "year",
+                    "type": "BIGINT",
+                    "blanks": 0,
+                    "blank_percent": 0,
+                    "distinct": 3,
+                    "min": 2018,
+                    "max": 2024,
+                },
+                {
+                    "column": "amount",
+                    "type": "BIGINT",
+                    "blanks": 0,
+                    "blank_percent": 0,
+                    "distinct": 3,
+                    "min": 1500,
+                    "max": 25000,
+                },
+            ],
+        },
+        "orders",
+    )[0]["body"]
+    assert "| 2018 | 2024 |" in body and "2,018" not in body and "| 1,500 | 25,000 |" in body

@@ -516,30 +516,41 @@ def _ident(name: str) -> str:
 
 
 def mermaid_erd(model: Model, columns: dict[str, list[tuple[str, str]]], only: set[str] | None = None) -> str:
-    """The model as a Mermaid erDiagram: one box per table holding only its key columns (PK, and
-    FK for columns a join uses), with crow's-foot lines for the joins. `columns` gives each open
-    table's (name, type) list for the types; `only` limits the diagram to those tables."""
+    """The model as a Mermaid erDiagram: one box per table holding only its key columns, with
+    crow's-foot lines for the joins. FK marks a column that refers to another table (a join's many
+    side: many-to-one's from, one-to-many's to, one-to-one's from, both ends of many-to-many); PK
+    marks the table's declared key and a column only referred to (a join's one side): customers.
+    cust_key is PK, orders.cust_key FK; PK,FK only for a declared key that also refers elsewhere.
+    `columns` gives each open table's (name, type) list for the types; `only` limits the diagram
+    to those tables."""
     tables = sorted(t for t in model.tables() if only is None or t in only)
     fk: dict[str, set[str]] = {}
+    referred: dict[str, set[str]] = {}
     for r in model.relationships:  # the joins drawn: a column of a join to a table not drawn is no FK here
         if r.from_table not in tables or r.to_table not in tables:
             continue
-        fk.setdefault(r.from_table, set()).update(r.from_columns)
-        fk.setdefault(r.to_table, set()).update(r.to_columns)
+        many_from = r.kind in ("many-to-one", "one-to-one", "many-to-many")
+        many_to = r.kind in ("one-to-many", "many-to-many")
+        (fk if many_from else referred).setdefault(r.from_table, set()).update(r.from_columns)
+        (fk if many_to else referred).setdefault(r.to_table, set()).update(r.to_columns)
     lines = ["erDiagram"]
     for table in tables:
-        pk = set(model.keys.get(table, ()))
-        keys = pk | fk.get(table, set())
+        own = fk.get(table, set())
+        # A column only referred to is the table's key (PK); one that refers elsewhere is FK, and
+        # PK,FK only where the table's declared key also refers to another table (a 1:1 extension).
+        pk = set(model.keys.get(table, ())) | (referred.get(table, set()) - own)
+        keys = pk | own
         types = dict(columns.get(table, []))
         # Keys only, in the table's own column order where it is open (else the key's order).
         order = [name for name, _ in columns.get(table, [])] or [
             *model.keys.get(table, ()),
-            *sorted(fk.get(table, set())),
+            *sorted(referred.get(table, set()) - set(model.keys.get(table, ()))),
+            *sorted(own),
         ]
         cols = [(name, types.get(name, "key")) for name in dict.fromkeys(order) if name in keys]
         lines.append(f"    {_ident(table)} {{")
         for name, type_name in cols:
-            marks = ",".join(m for m, on in (("PK", name in pk), ("FK", name in fk.get(table, set()))) if on)
+            marks = ",".join(m for m, on in (("PK", name in pk), ("FK", name in own)) if on)
             word = _ident(type_name.split("(")[0].lower()) or "value"
             lines.append(f"        {word} {_ident(name)}{' ' + marks if marks else ''}")
         lines.append("    }")
