@@ -5,10 +5,14 @@ shape fits it and why, and the defaults its shape suggests.
 Every template is written in the scaffold's one style: the adapter's `connection(name).read / .query /
 .write` (adapters/adapter.py's Connection), never a per-source client, so the code runs on the sandbox here
 and on the real connection in an export. The filters, the columns, the sort, the page and the keys go to the
-source in the read's plan; no endpoint reads a whole large table a call. Summary folds its group and totals
-into the plan; a summary by period and Reconcile are one statement in the source's own SQL through `query`
-where the source has SQL, and where it has none (Dataverse's Web API, SharePoint, two different connections)
-they read only the columns they need and DuckDB does the rest over the stream, said in the endpoint's words.
+source in the read's plan; no endpoint reads a whole large table a call. Summary is one plan for every
+source, by period too (the adapter's Period, 1.8.0: folded into the source's own SQL, else its columns read
+and grouped by DuckDB over the stream); Search and Choices look in any case (contains, 1.9.0); a date goes
+as a date (1.5.0); Bulk upload's dry run is the connection's planned (1.7.0); an Action may add a row a key
+to a second table of the same connection, both written by write_all in one transaction (1.6.0). Reconcile is
+one statement in the source's own SQL through `query` where the source has SQL, and where it has none
+(Dataverse's Web API, SharePoint, two different connections) it reads only the columns it needs and DuckDB
+joins them over the stream, said in the endpoint's words.
 
 Pure text: standard library and sqlglot only.
 """
@@ -29,7 +33,7 @@ from swissarmybench.domain import local_api as api_rules
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.api_scaffold import ScaffoldError, Source, py
 
-PERIODS = ("day", "month", "quarter", "year")
+PERIODS = ("day", "week", "month", "quarter", "year")  # the adapter's Period units (a week from Monday)
 TOTALS = ("count", "sum", "avg", "min", "max", "count_distinct")
 FORMATS = ("csv", "xlsx")
 _KINDS = {"int": "number", "float": "number", "bool": "flag", "date": "date", "datetime": "date"}
@@ -266,9 +270,7 @@ def make_choices(target: Target, fields: Mapping[str, Any], taken: Taken, other:
     types = target.types
     searched = types[label] == "str"
     shown = {n: types[n] for n in picked} | ({} if whole else {"rows": "int"})
-    filters = (
-        f'    filters = [[{py(label)}, "like", f"%{{search}}%"]] if search else []\n' if searched else ""
-    )
+    filters = f'    filters = [[{py(label)}, "contains", search]] if search else []\n' if searched else ""
     narrowed = '"filters": filters, ' if searched else ""
     if whole:
         plan = (
@@ -287,7 +289,7 @@ def make_choices(target: Target, fields: Mapping[str, Any], taken: Taken, other:
         words = f"each {_words(picked)} it holds, once, with how many rows have it"
         more = "The group and the count are the read's plan: the source does them where it can"
     if searched:
-        more += f"; ?search= narrows by {label}"
+        more += f"; ?search= narrows by {label}, in any case"
     text = _fill(
         _CHOICES,
         head=_head("choices", "Choices", target),
@@ -367,17 +369,17 @@ def make_search(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
     params, filters, said = [], [], []
     if text_in:
         params.append('    q: str = "",\n')
-        filters.append(f'    if q:\n        filters.append([{py(text_in)}, "like", f"%{{q}}%"])\n')
-        said.append(f"?q= looks in {text_in}")
+        filters.append(f'    if q:\n        filters.append([{py(text_in)}, "contains", q])\n')
+        said.append(f"?q= looks in {text_in}, in any case")
     for name in by:
         kind = types[name]
         if kind in ("date", "datetime"):
             params.append(f"    from_{name}: {kind} | None = None,\n    to_{name}: {kind} | None = None,\n")
             filters.append(
                 f"    if from_{name} is not None:\n"
-                f'        filters.append([{py(name)}, ">=", from_{name}.isoformat()])\n'
+                f'        filters.append([{py(name)}, ">=", from_{name}])\n'
                 f"    if to_{name} is not None:\n"
-                f'        filters.append([{py(name)}, "<=", to_{name}.isoformat()])\n'
+                f'        filters.append([{py(name)}, "<=", to_{name}])\n'
             )
         else:
             params.append(f"    {name}: {kind} | None = None,\n")
@@ -419,7 +421,7 @@ def defaults_search(target: Target, other: Target | None) -> dict[str, Any]:
 
 # ===== summary =====
 
-_SUMMARY_PLAN = '''<<head>><<model>>
+_SUMMARY = '''<<head>><<model>>
 
 @endpoint("GET", "<<path>>")
 def <<fn>>(
@@ -427,56 +429,16 @@ def <<fn>>(
 ) -> list[<<model_name>>]:
     """<<table>>: <<words>>.
 
-    The group and the totals are the read's plan: the source does them where it can."""
+    <<parts>> are the read's plan: the source does them where it can."""
     filters: list[list] = []
 <<filters>>    plan = {
-        "group": <<group>>,
+<<periods>>        "group": <<group>>,
         "totals": <<totals>>,
         "filters": filters,
         "sort": <<sort>>,
         "limit": limit,
     }
     return records(<<c>>.read(<<t>>, plan))
-'''
-
-_SUMMARY_SQL = '''<<head>><<model>>
-
-@endpoint("GET", "<<path>>")
-def <<fn>>(since: date | None = None) -> list[<<model_name>>]:
-    """<<table>>: <<words>>.
-
-    One statement in the source's own SQL: it groups, only the totals come back (from `since` on)."""
-    start = (since or date(1900, 1, 1)).isoformat()
-    return records(
-        <<c>>.query(
-            f"""
-<<sql>>
-            """
-        )
-    )
-'''
-
-_SUMMARY_STREAM = '''<<head>><<model>>
-
-@endpoint("GET", "<<path>>")
-def <<fn>>(since: date | None = None) -> list[<<model_name>>]:
-    """<<table>>: <<words>>.
-
-    <<source>> cannot group by a period, so only the columns it needs are read (from `since` on) and
-    DuckDB groups them over the stream."""
-    import duckdb
-
-    filters = [[<<date>>, ">=", since.isoformat()]] if since is not None else []
-    rows = <<c>>.read(<<t>>, columns=<<needed>>, filters=filters)
-    engine = duckdb.connect()
-    engine.register("rows", rows)
-    return records(
-        engine.sql(
-            """
-<<sql>>
-            """
-        ).to_arrow_table()
-    )
 '''
 
 
@@ -505,19 +467,6 @@ def _total_type(target: Target, fn: str, column: str) -> str:
     if fn == "avg":
         return "float"
     return target.types.get(column, "float")
-
-
-_SQL_FN = {"count": "COUNT", "sum": "SUM", "avg": "AVG", "min": "MIN", "max": "MAX"}
-
-
-def _total_sql(fn: str, column: str, name: str) -> exp.Expr:
-    if fn == "count" and not column:
-        made: exp.Expr = exp.Count(this=exp.Star())
-    elif fn == "count_distinct":
-        made = exp.Count(this=exp.Distinct(expressions=[exp.column(column, quoted=True)]))
-    else:
-        made = exp.func(_SQL_FN[fn], exp.column(column, quoted=True))
-    return exp.alias_(made, name, quoted=True)
 
 
 def _table_sql(place: str) -> exp.Table:
@@ -581,58 +530,32 @@ def make_summary(target: Target, fields: Mapping[str, Any], taken: Taken, other:
         "c": _c(target),
         "t": py(target.place),
     }
-    if not period:
-        params, filters = [], []
-        for name in group:
-            params.append(f"    {name}: {types[name]} | None = None,\n")
-            filters.append(f'    if {name} is not None:\n        filters.append([{py(name)}, "=", {name}])\n')
-        plan_totals = [
-            {"fn": f, "name": name} | ({"column": column} if column else {}) for f, column, name in totals
-        ]
-        text = _fill(
-            _SUMMARY_PLAN,
-            **common,
-            params="".join(params),
-            filters="".join(filters),
-            group=py(group),
-            totals=py(plan_totals),
-            sort=py([[g, "asc"] for g in group]),
-        )
-        return Made(text, [fn])
-    quoted = '"' + when.replace('"', '""') + '"'
-    bucket = sqlglot.parse_one(f"CAST(DATE_TRUNC('{period}', {quoted}) AS DATE)", read="duckdb")
-    picked: list[exp.Expr] = [exp.alias_(bucket, "period", quoted=True)]
-    picked += [exp.column(g, quoted=True) for g in group]
-    picked += [_total_sql(f, column, name) for f, column, name in totals]
-    grouped: list[exp.Expr] = [bucket.copy(), *(exp.column(g, quoted=True) for g in group)]
-    if target.source.kind in _SQL_KINDS:
-        since = exp.column(when, quoted=True) >= exp.cast(exp.Literal.string("9999-12-31"), "date")
-        tree = (
-            exp.select(*picked)
-            .from_(_table_sql(target.place))
-            .where(since)
-            .group_by(*grouped)
-            .order_by(*[g.copy() for g in grouped])
-        )
-        sql = _in_dialect(tree, target.source).replace("9999-12-31", "{start}")
-        return Made(_fill(_SUMMARY_SQL, **common, sql=sql), [fn])
-    tree = (
-        exp.select(*picked)
-        .from_(exp.table_("rows"))
-        .group_by(*grouped)
-        .order_by(*[g.copy() for g in grouped])
-    )
-    sql = "\n".join("            " + line for line in tree.sql(dialect="duckdb", pretty=True).split("\n"))
-    needed = list(dict.fromkeys([when, *group, *[column for _, column, _ in totals if column]]))
+    # One plan for every source: the period, the group and the totals go to the source in the read's plan
+    # (the adapter's Period: DATE_TRUNC, DATEFROMPARTS, TRUNC in its own SQL), and where it has none
+    # (Dataverse's Web API, SharePoint) the adapter reads only the columns it needs and DuckDB groups them.
+    params, filters = [], []
+    for name in group:
+        params.append(f"    {name}: {types[name]} | None = None,\n")
+        filters.append(f'    if {name} is not None:\n        filters.append([{py(name)}, "=", {name}])\n')
+    if period:  # a date, sent as a date (the adapter keeps its type through the sandbox's door)
+        params.insert(0, "    since: date | None = None,\n")
+        filters.insert(0, f'    if since is not None:\n        filters.append([{py(when)}, ">=", since])\n')
+    plan_totals = [
+        {"fn": f, "name": name} | ({"column": column} if column else {}) for f, column, name in totals
+    ]
+    periods = [{"column": when, "unit": period, "name": "period"}] if period else []
     text = _fill(
-        _SUMMARY_STREAM,
+        _SUMMARY,
         **common,
-        sql=sql,
-        source=target.source.connection,
-        date=py(when),
-        needed=py(needed),
+        parts="The period, the group and the totals" if period else "The group and the totals",
+        params="".join(params),
+        filters="".join(filters),
+        periods=f'        "periods": {py(periods)},\n' if period else "",
+        group=py(group),
+        totals=py(plan_totals),
+        sort=py([[g, "asc"] for g in (["period"] if period else []) + group]),
     )
-    return Made(text, [fn], streams=True, words="DuckDB groups it over the stream")
+    return Made(text, [fn])
 
 
 def fit_summary(target: Target, others: Sequence[Target]) -> tuple[int, str]:
@@ -720,13 +643,13 @@ def <<fn>>(rows: list[dict], dry_run: bool = False) -> <<model_name>>:
         seen.setdefault(key, at)
         clean.append(kept)
     keys = [k for k in seen if k is not None]
-    there: set[object] = set()
-    for start in range(0, len(keys), 500):  # only the keys sent are looked up, 500 a read
-        found = <<c>>.read(<<t>>, columns=[<<key_r>>], filters=[[<<key_r>>, "in", keys[start : start + 500]]])
-        there.update(r[<<key_r>>] for r in records(found))
+    inserted = updated = 0
+    if keys:  # the write's own dry run, by the keys alone: those there are updated, the rest added
+        counted = <<c>>.planned(<<t>>, [{<<key_r>>: k} for k in keys], key=[<<key_r>>], mode="merge")
+        inserted, updated = counted.inserted, counted.updated
 <<insert_only>>    answer: <<model_name>> = {
         "rows": len(rows),
-        "inserted": len(keys) - len(there),
+        "inserted": inserted,
         "updated": <<updated>>,
         "written": False,
         "problems": problems[:200],
@@ -744,7 +667,11 @@ def <<fn>>(rows: list[dict], dry_run: bool = False) -> <<model_name>>:
     return answer | {"inserted": done.inserted, "updated": done.updated, "written": True}
 '''
 
-_BULK_INSERT_ONLY = """    for at, row in enumerate(rows, 1):
+_BULK_INSERT_ONLY = """    there: set[object] = set()
+    for start in range(0, len(keys), 500):  # which keys are there already: only those sent, 500 a read
+        found = <<c>>.read(<<t>>, columns=[<<key_r>>], filters=[[<<key_r>>, "in", keys[start : start + 500]]])
+        there.update(r[<<key_r>>] for r in records(found))
+    for at, row in enumerate(rows, 1):
         if row.get(<<key_r>>) in there:
             problems.append({"row": at, "column": <<key_r>>, "problem": "is already in <<table>>"})
 """
@@ -763,7 +690,11 @@ def make_bulk(target: Target, fields: Mapping[str, Any], taken: Taken, other: Ta
     upper = stem.upper()
     taken.free(fn, model, f"_problem_{stem}", f"{upper}_COLUMNS", f"{upper}_REQUIRED")
     taken.open(path)
-    insert_only = _fill(_BULK_INSERT_ONLY, key_r=py(key), table=target.name) if mode == "insert" else ""
+    insert_only = (
+        _fill(_BULK_INSERT_ONLY, key_r=py(key), table=target.name, c=_c(target), t=py(target.place))
+        if mode == "insert"
+        else ""
+    )
     text = _fill(
         _BULK,
         head=_head("bulk", "Bulk upload", target),
@@ -779,7 +710,7 @@ def make_bulk(target: Target, fields: Mapping[str, Any], taken: Taken, other: Ta
         key_r=py(key),
         also=f", a {key} already there" if mode == "insert" else "",
         insert_only=insert_only,
-        updated="len(there)" if mode == "merge" else "0",
+        updated="updated" if mode == "merge" else "0",
         c=_c(target),
         t=py(target.place),
         mode=py(mode),
@@ -815,7 +746,7 @@ class <<done_name>>(TypedDict):
 def <<fn>>(sent: <<body_name>>) -> <<done_name>>:
     """<<table>>: <<words>>.
 
-    Every key is checked first; then one write, all of the rows or none."""
+    Every key is checked first; then <<written>>."""
     keys = list(dict.fromkeys(sent["keys"]))
     if not keys:
         raise ApiError(422, "Send at least one key.")
@@ -828,9 +759,16 @@ def <<fn>>(sent: <<body_name>>) -> <<done_name>>:
         gone = f"{len(missing)} of {len(keys)} are not there"
         raise ApiError(404, f"No <<table>> row has <<key>> {missing[0]} ({gone}).")
 <<only>>    changes = [{<<key_r>>: k, <<sets>>} for k in keys]
-    done = <<c>>.write(<<t>>, changes, key=[<<key_r>>], mode="update")  # one write: all or none
-    return {"changed": done.updated, "keys": keys}
+<<write>>    return {"changed": done.updated, "keys": keys}
 '''
+
+_ACTION_ONE = """\
+    done = <<c>>.write(<<t>>, changes, key=[<<key_r>>], mode="update")  # one write: all or none
+"""
+
+_ACTION_LOGGED = """    logged = [{<<logged>>} for k in keys]  # a row each in <<log>>
+    done, _ = <<c>>.write_all([(<<t>>, changes, [<<key_r>>], "update"), (<<log_t>>, logged)])
+"""
 
 _ACTION_ONLY = """    wrong = [row[<<key_r>>] for row in found if row[<<only_r>>] != <<only_value>>]
     if wrong:
@@ -882,8 +820,18 @@ def make_action(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
             only_said=str(value),
         )  # fmt: skip
         words += f", only while {only} is {py(value)}"
+    write = _fill(_ACTION_ONE, c=_c(target), t=py(target.place), key_r=py(key))
+    written = "one write, all of the rows or none"
+    if other is not None:  # a row each in another table of the same connection, in the same transaction
+        logged = _logged(target, other, key, name)
+        write = _fill(_ACTION_LOGGED, c=_c(target), t=py(target.place), key_r=py(key), log=other.name,
+                      log_t=py(other.place), logged=logged)  # fmt: skip
+        written = f"the change and a row each in {other.name}, in one transaction: both or neither"
+        words += f", a row each added to {other.name}"
     text = _fill(
         _ACTION,
+        write=write,
+        written=written,
         head=_head("action", "Action", target),
         body_name=body,
         done_name=done,
@@ -901,6 +849,38 @@ def make_action(target: Target, fields: Mapping[str, Any], taken: Taken, other: 
         sets=", ".join(f"{py(column)}: {py(value)}" for column, value in sets.items()),
     )
     return Made(text, [fn], [key])
+
+
+_NOTE = ("action", "event", "note", "said", "what", "change", "kind")  # a log's column for the action's name
+_WHEN = ("at", "when", "time", "logged", "changed", "created", "date", "on")  # and for its time
+
+
+def _logged(target: Target, log: Target, key: str, action: str) -> str:
+    """The fields of the row an action adds to its log table for each key k: the key in the log's column of
+    its name (or <table>_<key>), the action's name in a note column, its time in a date column (found by
+    their names; the log's other columns left to the database's defaults)."""
+    if (target.source.kind, target.source.connection) != (log.source.kind, log.source.connection):
+        raise ScaffoldError(
+            f"An action writes two tables all or none on one connection: {target.name} is "
+            f"{target.source.connection}'s and {log.name} is {log.source.connection}'s."
+        )
+    if log.name == target.name:
+        raise ScaffoldError("The table it adds a row to is another table than the one it changes.")
+    wanted = (key.casefold(), f"{scaffold.stem(target.name)}_{key}".casefold())
+    at = next((n for n in log.names if n.casefold() in wanted), "")
+    if not at:
+        raise ScaffoldError(f"{log.name} has no {key} column (nor {wanted[1]}) for the key it notes.")
+    fields = [f"{py(at)}: k"]
+    note = next((n for n in log.of("text") if any(h == n.casefold() for h in _NOTE)), "")
+    if note:
+        fields.append(f"{py(note)}: {py(action)}")
+    dates = [n for n in log.of("date") if n != at]
+    when = next(
+        (n for n in dates if any(h in n.casefold().split("_") for h in _WHEN)), dates[0] if dates else ""
+    )
+    if when:
+        fields.append(f"{py(when)}: {'datetime.now()' if log.types[when] == 'datetime' else 'date.today()'}")
+    return ", ".join(fields)
 
 
 _STATUS = ("status", "state", "stage", "approved", "closed", "active", "done", "flag")

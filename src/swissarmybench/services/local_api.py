@@ -488,6 +488,9 @@ class LocalApi:
         if pattern.tables == 2:
             second = self._named(listed, given.get("other"))
             other = self._target(second) if second is not None else pattern_rules.partner(target, others)
+        elif given.get("other"):  # a second table a one-table pattern may take (an action's log)
+            second = self._named(listed, given.get("other"))
+            other = self._target(second) if second is not None else None
         fields = given.get("fields") if isinstance(given.get("fields"), dict) else {}
         answer["plan"] = self.patterns.planned(pattern.id, target, fields, other)
         answer["others"] = [t["name"] for t in tables if t["name"] != target.name]
@@ -525,6 +528,11 @@ class LocalApi:
             second = self._named(listed, given.get("other"))
             if second is None:
                 raise NotFound(f"{pattern.label} compares two sandbox tables: name the second one (other).")
+            other = self._target(second)
+        elif given.get("other"):  # a second table a one-table pattern may take (an action's log)
+            second = self._named(listed, given.get("other"))
+            if second is None:
+                raise NotFound(f"The sandbox has no table {given.get('other')} for {pattern.label}.")
             other = self._target(second)
         dry = bool(given.get("dry_run"))
         if self._text() is None and not dry:

@@ -69,6 +69,7 @@ LEDGER_CSV = (
     "9,10.0,2026-03-09\n"
 )
 FORMS_CSV = "form_id,version,title\n1,1,Intake\n1,2,Intake two\n2,1,Exit\n"
+AUDIT_CSV = "order_id,action,at\n9,opened,2026-01-01 08:00:00\n"  # an action's log: a row a key it changed
 STYLES = (
     scaffold.Source("duckdb", "Sandbox"),
     scaffold.Source("database", "Warehouse", "sqlserver", "dbo"),
@@ -133,7 +134,7 @@ def test_the_nine_patterns_are_data_with_their_own_steps_and_widgets() -> None:
     assert steps["table"] == ["key"]
     assert steps["summary"] == ["group", "totals", "date", "period"]
     assert steps["reconcile"] == ["other", "key", "compare"] and listed["reconcile"]["tables"] == 2
-    assert steps["action"] == ["name", "key", "sets", "only", "only_value"]
+    assert steps["action"] == ["name", "key", "sets", "only", "only_value", "log"]
     assert len({tuple(s) for s in steps.values()}) == 9
     for p in listed.values():
         assert p["question"].endswith(".") and p["label"]
@@ -253,33 +254,66 @@ def test_every_pattern_compiles_reads_and_is_marked_in_every_source_style(source
     assert patterns.pattern_at(hand, rules.parse(hand).endpoints[-1].line) == ("", "")
     # The first sentence of each docstring is whole (it is the endpoint's summary on the APIs page).
     assert all(e.summary.endswith(".") for e in api.endpoints), [e.summary for e in api.endpoints]
-    # What the source can fold is one statement of its own SQL; what it cannot, DuckDB over the stream.
+    # A summary is a plan for every source, by period too (the adapter folds it, or groups over the stream);
+    # a reconcile is one statement of the source's own SQL where it can be, else DuckDB over two streams.
     has_sql = source.kind in ("duckdb", "database")
-    assert by["summary_orders_by_month"].streams is (not has_sql)
     assert by["reconcile_orders_ledger"].streams is (not has_sql or source.dialect == "mysql")
-    assert not by["summary_orders_by_region"].streams  # a plan: the adapter folds it
-    if has_sql:
-        assert by["summary_orders_by_month"].sql and by["summary_orders_by_month"].sql[0]["formatted"]
+    for summary in ("summary_orders_by_region", "summary_orders_by_month"):
+        assert not by[summary].streams and by[summary].sql == [], summary
+    # No date is sent as ISO text any more: the adapter keeps a date's type (1.5.0).
+    assert ".isoformat()" not in text
 
 
-def test_a_summary_by_period_and_a_reconcile_are_written_in_the_sources_own_sql() -> None:
-    tsql = _all(STYLES[1])
-    assert "CAST(DATETRUNC(MONTH, [order_date]) AS DATE) AS [period]" in tsql
+def test_a_summary_by_period_is_one_plan_and_a_reconcile_the_sources_own_sql() -> None:
+    tsql, postgres, odata = _all(STYLES[1]), _all(STYLES[2]), _all(STYLES[7])
+    # The period is the plan's (adapter 1.8.0): the same text for every source, folded or grouped by the
+    # adapter; `since` a date sent as a date.
+    for text in (tsql, postgres, odata):
+        assert '"periods": [{"column": "order_date", "unit": "month", "name": "period"}],' in text
+        assert 'if since is not None:\n        filters.append(["order_date", ">=", since])' in text
+        assert '"sort": [["period", "asc"]],' in text
+        assert "DATE_TRUNC" not in text and "DATETRUNC" not in text
+        assert 'engine.register("rows", rows)' not in text  # the old summary's own DuckDB went
     assert "FROM [dbo].[orders] AS l" in tsql and "FULL OUTER JOIN [dbo].[ledger] AS r" in tsql
     assert "OFFSET {int(offset)} ROWS" in tsql and "FETCH FIRST {int(limit)} ROWS ONLY" in tsql
-    postgres = _all(STYLES[2])
-    assert 'CAST(DATE_TRUNC(\'MONTH\', "order_date") AS DATE) AS "period"' in postgres
     assert 'FROM "public"."orders" AS l' in postgres and "LIMIT {int(limit)}" in postgres
-    # Dataverse's Web API has no SQL: the columns it needs are read with a plan, DuckDB does the rest.
-    odata = _all(STYLES[7])
-    assert (
-        'connection("Sales CRM").read("orders", columns=["order_date", "amount"], filters=filters)' in odata
-    )
+    # Dataverse's Web API has no SQL: Reconcile reads the columns it needs with a plan, DuckDB joins them.
     assert 'engine.register("left_rows", connection("Sales CRM").read("orders", columns=' in odata
     assert ".query(" not in odata
+    # Search and Choices look in any case (adapter 1.9.0); Search's dates go as dates.
+    assert 'filters.append(["customer", "contains", q])' in tsql
+    assert 'filters = [["region", "contains", search]] if search else []' in tsql
+    assert 'filters.append(["order_date", ">=", from_order_date])' in tsql
+    # Bulk upload's dry run is the connection's own (1.7.0): the keys alone, counted by the source.
+    assert 'counted = connection("Warehouse").planned("dbo.orders", [{"order_id": k} for k in keys]' in tsql
     # The page, the filters and the keys always go to the source in the read's plan.
     assert '"limit": limit, "offset": offset}' in tsql
-    assert 'filters=[["order_id", "in", keys[start : start + 500]]]' in tsql
+    assert 'filters=[["order_id", "in", keys]]' in tsql  # an action reads only the keys it was sent
+
+
+@pytest.mark.parametrize("source", STYLES, ids=lambda s: s.dialect if s.kind == "database" else s.kind)
+def test_an_action_notes_each_key_in_a_second_table_all_or_none(source: scaffold.Source) -> None:
+    registry = patterns.Registry()
+    tables = _targets(source)
+    audit = patterns.Target("audit", ({"name": "order_id", "type": "BIGINT"},
+                                      {"name": "action", "type": "VARCHAR"},
+                                      {"name": "at", "type": "TIMESTAMP"}), source)  # fmt: skip
+    fields = {"name": "close", "sets": [{"column": "status", "value": "closed"}]}
+    made = registry.make("action", tables["orders"], fields, None, audit)
+    assert 'logged = [{"order_id": k, "action": "close", "at": datetime.now()} for k in keys]' in made.text
+    assert ".write_all([(" in made.text and '"update"), (' in made.text
+    assert "a row each in audit, in one transaction: both or neither." in made.text
+    assert "from datetime import datetime" in scaffold.imports_missing("", made.text)  # what API.py adds
+    # The ledger has the key and a date (posted: today's), no note column.
+    noted = registry.make("action", tables["orders"], fields, None, tables["ledger"]).text
+    assert 'logged = [{"order_id": k, "posted": date.today()} for k in keys]' in noted
+    elsewhere = patterns.Target("audit", audit.columns, scaffold.Source("duckdb", "Elsewhere"))
+    with pytest.raises(scaffold.ScaffoldError, match="on one connection: orders is"):
+        registry.make("action", tables["orders"], fields, None, elsewhere)
+    with pytest.raises(scaffold.ScaffoldError, match="forms has no order_id column"):
+        registry.make("action", tables["orders"], fields, None, tables["forms"])
+    alone = registry.make("action", tables["orders"], fields).text  # no second table: one write as before
+    assert ".write_all(" not in alone and "one write, all of the rows or none." in alone
 
 
 def test_a_pattern_refuses_what_it_cannot_make_in_one_sentence() -> None:
@@ -399,10 +433,16 @@ def test_every_pattern_runs_against_the_sandbox(live: int, tmp_path: Path) -> No
         csv = tmp_path / f"{name}.csv"
         csv.write_text(text, encoding="utf-8")
         _ask(port, "POST", "/sandbox/tables", {"from": "file", "path": str(csv)})
-    for name, text in (("invoices", ORDERS_CSV), ("postings", LEDGER_CSV), ("visits", ORDERS_CSV)):
+    for name, text in (
+        ("invoices", ORDERS_CSV),
+        ("postings", LEDGER_CSV),
+        ("visits", ORDERS_CSV),
+        ("audit", AUDIT_CSV),
+    ):
         csv = tmp_path / f"{name}.csv"
         csv.write_text(text, encoding="utf-8")
         _ask(port, "POST", "/sandbox/tables", {"from": "file", "path": str(csv), "name": name})
+    _ask(port, "POST", "/sandbox/tables/key", {"table": "audit", "key": ["order_id"]})  # one note an order
     warehouse = {"kind": "database", "connection": "Warehouse", "dialect": "sqlserver"}
     _mock_as(folder, "invoices", warehouse, "dbo")
     _mock_as(folder, "postings", warehouse, "dbo")
@@ -411,6 +451,7 @@ def test_every_pattern_runs_against_the_sandbox(live: int, tmp_path: Path) -> No
     # ----- the wizard's one read: the tables, then the patterns ranked, then a pattern's steps and code -----
     first = _ask(port, "POST", "/local-api/plan", {})
     assert [t["name"] for t in first["tables"]] == [
+        "audit",
         "forms",
         "invoices",
         "ledger",
@@ -458,10 +499,11 @@ def test_every_pattern_runs_against_the_sandbox(live: int, tmp_path: Path) -> No
         assert done["added"] and done["pattern"] == wanted, done
     month: dict[str, Any] = {"group": [], "date": "order_date", "period": "month"}
     extra: tuple[tuple[str, str, dict[str, Any], str | None], ...] = (
-        ("summary", "invoices", month, None),  # one statement of T-SQL, through the mock
+        ("summary", "invoices", month, None),  # the plan's period in T-SQL, through the mock
         ("reconcile", "invoices", {}, "postings"),  # the two joined by the source, in T-SQL
-        ("summary", "visits", month, None),  # Dataverse has no SQL: DuckDB over the stream
+        ("summary", "visits", month, None),  # Dataverse has no SQL: the adapter groups over the stream
         ("reconcile", "orders", {"key": ["order_id"], "compare": ["amount"]}, "postings"),  # two connections
+        ("action", "orders", {"name": "close", "sets": [{"column": "status", "value": "closed"}]}, "audit"),
     )
     for wanted, table, fields, other in extra:
         body = {"table": table, "pattern": wanted, "fields": fields} | ({"other": other} if other else {})
@@ -485,7 +527,7 @@ def test_every_pattern_runs_against_the_sandbox(live: int, tmp_path: Path) -> No
     assert by["summary_orders_by_month"]["data"] == ["The sandbox (plain DuckDB)"]
     assert by["summary_invoices_by_month"]["data"] == ["Mock of Warehouse (sqlserver)"]
     stream = "DuckDB does part of it over the stream (its source cannot)"
-    assert by["summary_visits_by_month"]["data"] == ["Mock of Sales CRM (dataverse)", stream]
+    assert by["summary_visits_by_month"]["data"] == ["Mock of Sales CRM (dataverse)"]  # a plan: the adapter's
     assert by["reconcile_orders_postings"]["data"] == [
         "The sandbox (plain DuckDB)",
         "Mock of Warehouse (sqlserver)",
@@ -618,6 +660,13 @@ def test_every_pattern_runs_against_the_sandbox(live: int, tmp_path: Path) -> No
         )
         assert call("POST", "/orders/approve", {"keys": []})["status"] == 422
 
+        # ----- an action over two tables of one connection: the change and its notes, both or neither -----
+        assert call("POST", "/orders/close", {"keys": [1]})["body"] == {"changed": 1, "keys": [1]}
+        assert call("GET", "/orders/1")["body"]["status"] == "closed"
+        twice = call("POST", "/orders/close", {"keys": [4, 1]})  # order 1 is noted already: audit refuses it
+        assert twice["status"] >= 400, twice
+        assert call("GET", "/orders/4")["body"]["status"] == "open"  # its change rolled back with the note
+
         # ----- versions: earlier ones never change -----
         assert [r["version"] for r in call("GET", "/forms/1/versions")["body"]] == [2, 1]
         assert call("GET", "/forms/1/current")["body"]["title"] == "Intake two"
@@ -633,8 +682,9 @@ def test_every_pattern_runs_against_the_sandbox(live: int, tmp_path: Path) -> No
     finally:
         _ask(port, "POST", "/local-api/stop", {})
     log = _ask(port, "GET", "/sandbox")["log"]
-    assert log["orders"] == {"inserted": 1, "updated": 3, "deleted": 0}
+    assert log["orders"] == {"inserted": 1, "updated": 4, "deleted": 0}  # the failed close: none of it
     assert log["forms"] == {"inserted": 2, "updated": 0, "deleted": 0}
+    assert log["audit"] == {"inserted": 1, "updated": 0, "deleted": 0}
 
 
 # ===== exports: all nine for the three targets, run against the real connection =====

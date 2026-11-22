@@ -19,10 +19,11 @@ Every template is written in the scaffold's one style: the adapter's `connection
 .write` (adapters/adapter.py's Connection), never a per-source client, so the code runs on the sandbox here
 and on the real connection in an export. The API's job is fetching and writing fast: the filters, the
 columns, the sort, the page and the keys go to the source in the read's plan; no endpoint reads a whole large
-table a call. Summary folds its group and totals into the plan (the adapter sends them to the source where it
-can); a summary by period and Reconcile are one statement in the source's own SQL through `query` where the
-source has SQL, and where it has none (Dataverse's Web API, SharePoint, two different connections) they read
-only the columns they need and DuckDB does the rest over the stream, said in the endpoint's own words.
+table a call. Summary folds its period, group and totals into the plan (the adapter sends them to the source
+where it can, else groups only the columns it needs over the stream); Reconcile is one statement in the
+source's own SQL through `query` where the source has SQL, and where it has none (Dataverse's Web API,
+SharePoint, two different connections) it reads only the columns it needs and DuckDB does the rest over the
+stream, said in the endpoint's own words.
 
 One marker comment under the block's banner names the pattern (`# pattern: summary of orders`): the APIs
 page labels the endpoints by it. The code is the user's from then on: nothing here reads it back to rewrite
@@ -212,6 +213,7 @@ PATTERNS: dict[str, Pattern] = {
                     choices=(
                         ("", "None"),
                         ("day", "Day"),
+                        ("week", "Week (from Monday)"),
                         ("month", "Month"),
                         ("quarter", "Quarter"),
                         ("year", "Year"),
@@ -272,6 +274,14 @@ PATTERNS: dict[str, Pattern] = {
                     required=False,
                 ),
                 Step("only_value", "…is", "text", required=False),
+                Step(
+                    "log",
+                    "Also adds a row to",
+                    "table",
+                    help="Another table of the same connection (an audit): a row a key, written with the "
+                    "change in one transaction, both or neither.",
+                    required=False,
+                ),
             ),
             (Pairing("api_button", "action", words="An API button runs it."),),
             code.make_action,
