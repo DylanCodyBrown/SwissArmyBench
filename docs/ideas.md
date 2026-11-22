@@ -8233,6 +8233,18 @@ while building (none asked; each is the owner's to turn round):
   · the vault · the secret's name"; a connection's use says the box it fills ("Warehouse · Password"). The source
   chips are the one search now (type "key vault"). Messages that sent the user to "the Variables page" say "the
   Environment's Settings and secrets tab". The address accepts the tab's word as well as its kind (at=settings).
+- **A table a session sends names its document:** the document the run was for is kept as the table arrives
+  (services/table_cells.py's Origins), and the page puts the table's read-only cell in that document; the kernel
+  alone named it before, and one kernel now runs every document. The Environment's From says that document too.
+- **The app's own Python is told by its place, not by what its link points to.** A real `.venv` made by uv links
+  its Python to the one it was made from; the first build compared the links' targets and would have listed the
+  app's libraries for the project. Found by making a real `.venv` once by hand; tested with a link.
+- **A session that ended is started again by the next run** (the page tries once more instead of saying the
+  kernel was gone), since a document can hold the id of a session that another window stopped.
+- **Open for the owner:** whether a document not saved yet should join the project's session (it does); whether
+  the session should stop when every Notebooks and Scripts window has been closed for a while (it does not: it
+  lives with the project); whether opening a project should fetch libraries with no click (it does, as asked,
+  and says so in one line).
 - **Removed CSS:** `.wb-sort`, `.wb-vars h3`, `.wb-vars-table`, `.wb-vars-type`, `.wb-vars-value` (the Variables
   pane's) and the Variables page's own rules (31 rules: `.variables-page`, `.variable-row` and the rest); the vault
   cards', the form's and the `${NAME}` box's rules stay.

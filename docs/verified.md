@@ -4997,3 +4997,77 @@ What was not checked:
 - Edge (the browser tests ran in Chromium here), the desktop app's window, a screen reader.
 - Many rows: the list was not measured past a few dozen; a project with hundreds of variables or libraries.
 - Two sessions holding one name: the one that reported last is the row; nothing says there are two.
+
+## The Environment, finished (2026-11-22, branch environment-2; Plans/environment.plan.md)
+
+What was checked:
+- **The rules** (tests/test_project_python.py, 4 tests): a document is the project's by its path (inside the
+  folder, any case, either slash; never the folder itself, a neighbour whose name starts the same, or a path with
+  `..`); what the `.venv` is made with (the kernel, the Excel readers, requirements.txt's plain lines, its own line
+  winning over a default; a line with an option or a path left out); the libraries someone chose (the ones no other
+  needs, without pip and the kernel) and what they offer a project; each state's one line, and no line of the
+  owner's saying "kernel".
+- **One session, real kernels** (the same file, over HTTP): a notebook, a script and a document not saved yet get
+  the same kernel; what one makes the other reads; the session runs in the project's top folder; Run file lands its
+  names there; closing a document leaves it running; the Environment lists a name once; Restart clears it for all
+  and sends `session_restarted`; the project's close ends it (a run answers 404). A run says which document it is
+  for (a slot's words, kernel_for, the running documents, one kernel counted). A popped-out document does not make
+  the session its window's (no orphan stop). A loose file, and a start with no document that does not say
+  project, get kernels of their own; `?session=1` stops the session and the next start makes a new one. With no
+  project open every document has its own.
+- **The project's `.venv`** (stood in: tests/libraries_standin.py's `venv`): New project says "making" at once
+  and is ready without the request waiting; the kernel's library, the Excel readers and requirements.txt's own
+  line are in it; a made-up `.venv` whose Python does not run does not stop the session (the app's own Python,
+  said); a failure is said with the tool's last line and Try again makes it; a second Make it is refused in one
+  line; a project that has one is left alone.
+- **A real `.venv`, once by hand** (uv 0.9, this computer): `make_venv` on a folder with `tabulate` in
+  requirements.txt made it in 1.7 s with a warm cache (66 MB), with its own `.gitignore` (`*`); a kernel started in
+  it (`sys.prefix` the `.venv`), imported tabulate and the lent `swissarmybench`. It found a fault: a `.venv` made
+  from the app's Python links to the same program, and its libraries were read as the app's own (the Libraries tab
+  would have listed the app's). Fixed (a Python is the app's by its place, not its link's target) and tested.
+- **A notebook's older environment:** read once (the second open says nothing), its chosen libraries the project
+  lacks offered (not the ones they brought, nor an extra's), the offer kept on the Environment until answered,
+  Add them installing (stood in) and writing requirements.txt, an answered offer gone (404).
+- **A table read by name:** a table whose grid was closed is listed by the open tables' door with its own columns,
+  read whole in any case, read with a plan, and no grid is made for it; one a grid shows is read with its steps.
+- **In Chromium** (tests/e2e/test_project_session_page.py): New project toasts "Making this project's Python", the
+  Libraries tab says the project has its own Python and "One Python session for the whole project"; the Scripts
+  page's status bar says Python session and has no Python to pick; Run file's name is read by a notebook's cell on
+  the Notebooks page, whose document was in the session before its first run; Restart asks ("every notebook and
+  script of the project") and the other window toasts it; closing the Scripts window leaves the session.
+- **The key vaults on the Settings and secrets tab** (the seven moved browser tests): test_variables_page (a vault's
+  entry as "the vault · the secret's name", "Warehouse · Password" in the viewer, no Show on a vault's, its vault's
+  card, Add a setting, This computer only, Show and Hide of a keyring secret with the value nowhere else, the one
+  search by source and by the connection that uses it, Remove showing its uses first, and `open=variables&name=`
+  landing on the tab at that setting), test_library_page (the card, Add key vault's kinds, Cancel, the card's
+  detail on the Connections page), test_vault_names_page (a vault's names after a restart, the card's count, the
+  dollar-brace list, "Names from", Read again; Add key vault from the tab), test_workbench_page (a vault added from
+  the tab, its card's detail), test_variable_anywhere_page (the search box takes no dollar-brace list; Add a
+  setting's Value box does), test_variable_refs_page (a setting's uses by box), test_first_run_page (the empty
+  tab's sentence and Add a setting…), and test_feel_polish_page's search box (it clicked a rail item that went with
+  the first build: now the Environment's search).
+- **The Workbench, Environment, Variables, navigation and rail browser tests in Chromium** (26 files, 102 tests, two
+  processes, while two other builders' suites ran on the same four cores): 97 passed, 5 failed. Four passed run
+  again one at a time (test_workbench_page's Variables pane, four panes and error panel tests,
+  test_table_cells_page's script region test); the fifth (the first save on a fresh home folder) failed only
+  because that run's temporary folder was named without "pytest", which the test asserts, and passed in the
+  default one.
+- **The quick suite** (tests, without tests/e2e): 5,085 passed, 46 skipped, 4 failed in the run of four processes: test_workbench's busy reader and one
+  test_sharing refusal failed under load and passed alone; test_script_export's fresh Python and test_updater's uv
+  tool failed only because this worktree's code was put on PYTHONPATH for the run (their fresh Pythons then found
+  the package), and passed without it. The run before the last change: 5,084 passed, the same two, and
+  test_adapter's streaming read and test_performance's million rows under load (both passed alone).
+- ruff check, ruff format --check, mypy (1,006 files), `npm run typecheck`, `npm run build`: clean.
+
+What was not checked:
+- Edge (the browser tests ran in Chromium here), the desktop app's window, Windows and macOS (a `.venv`'s
+  `Scripts/python.exe`, a path with a drive letter in a real session), a screen reader.
+- The project's `.venv` made with Python's own venv and pip (no uv on the computer), and a slow or failing
+  package index: only uv with a warm cache was run for real; the rest is stood in.
+- The session moving to the `.venv` at Restart in a browser (the server's side is the same call a test drives; the
+  made-up `.venv` of the tests has no Python that runs, so the move itself ran only in the by-hand check).
+- Two windows at once showing that the other's run is under way (not built: a run simply waits its turn).
+- A debugger session while another document runs in the same session, and Run file's `sys.argv` and `__main__`
+  beside a notebook's names (one namespace now: a script's top-level names stay after it ran, as `%run` does).
+- A table only Python holds read by name by another process (not built).
+- Many documents: the session was driven with three.
