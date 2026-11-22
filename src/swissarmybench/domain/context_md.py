@@ -24,6 +24,7 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 
+from swissarmybench.domain import connection_kinds
 from swissarmybench.domain.catalogs import quote_identifier
 from swissarmybench.domain.claude import step_words
 from swissarmybench.domain.steps import Step
@@ -144,17 +145,18 @@ class ConnectionFacts:
     @property
     def naming(self) -> str:
         """powerbi, file, single (one part: a table), path (a lake's or a library's folders), or database."""
-        if self.template == "powerbi":
-            return "powerbi"
-        if self.template in ("onelake", "datalake", "delta", "sharepoint_docs"):
-            return "path"
-        if self.template == "sharepoint":
-            return "single"
+        found = connection_kinds.get(self.template)  # its kind's own record says how its tables are named
+        if found is not None and found.tables and found.naming != "file":
+            return found.naming
         if self.kind == "file":
             return "file"
-        if self.kind == "python" or self.template == "dataverse":
-            return "single"
-        return "database"
+        return "single" if self.kind == "python" else "database"
+
+    @property
+    def versioned(self) -> bool:
+        """Its tables take a version or a time after @ (a lake's; a document library's do not)."""
+        found = connection_kinds.get(self.template)
+        return found is not None and found.versions
 
     def sql_of(self, t: CatalogTable) -> str:
         if self.naming == "powerbi":
@@ -184,7 +186,7 @@ class ConnectionFacts:
             at = f" ({shape('<folder>', '"<table>@v12"')} or @2026-11-01: a Delta table's version or time)"
             return shape("<folder>", "<table>") + (
                 at
-                if self.template != "sharepoint_docs"
+                if self.versioned
                 else f" ({shape('<library>', '<folder>', '"<workbook.xlsx>"', '<sheet>')})"
             )
         return f"{shape('<schema>', '<table>')} (or {shape('<database>', '<schema>', '<table>')})"

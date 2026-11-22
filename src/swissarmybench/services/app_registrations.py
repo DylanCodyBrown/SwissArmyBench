@@ -157,7 +157,7 @@ class AppRegistrations:
         for connection, kind, code in coded:
             if kind in rules.CHECKED_KINDS and not missing:
                 settings = await self._settings(code)
-                tables = await self._tables(connection) if kind == "sqlserver" else []
+                tables = await self._tables(connection) if rules.refused_by(kind) == "sql" else []
                 items += await asyncio.to_thread(self._kind, reg, values, connection, kind, settings, tables)
             elif kind != "powerbi":
                 reason = (
@@ -243,7 +243,7 @@ class AppRegistrations:
         except OSError as error:
             return [item(place, None, f"Microsoft's sign-in could not be reached ({error})")]
         try:
-            if kind == "sqlserver":
+            if rules.refused_by(kind) == "sql":
                 databases, refused = self._probe.sql(
                     token, settings.get("server", ""), settings.get("database", ""), tables
                 )
@@ -258,7 +258,7 @@ class AppRegistrations:
                     else:
                         out.append(item(table, True))
                 return out
-            if kind == "dataverse":
+            if rules.refused_by(kind) == "dataverse":
                 roles = self._probe.dataverse(token, settings.get("url", ""))
                 if not roles:
                     return [
@@ -271,7 +271,7 @@ class AppRegistrations:
                         ),
                     ]
                 return [item(place, True), item("roles: " + ", ".join(roles), True)]
-            if kind in ("sharepoint", "sharepoint_docs"):
+            if rules.refused_by(kind) == "graph":
                 lists, libraries = self._probe.sharepoint(token, settings.get("site_url", ""))
                 return [
                     item(place, True),

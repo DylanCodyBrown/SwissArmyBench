@@ -27,69 +27,18 @@ from typing import Any
 import sqlglot
 from sqlglot import exp
 
-from swissarmybench.domain import catalogs, dataverse, lakes, powerbi, web_calls
+from swissarmybench.domain import catalogs, dataverse, lakes, web_calls
+from swissarmybench.domain import connection_kinds as kinds
 from swissarmybench.domain import connections as rules
 from swissarmybench.domain.connection_swap import Place
 from swissarmybench.domain.datasets import quote
 
-# How each kind of connection lists its tables and reads one (the contract's two calls).
-TABLE_KINDS: dict[str, tuple[str, str]] = {
-    "database": (
-        "its catalog (the connection's own query of its information schema)",
-        "a SELECT in its own SQL (select_sql)",
-    ),
-    "powerbi": (
-        "its datasets (the catalog's schemas), then each dataset's tables",
-        "DAX on the table's dataset: EVALUATE 'Table'",
-    ),
-    "dataverse": (
-        "its read-only SQL endpoint's own catalog (TDS, port 5558: INFORMATION_SCHEMA)",
-        "a T-SQL SELECT on the SQL endpoint",
-    ),
-    "dataverse_web": (
-        "its Web API's metadata (a connection saved before the SQL endpoint was the default)",
-        "the Web API's read (switch it to the SQL endpoint on its card)",
-    ),
-    "python": ("its List the tables box", "its Read a table box"),
-    "api": ("its web calls that return a table (the API's List the tables)", "the web call (Read a table)"),
-    "file": ("the file itself: one table, or a workbook's sheets", "DuckDB's reader, or the sheet"),
-    "folder": ("its files", "the file (a workbook's first sheet)"),
-    # Lakes and SharePoint (domain/lakes.py): the connection's own code lists and reads them.
-    "onelake": (
-        "a lakehouse's Delta tables (Tables/) and files (Files/), by the OneLake DFS endpoint's listing; a "
-        "warehouse's INFORMATION_SCHEMA on its SQL endpoint",
-        "DuckDB's delta_scan, read_parquet or read_csv (else the deltalake package, else its Delta log read "
-        "here); T-SQL on a warehouse's SQL endpoint",
-    ),
-    "datalake": (
-        "its container's Parquet, CSV and JSON files, Delta folders and partitioned folders (the ADLS Gen2 "
-        "listing)",
-        "DuckDB's read_parquet, read_csv or delta_scan, over HTTPS with the sign-in's token",
-    ),
-    "delta": (
-        "every folder holding a _delta_log under its root, to a depth",
-        "DuckDB's delta_scan (else the deltalake package, else its Delta log read here); a version or a "
-        "time after @",
-    ),
-    "sharepoint": (
-        "the site's lists (Microsoft Graph)",
-        "Graph's list items, paged, $select and $filter sent",
-    ),
-    # The open project's sandbox (domain/sandbox.py): local test data, never live; never exported as a
-    # connection (an export names the real connection a table is Mocked as, or none).
-    "sandbox": (
-        "the project's sandbox's tables (its own DuckDB file, sandbox/)",
-        "the table whole, from the sandbox (following every write)",
-    ),
-    "sharepoint_docs": (
-        "each document library's file index, and its tabular documents (CSV, Parquet, JSON lines, a "
-        "workbook's sheets and named tables)",
-        "Graph's file index; a document downloaded into memory, kept by its eTag",
-    ),
-}
-# Kinds whose tables are named by their folders (a path), and the ones that have versions after @.
-PATH_KINDS: frozenset[str] = frozenset({"onelake", "datalake", "delta", "sharepoint_docs"})
-VERSIONED: frozenset[str] = frozenset({"onelake", "datalake", "delta"})
+# How each kind of connection lists its tables and reads one (the contract's two calls), the kinds whose
+# tables are named by their folders (a path), and the ones that have versions after @: each kind's own
+# record says them (domain/connection_kinds.py); these are its views.
+TABLE_KINDS: dict[str, tuple[str, str]] = kinds.tables_contract()
+PATH_KINDS: frozenset[str] = kinds.path_kinds()
+VERSIONED: frozenset[str] = kinds.versioned()
 # Blades that expose no tables, so are not connections, with why.
 NO_TABLES: dict[str, str] = {
     "vault": "not a connection: a source of secrets for variables",
@@ -131,13 +80,11 @@ def tables_kind(
     """Which way a blade lists and reads its tables (a TABLE_KINDS key), or None: it has none."""
     connection = rules.connection_kind(kind, template)
     if connection == "database":
-        if dialect == powerbi.DIALECT:
-            return "powerbi"
         if dataverse.is_dataverse(dialect):
             return "dataverse" if catalog_language == "sql" else "dataverse_web"
-        if lakes.is_kind(dialect):
-            return str(dialect)
-        return "database"
+        # A dialect whose own record is a tables kind (a Power BI workspace, a lake, SharePoint) is that kind.
+        own = kinds.engine(dialect) if dialect in kinds.dialects() else None
+        return own.name if own is not None and own.tables else "database"
     if connection == "file":
         return "folder" if template == "folder" else "file"
     if connection == "python":
@@ -163,11 +110,13 @@ def copy_name(connection: str, place: Place, kind: str, shared: Iterable[str] = 
     alone would not say which (a table two datasets share; a database table outside the first schema)."""
     shared_names = {s.casefold() for s in shared}
     parts: list[str] = []
-    if kind == "powerbi":
+    found = kinds.get(kind)
+    naming = found.naming if found is not None else "database"  # its record says how its tables are named
+    if naming == "powerbi":
         parts = [place.schema, place.table] if place.table.casefold() in shared_names else [place.table]
-    elif kind in PATH_KINDS:
+    elif naming == "path":
         parts = lakes.path_parts(place.database, place.schema, place.table)
-    elif kind in ("file", "folder", "python", "api", "dataverse", "dataverse_web", "sharepoint"):
+    elif naming in ("single", "file"):
         parts = [place.table]
     else:
         parts = [p for p in (place.database, place.schema, place.table) if p]
@@ -415,8 +364,9 @@ def target_name(number: int) -> str:
 # case only reads more. A LIMIT goes too, only when nothing else in the query needs more rows.
 
 # The lake and SharePoint kinds take their conditions as (column, op, value), applied by their own code;
-# every other dialect's filter is written in its own SQL (catalogs.sqlglot_name), or not sent at all.
-_STRUCTURED: tuple[str, ...] = ("onelake", "datalake", "delta", "sharepoint", "sharepoint_docs")
+# every other dialect's filter is written in its own SQL (catalogs.sqlglot_name), or not sent at all
+# (each dialect's record says which: connection_kinds' filters).
+_STRUCTURED: tuple[str, ...] = kinds.structured_filters()
 
 
 def _filter_dialect(dialect: str) -> str | None:

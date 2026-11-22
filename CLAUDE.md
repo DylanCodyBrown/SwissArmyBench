@@ -365,10 +365,21 @@ src/swissarmybench/
                          sets (the .relationships.json file: a saved, shared set; the old .tang read); the
                          joins in use managed (delete, kind, Run, a deleted connection's taken out) and the
                          relationship finder's rules (judge, suggest, implied joins, paths between tables)
+    connection_kinds.py  ONE record per connection kind (review fix D, 2026-11-22): a frozen Kind for every tables
+                         kind, dialect and connection starter (its label and group; how it lists and reads, how
+                         the service reads it, how SQL names its tables, versions; its dialect, other names,
+                         sqlglot name, filters sent, the adapter's, its count, the mock's marks; what it writes
+                         or why not; what only this computer has; its Entra scope, area, place and refusals; its
+                         variables' prefix; what the pages say). It imports no module of the app. Every other
+                         per-kind table is its view under the old name (TABLE_KINDS, PATH_KINDS, VERSIONED,
+                         DIALECTS, WRITABLE, READ_ONLY, portability.KINDS, CHECKED_KINDS, AREAS, lakes.KINDS,
+                         LABELS, ENV_PREFIX, PARAMSTYLE...); problems() refuses a part half filled; a new
+                         kind is one entry, its code module and its starter (tests/test_kind_records.py)
     catalogs.py          catalog rules: dialects (DAX among them: 'Table'[Column], EVALUATE TOPN, COUNTROWS),
                          names, which source column is read as what; THE one table of a dialect's name in
                          sqlglot and its other names (sqlglot_name, dialect_word: connection_tables, query_text,
-                         sandbox_dialects, api_pattern_code and intellisense ask it; tests/test_dialect_names.py)
+                         sandbox_dialects, api_pattern_code and intellisense ask it; tests/test_dialect_names.py);
+                         the dialects, their names and sqlglot names are the kind records' views
     dataverse.py         a Dataverse environment: the connection's code as text (standard library: the Web
                          API's OData reads, paging, choice labels, the metadata as the catalog, FetchXML; SQL
                          on the read-only SQL endpoint, TDS port 5558, python-tds with the Entra token), its three
@@ -829,7 +840,9 @@ src/swissarmybench/
                          session), on first use; each a child process, a few at once
     blades.py            save, inspect, fill, refresh, test, install, favourites, folders, export, import
     analysis_blades.py   analysis blades (BladeService.analysis_blades): listed, found, run on a grid's view
-    connections.py       connections: the list, the forms, test before saving, password sources
+    connections.py       connections: the list, the forms, test before saving, password sources; the read, the
+                         count and the origin's name ask the kind's record (_tables, _engine, _count_sql,
+                         _origin), never a kind by name
     found_connections.py Find connections on this computer: the scan off the loop (Cancel), the last list in memory,
                          import (each a connection by ConnectionService.save, its password a variable declared not
                          set); the agent's scan and import on the user's Allow

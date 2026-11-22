@@ -12,10 +12,17 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from swissarmybench.domain import (
+    connection_kinds,
+    dataverse,
+    powerbi,
+    python_connections,
+    sql_server,
+    write_capability,
+)
 from swissarmybench.domain import connection_tables as table_rules
 from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import connections as rules
-from swissarmybench.domain import dataverse, lakes, powerbi, python_connections, sql_server, write_capability
 from swissarmybench.domain import project_scope as scope_rules
 from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
@@ -161,9 +168,7 @@ class ConnectionService:
         template = {
             "id": blade.template or "",
             "label": next((t.label for t in self._templates if t.id == blade.template), blade.dialect),
-            "group": {"database": "Databases", "file": "Files", "python": "Your own code"}.get(
-                kind, "Vaults"
-            ),
+            "group": _GROUPS.get(kind, "Vaults"),
             "kind": blade.kind,
             "dialect": blade.dialect,
             "variable": blade.variable or "",
@@ -358,7 +363,7 @@ class ConnectionService:
             raise BladeError(f"{blade.name} has no tables to open.")
         where = body if isinstance(body, dict) else {}
         place = {k: str(where.get(k) or "") for k in ("database", "schema", "table")}
-        if not place["schema"] and blade.dialect == powerbi.DIALECT:
+        if not place["schema"] and _tables(blade).datasets:
             # A Power BI workspace's table lives in one of its datasets: named as the schema or as dataset.
             place["schema"] = str(where.get("dataset") or "")
         return blade, str(kind), place
@@ -432,9 +437,9 @@ class ConnectionService:
         limit = None if every or blade.row_limit == 0 else (blade.row_limit or rules.DEFAULT_OPEN_ROWS)
         # Dataverse saved for its Web API reads through it; a Dataverse on its SQL endpoint (the default
         # since 2026-11-17, the owner: "Dataverse tds is the only method I like here") is a database.
-        reads = _web_api(blade) or lakes.is_kind(blade.dialect)
+        how = _tables(blade)  # its kind's own record says how it is read, counted and named
         where = (place["database"], place["schema"], place["table"])
-        if kind == "python" or reads:
+        if how.reads_with == "code":
             # The user's own Python reads it (Read a table), or Dataverse's own read: the first rows,
             # and the count it gave.
             answer = await self._blades.read(blade, place, limit, body)
@@ -445,23 +450,16 @@ class ConnectionService:
                 if limit is not None and isinstance(total, int) and total > shown
                 else None
             )
-            schema = "" if _web_api(blade) else place["schema"]  # Dataverse's one schema needs no naming
+            schema = place["schema"] if how.names_schema else ""  # Dataverse's one schema needs no naming
             again = python_connections.read_call(blade.name, schema, place["table"])
             # A sheet of a workbook (Budget.xlsx/Summary) opens under its own name.
             dataset = self._grid_name(rules.dataset_name(place["table"].rsplit("/", 1)[-1]), blade.name)
             return TableRead(dataset, table, opened, shown, total, blade.name, code=again, place=where,
                              how=str(answer.get("read_with") or ""))  # fmt: skip
         sql = select_sql(blade.dialect, place["database"], place["schema"], place["table"], [], limit)
-        count = (
-            None
-            if every
-            # SQL Server: the rows sys.partitions holds, not a COUNT(*) over the table (domain/sql_server.py)
-            else sql_server.count_sql(place["schema"], place["table"])
-            if blade.dialect == sql_server.DIALECT and not place["database"]
-            else count_sql(blade.dialect, place["database"], place["schema"], place["table"])
-        )
-        dax = blade.dialect == powerbi.DIALECT
-        within = place["schema"] if dax else ""  # a Power BI workspace: the table's dataset
+        count = None if every else _count_sql(blade, *where)
+        dax = how.reads_with == "dax"
+        within = place["schema"] if how.datasets else ""  # a Power BI workspace: the table's dataset
         try:
             read = _adapter_read(blade, place, limit, count is not None)
             answer = await self._blades.rows(blade, sql, count, body, within, read)
@@ -483,13 +481,13 @@ class ConnectionService:
             if limit is not None and isinstance(total, int) and total > shown
             else None
         )
-        if dax:
+        if how.datasets:
             # Its own name; with its dataset's when another dataset of the workspace has one too.
             dataset = powerbi.grid_name(within, place["table"], await self._shared(blade.name))
         else:
             dataset = rules.dataset_name(place["table"])
         dataset = self._grid_name(dataset, blade.name)
-        origin = powerbi.joined_name(blade.name, within)  # a notebook reads it again: sab.dax(origin, sql)
+        origin = _origin(blade, within)  # a notebook reads it again: sab.dax(origin, sql)
         # The table came whole: the notebook reads it whole again (no LIMIT), so a run next month, with
         # more rows than Rows to open, is not cut without a word. A table that was cut keeps its LIMIT,
         # as the grid shows it.
@@ -504,9 +502,10 @@ class ConnectionService:
         (services/connection_swap.py)."""
         blade = self._blades.get(name)
         kind = rules.connection_kind(blade.kind, blade.template)
-        if kind != "database" or _web_api(blade):
+        how = _tables(blade)
+        if kind != "database" or not how.query_tab:
             raise BladeError(f"{blade.name} does not run SQL: pick one of its tables instead.")
-        dax = blade.dialect == powerbi.DIALECT
+        dax = how.reads_with == "dax"
         given = body if isinstance(body, dict) else {}
         within = str(given.get("dataset") or "") if dax else ""
         if dax and not within:
@@ -515,7 +514,7 @@ class ConnectionService:
         table = answer["table"]
         if table.num_columns == 0:
             raise BladeError("The query answered no columns, so there is nothing to show.")
-        origin = powerbi.joined_name(blade.name, within) if dax else blade.name
+        origin = _origin(blade, within)
         shown = int(table.num_rows)
         return TableRead("", table, None, shown, shown, origin, sql, dax)
 
@@ -563,11 +562,12 @@ class ConnectionService:
         table_name = full["table"]
         if not table_name:
             raise ValueError("Name the table to read.")
-        own = lakes.is_kind(blade.dialect)
-        if kind == "python" or _web_api(blade) or own:
+        how = _tables(blade)
+        if how.reads_with == "code":
             asked = pushed.limit if pushed.limit is not None else most + 1
             # A lake's or SharePoint's own read takes the query's columns and filters (DuckDB's pushdown,
             # Graph's $select and $filter); DuckDB applies the filters again.
+            own = _engine(blade).filters == "structured"
             sent = (pushed.columns, pushed.filters) if own else ((), ())
             answer = await self._blades.read(blade, full, asked, {}, *sent)
             table, total = answer["table"], answer.get("total")
@@ -577,13 +577,13 @@ class ConnectionService:
                     table_rules.too_many(blade.name, table_name, seen, most, bool(pushed.filters))
                 )
             again = python_connections.read_call(
-                blade.name, "" if _web_api(blade) else full["schema"], table_name
+                blade.name, full["schema"] if how.names_schema else "", table_name
             )
             shown = int(table.num_rows)
-            how = str(answer.get("read_with") or "")
-            return TableRead(table_name, table, None, shown, shown, blade.name, code=again, how=how)
-        dax = blade.dialect == powerbi.DIALECT
-        within = full["schema"] if dax else ""
+            read_with = str(answer.get("read_with") or "")
+            return TableRead(table_name, table, None, shown, shown, blade.name, code=again, how=read_with)
+        dax = how.reads_with == "dax"
+        within = full["schema"] if how.datasets else ""
         where = (full["database"], full["schema"], table_name)
         if dax:  # the whole table, as DAX reads it
             select = select_sql(blade.dialect, *where, [], None)
@@ -609,7 +609,7 @@ class ConnectionService:
         read = await self._blades.rows(blade, select, None, {}, within, target=table_name, folded=folded)
         table = read["table"]
         shown = int(table.num_rows)
-        origin = powerbi.joined_name(blade.name, within)
+        origin = _origin(blade, within)
         return TableRead(table_name, table, None, shown, shown, origin, select, dax, place=where)
 
     async def read_place(self, name: str, place: dict[str, str], every: bool = False) -> TableRead:
@@ -657,13 +657,14 @@ class ConnectionService:
             return await self._tables.peek(path, sheet, rules.PREVIEW_ROWS)
         if not place["table"]:
             raise ValueError("Name the table to preview.")
-        if kind == "python" or _web_api(blade) or lakes.is_kind(blade.dialect):
+        how = _tables(blade)
+        if how.reads_with == "code":
             read = (await self._blades.read(blade, place, rules.PREVIEW_ROWS, body))["table"]
             return {"columns": list(read.column_names), "rows": [list(r.values()) for r in read.to_pylist()]}
         sql = select_sql(
             blade.dialect, place["database"], place["schema"], place["table"], [], rules.PREVIEW_ROWS
         )
-        within = place["schema"] if blade.dialect == powerbi.DIALECT else ""
+        within = place["schema"] if how.datasets else ""
         table = (await self._blades.rows(blade, sql, None, body, within))["table"]
         return {"columns": list(table.column_names), "rows": [list(r.values()) for r in table.to_pylist()]}
 
@@ -687,7 +688,7 @@ class ConnectionService:
 
     def _workspace(self, name: str) -> Blade:
         blade = self._blades.get(name)
-        if blade.dialect != powerbi.DIALECT:
+        if not _tables(blade).datasets:
             raise BladeError(
                 f"{blade.name} is not a Power BI workspace: only a workspace has datasets, and only a "
                 "dataset's own relationships are read this way. For other tables, find them (Find "
@@ -748,7 +749,7 @@ class ConnectionService:
         needs none. Answers the model, what the merge changed, and what came."""
         if self._models is None:
             raise BladeError("Importing relationships needs the relationship model.")
-        if self._blades.get(name).dialect == sql_server.DIALECT:
+        if "import_relationships" in _engine(self._blades.get(name)).actions:  # its own foreign keys
             return await self._foreign_keys(name, body, who)
         blade = self._workspace(name)
         dataset = str(body.get("dataset") or "").strip() if isinstance(body, dict) else ""
@@ -875,8 +876,50 @@ class CodeCheck(Protocol):
 
 # The connections the adapter reads itself (Plans/adapter.plan.md): DuckDB, and each SQL dialect it folds a
 # plan into (adapter.DIALECTS). Sybase speaks T-SQL without OFFSET ... FETCH, so it keeps its own SQL.
-ADAPTER_DIALECTS = ("duckdb", "postgres", "mysql", "sqlserver", "oracle", "sqlite", "snowflake", "trino")
-NOT_ADAPTED = ("sybase",)  # starters whose dialect is shared but whose SQL is older
+# Each dialect's own record says so (domain/connection_kinds.py adapter, own_sql); tests/test_kind_records.py
+# holds them to the adapter's own DIALECTS.
+ADAPTER_DIALECTS: tuple[str, ...] = connection_kinds.adapter_dialects()
+NOT_ADAPTED: tuple[str, ...] = connection_kinds.own_sql()  # starters whose dialect is shared, SQL older
+# A connection form's group, by what the connection is (the tables kinds' own groups).
+_GROUPS: dict[str, str] = {
+    "database": connection_kinds.DATABASES,
+    "file": connection_kinds.FILES,
+    "python": connection_kinds.OWN_CODE,
+}
+_NO_KIND = connection_kinds.Kind(
+    "", ""
+)  # a blade with no tables, a dialect with no record: every field plain
+# How a dialect counts a table's rows when it is not a COUNT(*) (its record's count): SQL Server's
+# sys.partitions (domain/sql_server.py), for a table named without its database.
+_COUNTERS: dict[str, Callable[[str, str], str]] = {"partitions": sql_server.count_sql}
+
+
+def _tables(blade: Blade) -> connection_kinds.Kind:
+    """The record of the way a connection lists and reads its tables (its tables kind's): what the read,
+    the count and the origin's name ask, instead of naming a kind."""
+    kind = table_rules.tables_kind(
+        blade.kind, blade.template, blade.dialect, blade.catalog_language, blade.tags, blade.code
+    )
+    return connection_kinds.get(kind) or _NO_KIND
+
+
+def _engine(blade: Blade) -> connection_kinds.Kind:
+    """The record of a connection's dialect."""
+    return connection_kinds.engine(blade.dialect) or _NO_KIND
+
+
+def _count_sql(blade: Blade, database: str, schema: str, table: str) -> str:
+    """The query that counts a table's rows before it is read, as its dialect's record says."""
+    counter = _COUNTERS.get(_engine(blade).count)
+    if counter is not None and not database:
+        return counter(schema, table)
+    return count_sql(blade.dialect, database, schema, table)
+
+
+def _origin(blade: Blade, within: str) -> str:
+    """What a notebook names to read the table again: the connection, with the table's dataset where its
+    tables are grouped by dataset (a Power BI workspace: Finance/Sales model)."""
+    return powerbi.joined_name(blade.name, within) if _tables(blade).datasets else blade.name
 
 
 def _adapter_read(

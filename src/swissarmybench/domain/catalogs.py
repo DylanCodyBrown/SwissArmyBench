@@ -23,63 +23,22 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from swissarmybench.domain import connection_kinds
 from swissarmybench.domain.datasets import quote
 
-# The dialects SAB knows how to quote for, with the names people also use for them.
-DIALECTS: tuple[str, ...] = (
-    "sqlserver",
-    "postgres",
-    "mysql",
-    "sqlite",
-    "duckdb",
-    "snowflake",
-    "oracle",
-    "trino",
-    "dax",  # a Power BI workspace: each dataset (semantic model) a schema; its language is DAX
-    "dataverse",  # a Dataverse environment: its SQL endpoint's T-SQL, every table in one schema (dbo)
-    # Lakes and SharePoint (domain/lakes.py): tables the connection's own code lists and reads; a lake's
-    # %%sql is DuckDB's (every table a view), a Fabric SQL endpoint's T-SQL
-    "onelake",
-    "datalake",
-    "delta",
-    "sharepoint",
-    "sharepoint_docs",
-    "other",
-)
-_DIALECT_ALIASES: dict[str, str] = {
-    "tsql": "sqlserver",
-    "mssql": "sqlserver",
-    "sql server": "sqlserver",
-    "azuresql": "sqlserver",
-    "postgresql": "postgres",
-    "pg": "postgres",
-    "redshift": "postgres",
-    "mariadb": "mysql",
-    "presto": "trino",
-    "powerbi": "dax",
-    "power bi": "dax",
-}
+# The dialects SAB knows how to quote for, with the names people also use for them: each dialect's own
+# record says them (domain/connection_kinds.py; a Power BI workspace's is dax, each dataset a schema; the
+# lakes' and SharePoint's are their kinds' own words); these are its views.
+DIALECTS: tuple[str, ...] = connection_kinds.dialects()
+_DIALECT_ALIASES: dict[str, str] = connection_kinds.aliases()
 
 # A dialect's name in sqlglot: THE one table (connection_tables' filters, query_text's formatting, the
 # sandbox's mock, the endpoint patterns' SQL and the editors' syntax check all ask sqlglot_name). The lake
 # kinds' SQL is DuckDB's (every table a view); tests/test_dialect_names.py refuses a dialect nobody decided.
-_SQLGLOT_NAMES: dict[str, str] = {
-    "sqlserver": "tsql",
-    "dataverse": "tsql",
-    "postgres": "postgres",
-    "mysql": "mysql",
-    "sqlite": "sqlite",
-    "duckdb": "duckdb",
-    "snowflake": "snowflake",
-    "oracle": "oracle",
-    "trino": "trino",
-    "onelake": "duckdb",
-    "datalake": "duckdb",
-    "delta": "duckdb",
-}
+_SQLGLOT_NAMES: dict[str, str] = connection_kinds.sqlglot_names()
 # The dialects whose text sqlglot never reads: DAX, SharePoint (its lists and files are read by the
 # connection's own code) and a dialect nobody named.
-NO_SQLGLOT: tuple[str, ...] = ("dax", "sharepoint", "sharepoint_docs", "other")
+NO_SQLGLOT: tuple[str, ...] = connection_kinds.no_sqlglot()
 
 # Normalized column -> the source column names it is read from, in order of preference.
 ALIASES: dict[str, tuple[str, ...]] = {

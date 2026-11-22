@@ -30,7 +30,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from swissarmybench.domain import dataverse, lakes, notebooks, powerbi, table_cells
+from swissarmybench.domain import connection_kinds, notebooks, table_cells
 
 CALL_KINDS: tuple[str, ...] = ("catalog", "query", "read", "test", "connect")
 STATUSES: tuple[str, ...] = ("works", "ready", "needs", "failing", "resuming")
@@ -334,26 +334,34 @@ def sign_in_of(code: str, sign_ins: Iterable[Mapping[str, Any]]) -> str | None:
 
 # ===== what the pages draw for a connection's kind =====
 
-LAKE_GROUP: str = "Lakes and SharePoint"  # the Connections page's group (the form's templates say the same)
-_NO_SQL_CELL: tuple[str, ...] = (lakes.SHAREPOINT, lakes.SHAREPOINT_DOCS)  # read by code only
+LAKE_GROUP: str = connection_kinds.LAKES  # the Connections page's group (the form's templates say the same)
+
+
+def _engine(dialect: str | None) -> connection_kinds.Kind:
+    """A dialect's own record (domain/connection_kinds.py), or a plain one for a dialect that has none."""
+    return connection_kinds.engine(dialect) or _PLAIN
+
+
+_PLAIN = connection_kinds.Kind("", "")
 
 
 def reads_by_code(dialect: str | None) -> bool:
     """Whether a connection is read through its own code (sab.read) rather than a SQL session of its own:
     Dataverse, a lake, SharePoint."""
-    return dataverse.is_dataverse(dialect) or lakes.is_kind(dialect)
+    return _engine(dialect).by_code
 
 
 def in_code(name: str, connection: str, dialect: str | None) -> str:
     """How code names a connection, in one line: a Power BI workspace's DAX cells, your own Python's
     sab.read, a key vault's sab.blade, a database's sab.connection and SQL cell."""
     cell = f'"{name}"' if re.search(r"\s", name) else name
-    if dialect == powerbi.DIALECT:
+    engine = _engine(dialect)
+    if engine.datasets:
         return f'sab.dax("{name}/<dataset>", …)  ·  %%dax {name}/<dataset>'
     if connection == "vault":
         return f'sab.blade("{name}")'
-    if connection == "python" or reads_by_code(dialect):
-        sql = "" if connection == "python" or dialect in _NO_SQL_CELL else f"  ·  %%sql {cell}"
+    if connection == "python" or engine.by_code:
+        sql = "" if connection == "python" or not engine.sql_cell else f"  ·  %%sql {cell}"
         return f'sab.connection("{name}")  ·  sab.read("{name}", table){sql}'
     return f'sab.connection("{name}")  ·  %%sql {cell}'
 
@@ -361,7 +369,8 @@ def in_code(name: str, connection: str, dialect: str | None) -> str:
 def group_facts(tables_kind: str | None) -> dict[str, Any]:
     """A connection's tree as the pages draw it: its groups' icon, whether each group imports its own
     relationships (a Power BI dataset), whether a lone group opens by itself."""
-    datasets = tables_kind == "powerbi"
+    found = connection_kinds.get(tables_kind)
+    datasets = found is not None and found.datasets
     return {
         "icon": "diagram" if datasets else "folder",
         "relationships": datasets,
@@ -373,36 +382,35 @@ def kind_facts(
     name: str, connection: str, dialect: str | None, tables_kind: str | None, type_label: str = ""
 ) -> dict[str, Any]:
     """One connection as the pages treat it, by its kind: every decision a page would otherwise make by
-    naming a dialect."""
-    lake = lakes.is_kind(tables_kind)
-    group = {"file": "Files", "python": "Your own code"}.get(connection, "")
-    if connection == "database":
-        group = LAKE_GROUP if lake else "Databases"
-    elif lake:
-        group = LAKE_GROUP
-    actions: list[str] = []
-    if dialect == "sqlserver" and connection == "database":
-        actions.append("import_relationships")  # its foreign keys into the ERD
-    if tables_kind == "dataverse_web":
-        actions.append("sql_endpoint")  # saved for the Web API: one click moves it to its SQL endpoint
-    runs_queries = connection == "database" and tables_kind != "dataverse_web"
-    datasets = tables_kind == "powerbi"
+    naming a dialect. Each answer is a field of the kind's own record (domain/connection_kinds.py): its
+    tables kind's, and its dialect's."""
+    tables = connection_kinds.get(tables_kind) or _PLAIN
+    engine = _engine(dialect) if connection == "database" else _PLAIN
+    group = tables.group or {"file": connection_kinds.FILES, "python": connection_kinds.OWN_CODE}.get(
+        connection, ""
+    )
+    # Its dialect's actions (SQL Server: its foreign keys into the ERD), then its tables kind's (Dataverse
+    # saved for the Web API: one click moves it to its SQL endpoint).
+    actions = list(dict.fromkeys((*engine.actions, *tables.actions)))
     return {
         "group": group,
         "in_code": in_code(name, connection, dialect),
         # A Test of it runs its own code (what each box gave), not a SQL session's connect.
         "test_reads": connection == "python" or reads_by_code(dialect),
         # A Test says what the server is: the detail is drawn again with it (SQL Server's card lines).
-        "test_tells_about": dialect == "sqlserver",
+        "test_tells_about": _engine(dialect).test_tells,
         "actions": actions,
         # A query tab runs on it (Query from, the New query page): in DAX or its own SQL; its kind in words.
         "query": (
-            {"dax": datasets, "type": type_label or ("Power BI workspace" if datasets else "Database")}
-            if runs_queries
+            {
+                "dax": tables.datasets,
+                "type": type_label or ("Power BI workspace" if tables.datasets else "Database"),
+            }
+            if connection == "database" and tables.query_tab
             else None
         ),
-        "has_tables": bool(tables_kind) and tables_kind != "api",
-        "on_connections_page": tables_kind != "api",  # an API has the APIs page
+        "has_tables": tables.tables and not tables.own_page,
+        "on_connections_page": not tables.own_page,  # an API has the APIs page
         "tree": group_facts(tables_kind),
     }
 
@@ -410,6 +418,4 @@ def kind_facts(
 def secrets_legend(dialect: str | None) -> str:
     """The form's heading over a connection's secrets: an app registration's values (two ids and a secret)
     for Power BI and Dataverse, passwords for the rest."""
-    return (
-        "App registration" if dialect == powerbi.DIALECT or dataverse.is_dataverse(dialect) else "Passwords"
-    )
+    return _engine(dialect).secrets or "Passwords"

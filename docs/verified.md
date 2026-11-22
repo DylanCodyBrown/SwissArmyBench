@@ -6231,3 +6231,40 @@ already stale on the branch this came from: the cli folder's 41 modules drawn as
 export's fresh-Python test and the updater's uv test, which fail only from a worktree with PYTHONPATH set (see
 docs/ideas.md). Browser files in Chromium (two workers): the Canvas, its gaps, the previews, widget packs,
 wiring and the Widgets window: 18 passed.
+## Review fix D, 2026-11-22 (branch review-d)
+
+The craft review's ranking item 12, one record per connection kind (docs/reviews/craft-review-2026-11-22.md:
+the domain report's finding 1 and refactor 6, the composition report's finding 5; docs/ideas.md "Review fix D").
+
+- **The record** (`domain/connection_kinds.py`): a frozen `Kind` (37 fields) for 39 words: the 14 tables
+kinds, the 15
+  dialects' own records and every connection starter (`tests/test_kind_records.py` reads
+  `server/blade_templates.py`: a starter with no record, or whose label, group or dialect disagrees, fails).
+  `problems()` answers `[]` for the records and one sentence for each of 13 ways a part is half filled (a
+  tables kind with no naming, a dialect with no sqlglot decision, a kind that neither writes nor says why not,
+  an Entra check missing its place...). The module imports no module of the app (a test reads its text).
+- **The tables are views.** Before each table was replaced, the view was compared with the table as it stood,
+  value for value and, where order shows (TABLE_KINDS, DIALECTS, NO_SQLGLOT, lakes.KINDS), in order: all 23
+  equal. `test_a_table_is_its_records_view` holds 18 of them by value and by the text of their assignment
+  (a table written out by hand again fails); the four with a shape of their own (lakes.KINDS and LABELS,
+  portability.KINDS, the Entra place and scope) by a test each.
+- **A made-up kind** (`lakefront`, in a fixture, added to a copy of the records): whole by `problems()`, and
+  in each of the 15 views with its own value, nothing else moved; found by its other name and in its group.
+- **The connections service**: 18 comparisons of a blade's dialect with a kind's name on the read, count and
+  preview paths; 3 left (Dataverse's own Switch to the SQL endpoint). `_tables`, `_engine`, `_count_sql` and
+  `_origin` are tested on made-up blades of each way of reading (sql, dax, code, file). The tests of
+  connections, connection tables, Power BI, Dataverse, the lakes, SQL Server, app registrations, context.md
+  and the swap passed unchanged (1,069 in the files run after the service slice).
+- **Files that name a kind.** A lake or SharePoint kind by its quoted word, in domain/ and services/: 10 files
+  before, 5 now (the record, lakes.py, lake_code.py, the domain's app_registrations.py, local_api_wizard.py),
+  each listed with its reason in the test. Tables a new kind was written into by hand: 23 across 8 files
+  (and context.md's literal tuple)
+  before; none now (they are views).
+- **No import cycle**: `app_registrations.py`'s two imports inside functions are at the top again; every
+  domain module imports first in a fresh Python.
+
+Checks: `ruff check .`, `ruff format --check .`, `mypy` (1,117 files), `npm run typecheck`: clean. Quick suite
+at four workers: 5,799 passed, 60 skipped, 2 failed, neither this branch's: the export's fresh-Python test and
+the updater's uv test fail only because this worktree's PYTHONPATH reaches the new Python (the environment's
+editable install points at the main checkout); both pass without it (35 passed in their two files). The
+browser suite was not run: no page file changed.

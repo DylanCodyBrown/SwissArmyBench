@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
-from swissarmybench.domain import sql_server
+from swissarmybench.domain import connection_kinds, sql_server
 
 HEAD = "Only works on your machine"
 ELSEWHERE = "On a Function App or hosted Streamlit app use"
@@ -112,9 +112,11 @@ KEYRING = LocalOnly(
 )
 
 # A kind of connection that leans on this computer whatever its sign-in (its starter's id).
-KINDS: dict[str, LocalOnly] = {"odbc": ODBC, "access": ACCESS, "sybase": SYBASE}
+# Each kind's own record names its note by the note's key (domain/connection_kinds.py local_only).
+KIND_NOTES: dict[str, LocalOnly] = {note.key: note for note in (ODBC, ACCESS, SYBASE)}
+KINDS: dict[str, LocalOnly] = {kind: KIND_NOTES[key] for kind, key in connection_kinds.local_only().items()}
 # Kinds whose code reads a file or folder: on this disk unless its address is a web or cloud one.
-FILE_KINDS: frozenset[str] = frozenset({"csv", "excel", "parquet", "json", "folder", "sqlite", "duckdb"})
+FILE_KINDS: frozenset[str] = connection_kinds.file_kinds()
 _CLOUD = re.compile(r"""["'](?:https?|s3|s3a|gs|gcs|az|abfss?|azure|hf|r2)://""", re.IGNORECASE)
 
 # (rule, a pattern only code of that kind holds). The first rule a code matches is said once.
