@@ -316,3 +316,12 @@ be created in app." So, everywhere in this plan and the code:
   over a grid's view, steps applied; write: an edit), and the steps, the SQL box, views, the analyses, exports and
   kernels reach rows only through it. The boundary test (tests/test_adapter_boundary.py) grows to enforce it for every
   path as each one moves; its list from phase 1 is the work list.
+
+## The owner's answers after phase 2 (2026-11-22)
+- **SQL a plan cannot say: `query(source, sql)`** in the source's own SQL (joins, CTEs); in the sandbox it is
+  translated to DuckDB (today's sandbox_dialects, kept as that backend's), so an endpoint deploys unchanged against
+  the real source. Then the per-source mock clients go: endpoints call the adapter (table, read, query, write).
+- **Writes next:** Dataverse ($batch), SharePoint lists (Graph) and the lakes (Delta) as the adapter's write for each,
+  truncate included (the Write starters' code moves in); then sab.write covers every source.
+- **The Catalog lists through the adapter's tables()**, except a connection whose "List the tables" query the user
+  edited keeps using theirs.
