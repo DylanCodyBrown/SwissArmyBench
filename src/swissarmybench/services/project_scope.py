@@ -21,7 +21,7 @@ import json
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from swissarmybench.domain import code_tree
+from swissarmybench.domain import code_tree, project_paths
 from swissarmybench.domain import project_scope as rules
 from swissarmybench.domain.blades import Blade
 from swissarmybench.domain.library import saved_json
@@ -35,6 +35,8 @@ class ScopeFiles(Protocol):
     """Project folders and loose files (adapters/sab_files.py)."""
 
     def full(self, path: str) -> str: ...
+
+    def real(self, path: str) -> str: ...
 
     def exists(self, path: str) -> bool: ...
 
@@ -159,12 +161,8 @@ class ProjectScope:
         current = self._projects.current
         if current is None or who not in ("user", "agent"):
             return
-        root = current.folder.replace("\\", "/").rstrip("/") + "/"
-        full = path.replace("\\", "/")
-        if not full.startswith(root):
-            return
-        relative = full[len(root) :]
-        if not code_tree.made_from(relative):
+        relative = project_paths.relative_in(path, current.folder, self._files.real)
+        if relative is None or not code_tree.made_from(relative):
             return
         edited = self.edited_in(current.folder)
         if relative in edited:

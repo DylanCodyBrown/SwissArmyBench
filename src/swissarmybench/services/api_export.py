@@ -19,6 +19,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import api_targets as targets
 from swissarmybench.domain import local_api as rules
+from swissarmybench.domain import project_paths
 from swissarmybench.domain.api_targets import Bundle, Registry, Route
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -122,7 +123,7 @@ class ApiExport:
             if not await self._approvals.ask(rules.FILE, "export with rows", detail):
                 raise Refused("The user declined (or did not answer): nothing was exported.")
         files = target.render(bundle)
-        inside = place.replace("\\", "/").startswith(project.replace("\\", "/").rstrip("/") + "/")
+        inside = project_paths.inside(place, project)
         prefix = relative + "/" if inside and not given.get("folder") else ""
         edited = {p[len(prefix) :] for p in self._edited(project) if prefix and p.startswith(prefix)}
         replace = {str(p) for p in given.get("replace") or []}

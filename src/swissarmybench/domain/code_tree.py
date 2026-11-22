@@ -17,7 +17,7 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from swissarmybench.domain import workbench_pages
+from swissarmybench.domain import project_paths, workbench_pages
 
 # The groups in their order, each a folder of the tree.
 SCRIPTS = "scripts"  # Your scripts: scripts/ and its packages
@@ -199,13 +199,11 @@ def library_tree(root: str | None, paths: Iterable[str]) -> list[dict[str, Any]]
     use."""
     if not root:
         return []
-    base = root.replace("\\", "/").rstrip("/") + "/"
     found: dict[str, list[dict[str, Any]]] = {key: [] for key, _ in LIBRARY_GROUPS}
     for full in paths:
-        path = full.replace("\\", "/")
-        if not path.startswith(base) or not path.endswith(".py") or not listed(path[len(base) :]):
+        relative = project_paths.relative_in(full, root)
+        if relative is None or not relative.endswith(".py") or not listed(relative):
             continue
-        relative = path[len(base) :]
         top = relative.split("/", 1)[0]
         if top not in found:
             continue

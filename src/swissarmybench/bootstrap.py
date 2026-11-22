@@ -89,7 +89,7 @@ from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
 from swissarmybench.domain import api_patterns as api_pattern_rules
 from swissarmybench.domain import api_targets as api_target_rules
-from swissarmybench.domain import blade_tables, python_connections
+from swissarmybench.domain import blade_tables, project_paths, python_connections
 from swissarmybench.domain import connection_slots as slot_rules
 from swissarmybench.domain import connection_tables as connection_table_rules
 from swissarmybench.domain import connection_usage as usage_rules
@@ -606,9 +606,7 @@ def _used_in(sab_projects: Any, connection_usage: Any, name: str) -> list[tuple[
     for ref in found:
         if ref.kind == "grid":
             out.append(("grid", ref.title))
-        elif folder and ref.document.replace("\\", "/").casefold().startswith(
-            str(folder).replace("\\", "/").rstrip("/").casefold() + "/"
-        ):
+        elif folder and project_paths.inside(ref.document, str(folder)):
             out.append((ref.kind, ref.document))
     return out
 
@@ -2168,8 +2166,7 @@ def _scaffold(b: Built) -> Scaffold:
         found = project()
         if found is None or not path:
             return False
-        root = os.path.realpath(found[0]).replace("\\", "/").rstrip("/") + "/"
-        return os.path.realpath(path).replace("\\", "/").startswith(root)
+        return project_paths.inside(path, found[0], os.path.realpath)
 
     def api_connections() -> list[str]:
         found = project()

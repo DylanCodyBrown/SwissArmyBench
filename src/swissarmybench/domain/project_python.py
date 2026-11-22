@@ -17,6 +17,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from swissarmybench.domain import project_paths
 from swissarmybench.domain.environments import ALWAYS, EXCEL
 
 VENV: str = ".venv"
@@ -34,19 +35,10 @@ def key(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def _plain(path: str) -> str:
-    return path.replace("\\", "/").rstrip("/").casefold()
-
-
 def in_project(path: Any, folder: Any) -> bool:
     """Whether a document is the open project's: its path is inside the project's folder. Both are full
     paths as the app keeps them; nothing is read from disk. A path with `..` in it is never taken."""
-    if not isinstance(path, str) or not isinstance(folder, str) or not path.strip() or not folder.strip():
-        return False
-    plain, top = _plain(path), _plain(folder)
-    if "/../" in plain + "/":
-        return False
-    return plain.startswith(top + "/") and len(plain) > len(top) + 1
+    return project_paths.inside(path, folder)
 
 
 def venv_packages(requirements_text: str) -> list[str]:

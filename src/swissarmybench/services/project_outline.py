@@ -33,7 +33,7 @@ from swissarmybench.domain import connection_tables as sql_names
 from swissarmybench.domain import intellisense as lint_rules
 from swissarmybench.domain import lineage as lineage_rules
 from swissarmybench.domain import local_api as local_api_rules
-from swissarmybench.domain import notebooks, sab_files
+from swissarmybench.domain import notebooks, project_paths, sab_files
 from swissarmybench.domain import packages as package_rules
 from swissarmybench.domain import project_outline as rules
 from swissarmybench.domain import project_scope as scope_rules
@@ -114,6 +114,8 @@ class OutlineFiles(Protocol):
 
     def write_state(self, folder: str, relative: str, body: bytes) -> bool: ...
 
+    def real(self, path: str) -> str: ...
+
 
 def bracket_name(connection: str, parts: Sequence[str]) -> str:
     return f"[{connection}]." + ".".join(parts)
@@ -186,15 +188,9 @@ class ProjectTables:
         return names
 
 
-def _relative(path: str | None, folder: str) -> str | None:
-    """A path as the project's own (relative to its folder); None outside it."""
-    if not path:
-        return None
-    clean = path.replace("\\", "/")
-    root = folder.replace("\\", "/").rstrip("/") + "/"
-    if clean.casefold().startswith(root.casefold()):
-        return clean[len(root) :]
-    return None
+def _relative(path: str | None, folder: str, real: Callable[[str], str] | None = None) -> str | None:
+    """A path as the project's own (relative to its folder); None outside it (domain/project_paths.py)."""
+    return project_paths.relative_in(path, folder, real)
 
 
 def _lower(words: str) -> str:
@@ -339,14 +335,14 @@ class ProjectOutline:
             how = f": {code(place)}" if place else (", a DAX query" if origin.dax else ", a query")
             return f"from connection {code(origin.connection)}{how}", "connection", connection
         if origin.kind in ("file", "dropped"):
-            inside = _relative(origin.path, folder)
+            inside = _relative(origin.path, folder, self._files.real)
             if inside:
                 sheet = f", sheet {code(origin.sheet)}" if origin.sheet else ""
                 return f"from file {code(inside)}{sheet}", "file", inside
             base = posixpath.basename((origin.path or origin.filename or "").replace("\\", "/"))
             return f"from a file outside the project ({code(base)})", "file", None
         if origin.kind == "python":
-            document = _relative(self._kernel_document(origin.kernel), folder)
+            document = _relative(self._kernel_document(origin.kernel), folder, self._files.real)
             return (f"made by Python in {code(document)}" if document else "made by Python"), "python", None
         words = {"paste": "pasted into the app", "query": "from a query in the app's + tab"}
         return words.get(origin.kind, "where it came from is not known"), origin.kind, None
