@@ -198,9 +198,9 @@ def excel_files(used: str) -> dict[str, str]:
     """What a built app carries to read and make workbooks (Plans/excel.plan.md): adapter.py where its code
     imports the adapter (a workbook read), sab_excel.py where it imports the builder (a workbook made); each
     the base's own file, as it is."""
-    import swissarmybench
+    from swissarmybench.adapters import atomic_files  # only for where the base's package is
 
-    base = Path(swissarmybench.__file__).parent
+    base = Path(atomic_files.__file__).parent.parent
     return {
         f"{module}.py": (base / place).read_text(encoding="utf-8")
         for module, place in _CARRIED.items()

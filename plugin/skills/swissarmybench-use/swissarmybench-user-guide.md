@@ -1192,12 +1192,14 @@ version never touches your copy.
 - **Dataverse** (through your Dataverse connection's own sign-in): FetchXML query (a query's rows, as
   a table) and choice options (a choice column's numbers and labels:
   `choice_options("opportunity", "salesstage")`).
-- **Excel** (the workbook is saved in place; a sheet or a file is written over only with
-  `overwrite=True`): add sheet, set cell values (a dict of cells, or rows from a cell), write table (a
-  DataFrame from a cell), borders (thin or thick, every cell or the outline), fonts and fills, number
-  formats (money, percent, dates, or your own), autofit columns, freeze panes, merge cells,
-  conditional colours (a simple rule: below 0 in red), range as table (an Excel table), copy template
-  (a new workbook from a template).
+- **Excel** (three, each a few lines over the one Excel module): **read a workbook** (a sheet or a named
+  table as a table, a range of cells or another header row on request: the same reader as a workbook
+  opened as a grid), **make a workbook** (tables as a workbook: a sheet each as they are, or laid out by a
+  design: a title, a table with number formats, widths, a total row and colour rules, a pivot, Excel's own
+  charts, freeze panes and print setup) and **fill a template** (a copy of an existing workbook with its
+  places filled; its table grows with its rows). Text from your data is always text in the workbook, never
+  a formula. The twelve cell-level starters (add sheet, borders, number formats...) went: what each did is
+  an option of a design, and each old name answers with one line saying which.
 - **Files:** combine CSVs (a folder of them as one table), split CSV (one file per value of a
   column), change delimiter or encoding.
 - **DAX** (each a query a DAX cell runs, its measures defined at the top to copy into your model): year
@@ -1256,7 +1258,7 @@ BigQuery, Redshift, Databricks), and a key vault.
   alternate key, such as an account number) and delete, a batch at a time; a choice column takes its
   labels (Won, not 1).
 - **Files**: CSV, Parquet, partitioned Parquet (a folder per value), JSON, an Excel sheet (the
-  workbook's other sheets kept). Excel write table and Excel range as table are listed here too.
+  workbook's other sheets kept). Excel make a workbook is listed here too.
 - **APIs**: the APIs page's Write rows with this call.
 
 There is one starter a target (**SQLite write**, **SQL Server write**, **Delta write**...). Drop one onto a
@@ -1772,7 +1774,7 @@ linear `.ipynb`, for a scheduler that runs notebooks. The name starts as the doc
 
 - **Everything is written out in it:** each connection the document uses (its own Connect code, a
   file's path, a Power BI workspace's sign-in and DAX, your own Python's Connect and Read a table, a
-  blade such as the Excel starters' `write_table`), each key vault a password comes from, each table's
+  blade such as the Excel starters' `make_workbook`), each key vault a password comes from, each table's
   load and its grid steps as one DuckDB query, then your cells in order. `%%sql` and `%%dax` cells,
   and `sab.sql`, `sab.dax`, `sab.read`, `sab.blade` and `sab.connection`, call those. It needs no
   Swiss Army Bench.

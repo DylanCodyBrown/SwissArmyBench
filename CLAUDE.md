@@ -313,6 +313,17 @@ has the rules and why. Three layers, imports pointing inwards, nothing deeper th
 src/swissarmybench/
   settings.py            every limit (plan 6a) in one frozen dataclass
   stats.py               public: the analyses on your own table (what notebook code and sab.analyze call)
+  sab_excel.py           public: THE workbook builder (Plans/excel.plan.md, the owner 2026-11-21), one file the
+                         app, a kernel, a Streamlit app and an export share; standard library, openpyxl and
+                         duckdb only: build(grids, design, template, out): no design a plain workbook
+                         streamed a batch at a time (the grid's Excel export; notes: its Provenance), a design
+                         the Accounting design (title, text, table: formats, widths, total row, conditional
+                         colours, filter, a form's checks; pivot by DuckDB GROUPING SETS; Excel's own charts;
+                         freeze panes, print setup; no sheets named: each grid one styled table), a template
+                         filled (its tables grow) or, with group_by, one workbook per group numbered with a
+                         register; cell_value: text never a formula, long numbers and early dates exact;
+                         it never reads a connection or a sheet's rows (the adapter's); laid out in parts
+                         (`# ===== name:`) so workbook.py carries only what its design uses
   bootstrap.py           the composition root: builds the adapters, hands them to the services; bootstrap() runs
                          its parts by area in order (_adapters, _connection_runs, _workspace_and_beta, _data, ...,
                          _exports), each reading what it needs from Built (the one typed record of what is made
@@ -545,7 +556,9 @@ src/swissarmybench/
                          the missing table (DuckDB's own-table "Did you mean" dropped)
     script_export.py     a notebook or script as one self-contained automation: one ordered plan of steps, rendered
                          as a .py (plain python) or a linear .ipynb; script_runtime.py the helper text it inlines
-                         (the package check, settings, the vault by managed identity, connections)
+                         (the package check, settings, the vault by managed identity, connections) and a
+                         scaffold file a blade imports by its own name (sab_excel, adapter: carried_module,
+                         its text and a finder that runs it on first import)
     lineage.py           a cell's or a block's lineage back to the data: makes and reads, @cell links, a
                          table's grid steps and origin, data.ipynb, controllers; nodes, edges, Mermaid
     kind_colours.py      kind colours (app violet, notebook blue, script green): each theme's fixed one,
@@ -585,7 +598,9 @@ src/swissarmybench/
                          deliverable, languages by pattern, cells, files: path, owner user or app, starter, made_from,
                          grows_on; requirements, canvas, export, areas, words); the one checker (one sentence naming
                          the key: unknown keys, a newer format, paths out of the project, the core files refused);
-                         byte-stable text; New project's files from it, its MODE, a path matched to its entry
+                         byte-stable text; New project's files from it, its MODE, a path matched to its entry;
+                         a workbook (.xlsx, .xlsm) a file any type may declare beside its deliverable (made:
+                         no starter; workbooks())
     beta_log.py          beta mode's default (one constant), the beta log's redaction (quoted text, numbers,
                          secrets, paths; table and column aliases), stacks as file:line, notes, the rate cap
     navigation.py        app_navigate's places: each window's (home, catalog, workbench) and the notice; the rail's
@@ -947,8 +962,12 @@ src/swissarmybench/
                          pairs), table(answer) (records through adapter). Allowed 3,000 lines; it only grows
                          Arrow answer); observe(hook) (each read's, query's and write's facts as it ends, for the
                          statistics; no hook, nothing wrapped); Trino's replace one CREATE OR REPLACE TABLE ... AS
-                         (Iceberg). Version 1.3.0. Allowed 3,650 lines (one file); it only grows (design
-                         principle 12b)
+                         (Iceberg); Excel (a workbook, a path or its bytes: its sheets and named tables
+                         listed, read as Arrow by one set of type rules with columns and a limit folded,
+                         rows written into a sheet by insert or truncate, the other sheets kept, the file
+                         replaced safely; openpyxl imported only when a workbook is used, missing said in
+                         one sentence; header_names, typed, sheet_value). Version 1.4.0. Allowed 4,075
+                         lines (one file); it only grows (design principle 12b)
     call_stats.py        the open project's .sab/stats.json read, and written atomically only when it changes
     changes.py           the open project's .sab/changes.jsonl read, and one line appended per change
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
@@ -957,8 +976,10 @@ src/swissarmybench/
                          TextFolder (one of the library's folders of small text files: shared_catalog.py's
                          and vault_names.py's read and write)
     database.py          the locked DuckDB, the priority worker pool, DuckDB's own SQL grammar
-    datasets.py          the dataset store and its limits; Arrow, CSV, Excel, Parquet, JSON loaders; load_adapted
-                         (a file connection's file through the adapter's Files: DuckDB's types)
+    datasets.py          the dataset store and its limits; Arrow, CSV, Parquet, JSON loaders; a workbook's sheet
+                         or named table through the adapter's Excel (its header and type rules the delimited
+                         and JSON loaders' too); load_adapted (a file connection's file through the adapter's
+                         Files: DuckDB's types)
     views.py             the view cache and windows; Adapted (the engine's cursor: every grid query's execute is
                          adapter.query over the app's session, its values as DuckDB's fetch gives them)
     catalogs.py          loaded catalogs: tree queries and search in the locked DuckDB
@@ -989,7 +1010,8 @@ src/swissarmybench/
     blade_run.py         run a blade, its catalog command, a vault, in this Python (standard library
                          only: sab.blade uses it too); which packages this Python has
     codegen.py           runs copied code and compares it with the grid
-    export.py            CSV, Excel and Parquet writers; the export folder
+    export.py            CSV and Parquet writers; Excel through sab_excel.build with no design (openpyxl only;
+                         xlsxwriter went 2026-11-22); the export folder
     state_files.py       the audit log, saved dashboards and themes, the connection file, the model library
     beta_log.py          the beta log's files: a writer thread, rotation (7 days, 20 MB), pictures, the zip
     connection_colours.py colours.toml (the library's), written only when it changes
@@ -1092,13 +1114,15 @@ src/swissarmybench/
     blade_templates.py   the 40 starter blades (3 analyses; a Power BI workspace: code that signs in, lists
                          its datasets and sends DAX to one, each dataset shaped like a database connection)
 
-  starters/              the built-in starter pack (99 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel, Files,
+  starters/              the built-in starter pack (90 read-only .blade.py: Power BI, Dataverse, SharePoint, Excel (three:
+                         Read a workbook by the adapter, Make a workbook and Fill a template by sab_excel; the
+                         twelve cell-level ones went 2026-11-22, each old name answering with one line for one
+                         release: domain/blade_templates.py GONE_STARTERS), Files,
                          DAX, HTML, Markdown, Write; the Streamlit extension brings its 52), listed apart, found by name, Copy as your own (tests/test_starters*.py);
                          Write: 16 functions (write_to_*: one public typed function a target, for functions.py) and
                          17 calls (a cell's text: the call only, dry_run=True; one a target, its mode a placeholder;
-                         each points at sab.write); 15 of the functions write only through the adapter (the
-                         Excel sheet its own until the Excel module: docs/ideas.md "One adapter"; Trino's replace
-                         refused: no transaction)
+                         each points at sab.write); every function writes only through the adapter (the Excel
+                         sheet through its Excel source)
   client/push_client.py  push(), ensure_server()
   client/writes.py       the Write starters' shared part: the rows staged in a DuckDB of their own, the dry run's
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
@@ -1131,7 +1155,7 @@ src/swissarmybench/
   client/kernel_intel.py Jedi's answers (the member list, signatures, hovers): its Interpreter over a kernel's
                          namespace, asked in the kernel; its Script the server runs where no kernel has
   client/sql_cell.py     %%sql <connection> cells in Jupyter and IPython, sab.sql: a database in its own SQL,
-                         files (CSV, workbook sheets, folders), DataFrames and the tables open in Grids (their
+                         files (CSV, a workbook's sheets through the adapter's Excel, folders), DataFrames and the tables open in Grids (their
                          views, read when named) in DuckDB; %%dax
                          <connection>/<dataset> cells and sab.dax: DAX on one dataset of a Power BI workspace
   client/visualizations_client.py a figure, picture, table or text as a card on the Analyze board
@@ -1467,16 +1491,18 @@ examples/forms_recon/    the owner's first app POC as a test app, made by the ap
                          (forms with versions, entries stored long, a PIVOT column store, monthly reconciliations),
                          three canvas pages, widgets/api_bridge.widget.py (the project's own widget);
                          tests/e2e/test_forms_recon_app.py plays it; tests/stress/test_local_api_stress.py
-                         (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes
+                         (SWISSARMYBENCH_STRESS=1) loads it with Larkfield Goods; tests/test_sandbox_speed.py the fixes;
+                         workbook.py (a month's reconciliations as a workbook beside the app, from the sandbox
+                         through adapter.py and sab_excel.py: tests/test_workbook_deliverable.py)
 build.py                 build the page (release) and the one wheel
 installer/               install.sh and install.ps1 (uv, then the server as a uv tool); build.py stamps the version
 .github/workflows/       release.yml: a v* tag builds, tests the installers on Linux and Windows, publishes
 tools/smoke_install.py   start the installed server, push the sample store, check it all arrived (used by releases)
 extensions/accounting/   the Accounting extension (swissarmybench-accounting, its own wheel on the base's version):
-                         src/swissarmybench_accounting/ runtime.py (the one workbook builder: Play runs it, Export
-                         writes it into workbook.py; pivots by DuckDB's GROUPING SETS, Excel's own charts,
-                         templates filled, build_statements), design.py and templates.py (rules), exporter.py
-                         (workbook.py's text), files.py (files, the preview), service.py, routes.py (/accounting),
+                         src/swissarmybench_accounting/ (its builder is the base's sab_excel: Play runs it, Export
+                         writes the parts a design uses into workbook.py; its runtime.py moved there 2026-11-22),
+                         design.py and templates.py (rules), exporter.py (workbook.py's text; parts_used),
+                         files.py (files, the preview), service.py, routes.py (/accounting),
                          commands.py (workbook_, template_, statements_), extension.py (describe, MODE, routes,
                          scaffold); tests in tests/test_accounting_*.py with tests/accounting_data.py (a made-up
                          reinsurer's cessions)
@@ -1547,7 +1573,9 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          (each block a widget instance), the caches, the hints in plain words
     adapters/widget_files.py  the open project's widgets/, the library's and the prebuilt ones (PLACES, in that order: a
                          project's name wins); a canvas file read with a stamp, written
-                         atomically only when it changes, a broken one's copy; the previews' cache (by hash, theme)
+                         atomically only when it changes, a broken one's copy; the previews' cache (by hash, theme);
+                         excel_files (adapter.py and sab_excel.py carried beside a built app's pages where its
+                         code imports them: the Excel widgets are thin callers)
     adapters/streamlit_files.py, build_files.py  a run's temporary folder and an export's; a build's folder
     services/widgets.py  Widgets: list (This project, Library, prebuilt; `where`, `hides`), get, new (where), save
                          (where it lives), header (a rename follows every canvas), properties live, set a default,

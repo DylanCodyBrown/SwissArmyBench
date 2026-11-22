@@ -1,5 +1,5 @@
 """Export: workbook.py, the automation that builds the design's workbook without the app (the Accounting
-extension's domain; no I/O: the runtime's text is handed in).
+extension's domain; no I/O: sab_excel's text is handed in).
 
 The design is data; the Python is generated from it: workbook.py holds the design (a Python literal),
 the builder (sab_excel's own text, the one builder Play runs too: only the parts this design uses), and

@@ -49,8 +49,10 @@ says so in one line.
   `value: Out[...]` and `default_from: In[...]`, a select's `options_table` and `options_column`, the pack
   hand-offs as Outs and Ins of one name that wire by themselves (`sales_filter`, `ticket_id`, `uploaded` ->
   `mapped` -> `valid`, `form_definition`, `form_submissions`), its Save/Submit/Send as an Event (`saved`,
-  `sent`, `approved`, `rejected`). Excel widgets need openpyxl (xlrd for .xls): a new project's Python gets
-  both; an older one says so in place.
+  `sent`, `approved`, `rejected`). Excel widgets read through the
+  adapter's Excel and make workbooks through `sab_excel.build` (adapter.py and sab_excel.py are carried beside
+  the pages); they need openpyxl (an older .xls is saved as .xlsx first): a new project's Python gets it; an
+  older one says so in place.
 
 ## The Canvas (`<app>.canvas.json`, a project file; two layouts, Phone and Desktop)
 - `canvas_open` (path, or name: a new one; neither: the project's canvases), `canvas_state` (model, version, `missing`

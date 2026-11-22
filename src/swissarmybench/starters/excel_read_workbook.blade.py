@@ -26,9 +26,17 @@ Laid out top to bottom: the imports, then `read_workbook`, the one function, whi
 from pathlib import Path
 from typing import Any
 
-import openpyxl  # noqa: F401 (the package this needs: the adapter reads the workbook with it)
+import duckdb  # noqa: F401 (the packages this needs: the adapter's own two, and openpyxl for a workbook)
+import openpyxl  # noqa: F401
+import pyarrow  # noqa: F401
 
-from swissarmybench.adapters import adapter
+try:  # adapter.py beside this code (a project, an exported script carries it); in the app, the app's own
+    import adapter  # type: ignore[import-not-found]
+
+    if not hasattr(adapter, "Excel"):  # a copy from before 1.4.0 reads no workbook
+        raise ImportError("the adapter.py beside this code is older than 1.4.0")
+except ImportError:
+    from swissarmybench.adapters import adapter
 
 
 def read_workbook(

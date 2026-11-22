@@ -456,7 +456,9 @@ class Canvases:
         data = self._read_data_py(folder)
         if data is not None:
             files["data.py"] = data
-        files["requirements.txt"] = "\n".join(build_rules.REQUIREMENTS) + "\n"
+        # What the Excel widgets' adapter.py and sab_excel.py (carried where the code imports them) need.
+        excel = ("openpyxl", "duckdb") if {"adapter.py", "sab_excel.py"} & set(carried) else ()
+        files["requirements.txt"] = "\n".join([*build_rules.REQUIREMENTS, *excel]) + "\n"
         return files, self._widgets.named_tables(opened.canvas, built, context)
 
     async def play(self, canvas: str, body: Any = None, who: str = "user") -> dict[str, Any]:

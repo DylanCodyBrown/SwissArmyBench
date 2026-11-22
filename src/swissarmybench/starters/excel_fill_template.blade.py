@@ -35,9 +35,14 @@ Laid out top to bottom: the imports, then `fill_template`, the one function, whi
 from pathlib import Path
 from typing import Any
 
-import openpyxl  # noqa: F401 (the package this needs: sab_excel fills the workbook with it)
+import duckdb  # noqa: F401 (the packages this needs: sab_excel fills the workbook with them)
+import openpyxl  # noqa: F401
+import pyarrow  # noqa: F401
 
-from swissarmybench import sab_excel
+try:  # sab_excel.py beside this code (a project, an exported script carries it); in the app, the app's own
+    import sab_excel  # type: ignore[import-not-found]
+except ImportError:
+    from swissarmybench import sab_excel
 
 
 def fill_template(

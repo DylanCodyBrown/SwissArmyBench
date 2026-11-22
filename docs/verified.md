@@ -5106,3 +5106,77 @@ Python 3.12.3, Starlette 1.9.0, uv 0.11.32, Chromium 1243 (Playwright's), on Lin
   widget's or an endpoint's `where` (nothing sends it yet); the figures on the Connections and APIs pages by eye (no
   screenshot taken); API.py's endpoints changed while its API runs, end to end (the shapes and the diff are tested,
   the restart's loop is not).
+
+## The one Excel module (2026-11-22, branch excel; openpyxl 3.1.5, DuckDB 2.0.0, pyarrow 26.0.1; Plans/excel.plan.md)
+
+Checked on Linux (Python 3.12), made-up data only. The app and the project scaffold: adapter.py 1.4.0 and sab_excel.py
+are files of both.
+
+- **adapter.py 1.4.0, the Excel source** (tests/test_adapter_excel.py, 13): a workbook's sheets and named tables listed
+  (the named ones from the file's own lists: xl/workbook.xml, its rels, each sheet's rels, xl/tables; no cell read), a
+  path and bytes; a sheet read with its header and types (int64, string, double, timestamp[us], bool), a blank row
+  inside the data kept and the ones after it dropped, a column with no name and no value left out, mixed kinds as text,
+  a kind that changes after 60,000 rows making the whole column text (chunks typed alone, then made one type), columns
+  and a limit folded (a limit ending among blank rows counts them), filters and sort left to DuckDB, header_row and a
+  range of cells; the refusals in one sentence; a truncate replacing one sheet with the others kept and no partial file
+  left, an insert by the header's names, a new sheet and a new workbook; text kept text (data_type s for "=1+1"), a
+  19-digit number and 1899-12-30 as text, a zoned time as ISO text, a control character as _x0001_; bytes written are
+  the source's new bytes; openpyxl imported only on a workbook's first use (a copy of the file alone, in a process of
+  its own) and, missing, a ModuleNotFoundError naming openpyxl with "pip install openpyxl". The adapter's own suites
+  (tests/test_adapter*.py) and the boundary test passed with it; its top-level imports are still duckdb and pyarrow.
+- **Reading, speed and memory** (one workbook of 200,000 rows by 8 columns, 8.5 MB, read whole in a process of its
+  own): the datasets loader's old reader (every value held in Python lists) 25.7 s and 215 MB at its peak; the
+  adapter's Excel 22.8 s and 183 MB (each 50,000 rows typed into Arrow as they are read). A read of the first 100 rows
+  (the limit folded) 1.1 s; `tables()` 1.2 s (1,000 rows a sheet). Almost all of a read's time is openpyxl parsing the
+  sheet. No other source's code changed, so the Larkfield large numbers of the earlier phases stand as recorded; they
+  were not run again (the test bed's databases are not on this machine).
+- **The plain export, before and after** (1,000,000 made-up rows by 8 columns: whole numbers, text, decimals, a time,
+  yes/no; the grid's Excel export called as the service calls it): xlsxwriter with the direct sheet XML (before)
+  13.4 s, a 39.0 MB file, 1,381 MB at its peak (the workbook held in memory); sab_excel on openpyxl's write-only sheet
+  (after) 99.4 s, a 40.3 MB file, 285 MB at its peak (the process before the export: 278 MB). About seven times
+  slower, and flat in memory: the owner accepted the time (the plan). openpyxl alone, appending the same rows with no
+  Arrow in between, takes 11.2 s per 100,000 rows: the time is openpyxl's cell and XML writing. openpyxl writes every
+  sheet through one temporary file in the system's temp folder and removes it as the workbook is saved (it has no
+  in-memory sheet writer); read in openpyxl/worksheet/_writer.py and openpyxl/writer/excel.py.
+- **What openpyxl does that the builder relies on** (read in its source, then tested): a text that starts with = is
+  made a formula and one of its error words (#N/A) an error cell unless the cell's data_type is set to "s" after the
+  value (then it is written as an inline string); a control character raises IllegalCharacterError, so the builder
+  writes it as Excel's _xHHHH_ first; a text over 32,767 characters is cut without a word, so the builder refuses (or
+  cuts when asked) first; a date, a date and time and a time get their number format by themselves; a write-only
+  sheet's column widths and freeze panes are written before its first row and its filter after its last.
+- **sab_excel** (tests/test_sab_excel.py, 9; tests/test_accounting_workbook.py and tests/test_accounting_statements.py
+  unchanged but for the module they import, 14): no design (two grids as two sheets, a bold frozen filtered header,
+  dates as dates, "=cmd()" a text cell, 1899-12-30 as text), 120,000 rows from an Arrow reader written to a path and
+  read back by adapter.Excel, notes sheets, a long text refused naming its row and column or cut; a design (title,
+  table with a format and a total row whose formula stays one), a table as a form to fill in (a note, a red required
+  header, a whole-number check and a list over 500 rows); a template filled once from a path and from bytes with its
+  table growing and its total's formula following, statements by group with a dry run, numbering and a register; the
+  file run copied alone under `python -I` importing nothing of the app; workbook.py carrying cells, data, tables and
+  design for a plain design, pivots and charts only with such blocks, never templates, statements or the plain part.
+- **The export through the app** (tests/test_export.py, tests/test_export_hostile.py): the hostile table (control
+  characters, _x0041_, emoji, the int64 and uint64 extremes, a 30-digit decimal, nan and inf, dates from year 1,
+  zoned and nanosecond times, lists, blobs, an all-null column) written the same whether its rows come in one batch or
+  five, each value read back as what it is; the row, column and cell limits refused as before.
+- **The readers** (tests/test_excel.py, tests/test_loaders_hostile.py, tests/test_sql_cell.py): Open file and a dropped
+  workbook, the sheet picker, a SQL cell over a workbook's sheets, all through adapter.Excel. tests/test_adapter_boundary
+  still holds.
+- **Starters** (tests/test_starters.py, tests/test_starters_excel.py, tests/test_starters_write.py): 142 starters (the
+  base's 90), Excel 3; Read a workbook, Make a workbook (plain and by a design: merged cells, a format, a width, a
+  total, a colour rule, freeze panes, a filter) and Fill a template run as sab.blade gives them; each of the twelve old
+  names answers "went with the one Excel module: it is now ..."; Write to an Excel sheet writes, adds below and keeps
+  the other sheet through the adapter.
+- **An exported script with an Excel starter** (tests/test_script_export.py, 16, run with no PYTHONPATH so the fresh
+  Python has no Swiss Army Bench): the made-up notebook's cell calls Make a workbook; the script holds sab_excel.py's
+  text and its finder (not the adapter's: nothing imports it), says what it needs before anything is imported
+  (duckdb, pandas, openpyxl; exit 3), and with those installed writes report.xlsx (the header and two rows) and
+  the CSV in a venv made from the base interpreter.
+- **The Streamlit Excel widgets** (tests/test_widgets_apptest.py, tests/test_widget_packs.py,
+  tests/test_canvas_gaps_apptest.py, in the Streamlit Python: Streamlit 1.67.0, pandas 3.1.1): every prebuilt widget
+  draws; the Excel pack uploads its sample (12 rows, 7 columns; a range and a sheet by number: 4 rows, 3 columns),
+  maps, validates and round-trips with nothing changed, reading through adapter.py and making workbooks through
+  sab_excel.py carried beside the pages.
+- **A workbook in a contract** (tests/test_workbook_deliverable.py, 2): the Streamlit contract with a workbook file
+  checked, written and read back the same, the other three packaged contracts too, a starter text for a workbook
+  refused; examples/forms_recon/workbook.py run under `python -I` in a folder holding only it, adapter.py, sab_excel.py
+  and a made-up sandbox: the month's latest run of each reconciliation, the totals as formulas, a chart, a colour
+  rule, a key starting with = as text, and a month with no run said in one sentence.

@@ -16,9 +16,9 @@ Dry run first: dry_run=True (the default) only says what it would do and changes
 dry_run=False writes. An agent sets dry_run=False only after the user said to write, in their own
 words, in this conversation. Returns the write's report.
 
-Written to a new file beside the workbook, then put in its place: a failure leaves it as it was.
-Close the workbook in Excel first. Formatting: the Excel starters (Excel number formats, Excel range as
-table, Excel autofit columns) work on the file it writes.
+Written by the adapter's Excel source to a new file beside the workbook, then put in its place: a failure
+leaves it as it was. Close the workbook in Excel first. A laid-out workbook (formats, totals, colours) is
+the Excel starter Make a workbook.
 
 Laid out top to bottom: the imports, then `write_excel_sheet`, the one function, which you call.
 """

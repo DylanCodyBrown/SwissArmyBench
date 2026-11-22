@@ -1,5 +1,5 @@
 """Templates from existing workbooks and the statements built from them (the Accounting extension's
-runtime.py and templates.py): a made-up reinsurer's statement template, its places bound, a table that
+sab_excel and templates.py): a made-up reinsurer's statement template, its places bound, a table that
 grows (formulas, merged cells and named ranges below it moved), the dry run, the build, the numbering and
 the register. Made-up data only."""
 

@@ -125,7 +125,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
             "Power BI13",
             "Dataverse2",
             "SharePoint5",
-            "Excel12",
+            "Excel3",
             "Files3",
             "DAX11",
             "HTML10",
@@ -134,7 +134,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
             "Controllers5",
             "Text and layout9",
             "Components9",
-            "Write37",  # the lakes' and SharePoint's 14 (branch lakes-sharepoint)
+            "Write36",  # the lakes' and SharePoint's 14 (branch lakes-sharepoint); Excel make a workbook too
         ]
     )
     expect(listed.locator(".starter-item")).to_have_count(0)
@@ -144,7 +144,7 @@ def test_the_pack_is_in_the_blade_list_by_family_and_a_starter_copies_as_your_ow
     listed.locator(".starter-family", has_text="Streamlit").click()  # folded again
     family(listed, "Power BI")
     family(listed, "Excel")
-    expect(listed.locator(".starter-item")).to_have_count(25)
+    expect(listed.locator(".starter-item")).to_have_count(16)
     expect(listed.locator(".starter-item").first.locator(".blade-kind")).to_have_text("Python")
     # A search opens the families it finds something in.
     page.get_by_role("searchbox", name="Search blades").fill("toast")
@@ -228,21 +228,21 @@ def test_python_starters_dropped_on_a_cell_are_each_a_line_of_their_own(
     browser: Browser, server: dict[str, Any]
 ) -> None:
     """The test bed's use case 4: three Excel starters dragged onto a cell came out as one line,
-    `copy_template = sab.blade("Excel copy template")$0set_values = sab.write_table = ...`: Monaco's
+    `read_workbook = sab.blade("Excel read a workbook")$0make_workbook = sab.fill_template = ...`: Monaco's
     own drop left a snippet's `$0` behind, and the next drop landed inside the line before."""
     close_tables(server)
     workbench = open_window(browser, server)
     workbench.get_by_role("button", name="Start a notebook").click()
     editor = workbench.locator(".wb-cell").first.locator(".monaco-editor")
     expect(editor).to_be_visible(timeout=20000)
-    for name in ("Excel copy template", "Excel set cell values", "Excel write table"):
+    for name in ("Excel read a workbook", "Excel make a workbook", "Excel fill a template"):
         listed = blades(workbench)
         family(listed, "Excel")
         listed.locator(".starter-item", has_text=name).drag_to(editor.locator(".view-lines"))
     expected = (
-        'copy_template = sab.blade("Excel copy template")\n'
-        'set_values = sab.blade("Excel set cell values")\n'
-        'write_table = sab.blade("Excel write table")'
+        'read_workbook = sab.blade("Excel read a workbook")\n'
+        'make_workbook = sab.blade("Excel make a workbook")\n'
+        'fill_template = sab.blade("Excel fill a template")'
     )
     wait_until(lambda: window(server, "doc.read")["cells"][-1]["source"] == expected)
     workbench.close()
