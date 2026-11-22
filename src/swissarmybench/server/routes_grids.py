@@ -45,7 +45,6 @@ from swissarmybench.server.http import (
     actor,
     client_of,
     error_as,
-    error_response,
     json_response,
     query_int,
     read_json,
@@ -117,8 +116,6 @@ def routes(
             return json_response(await grids.cell(grid, info, row, request.query_params.get("column")))
         except (KeyError, IndexError):
             return Response("No such cell.", status_code=404)
-        except Exception as error:
-            return error_response(error)
 
     async def step_counts(request: Request) -> Response:
         grid, info = grids.find(request.path_params["grid_id"])
@@ -169,8 +166,6 @@ def routes(
             return json_response(await grids.put_steps(grid, info, body, actor(request)))
         except StepError as error:
             return error_as(error, 400)
-        except Exception as error:
-            return error_response(error)
 
     async def step_op(request: Request) -> Response:
         """One change to one step, by its id or index (services/grids.step_op has the shapes)."""
@@ -180,8 +175,6 @@ def routes(
             return json_response(await grids.step_op(grid, info, body, actor(request)))
         except StepError as error:
             return error_as(error, 400)
-        except Exception as error:
-            return error_response(error)
 
     async def header_sort(request: Request) -> Response:
         grid, info = grids.find(request.path_params["grid_id"])
@@ -196,8 +189,6 @@ def routes(
             return json_response(await grids.unnest(grid, info, body, actor(request)))
         except StepError as error:
             return error_as(error, 400)
-        except Exception as error:
-            return error_response(error)
 
     # ===== SQL box (plan sections 6 and 10) =====
 

@@ -1,8 +1,9 @@
 """sab_adapter: every data call in and out of a project, the same file wherever it runs (the app, a Workbench
 kernel, a local sandbox API's process, an exported project). It holds nothing: a read streams Arrow record
-batches from its source, a write streams them into it, and only grids (named Arrow tables) stay.
+batches from its source, a write streams them into it, and only tables (named Arrow tables) stay: a grid is
+only a view of one.
 
-    from sab_adapter import Filter, Plan, grid, read, tables, write
+    from sab_adapter import Filter, Plan, read, table, tables, write
 
     reader, folded = read("Warehouse", "orders", Plan(columns=("id", "amount"), filters=(Filter("region",
                           "=", "North"),), limit=100))
@@ -20,7 +21,7 @@ It reads top to bottom in the order a call runs:
                     not fold is finished here, in DuckDB, over the stream
   4. JSON to Arrow  pages of records (an API's answer, a request's body) made Arrow by DuckDB, page by page,
                     with the types given (else the first page's)
-  5. Grids          grid(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
+  5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
                     and kept; refresh(name) reads it again
 
 The standard library, duckdb and pyarrow only: an export copies this file as it is.
@@ -45,9 +46,10 @@ import pyarrow.ipc as ipc
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
 TOTALS = ("count", "count_distinct", "sum", "avg", "min", "max")
-MODES = ("insert", "update", "merge", "delete")
+MODES = ("insert", "update", "merge", "delete", "truncate")
+KEYED = ("update", "merge", "delete")  # the modes that match rows by a key
 PARTS = ("filters", "group", "totals", "columns", "sort", "offset", "limit")  # in the order SQL applies them
-ROWS = "rows"  # what a grid's SQL calls its read: SELECT region, sum(amount) FROM rows GROUP BY 1
+ROWS = "rows"  # what a table's SQL calls its read: SELECT region, sum(amount) FROM rows GROUP BY 1
 
 
 class AdapterError(ValueError):
@@ -223,7 +225,7 @@ class Counts:
 
 class Source(Protocol):
     """A source plugs in by three functions. read folds what it can of the plan into its own query and says
-    which parts it folded; write takes the batches in its own insert, update, merge or delete."""
+    which parts it folded; write takes the batches in its own insert, update, merge, delete or truncate."""
 
     def tables(self) -> list[Table]: ...
 
@@ -355,21 +357,24 @@ class DuckDB:
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
         if mode not in MODES:
             raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
-        if mode != "insert" and not key:
+        if mode in KEYED and not key:
             raise AdapterError(f"A {mode} names the key its rows are matched by.")
+        names = [str(n) for n in batches.schema.names]
         with self._connect(True) as con:
             schema, name = self._place(con, table)
             target = f"{quote(schema)}.{quote(name)}"
-            con.register("sab_incoming", batches)
+            if names:  # a truncate with no rows has no columns to register
+                con.register("sab_incoming", batches)
             con.execute("BEGIN TRANSACTION")
             try:
-                done = _written(con, target, [str(n) for n in batches.schema.names], list(key), mode)
+                done = _written(con, target, names, list(key), mode)
                 con.execute("COMMIT")
             except BaseException:
                 con.execute("ROLLBACK")
                 raise
             finally:
-                con.unregister("sab_incoming")
+                if names:
+                    con.unregister("sab_incoming")
             return done
 
 
@@ -423,7 +428,13 @@ def _stream(
 
 def _written(con: Any, target: str, names: list[str], key: list[str], mode: str) -> Counts:
     """sab_incoming's rows (its columns `names`) into `target`, in the open transaction. A merge stages them
-    once, as it reads them twice."""
+    once, as it reads them twice. A truncate clears the table (its columns kept), then inserts the rows."""
+    if mode == "truncate":
+        deleted = _count(con, f"DELETE FROM {target}")  # noqa: S608 (the name quoted)
+        if not names:
+            return Counts(deleted=deleted)
+        inserted = _count(con, f"INSERT INTO {target} BY NAME SELECT * FROM sab_incoming")  # noqa: S608
+        return Counts(inserted=inserted, deleted=deleted)
     if mode == "insert":
         return Counts(inserted=_count(con, f"INSERT INTO {target} BY NAME SELECT * FROM sab_incoming"))  # noqa: S608
     if mode == "update":
@@ -462,13 +473,17 @@ def _count(con: Any, sql: str) -> int:
 
 
 class Remote:
-    """The project's sandbox through the app's data door (a local sandbox API's process has no file and no
-    connection of its own): `connection` names whose tables these are (a sandbox table mocked as it), the
-    reads and writes travel as Arrow IPC streams. The sandbox folds the whole plan."""
+    """A source through the app's data door, its reads and writes as Arrow IPC streams: the project's sandbox
+    (a local sandbox API's process has no file and no connection of its own; `connection` names whose tables
+    these are, a sandbox table mocked as it), or a kernel's open tables (`headers` the token). Each folds the
+    whole plan."""
 
-    def __init__(self, url: str, connection: str = "Sandbox") -> None:
+    def __init__(
+        self, url: str, connection: str = "Sandbox", headers: Mapping[str, str] | None = None
+    ) -> None:
         self.url = url.rstrip("/")
         self.connection = connection
+        self.headers = dict(headers or {})  # the app's token, for a kernel reading the open tables
 
     def tables(self) -> list[Table]:
         answer = json.loads(
@@ -501,7 +516,7 @@ class Remote:
         parts = urllib.parse.urlsplit(self.url + path)
         connection = http.client.HTTPConnection(parts.hostname or "127.0.0.1", parts.port or 80, timeout=600)
         target = parts.path + (f"?{parts.query}" if parts.query else "")
-        connection.request("POST", target, body, {"Content-Type": "application/octet-stream"})
+        connection.request("POST", target, body, {"Content-Type": "application/octet-stream", **self.headers})
         answer = connection.getresponse()
         if answer.status >= 400:
             raw = answer.read()
@@ -519,6 +534,570 @@ def _closing(reader: Any, answer: Any) -> Iterator[pa.RecordBatch]:
         yield from reader
     finally:
         answer.close()
+
+
+# ----- SQL databases: any DB-API connection, its dialect's rules as data -----
+
+_INFO_COLUMNS = (
+    "SELECT c.table_schema, c.table_name, c.column_name, c.data_type FROM information_schema.columns c "
+    "WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA', 'sys') {where}"
+    "ORDER BY c.table_schema, c.table_name, c.ordinal_position"
+)
+_INFO_KEYS = (
+    "SELECT k.table_schema, k.table_name, k.column_name FROM information_schema.table_constraints t "
+    "JOIN information_schema.key_column_usage k ON k.constraint_name = t.constraint_name "
+    "AND k.table_schema = t.table_schema AND k.table_name = t.table_name "
+    "WHERE t.constraint_type = 'PRIMARY KEY'"
+)
+
+
+@dataclass(frozen=True)
+class Dialect:
+    """What one database's SQL needs for a plan and a write: how it quotes a name, how it says a limit and
+    an offset (`limit`: LIMIT n OFFSET m; `offset_limit`: OFFSET m LIMIT n; `fetch`: OFFSET m ROWS FETCH
+    NEXT n ROWS ONLY, T-SQL's wanting an ORDER BY), its catalog (rows of schema, table, column, type) and
+    primary keys (schema, table, column), the schema a bare name is in, whether a write is one transaction."""
+
+    name: str
+    quotes: str = '""'
+    limit: str = "limit"
+    columns: str = _INFO_COLUMNS.format(where="")
+    keys: str = _INFO_KEYS
+    default_schema: tuple[str, ...] = ()  # listed without its schema (public, dbo, main)
+    transactional: bool = True
+    order_needed: bool = False  # an OFFSET needs an ORDER BY (T-SQL)
+    no_limit: str = ""  # what LIMIT says for "every row" before an OFFSET (MySQL's, SQLite's)
+
+    def quote(self, name: str) -> str:
+        opening, closing = self.quotes[0], self.quotes[1]
+        return opening + str(name).replace(closing, closing * 2) + closing
+
+
+DIALECTS: dict[str, Dialect] = {
+    "postgres": Dialect("postgres", default_schema=("public",)),
+    "mysql": Dialect(
+        "mysql", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = DATABASE() "),
+        default_schema=("*",), no_limit="18446744073709551615",
+    ),
+    "sqlserver": Dialect(
+        "sqlserver", "[]", "fetch", columns=_INFO_COLUMNS.format(where=""), default_schema=("dbo",),
+        order_needed=True,
+    ),
+    "oracle": Dialect(
+        "oracle", limit="fetch",
+        columns="SELECT owner, table_name, column_name, data_type FROM all_tab_columns WHERE owner = USER "
+        "ORDER BY owner, table_name, column_id",
+        keys="SELECT c.owner, c.table_name, c.column_name FROM all_cons_columns c JOIN all_constraints k "
+        "ON k.owner = c.owner AND k.constraint_name = c.constraint_name WHERE k.constraint_type = 'P' "
+        "AND c.owner = USER",
+        default_schema=("*",),
+    ),
+    "sqlite": Dialect(
+        "sqlite",
+        columns="SELECT 'main', m.name, p.name, p.type FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        "WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite_%' ORDER BY m.name, p.cid",
+        keys="SELECT 'main', m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        "WHERE m.type = 'table' AND p.pk > 0",
+        default_schema=("main",), no_limit="-1",
+    ),
+    "snowflake": Dialect(
+        "snowflake", columns=_INFO_COLUMNS.format(where="AND c.table_schema = CURRENT_SCHEMA() "),
+        default_schema=("*",),
+    ),
+    "trino": Dialect(
+        "trino", limit="offset_limit", columns=_INFO_COLUMNS.format(where=""), keys="", transactional=False,
+    ),
+    "databricks": Dialect(
+        "databricks", "``", columns=_INFO_COLUMNS.format(where="AND c.table_schema = current_schema() "),
+        keys="", default_schema=("*",),
+    ),
+}  # fmt: skip
+
+
+def dialect_sql(dialect: Dialect, table: str, plan: Plan, style: str = "qmark") -> tuple[str, list[Any]]:
+    """The plan as one query in `dialect` over `table` ("schema.table" or "table"), its values bound in the
+    driver's parameter style (PEP 249's paramstyle)."""
+    check_plan(plan)
+    params: list[Any] = []
+    q = dialect.quote
+
+    def mark(value: Any) -> str:
+        params.append(value)
+        return _mark(style, len(params))
+
+    def condition(f: Filter) -> str:
+        name = q(f.column)
+        if f.op in ("is null", "is not null"):
+            return f"{name} {f.op.upper()}"
+        if f.op == "in":
+            return f"{name} IN ({', '.join(mark(v) for v in f.value)})"
+        if f.op == "between":
+            return f"{name} BETWEEN {mark(f.value[0])} AND {mark(f.value[1])}"
+        return f"{name} {'<>' if f.op == '!=' else f.op.upper()} {mark(f.value)}"
+
+    def total(t: Total) -> str:
+        if t.fn == "count":
+            what = f"COUNT({q(t.column)})" if t.column else "COUNT(*)"
+        elif t.fn == "count_distinct":
+            what = f"COUNT(DISTINCT {q(t.column)})"
+        else:
+            what = f"{t.fn.upper()}({q(t.column)})"
+        return f"{what} AS {q(t.label)}"
+
+    if plan.totals:
+        picked = [q(c) for c in plan.group] + [total(t) for t in plan.totals]
+    else:
+        picked = [q(c) for c in plan.columns] or ["*"]
+    wheres = [condition(f) for f in plan.filters]
+    top = ""
+    paged = plan.limit is not None or plan.offset
+    if dialect.limit == "fetch" and dialect.order_needed and paged and not plan.sort and not plan.offset:
+        top = f"TOP ({int(plan.limit or 0)}) "  # T-SQL: a limit with no order is TOP
+        paged = False
+    sql = f"SELECT {top}{', '.join(picked)} FROM {table_name(dialect, table)}"  # noqa: S608 (quoted, bound)
+    if wheres:
+        sql += " WHERE " + " AND ".join(wheres)
+    if plan.group:
+        sql += " GROUP BY " + ", ".join(q(c) for c in plan.group)
+    if plan.sort:
+        sql += " ORDER BY " + ", ".join(f"{q(c)} {'DESC' if d else 'ASC'}" for c, d in plan.sort)
+    elif paged and dialect.order_needed:
+        sql += " ORDER BY (SELECT NULL)"
+    if paged:
+        sql += _paging(dialect, plan.limit, plan.offset)
+    return sql, params
+
+
+def _paging(dialect: Dialect, limit: int | None, offset: int) -> str:
+    if dialect.limit == "fetch":
+        said = f" OFFSET {int(offset)} ROWS"
+        return said + (f" FETCH NEXT {int(limit)} ROWS ONLY" if limit is not None else "")
+    if dialect.limit == "offset_limit":
+        return (f" OFFSET {int(offset)}" if offset else "") + (
+            f" LIMIT {int(limit)}" if limit is not None else ""
+        )
+    if limit is None:
+        return (
+            f" LIMIT {dialect.no_limit} OFFSET {int(offset)}"
+            if dialect.no_limit
+            else f" OFFSET {int(offset)}"
+        )
+    return f" LIMIT {int(limit)}" + (f" OFFSET {int(offset)}" if offset else "")
+
+
+def _mark(style: str, at: int) -> str:
+    if style in ("format", "pyformat"):
+        return "%s"
+    if style == "numeric":
+        return f":{at}"
+    if style == "named":
+        return f":p{at}"
+    return "?"
+
+
+def _bound(style: str, params: list[Any]) -> Any:
+    return {f"p{i}": v for i, v in enumerate(params, 1)} if style == "named" else params
+
+
+def table_name(dialect: Dialect, table: str) -> str:
+    """A listed name ("schema.table", or "table" in its default schema) quoted for `dialect`."""
+    schema, _, name = str(table).partition(".")
+    return f"{dialect.quote(schema)}.{dialect.quote(name)}" if name else dialect.quote(schema)
+
+
+def paramstyle(connection: Any) -> str:
+    """A DB-API connection's parameter style, from its driver's module (qmark when it does not say)."""
+    import sys
+
+    module = sys.modules.get(type(connection).__module__.split(".")[0])
+    style = getattr(module, "paramstyle", "qmark")
+    return style if style in ("qmark", "format", "pyformat", "numeric", "named") else "qmark"
+
+
+class Sql:
+    """A SQL database as a source, through its own DB-API connection (the one its connection's code made):
+    the whole plan folded into one query in its dialect, the answer streamed as Arrow batches as the cursor
+    fetches them; a write in its own statements, in one transaction (all or none)."""
+
+    def __init__(self, connection: Any, dialect: str | Dialect, name: str = "", style: str = "") -> None:
+        self.connection = connection
+        self.dialect = dialect if isinstance(dialect, Dialect) else DIALECTS[dialect]
+        self.name = name or self.dialect.name
+        self.style = style or paramstyle(getattr(connection, "raw", connection))
+
+    def tables(self) -> list[Table]:
+        keys = (
+            {(str(s), str(t), str(c)) for s, t, c in self._rows(self.dialect.keys)}
+            if self.dialect.keys
+            else set()
+        )
+        listed: dict[tuple[str, str], list[Column]] = {}
+        for schema, table, column, kind in self._rows(self.dialect.columns):
+            place = (str(schema), str(table))
+            listed.setdefault(place, []).append(Column(str(column), str(kind), (*place, str(column)) in keys))
+        return [Table(self._listed(s, t), tuple(cols)) for (s, t), cols in listed.items()]
+
+    def _listed(self, schema: str, table: str) -> str:
+        bare = "*" in self.dialect.default_schema or schema in self.dialect.default_schema
+        return table if bare else f"{schema}.{table}"
+
+    def _rows(self, sql: str) -> list[Any]:
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(sql)
+            return list(cursor.fetchall())
+        finally:
+            _quietly(cursor.close)
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        sql, params = dialect_sql(self.dialect, table, plan, self.style)
+        typed = getattr(self.connection, "read_arrow", None)  # a connection typing its own Arrow (SQL Server)
+        if callable(typed) and not params:
+            return typed(sql).to_reader(), Folded(plan.parts())
+        cursor = self.connection.cursor()
+        try:
+            if params:
+                cursor.execute(sql, _bound(self.style, params))
+            else:
+                cursor.execute(sql)
+        except Exception:
+            _quietly(cursor.close)
+            raise
+        return cursor_batches(cursor), Folded(plan.parts())
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        if mode not in MODES:
+            raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
+        if mode in KEYED and not key:
+            raise AdapterError(f"A {mode} names the key its rows are matched by.")
+        if not self.dialect.transactional:
+            raise AdapterError(f"{self.name} takes no transactions, so a write could not be all or none.")
+        target = table_name(self.dialect, table)
+        names = [str(n) for n in batches.schema.names]
+        cursor = self.connection.cursor()
+        try:
+            done = _sql_written(self, cursor, target, names, list(key), mode, batches)
+            self.connection.commit()
+            return done
+        except BaseException:
+            _quietly(self.connection.rollback)
+            raise
+        finally:
+            _quietly(cursor.close)
+
+    def value(self, value: Any) -> Any:
+        """A value as the driver takes it (SQLite: a decimal as a number, a date or time as text)."""
+        if self.dialect.name != "sqlite":
+            return value
+        import datetime as dt
+        import decimal
+
+        if isinstance(value, decimal.Decimal):
+            return float(value)
+        if isinstance(value, dt.datetime):
+            return value.isoformat(sep=" ")
+        if isinstance(value, dt.date | dt.time):
+            return value.isoformat()
+        return value
+
+
+def _quietly(close: Callable[[], Any]) -> None:
+    with contextlib.suppress(Exception):
+        close()
+
+
+def _sql_written(
+    db: Sql,
+    cursor: Any,
+    target: str,
+    names: list[str],
+    key: list[str],
+    mode: str,
+    batches: pa.RecordBatchReader,
+) -> Counts:
+    """The rows into `target` by `mode`, on one cursor of the open transaction. A merge asks which keys are
+    there first, a batch at a time, then updates those and inserts the rest."""
+    q, style = db.dialect.quote, db.style
+    marks = ", ".join(_mark(style, i) for i in range(1, len(names) + 1))
+    insert = f"INSERT INTO {target} ({', '.join(q(n) for n in names)}) VALUES ({marks})"  # noqa: S608
+    sets = [n for n in names if n not in key]
+    if mode in ("update", "merge"):
+        missing = [k for k in key if k not in names]
+        if missing:
+            raise AdapterError(f"The rows have no {missing[0]} column to match by.")
+        if not sets:
+            raise AdapterError("The rows have nothing to change but their key.")
+    order = sets + key
+    assigned = ", ".join(f"{q(n)} = {_mark(style, i)}" for i, n in enumerate(sets, 1))
+    matched = " AND ".join(f"{q(k)} = {_mark(style, len(sets) + i)}" for i, k in enumerate(key, 1))
+    update = f"UPDATE {target} SET {assigned} WHERE {matched}"  # noqa: S608 (names quoted, values bound)
+    gone = " AND ".join(f"{q(k)} = {_mark(style, i)}" for i, k in enumerate(key, 1))
+    delete = f"DELETE FROM {target} WHERE {gone}"  # noqa: S608
+    counts = {"inserted": 0, "updated": 0, "deleted": 0}
+
+    def many(sql: str, rows: list[list[Any]]) -> int:
+        if not rows:
+            return 0
+        cursor.executemany(sql, [_bound(style, [db.value(v) for v in r]) for r in rows])
+        return len(rows)
+
+    if mode == "truncate":
+        cursor.execute(f"DELETE FROM {target}")  # noqa: S608 (the name quoted)
+        counts["deleted"] = max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+    for batch in batches:
+        rows = batch.to_pylist()
+        if mode in ("insert", "truncate"):
+            counts["inserted"] += many(insert, [[r[n] for n in names] for r in rows])
+        elif mode == "delete":
+            for r in rows:
+                cursor.execute(delete, _bound(style, [db.value(r[k]) for k in key]))
+                counts["deleted"] += max(int(getattr(cursor, "rowcount", 0) or 0), 0)
+        else:
+            there = _present(db, cursor, target, key, rows)
+            found = [r for r in rows if tuple(r[k] for k in key) in there]
+            counts["updated"] += many(update, [[r[n] for n in order] for r in found])
+            if mode == "merge":
+                new = [r for r in rows if tuple(r[k] for k in key) not in there]
+                counts["inserted"] += many(insert, [[r[n] for n in names] for r in new])
+    return Counts(counts["inserted"], counts["updated"], counts["deleted"])
+
+
+def _present(
+    db: Sql, cursor: Any, target: str, key: list[str], rows: list[dict[str, Any]]
+) -> set[tuple[Any, ...]]:
+    """Which of the rows' keys the table has, asked 100 rows at a time."""
+    q, found = db.dialect.quote, set[tuple[Any, ...]]()
+    for at in range(0, len(rows), 100):
+        part = rows[at : at + 100]
+        values: list[Any] = []
+        ors = []
+        for r in part:
+            ands = []
+            for k in key:
+                values.append(db.value(r[k]))
+                ands.append(f"{q(k)} = {_mark(db.style, len(values))}")
+            ors.append("(" + " AND ".join(ands) + ")")
+        picked = ", ".join(q(k) for k in key)
+        cursor.execute(f"SELECT {picked} FROM {target} WHERE {' OR '.join(ors)}", _bound(db.style, values))  # noqa: S608
+        found.update(tuple(row) for row in cursor.fetchall())
+    return found
+
+
+def cursor_batches(cursor: Any, size: int = BATCH_ROWS) -> pa.RecordBatchReader:
+    """A DB-API cursor's answer as Arrow batches of `size` rows, fetched as they are read; each column keeps
+    the first batch's type (a column with no value in it is text). The cursor is closed at the end."""
+    names = [str(d[0]) for d in cursor.description or []]
+    first = cursor.fetchmany(size)
+    head = _rows_batch(names, first, None)
+
+    def batches() -> Iterator[pa.RecordBatch]:
+        try:
+            yield head
+            while True:
+                rows = cursor.fetchmany(size)
+                if not rows:
+                    break
+                yield _rows_batch(names, rows, head.schema)
+        finally:
+            _quietly(cursor.close)
+
+    return pa.RecordBatchReader.from_batches(head.schema, batches())
+
+
+def _rows_batch(names: list[str], rows: Sequence[Sequence[Any]], schema: pa.Schema | None) -> pa.RecordBatch:
+    arrays = []
+    for i, name in enumerate(names):
+        values = [row[i] for row in rows]
+        kind = schema.field(i).type if schema is not None else None
+        try:
+            made = pa.array(values, type=kind) if kind is not None else pa.array(values)
+        except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError):
+            if kind is not None and kind != pa.string():
+                raise AdapterError(f"{name}'s values changed type part way through the read.") from None
+            made = pa.array([None if v is None else str(v) for v in values], pa.string())
+        if kind is None and pa.types.is_null(made.type):
+            made = made.cast(pa.string())
+        arrays.append(made)
+    return pa.RecordBatch.from_arrays(arrays, names=names) if names else pa.RecordBatch.from_pylist([])
+
+
+# ----- Dataverse's Web API: OData folded into its connection's own read -----
+
+ODATA_TYPES = {
+    "String": "VARCHAR",
+    "Memo": "VARCHAR",
+    "Integer": "BIGINT",
+    "BigInt": "BIGINT",
+    "Double": "DOUBLE",
+    "Decimal": "DOUBLE",
+    "Money": "DOUBLE",
+    "Boolean": "BOOLEAN",
+    "DateTime": "TIMESTAMP",
+}  # fmt: skip  every other kind (a lookup's id, a choice's label, an id) is text
+_ODATA_OPS = {"=": "eq", "!=": "ne", "<": "lt", "<=": "le", ">": "gt", ">=": "ge"}
+
+
+def odata_literal(value: Any) -> str:
+    """A value as an OData literal: text quoted ('' inside), true/false, null, a number or a date as is."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return repr(value)
+    if hasattr(value, "isoformat"):
+        return str(value.isoformat())
+    if type(value).__name__ == "Decimal":
+        return str(value)
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def odata_filter(filters: Sequence[Filter], fields: Mapping[str, str]) -> str | None:
+    """The filters as one OData $filter over the Web API's field names (`fields`: a column's name ->
+    its field); None when one cannot be said in OData (a pattern with a % inside, a choice's label)."""
+    said = []
+    for f in filters:
+        field = fields.get(f.column.casefold())
+        if field is None:
+            return None
+        if f.op in _ODATA_OPS:
+            said.append(f"{field} {_ODATA_OPS[f.op]} {odata_literal(f.value)}")
+        elif f.op in ("is null", "is not null"):
+            said.append(f"{field} {'eq' if f.op == 'is null' else 'ne'} null")
+        elif f.op == "in":
+            said.append("(" + " or ".join(f"{field} eq {odata_literal(v)}" for v in f.value) + ")")
+        elif f.op == "between":
+            low, high = f.value
+            said.append(f"({field} ge {odata_literal(low)} and {field} le {odata_literal(high)})")
+        else:  # like: a leading and/or trailing % only
+            text = str(f.value)
+            inner = text.strip("%")
+            if "%" in inner or "_" in inner or not inner:
+                return None
+            fn = (
+                "contains"
+                if text.startswith("%") and text.endswith("%")
+                else ("endswith" if text.startswith("%") else "startswith" if text.endswith("%") else "")
+            )
+            said.append(
+                f"{fn}({field},{odata_literal(inner)})" if fn else f"{field} eq {odata_literal(inner)}"
+            )
+    return " and ".join(said)
+
+
+class OData:
+    """A Dataverse environment through its Web API, by its connection's own calls (rows, described,
+    catalog): filters, columns, sort and limit folded into one OData read ($filter, $select, $orderby, $top),
+    the records typed by the table's metadata. The rest (offset, group, totals, a filter OData cannot say) is
+    done by DuckDB over the answer. `total` is the row count the last read's source gave (None: not said)."""
+
+    def __init__(self, connection: Any, name: str = "Dataverse") -> None:
+        self.connection = connection
+        self.name = name
+        self.total: int | None = None
+
+    def tables(self) -> list[Table]:
+        listed: dict[str, list[Column]] = {}
+        for row in self.connection.catalog():
+            columns = listed.setdefault(str(row["table_name"]), [])
+            if row.get("column_name"):
+                columns.append(
+                    Column(str(row["column_name"]), ODATA_TYPES.get(str(row["data_type"]), "VARCHAR"))
+                )
+        return [Table(name, tuple(columns)) for name, columns in listed.items()]
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        described = list(self.connection.described(table))
+        types = {str(c["name"]): ODATA_TYPES.get(str(c["type"]), "VARCHAR") for c in described}
+        plain = {str(c["name"]).casefold(): str(c["field"]) for c in described if not c.get("label")}
+        filter_text = odata_filter(plan.filters, plain) if plan.filters else None
+        sortable = all(c.casefold() in plain for c, _ in plan.sort)
+        foldable = {"columns", "limit"} | ({"filters"} if filter_text is not None else set())
+        foldable |= {"sort"} if sortable else set()
+        folded: list[str] = []
+        for part in plan.parts():
+            if part not in foldable:
+                break
+            folded.append(part)
+        by_name = {n.casefold(): n for n in types}
+        picked = [by_name.get(c.casefold(), c) for c in plan.columns] if "columns" in folded else []
+        order = ", ".join(f"{plain[c.casefold()]}{' desc' if d else ''}" for c, d in plan.sort)
+        records, self.total = self.connection.rows(
+            table,
+            columns=picked or None,
+            filter=filter_text if "filters" in folded else None,
+            order_by=order if "sort" in folded else None,
+            limit=plan.limit if "limit" in folded else None,
+        )
+        given = {n: types[n] for n in (picked or list(types)) if n in types}
+        return from_json([records], given), Folded(tuple(folded))
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        raise AdapterError(
+            f"{self.name}'s writes go through its Write starter (a $batch change set) for now."
+        )
+
+
+# ----- a connection that reads a table itself: the lakes and SharePoint -----
+
+_ROWS_OPS = {"!=": "<>"} | {
+    op: op for op in ("=", "<", "<=", ">", ">=", "in", "between", "is null", "is not null")
+}
+
+
+class Rows:
+    """A connection whose own code reads a table given its columns, filters and a limit, and answers Arrow
+    and the count (`rows(table, schema, limit, columns, filters)`: the lakes' and SharePoint's, each sending
+    what its service takes, $filter or a file's partitions, and applying the rest in DuckDB). A table is
+    named `schema/table` (its folders) or `table`. Filters, columns and limit are folded; `total` is the count
+    the last read gave."""
+
+    def __init__(self, connection: Any, name: str = "") -> None:
+        self.connection = connection
+        self.name = name or type(connection).__name__
+        self.total: int | None = None
+
+    def tables(self) -> list[Table]:
+        listed: dict[str, list[Column]] = {}
+        for row in self.connection.catalog():
+            schema, table = str(row.get("table_schema") or ""), str(row["table_name"])
+            columns = listed.setdefault(f"{schema}/{table}" if schema else table, [])
+            if row.get("column_name"):
+                columns.append(Column(str(row["column_name"]), str(row.get("data_type") or "VARCHAR")))
+        return [Table(name, tuple(columns)) for name, columns in listed.items()]
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        sendable = all(f.op in _ROWS_OPS for f in plan.filters)
+        foldable = {"columns", "limit"} | ({"filters"} if sendable else set())
+        folded: list[str] = []
+        for part in plan.parts():
+            if part not in foldable:
+                break
+            folded.append(part)
+        schema, _, name = str(table).rpartition("/")
+        filters = (
+            [[f.column, _ROWS_OPS[f.op], f.value] for f in plan.filters] if "filters" in folded else None
+        )
+        answer = self.connection.rows(
+            name,
+            schema=schema,
+            limit=plan.limit if "limit" in folded else None,
+            columns=list(plan.columns) if "columns" in folded else None,
+            filters=filters,
+            frame=False,
+        )
+        found, self.total = answer if isinstance(answer, tuple) else (answer, None)
+        if not isinstance(found, pa.Table):
+            pandas = type(found).__module__.startswith("pandas")
+            found = (
+                pa.Table.from_pandas(found, preserve_index=False)
+                if pandas
+                else pa.Table.from_pylist(list(found))
+            )
+        return found.to_reader(), Folded(tuple(folded))
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        raise AdapterError(f"{self.name}'s writes go through its Write starter for now.")
 
 
 # ===== 3. The calls =====
@@ -583,14 +1162,19 @@ def _finished(reader: pa.RecordBatchReader, rest: Plan) -> pa.RecordBatchReader:
 def write(
     source: str | Source,
     table: str,
-    batches: pa.RecordBatchReader | pa.Table,
+    batches: pa.RecordBatchReader | pa.Table | None = None,
     key: Sequence[str] = (),
     mode: str = "insert",
 ) -> Counts:
-    """Arrow batches into a table: insert, update (by key), merge (update, else insert, by key) or delete
-    (by key); all or none. The counts of rows each way."""
+    """Arrow batches into a table: insert, update (by key), merge (update, else insert, by key), delete
+    (by key) or truncate (the table cleared, its columns kept, then the rows inserted; no rows: only
+    cleared); all or none. The counts of rows each way."""
     if mode not in MODES:
         raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
+    if batches is None:
+        if mode != "truncate":
+            raise AdapterError(f"A {mode} takes the rows it writes.")
+        batches = pa.table({})
     reader = batches if isinstance(batches, pa.RecordBatchReader) else batches.to_reader()
     return source_of(source).write(table, reader, tuple(key), mode)
 
@@ -665,12 +1249,57 @@ def _structure(con: Any, first: str, columns: Mapping[str, str] | None) -> str |
     return found.replace("'", "''")
 
 
-# ===== 5. Grids =====
+def _json_value(value: Any) -> Any:
+    """A value as JSON carries it (sab_api's rules): dates and times as ISO text, decimals as numbers, an id
+    as text, bytes as hex; lists and records as they nest."""
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    if isinstance(value, bytes | bytearray):
+        return value.hex()
+    if isinstance(value, Mapping):
+        return {str(k): _json_value(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_json_value(v) for v in value]
+    if type(value).__name__ == "Decimal":
+        return float(value)
+    return str(value)
+
+
+def to_json(data: pa.Table | pa.RecordBatchReader) -> Iterator[bytes]:
+    """Arrow as a JSON array of records, a batch at a time (an endpoint's answer): the text comes as the
+    batches are read, never the whole answer held as Python objects at once."""
+    reader = data if isinstance(data, pa.RecordBatchReader) else data.to_reader()
+    yield b"["
+    first = True
+    for batch in reader:
+        for row in batch.to_pylist():
+            yield (b"" if first else b",") + json.dumps(_json_value(row)).encode()
+            first = False
+    yield b"]"
+
+
+def to_ipc(data: pa.Table | pa.RecordBatchReader) -> bytes:
+    """Arrow as an Arrow IPC stream (an endpoint's answer to a widget that asks for Arrow)."""
+    reader = data if isinstance(data, pa.RecordBatchReader) else data.to_reader()
+    sink = pa.BufferOutputStream()
+    with ipc.new_stream(sink, reader.schema) as stream:
+        for batch in reader:
+            stream.write_batch(batch)
+    return bytes(sink.getvalue().to_pybytes())
+
+
+def is_arrow(value: Any) -> bool:
+    return isinstance(value, pa.Table | pa.RecordBatchReader)
+
+
+# ===== 5. Tables =====
 
 
 @dataclass(frozen=True)
-class GridSource:
-    """Where a grid comes from: one source's table read with a plan, then (if given) one DuckDB SQL over the
+class TableSource:
+    """Where a table comes from: one source's table read with a plan, then (if given) one DuckDB SQL over the
     read, which it names `rows`."""
 
     source: str | Source
@@ -679,8 +1308,8 @@ class GridSource:
     sql: str = ""
 
 
-def make_grid(made_from: GridSource) -> pa.Table:
-    """The grid's Arrow table: the read streamed through its SQL, and nothing of the read kept."""
+def make_table(made_from: TableSource) -> pa.Table:
+    """The table (the one copy): the read streamed through its SQL, and nothing of the read kept."""
     reader, _ = read(made_from.source, made_from.table, made_from.plan)
     if not made_from.sql:
         return reader.read_all()
@@ -692,26 +1321,27 @@ def make_grid(made_from: GridSource) -> pa.Table:
         con.close()
 
 
-class Grids:
-    """Named Arrow tables: the only data kept. A grid is made on first use and read again on refresh."""
+class Tables:
+    """Named Arrow tables, the only data kept (a grid only shows one): made on first use, read again on
+    refresh."""
 
     def __init__(self) -> None:
-        self._from: dict[str, GridSource] = {}
+        self._from: dict[str, TableSource] = {}
         self._made: dict[str, pa.Table] = {}
 
     def define(
         self, name: str, source: str | Source, table: str, plan: Plan | None = None, sql: str = ""
     ) -> None:
-        self._from[name] = GridSource(source, table, plan or Plan(), sql)
+        self._from[name] = TableSource(source, table, plan or Plan(), sql)
         self._made.pop(name, None)
 
-    def grid(self, name: str) -> pa.Table:
+    def table(self, name: str) -> pa.Table:
         if name not in self._made:
-            self._made[name] = make_grid(self._defined(name))
+            self._made[name] = make_table(self._defined(name))
         return self._made[name]
 
     def refresh(self, name: str) -> pa.Table:
-        self._made[name] = make_grid(self._defined(name))
+        self._made[name] = make_table(self._defined(name))
         return self._made[name]
 
     def drop(self, name: str) -> None:
@@ -721,39 +1351,49 @@ class Grids:
     def names(self) -> list[str]:
         return list(self._from)
 
-    def _defined(self, name: str) -> GridSource:
+    def _defined(self, name: str) -> TableSource:
         found = self._from.get(name)
         if found is None:
-            raise AdapterError(f"No grid is named {name!r}.")
+            raise AdapterError(f"No table is named {name!r}.")
         return found
 
 
-GRIDS = Grids()  # this process's grids
-define, grid, refresh = GRIDS.define, GRIDS.grid, GRIDS.refresh
+TABLES = Tables()  # this process's tables
+define, table, refresh = TABLES.define, TABLES.table, TABLES.refresh
 
 __all__ = [
+    "DIALECTS",
     "AdapterError",
     "Column",
     "Counts",
+    "Dialect",
     "DuckDB",
     "Filter",
     "Folded",
-    "GridSource",
-    "Grids",
+    "OData",
     "Plan",
     "Remote",
+    "Rows",
     "Source",
+    "Sql",
     "Table",
+    "TableSource",
+    "Tables",
     "Total",
+    "cursor_batches",
     "define",
+    "dialect_sql",
     "from_json",
-    "grid",
-    "make_grid",
+    "is_arrow",
+    "make_table",
     "plan_from",
     "plan_sql",
     "read",
     "refresh",
+    "table",
     "tables",
+    "to_ipc",
+    "to_json",
     "use",
     "write",
 ]

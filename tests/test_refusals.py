@@ -164,3 +164,10 @@ def test_every_route_is_guarded_once_at_the_app() -> None:
     app = Starlette(routes=guarded([Route("/boom", crashes, methods=["POST"])]))
     body = _shaped(TestClient(app).post("/boom"), 500)
     assert "made-up failure" in str(body)
+    # And no route module catches every error itself (2026-11-22: the last five lost theirs).
+    import re
+    from pathlib import Path
+
+    server = Path(__file__).resolve().parents[1] / "src" / "swissarmybench" / "server"
+    catch_all = re.compile(r"except Exception as error:\n\s+return error_response\(error\)")
+    assert [p.name for p in sorted(server.glob("routes_*.py")) if catch_all.search(p.read_text())] == []

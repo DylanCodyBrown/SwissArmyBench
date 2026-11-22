@@ -38,18 +38,17 @@ from swissarmybench.services.connections import ConnectionService
 
 
 def routes(tables: ConnectionTables, blades: BladeService, connections: ConnectionService) -> list[BaseRoute]:
-    def failed(error: Exception, name: str | None) -> Response:
+    def failed(error: NeedsValues | RefreshError, name: str | None) -> Response:
+        """The two errors these routes answer their own way (every other one: the app's guard)."""
         if isinstance(error, NeedsValues):
             return json_response({"needs": error.missing, "message": str(error)}, status_code=409)
-        if isinstance(error, RefreshError):
-            return json_response(blades.run_failure(str(error), error.missing_module, name), status_code=422)
-        return error_response(error)
+        return json_response(blades.run_failure(str(error), error.missing_module, name), status_code=422)
 
     async def tree(request: Request) -> Response:
         name = request.path_params["name"]
         try:
             return json_response(await tables.tree(name, request.query_params.get("load") != "0"))
-        except Exception as error:
+        except (NeedsValues, RefreshError) as error:
             return failed(error, name)
 
     async def open_dataset(request: Request) -> Response:
@@ -58,7 +57,7 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
             body = await read_json(request)
             dataset = str(body.get("dataset") or body.get("schema") or "") if isinstance(body, dict) else ""
             return json_response(await tables.open_dataset(name, dataset, actor(request)))
-        except Exception as error:
+        except (NeedsValues, RefreshError) as error:
             return failed(error, name)
 
     async def sql_endpoint(request: Request) -> Response:
@@ -72,7 +71,7 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
                 raise ValueError('Send {"sql": "SELECT ... FROM [Connection].table"}.')
             prepared = await tables.prepare(text)
             return json_response({"sql": prepared.sql, "tables": prepared.reads})
-        except Exception as error:
+        except (NeedsValues, RefreshError) as error:
             return failed(error, None)
 
     async def reads(request: Request) -> Response:
@@ -106,7 +105,7 @@ def routes(tables: ConnectionTables, blades: BladeService, connections: Connecti
             return Response(
                 data, media_type="application/vnd.apache.arrow.stream", headers={"X-Sab-Source": quote(words)}
             )
-        except Exception as error:
+        except (NeedsValues, RefreshError) as error:
             return failed(error, None)
 
     async def refresh(request: Request) -> Response:

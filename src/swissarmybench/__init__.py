@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from swissarmybench.client.analyze_client import analyze
-    from swissarmybench.client.blades_client import blade, blades, load, read
+    from swissarmybench.client.blades_client import blade, blades, load, read, table
     from swissarmybench.client.blades_client import blade as connection
     from swissarmybench.client.completion import complete
     from swissarmybench.client.push_client import DatasetTooLargeError, ServerNotRunningError, push
@@ -58,6 +58,7 @@ __all__ = [
     "sql",
     "structure",
     "structure_table",
+    "table",
     "unwatch",
     "watch",
 ]
@@ -73,6 +74,8 @@ _LAZY: dict[str, tuple[str, str]] = {
     "connection": ("swissarmybench.client.blades_client", "blade"),
     # A table by a connection's own Read a table box (a connection made of your own Python).
     "read": ("swissarmybench.client.blades_client", "read"),
+    # An open table as its grid shows it, through the adapter: sab.table("orders", limit=50).
+    "table": ("swissarmybench.client.blades_client", "table"),
     "sql": ("swissarmybench.client.sql_cell", "sql"),
     # DAX on one dataset of a Power BI workspace connection: sab.dax("Finance/Sales model", ...).
     "dax": ("swissarmybench.client.sql_cell", "dax"),

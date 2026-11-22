@@ -37,7 +37,6 @@ SERVER_PACKAGES = (
 # The plain client: every module `import swissarmybench`, `sab`, `sab.push`, `sab.blade` can reach.
 CLIENT_MODULES = (
     "swissarmybench",
-    "swissarmybench.renamed",
     "swissarmybench.client",
     "swissarmybench.client.push_client",
     "swissarmybench.client.blades_client",

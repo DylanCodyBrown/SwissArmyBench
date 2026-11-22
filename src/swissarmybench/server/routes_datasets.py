@@ -33,7 +33,6 @@ from swissarmybench import __version__
 from swissarmybench.domain.datasets import mib, validate_name
 from swissarmybench.server.http import (
     actor,
-    error_response,
     json_response,
     query_int,
     read_body,
@@ -58,10 +57,7 @@ def routes(datasets: DatasetService) -> list[BaseRoute]:
 
     async def audit(request: Request) -> Response:
         """The audit log's last entries, for the page's activity list (never cell values)."""
-        try:
-            limit = max(1, min(500, query_int(request, "limit", 100) or 100))
-        except ValueError as error:
-            return error_response(error)
+        limit = max(1, min(500, query_int(request, "limit", 100) or 100))
         # ?actor=agent: the agent's own last entries, however many the user wrote since.
         return json_response({"entries": datasets.activity(limit, request.query_params.get("actor") or None)})
 

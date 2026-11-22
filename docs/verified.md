@@ -4744,6 +4744,39 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   thousand rows (the tests' are small), the child process's memory on a DuckDB file's Open (its answer is still one
   base64 Arrow IPC in a JSON line).
 
+## The adapter's second phase (2026-11-22, branch adapter-2; DuckDB 2.0.0, pyarrow 26.0.1, sqlglot 30.24.0)
+- Each SQL dialect's plan query read back by sqlglot in its own dialect (PostgreSQL, MySQL, T-SQL, Oracle, SQLite,
+  Snowflake, Trino, Databricks): five plans each, including in, between, like, null, totals, sort, limit and
+  offset (tests/test_adapter_sql.py). Run for real: SQLite (stdlib), the test bed's PostgreSQL 16 through psycopg
+  3.3.9 (list, a count total, a limit, merge and truncate on a temporary table) and its MariaDB through pymysql
+  1.2.4 (pyformat marks; list, a folded plan, a count; read-only: the test bed's reader may not make a table).
+  Not run for real: SQL Server, Oracle, Snowflake, Trino, Databricks (no server or driver here); SQL Server's Open
+  as grid is its stand-ins' (tests/test_sql_server.py) and its typed read_arrow is used unchanged.
+- Each dialect says "every row" before an OFFSET its own way: MySQL needs LIMIT 18446744073709551615 before an
+  OFFSET, SQLite LIMIT -1; T-SQL's OFFSET needs an ORDER BY (ORDER BY (SELECT NULL)) and a plain limit is TOP (n).
+- Dataverse's Web API through OData against tests/dataverse_standin.py: $filter, $select, $orderby and $top sent and
+  said, a group and an offset done over the answer; tests/test_dataverse.py's Open as grid unchanged through it.
+- The lakes and SharePoint through Rows: tests/test_lakes.py unchanged through it (how a lake read its files kept).
+- The open tables and sab.table against a live server (tests/test_adapter_open_tables.py): a filter step's view,
+  a plan folded, a group's totals, a table not open refused; a kernel's DuckDB SQL naming an open table.
+- Payloads: an Arrow answer's JSON equals plain()'s (dates ISO, decimals as numbers); the Arrow IPC answer; a table
+  body's types from its model; an exported Lambda folder answering an Arrow endpoint in a fresh Python.
+- Larkfield Goods large again (10,001,903 order lines, 15.3 s to make; deleted after), each read in a process of its
+  own, RSS growth: a filter and a limit (1,000 rows) 0.13 s, 32 MB; a product range (2,532,080 rows) streamed
+  0.20 s, 32 MB; totals by product (12,000 rows) 0.14 s, 32 MB; every row streamed 0.35 s, 34 MB; every row held
+  as one table 0.48 s, 647 MB (phase 1: 39, 135, 61, 173 and 619 MB; the streamed reads hold less now that each
+  read runs in a process of its own: phase 1 measured them in one). The open tables' plan over a grid view of the
+  same 10M rows: a filter and a limit 0.11 s, 35 MB (57 KB of Arrow sent); totals 0.13 s, 37 MB. The DB-API path
+  (Sql over a cursor, rows made Arrow a batch at a time) at 1M rows: 1.39 s, 91 MB.
+- Not checked: Windows; Edge (Chromium here); the canvas and script exports (unchanged); an Arrow body over a few
+  thousand rows (sab_api reads the body whole, as before).
+- The suites: the quick suite 4,948 passed, 37 skipped; in Chromium test_local_apis_page, test_forms_recon_app,
+  test_sandbox_gaps_page, test_claude_launch_page, test_dataverse_page, test_lakes_page, test_sql_server_page,
+  test_connection_sql_page, test_swap_connection_page and test_python_connection_page passed; test_real_world (with
+  the test bed's drivers, keyrings.alt and nbclient) 13 passed, 1 failed: use case 11 (the Widgets window previews
+  the widget by its old name after its rename, "There is no widget called my_widget") fails the same way on the
+  base commit 8415755, so it is not this branch's.
+
 ## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
 - Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite
   (`pytest -n 4 --dist loadfile tests --ignore=tests/e2e`) after the removals and after the route guard; the e2e

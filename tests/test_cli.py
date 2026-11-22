@@ -158,6 +158,9 @@ NOT_COMMANDS = {
     "/connections/sql/alias/dax": "a kernel's %%dax cell's DAX through the project's dataset connection, as "
     "Arrow (the same transport)",
     "/workbench/tables/{}/arrow": "an open grid's view as Arrow for a kernel's DuckDB SQL (as above)",
+    "/workbench/tables/adapter/tables": "the open tables as an adapter source for a kernel's sab.table "
+    "(the agent runs sab.table in a Workbench kernel with workbench_run)",
+    "/workbench/tables/adapter/read": "a kernel's sab.table(name, plan) as Arrow (the same transport)",
     "/datasets/{}": "PUT pushes table contents: pushes stay with Python, the agent passes paths (load)",
     "/grids/{}/selection": "set_selection",
     "/processes/{}/sync": "the notebook watcher's protocol",

@@ -27,7 +27,7 @@ import duckdb
 
 from swissarmybench import __version__
 from swissarmybench import extensions as extension_modules
-from swissarmybench.adapters import blade_run
+from swissarmybench.adapters import blade_run, sab_adapter
 from swissarmybench.adapters import code_files as code_file_disk
 from swissarmybench.adapters import datasets as table_reader
 from swissarmybench.adapters import export as export_writer
@@ -669,6 +669,7 @@ def bootstrap(
         ws,
         datasets.origins,
         table_reader.query_to_arrow_stream,  # type: ignore[arg-type]
+        table_reader.planned_arrow_stream,  # type: ignore[arg-type]
     )
     project_files = ProjectFiles()
     # What the extensions that are on hand back once they are built (services/hooks.py): the documents the
@@ -1644,6 +1645,7 @@ def bootstrap(
         ExportFolder(sandbox.copy_now),
         project_scope.edited_in,
         approvals,
+        adapter_text=lambda: Path(sab_adapter.__file__).read_text(encoding="utf-8"),
     )
     for extension in on_extensions:
         for raw in getattr(extension, "API_TARGETS", ()) or ():

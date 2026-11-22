@@ -4,6 +4,7 @@ grid, nothing else kept). Made-up data only."""
 
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -71,3 +72,34 @@ def test_a_table_the_file_does_not_have_is_said_by_the_adapter(client: TestClien
     missing = client.post("/connections/Shop/open", json={"table": "invoices"}, headers=AUTH)
     assert missing.status_code >= 400
     assert "has no table 'invoices'" in missing.text
+
+
+def test_a_sqlite_table_opens_through_the_adapter_with_its_limit_and_count(
+    client: TestClient, tmp_path: Path
+) -> None:
+    path = tmp_path / "ledger.sqlite"
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE entries (entry_id INTEGER PRIMARY KEY, account TEXT, amount REAL)")
+    con.executemany(
+        "INSERT INTO entries VALUES (?, ?, ?)", [(i, f"acct-{i % 3}", i * 2.5) for i in range(25)]
+    )
+    con.commit()
+    con.close()
+    code = f'import sqlite3\n\nconn = sqlite3.connect(r"{path}")\n'
+    made = {
+        "name": "Ledger",
+        "kind": "sql",
+        "template": "sqlite",
+        "dialect": "sqlite",
+        "code": code,
+        "row_limit": 8,
+    }
+    assert client.post("/connections", json=made, headers=AUTH).status_code == 200
+    opened = client.post("/connections/Ledger/open", json={"table": "entries"}, headers=AUTH)
+    assert opened.status_code == 200, opened.text
+    assert (opened.json()["shown"], opened.json()["total"]) == (8, 25)
+    assert _columns(client, opened.json()["grid"]) == {
+        "entry_id": "BIGINT",
+        "account": "VARCHAR",
+        "amount": "DOUBLE",
+    }

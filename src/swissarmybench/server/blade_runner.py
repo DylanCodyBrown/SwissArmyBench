@@ -73,6 +73,7 @@ def payload(
         # A lake's or SharePoint's table, by the connection's own read: the columns and filters a DuckDB
         # query sends it, its rows as Arrow.
         python = {
+            "adapter": "rows",  # through the adapter's Rows (Plans/adapter.plan.md)
             "read": lakes.READ,
             "set": {},
             "keyring": [],
@@ -82,8 +83,10 @@ def payload(
             "filters": (extra or {}).get("filters"),
         }
     elif dataverse.is_dataverse(blade.dialect) and mode == "read":
-        # A Dataverse environment's table, through its Web API: the connection's own read.
+        # A Dataverse environment's table, through its Web API: the adapter's OData read over the connection's
+        # own calls (Plans/adapter.plan.md).
         python = {
+            "adapter": "odata",
             "read": dataverse.READ,
             "set": {},
             "keyring": [],
@@ -422,8 +425,9 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         if not job.get("sql"):
             return {"path": str(value)}
         source = _within(value, job)
-        if job.get("read") and type(source).__module__.split(".")[0] in ("duckdb", "_duckdb"):
-            return _adapter_rows(source, job["read"])
+        adapted = _adapter_rows(source, job["read"], job.get("count_sql")) if job.get("read") else None
+        if adapted is not None:
+            return adapted
         typed = getattr(source, "read_arrow", None)  # a connection that reads typed Arrow itself (SQL Server)
         table = typed(job["sql"]) if callable(typed) else None
         columns, rows = ([], []) if table is not None else _sql_rows(source, job["sql"])
@@ -445,17 +449,32 @@ def _rows(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     return {"arrow": _arrow_text(pa.Table.from_arrays(arrays, names=columns)), "total": total}
 
 
-def _adapter_rows(connection: Any, read: dict[str, Any]) -> dict[str, Any]:
-    """A DuckDB connection's table through the adapter (Plans/adapter.plan.md): its plan folded into the read,
-    the batches made the grid's table and nothing else kept; its row count when asked."""
+def _adapter_rows(
+    connection: Any, read: dict[str, Any], count_sql: str | None = None
+) -> dict[str, Any] | None:
+    """A connection's table through the adapter (Plans/adapter.plan.md): DuckDB's own, or a SQL database's
+    DB-API connection in its dialect; its plan folded into the read, the batches made the table and nothing
+    else kept; its row count when asked (SQL Server's from its system views, as before). None: a connection
+    the adapter does not read (its SQL is sent instead)."""
     from swissarmybench.adapters import sab_adapter as sab
+    from swissarmybench.adapters.blade_run import _sql_rows
 
-    source = sab.DuckDB.over(connection)
-    table = sab.make_grid(sab.GridSource(source, str(read["table"]), sab.plan_from(read.get("plan"))))
+    dialect = str(read.get("dialect") or "duckdb")
+    source: Any
+    if type(connection).__module__.split(".")[0] in ("duckdb", "_duckdb"):
+        source = sab.DuckDB.over(connection)
+    elif dialect in sab.DIALECTS and callable(getattr(connection, "cursor", None)):
+        source = sab.Sql(connection, dialect)
+    else:
+        return None
+    table = sab.make_table(sab.TableSource(source, str(read["table"]), sab.plan_from(read.get("plan"))))
     total = None
-    if read.get("count"):
-        counted, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))
-        total = int(counted.read_all().column(0)[0].as_py())
+    if read.get("count") and count_sql and dialect == "sqlserver":
+        _, counted = _sql_rows(connection, count_sql)
+        total = int(counted[0][0]) if counted and counted[0] and counted[0][0] is not None else None
+    elif read.get("count"):
+        reader, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))
+        total = int(reader.read_all().column(0)[0].as_py())
     return {"arrow": _arrow_text(table), "total": total}
 
 
@@ -531,6 +550,16 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
         raise BladeRunError(f"{job['label']} has no Read a table: open the connection and fill it in.")
     place = python.get("place") or {}
     value, names = run_code(job["code"], job["variable"], secrets, job["label"])
+    adapter = python.get("adapter")
+    if (adapter == "odata" and callable(getattr(value, "described", None))) or (
+        adapter == "rows" and callable(getattr(value, "rows", None))
+    ):
+        try:
+            return _adapter_read(value, adapter, place, python)
+        except Exception as error:
+            raise BladeRunError(f"{job['label']}: {error}") from None
+        finally:
+            close_quietly(value)
     try:
         limit = python.get("limit")
         result, total = read_table(
@@ -552,6 +581,29 @@ def _read(job: dict[str, Any], secrets: dict[str, str]) -> dict[str, Any]:
     finally:
         close_quietly(value)
     return {"arrow": _arrow_answer(table), "total": total} | ({"read_with": how} if how else {})
+
+
+def _adapter_read(
+    connection: Any, adapter: str, place: dict[str, Any], python: dict[str, Any]
+) -> dict[str, Any]:
+    """A Dataverse table (OData) or a lake's or SharePoint's (Rows) through the adapter: the limit, and the
+    columns and filters a DuckDB query sends, folded into the connection's own read; the count it gave and,
+    for the lakes, how it read the files (the table's sab_read)."""
+    from swissarmybench.adapters import sab_adapter as sab
+
+    source: Any = sab.OData(connection) if adapter == "odata" else sab.Rows(connection)
+    table = str(place.get("table") or "")
+    if adapter == "rows" and place.get("schema"):
+        table = f"{place['schema']}/{table}"
+    filters = tuple(
+        sab.Filter(str(c), "!=" if op == "<>" else str(op).lower(), v)
+        for c, op, v in python.get("filters") or []
+    )
+    plan = sab.Plan(columns=tuple(python.get("columns") or ()), filters=filters, limit=python.get("limit"))
+    made = sab.make_table(sab.TableSource(source, table, plan))
+    meta = made.schema.metadata or {}
+    how = meta.get(b"sab_read", b"").decode("utf-8", "replace")
+    return {"arrow": _arrow_answer(made), "total": source.total} | ({"read_with": how} if how else {})
 
 
 def _plain(value: Any) -> Any:

@@ -48,6 +48,9 @@ their own (the rail's Notebooks and Scripts open it; code never opens in the gri
   `@cell7` in a comment links to it; `workbench_cell_goto` goes there. `workbench_cell_name` names one.
 - SQL cell: `%%sql <connection>` (the source's own SQL; files and DataFrames through DuckDB).
   With no connection (DuckDB) it also reads a table open in Grids by its name (its view, steps applied).
+- `sab.table("orders", columns=[...], filters=[("amount", ">", 100)], sort=[("amount", "desc")], limit=50)`:
+  an open table as its grid shows it, an Arrow table, read through the adapter (the plan done by the app's
+  DuckDB); read again each time, the table stays the app's one copy.
   A Python cell's missing open table: `workbench_window` command `tables.add` gives the document its cell.
 - DAX cell: `%%dax Finance/Sales model`; `workbench_dax_add`.
 - HTML cell: `%%html`, a design in a walled-off frame; `{{ name }}` is filled from the kernel when it

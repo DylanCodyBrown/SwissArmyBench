@@ -61,6 +61,19 @@ def test_the_sandbox_through_the_adapter_lists_reads_with_a_plan_and_writes(boxe
         sab_adapter.read(source, "invoices")
 
 
+def test_a_truncate_reaches_the_sandbox_through_the_adapter(boxed: TestClient) -> None:
+    source = TestRemote(boxed, "Sandbox")
+    fresh = pa.table({"id": [7], "title": ["Sow beans"], "status": ["Open"], "hours": [2.0]})
+    done = sab_adapter.write(source, "tasks", fresh, mode="truncate")
+    assert done == sab_adapter.Counts(inserted=1, deleted=4)
+    assert sab_adapter.read(source, "tasks")[0].read_all().column("id").to_pylist() == [7]
+    assert sab_adapter.write(source, "tasks", mode="truncate") == sab_adapter.Counts(deleted=1)
+    left = sab_adapter.read(source, "tasks")[0].read_all()
+    assert left.num_rows == 0 and left.column_names == ["id", "title", "status", "hours"]
+    log = boxed.get("/sandbox", headers=AUTH).json()["log"]
+    assert (log["tasks"]["inserted"], log["tasks"]["deleted"]) == (1, 5)
+
+
 def test_the_sharepoint_mock_reads_and_writes_through_the_adapter(boxed: TestClient) -> None:
     lists = mocks.MockSharePoint("Sandbox", TestLink(boxed, mocks.SharePointError))
     found, total = lists.rows("tasks", columns=["title"], filters=[["status", "=", "Open"]], limit=2)

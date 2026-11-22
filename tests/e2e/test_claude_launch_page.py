@@ -210,6 +210,8 @@ def test_the_workbench_status_bar_has_it_too(browser: Browser, server: dict[str,
     found(server, [{"kind": "code", "path": "/usr/local/bin/claude"}])
     page = browser.new_context(viewport={"width": 1400, "height": 820}).new_page()
     page.goto(f"http://127.0.0.1:{server['port']}/workbench#token={server['token']}")
-    expect(page.locator(".claude-launch")).to_be_visible(timeout=20000)
+    # The status bar shows once a document is open (none open: the page's creator has the area).
+    page.get_by_role("button", name="Start a notebook").click(timeout=20000)
+    expect(page.locator(".wb-status .claude-launch")).to_be_visible(timeout=20000)
     expect(page.locator(".claude-launch svg[data-icon='claude']")).to_be_attached()
     page.context.close()

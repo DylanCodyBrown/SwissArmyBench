@@ -246,6 +246,16 @@ def _models(tree: ast.Module) -> dict[str, Model]:
     return out
 
 
+_ROWS_BODY = re.compile(r"^(?:typing\.)?Annotated\[\s*[\w.]*Table\s*,\s*([A-Za-z_]\w*)\s*\]$")
+
+
+def _as_sent(kind: str) -> str:
+    """A body made Arrow by the adapter (`Annotated[pa.Table, Order]`: its rows checked against Order, then an
+    Arrow table) is sent as a list of its model: what OpenAPI, Try it and a made-up request see."""
+    found = _ROWS_BODY.match(kind.strip())
+    return f"list[{found.group(1)}]" if found else kind
+
+
 def _is_body_type(kind: str, models: Mapping[str, Model]) -> bool:
     bare = re.sub(r"\s*\|\s*None$|^Optional\[(.*)\]$", r"\1", kind).strip()
     return bare in models or bare in ("dict", "list") or bare.startswith(("dict[", "list[", "Mapping["))
@@ -335,7 +345,7 @@ def parse(text: str) -> Api:
             positional = node.args.posonlyargs + node.args.args
             defaults = [None] * (len(positional) - len(node.args.defaults)) + list(node.args.defaults)
             for arg, default in zip(positional, defaults, strict=True):
-                kind = _annotation(arg.annotation)
+                kind = _as_sent(_annotation(arg.annotation))
                 where = "path" if arg.arg in in_path else "body" if _is_body_type(kind, models) else "query"
                 params.append(Param(arg.arg, where, kind or "str", default is None, _literal(default)))
             missing = [p for p in in_path if p not in {a.arg for a in positional}]

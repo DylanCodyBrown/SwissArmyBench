@@ -1,6 +1,28 @@
 # One adapter: the simple architecture (the owner, 2026-11-21)
 
-Status: agreed; phase 1 built (branch `adapter`, 2026-11-21): Order 1 and the start of 2.
+Status: agreed; phase 1 built (branch `adapter`, 2026-11-21): Order 1 and the start of 2; phase 2 built (branch
+`adapter-2`, 2026-11-22): the reading half of Order 2, the start of 3 and 4, `truncate`.
+
+### What is built (phase 2)
+
+- `truncate` for every source the adapter writes (DuckDB, the sandbox's door, SQL databases): no rows clears the
+  table and keeps its columns; rows clear and insert in one transaction, all or none.
+- The words: `table(name)`, `Tables`, `TableSource`, `make_table` (was grid(name), Grids...: a grid is a view).
+- Each connection kind as a backend, read side: `Sql` (any DB-API connection; `DIALECTS` as data: PostgreSQL,
+  MySQL/MariaDB, SQL Server/Azure SQL, Oracle, SQLite, Snowflake, Trino, Databricks; the whole plan folded into
+  its own SQL, streamed from the cursor; writes in its own INSERT/UPDATE/DELETE in one transaction), `OData`
+  (Dataverse's Web API: filters, columns, sort, limit into one OData read), `Rows` (the lakes and SharePoint, by
+  their own read). Open as grid on all of them goes through the adapter.
+- The open tables as a source (`/workbench/tables/adapter/tables|read`), a kernel's `sab.table(name, plan)`, and a
+  kernel's DuckDB SQL naming an open table reading through it.
+- API payloads: an Arrow answer as JSON records (`to_json`) or Arrow IPC for a caller that accepts it; a body
+  `Annotated[pa.Table, Model]` checked, then made Arrow by `from_json`.
+- The API export carries `sab_adapter.py` (duckdb and pyarrow in requirements.txt).
+- Not yet (phase 3): the mock clients and sandbox_dialects.py (an endpoint's SQL in its source's dialect needs a
+  decision: docs/ideas.md "One adapter"), the writes of Dataverse, SharePoint and the lakes through the adapter
+  (each kind's Write starter still writes), the app's Catalog listing through `tables()`, the steps, SQL box,
+  views, analyses and exports onto the open tables source, the canvas and script exports' files, file connections
+  (CSV, Parquet, JSON) as a source.
 
 ### What is built (phase 1)
 
