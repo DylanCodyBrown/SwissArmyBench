@@ -1,6 +1,6 @@
 # The API adapter: any payload in, one shape out (the owner, 2026-11-22)
 
-Status: decided; not built. Cared for as design principle 12b (equal to adapter.py). Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
+Status: built (branch api-adapter, 2026-11-22: steps 1 to 6 below; what is left under "Not yet"). Cared for as design principle 12b (equal to adapter.py). Comes after the data adapter's phase 3 (it hands table-shaped answers to it).
 
 > "How do we handle API actions. They don't have to go through the adapter but I feel like they need their own to
 > standardize outputs. Kinda like how Power Automate online standardizes" / "api_adapter.py and we should think more
@@ -113,3 +113,53 @@ discover and map the payloads to build widgets, scripts and notebooks etc." So `
    a script function, a widget on a canvas page); nothing is built until the user picks it there. Endpoints that change
    data stay actions with their forms; discovery never calls them.
 The agent runs the same discovery (`actions(action="discover")`) and reads the same endpoints' learned shapes.
+
+## Built (branch api-adapter, 2026-11-22)
+1. **api_adapter.py 1.0.0** (the app's `adapters/api_adapter.py`; the project scaffold's `api_adapter.py`, the same
+   bytes): `run(action, inputs)`, inputs checked first, the one envelope (ok, status, kind, records / record / value /
+   file / text, paging, shape with drift and marks, sent, raw with sign-in headers hidden, error in the refusal shape),
+   `facts` per call and `observe(hook)` (the statistics' seam, Plans/stats.plan.md: times, sizes, outcome, who; nothing
+   by default). Detection: JSON, JSON lines, XML (no DOCTYPE or entity), CSV, TSV, YAML (PyYAML where present), a file,
+   text; the envelope (a list; value/data/items/results...; one or two levels down; a lone wrapper; header and rows;
+   the one list beside count/next words), paging (a next link, a Link header, a cursor into the action's token input,
+   offset and limit, page numbers; the call's limits, a repeated page), types read from values. Drift against the
+   last shape: added, missing (null, marked), retyped (coerced where it reads cleanly), moved; a rename offered only
+   when one candidate is alike (a guess otherwise); paths matched in any case and style. Retries: 429 (Retry-After,
+   30 s at most) any method; passing errors (5xx, unreachable) only for a method that changes nothing.
+   Sign-in: `http(base, auth)` (bearer, an API key in a header or the query, basic: environment variables read at
+   each call) or `from_client(client)` (an API_<name>.py client's own). Tested alone in an empty folder.
+2. **The specification is the front door:** `actions(doc)` reads OpenAPI 3.x and Swagger 2.0 (refs, allOf, a
+   requestBody or a body parameter, a declared answer's kind, envelope and fields as the first guess; a path
+   `{placeholder}` the document forgot is a required input all the same). The app names each action as the APIs page
+   names its operation.
+3. **The current shape, both ways:** `apis/<name>/shapes/<action>.json` (the local sandbox API's in the project's
+   `.sab/api-shapes/`): returned (status, kind, format, envelope, each path's type, format and whether it can be empty,
+   the fingerprint) and sent (each path, query and body field's type); seen (a day), changed, the change (said once:
+   the Session log and `api_shape_changed` to the pages), the offers, the renames taken and declined. Byte-stable
+   (sorted, written only when its bytes change). No value, ever. `learn(shape, action)` is the widgets' contract.
+4. **discover(api):** on the Allow (asked once per API this session; the agent's too), one GET per read endpoint with
+   its limit-like input at 1, required path inputs filled from other answers' ids (memory only), 20 calls at most, never
+   a write; for a library API the whole probe runs in one child process through its API blade. Mapped by shape:
+   records a table or grid, a record a detail card or form, a value a metric, a file a download, a write a form (its
+   body fields' boxes by type: a closed set a dropdown, a date a date picker); master and detail pairs.
+5. **The APIs page:** each operation's **What it answers** (learned or declared, maps to, fields with their marks, the
+   drift line, rename offers, Run, Build: a notebook cell or a script function to copy, a widget on the project's
+   canvas page: a library API's records as a data table on `[API].action`, Return as table switched on; the local
+   API's records wired to its endpoint, its writes an API form, a value an API metric); **Discover** at the API's foot;
+   the list marks each operation's learned kind and drift. `sab.run(api, action, inputs)` and `sab.records(answer)` in
+   Python.
+6. **The agent:** `actions(action)`: list, describe, run (a write by the agent waits for Allow), shape, discover,
+   offer, build. The tool count grew by one, inside the budget.
+
+## Not yet (decisions for the owner)
+- The canvas's Events and the API widgets still call the local sandbox API directly (sab_canvas.api_call): routing them
+  through api_adapter means carrying api_adapter.py into every built app and returning envelopes to the widgets
+  (their answers would be flattened records). Asked first.
+- The Local sandbox APIs panel shows no learned section of its own (its endpoints are actions: `actions(api="local")`,
+  and Build works for them); one action picker shared by the canvas and the APIs page is not built.
+- Author a call's Send still goes through the web call blade (Structures keeps its lineage); Run on the learned section
+  is api_adapter's.
+- `.sab/api_examples.json` (Try it's Keep as its example) keeps a payload's values; the owner's "No need to ever keep
+  values" may mean it goes.
+- Build's cell and function are answered to copy; putting them straight into a notebook or script is not built.
+- Remembered Allow for discovery is per session (memory), not kept.
