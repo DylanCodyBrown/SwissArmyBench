@@ -35,9 +35,10 @@ says so in one line.
   keys as Ins and Outs.
 - Where a widget lives (`where`): the open project's `widgets/` folder (shared in Git with it) first, then
   the library's, then the prebuilt ones; a name in the project wins over the library's (`hides`). An export
-  carries the project's widgets the canvas uses as `widgets/<name>.widget.py`.
+  carries the widgets the canvas uses (the project's own too) inlined in its `widgets.py`.
 - `widgets_list` (q), `widgets_get`, `widgets_new` (name, description, code; where=project), `widgets_save` (code, the
-  header kept), `widgets_header` (new_name: checked, and every canvas instance renamed; description),
+  header kept), `widgets_header` (new_name: checked, and every canvas instance renamed; description, group, size and
+  min_size in grid cells, tags),
   `widgets_properties` (of a widget, or of code not saved yet), `widgets_set_property` (a default, written
   into only its own characters, checked first), `widgets_run` (headless with AppTest: each page's
   `failed` errors and what it drew; live=true also gives a live address), `widgets_copy` (a prebuilt one
@@ -82,7 +83,8 @@ says so in one line.
   `sharing_start app=<canvas id>` (waits for Allow; installs devtunnel if needed): the launched
   app's own port to the user's organization (work accounts of its tenant; never anonymous, never this server;
   the user signs in themselves), `sharing_stop` (Allow; a new launch or its stop ends it too), `canvas_export` (a
-  folder that runs on a hosted Streamlit app: app.py, a page file each, sab_canvas.py, sab_widgets.py, the tables
+  folder that runs on a hosted Streamlit app, the fewest files: app.py (the pages, the layout, the wiring and the
+  runtime), widgets.py (the widgets inlined), the API adapter's file, requirements.txt, README.md, the tables
   it names as Parquet, data.py; it copies rows, so it waits for the user's Allow).
 - Builds (`builds/<app>/<n>/`: the code as launched, canvas.json, build.json saying what changed in words):
   `canvas_builds` by action: list, files (build), compare (build, b; no b: against the canvas now), relaunch,

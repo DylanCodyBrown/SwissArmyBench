@@ -452,9 +452,12 @@ def widgets_save(a: dict[str, Any]) -> Any:
     opt("new_name", "Its new name."),
     opt("description", "Its new description."),
     opt("group", "Buttons, Inputs, Data, Charts, Text, Filters, Forms or Other."),
+    opt("size", "Its size when inserted, in grid cells: [columns, rows].", "json"),
+    opt("min_size", "Its smallest size, in grid cells: [columns, rows].", "json"),
+    opt("tags", "Its tags: a list of words.", "json"),
 )
 def widgets_header(a: dict[str, Any]) -> Any:
-    body = {k: a[k] for k in ("description", "group") if a.get(k) is not None}
+    body = {k: a[k] for k in ("description", "group", "size", "min_size", "tags") if a.get(k) is not None}
     if a.get("new_name"):
         body["name"] = a["new_name"]
     return api.call("PATCH", f"/streamlit/widgets/{_q(a['name'])}", body)

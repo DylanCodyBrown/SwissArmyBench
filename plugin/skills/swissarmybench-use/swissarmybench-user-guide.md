@@ -1541,7 +1541,7 @@ need openpyxl (xlrd for old .xls): a project's Python gets both when it is made;
 it), beside your library's. The lists show **This project** first, then **Library**, then the prebuilt ones;
 a project widget with a library widget's name is the one used (the list says "Instead of the library's").
 **Copy to project** and **Copy to library** in the Widgets window's bar copy one across under the same name.
-An export carries the project's widgets it uses in its `widgets/` folder.
+An export carries the project's widgets it uses inlined in its `widgets.py` (the fewest files).
 
 **The Widgets window** (Widgets on the rail; a window of its own, no rail): the list on the left (This project,
 Library, then the starter packs, then the prebuilt ones by group, search, **New widget**), the code in the middle with the Workbench's completion,

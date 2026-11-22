@@ -159,6 +159,21 @@ def test_a_wire_is_refused_in_place_with_the_reason() -> None:
     ):
         with pytest.raises(ContractError):
             wiring.check_event(saved, wire, {"POST /visits"})
+    # A typed payload (Event[Visit]): a part it does not have is refused in words (it would send nothing);
+    # its own fields, and the whole payload (""), are taken. An untyped one (dict) takes any path, as above.
+    typed = Port("done", "event", "dict", fields=(("visit_id", "int"), ("note", "str")), schema="Visit")
+    call = {"do": "call", "endpoint": "POST /visits"}
+    wiring.check_event(typed, {"actions": [call | {"body": ""}]}, {"POST /visits"})
+    wiring.check_event(typed, {"actions": [call | {"body": {"id": "visit_id"}}]}, {"POST /visits"})
+    wiring.check_event(typed, {"actions": [{"do": "set", "key": "last", "value": "note"}]}, {"POST /visits"})
+    for action in (
+        call | {"body": "values"},
+        call | {"body": {"id": "values.visit_id"}},
+        call | {"body": "", "params": {"id": "nope"}},
+        {"do": "set", "key": "last", "value": "store"},
+    ):
+        with pytest.raises(ContractError, match=r"done's payload \(Visit\) has no .*: it has visit_id, note"):
+            wiring.check_event(typed, {"actions": [action]}, {"POST /visits"})
 
 
 WRITER = "from sab_canvas import Out, Table\nuploaded: Out[Table] = None\nlabel = 'x'\n"

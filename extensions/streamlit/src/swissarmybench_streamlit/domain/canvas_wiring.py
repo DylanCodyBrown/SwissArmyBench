@@ -207,6 +207,7 @@ def check_event(port: Port, wire: Any, endpoints: set[str] | None = None) -> Non
                     f"{port.name}'s body names parts of the payload, as values.store.",
                     "Pick them from the list.",
                 )
+            _in_payload(port, [*paths, *params.values()])
         elif do == "set":
             if not isinstance(action.get("key"), str) or not _KEY.match(action["key"]):
                 raise ContractError(
@@ -214,6 +215,21 @@ def check_event(port: Port, wire: Any, endpoints: set[str] | None = None) -> Non
                 )
             if not isinstance(action.get("value", ""), str) or not _PATH.match(action.get("value", "")):
                 raise ContractError(f"{port.name}'s value is a part of the payload.")
+            _in_payload(port, [action.get("value", "")])
+
+
+def _in_payload(port: Port, paths: Sequence[str]) -> None:
+    """A typed payload's parts (Event[Visit]: the record's fields are known): a path starts at one of them
+    ("" is the whole payload). A part it does not have would send nothing, so it is refused here, in words."""
+    known = [name for name, _ in port.fields]
+    for path in paths if known else ():
+        first = path.split(".", 1)[0]
+        if first and first not in known:
+            raise ContractError(
+                f"{port.name}'s payload ({port.schema or 'its record'}) has no {first}: it has "
+                f"{', '.join(known)}.",
+                "Pick them from the list, or leave it empty for the whole payload.",
+            )
 
 
 # ===== the canvas's wiring as a whole =====
