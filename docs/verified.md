@@ -5945,3 +5945,12 @@ checked:
   PYTHONPATH, which this worktree needs). In Chromium: the structure tabs, Scripts IDE, script files, Structures
   and APIs, Data Explorer (its structure result now opens a tab: the test says so), notebook kinds, open file,
   navigation, Environment, blade tab, project session and desktop keys pages: 34 passed.
+
+## Release 0.0.32, 2026-11-22
+
+On the owner's word ("Waiting on the publish"). The branch claude/vibrant-mendel-j04osj at the version bump:
+quick suite in one process 5,383 passed, 40 skipped (the one failure, the desktop window's Ctrl+W under load,
+passed twice alone); after the structure tabs, the quick suite at four workers 5,415 passed, 40 skipped, 0
+failed; browser suite in one process in Chromium 411 passed, 15 skipped, 0 failed (before the structure tabs;
+their own browser tests and the twelve files they touch pass); the locally built wheels pass
+tools/smoke_install.py on a fresh install. Release notes: .github/release-notes/v0.0.32.md.

@@ -1,7 +1,7 @@
 [project]
 name = "swissarmybench-powerbi"
 # The base's version: the base and its extensions are released together (build.py checks it).
-version = "0.0.31"
+version = "0.0.32"
 description = "Swiss Army Bench's Power BI extension: your model as a Power BI Desktop file."
 readme = "README.md"
 license = "MIT OR Apache-2.0"
@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 # pythonnet (MIT; approved 2026-11-19) drives Microsoft's model client libraries for Edit in Power BI Desktop, on
 # Windows only (the libraries themselves are fetched once on first use, pinned and hash checked: never in the wheel).
 dependencies = [
-    "swissarmybench[server]==0.0.31",
+    "swissarmybench[server]==0.0.32",
     "pbixray==0.15.5",
     "pythonnet==3.0.5; sys_platform == 'win32'",
 ]
