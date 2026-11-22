@@ -246,8 +246,10 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # 160) moved in from the Write starters (the owner: "then every write is the adapter's").
 # 3,650 (2026-11-22, 1.2.0): observe(), each call's facts for the statistics (about 140 lines), and Trino's
 # replace as one CREATE OR REPLACE TABLE ... AS (Plans/stats.plan.md; phase 5's open decision).
+# 4,050 (2026-11-22, 1.4.0): Excel, a workbook as a source (its sheets and named tables, the one set of type
+# rules, a sheet's write; about 390 lines; Plans/excel.plan.md: "the Excel source lives in the adapter").
 # api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
-ONE_FILE = {"adapter.py": 3650, "api_adapter.py": 3000}
+ONE_FILE = {"adapter.py": 4050, "api_adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:

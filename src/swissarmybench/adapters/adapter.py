@@ -21,8 +21,9 @@ It reads top to bottom in the order a call runs:
   2. Sources        a source is three functions (tables, read, write), and query when it speaks SQL; DuckDB (a
                     file, or a connection given), Remote (the project's sandbox through the app, for a local
                     sandbox API's process), Sql (SQL Server's writes and Trino's in sections of their
-                    own), OData, Rows, Files; source_from(client) wraps a connection's own client (or its
-                    file's path) in its backend
+                    own), OData, Rows, Files, Excel (a workbook's sheets and named tables; openpyxl
+                    imported only when one is used); source_from(client) wraps a connection's own client
+                    (or its file's path, or a workbook's bytes) in its backend
   3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
                     table, batches, key, mode): by a source's name (use() says how a name is found) or
                     the source itself; what a source could not fold is finished here, in DuckDB, over the
@@ -33,10 +34,11 @@ It reads top to bottom in the order a call runs:
   5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
                     and kept; refresh(name) reads it again
 
-The standard library, duckdb and pyarrow only: an export copies this file as it is. Its contract only grows
+The standard library, duckdb and pyarrow only (openpyxl too once a workbook is read or written, said in
+one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.3.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.4.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -58,6 +60,12 @@ Version 1.3.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   1.3.0    Trino's replace (a truncate with rows) as one CREATE OR REPLACE TABLE ... AS where the catalog has
            it (Iceberg's): its columns' types and properties kept, all or none (TRINO_REPLACE); a catalog
            without it refused as before, nothing changed; at most TRINO_REPLACE_VALUES values in it
+  1.4.0    Excel (Plans/excel.plan.md): a workbook (a path, or bytes) as a source: its sheets and named
+           tables listed, read as Arrow by one set of type rules (typed, header_names; header_row, cells;
+           columns and limit folded), rows written into a sheet (insert below by the header's names, or
+           truncate: the sheet replaced), the other sheets kept, the file replaced safely; sheet_value
+           (text never a formula, long numbers and early dates exact); source_from takes a workbook's path
+           or bytes
 """
 
 from __future__ import annotations
@@ -79,7 +87,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.3.0"  # the docstring's change list says what each version added
+VERSION = "1.4.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -2888,6 +2896,404 @@ class Files:
         return Counts(inserted=data.num_rows)
 
 
+# ----- a workbook: an Excel file's sheets and named tables (openpyxl, imported only when one is used) -----
+
+WORKBOOKS = (".xlsx", ".xlsm")
+SHEET_ROWS = 1_048_576  # the rows one sheet holds, its header too
+EXCEL_DIGITS = 15  # the digits of a number Excel keeps: a longer whole number is written as text
+EXCEL_FIRST_DAY = (1900, 3, 1)  # an earlier date reads back as another day: written as text
+SAMPLE_ROWS = 1_000  # the rows tables() types a column from (a read types every row)
+_ARROW_NAMES = {"int64": "BIGINT", "double": "DOUBLE", "bool": "BOOLEAN", "string": "VARCHAR",
+                "timestamp[us]": "TIMESTAMP", "date32[day]": "DATE", "time64[us]": "TIME"}  # fmt: skip
+_PACKAGE = re.compile(r"<(?:\w+:)?(sheet|Relationship|table)\b[^>]*>")
+_ATTRIBUTE = re.compile(r"([\w:]+)=\"([^\"]*)\"")
+
+
+def _openpyxl() -> Any:
+    """openpyxl, imported on a workbook's first use; missing, said in one sentence with its fix."""
+    try:
+        import openpyxl
+    except ModuleNotFoundError:
+        raise ModuleNotFoundError(
+            "An Excel workbook is read and written with openpyxl, which this Python does not have: "
+            "pip install openpyxl",
+            name="openpyxl",
+        ) from None
+    return openpyxl
+
+
+def header_names(cells: Sequence[Any]) -> list[str]:
+    """A header row's cells as unique column names: a blank one is column_<n>, a repeat gets _2 (a repeat in
+    another case too: DuckDB matches names without case)."""
+    names: list[str] = []
+    taken: set[str] = set()
+    for n, cell in enumerate(cells, start=1):
+        base = str(cell).strip() if cell is not None and str(cell).strip() else f"column_{n}"
+        name, k = base, 2
+        while name.casefold() in taken:
+            name, k = f"{base}_{k}", k + 1
+        names.append(name)
+        taken.add(name.casefold())
+    return names
+
+
+def _as_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    return json.dumps(value, ensure_ascii=False) if isinstance(value, dict | list) else str(value)
+
+
+def typed(values: Sequence[Any]) -> pa.Array:
+    """One column's values as Arrow, by the one rule for a sheet's cells: numbers (whole, or DOUBLE), text,
+    dates and times, yes/no as Arrow reads them; a column that mixes kinds (a number column with an "n/a"
+    in it) keeps every value, as text."""
+    try:
+        return pa.array(values)
+    except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError):
+        return pa.array([_as_text(v) for v in values], pa.string())
+
+
+def _one_type(chunks: Sequence[pa.Array]) -> pa.ChunkedArray:
+    """A column's chunks (each typed alone, as it was read) as one type: the same rule over the whole."""
+    kinds = {c.type for c in chunks if c.type != pa.null()}
+    target = pa.string()
+    if len(kinds) == 1:
+        target = next(iter(kinds))
+    elif kinds and kinds <= {pa.int64(), pa.float64()}:
+        target = pa.float64()
+    made = []
+    for chunk in chunks:
+        if chunk.type == target:
+            made.append(chunk)
+        elif chunk.type == pa.null() or target == pa.float64():
+            made.append(chunk.cast(target))
+        else:
+            made.append(pa.array([_as_text(v) for v in chunk.to_pylist()], pa.string()))
+    return pa.chunked_array(made, target)
+
+
+def sheet_value(value: Any) -> tuple[Any, bool]:
+    """A value as a sheet's cell holds it, and whether it is a text cell (text is never a formula): a whole
+    number of more digits than Excel keeps, a date before 1900-03-01 and a time with a zone are written as
+    text, exact; a decimal as a number; a list or a record as JSON."""
+    if value is None or isinstance(value, bool):
+        return value, False
+    if isinstance(value, int):
+        return (value, False) if abs(value) < 10**EXCEL_DIGITS else (str(value), True)
+    if isinstance(value, float):
+        return (value, False) if value == value and abs(value) != float("inf") else (repr(value), True)
+    if isinstance(value, str):
+        return value, True
+    if hasattr(value, "as_tuple"):  # a decimal: a number while Excel keeps its digits
+        fits = value.is_finite() and len(value.as_tuple().digits) <= EXCEL_DIGITS
+        return (float(value), False) if fits else (str(value), True)
+    if hasattr(value, "year"):  # a date, or a date and time
+        zoned = getattr(value, "tzinfo", None) is not None
+        early = (value.year, value.month, value.day) < EXCEL_FIRST_DAY
+        return (value.isoformat(), True) if zoned or early else (value, False)
+    if hasattr(value, "hour") or hasattr(value, "total_seconds"):  # a time of day, a duration
+        return value, False
+    return _as_text(value), True
+
+
+def _listed_parts(archive: Any, part: str) -> list[dict[str, str]]:
+    """The sheet, Relationship and table tags of one part of a workbook's file, each as its attributes
+    (its tag under "")."""
+    import html
+
+    if part not in archive.namelist():
+        return []
+    text = archive.read(part).decode("utf-8", "replace")
+    return [
+        {k: html.unescape(v) for k, v in _ATTRIBUTE.findall(m.group(0))} | {"": m.group(1)}
+        for m in _PACKAGE.finditer(text)
+    ]
+
+
+class Excel:
+    """A workbook as a source: a path, or its bytes (an upload's, a SharePoint document's). Each sheet is a
+    table and each named table (Insert > Table) too, by its own name. A read takes the first row as the
+    column names (`header_row`: another; `cells`: a range such as B3:F40 instead of the whole sheet), a
+    formula's last result as its value, and types each column by one rule (typed); columns and a limit are
+    folded. A write puts rows into a sheet, the other sheets kept: added below its rows by its header's
+    names (insert; a new sheet, or a new workbook, gets the column names on top) or in the sheet's place
+    (truncate); written beside the file, then put in its place. Bytes written are `data`, the new bytes."""
+
+    def __init__(self, workbook: Any, name: str = "", header_row: int = 1, cells: str = "") -> None:
+        import pathlib
+
+        held = isinstance(workbook, bytes | bytearray | memoryview)
+        self.data: bytes | None = bytes(workbook) if held else None
+        self.path: Any = None if held else pathlib.Path(workbook)
+        self.name = name or (self.path.name if self.path else "The workbook")
+        self.header_row, self.cells = max(1, int(header_row)), str(cells or "").strip()
+
+    # --- the workbook, opened ---
+
+    def _file(self) -> Any:
+        import io
+
+        if self.data is not None:
+            return io.BytesIO(self.data)
+        if self.path.suffix.lower() == ".xls":
+            raise AdapterError(f"{self.name} is an older .xls workbook: save it as .xlsx first.")
+        if not self.path.is_file():
+            raise AdapterError(f"{self.name} reaches no file ({self.path}).")
+        return str(self.path)
+
+    @contextlib.contextmanager
+    def _book(self, writing: bool = False) -> Iterator[Any]:
+        import zipfile
+
+        openpyxl = _openpyxl()
+        macros = self.path is not None and self.path.suffix.lower() == ".xlsm"
+        try:
+            if writing:
+                book = openpyxl.load_workbook(self._file(), keep_vba=macros)
+            else:
+                book = openpyxl.load_workbook(self._file(), read_only=True, data_only=True)
+        except (zipfile.BadZipFile, KeyError, ValueError, OSError) as error:
+            raise AdapterError(f"Could not read {self.name} as an Excel workbook: {error}") from error
+        try:
+            yield book
+        finally:
+            book.close()
+
+    def _parts(self) -> list[tuple[str, str, str]]:
+        """(name, sheet, cells) of each sheet, then of each named table, from the file's own lists (no cell
+        is read). A named table called as a sheet is found by the sheet."""
+        import posixpath
+        import zipfile
+
+        try:
+            archive = zipfile.ZipFile(self._file())
+        except (zipfile.BadZipFile, OSError) as error:
+            raise AdapterError(f"Could not read {self.name} as an Excel workbook: {error}") from error
+        sheets, named = [], []
+        with archive:
+            rels = _listed_parts(archive, "xl/_rels/workbook.xml.rels")
+            targets = {r.get("Id"): r.get("Target", "") for r in rels}
+            for sheet in (s for s in _listed_parts(archive, "xl/workbook.xml") if s[""] == "sheet"):
+                title = sheet.get("name", "")
+                sheets.append((title, title, ""))
+                target = targets.get(sheet.get("r:id"), "")
+                part = target.lstrip("/") if target.startswith("/") else posixpath.join("xl", target)
+                folder, _, file = posixpath.normpath(part).rpartition("/")
+                for rel in _listed_parts(archive, f"{folder}/_rels/{file}.rels"):
+                    if not rel.get("Type", "").endswith("/table"):
+                        continue
+                    place = posixpath.normpath(posixpath.join(folder, rel.get("Target", ""))).lstrip("/")
+                    for table in (t for t in _listed_parts(archive, place) if t[""] == "table"):
+                        called = table.get("displayName") or table.get("name", "")
+                        named.append((called, title, table.get("ref", "")))
+        taken = {s[0].casefold() for s in sheets}
+        return sheets + [n for n in named if n[0] and n[0].casefold() not in taken]
+
+    def _place(self, table: str) -> tuple[str, str, str]:
+        parts = self._parts()
+        names = ", ".join(p[0] for p in parts)
+        if not str(table or "").strip():
+            if len(parts) != 1:
+                raise AdapterError(f"{self.name} has {len(parts)} tables ({names}): name the one to read.")
+            return parts[0]
+        for part in parts:
+            if part[0].casefold() == str(table).strip().casefold():
+                return part
+        raise AdapterError(f"{self.name} has no sheet or named table {str(table)!r}. It has: {names}.")
+
+    # --- tables and read ---
+
+    def tables(self) -> list[Table]:
+        listed = []
+        parts = self._parts()
+        with self._book() as book:
+            for name, sheet, cells in parts:
+                found = self._rows(book, (name, sheet, cells), (), SAMPLE_ROWS, empty=True)
+                columns = tuple(
+                    Column(f.name, _ARROW_NAMES.get(str(f.type), str(f.type).upper()), nullable=True)
+                    for f in found.schema
+                )
+                words = f"A named table on the sheet {sheet} ({cells})." if cells else ""
+                kind = "named table" if cells else "sheet"
+                listed.append(Table(name, columns, kind=kind, description=words))
+        return listed
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        folded: list[str] = []
+        for part in plan.parts():
+            if part not in ("columns", "limit"):
+                break
+            folded.append(part)
+        place = self._place(table)
+        columns = plan.columns if "columns" in folded else ()
+        with self._book() as book:
+            found = self._rows(book, place, columns, plan.limit if "limit" in folded else None)
+        return found.to_reader(BATCH_ROWS), Folded(tuple(folded))
+
+    def _rows(
+        self,
+        book: Any,
+        place: tuple[str, str, str],
+        columns: Sequence[str],
+        limit: int | None,
+        empty: bool = False,
+    ) -> pa.Table:
+        """A sheet's (or a range's) rows as one Arrow table: read once, a batch of rows typed at a time, so
+        a large sheet is held as Arrow, never as Python values. Blank rows inside the data are kept, the
+        blank rows a sheet often reports after it are not; a column with no name and no value is left out."""
+        name, sheet, cells = place
+        left, top, right, bottom = self._bounds(cells or self.cells)
+        first = top if cells else top + self.header_row - 1
+        rows = book[sheet].iter_rows(
+            min_row=first, max_row=bottom, min_col=left, max_col=right, values_only=True
+        )
+        header = list(next(rows, None) or [])
+        if all(c is None for c in header):
+            if empty:
+                return pa.table({})
+            raise AdapterError(f"{name} of {self.name} is empty.")
+        names = header_names(header)
+        picks = list(range(len(names)))
+        if columns:
+            missing = [c for c in columns if c not in names]
+            if missing:
+                raise AdapterError(f"{name} has no column {missing[0]!r}. It has: {', '.join(names)}.")
+            picks = [names.index(c) for c in columns]
+        chunks: list[list[pa.Array]] = [[] for _ in picks]
+        held: list[Sequence[Any]] = []
+        blank = count = 0
+        for row in rows:
+            if limit is not None and count >= limit:
+                break
+            if all(value is None for value in row):
+                blank += 1
+                continue
+            if limit is not None and count + blank >= limit:  # the limit ends among blank rows
+                held.extend([()] * (limit - count))
+                break
+            held.extend([()] * blank)  # the blank rows before this one: inside the data
+            held.append(row)
+            count, blank = count + blank + 1, 0
+            if len(held) >= BATCH_ROWS:
+                _typed_into(chunks, picks, held)
+        _typed_into(chunks, picks, held)
+        made = {names[pick]: _one_type(chunks[at]) for at, pick in enumerate(picks)}
+        if not columns:  # a column with no header and no value: not a column of the table
+            made = {
+                names[at]: column
+                for at, column in enumerate(made.values())
+                if header[at] is not None or column.null_count < len(column)
+            }
+        return pa.table(made)
+
+    def _bounds(self, cells: str) -> tuple[int | None, int, int | None, int | None]:
+        if not cells:
+            return None, 1, None, None
+        from openpyxl.utils import range_boundaries
+
+        try:
+            left, top, right, bottom = range_boundaries(cells.replace("$", ""))
+        except (ValueError, TypeError):
+            raise AdapterError(f"{cells!r} is not a range of cells: write it like B3:F40.") from None
+        return left, top or 1, right, bottom
+
+    # --- write ---
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        _checked_write(mode, key)
+        if mode not in ("insert", "truncate"):
+            raise AdapterError(
+                f"A sheet's rows are added to (insert) or replaced (truncate), not {mode}d: read it, "
+                "change the rows in DuckDB, and write it whole."
+            )
+        openpyxl = _openpyxl()
+        data = batches.read_all()
+        if self.data is None and not self.path.is_file():
+            book = openpyxl.Workbook()
+            book.remove(book.active)
+            return self._written(book, table, data, mode)
+        with self._book(writing=True) as book:
+            return self._written(book, table, data, mode)
+
+    def _written(self, book: Any, table: str, data: pa.Table, mode: str) -> Counts:
+        title = next((s for s in book.sheetnames if s.casefold() == str(table).casefold()), "")
+        names = list(data.column_names)
+        before = 0
+        if title and mode == "truncate":
+            at = book.sheetnames.index(title)
+            before = max(0, int(book[title].max_row or 0) - 1)
+            book.remove(book[title])
+            sheet = book.create_sheet(title, at)
+        elif title:
+            sheet = book[title]
+        elif not str(table).strip() or len(str(table)) > 31:
+            raise AdapterError("A sheet's name is 1 to 31 characters.")
+        else:
+            sheet = book.create_sheet(str(table))
+        header = [c.value for c in next(sheet.iter_rows(min_row=1, max_row=1), ())]
+        if any(c is not None for c in header):
+            held = header_names(header)
+            missing = [n for n in names if n not in held]
+            if missing:
+                raise AdapterError(f"{sheet.title} has no column {missing[0]!r}. It has: {', '.join(held)}.")
+            places = [held.index(n) + 1 for n in names]
+            row = int(sheet.max_row or 1)
+        else:
+            places = list(range(1, len(names) + 1))
+            row = 1
+            for place, name in zip(places, names, strict=True):
+                sheet.cell(row=1, column=place, value=name).data_type = "s"
+        if row + data.num_rows > SHEET_ROWS:
+            raise AdapterError(f"{sheet.title} would hold more than the {SHEET_ROWS:,} rows of one sheet.")
+        for batch in data.to_batches(BATCH_ROWS):
+            for place, column in zip(places, batch.columns, strict=True):
+                _sheet_column(sheet, row, place, column.to_pylist())
+            row += batch.num_rows
+        self._saved(book)
+        return Counts(inserted=data.num_rows, deleted=before)
+
+    def _saved(self, book: Any) -> None:
+        """The workbook written beside its file, then put in its place (a failure leaves it as it was)."""
+        import io
+        import os
+
+        if self.path is None:
+            out = io.BytesIO()
+            book.save(out)
+            self.data = out.getvalue()
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        partial = self.path.with_name(f".{self.path.name}.sab-writing")
+        try:
+            book.save(str(partial))
+            os.replace(partial, self.path)
+        except PermissionError as error:
+            raise AdapterError(
+                f"Nothing was written to {self.name}: {error} (is the workbook open in Excel?)"
+            ) from error
+        finally:
+            if partial.exists():
+                partial.unlink()
+
+
+def _typed_into(chunks: list[list[pa.Array]], picks: Sequence[int], held: list[Sequence[Any]]) -> None:
+    """The rows held so far as one typed chunk a column (a short row's missing cells blank), then let go."""
+    for at, pick in enumerate(picks):
+        chunks[at].append(typed([r[pick] if pick < len(r) else None for r in held]))
+    held.clear()
+
+
+def _sheet_column(sheet: Any, after: int, place: int, values: Sequence[Any]) -> None:
+    """One column's values into the rows after `after`: each as sheet_value says, text never a formula."""
+    for at, value in enumerate(values, start=1):
+        if value is None:
+            continue
+        held, text = sheet_value(value)
+        cell = sheet.cell(row=after + at, column=place, value=held)
+        if text:
+            cell.data_type = "s"
+
+
 # ===== 3. The calls =====
 
 _find: Callable[[str], Source] | None = None
@@ -3353,9 +3759,13 @@ def source_from(client: Any, dialect: str = "", name: str = "") -> Source:
     connection's path (a file or folder of CSV, Parquet, JSON); a client that reads a table with OData
     (Dataverse: rows, described, catalog) or by its own rows (the lakes, SharePoint); a DB-API connection
     in its dialect (`dialect`, else its `dbms`, else its driver's)."""
-    if isinstance(client, DuckDB | Sql | OData | Rows | Remote | Files):
+    if isinstance(client, DuckDB | Sql | OData | Rows | Remote | Files | Excel):
         return client
+    if isinstance(client, bytes | bytearray | memoryview):  # a workbook's bytes (an upload, a document)
+        return Excel(client, name)
     if isinstance(client, str) or hasattr(client, "__fspath__"):  # a file connection: the file it reaches
+        if str(client).lower().endswith((*WORKBOOKS, ".xls")):
+            return Excel(str(client), name)
         return Files(str(client), name)
     if isinstance(client, duckdb.DuckDBPyConnection):
         return DuckDB.over(client, name or "DuckDB")
