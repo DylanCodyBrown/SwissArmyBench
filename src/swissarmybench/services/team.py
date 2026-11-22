@@ -29,6 +29,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import team as rules
 from swissarmybench.services.hooks import Hooks
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, Refused, Workspace
 
 
@@ -100,10 +101,6 @@ class SetupPort(Protocol):
     async def checklist(self, check: bool = False, who: str = "user") -> dict[str, Any]: ...
 
 
-class Asker(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
-
-
 class Team:
     def __init__(
         self,
@@ -115,7 +112,7 @@ class Team:
         record: Record,
         files: Files,
         state_dir: str,
-        approvals: Asker,
+        approvals: Approvals,
         needs: Callable[[], dict[str, Any]],
         now: Callable[[], float] = time.time,
     ) -> None:
@@ -163,8 +160,9 @@ class Team:
         await self.ws.live.broadcast({"type": "team_changed"})
 
     async def _allow(self, who: str, action: str, detail: str) -> None:
-        if who == "agent" and not await self._approvals.ask("Team", action, detail):
-            raise Refused("The user declined (or did not answer): nothing changed.")
+        await self._approvals.allowed(
+            who, subject="Team", action=action, detail=detail, otherwise="nothing changed"
+        )
 
     def _signed(self, sync: TeamSync) -> None:
         if not sync.signed_in().get("signed_in"):

@@ -27,6 +27,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Protocol
 
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 from swissarmybench_git.domain import sync as rules
 
@@ -115,10 +116,6 @@ class Folder(Protocol):
     def is_folder(self, folder: str) -> bool: ...
 
 
-class Asker(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
-
-
 class GitHubSync:
     def __init__(
         self,
@@ -127,7 +124,7 @@ class GitHubSync:
         token: Token,
         links: Links,
         folder: Folder,
-        approvals: Asker,
+        approvals: Approvals,
         folders: Callable[[str], str | None],
         use_folder: Callable[[str, str], Awaitable[None]],
         client_id: str = "",
@@ -320,10 +317,13 @@ class GitHubSync:
         return [p for p in link.conflicts if self._files.exists(folder, rules.theirs_path(p))]
 
     async def _allow(self, who: str, which: str, action: str, detail: str) -> None:
-        if who == "agent" and not await self._approvals.ask("GitHub", action, detail):
-            raise Refused(
-                f"The user declined (or did not answer): {rules.WHICH_WORDS[which]} was not changed."
-            )
+        await self._approvals.allowed(
+            who,
+            subject="GitHub",
+            action=action,
+            detail=detail,
+            otherwise=f"{rules.WHICH_WORDS[which]} was not changed",
+        )
 
     # ===== status =====
 

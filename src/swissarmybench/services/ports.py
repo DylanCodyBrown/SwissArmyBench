@@ -6,6 +6,9 @@ concrete adapters. Nothing here imports an adapter, so a test can pass a fake.
 These are the ports several features share. A port only one feature uses sits beside that feature's
 use cases: `TableReader` (datasets.py), `ExportWriter` (export.py), `Catalogs` (catalogs.py), `Blades`
 (blades.py), `BladeShelf` (agent.py), `Notebook` (notebook.py), `ModelLibrary` (relationships.py).
+
+`Approvals` is the one way a use case waits for the user's Allow on what the agent asks to do (the golden
+rule's safety exception, written once: services/agent.py's Approvals is the real one).
 """
 
 from __future__ import annotations
@@ -211,6 +214,28 @@ class Notifier(Protocol):
     def catalog_open(self) -> bool: ...
 
     async def tell_workbench(self, message: dict[str, Any], page: str | None = None) -> int: ...
+
+
+class Approvals(Protocol):
+    """The user's Allow for what the agent asks to do (the page's approval prompt).
+
+    `allowed` returns at once for the user (their click was their word) and, for the agent, asks the user
+    and returns once they allow it; declined or unanswered (three minutes) it raises Refused with one
+    sentence, `refusals.declined(otherwise)`: "The user declined (or did not answer): <otherwise>."
+    `subject` is what it is about (a project, an API, a table), `action` the request in a few words,
+    `detail` what the user reads before they answer, `otherwise` what stays as it is. `even_the_user`
+    asks whoever called (an Allow that is remembered, as Discover's)."""
+
+    async def allowed(
+        self,
+        who: str,
+        *,
+        subject: str,
+        action: str,
+        detail: str,
+        otherwise: str,
+        even_the_user: bool = False,
+    ) -> None: ...
 
 
 class Dashboards(Protocol):

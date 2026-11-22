@@ -29,6 +29,7 @@ from typing import Any
 from swissarmybench.domain.datasets import DatasetInfo, quote
 from swissarmybench.domain.export import FORMATS
 from swissarmybench.domain.grids import Grid
+from swissarmybench.domain.refusals import declined
 from swissarmybench.services.ports import AGENT, Notifier, SqlSession
 from swissarmybench.services.profile import profile_column, profile_table
 from swissarmybench.services.workspace import Refused, Workspace
@@ -82,11 +83,32 @@ class Approval:
 
 class Approvals:
     """Questions for the user that wait for one answer: the page shows each, and a click (or three
-    minutes) resolves it. A rendezvous, not an event: the asker needs the answer."""
+    minutes) resolves it. A rendezvous, not an event: the asker needs the answer.
+
+    The use cases call `allowed` (the port, services/ports.py Approvals), never `ask`: the rule "the user's
+    request goes ahead, the agent's waits for the user's Allow" and its one refusal sentence live here
+    (tests/test_approvals.py fails on an `approvals.ask` anywhere else)."""
 
     def __init__(self, live: Notifier) -> None:
         self._live = live
         self._pending: dict[str, Approval] = {}
+
+    async def allowed(
+        self,
+        who: str,
+        *,
+        subject: str,
+        action: str,
+        detail: str,
+        otherwise: str,
+        even_the_user: bool = False,
+    ) -> None:
+        """At once for the user; the agent's waits for the user's Allow, and a no (or no answer) raises
+        Refused: "The user declined (or did not answer): <otherwise>." """
+        if who != "agent" and not even_the_user:
+            return
+        if not await self.ask(subject, action, detail):
+            raise Refused(declined(otherwise))
 
     async def ask(self, dataset: str, action: str, detail: str) -> bool:
         loop = asyncio.get_running_loop()
@@ -106,6 +128,17 @@ class Approvals:
 
     def get(self, approval_id: str) -> Approval | None:
         return self._pending.get(approval_id)
+
+
+class NoOneToAsk(Approvals):
+    """Approvals for a service built with no page to ask (alone, in a test): the user's requests go ahead and
+    every request that needs an Allow is declined, in the same sentence."""
+
+    def __init__(self) -> None:
+        self._pending = {}
+
+    async def ask(self, dataset: str, action: str, detail: str) -> bool:
+        return False
 
 
 class AgentService:
@@ -279,7 +312,11 @@ class AgentService:
         step is refused by the server, not just by the command that normally calls it."""
         if fmt not in FORMATS:  # the text goes into the user's approval prompt
             raise ValueError(f"format must be one of {', '.join(FORMATS)}.")
-        detail = f"{fmt} export of {info.name} to the export folder"
-        if not await self.approvals.ask(info.name, "export", detail):
-            raise Refused("The user declined (or did not answer) this export.")
+        await self.approvals.allowed(
+            "agent",
+            subject=info.name,
+            action="export",
+            detail=f"{fmt} export of {info.name} to the export folder",
+            otherwise="nothing was exported",
+        )
         return {"approved": True, "ticket": self._tickets.issue(grid.id)}

@@ -32,9 +32,10 @@ from swissarmybench.domain import connection_slots as rules
 from swissarmybench.domain.connection_slots import Board, Limits, Ticket
 from swissarmybench.domain.query_text import format_sql
 from swissarmybench.domain.refusals import first_sentence, try_again
+from swissarmybench.services.agent import NoOneToAsk
 from swissarmybench.services.changes import raised
-from swissarmybench.services.ports import Audit, Notifier
-from swissarmybench.services.workspace import NotFound, Refused, TimedOut
+from swissarmybench.services.ports import Approvals, Audit, Notifier
+from swissarmybench.services.workspace import NotFound, TimedOut
 
 T = TypeVar("T")
 
@@ -75,7 +76,7 @@ class ConnectionSlots:
         audit: Audit,
         limits_of: Callable[[str], Limits],
         save_limits: Callable[[str, dict[str, int]], str] | None = None,
-        ask: Callable[[str, str, str], Awaitable[bool]] | None = None,
+        approvals: Approvals | None = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self._live = live
@@ -83,7 +84,7 @@ class ConnectionSlots:
         self.board = Board(limits_of)
         # A connection's limits written into its file's header (adapters/blades.py set_header): its name.
         self._save_limits = save_limits
-        self._ask = ask  # the user's Allow (services/agent.py Approvals.ask)
+        self._approvals: Approvals = approvals or NoOneToAsk()  # the user's Allow
         self._clock = clock
         self._waiters: dict[str, asyncio.Future[str]] = {}
         self._tasks: dict[str, asyncio.Future[Any]] = {}
@@ -222,11 +223,14 @@ class ConnectionSlots:
         if ticket is None:
             raise NotFound("That query has finished.")
         if who == "agent" and ticket.caller != rules.AGENT:
-            detail = (
-                f"Cancel {ticket.who}'s {rules.KINDS.get(ticket.kind, ticket.kind)} on {ticket.connection}"
+            await self._approvals.allowed(
+                who,
+                subject=ticket.connection,
+                action="cancel a query",
+                detail=f"Cancel {ticket.who}'s {rules.KINDS.get(ticket.kind, ticket.kind)} "
+                f"on {ticket.connection}",
+                otherwise="their query was not cancelled",
             )
-            if self._ask is None or not await self._ask(ticket.connection, "cancel a query", detail):
-                raise Refused("The user did not allow cancelling their query.")
         state = "running" if ticket.running else "waiting"
         future = self._waiters.get(ticket_id)
         if future is not None and not future.done():

@@ -39,7 +39,8 @@ from swissarmybench.domain import local_api as rules
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.local_api import ApiFileError
 from swissarmybench.services.changes import raised
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 WATCH_SECONDS = 1.0
 LINE_HEADER = "X-Sab-Error-Line"  # server/api_host.py's: a failed request's API.py line
@@ -109,7 +110,7 @@ class LocalApi:
         files: Files,
         start: Start,
         mocks: Mocks,
-        approvals: Any,
+        approvals: Approvals,
         data_url: Callable[[str], str],
         now: Callable[[], float] = time.time,
     ) -> None:
@@ -726,8 +727,7 @@ class LocalApi:
         if not self.running() or self._runner is None:
             raise Conflict("The local sandbox API is not running: Run it first.")
         if who == "agent" and method != "GET" and not self.agent_writes():
-            if not await self._ask_agent_writes(f"{method} {path}"):
-                raise Refused("The user declined (or did not answer): nothing was sent.")
+            await self._ask_agent_writes(who, f"{method} {path}", otherwise="nothing was sent")
         sent = None if payload is None else json.dumps(payload).encode()
         started = time.perf_counter()
         status, answer, headers = await self._runner.request(method, path, dict(query or {}), sent)
@@ -766,14 +766,18 @@ class LocalApi:
         folder = self._project()
         return folder is not None and self._agent_writes == folder
 
-    async def _ask_agent_writes(self, first: str) -> bool:
-        detail = rules.agent_writes_words(first)
-        if not await self._approvals.ask(rules.FILE, "write the sandbox through the local API", detail):
-            return False
+    async def _ask_agent_writes(self, who: str, first: str, otherwise: str) -> None:
+        """The agent's writes through the API, for the rest of this session, on the user's Allow."""
+        await self._approvals.allowed(
+            who,
+            subject=rules.FILE,
+            action="write the sandbox through the local API",
+            detail=rules.agent_writes_words(first),
+            otherwise=otherwise,
+        )
         self._agent_writes = self._project()
         self.ws.audit.write("agent", "local_api_agent_writes", rules.FILE, allowed=True)
         await self.ws.live.broadcast({"type": "local_api_changed"})
-        return True
 
     async def set_agent_writes(self, body: Any, who: str = "user") -> dict[str, Any]:
         """{"allow": bool}: the agent's writes through the API for the rest of this session. Stopping is
@@ -784,8 +788,7 @@ class LocalApi:
             raise Conflict("Open a project first: its sandbox is what the API writes.")
         if given.get("allow") is True:
             if who == "agent" and not self.agent_writes():
-                if not await self._ask_agent_writes("its writes"):
-                    raise Refused("The user declined (or did not answer): each write still asks.")
+                await self._ask_agent_writes(who, "its writes", otherwise="each write still asks")
             elif who != "agent":
                 self._agent_writes = self._project()
                 self.ws.audit.write(who, "local_api_agent_writes", rules.FILE, allowed=True)

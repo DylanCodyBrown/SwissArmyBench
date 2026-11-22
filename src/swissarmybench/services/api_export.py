@@ -20,7 +20,8 @@ from typing import Any, Protocol
 from swissarmybench.domain import api_targets as targets
 from swissarmybench.domain import local_api as rules
 from swissarmybench.domain.api_targets import Bundle, Registry, Route
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
 class Folder(Protocol):
@@ -49,7 +50,7 @@ class ApiExport:
         connections: Connections,
         folder: Folder,
         edited: Callable[[str], set[str]],
-        approvals: Any,
+        approvals: Approvals,
         registry: Registry | None = None,
         adapter_text: Callable[[], str] = str,  # adapter.py, beside sab_api.py in every export
         api_adapter_text: Callable[[], str] = str,  # api_adapter.py beside it (Plans/api-adapter.plan.md)
@@ -117,10 +118,15 @@ class ApiExport:
         project = self._project() or ""
         relative = f"{targets.EXPORT_FOLDER}/{target.id}"
         place = str(given.get("folder") or "").strip() or f"{project.rstrip('/')}/{relative}"
-        if who == "agent" and bundle.sandbox:
-            detail = f"Export the local sandbox API for {target.label} into {place}, with the sandbox's rows"
-            if not await self._approvals.ask(rules.FILE, "export with rows", detail):
-                raise Refused("The user declined (or did not answer): nothing was exported.")
+        if bundle.sandbox:
+            await self._approvals.allowed(
+                who,
+                subject=rules.FILE,
+                action="export with rows",
+                detail=f"Export the local sandbox API for {target.label} into {place}, "
+                "with the sandbox's rows",
+                otherwise="nothing was exported",
+            )
         files = target.render(bundle)
         inside = place.replace("\\", "/").startswith(project.replace("\\", "/").rstrip("/") + "/")
         prefix = relative + "/" if inside and not given.get("folder") else ""

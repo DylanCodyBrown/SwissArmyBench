@@ -20,8 +20,9 @@ from swissarmybench.domain.blades import Blade, BladeError, Template
 from swissarmybench.domain.catalogs import count_sql, select_sql
 from swissarmybench.domain.datasets import Opened
 from swissarmybench.domain.relationships import Model
+from swissarmybench.services.agent import NoOneToAsk
 from swissarmybench.services.blades import BladeService
-from swissarmybench.services.workspace import Refused
+from swissarmybench.services.ports import Approvals
 
 
 class ConnectionService:
@@ -55,7 +56,7 @@ class ConnectionService:
         self.variable_check: CodeCheck | None = None
         # sab.write for the agent (connections_write), set once built: the user's Allow (services/agent.py)
         # and an open table's grid view as an Arrow IPC stream (services/table_cells.py).
-        self.approvals: Any = None
+        self.approvals: Approvals = NoOneToAsk()  # the user's Allow (set by bootstrap)
         self.open_view: Callable[[str], Awaitable[bytes]] | None = None
 
     def listing(self) -> dict[str, Any]:
@@ -364,11 +365,14 @@ class ConnectionService:
         elif body.get("rows") is not None:
             request["records"] = body["rows"]
             count = f"{len(body['rows']):,} row{'' if len(body['rows']) == 1 else 's'}"
-        if who == "agent" and not dry_run:
-            if self.approvals is None or not await self.approvals.ask(
-                blade.name, "write_connection", f"Write {count} to {table} on {blade.name} ({mode})"
-            ):
-                raise Refused(f"The user declined (or did not answer): nothing was written to {table}.")
+        if not dry_run:
+            await self.approvals.allowed(
+                who,
+                subject=blade.name,
+                action="write_connection",
+                detail=f"Write {count} to {table} on {blade.name} ({mode})",
+                otherwise=f"nothing was written to {table}",
+            )
         return await self._blades.write(blade, request)
 
     async def open_table(self, name: str, body: Any, who: str) -> dict[str, Any]:

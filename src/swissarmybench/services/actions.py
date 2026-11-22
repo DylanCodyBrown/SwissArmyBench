@@ -40,6 +40,7 @@ from swissarmybench.domain import apis as api_rules
 from swissarmybench.domain import notebooks
 from swissarmybench.domain.api_actions import LOCAL, BuildError
 from swissarmybench.services.changes import raised
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 DISCOVER_CALLS = 20  # calls a discovery makes at most
@@ -51,10 +52,6 @@ class Files(Protocol):
     def write(self, path: str, text: str) -> None: ...
 
     def forget(self, path: str) -> bool: ...
-
-
-class Approvals(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
 
 
 def _join(folder: str, *parts: str) -> str:
@@ -393,9 +390,13 @@ class Actions:
         name, one, _, entry = await self._action(str(given.get("api") or ""), str(given.get("action") or ""))
         inputs = dict(given.get("inputs") or {}) if isinstance(given.get("inputs"), dict) else {}
         if entry is not None and one.writes and who == "agent":
-            detail = f"{one.method} {one.path} on {name}: it changes something outside the app."
-            if not await self._approvals.ask(name, f"call {one.name}", detail):
-                raise Refused("The user declined (or did not answer): nothing was sent.")
+            await self._approvals.allowed(
+                who,
+                subject=name,
+                action=f"call {one.name}",
+                detail=f"{one.method} {one.path} on {name}: it changes something outside the app.",
+                otherwise="nothing was sent",
+            )
         path = self._shape_path(name, entry, one.name)
         kept = self._shape(path)
         options = {
@@ -472,8 +473,14 @@ class Actions:
                 "endpoint, the smallest page). Nothing that writes is called; no value is kept. Your "
                 "answer is remembered for this API until you take it back on the APIs page."
             )
-            if not await self._approvals.ask(name, "discover the API", detail):
-                raise Refused("The user declined (or did not answer): nothing was called.")
+            await self._approvals.allowed(
+                who,
+                subject=name,
+                action="discover the API",
+                detail=detail,
+                otherwise="nothing was called",
+                even_the_user=True,  # remembered with the API: the user's first Discover asks too
+            )
             self._remember_allow(name, entry)
             self.ws.audit.write(who, "api_discover_allow", name, allowed=True)
         known = {n: self._shape(self._shape_path(name, entry, n)) for n in found}

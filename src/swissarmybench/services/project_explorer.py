@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import project_explorer as rules
 from swissarmybench.domain.projects import check_folder_name
-from swissarmybench.services.agent import Approvals
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.sab_projects import SabProjects
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -238,10 +238,13 @@ class ProjectExplorer:
                 detail = "Make this the local projects folder (New project puts new projects there):\n  " + (
                     chosen or self._default
                 )
-            if not await self._approvals.ask(
-                "Projects folder", f"change the {which} projects folder", detail
-            ):
-                raise Refused("The user declined (or did not answer): the projects folder stays.")
+            await self._approvals.allowed(
+                who,
+                subject="Projects folder",
+                action=f"change the {which} projects folder",
+                detail=detail,
+                otherwise="the projects folder stays",
+            )
         settings["shared_folder" if which == "shared" else "folder"] = chosen
         self._settings.write(settings)
         self.ws.audit.write(who, "projects_folder", None, which=which, default=chosen is None)
@@ -269,10 +272,13 @@ class ProjectExplorer:
         if rules.is_under(path, shared):
             raise ValueError(f"{_name(path)} is a shared project already.")
         target = self._copy_target(shared, path, body, "the shared projects folder")
-        if who == "agent":
-            detail = f"Share the project (its rows stay here):\n  {path}\n  into {target}"
-            if not await self._approvals.ask(_name(path), "share the project", detail):
-                raise Refused("The user declined (or did not answer): the project was not shared.")
+        await self._approvals.allowed(
+            who,
+            subject=_name(path),
+            action="share the project",
+            detail=f"Share the project (its rows stay here):\n  {path}\n  into {target}",
+            otherwise="the project was not shared",
+        )
         done = await self._projects.copy({"folder": path, "path": target, "data": False, "git": False}, who)
         self.ws.audit.write(who, "project_share", done["copied"])
         opened = await self._open_copy(done["copied"], body, who)

@@ -34,6 +34,7 @@ from typing import Any
 
 from swissarmybench.domain import changes as change_rules
 from swissarmybench.services.changes import raised
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_model as model
@@ -57,7 +58,7 @@ class Widgets:
         ws: Any,
         files: Any,
         live: Any,
-        approvals: Any,
+        approvals: Approvals,
         tables: Callable[[], dict[str, list[str] | None]] = dict,
         table_data: Callable[[str], Awaitable[bytes]] | None = None,
         project_python: Callable[[], str | None] = lambda: None,
@@ -560,12 +561,14 @@ class Widgets:
 
     async def delete(self, name: str, who: str = "user") -> dict[str, Any]:
         self._mine(name)
-        if who == "agent" and not await self._approvals.ask(
-            name,
-            "delete_widget",
-            f"Delete the widget {name} from the {'project' if self._place(name) == 'project' else 'library'}",
-        ):
-            raise Refused(f"The user declined (or did not answer): {name} was not deleted.")
+        await self._approvals.allowed(
+            who,
+            subject=name,
+            action="delete_widget",
+            detail=f"Delete the widget {name} from the "
+            f"{'project' if self._place(name) == 'project' else 'library'}",
+            otherwise=f"{name} was not deleted",
+        )
         self._files.remove(name, self._place(name))
         self.ws.audit.write(who, "delete_widget", name)
         await self._changed(name)

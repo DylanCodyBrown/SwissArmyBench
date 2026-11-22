@@ -30,7 +30,7 @@ from swissarmybench.domain.environment import Document, Item, Used
 from swissarmybench.domain.environments import LIBRARIES
 from swissarmybench.domain.project_scope import CANVAS_SUFFIX
 from swissarmybench.services.changes import raised
-from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.ports import BACKGROUND, Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 # The notices that change what the list is made of.
@@ -66,10 +66,6 @@ ORIGIN_WORDS: dict[str, str] = {
     "structure": "Made in the app · from a structure",
     "sandbox": "Sandbox",
 }
-
-
-class Approvals(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
 
 
 class Libraries(Protocol):
@@ -684,14 +680,14 @@ class Environment:
 
     async def _remove_structure(self, item: Item, who: str) -> None:
         path = item.more.get("path")
-        if (
-            path
-            and who == "agent"
-            and not await self._approvals.ask(
-                item.name, "delete a structure's file", f"Delete {item.origin} from the project"
+        if path:
+            await self._approvals.allowed(
+                who,
+                subject=item.name,
+                action="delete a structure's file",
+                detail=f"Delete {item.origin} from the project",
+                otherwise="the file is as it was",
             )
-        ):
-            raise Refused("The user declined (or did not answer): the file is as it was.")
         if item.more.get("open"):
             await self._s.structures.close(str(item.more["open"]), who)
         if path and self._s.remove_file is not None:
@@ -720,8 +716,13 @@ class Environment:
             return {"would": plan, "choices": rules.CLEAR}
         chosen = rules.clear_choice(body)
         words = rules.clear_words(plan, chosen)
-        if who == "agent" and not await self._approvals.ask("Environment", "clear the environment", words):
-            raise Refused("The user declined (or did not answer): nothing was cleared.")
+        await self._approvals.allowed(
+            who,
+            subject="Environment",
+            action="clear the environment",
+            detail=words,
+            otherwise="nothing was cleared",
+        )
         cleared: dict[str, list[str]] = {}
         if "tables" in chosen and self._s.close_table is not None:
             for name in plan["tables"]:
@@ -791,8 +792,13 @@ class Environment:
         if pinned and not item.more["installed"]:
             raise Conflict(f"{item.name} is not installed: install it, then pin it.")
         words = f"Pin {item.name} at {item.more['version']}" if pinned else f"Unpin {item.name}"
-        if who == "agent" and not await self._approvals.ask(item.name, "change requirements.txt", words):
-            raise Refused("The user declined (or did not answer): requirements.txt is as it was.")
+        await self._approvals.allowed(
+            who,
+            subject=item.name,
+            action="change requirements.txt",
+            detail=words,
+            otherwise="requirements.txt is as it was",
+        )
         text = await asyncio.to_thread(self._libraries.read_requirements, folder)
         new = (
             rules.with_pin(text, item.name, item.more["version"])
@@ -827,8 +833,13 @@ class Environment:
 
     async def _change(self, specs: list[str], upgrade: bool, who: str, words: str) -> None:
         python, _ = self._libraries.python_of(self._folder())
-        if who == "agent" and not await self._approvals.ask("Environment", "install libraries", words):
-            raise Refused("The user declined (or did not answer): nothing was installed.")
+        await self._approvals.allowed(
+            who,
+            subject="Environment",
+            action="install libraries",
+            detail=words,
+            otherwise="nothing was installed",
+        )
         code, out = await self._libraries.install(python, specs, upgrade)
         if code is None:
             raise Conflict("The install took over 10 minutes and was stopped.")
@@ -913,10 +924,13 @@ class Environment:
         item = await self._library(_field(body, "name"))
         folder = self._own_folder()
         python, own = self._libraries.python_of(folder)
-        if who == "agent" and not await self._approvals.ask(
-            item.name, "remove a library", f"Remove {item.name}"
-        ):
-            raise Refused("The user declined (or did not answer): the library is as it was.")
+        await self._approvals.allowed(
+            who,
+            subject=item.name,
+            action="remove a library",
+            detail=f"Remove {item.name}",
+            otherwise="the library is as it was",
+        )
         if own and item.more["installed"]:
             code, out = await self._libraries.uninstall(python, [item.name])
             if code != 0:

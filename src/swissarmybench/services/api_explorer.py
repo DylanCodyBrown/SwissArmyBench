@@ -32,7 +32,7 @@ from swissarmybench.domain.apis import ApiError
 from swissarmybench.domain.structures import get as structure_get
 from swissarmybench.services.apis import Apis
 from swissarmybench.services.changes import raised
-from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.ports import BACKGROUND, Approvals
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 
 _SECRETISH = ("key", "token", "secret", "password", "authorization", "signature", "cookie")
@@ -58,10 +58,6 @@ class SpecSource(Protocol):
     def fetch(self, url: str) -> tuple[str, str]: ...
 
     def document(self, text: str) -> dict[str, Any]: ...
-
-
-class Approvals(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
 
 
 class Explorer:
@@ -754,10 +750,13 @@ class Explorer:
         refs = self.references(api["name"])
         if not (isinstance(body, dict) and body.get("confirm") is True):
             return {"name": api["name"], "references": refs, "deleted": False}
-        if who == "agent":
-            detail = f"{len(refs)} reference(s) in code" if refs else "no code uses it"
-            if not await self._approvals.ask(api["name"], "delete the API", detail):
-                raise Refused("The user did not allow deleting it.")
+        await self._approvals.allowed(
+            who,
+            subject=api["name"],
+            action="delete the API",
+            detail=f"{len(refs)} reference(s) in code" if refs else "no code uses it",
+            otherwise=f"{api['name']} was not deleted",
+        )
         for blade in self._calls(api["name"]).values():
             await self._blades.remove(str(blade["name"]), who)
         try:

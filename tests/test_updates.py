@@ -401,7 +401,7 @@ def test_update_refuses_what_is_not_the_offered_version(stand_in: StandIn) -> No
     assert helper.launched == []
 
 
-class Answer:
+class Answer(Approvals):
     def __init__(self, yes: bool) -> None:
         self.yes = yes
         self.asked: list[tuple[str, str, str]] = []

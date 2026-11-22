@@ -21,7 +21,8 @@ from swissarmybench.domain import connections as connection_rules
 from swissarmybench.domain import found_connections as rules
 from swissarmybench.domain import portability
 from swissarmybench.domain.blades import Template
-from swissarmybench.services.workspace import Conflict, Refused, Workspace
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Conflict, Workspace
 
 STOPPED = {
     "time": "The search stopped after a few seconds: some folders were not looked through.",
@@ -46,10 +47,6 @@ class Declare(Protocol):
     async def declare(self, names: list[str], who: str = "user") -> list[str]: ...
 
 
-class Asker(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
-
-
 class FoundConnections:
     def __init__(
         self,
@@ -59,7 +56,7 @@ class FoundConnections:
         blades: Saved,
         save: Callable[[dict[str, Any], str], Awaitable[dict[str, Any]]],
         variables: Declare,
-        approvals: Asker,
+        approvals: Approvals,
     ) -> None:
         self.ws = ws
         self._finder = finder
@@ -76,8 +73,9 @@ class FoundConnections:
         return {t.id: t.label for t in self._templates.values()}
 
     async def _allow(self, who: str, action: str, detail: str) -> None:
-        if who == "agent" and not await self._approvals.ask("Connections", action, detail):
-            raise Refused("The user declined (or did not answer): nothing was read.")
+        await self._approvals.allowed(
+            who, subject="Connections", action=action, detail=detail, otherwise="nothing was read"
+        )
 
     # ===== the library's connections, to say Already added =====
 

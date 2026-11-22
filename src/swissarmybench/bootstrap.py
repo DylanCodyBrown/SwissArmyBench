@@ -1052,7 +1052,7 @@ def _data(b: Built) -> None:
         ws.audit,
         limits_of=lambda name: slot_rules.limits_of_header(blade_store.get(name).queries),
         save_limits=lambda name, header: blade_store.set_header(name, {"queries": header}).name,
-        ask=b.approvals.ask,
+        approvals=b.approvals,
     )
 
     # Every call's statistics (Plans/stats.plan.md): the slots' finished calls, the adapter's and the API

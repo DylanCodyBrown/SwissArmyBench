@@ -30,7 +30,8 @@ from swissarmybench.domain import sandbox as rules
 from swissarmybench.domain import sandbox_dialects as dialects
 from swissarmybench.domain.connection_swap import Place, place_of
 from swissarmybench.domain.sandbox import SandboxError
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
 class Files(Protocol):
@@ -211,7 +212,7 @@ class Sandbox:
         project: Callable[[], str | None],
         files: Callable[[str], Files],
         sources: Sources,
-        approvals: Any,
+        approvals: Approvals,
         parse: Callable[[str], dict[str, Any]],
         ignore: Callable[[str], Any] = lambda folder: None,
         now: Callable[[], float] = time.time,
@@ -357,14 +358,14 @@ class Sandbox:
         Allow."""
         files = self._files()
         tables = await self._run(files.table_names) if files.exists() else []
-        if who == "agent" and not await self._approvals.ask(
-            rules.NAME,
-            "remove the sandbox",
-            f"Remove the project's sandbox: {len(tables)} table{'s' if len(tables) != 1 else ''}, its "
-            "baseline "
-            f"and checkpoints ({rules.FOLDER}/, {rules.DATA_FILE}, {rules.CONNECTIONS_FILE})",
-        ):
-            raise Refused("The user declined (or did not answer): the sandbox stays.")
+        await self._approvals.allowed(
+            who,
+            subject=rules.NAME,
+            action="remove the sandbox",
+            detail=f"Remove the project's sandbox: {len(tables)} table{'s' if len(tables) != 1 else ''}, its "
+            f"baseline and checkpoints ({rules.FOLDER}/, {rules.DATA_FILE}, {rules.CONNECTIONS_FILE})",
+            otherwise="the sandbox stays",
+        )
         async with self._lock:
             removed = await self._run(files.drop_all)
         await self._told(list(tables), who, "sandbox_drop", removed=len(removed))
@@ -682,12 +683,13 @@ class Sandbox:
         one = body.get("table") if isinstance(body, dict) else None
         if one:
             return await self._reset_one(files, meta, str(one), who)
-        if who == "agent" and not await self._approvals.ask(
-            rules.NAME,
-            "reset the sandbox",
-            f"Put every sandbox table back to the baseline ({rules.log_words(meta.log)})",
-        ):
-            raise Refused("The user declined (or did not answer): the sandbox is as it was.")
+        await self._approvals.allowed(
+            who,
+            subject=rules.NAME,
+            action="reset the sandbox",
+            detail=f"Put every sandbox table back to the baseline ({rules.log_words(meta.log)})",
+            otherwise="the sandbox is as it was",
+        )
         async with self._lock:
             if not await self._run(files.reset):
                 raise Conflict("The sandbox has no baseline yet: add a table first.")
@@ -703,12 +705,13 @@ class Sandbox:
     async def _reset_one(self, files: Files, meta: rules.Meta, wanted: str, who: str) -> dict[str, Any]:
         table, _ = await self._table(files, wanted)
         counts = meta.log.get(table, rules.Counts())
-        if who == "agent" and not await self._approvals.ask(
-            rules.NAME,
-            "reset a sandbox table",
-            f"Put {table} back to the baseline ({rules.log_words({table: counts})})",
-        ):
-            raise Refused("The user declined (or did not answer): the table is as it was.")
+        await self._approvals.allowed(
+            who,
+            subject=rules.NAME,
+            action="reset a sandbox table",
+            detail=f"Put {table} back to the baseline ({rules.log_words({table: counts})})",
+            otherwise="the table is as it was",
+        )
         async with self._lock:
             if not await self._run(files.reset_table, table):
                 raise Conflict(f"{table} is not in the baseline: Set as baseline first.")

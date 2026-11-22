@@ -14,7 +14,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from swissarmybench.services.workspace import Conflict, Refused
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Conflict
 from swissarmybench_powerbi.domain import live_link as rules
 
 
@@ -28,7 +29,7 @@ class LiveLink:
         ours: Callable[
             [], tuple[list[dict[str, Any]], list[dict[str, Any]]]
         ],  # our relationships and measures
-        approvals: Any,
+        approvals: Approvals,
         windows: Callable[[], bool],
         seconds: int = rules.DISCOVERY_SECONDS,
     ) -> None:
@@ -135,10 +136,13 @@ class LiveLink:
         going = [c for c, said in zip(changes, checked, strict=True) if said["ok"]]
         if not going:
             return {"applied": [], "skipped": [c for c in checked if not c["ok"]]}
-        if who == "agent":
-            words = "; ".join(c.words() for c in going[:5]) + ("…" if len(going) > 5 else "")
-            if not await self._approvals.ask("Power BI Desktop", "powerbi_edit", words):
-                raise Refused("The user declined: Power BI Desktop's model was not changed.")
+        await self._approvals.allowed(
+            who,
+            subject="Power BI Desktop",
+            action="powerbi_edit",
+            detail="; ".join(c.words() for c in going[:5]) + ("…" if len(going) > 5 else ""),
+            otherwise="Power BI Desktop's model was not changed",
+        )
         applied = []
         for change in going:
             await asyncio.to_thread(model.apply, change)

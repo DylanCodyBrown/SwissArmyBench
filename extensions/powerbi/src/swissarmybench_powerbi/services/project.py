@@ -19,6 +19,7 @@ from typing import Any, Protocol
 from swissarmybench.domain.blades import detect_settings
 from swissarmybench.domain.connection_tables import Pushed
 from swissarmybench.domain.relationships import Model
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_powerbi.domain import pbix_file as pf
 from swissarmybench_powerbi.domain import pbix_import as rules
@@ -70,7 +71,7 @@ class PowerBIProject:
         base: Any,
         reader: Reader,
         files: Files,
-        approvals: Any,
+        approvals: Approvals,
         live: LiveSource | None = None,
         registrations: Callable[[], list[str]] = list,
     ) -> None:
@@ -183,10 +184,13 @@ class PowerBIProject:
         plan_ = await self.plan(body)
         if body.get("dry_run"):
             return {"dry_run": True} | plan_.to_json()
-        if who == "agent" and not await self.approvals.ask(
-            plan_.project, "powerbi_import", f"Make the Power BI project {plan_.project}"
-        ):
-            raise Refused("The user declined: no project was made.")
+        await self.approvals.allowed(
+            who,
+            subject=plan_.project,
+            action="powerbi_import",
+            detail=f"Make the Power BI project {plan_.project}",
+            otherwise="no project was made",
+        )
         base = self.base
         new = {"name": plan_.project, "type": PROJECT_TYPE} | {
             k: body[k] for k in ("folder", "path_to") if body.get(k)
@@ -586,9 +590,14 @@ class PowerBIProject:
         if body.get("dry_run"):
             return {"dry_run": True, "registration": name, "changes": changes}
         repoints = name != "none" and any(c["change"].startswith("signs in with") for c in changes)
-        asked = f"Sign in with {name}"
-        if repoints and who == "agent" and not await self.approvals.ask(name, "powerbi_registration", asked):
-            raise Refused("The user declined: the app registration was not changed.")
+        if repoints:
+            await self.approvals.allowed(
+                who,
+                subject=name,
+                action="powerbi_registration",
+                detail=f"Sign in with {name}",
+                otherwise="the app registration was not changed",
+            )
         await self.base.sab_projects.set_setting(REGISTRATION_KEY, name, who)
         if name != "none":
             reg = self.base.app_registrations.get(name)

@@ -73,8 +73,9 @@ from swissarmybench.domain.relationships import (
     without_joins,
     write_set,
 )
+from swissarmybench.services.agent import NoOneToAsk
 from swissarmybench.services.grids import truncate
-from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, SqlSession
+from swissarmybench.services.ports import AGENT, BACKGROUND, INTERACTIVE, Approvals, SqlSession
 from swissarmybench.services.workspace import NotFound, Refused, TimedOut, Workspace
 
 # ===== Key Finder =====
@@ -847,12 +848,6 @@ class ModelLibrary(Protocol):
     def rename(self, path: str, model: Model, new: str) -> str: ...
 
 
-class Asker(Protocol):
-    """The user's Allow (services/agent.py Approvals): the agent's delete of a saved set waits for it."""
-
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
-
-
 # How many earlier states of the joins in use the Undo of a delete or an edit can go back through.
 UNDO_DEPTH = 20
 
@@ -862,10 +857,10 @@ class Models:
     the relationships_updated notice. Agents may set relationships too: keys and joins are metadata,
     never cell values."""
 
-    def __init__(self, ws: Workspace, library: ModelLibrary, approvals: Asker | None = None) -> None:
+    def __init__(self, ws: Workspace, library: ModelLibrary, approvals: Approvals | None = None) -> None:
         self.ws = ws
         self._library = library
-        self._approvals = approvals
+        self._approvals: Approvals = approvals or NoOneToAsk()
         self.model = Model()
         # The relationships last told to the Session page: each change names the ones it added.
         self._seen: list[str] = []
@@ -1058,13 +1053,13 @@ class Models:
     async def delete_set(self, name: str, who: str) -> dict[str, Any]:
         """Delete a saved set's file. The agent's waits for the user's Allow: it is the user's file."""
         model, path = self._entry(name)
-        if who == "agent" and (
-            self._approvals is None
-            or not await self._approvals.ask(
-                "relationships", "delete a saved set", f"Delete the saved set {model.name} ({path})."
-            )
-        ):
-            raise Refused("The user declined (or did not answer): the saved set stays.")
+        await self._approvals.allowed(
+            who,
+            subject="relationships",
+            action="delete a saved set",
+            detail=f"Delete the saved set {model.name} ({path}).",
+            otherwise="the saved set stays",
+        )
         try:
             self._library.delete(path)
         except PermissionError as error:

@@ -26,6 +26,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import sharing as rules
 from swissarmybench.domain.sharing import SharingError
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
 START_SECONDS: float = 90.0  # for host to say the address
@@ -71,10 +72,6 @@ class ShareTarget(Protocol):
     async def close(self, app: str) -> None: ...
 
 
-class Asker(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
-
-
 @dataclass
 class Share:
     kind: str
@@ -111,7 +108,7 @@ class Sharing:
         ws: Workspace,
         program: Program,
         targets: Callable[[], dict[str, ShareTarget]],
-        approvals: Asker,
+        approvals: Approvals,
         server_port: int,
         now: Callable[[], float] = time.time,
     ) -> None:
@@ -178,8 +175,9 @@ class Sharing:
     # ===== install and sign in =====
 
     async def _allow(self, who: str, action: str, detail: str) -> None:
-        if who == "agent" and not await self._approvals.ask("Sharing", action, detail):
-            raise Refused("The user declined (or did not answer): nothing changed.")
+        await self._approvals.allowed(
+            who, subject="Sharing", action=action, detail=detail, otherwise="nothing changed"
+        )
 
     async def install(self, body: Any = None, who: str = "user") -> dict[str, Any]:
         if self._program.installed():

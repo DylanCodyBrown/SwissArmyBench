@@ -112,7 +112,7 @@ def routes(services: Any) -> list[Any]:
     async def store_table(name: str, table: Any, kind: str, new_grid: bool, who: str) -> Any:
         return await services.datasets.store_table(name, table, kind, new_grid, who)
 
-    accounting = Accounting(services.ws, services.agent.approvals.ask, store_table, project_folder)
+    accounting = Accounting(services.ws, services.agent.approvals, store_table, project_folder)
 
     def functions() -> dict[str, Any]:
         families = services.blades.starters()["families"]

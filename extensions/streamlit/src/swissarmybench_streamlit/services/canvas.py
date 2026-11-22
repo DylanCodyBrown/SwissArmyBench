@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from swissarmybench.services.changes import raised
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_streamlit.domain import canvas_build as build_rules
 from swissarmybench_streamlit.domain import canvas_layouts as model
@@ -74,7 +75,7 @@ class Canvases:
         files: Any,
         widgets: Any,
         live: Any,
-        approvals: Any,
+        approvals: Approvals,
         app_files: Any,
         project_folder: Callable[[], str | None] = lambda: None,
         read_data_py: Callable[[str], str | None] = lambda folder: None,
@@ -579,12 +580,14 @@ class Canvases:
             wanted = [*build_rules.REQUIREMENTS, *core["requirements"]]
             files["requirements.txt"] = "\n".join(dict.fromkeys(wanted)) + "\n"
         tables = await self._widgets.tables_for(names)
-        if who == "agent":
-            detail = f"Export the canvas {opened.path} into {chosen}" + (
-                f", with the rows of {', '.join(sorted(tables))}" if tables else ""
-            )
-            if not await self._approvals.ask(opened.path, "export_canvas", detail):
-                raise Refused("The user declined (or did not answer): nothing was written.")
+        await self._approvals.allowed(
+            who,
+            subject=opened.path,
+            action="export_canvas",
+            detail=f"Export the canvas {opened.path} into {chosen}"
+            + (f", with the rows of {', '.join(sorted(tables))}" if tables else ""),
+            otherwise="nothing was written",
+        )
         # An app that calls the local sandbox API reads its address from these where it is deployed.
         # (sab_canvas.py always holds action and api_call: only a widget's, a page's or the wiring's use
         # counts; a wire that names only another API's action does not call the local one.)

@@ -76,6 +76,12 @@ class Explained(Exception):
         self.details = details
 
 
+def declined(otherwise: str) -> str:
+    """The one sentence the agent reads when the user said no to its Allow, or did not answer: what stays as
+    it is after the colon ("nothing was exported")."""
+    return f"The user declined (or did not answer): {otherwise.strip().rstrip('.')}."
+
+
 def first_sentence(message: str, limit: int = 240) -> str:
     """The first line of a long message, cut at a sentence when it runs past `limit` (the rest is details)."""
     line = message.strip().split("\n", 1)[0].strip()

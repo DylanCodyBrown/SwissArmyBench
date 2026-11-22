@@ -20,7 +20,8 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import library as rules
 from swissarmybench.domain.blades import Blade
-from swissarmybench.services.workspace import Refused, Workspace
+from swissarmybench.services.ports import Approvals
+from swissarmybench.services.workspace import Workspace
 
 
 class Folder(Protocol):
@@ -60,17 +61,13 @@ class Store(Protocol):
     def copy_secrets(self, source: str, target: str) -> None: ...
 
 
-class Asker(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
-
-
 class Library:
     def __init__(
         self,
         ws: Workspace,
         folder: Folder,
         store: Store,
-        approvals: Asker,
+        approvals: Approvals,
         moved: Callable[[], Awaitable[None]],
     ) -> None:
         self.ws = ws
@@ -133,12 +130,14 @@ class Library:
         target = path or self._folder.default
         if target == self._folder.root:
             return self.info()
-        if who == "agent" and not await self._approvals.ask(
-            "library",
-            "use another library folder",
-            f"Use {target} as the library: every connection, API, vault, blade and variable read there.",
-        ):
-            raise Refused("The user declined (or did not answer): the library folder stays as it is.")
+        await self._approvals.allowed(
+            who,
+            subject="library",
+            action="use another library folder",
+            detail=f"Use {target} as the library: every connection, API, vault, blade and variable "
+            "read there.",
+            otherwise="the library folder stays as it is",
+        )
         self._folder.use(path)
         await self._moved()
         self.ws.audit.write(who, "library_folder", None, default=path is None)

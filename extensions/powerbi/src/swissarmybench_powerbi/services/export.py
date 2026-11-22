@@ -33,8 +33,8 @@ from swissarmybench.domain.datasets import Column, DatasetInfo, quote
 from swissarmybench.domain.export import ExportOptions
 from swissarmybench.domain.grids import POS, Grid
 from swissarmybench.domain.table_cells import Origin
-from swissarmybench.services.ports import BACKGROUND, SqlSession
-from swissarmybench.services.relationships import Asker, Models
+from swissarmybench.services.ports import BACKGROUND, Approvals, SqlSession
+from swissarmybench.services.relationships import Models
 from swissarmybench.services.workspace import NotFound, Refused, Workspace
 from swissarmybench_powerbi.domain import export as rules
 from swissarmybench_powerbi.domain import pbix_import as import_rules
@@ -180,7 +180,7 @@ class PowerBIExport:
         used: Callable[[], set[str] | None],
         files: Files,
         writer: RowWriter,
-        approvals: Asker,
+        approvals: Approvals,
         read_report: ReportReader | None = None,
         kept: Kept | None = None,
     ) -> None:
@@ -517,13 +517,17 @@ class PowerBIExport:
         )
         plans, kept_measures = await self._round_trip(plans)
         with_rows = [p for p in plans if p.rows]
-        if who == "agent" and with_rows:
-            detail = "\n".join(
-                ["Export to Power BI with these tables' rows written beside the model:"]
-                + [f"  {p.name} ({p.row_count:,} rows)" for p in with_rows]
+        if with_rows:
+            await self._approvals.allowed(
+                who,
+                subject=name,
+                action="export to Power BI with rows",
+                detail="\n".join(
+                    ["Export to Power BI with these tables' rows written beside the model:"]
+                    + [f"  {p.name} ({p.row_count:,} rows)" for p in with_rows]
+                ),
+                otherwise="nothing was exported",
             )
-            if not await self._approvals.ask(name, "export to Power BI with rows", detail):
-                raise Refused("The user declined (or did not answer): nothing was exported.")
         going = [p for p in plans if p.goes and p.m is not None]
         if not going:
             raise Refused("No table can go: tick Include its rows for a table Power Query cannot read.")

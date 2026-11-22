@@ -119,7 +119,7 @@ def contracts_now() -> str:
 
 class GridServerError(ToolError):
     """A command was refused or failed. A ToolError, so the MCP library passes the plain-language
-    reason ("The user declined (or did not answer) this export.") to the agent; any other exception
+    reason ("The user declined (or did not answer): nothing was exported.") to the agent; any other exception
     type reaches it only as "Error executing tool <name>"."""
 
 

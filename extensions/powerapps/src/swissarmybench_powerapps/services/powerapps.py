@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain.packages import MissingPackagesError
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_powerapps.domain import cli_lines, connectors, pages, project, shown, tools
 
@@ -99,10 +100,6 @@ class Audit(Protocol):
 
 class Live(Protocol):
     async def broadcast(self, message: dict[str, Any]) -> None: ...
-
-
-class Approvals(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
 
 
 class ApiDocuments(Protocol):
@@ -329,10 +326,13 @@ class PowerApps:
         command = tools.TOOLS[str(tool)].installs[system]
         if argv is None:
             raise Conflict(f"Run this in a terminal (it asks for your password): {command}")
-        if who == "agent" and not await self._approvals.ask(
-            str(tool), "install", f"Install {tools.TOOLS[str(tool)].name} with: {command}"
-        ):
-            raise Refused(f"The user declined: {tools.TOOLS[str(tool)].name} was not installed.")
+        await self._approvals.allowed(
+            who,
+            subject=str(tool),
+            action="install",
+            detail=f"Install {tools.TOOLS[str(tool)].name} with: {command}",
+            otherwise=f"{tools.TOOLS[str(tool)].name} was not installed",
+        )
         ran = await self._run(argv, who, TIMEOUTS["install"])
         await self.tools_state(refresh=True)
         if ran.code != 0:
@@ -878,10 +878,13 @@ class PowerApps:
         if body.get("dry_run"):
             return {"dry_run": True, **plan}
         await self._need("push")
-        if who == "agent" and not await self._approvals.ask(
-            app["name"], "push", f"Push {app['name']} to {plan['environment']}: a new version there."
-        ):
-            raise Refused(f"The user declined: {app['name']} was not pushed.")
+        await self._approvals.allowed(
+            who,
+            subject=app["name"],
+            action="push",
+            detail=f"Push {app['name']} to {plan['environment']}: a new version there.",
+            otherwise=f"{app['name']} was not pushed",
+        )
         if "push" in self._busy:
             raise Conflict("A push is running already.")
         self._busy.add("push")
@@ -933,13 +936,14 @@ class PowerApps:
         await self._need("custom_connector")
         update = body.get("connector_id")
         environment = body.get("environment") or self._summary().get("environment_id") or None
-        if who == "agent" and not await self._approvals.ask(
-            api_name,
-            "custom connector",
-            f"{'Update' if update else 'Make'} the custom connector {made['title']} in "
+        await self._approvals.allowed(
+            who,
+            subject=api_name,
+            action="custom connector",
+            detail=f"{'Update' if update else 'Make'} the custom connector {made['title']} in "
             f"{self._environment_name() or environment or 'the selected environment'}.",
-        ):
-            raise Refused(f"The user declined: no custom connector was made from {api_name}.")
+            otherwise=f"no custom connector was made from {api_name}",
+        )
         written = {name: self._files.write(folder, name, text) for name, text in made["files"].items()}
         argv = cli_lines.pac_connector_create(
             written[connectors.DEFINITION_FILE], written[connectors.PROPERTIES_FILE], environment, update

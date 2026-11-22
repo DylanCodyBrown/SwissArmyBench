@@ -31,8 +31,8 @@ from typing import Any
 
 from swissarmybench.domain.datasets import quote
 from swissarmybench.domain.grids import POS
-from swissarmybench.services.ports import INTERACTIVE
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench.services.ports import INTERACTIVE, Approvals
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 from swissarmybench_accounting import design as rules
 from swissarmybench_accounting import exporter, files
 from swissarmybench_accounting import templates as binding_rules
@@ -62,12 +62,12 @@ class Accounting:
     def __init__(
         self,
         ws: Workspace,
-        ask: Callable[[str, str, str], Any],
+        approvals: Approvals,
         store_table: Callable[..., Any],
         project_folder: Callable[[], str | None],
     ) -> None:
         self.ws = ws
-        self._ask = ask  # the user's Allow (services/agent.py Approvals.ask)
+        self._approvals = approvals  # the user's Allow (services/ports.py Approvals)
         self._store_table = store_table  # a table opened as a grid (services/datasets.py)
         self._project = project_folder  # the open project's folder, if any
         self._open: dict[str, OpenDesign] = {}
@@ -409,17 +409,20 @@ class Accounting:
             planned = self._dry.get(key)
             if planned is None:
                 raise Conflict("Dry run first: the same build with dry_run true lists the files it makes.")
-            if who == "agent":
-                detail = "\n".join(
+            await self._approvals.allowed(
+                who,
+                subject=args["template"],
+                action="build statements",
+                detail="\n".join(
                     [
                         f"Build {len(planned)} {'sheets' if args['one_workbook'] else 'workbooks'} from {args['template']} into:",
                         f"  {args['out_folder']}",
                         *(f"  {p['sheet'] or p['file']}" for p in planned[:20]),
                         *(["  ..."] if len(planned) > 20 else []),
                     ]
-                )
-                if not await self._ask(args["template"], "build statements", detail):
-                    raise Refused("The user declined (or did not answer): nothing was built.")
+                ),
+                otherwise="nothing was built",
+            )
         plan = await asyncio.to_thread(
             files.build_statements,
             xlsx,

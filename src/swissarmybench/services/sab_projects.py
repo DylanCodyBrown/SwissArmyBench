@@ -46,11 +46,10 @@ from swissarmybench.domain.relationships import Model, RelationshipSetError, rea
 from swissarmybench.domain.sab_files import GridEntry, Manifest, Source, TableEntry
 from swissarmybench.domain.steps import ViewSettings, steps_from_json
 from swissarmybench.domain.table_cells import Origin
-from swissarmybench.services.agent import Approvals
 from swissarmybench.services.charts import Cards
 from swissarmybench.services.connections import ConnectionService
 from swissarmybench.services.datasets import DatasetService
-from swissarmybench.services.ports import BACKGROUND
+from swissarmybench.services.ports import BACKGROUND, Approvals
 from swissarmybench.services.projects import Projects
 from swissarmybench.services.relationships import Models
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
@@ -753,8 +752,13 @@ class SabProjects:
                         *(["  The Analyze board's table cards"] if card_rows else []),
                     ]
                 )
-                if not await self._approvals.ask(current.name, "save the project with rows", detail):
-                    raise Refused("The user declined (or did not answer): the project was not saved.")
+                await self._approvals.allowed(
+                    who,
+                    subject=current.name,
+                    action="save the project with rows",
+                    detail=detail,
+                    otherwise="the project was not saved",
+                )
             written = await self._write(current, rows_tables, cards)
             current.saved_key = self._key()
             current.unsaved = []
@@ -892,10 +896,14 @@ class SabProjects:
         if self.current is not None and self.current.folder == source and not self.current.read_only:
             if self.dirty():
                 await self.save({}, AUTOSAVE)  # as Autosave would: the copy is of the project as it stands
-        if data and who == "agent":
-            detail = f"Copy the project with its kept rows (.sab/data):\n  {source}\n  to {target}"
-            if not await self._approvals.ask(_base(source), "copy the project with rows", detail):
-                raise Refused("The user declined (or did not answer): the project was not copied.")
+        if data:
+            await self._approvals.allowed(
+                who,
+                subject=_base(source),
+                action="copy the project with rows",
+                detail=f"Copy the project with its kept rows (.sab/data):\n  {source}\n  to {target}",
+                otherwise="the project was not copied",
+            )
         try:
             done = await asyncio.to_thread(
                 self._archive.copy_project,
@@ -963,13 +971,14 @@ class SabProjects:
         if current.read_only:
             raise Refused(current.read_only)
         on = body["on"]
-        words = f"Mark the project {current.name} {'private' if on else 'not private'}"
-        if (
-            who == "agent"
-            and on != self.private()
-            and not await self._approvals.ask(current.name, "private", words)
-        ):
-            raise Refused("The user declined: the project's private switch was not changed.")
+        if on != self.private():
+            await self._approvals.allowed(
+                who,
+                subject=current.name,
+                action="private",
+                detail=f"Mark the project {current.name} {'private' if on else 'not private'}",
+                otherwise="the project's private switch was not changed",
+            )
         manifest = current.manifest or Manifest(
             name=current.name, app_version=self._version, autosave=current.autosave
         )

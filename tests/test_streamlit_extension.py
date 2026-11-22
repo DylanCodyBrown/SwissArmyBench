@@ -22,6 +22,7 @@ from swissarmybench import extensions
 from swissarmybench.domain import extensions as rules
 from swissarmybench.domain.extensions import Found
 from swissarmybench.domain.updates import install_command
+from swissarmybench.services.agent import Approvals
 from swissarmybench.services.extensions import Extensions
 from tests.conftest import AGENT, AUTH, make_client
 from tests.test_architecture import DOMAIN_FORBIDDEN, SERVICES_FORBIDDEN, _imports
@@ -238,7 +239,7 @@ def test_the_base_mode_takes_what_an_on_extension_adds() -> None:
 # ===== preinstalled: the catalog, updates, the installers =====
 
 
-class Fakes:
+class Fakes(Approvals):
     def __init__(self) -> None:
         self.changes: list[tuple[list[str], list[str]]] = []
         self.stopped: list[bool] = []

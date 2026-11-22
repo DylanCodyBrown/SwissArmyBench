@@ -26,8 +26,7 @@ from swissarmybench.domain import extension_folders as folder_rules
 from swissarmybench.domain import extensions as rules
 from swissarmybench.domain.extensions import Extension, Found
 from swissarmybench.domain.updates import UpdateError
-from swissarmybench.services.agent import Approvals
-from swissarmybench.services.ports import Audit, Notifier
+from swissarmybench.services.ports import Approvals, Audit, Notifier
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 
 # Long enough for the answer to reach the asker before the server stops.
@@ -266,12 +265,19 @@ class Extensions:
         if not self._helper.installable():
             raise Conflict(rules.development_words(ext))
         question = rules.change_question("installs" if action == "install" else "removes", ext.name)
-        if who == "agent":
-            if not await self._approvals.ask(ext.id, f"{action} the extension", question):
-                done = "installed" if action == "install" else "removed"
-                raise Refused(f"The user declined (or did not answer): {ext.name} was not {done}.")
-        elif action == "remove" and not (isinstance(body, dict) and body.get("confirmed") is True):
+        if (
+            who != "agent"
+            and action == "remove"
+            and not (isinstance(body, dict) and body.get("confirmed") is True)
+        ):
             return {"confirm": question, "id": ext.id}
+        await self._approvals.allowed(
+            who,
+            subject=ext.id,
+            action=f"{action} the extension",
+            detail=question,
+            otherwise=f"{ext.name} was not {'installed' if action == 'install' else 'removed'}",
+        )
         try:
             self._helper.launch_change(
                 rules.kept_wheels(self.catalog, after, self.current),
@@ -295,12 +301,13 @@ class Extensions:
         missing = entry.get("missing")
         if missing:
             packages = [str(p) for p in missing["packages"]]
-            if who == "agent":
-                question = f"Install {', '.join(packages)} into Swiss Army Bench's own Python, for {name}."
-                if not await self._approvals.ask(ident, "install the extension's packages", question):
-                    raise Refused(
-                        f"The user declined (or did not answer): {', '.join(packages)} not installed."
-                    )
+            await self._approvals.allowed(
+                who,
+                subject=ident,
+                action="install the extension's packages",
+                detail=f"Install {', '.join(packages)} into Swiss Army Bench's own Python, for {name}.",
+                otherwise=f"{', '.join(packages)} not installed",
+            )
             worked, shown = await self._install_packages(packages)
             if not worked:
                 raise Conflict(
@@ -322,11 +329,15 @@ class Extensions:
         asks first (confirmed); the agent's waits for the user's Allow."""
         ident, name = str(entry["id"]), str(entry["name"])
         question = folder_rules.remove_question(name, str(entry["path"]))
-        if who == "agent":
-            if not await self._approvals.ask(ident, "remove the extension", question):
-                raise Refused(f"The user declined (or did not answer): {name} was not removed.")
-        elif not (isinstance(body, dict) and body.get("confirmed") is True):
+        if who != "agent" and not (isinstance(body, dict) and body.get("confirmed") is True):
             return {"confirm": question, "id": ident}
+        await self._approvals.allowed(
+            who,
+            subject=ident,
+            action="remove the extension",
+            detail=question,
+            otherwise=f"{name} was not removed",
+        )
         self.unmount(ident)
         try:
             went = self._folders.trash(ident)
@@ -369,12 +380,15 @@ class Extensions:
             files = folder_rules.scaffold(ident, name, body.get("project_type") or None)
         except ValueError as error:  # FolderError, ContractError
             raise ValueError(str(error)) from None
-        if who == "agent":
-            place = self._folders.place(ident)
-            listed = "\n".join(f"  {n}" for n in files)
-            question = f"A new folder extension, {name}, in the library:\n  {place}\n{listed}"
-            if not await self._approvals.ask(ident, "make the extension", question):
-                raise Refused(f"The user declined (or did not answer): the extension {ident} was not made.")
+        listed = "\n".join(f"  {n}" for n in files)
+        await self._approvals.allowed(
+            who,
+            subject=ident,
+            action="make the extension",
+            detail=f"A new folder extension, {name}, in the library:\n"
+            f"  {self._folders.place(ident)}\n{listed}",
+            otherwise=f"the extension {ident} was not made",
+        )
         try:
             made = self._folders.make(ident, files)
         except FileExistsError as error:

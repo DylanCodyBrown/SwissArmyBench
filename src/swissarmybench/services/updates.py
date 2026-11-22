@@ -19,9 +19,8 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import updates as rules
 from swissarmybench.domain.updates import Release, UpdateError
-from swissarmybench.services.agent import Approvals
-from swissarmybench.services.ports import Audit, Notifier
-from swissarmybench.services.workspace import Conflict, Refused
+from swissarmybench.services.ports import Approvals, Audit, Notifier
+from swissarmybench.services.workspace import Conflict
 
 
 class ReleaseFeed(Protocol):
@@ -199,13 +198,15 @@ class Updates:
             raise Conflict(f"The update available is {version}.")
         work = await self._open_work()
         at_risk = {"unsaved": list(work.get("unsaved", [])), "kernels": int(work.get("kernels", 0))}
-        if who == "agent":
-            if not await self._approvals.ask(
-                version, "update the app to", rules.update_question(version, at_risk)
-            ):
-                raise Refused(f"The user declined (or did not answer): the app was not updated to {version}.")
-        elif body.get("confirmed") is not True:
+        if who != "agent" and body.get("confirmed") is not True:
             return {"confirm": at_risk, "version": version}
+        await self._approvals.allowed(
+            who,
+            subject=version,
+            action="update the app to",
+            detail=rules.update_question(version, at_risk),
+            otherwise=f"the app was not updated to {version}",
+        )
         self._helper.launch(version, offer.source)
         self._updating = version
         self._failed = None

@@ -25,6 +25,7 @@ from swissarmybench.domain import session_log
 from swissarmybench.domain import sharing as rules
 from swissarmybench.domain.sharing import SharingError
 from swissarmybench.server.tunnels import DevTunnelProgram
+from swissarmybench.services.agent import Approvals
 from swissarmybench.services.sharing import Opened, Sharing
 from swissarmybench.services.workspace import Conflict, Refused
 from tests.conftest import AGENT, AUTH, PORT, make_client
@@ -265,7 +266,7 @@ class FakeWs:
         self.live = FakeLive()
 
 
-class Asker:
+class Asker(Approvals):
     def __init__(self, answer: bool) -> None:
         self.answer = answer
         self.asked: list[str] = []

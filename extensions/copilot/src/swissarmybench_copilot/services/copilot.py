@@ -32,6 +32,7 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from swissarmybench.domain.packages import MissingPackagesError
+from swissarmybench.services.ports import Approvals
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from swissarmybench_copilot.adapters.language_server import Connection, LspError, ServerGone
 from swissarmybench_copilot.domain import lsp, tools
@@ -58,10 +59,6 @@ class Machine(Protocol):
 class Record(Protocol):
     def read(self) -> Any: ...
     def write(self, data: Any) -> None: ...
-
-
-class Approvals(Protocol):
-    async def ask(self, dataset: str, action: str, detail: str) -> bool: ...
 
 
 class Audit(Protocol):
@@ -293,9 +290,13 @@ class Copilot:
         missing = await self._missing("install")
         if missing is not None:
             raise MissingPackagesError(missing["missing"])
-        detail = f"Install GitHub's Copilot Language Server {lsp.PINNED} with npm into the app's folder"
-        if who == "agent" and not await self._approvals.ask("copilot", "install", detail):
-            raise Refused("The user declined: the language server was not installed.")
+        await self._approvals.allowed(
+            who,
+            subject="copilot",
+            action="install",
+            detail=f"Install GitHub's Copilot Language Server {lsp.PINNED} with npm into the app's folder",
+            otherwise="the language server was not installed",
+        )
         self._installing = True
         self._said = None
         await self._notify()

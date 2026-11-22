@@ -20,6 +20,7 @@ from swissarmybench.adapters.extensions import discover
 from swissarmybench.domain import extensions as rules
 from swissarmybench.domain.extensions import Extension, Found
 from swissarmybench.server.updater import Helper
+from swissarmybench.services.agent import Approvals
 from swissarmybench.services.extensions import Extensions
 from swissarmybench.services.workspace import Conflict, NotFound, Refused
 from tests.conftest import AGENT, AUTH, make_client
@@ -194,7 +195,7 @@ def test_the_helper_hands_over_an_extension_change(tmp_path: Path) -> None:
 # ===== the service =====
 
 
-class Fakes:
+class Fakes(Approvals):
     def __init__(self, installable: bool = True, yes: bool = True) -> None:
         self.ok, self.yes = installable, yes
         self.changes: list[tuple[list[str], list[str]]] = []

@@ -28,9 +28,8 @@ from swissarmybench.domain import dictionary, notebooks
 from swissarmybench.domain import local_api as local_api_rules
 from swissarmybench.domain import projects as rules
 from swissarmybench.domain.projects import DataCell, ProjectError
-from swissarmybench.services.agent import Approvals
-from swissarmybench.services.ports import INTERACTIVE
-from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
+from swissarmybench.services.ports import INTERACTIVE, Approvals
+from swissarmybench.services.workspace import Conflict, NotFound, Workspace
 
 
 class Files(Protocol):
@@ -147,8 +146,13 @@ class Projects:
                     "(and data.py, requirements.txt, the notebooks asked for: code only)",
                 ]
             )
-            if not await self._approvals.ask(name, "make the project", detail):
-                raise Refused(f"The user declined (or did not answer): the project {name} was not made.")
+            await self._approvals.allowed(
+                who,
+                subject=name,
+                action="make the project",
+                detail=detail,
+                otherwise=f"the project {name} was not made",
+            )
         try:
             folder = self._files.make(body["folder"], name)
         except FileNotFoundError as error:
