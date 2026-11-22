@@ -4777,6 +4777,54 @@ SWISSARMYBENCH_STRESS_OUT given a folder instead of a file name).
   the widget by its old name after its rename, "There is no widget called my_widget") fails the same way on the
   base commit 8415755, so it is not this branch's.
 
+## The adapter's third phase (2026-11-22, branch adapter-3; DuckDB 2.0.0, pyarrow 26.0.1, sqlglot 30.24.0)
+- query: DuckDB (a join and a CTE with a bound value; an UPDATE answering its count; INSERT ... RETURNING
+  answering its rows), SQLite through Sql (the same join; a DELETE's count, committed; a failed UPDATE rolled
+  back), the sandbox through Remote (tests/test_adapter_query.py, tests/test_sandbox_query.py).
+- The same endpoint code against the real source and the sandbox holding the same rows: SQLite (a join in
+  SQLite's SQL, an UPDATE's count, a plan read, a delete by key) and Dataverse's stand-in (a plan with a filter,
+  a sort and a limit: folded into OData by the real one, done by DuckDB over the sandbox), answering alike. A
+  query's read of 25,003 rows with a LIST column comes back whole in one stream. Views, query tables (T-SQL's
+  SELECT INTO) and sequences made through query; Reset undoes them.
+- A local sandbox API's own process (`python -I`): `connection("Sandbox").query(...)` and read and write through
+  the adapter by name (tests/test_adapter_sandbox.py); forms_recon's API.py on the adapter (tests/e2e's
+  test_forms_recon_app); the scaffold's CRUD set run on the sandbox for a DuckDB table and a table mocked as SQL
+  Server's (`dbo.invoices`: the sandbox takes a schema-qualified name).
+- An export (FastAPI, Azure Functions, AWS Lambda) run in a fresh Python with SQLite as the real connection:
+  connection(name) is the adapter's Connection over `source_from` (tests/test_api_export.py).
+- Writes against the stand-ins (tests/test_adapter_writes.py): Dataverse insert (choice labels as numbers, a 429
+  gone through again), merge, update (a key not there refused), delete, truncate, a refused change set named and
+  the batches before it kept; a SharePoint list's 25 inserts with every first answer a 429, merge by Title,
+  update, delete, truncate; a lake file written whole and added to (ADLS Gen2's create, append, flush); a Delta
+  table's merge, update, delete, insert and truncate with deltalake 1.6.6 (arro3-core 0.9.1), installed into a
+  scratch folder for the run (SAB_DELTALAKE_PATH), never the app's dependency. The Write starters' tests
+  (tests/test_starters_write.py, tests/test_lakes.py) unchanged but the update's refusal words.
+- The Catalog's listing: DuckDB's and SQLite's adapter listing equal to their starters' row for row (columns,
+  schemas, table types, nullability, positions; a view among them); a SQLite connection's Refresh through the
+  adapter (2 tables, 1 view, 10 columns), then with the user's own List the tables (theirs: 1 table). PostgreSQL's
+  through the adapter not compared against its starter's here (the test bed's server ran for test_real_world).
+- Files: a folder of a CSV, a Parquet and a JSON-lines file listed with DuckDB's types, a plan folded, a join in
+  query, a file written whole and added to (written beside it, then put in its place).
+- The engine's exports, query tables and kernel views through query (tests/test_export*.py, test_sql*.py,
+  test_datasets*.py, test_adapter_open_tables.py unchanged).
+- Larkfield Goods large again (10,001,903 order lines, 15.1 s to make; deleted after), each read in a process of
+  its own, RSS growth after the read (peak in brackets): a filter and a limit (1,000 rows) 0.15 s, 33 MB (141);
+  a product range streamed (5,000,489 rows) 0.23 s, 35 MB (198); totals by product (12,000 rows) 0.14 s, 33 MB
+  (92); every row streamed 0.37 s, 38 MB (213); a join in query (15 rows) 0.11 s, 32 MB (87); every row held as
+  one table 0.46 s, 675 MB (795). Phase 2's: 32, 32, 32, 34 and 647 MB after. Through the engine's session: an
+  export's 2,000,000 rows streamed 0.16 s, 24 MB; a Parquet export of all 10M rows 3.3 s, 242 MB (its 195 MB file's
+  bytes, held as the answer is, as before); the SQL box's GROUP BY made a table (12,000 rows) 0.07 s, 8 MB.
+- Not checked: Windows; Edge (Chromium here); SQL Server, Oracle, Snowflake, Trino and Databricks writes and
+  listings through the adapter for real (no server here); a SharePoint list or a lake past a few hundred rows;
+  the 12 Write starters not on the adapter (unchanged).
+- The suites: the quick suite 4,958 passed, 42 skipped, 1 failed under load (test_agent_index: passes alone; the
+  million-row test_performance and test_desktop_shell failed once under load in an earlier run and pass alone);
+  in Chromium (12 files at -n 2, the test bed up, the Streamlit Python): test_local_apis_page, test_forms_recon_app,
+  test_sandbox_gaps_page, test_dataverse_page, test_lakes_page, test_write_starters_page, test_catalog_page,
+  test_connection_sql_page, test_python_connection_page, test_sql_server_page, test_swap_connection_page and
+  test_real_world: 44 passed, 1 failed: use case 11 ("There is no widget called my_widget" after the rename),
+  as on the base. test_local_apis_page's Run API toast failed once under load and passes alone.
+
 ## The simplicity pass, the "Now" part (branch simplify-2, 2026-11-21)
 - Checked: ruff check, mypy, `npm run typecheck` and `npm run build` before each push; the quick suite
   (`pytest -n 4 --dist loadfile tests --ignore=tests/e2e`) after the removals and after the route guard; the e2e

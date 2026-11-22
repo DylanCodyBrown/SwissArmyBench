@@ -128,4 +128,4 @@ def test_api_py_in_the_editor_squiggles_and_completes(shop: tuple[TestClient, Pa
         json={"text": hover_text, "offset": len(hover_text) - 3, "path": path},
         headers=AUTH,
     ).json()
-    assert "connection's client" in str(hover.get("hover")), hover
+    assert "connection's calls" in str(hover.get("hover")), hover

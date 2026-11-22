@@ -2,15 +2,16 @@
 api payload in and out should travel through the adapter"): every place outside sab_adapter.py that opens a
 database driver or turns JSON into rows, found with ast.
 
-Phase 1 enforces it only for what moved: a local sandbox API's own process (api_host.py, the mocks,
-sab_api) opens no driver, and the mocks' calls that moved (every SQL mock's tables() and columns(), the
-SharePoint mock's reads and writes) reach the sandbox only through the adapter. The rest is listed (run with
--s to print it) for the later steps to move; docs/ideas.md has it as of 2026-11-21."""
+Enforced for what moved: a local sandbox API's own process (api_host.py, sab_api) opens no driver and reaches
+the sandbox only through the adapter (phase 3: the mock clients and the JSON op door went; connection(name) is
+the adapter's Connection), and the endpoints the app writes and its example call only the adapter. The rest is
+listed (run with -s to print it) for the later steps to move; docs/ideas.md has it."""
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
+from typing import Any
 
 PACKAGE = Path(__file__).resolve().parents[1] / "src" / "swissarmybench"
 ROOTS = [PACKAGE, *sorted((PACKAGE.parents[1] / "extensions").glob("*/src/*"))]
@@ -81,29 +82,69 @@ def test_the_places_outside_the_adapter_are_listed() -> None:
 
 def test_a_local_sandbox_apis_process_opens_no_driver() -> None:
     listed = places()
-    for name in ("server/api_host.py", "server/sandbox_clients.py", "server/api_runtime.py"):
+    for name in ("server/api_host.py", "server/api_runtime.py"):
         assert not listed.get(f"swissarmybench/{name}", {}).get("drivers"), name
+    assert not (PACKAGE / "server" / "sandbox_clients.py").exists()  # the mock clients went (phase 3)
 
 
-MOVED = {
-    "_Listing": ("_listed", "tables", "columns"),
-    "MockSharePoint": ("tables", "rows", "read", "create", "update", "delete", "_write", "_typed"),
+OLD_CLIENT = {"cursor", "execute", "executemany", "fetchone", "fetchall", "read_arrow", "rows", "fetch"}
+
+
+def _client_calls(text: str) -> set[str]:
+    return {
+        n.func.attr
+        for n in ast.walk(ast.parse(text))
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr in OLD_CLIENT
+    }
+
+
+def test_a_sandbox_api_reaches_its_data_only_through_the_adapter() -> None:
+    """Phase 3: the sandbox's data door is the adapter's four calls (tables, read, query, write as Arrow), and
+    the endpoints the app writes (New endpoint from a table) and its example app call only the adapter."""
+    from swissarmybench.domain import api_scaffold as scaffold
+    from swissarmybench.domain import local_api as rules
+
+    routes = (PACKAGE / "server" / "routes_sandbox.py").read_text(encoding="utf-8")
+    assert 'Route("/sandbox/data"' not in routes and 'DATA_PREFIX + "{key}",' not in routes
+    columns: list[dict[str, Any]] = [
+        {"name": "order_id", "type": "BIGINT", "key": True},
+        {"name": "region", "type": "VARCHAR"},
+    ]
+    for source in (
+        scaffold.Source("duckdb", "Sandbox"),
+        scaffold.Source("database", "Warehouse", "sqlserver", "dbo"),
+        scaffold.Source("dataverse", "Sales CRM", "dataverse"),
+        scaffold.Source("sharepoint", "Team site"),
+    ):
+        block = scaffold.crud("orders", columns, source)
+        assert not _client_calls(rules.scaffold("x") + block), source
+    example = PACKAGE.parents[1] / "examples" / "forms_recon" / "API.py"
+    assert not _client_calls(example.read_text(encoding="utf-8"))
+
+
+ENGINE_MOVED = {
+    "adapters/export.py": ("batches",),  # every export's rows (CSV, Excel, Parquet, Markdown)
+    "adapters/datasets.py": ("query_table", "query_to_arrow_stream"),  # "+" tab, SQL box, a kernel's view
 }
-OLD_DOOR = {"ask", "_ask", "_rows", "_arrow", "_frame", *TO_ROWS}  # the JSON door and its row builders
+DIRECT_ROWS = {"to_arrow_reader", "to_arrow_table", "fetch_arrow_table", "fetchall", "fetchmany", "fetchone"}
 
 
-def test_the_mocks_calls_that_moved_reach_the_sandbox_only_through_the_adapter() -> None:
-    tree = ast.parse((PACKAGE / "server" / "sandbox_clients.py").read_text(encoding="utf-8"))
-    classes = {n.name: n for n in tree.body if isinstance(n, ast.ClassDef)}
-    for class_name, methods in MOVED.items():
-        bodies = {f.name: f for f in classes[class_name].body if isinstance(f, ast.FunctionDef)}
-        for method in methods:
+def test_the_engine_paths_that_moved_read_rows_only_through_the_adapter() -> None:
+    """Phase 3, step 5 (the rule covers the engine too): an export's rows, a query made a table (the "+" tab,
+    the SQL box) and a kernel's DuckDB SQL naming an open table are the adapter's query over the app's own
+    DuckDB session, never a cursor's rows read directly."""
+    for name, functions in ENGINE_MOVED.items():
+        tree = ast.parse((PACKAGE / name).read_text(encoding="utf-8"))
+        bodies = {f.name: f for f in ast.walk(tree) if isinstance(f, ast.FunctionDef)}
+        for function in functions:
             called = {
-                n.func.attr if isinstance(n.func, ast.Attribute) else getattr(n.func, "id", "")
-                for n in ast.walk(bodies[method])
-                if isinstance(n, ast.Call)
-            }
-            assert not called & OLD_DOOR, f"{class_name}.{method} calls {sorted(called & OLD_DOOR)}"
+                n.func.attr for n in ast.walk(bodies[function])
+                if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+            }  # fmt: skip
+            assert "query" in called, f"{name} {function} reads through sab_adapter.query"
+            assert not called & DIRECT_ROWS, (
+                f"{name} {function} reads rows itself: {sorted(called & DIRECT_ROWS)}"
+            )
 
 
 def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None:

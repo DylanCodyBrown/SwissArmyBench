@@ -1,7 +1,37 @@
 # One adapter: the simple architecture (the owner, 2026-11-21)
 
 Status: agreed; phase 1 built (branch `adapter`, 2026-11-21): Order 1 and the start of 2; phase 2 built (branch
-`adapter-2`, 2026-11-22): the reading half of Order 2, the start of 3 and 4, `truncate`.
+`adapter-2`, 2026-11-22): the reading half of Order 2, the start of 3 and 4, `truncate`; phase 3 built (branch
+`adapter-3`, 2026-11-22): `query`, the mock clients gone, the writes of Dataverse, SharePoint lists and the lakes,
+the Catalog's listing, file connections, the engine's first paths (the owner's answers after phase 2).
+
+### What is built (phase 3)
+
+- `query(source, sql, params)`: SQL a plan cannot say (joins, CTEs, a write with RETURNING) in the source's own SQL
+  and its driver's marks, answered as Arrow; a statement that returns no rows answers one `count` column. DuckDB,
+  Sql, Remote and Files take it; the sandbox's door makes it DuckDB SQL over its tables (sandbox_dialects.py, kept
+  as that backend's half: its refusals in one sentence with the line).
+- `Connection(source)`: what API.py's `connection(name)` hands out, here and in an export: `tables()`,
+  `columns(table)`, `read(table, columns=, filters=, sort=, limit=, offset=)`, `query(sql, params)`,
+  `write(table, rows, key, mode)`. The mock clients (server/sandbox_clients.py) and the JSON op door
+  (`/sandbox/data`) are gone; the old client calls are refused in one line. `source_from(client)` wraps a
+  connection's own client (or a file connection's path) in its backend: an export's connections.py does.
+- forms_recon's API.py and New endpoint from a table are on it (the scaffold: one style for every source).
+- Writes: `OData.write` (Dataverse's $batch change sets, choice labels, keys, 429; insert, update, merge, delete,
+  truncate), `Rows.write` (a lake's Delta table and a lake file; a SharePoint list by its own Graph calls).
+  `planned()`: a write's dry run counted by reads. The Dataverse, SharePoint list, Delta and lake file Write
+  starters call them (client/writes.py `by_adapter`); client/write_dataverse.py moved in and went.
+- The Catalog lists a connection's tables through `tables()` (a table's schema, kind and database, a column's
+  nullability carried; `catalog_rows`) for DuckDB, PostgreSQL and SQLite, unless its List the tables is the user's
+  own (its text differs from its starter's, whitespace aside).
+- `Files(path)`: a file connection's CSV, Parquet and JSON files as a source (read, query, whole-file write).
+- The engine: every export's rows, a query made a table ("+" tab, SQL box) and a kernel's DuckDB SQL naming an
+  open table read through `query` over the app's own DuckDB session (`DuckDB.session`).
+- Not yet: the grid's windows, the steps' compile, the analyses and the profile (the view cache as a source of
+  its own); the other 12 Write starters (SQL databases, files, Excel); the Catalog through the adapter for
+  MySQL, Oracle, Snowflake, SQL Server, Trino, Databricks; a file connection's Open as grid (the app's loader);
+  contract.json, the eight-file export, folder extensions, the Environment page, the Excel module, sab.write,
+  the endpoint wizard (docs/ideas.md "One adapter": what each needs).
 
 ### What is built (phase 2)
 

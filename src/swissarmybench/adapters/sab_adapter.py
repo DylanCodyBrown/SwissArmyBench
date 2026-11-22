@@ -3,22 +3,29 @@ kernel, a local sandbox API's process, an exported project). It holds nothing: a
 batches from its source, a write streams them into it, and only tables (named Arrow tables) stay: a grid is
 only a view of one.
 
-    from sab_adapter import Filter, Plan, read, table, tables, write
+    from sab_adapter import Filter, Plan, query, read, table, tables, write
 
     reader, folded = read("Warehouse", "orders", Plan(columns=("id", "amount"), filters=(Filter("region",
                           "=", "North"),), limit=100))
     for batch in reader: ...                  # Arrow record batches, as the source answers them
+    query("Warehouse", "SELECT ... JOIN ...", [region])   # the source's own SQL (joins, CTEs) -> Arrow
     write("Warehouse", "orders", rows, key=("id",), mode="merge")   # -> Counts(inserted, updated, deleted)
+
+    db = Connection("Warehouse")              # what API.py's connection(name) hands out: the same calls
+    db.read("orders", filters=[["region", "=", "North"]], limit=100); db.query(sql, params); db.write(...)
 
 It reads top to bottom in the order a call runs:
 
   1. The plan       what a read asks for (columns, filters, sort, limit, offset, group, totals), and what
                     its source folded
-  2. Sources        a source is three functions (tables, read, write); DuckDB (a file, or a connection given),
-                    Remote (the project's sandbox through the app, for a local sandbox API's process)
-  3. The calls      tables(source), read(source, table, plan), write(source, table, batches, key, mode): by a
-                    source's name (use() says how a name is found) or the source itself; what a source could
-                    not fold is finished here, in DuckDB, over the stream
+  2. Sources        a source is three functions (tables, read, write), and query when it speaks SQL; DuckDB (a
+                    file, or a connection given), Remote (the project's sandbox through the app, for a local
+                    sandbox API's process), Sql, OData, Rows, Files; source_from(client) wraps a
+                    connection's own client (or its file's path) in its backend
+  3. The calls      tables(source), read(source, table, plan), query(source, sql, params), write(source,
+                    table, batches, key, mode): by a source's name (use() says how a name is found) or
+                    the source itself; what a source could not fold is finished here, in DuckDB, over the
+                    stream; Connection(name): the same calls on one source (API.py's connection(name))
   4. JSON to Arrow  pages of records (an API's answer, a request's body) made Arrow by DuckDB, page by page,
                     with the types given (else the first page's)
   5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
@@ -34,7 +41,9 @@ import http.client
 import itertools
 import json
 import re
+import time
 import urllib.parse
+import uuid
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -199,14 +208,35 @@ class Folded:
 @dataclass(frozen=True)
 class Column:
     name: str
-    type: str  # DuckDB's type name
+    type: str  # the source's type name (DuckDB's for a DuckDB source)
     key: bool = False  # part of the table's primary key
+    nullable: bool | None = field(default=None, compare=False)  # None: not said
 
 
 @dataclass(frozen=True)
 class Table:
     name: str  # the source's own name for it: what read and write take
     columns: tuple[Column, ...] = ()
+    # where it is and what it is, as its catalog says (a listing's own words): kept apart from the name
+    schema: str = field(default="", compare=False)
+    kind: str = field(default="", compare=False)  # BASE TABLE, VIEW ...
+    database: str = field(default="", compare=False)
+
+
+def catalog_rows(listed: Sequence[Table]) -> tuple[list[str], list[list[Any]]]:
+    """Tables as a catalog's rows, in the columns an information_schema listing has (table_catalog only when
+    one is said): the app's Catalog reads them as it reads a connection's own List the tables."""
+    with_database = any(t.database for t in listed)
+    names = ["table_schema", "table_name", "table_type", "column_name", "data_type", "is_nullable",
+             "ordinal_position"]  # fmt: skip
+    rows: list[list[Any]] = []
+    for t in listed:
+        bare = t.name.rpartition(".")[2] if t.schema and t.name.startswith(t.schema + ".") else t.name
+        for at, c in enumerate(t.columns, 1):
+            nullable = None if c.nullable is None else ("YES" if c.nullable else "NO")
+            row = [t.schema, bare, t.kind or None, c.name, c.type, nullable, at]
+            rows.append([t.database, *row] if with_database else row)
+    return (["table_catalog", *names] if with_database else names), rows
 
 
 @dataclass(frozen=True)
@@ -232,6 +262,31 @@ class Source(Protocol):
     def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]: ...
 
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts: ...
+
+    # and, for a source that speaks SQL: query(self, sql: str, params: Sequence[Any]) -> pa.RecordBatchReader
+
+
+READS = ("SELECT", "WITH", "FROM", "VALUES", "TABLE", "SHOW", "DESCRIBE", "SUMMARIZE", "EXPLAIN", "PRAGMA")
+COUNT = "count"  # the one column a statement that returns no rows answers: the rows it changed
+
+
+Params = Sequence[Any] | Mapping[str, Any]  # a query's values: by place (its marks), or by name
+
+
+def _given(params: Params) -> Any:
+    return {str(k): v for k, v in params.items()} if isinstance(params, Mapping) else list(params)
+
+
+def reads_only(sql: str) -> bool:
+    """Whether a statement only reads (its first word; a comment before it skipped)."""
+    text = re.sub(r"^(\s|--[^\n]*\n|/\*.*?\*/)+", "", str(sql), flags=re.S)
+    head = text.split(None, 1)[0].upper().strip("(") if text.strip() else ""
+    return head in READS
+
+
+def counted(rows: int) -> pa.RecordBatchReader:
+    """A statement that returned no rows, answered as one row of its `count`."""
+    return pa.table({COUNT: pa.array([max(int(rows), 0)], pa.int64())}).to_reader()
 
 
 def quote(name: str) -> str:
@@ -315,6 +370,17 @@ class DuckDB:
         return cls(opened, str(path))
 
     @classmethod
+    def session(cls, connection: Any, name: str = "DuckDB") -> DuckDB:
+        """A connection used as it is (its views and registered tables seen, never closed here): the app's
+        engine session, a query's own cursor."""
+
+        @contextlib.contextmanager
+        def same(writing: bool) -> Iterator[Any]:
+            yield connection
+
+        return cls(same, name)
+
+    @classmethod
     def over(cls, connection: Any, name: str = "DuckDB") -> DuckDB:
         @contextlib.contextmanager
         def cursor(writing: bool) -> Iterator[Any]:
@@ -328,9 +394,10 @@ class DuckDB:
 
     def tables(self) -> list[Table]:
         with self._connect(False) as con:
+            database = str(con.sql("SELECT current_database()").fetchall()[0][0])
             return [
-                Table(name, tuple(Column(*c) for c in _columns(con, schema, table)))
-                for name, schema, table in _relations(con)
+                Table(name, tuple(Column(*c) for c in _columns(con, schema, table)), schema, kind, database)
+                for name, schema, table, kind in _relations(con)
             ]
 
     def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
@@ -349,7 +416,7 @@ class DuckDB:
 
     def _place(self, con: Any, table: str) -> tuple[str, str]:
         wanted = str(table).casefold()
-        for listed, schema, name in _relations(con):
+        for listed, schema, name, _ in _relations(con):
             if listed.casefold() == wanted:
                 return schema, name
         raise AdapterError(f"{self.name} has no table {table!r}.")
@@ -377,19 +444,38 @@ class DuckDB:
                     con.unregister("sab_incoming")
             return done
 
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """DuckDB's own SQL: a read streamed as it is made; a write run at once in its own transaction,
+        answering its RETURNING rows, else its count."""
+        if reads_only(sql):
 
-def _relations(con: Any) -> list[tuple[str, str, str]]:
+            def run(con: Any, _table: str, _plan: Plan) -> tuple[str, Any]:
+                return sql, _given(params)
+
+            return _stream(self._connect, run, "", Plan())
+        with self._connect(True) as con:
+            found = con.sql(sql, params=_given(params))
+            if found is None:
+                return counted(0)
+            made = found.to_arrow_table()
+        if made.column_names == ["Count"]:
+            return counted(int(made.column(0)[0].as_py() or 0) if made.num_rows else 0)
+        return made.to_reader()
+
+
+def _relations(con: Any) -> list[tuple[str, str, str, str]]:
     """Each table and view of the database: its listed name (table, or schema.table outside main), schema,
-    name."""
+    name, kind (BASE TABLE or VIEW, as information_schema says)."""
     rows = con.sql(
-        "SELECT schema_name, table_name FROM duckdb_tables() WHERE database_name = current_database() "
-        "AND NOT internal UNION ALL SELECT schema_name, view_name FROM duckdb_views() "
+        "SELECT schema_name, table_name, 'BASE TABLE' FROM duckdb_tables() "
+        "WHERE database_name = current_database() AND NOT internal UNION ALL "
+        "SELECT schema_name, view_name, 'VIEW' FROM duckdb_views() "
         "WHERE database_name = current_database() AND NOT internal ORDER BY 1, 2"
     ).fetchall()
-    return [(t if s == "main" else f"{s}.{t}", s, t) for s, t in rows]
+    return [(t if s == "main" else f"{s}.{t}", s, t, k) for s, t, k in rows]
 
 
-def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool]]:
+def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool, bool]]:
     keys = {
         str(c)
         for row in con.sql(
@@ -401,15 +487,16 @@ def _columns(con: Any, schema: str, table: str) -> list[tuple[str, str, bool]]:
         for c in row[0] or []
     }
     rows = con.sql(
-        "SELECT column_name, data_type FROM duckdb_columns() WHERE database_name = current_database() "
-        "AND schema_name = ? AND table_name = ? ORDER BY column_index",
+        "SELECT column_name, data_type, is_nullable FROM duckdb_columns() "
+        "WHERE database_name = current_database() AND schema_name = ? AND table_name = ? "
+        "ORDER BY column_index",
         params=[schema, table],
     ).fetchall()
-    return [(str(n), str(t), str(n) in keys) for n, t in rows]
+    return [(str(n), str(t), str(n) in keys, bool(nullable)) for n, t, nullable in rows]
 
 
 def _stream(
-    connect: Connect, query: Callable[[Any, str, Plan], tuple[str, list[Any]]], table: str, plan: Plan
+    connect: Connect, query: Callable[[Any, str, Plan], tuple[str, Any]], table: str, plan: Plan
 ) -> pa.RecordBatchReader:
     """The query's answer as a reader that keeps its connection only while it is read: the batches come as
     DuckDB makes them, never all at once."""
@@ -512,6 +599,15 @@ class Remote:
         answer = json.loads(self._post("/write?" + query, sink.getvalue().to_pybytes()).read())
         return Counts(int(answer["inserted"]), int(answer["updated"]), int(answer["deleted"]))
 
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """The source's own SQL, answered as Arrow (the sandbox makes it DuckDB SQL over its tables)."""
+        body = json.dumps(
+            {"connection": self.connection, "sql": sql, "params": _given(params)}, default=_json_value
+        ).encode()
+        answer = self._post("/query", body)
+        reader = ipc.open_stream(answer)
+        return pa.RecordBatchReader.from_batches(reader.schema, _closing(reader, answer))
+
     def _post(self, path: str, body: bytes) -> http.client.HTTPResponse:
         parts = urllib.parse.urlsplit(self.url + path)
         connection = http.client.HTTPConnection(parts.hostname or "127.0.0.1", parts.port or 80, timeout=600)
@@ -525,8 +621,20 @@ class Remote:
                 said = str(json.loads(raw or b"{}").get("error") or answer.reason)
             except ValueError:
                 said = answer.reason
-            raise AdapterError(said)
+            raise AdapterError(sql_line(said))
         return answer
+
+
+def sql_line(said: str) -> str:
+    """A refusal that starts with its SQL's own line ("Line 3: ..."), said without a second "Line" (the
+    endpoint's own line is the caller's): the first line of the SQL goes unsaid, a later one is "(line 3 of
+    its SQL)"."""
+    found = re.match(r"Line (\d+): (.*)$", said, re.S)
+    if not found:
+        return said
+    rest = found.group(2)
+    rest = rest[:1].upper() + rest[1:]
+    return rest if found.group(1) == "1" else f"{rest.rstrip()} (line {found.group(1)} of its SQL)"
 
 
 def _closing(reader: Any, answer: Any) -> Iterator[pa.RecordBatch]:
@@ -539,7 +647,10 @@ def _closing(reader: Any, answer: Any) -> Iterator[pa.RecordBatch]:
 # ----- SQL databases: any DB-API connection, its dialect's rules as data -----
 
 _INFO_COLUMNS = (
-    "SELECT c.table_schema, c.table_name, c.column_name, c.data_type FROM information_schema.columns c "
+    "SELECT c.table_schema, c.table_name, c.column_name, c.data_type, t.table_type, c.is_nullable, "
+    "c.table_catalog FROM information_schema.columns c JOIN information_schema.tables t "
+    "ON t.table_catalog = c.table_catalog AND t.table_schema = c.table_schema "
+    "AND t.table_name = c.table_name "
     "WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog', 'INFORMATION_SCHEMA', 'sys') {where}"
     "ORDER BY c.table_schema, c.table_name, c.ordinal_position"
 )
@@ -594,7 +705,8 @@ DIALECTS: dict[str, Dialect] = {
     ),
     "sqlite": Dialect(
         "sqlite",
-        columns="SELECT 'main', m.name, p.name, p.type FROM sqlite_master m JOIN pragma_table_info(m.name) p "
+        columns="SELECT 'main', m.name, p.name, p.type, m.type, CASE WHEN p.\"notnull\" = 1 THEN 'NO' ELSE "
+        "'YES' END FROM sqlite_master m JOIN pragma_table_info(m.name) p "
         "WHERE m.type IN ('table', 'view') AND m.name NOT LIKE 'sqlite_%' ORDER BY m.name, p.cid",
         keys="SELECT 'main', m.name, p.name FROM sqlite_master m JOIN pragma_table_info(m.name) p "
         "WHERE m.type = 'table' AND p.pk > 0",
@@ -732,10 +844,18 @@ class Sql:
             else set()
         )
         listed: dict[tuple[str, str], list[Column]] = {}
-        for schema, table, column, kind in self._rows(self.dialect.columns):
-            place = (str(schema), str(table))
-            listed.setdefault(place, []).append(Column(str(column), str(kind), (*place, str(column)) in keys))
-        return [Table(self._listed(s, t), tuple(cols)) for (s, t), cols in listed.items()]
+        about: dict[tuple[str, str], tuple[str, str]] = {}  # (kind, database) as the listing says
+        for row in self._rows(self.dialect.columns):
+            schema, table, column, kind = (str(v) for v in row[:4])
+            place = (schema, table)
+            nullable = (
+                None if len(row) < 6 or row[5] is None else str(row[5]).upper() in ("YES", "Y", "1", "TRUE")
+            )
+            listed.setdefault(place, []).append(Column(column, kind, (*place, column) in keys, nullable))
+            about.setdefault(
+                place, (str(row[4] or "") if len(row) > 4 else "", str(row[6] or "") if len(row) > 6 else "")
+            )
+        return [Table(self._listed(s, t), tuple(cols), s, *about[(s, t)]) for (s, t), cols in listed.items()]
 
     def _listed(self, schema: str, table: str) -> str:
         bare = "*" in self.dialect.default_schema or schema in self.dialect.default_schema
@@ -784,6 +904,33 @@ class Sql:
             raise
         finally:
             _quietly(cursor.close)
+
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """Its own SQL with its driver's marks: a read streamed from the cursor; a write committed (rolled
+        back when it fails), answering its RETURNING rows, else its count."""
+        cursor = self.connection.cursor()
+        bound: Any = (
+            {str(k): self.value(v) for k, v in params.items()}
+            if isinstance(params, Mapping)
+            else _bound(self.style, [self.value(v) for v in params])
+        )
+        try:
+            if bound:
+                cursor.execute(sql, bound)
+            else:
+                cursor.execute(sql)
+            if reads_only(sql) and cursor.description:
+                return cursor_batches(cursor)
+            answer = cursor_batches(cursor).read_all() if cursor.description else None
+            changed = int(getattr(cursor, "rowcount", 0) or 0)
+            self.connection.commit()
+        except BaseException:
+            _quietly(cursor.close)
+            if not reads_only(sql):
+                _quietly(self.connection.rollback)
+            raise
+        _quietly(cursor.close)
+        return answer.to_reader() if answer is not None else counted(changed)
 
     def value(self, value: Any) -> Any:
         """A value as the driver takes it (SQLite: a decimal as a number, a date or time as text)."""
@@ -965,7 +1112,8 @@ def odata_filter(filters: Sequence[Filter], fields: Mapping[str, str]) -> str | 
         elif f.op in ("is null", "is not null"):
             said.append(f"{field} {'eq' if f.op == 'is null' else 'ne'} null")
         elif f.op == "in":
-            said.append("(" + " or ".join(f"{field} eq {odata_literal(v)}" for v in f.value) + ")")
+            either = " or ".join(f"{field} eq {odata_literal(v)}" for v in f.value)
+            said.append(either if len(filters) == 1 else f"({either})")  # brackets only among others
         elif f.op == "between":
             low, high = f.value
             said.append(f"({field} ge {odata_literal(low)} and {field} le {odata_literal(high)})")
@@ -991,10 +1139,11 @@ class OData:
     the records typed by the table's metadata. The rest (offset, group, totals, a filter OData cannot say) is
     done by DuckDB over the answer. `total` is the row count the last read's source gave (None: not said)."""
 
-    def __init__(self, connection: Any, name: str = "Dataverse") -> None:
+    def __init__(self, connection: Any, name: str = "Dataverse", batch_size: int = 1000) -> None:
         self.connection = connection
         self.name = name
         self.total: int | None = None
+        self.batch_size = batch_size  # rows in each $batch change set (a write)
 
     def tables(self) -> list[Table]:
         listed: dict[str, list[Column]] = {}
@@ -1033,9 +1182,11 @@ class OData:
         return from_json([records], given), Folded(tuple(folded))
 
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
-        raise AdapterError(
-            f"{self.name}'s writes go through its Write starter (a $batch change set) for now."
-        )
+        """Rows into a table through the Web API's $batch change sets (_dataverse_written)."""
+        _checked_write(mode, key)
+        one = _one_key(key, "A Dataverse record")
+        rows = [r for batch in batches for r in batch.to_pylist()]
+        return _dataverse_written(self, table, rows, [str(n) for n in batches.schema.names], one, mode)
 
 
 # ----- a connection that reads a table itself: the lakes and SharePoint -----
@@ -1097,7 +1248,605 @@ class Rows:
         return found.to_reader(), Folded(tuple(folded))
 
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
-        raise AdapterError(f"{self.name}'s writes go through its Write starter for now.")
+        """Rows into a lake's table (write_delta, delete_delta, write_file) or a SharePoint list (create,
+        update, delete, ids): the connection's own calls."""
+        _checked_write(mode, key)
+        conn = self.connection
+        if callable(getattr(conn, "write_delta", None)):
+            return _lake_written(self, table, batches.read_all(), list(key), mode)
+        if callable(getattr(conn, "create", None)) and callable(getattr(conn, "ids", None)):
+            one = _one_key(key, "A SharePoint item")
+            rows = [r for batch in batches for r in batch.to_pylist()]
+            return _list_written(self, table, rows, one, mode)
+        raise AdapterError(f"{self.name} takes no writes: it is read only.")
+
+
+def _checked_write(mode: str, key: Sequence[str]) -> None:
+    if mode not in MODES:
+        raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
+    if mode in KEYED and not key:
+        raise AdapterError(f"A {mode} names the key its rows are matched by.")
+
+
+def _one_key(key: Sequence[str], what: str) -> str:
+    if len(key) > 1:
+        raise AdapterError(f"{what} is found by one key column, not {len(key)}.")
+    return key[0] if key else ""
+
+
+def _unique_keys(rows: list[dict[str, Any]], key: str) -> None:
+    """Each row has a key of its own (an update or a merge would write the second over the first)."""
+    empty = sum(1 for r in rows if r.get(key) is None)
+    if empty:
+        raise AdapterError(f"{empty:,} rows have no value in the key column {key}.")
+    seen: set[Any] = set()
+    shared = 0
+    for r in rows:
+        value = _same(r[key])
+        shared += value in seen
+        seen.add(value)
+    if shared:
+        raise AdapterError(
+            f"{shared:,} keys are shared by more than one row: each row needs a key of its own."
+        )
+
+
+def _same(value: Any) -> Any:
+    """A key's value as two sources compare it: text in any case (Dataverse answers ids in small letters)."""
+    return value.casefold() if isinstance(value, str) else value
+
+
+# ----- Dataverse's writes: the Web API's $batch change sets (the Write starters' code, moved in) -----
+
+DV_CHOICES = frozenset({"Picklist", "State", "Status", "MultiSelectPicklist"})
+DV_LOOKUPS = frozenset({"Lookup", "Customer", "Owner"})
+_DV_METADATA = {
+    "Picklist": "PicklistAttributeMetadata",
+    "State": "StateAttributeMetadata",
+    "Status": "StatusAttributeMetadata",
+    "MultiSelectPicklist": "MultiSelectPicklistAttributeMetadata",
+}
+CHANGE_SET = 1000  # requests in one $batch change set at most (Dataverse's)
+DV_WAITS = 5  # a throttled $batch goes again this many times
+_DV_LONGEST_WAIT = 300.0
+_DV_KEYS_AT_ONCE = 25  # keys asked about in one GET ($filter ... or ...)
+_GUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+_DV_HINTS = {
+    400: "Dataverse could not take a record as sent: a column's value may be of the wrong type.",
+    401: "The sign-in was not accepted: test the Dataverse connection.",
+    403: "This sign-in may not write this table: its security role needs Create, Write or Delete on it.",
+    404: "A record is not there: check the key's values (an update or a delete finds each one).",
+    412: "A record changed or is not there (If-Match).",
+    429: "Dataverse kept asking to wait: try again later, or with a smaller batch size.",
+}
+
+
+class _Dataverse:
+    """One write to a Dataverse table through its Web API: the connection's own address (`api`), sign-in
+    (`access_token()`), tables (`table`, `described`) and reads (`get`, `rows`). Each change set is one
+    $batch request, all of it or none (Dataverse's transaction); a refusal names its batch and rows, and the
+    batches before it stay written. A throttled request (429, 503) waits as Retry-After says, then goes
+    again. A choice column takes its labels (Won, not 1); a lookup is a column named <column>@odata.bind."""
+
+    def __init__(self, conn: Any, table: str, size: int) -> None:
+        self.conn = conn
+        try:
+            found = conn.table(table)
+            self.logical, self.entity_set = str(found["table"]), str(found["set"])
+            self.kinds = {str(c["name"]).lower(): str(c["type"]) for c in conn.described(self.logical)}
+        except RuntimeError as error:  # the connection's own DataverseError, in plain words
+            raise AdapterError(str(error)) from None
+        self.size = max(1, min(int(size), CHANGE_SET))
+        self._options: dict[str, dict[str, int]] = {}
+
+    def check(self, names: Sequence[str]) -> None:
+        """Each column is the table's (a lookup as <column>@odata.bind)."""
+        missing = [n for n in names if "@" not in n and n.lower() not in self.kinds]
+        if missing:
+            some = ", ".join(sorted(self.kinds)[:20])
+            raise AdapterError(f"{self.logical} has no column {', '.join(missing)} (it has {some} ...).")
+        lookups = [n for n in names if self.kinds.get(n.lower()) in DV_LOOKUPS]
+        if lookups:
+            raise AdapterError(
+                f"{lookups[0]} is a lookup: name the rows' column {lookups[0]}@odata.bind and give each row "
+                '"/<entity set>(<id>)" (for example "/contacts(00000000-0000-0000-0000-000000000000)").'
+            )
+
+    def options(self, column: str) -> dict[str, int]:
+        column = column.lower()
+        if column not in self._options:
+            kind = _DV_METADATA[self.kinds[column]]
+            path = (
+                f"EntityDefinitions(LogicalName='{self.logical}')/Attributes(LogicalName='{column}')/"
+                f"Microsoft.Dynamics.CRM.{kind}?$select=LogicalName&$expand=OptionSet($select=Options)"
+            )
+            answer = self.get(path, f"Reading {self.logical}.{column}'s options")
+            found = (answer.get("OptionSet") or {}).get("Options") or []
+            self._options[column] = {_dv_label(o.get("Label")).casefold(): int(o["Value"]) for o in found}
+        return self._options[column]
+
+    def value(self, column: str, value: Any) -> Any:
+        """A value as the Web API takes it: a choice's label as its number, dates as ISO text."""
+        value = _json_value(value)
+        kind = self.kinds.get(column.lower())
+        if kind not in DV_CHOICES or value is None or isinstance(value, int | float):
+            return value
+        labels = self.options(column)
+        many = kind == "MultiSelectPicklist"
+        given = value if isinstance(value, list) else str(value).split(";") if many else [value]
+        numbers = []
+        for one in given:
+            word = str(one).strip()
+            if word.lstrip("-").isdigit():
+                numbers.append(int(word))
+            elif word.casefold() in labels:
+                numbers.append(labels[word.casefold()])
+            else:
+                known = ", ".join(sorted(labels))
+                raise AdapterError(f"{column} has no choice {word!r}: its choices are {known}.")
+        return ",".join(map(str, numbers)) if many else numbers[0]
+
+    def body(self, row: Mapping[str, Any], without: str = "", skip_empty: bool = False) -> dict[str, Any]:
+        out = {}
+        for column, value in row.items():
+            if column.lower() == without.lower() or (skip_empty and value is None):
+                continue
+            out[column if "@" in column else column.lower()] = self.value(column, value)
+        return out
+
+    def is_id(self, key: str) -> bool:
+        return self.kinds.get(key.lower()) == "Uniqueidentifier"
+
+    def literal(self, key: str, value: Any) -> str:
+        value = _json_value(value)
+        if self.is_id(key):
+            if not _GUID.fullmatch(str(value)):
+                raise AdapterError(f"{key} holds ids (00000000-0000-0000-0000-000000000000), not {value!r}.")
+            return str(value)
+        return odata_literal(value)
+
+    def address(self, key: str, value: Any) -> str:
+        """A record's address: accounts(<id>), or by an alternate key accounts(accountnumber='AC-1')."""
+        literal = self.literal(key, value)
+        inside = literal if self.is_id(key) else f"{key.lower()}={literal}"
+        return f"{self.entity_set}({urllib.parse.quote(inside, safe=chr(39) + '=-')})"
+
+    def existing(self, key: str, values: Iterable[Any]) -> set[Any]:
+        """Which of the keys are records already (compared as _same), asked a few at a time."""
+        field = key.lower()
+        wanted = list(dict.fromkeys(values))
+        found: set[Any] = set()
+        for at in range(0, len(wanted), _DV_KEYS_AT_ONCE):
+            condition = " or ".join(
+                f"{field} eq {self.literal(key, v)}" for v in wanted[at : at + _DV_KEYS_AT_ONCE]
+            )
+            query = urllib.parse.urlencode(
+                {"$select": field, "$filter": condition}, quote_via=urllib.parse.quote
+            )
+            answer = self.get(f"{self.entity_set}?{query}", f"Looking up {self.logical}'s {key}")
+            found |= {_same(r.get(field)) for r in answer.get("value") or []}
+        return found
+
+    def every_id(self) -> list[str]:
+        """Every record's id (a truncate's deletes)."""
+        named = f"{self.logical}id"
+        column = (
+            named
+            if self.kinds.get(named) == "Uniqueidentifier"
+            else next((n for n, k in self.kinds.items() if k == "Uniqueidentifier"), "")
+        )
+        if not column:
+            raise AdapterError(f"{self.logical} has no id column, so it cannot be cleared.")
+        records, _ = self.conn.rows(self.logical, columns=[column])
+        return [str(r[column]) for r in records if r.get(column)]
+
+    def get(self, path: str, what: str) -> dict[str, Any]:
+        try:
+            found = self.conn.get(path, what)
+        except RuntimeError as error:
+            raise AdapterError(str(error)) from None
+        return found if isinstance(found, dict) else {}
+
+    def send(self, requests: Sequence[tuple[str, str, Any, dict[str, str]]]) -> list[int]:
+        """The requests (method, address, body, headers) sent a change set at a time: each one's status."""
+        statuses: list[int] = []
+        for number, at in enumerate(range(0, len(requests), self.size), 1):
+            part = requests[at : at + self.size]
+            try:
+                statuses += self._change_set(part)
+            except AdapterError as error:
+                before = f"the {at:,} rows before it were written" if at else "nothing was written"
+                raise AdapterError(
+                    f"Batch {number} (rows {at + 1:,} to {at + len(part):,}) was refused and rolled back: "
+                    f"{error} Each batch is a transaction of its own (up to {CHANGE_SET:,} rows): {before}."
+                ) from None
+        return statuses
+
+    def _change_set(self, requests: Sequence[tuple[str, str, Any, dict[str, str]]]) -> list[int]:
+        batch, change = f"batch_{uuid.uuid4().hex}", f"changeset_{uuid.uuid4().hex}"
+        parts = []
+        for n, (method, path, body, headers) in enumerate(requests, 1):
+            lines = [
+                f"--{change}",
+                "Content-Type: application/http",
+                "Content-Transfer-Encoding: binary",
+                f"Content-ID: {n}",
+                "",
+                f"{method} {self.conn.api}/{path} HTTP/1.1",
+                "Content-Type: application/json; charset=utf-8",
+                *(f"{k}: {v}" for k, v in headers.items()),
+                "",
+                "" if body is None else json.dumps(body),
+            ]
+            parts.append("\r\n".join(lines))
+        text = (
+            f"--{batch}\r\nContent-Type: multipart/mixed; boundary={change}\r\n\r\n"
+            + "\r\n".join(parts)
+            + f"\r\n--{change}--\r\n--{batch}--\r\n"
+        )
+        answer = self._post(text.encode("utf-8"), batch)
+        statuses = [int(s) for s in re.findall(r"HTTP/1\.1 (\d{3})", answer)]
+        failed = next((s for s in statuses if s >= 400), None)
+        if failed is not None or not statuses:
+            raise AdapterError(_dv_refusal(answer, failed or 0))
+        return statuses
+
+    def _post(self, data: bytes, boundary: str) -> str:
+        import urllib.error
+        import urllib.request
+
+        for attempt in range(DV_WAITS + 1):
+            headers = {
+                "Authorization": f"Bearer {self.conn.access_token()}",
+                "Content-Type": f"multipart/mixed; boundary={boundary}",
+                "Accept": "application/json",
+                "OData-MaxVersion": "4.0",
+                "OData-Version": "4.0",
+            }
+            request = urllib.request.Request(f"{self.conn.api}/$batch", data, headers, method="POST")  # noqa: S310
+            try:
+                with urllib.request.urlopen(request, timeout=300) as answer:  # noqa: S310 (the connection's api)
+                    return str(answer.read().decode("utf-8", "replace"))
+            except urllib.error.HTTPError as refused:
+                if refused.code in (429, 503) and attempt < DV_WAITS:
+                    wait = refused.headers.get("Retry-After") or ""
+                    seconds = float(wait) if wait.strip().replace(".", "", 1).isdigit() else 2.0**attempt
+                    time.sleep(min(seconds, _DV_LONGEST_WAIT))
+                    continue
+                said = refused.read().decode("utf-8", "replace")
+                raise AdapterError(_dv_refusal(said, refused.code)) from None
+            except urllib.error.URLError as error:
+                raise AdapterError(f"Dataverse could not be reached: {error.reason}") from None
+        raise AdapterError("Dataverse kept asking to wait (429).")
+
+
+def _dv_label(label: Any) -> str:
+    if not isinstance(label, dict):
+        return ""
+    own = label.get("UserLocalizedLabel") or {}
+    if own.get("Label"):
+        return str(own["Label"])
+    return next((str(e["Label"]) for e in label.get("LocalizedLabels") or [] if e.get("Label")), "")
+
+
+def _dv_refusal(text: str, status: int) -> str:
+    """Dataverse's own message from an answer, and what its status usually means."""
+    found = re.search(r'"message"\s*:\s*"((?:[^"\\]|\\.)*)"', text)
+    message = (
+        json.loads(f'"{found.group(1)}"') if found else (text.strip().splitlines() or ["no reason"])[0][:300]
+    )
+    return f"Dataverse refused ({status}): {message}. {_DV_HINTS.get(status, '')}".strip()
+
+
+def _dataverse_written(source: OData, table: str, rows: list[dict[str, Any]], names: list[str],
+                       key: str, mode: str) -> Counts:  # fmt: skip
+    """Rows into a Dataverse table by mode: insert (POST), update (PATCH If-Match: *, every key a record),
+    merge (PATCH: Dataverse makes a record that is not there), delete (DELETE the keys that are records),
+    truncate (every record deleted, then the rows made)."""
+    dv = _Dataverse(source.connection, table, source.batch_size)
+    dv.check([key] if mode == "delete" else names)
+    if mode in ("update", "merge", "delete"):
+        if key.lower() not in dv.kinds:
+            raise AdapterError(
+                f"{dv.logical} has no column {key}: the key is its id or an alternate key's column."
+            )
+        _unique_keys(rows, key)
+    if mode == "insert":
+        made = dv.send([("POST", dv.entity_set, dv.body(r, skip_empty=True), {}) for r in rows])
+        return Counts(inserted=len(made))
+    if mode == "truncate":
+        ids = dv.every_id()
+        gone = dv.send([("DELETE", f"{dv.entity_set}({i})", None, {}) for i in ids]) if ids else []
+        made = (
+            dv.send([("POST", dv.entity_set, dv.body(r, skip_empty=True), {}) for r in rows]) if rows else []
+        )
+        return Counts(inserted=len(made), deleted=len(gone))
+    found = dv.existing(key, [r[key] for r in rows])
+    if mode == "update":
+        missing = [str(r[key]) for r in rows if _same(_json_value(r[key])) not in found]
+        if missing:  # an update only updates: a key that is not a record stops it (merge makes them)
+            raise AdapterError(f"{len(missing):,} keys are not records of {table}: {', '.join(missing[:5])}")
+        changed = dv.send(
+            [("PATCH", dv.address(key, r[key]), dv.body(r, without=key), {"If-Match": "*"}) for r in rows]
+        )
+        return Counts(updated=len(changed))
+    if mode == "merge":
+        prefer = {"Prefer": "return=representation"}  # answered 201 when made, 200 when updated
+        answers = dv.send([("PATCH", dv.address(key, r[key]), dv.body(r, without=key), prefer) for r in rows])
+        return Counts(inserted=answers.count(201), updated=len(answers) - answers.count(201))
+    there = [r for r in rows if _same(_json_value(r[key])) in found]
+    gone = dv.send([("DELETE", dv.address(key, r[key]), None, {}) for r in there]) if there else []
+    return Counts(deleted=len(gone))
+
+
+# ----- a SharePoint list's writes and a lake's: by the connection's own calls (Graph's $batch, Delta) -----
+
+
+def _key_values(source: Rows, table: str, key: Sequence[str]) -> set[tuple[Any, ...]]:
+    """The keys a table has now (read through the source), as _same compares them."""
+    found = read(source, table, Plan(columns=tuple(key)))[0].read_all().to_pylist()
+    return {tuple(_same(_json_value(r[k])) for k in key) for r in found}
+
+
+def _list_written(source: Rows, table: str, rows: list[dict[str, Any]], key: str, mode: str) -> Counts:
+    """Rows into a SharePoint list by its client's own calls: create, update and delete (Graph's $batch, 20
+    changes a request, retried on 429; SharePoint has no transaction, so a failure says how many were
+    refused and the changes before it stay made). An item is found by its id or a column whose values are
+    one item each."""
+    conn = source.connection
+    _, _, name = str(table).rpartition("/")
+    if mode == "insert":
+        return Counts(inserted=int(conn.create(name, rows)["done"]) if rows else 0)
+    if mode == "truncate":
+        every, _ = conn.rows(name, columns=["id"])
+        ids = [r["id"] for r in (every.to_pylist() if hasattr(every, "to_pylist") else every)]
+        gone = int(conn.delete(name, ids)["done"]) if ids else 0
+        made = int(conn.create(name, rows)["done"]) if rows else 0
+        return Counts(inserted=made, deleted=gone)
+    key = key or "id"
+    _unique_keys(rows, key)
+    if mode == "update":
+        return Counts(updated=int(conn.update(name, rows, key)["done"]))
+    there = _key_values(source, table, (key,))
+    found = [r for r in rows if (_same(_json_value(r[key])),) in there]
+    if mode == "delete":
+        if not found:
+            return Counts()
+        ids = conn.ids(name, [r[key] for r in found], key)
+        return Counts(deleted=int(conn.delete(name, [ids[r[key]] for r in found])["done"]))
+    new = [r for r in rows if (_same(_json_value(r[key])),) not in there]
+    updated = int(conn.update(name, found, key)["done"]) if found else 0
+    inserted = int(conn.create(name, new)["done"]) if new else 0
+    return Counts(inserted=inserted, updated=updated)
+
+
+_FILES = ("parquet", "csv")
+
+
+def _lake_place(conn: Any, table: str) -> tuple[dict[str, Any] | None, str, str]:
+    """A lake table's entry (None: not there yet), its path and its kind (delta, or a file's format)."""
+    schema, _, name = str(table).rpartition("/")
+    stem, _, suffix = name.rpartition(".")
+    for wanted in (name, stem) if suffix.lower() in _FILES and stem else (name,):
+        try:
+            found = conn.table(wanted, schema)
+        except Exception:  # noqa: S112 (the lake's own "no table": tried by its other name, else a new one)
+            continue
+        return dict(found), str(found["path"]), str(found.get("kind") or "")
+    kind = suffix.lower() if suffix.lower() in _FILES and stem else "delta"
+    return None, str(conn.target_path(name, schema)), kind
+
+
+def _delta_condition(rows: list[dict[str, Any]], key: Sequence[str]) -> str:
+    """The rows' keys as one SQL condition (a Delta delete's predicate)."""
+
+    def literal(value: Any) -> str:
+        value = _json_value(value)
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, int | float):
+            return repr(value)
+        return "'" + str(value).replace("'", "''") + "'"
+
+    def name(column: str) -> str:
+        return column if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", column) else quote(column)
+
+    distinct = list(dict.fromkeys(tuple(r[k] for k in key) for r in rows))
+    if len(key) == 1:
+        values = [v[0] for v in distinct if v[0] is not None]
+        said = [f"{name(key[0])} IN ({', '.join(literal(v) for v in values)})"] if values else []
+        said += [f"{name(key[0])} IS NULL"] if len(values) < len(distinct) else []
+        return " OR ".join(said)
+    return " OR ".join(
+        "(" + " AND ".join(f"{name(k)} IS NULL" if v is None else f"{name(k)} = {literal(v)}"
+                           for k, v in zip(key, one, strict=True)) + ")"
+        for one in distinct
+    )  # fmt: skip
+
+
+def _lake_written(source: Rows, table: str, data: pa.Table, key: list[str], mode: str) -> Counts:
+    """Rows into a lake: a Delta table by the deltalake package (one commit each: append, overwrite, merge
+    by keys, delete by the keys' condition), or one Parquet or CSV file put in its place whole (truncate;
+    an insert reads the file and writes it again with the rows added)."""
+    conn = source.connection
+    entry, path, kind = _lake_place(conn, table)
+    if entry is None and mode not in ("insert", "truncate"):
+        raise AdapterError(f"{source.name} has no table {table!r}.")
+    rows = data.to_pylist() if mode in ("update", "delete") else []
+    before = 0
+    if mode == "truncate" and entry is not None:
+        before = int(
+            read(source, table, Plan(totals=(Total("count"),)))[0].read_all().column(0)[0].as_py() or 0
+        )
+    if not data.num_columns and entry is not None:  # a truncate with no rows: the table's own columns
+        data = read(source, table, Plan(limit=0))[0].read_all()
+    if kind == "delta":
+        if mode == "insert":
+            done = conn.write_delta(path, data, "append")
+            return Counts(inserted=int(done.get("written", data.num_rows)))
+        if mode == "truncate":
+            conn.write_delta(path, data, "overwrite")
+            return Counts(inserted=data.num_rows, deleted=before)
+        if mode == "delete":
+            condition = _delta_condition(rows, key)
+            return (
+                Counts(deleted=int(conn.delete_delta(path, condition)["deleted"])) if condition else Counts()
+            )
+        if mode == "update":  # a merge of only the rows whose keys are there
+            there = _key_values(source, table, key)
+            keep = [i for i, r in enumerate(rows) if tuple(_same(_json_value(r[k])) for k in key) in there]
+            if not keep:
+                return Counts()
+            data = data.take(pa.array(keep, pa.int64()))
+        done = conn.write_delta(path, data, "merge", key)
+        return Counts(inserted=int(done.get("inserted", 0)), updated=int(done.get("updated", 0)))
+    if kind in _FILES or (
+        entry is not None and str(entry.get("format")) in _FILES and kind == entry.get("format")
+    ):
+        fmt = kind if kind in _FILES else str(entry.get("format") if entry else "parquet")
+        if mode == "truncate":
+            conn.write_file(path, data, fmt)
+            return Counts(inserted=data.num_rows, deleted=before)
+        if mode == "insert":
+            whole = data
+            if entry is not None:
+                old = read(source, table)[0].read_all()
+                whole = pa.concat_tables([old, data], promote_options="default")
+            conn.write_file(path, whole, fmt)
+            return Counts(inserted=data.num_rows)
+        raise AdapterError(
+            f"{table} is one {fmt} file: it is written whole (truncate) or added to (insert), not {mode}d."
+        )
+    raise AdapterError(
+        f"{table} is a folder of {kind or 'files'}: write it as a Delta table, or as one file."
+    )
+
+
+# ----- files: a file connection's CSV, Parquet and JSON files (one, or a folder of them) -----
+
+FILE_FORMATS = {".csv": "csv", ".tsv": "csv", ".txt": "csv", ".parquet": "parquet", ".json": "json",
+                ".jsonl": "json", ".ndjson": "json"}  # fmt: skip
+_READERS = {"csv": "read_csv", "parquet": "read_parquet", "json": "read_json"}
+_COPY = {"csv": "(FORMAT csv, HEADER)", "parquet": "(FORMAT parquet)", "json": "(FORMAT json)"}
+
+
+class Files:
+    """A file connection as a source: one CSV, Parquet or JSON file, or a folder of them, each a table named
+    by its path below the folder without its suffix (sales/orders). A read is DuckDB over the file (the whole
+    plan folded, streamed); query is DuckDB SQL with every file a view by its name; a write puts a file
+    in its place whole (truncate) or adds to it (insert, the file read and written again), in its suffix's
+    format: a new name takes a suffix (orders.parquet)."""
+
+    def __init__(self, path: str, name: str = "") -> None:
+        import pathlib
+
+        self.path = pathlib.Path(path)
+        self.name = name or self.path.name
+
+    def _files(self) -> dict[str, Any]:
+        if self.path.is_file():
+            return {self.path.stem: self.path}
+        if not self.path.is_dir():
+            raise AdapterError(f"{self.name} reaches no file or folder ({self.path}).")
+        found: dict[str, Any] = {}
+        for file in sorted(self.path.rglob("*")):
+            if file.is_file() and file.suffix.lower() in FILE_FORMATS and not file.name.startswith("."):
+                relative = file.relative_to(self.path).with_suffix("").as_posix()
+                found.setdefault(relative, file)
+        return found
+
+    def _file(self, table: str) -> Any:
+        files = self._files()
+        wanted = str(table).replace("\\", "/").casefold()
+        stem, _, suffix = wanted.rpartition(".")
+        for name, file in files.items():
+            if name.casefold() in (wanted, stem if "." + suffix in FILE_FORMATS else wanted):
+                return file
+        raise AdapterError(f"{self.name} has no table {table!r}.")
+
+    @staticmethod
+    def _relation(file: Any) -> str:
+        reader = _READERS[FILE_FORMATS[file.suffix.lower()]]
+        return f"{reader}('{str(file).replace(chr(39), chr(39) * 2)}')"
+
+    @contextlib.contextmanager
+    def _duck(self, writing: bool = False) -> Iterator[Any]:
+        con = duckdb.connect()
+        try:
+            yield con
+        finally:
+            con.close()
+
+    def tables(self) -> list[Table]:
+        listed = []
+        with self._duck() as con:
+            for name, file in self._files().items():
+                described = con.sql(f"DESCRIBE SELECT * FROM {self._relation(file)}").fetchall()  # noqa: S608
+                columns = tuple(Column(str(c[0]), str(c[1]), nullable=True) for c in described)
+                schema = name.rpartition("/")[0]
+                listed.append(Table(name, columns, schema, FILE_FORMATS[file.suffix.lower()]))
+        return listed
+
+    def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
+        relation = self._relation(self._file(table))
+
+        def run(con: Any, _table: str, asked: Plan) -> tuple[str, Any]:
+            return plan_sql(f"(SELECT * FROM {relation})", asked)  # noqa: S608 (the path quoted)
+
+        return _stream(self._duck, run, table, plan), Folded(plan.parts())
+
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        """DuckDB SQL over the files, each a view named by its table name ("sales/orders" as sales_orders)."""
+        if not reads_only(sql):
+            raise AdapterError(f"{self.name}'s files are read by query: write a file with write().")
+        views = {re.sub(r"\W", "_", n): f for n, f in self._files().items()}
+
+        def run(con: Any, _table: str, _plan: Plan) -> tuple[str, Any]:
+            for view, file in views.items():
+                con.execute(f"CREATE TEMP VIEW {quote(view)} AS SELECT * FROM {self._relation(file)}")  # noqa: S608
+            return sql, _given(params)
+
+        return _stream(self._duck, run, "", Plan())
+
+    def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
+        import os
+        import pathlib
+
+        _checked_write(mode, key)
+        try:
+            file = self._file(table)
+        except AdapterError:
+            if mode not in ("insert", "truncate"):
+                raise
+            base = self.path if self.path.is_dir() else self.path.parent
+            file = base / pathlib.Path(str(table).replace("\\", "/"))
+            if file.suffix.lower() not in FILE_FORMATS:
+                raise AdapterError(
+                    f"A new file is named with its format: {table}.parquet, .csv or .json."
+                ) from None
+        if mode not in ("insert", "truncate"):
+            raise AdapterError(
+                f"{table} is one file: it is written whole (truncate) or added to (insert), not {mode}d."
+            )
+        data = batches.read_all()
+        before = 0
+        with self._duck(True) as con:
+            existing = file.exists()
+            if existing:
+                before = int(con.sql(f"SELECT count(*) FROM {self._relation(file)}").fetchall()[0][0])  # noqa: S608
+            if not data.num_columns and existing:  # a truncate with no rows: the file's own columns
+                data = con.sql(f"SELECT * FROM {self._relation(file)} LIMIT 0").to_arrow_table()  # noqa: S608
+            con.register("sab_incoming", data)
+            rows = "SELECT * FROM sab_incoming"
+            if mode == "insert" and existing:
+                rows = f"SELECT * FROM {self._relation(file)} UNION ALL BY NAME SELECT * FROM sab_incoming"  # noqa: S608
+            file.parent.mkdir(parents=True, exist_ok=True)
+            partial = file.with_name(f".{file.name}.sab-writing")
+            target = str(partial).replace("'", "''")
+            fmt = _COPY[FILE_FORMATS[file.suffix.lower()]]
+            con.execute(f"COPY ({rows}) TO '{target}' {fmt}")
+            os.replace(partial, file)
+        return Counts(inserted=data.num_rows, deleted=before if mode == "truncate" else 0)
 
 
 # ===== 3. The calls =====
@@ -1159,6 +1908,21 @@ def _finished(reader: pa.RecordBatchReader, rest: Plan) -> pa.RecordBatchReader:
     return pa.RecordBatchReader.from_batches(schema, made)
 
 
+def query(source: str | Source, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+    """SQL a plan cannot say (joins, CTEs, a write with RETURNING), in the source's own SQL and its driver's
+    marks, answered as Arrow; a statement that returns no rows answers one `count` column. The sandbox makes
+    it DuckDB SQL over its tables, so the same statement runs against the real source in an export."""
+    found = source_of(source)
+    run = getattr(found, "query", None)
+    if not callable(run):
+        said = getattr(found, "name", "") or type(found).__name__
+        raise AdapterError(f"{said} has no SQL of its own: read its tables with a plan (read).")
+    answer = run(sql, params)
+    if not isinstance(answer, pa.RecordBatchReader):
+        answer = answer.to_reader()
+    return answer
+
+
 def write(
     source: str | Source,
     table: str,
@@ -1177,6 +1941,228 @@ def write(
         batches = pa.table({})
     reader = batches if isinstance(batches, pa.RecordBatchReader) else batches.to_reader()
     return source_of(source).write(table, reader, tuple(key), mode)
+
+
+def planned(
+    source: str | Source,
+    table: str,
+    batches: pa.RecordBatchReader | pa.Table | None = None,
+    key: Sequence[str] = (),
+    mode: str = "insert",
+) -> Counts:
+    """What a write would do, counted by reads through the source and nothing written (a Write starter's
+    dry run): an insert's rows; an update's and a merge's keys that are there (a merge inserts the rest),
+    a delete's; a truncate's rows now and the rows it inserts."""
+    _checked_write(mode, key)
+    found = source_of(source)
+    data = (
+        pa.table({})
+        if batches is None
+        else batches.read_all()
+        if isinstance(batches, pa.RecordBatchReader)
+        else batches
+    )
+    if mode == "insert":
+        return Counts(inserted=data.num_rows)
+    if mode == "truncate":
+        try:
+            counted_now = read(found, table, Plan(totals=(Total("count"),)))[0].read_all()
+        except Exception:
+            if _listed(found, table):
+                raise
+            return Counts(inserted=data.num_rows)  # a table not there yet: made by the write
+        return Counts(inserted=data.num_rows, deleted=int(counted_now.column(0)[0].as_py() or 0))
+    there = present(found, table, data, key)
+    if mode == "update":
+        return Counts(updated=there)
+    if mode == "merge":
+        return Counts(updated=there, inserted=data.num_rows - there)
+    return Counts(deleted=there)
+
+
+def _listed(source: Source, table: str) -> bool:
+    """Whether the source lists the table (a file's name with or without its suffix)."""
+    names = {t.name.casefold() for t in source.tables()}
+    wanted = str(table).casefold()
+    stem, _, suffix = wanted.rpartition(".")
+    return wanted in names or (suffix in _FILES and stem in names)
+
+
+def present(source: str | Source, table: str, rows: pa.Table, key: Sequence[str]) -> int:
+    """How many of the rows' keys the table has (text compared in any case), read through the source: one
+    key a hundred values at a time (a filter the source folds), several keys by reading them whole."""
+    wanted = [tuple(_same(_json_value(r[k])) for k in key) for r in rows.select(list(key)).to_pylist()]
+    if not wanted:
+        return 0
+    there: set[tuple[Any, ...]] = set()
+    if len(key) == 1:
+        values = list(dict.fromkeys(_json_value(r[key[0]]) for r in rows.select(list(key)).to_pylist()))
+        values = [v for v in values if v is not None]
+        for at in range(0, len(values), 100):
+            plan = Plan(columns=tuple(key), filters=(Filter(key[0], "in", values[at : at + 100]),))
+            found = read(source, table, plan)[0].read_all().to_pylist()
+            there |= {(_same(_json_value(r[key[0]])),) for r in found}
+    else:
+        found = read(source, table, Plan(columns=tuple(key)))[0].read_all().to_pylist()
+        there = {tuple(_same(_json_value(r[k])) for k in key) for r in found}
+    return sum(1 for w in wanted if w in there)
+
+
+# ----- one source's calls together: what API.py's connection(name) hands out -----
+
+GONE_CALLS = (
+    "cursor",
+    "execute",
+    "executemany",
+    "fetchone",
+    "fetchall",
+    "fetchmany",
+    "commit",
+    "rollback",
+    "read_arrow",
+    "rows",
+    "fetch",
+    "create",
+    "update",
+    "delete",
+    "ids",
+    "for_writes",
+    "df",
+    "fetch_arrow_table",
+)  # fmt: skip  the old per-source clients' calls, said in the adapter's words
+
+
+class Connection:
+    """One source's calls: what `connection(name)` gives an endpoint, here (the sandbox behind it) and in an
+    export (the real connection behind it), so the same code runs in both.
+
+        db = connection("Warehouse")
+        db.tables()                                   # names, columns, types
+        db.read("orders", columns=["id"], filters=[["region", "=", "North"]], sort=[["id", "desc"]], limit=10)
+        db.query("SELECT ... JOIN ...", [region])     # its own SQL -> Arrow (a write: its count)
+        db.write("orders", rows, key=["id"], mode="merge")   # rows: Arrow, or a list of dicts -> Counts
+    """
+
+    def __init__(self, source: str | Source, name: str = "") -> None:
+        self._source = source
+        self.name = name or (source if isinstance(source, str) else str(getattr(source, "name", "") or ""))
+
+    @property
+    def source(self) -> Source:
+        return source_of(self._source)
+
+    def tables(self) -> list[Table]:
+        return tables(self.source)
+
+    def columns(self, table: str) -> list[Column]:
+        """A table's columns (its name in any case)."""
+        wanted = str(table).casefold()
+        for found in self.tables():
+            if found.name.casefold() == wanted:
+                return list(found.columns)
+        raise AdapterError(f"{self.name or 'The source'} has no table {table!r}.")
+
+    def read(
+        self,
+        table: str,
+        plan: Plan | Mapping[str, Any] | None = None,
+        *,
+        columns: Sequence[str] = (),
+        filters: Sequence[Any] = (),
+        sort: Sequence[Any] = (),
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> pa.RecordBatchReader:
+        """A table's rows as Arrow: a Plan, or its parts by name (filters as [column, op, value], sort as
+        [column, "asc" | "desc"])."""
+        if plan is None:
+            plan = plan_from(
+                {"columns": list(columns), "filters": [list(f) for f in filters], "limit": limit,
+                 "offset": offset, "sort": [s if isinstance(s, str) else list(s) for s in sort]}
+            )  # fmt: skip
+        elif not isinstance(plan, Plan):
+            plan = plan_from(plan)
+        return read(self.source, table, plan)[0]
+
+    def query(self, sql: str, params: Params = ()) -> pa.RecordBatchReader:
+        return query(self.source, sql, params)
+
+    def write(
+        self,
+        table: str,
+        rows: pa.Table | pa.RecordBatchReader | Sequence[Mapping[str, Any]] | None = None,
+        key: Sequence[str] = (),
+        mode: str = "insert",
+    ) -> Counts:
+        """Rows (Arrow, or a list of dicts) into a table by mode; the counts."""
+        given: pa.Table | pa.RecordBatchReader | None = None
+        if rows is not None:
+            given = (
+                rows
+                if isinstance(rows, pa.Table | pa.RecordBatchReader)
+                else pa.Table.from_pylist([dict(r) for r in rows])
+            )
+        return write(self.source, table, given, key, mode)
+
+    def __getattr__(self, name: str) -> Any:
+        if name in GONE_CALLS:
+            raise AttributeError(
+                f"connection({self.name!r}) has no {name}(): it is the adapter's now: query(sql, params), "
+                "read(table, columns=, filters=, sort=, limit=), write(table, rows, key, mode), tables()."
+            )
+        raise AttributeError(f"'Connection' object has no attribute {name!r}")
+
+
+_DRIVERS = {
+    "sqlite3": "sqlite",
+    "psycopg": "postgres",
+    "psycopg2": "postgres",
+    "pg8000": "postgres",
+    "pymysql": "mysql",
+    "mysql": "mysql",
+    "MySQLdb": "mysql",
+    "mariadb": "mysql",
+    "oracledb": "oracle",
+    "cx_Oracle": "oracle",
+    "snowflake": "snowflake",
+    "trino": "trino",
+    "databricks": "databricks",
+    "mssql_python": "sqlserver",
+    "pymssql": "sqlserver",
+    "pyodbc": "sqlserver",
+    "pytds": "sqlserver",
+}  # fmt: skip  a DB-API driver's module -> its dialect
+
+
+def source_from(client: Any, dialect: str = "", name: str = "") -> Source:
+    """A connection's own client (what its code made) as the adapter's source: a DuckDB connection; a file
+    connection's path (a file or folder of CSV, Parquet, JSON); a client that reads a table with OData
+    (Dataverse: rows, described, catalog) or by its own rows (the lakes, SharePoint); a DB-API connection
+    in its dialect (`dialect`, else its `dbms`, else its driver's)."""
+    if isinstance(client, DuckDB | Sql | OData | Rows | Remote | Files):
+        return client
+    if isinstance(client, str) or hasattr(client, "__fspath__"):  # a file connection: the file it reaches
+        return Files(str(client), name)
+    if isinstance(client, duckdb.DuckDBPyConnection):
+        return DuckDB.over(client, name or "DuckDB")
+    if callable(getattr(client, "rows", None)) and callable(getattr(client, "catalog", None)):
+        if callable(getattr(client, "described", None)):
+            return OData(client, name or "Dataverse")
+        return Rows(client, name)
+    if callable(getattr(client, "cursor", None)):
+        found = dialect or str(getattr(client, "dbms", "") or "")
+        if not found:
+            module = type(getattr(client, "raw", client)).__module__.split(".")[0]
+            found = _DRIVERS.get(module, "")
+        if found in DIALECTS:
+            return Sql(client, found, name)
+        raise AdapterError(
+            f"{name or 'The connection'}'s SQL dialect is not known: "
+            "name it (source_from(client, dialect=...))."
+        )
+    raise AdapterError(
+        f"The adapter cannot tell what {name or type(client).__name__} is: it has no cursor, rows or catalog."
+    )
 
 
 # ===== 4. JSON to Arrow =====
@@ -1365,9 +2351,11 @@ __all__ = [
     "DIALECTS",
     "AdapterError",
     "Column",
+    "Connection",
     "Counts",
     "Dialect",
     "DuckDB",
+    "Files",
     "Filter",
     "Folded",
     "OData",
@@ -1380,6 +2368,7 @@ __all__ = [
     "TableSource",
     "Tables",
     "Total",
+    "catalog_rows",
     "cursor_batches",
     "define",
     "dialect_sql",
@@ -1388,8 +2377,12 @@ __all__ = [
     "make_table",
     "plan_from",
     "plan_sql",
+    "planned",
+    "present",
+    "query",
     "read",
     "refresh",
+    "source_from",
     "table",
     "tables",
     "to_ipc",

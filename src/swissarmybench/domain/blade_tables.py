@@ -164,6 +164,32 @@ def listing_for(
     return found.catalog_language, found.catalog_command
 
 
+# The adapter lists a connection's tables (Plans/adapter.plan.md, phase 3: "The Catalog lists through the
+# adapter's tables()") for the dialects whose adapter listing is its starter's, row for row (the same
+# schemas, table types, nullability and positions: tests/test_catalog_listing.py). MySQL, Oracle and
+# Snowflake list a wider scope with their starters than the adapter's catalog query (every schema but the
+# system's), and SQL Server's carries descriptions and keys: their starters' listings stay until the adapter's
+# say the same.
+ADAPTER_LISTED: tuple[str, ...] = ("duckdb", "postgres", "sqlite")
+
+
+def listed_by_adapter(
+    kind: str, template: str | None, dialect: str, language: str | None, command: str | None,
+    templates: Sequence[Template],
+) -> str:  # fmt: skip
+    """The dialect the adapter lists this connection's tables in ("": its own List the tables runs): a
+    database the adapter lists as its starter does, whose List the tables the user has not edited (it is its
+    starter's, whitespace aside, or empty)."""
+    if dialect not in ADAPTER_LISTED:
+        return ""
+    starter = listing_for(kind, template, dialect, templates)
+    if starter is None:
+        return ""
+    if command and (language != starter[0] or " ".join(command.split()) != " ".join(starter[1].split())):
+        return ""  # the user's own listing: theirs runs
+    return dialect
+
+
 # ===== New blade: the templates the user picks from (the left panel's New blade) =====
 
 # A blade made from one is a file in the library's blades/ folder, edited in the blade IDE (or its file).

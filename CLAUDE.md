@@ -164,7 +164,7 @@ the desktop app, PySide6 6.12 pinned), installed once per machine as a uv tool (
   project's scaffold, `.sab/data/` only on the user's tick, `.sab/sandbox/` only on the user's Add to sandbox or Make a sandbox variant (and its grid's edits),
   `.sab/api_examples.json` only on Try it's Keep as its example:
   the project's sandbox, a DuckDB file of the tables a local sandbox API reads and writes, Git-ignored: a local
-  sandbox API never touches live data, its process gets only the sandbox, through mock clients, and no
+  sandbox API never touches live data, its process gets only the sandbox, through the adapter's door, and no
   connection's code, variable or secret), the audit log and, in beta mode,
   the beta log (`~/.swissarmybench/logs`: redacted errors, slow requests, processes, page errors and
   the user's notes; no data, SQL, code, secrets or paths; the owner's call for the beta, 2026-11-15).
@@ -337,7 +337,8 @@ src/swissarmybench/
     blade_tables.py      the blade IDE's file rules (with_code: the code after the header, the file's line ends;
                          follow_variable; stamp; SECRET_STUB for the lint); a table blade's own table name (names_table; the live check's answers: available, a table,
                          a connection, another blade's table, not a valid name), a connection's listing query from
-                         its starter (listing_for), New blade's choices, a file's header rewritten (with_header:
+                         its starter (listing_for), whether the adapter lists its tables (listed_by_adapter: its
+                         listing not the user's own, a dialect in ADAPTER_LISTED), New blade's choices, a file's header rewritten (with_header:
                          the code's bytes untouched)
     blade_header.py      the blade tab's Properties: every header field (FIELDS) for the kinds it applies to, a
                          save's changes, the kind's required part before a save (its line), New blade's scaffold
@@ -613,11 +614,11 @@ src/swissarmybench/
                          a LIST, STRUCT or MAP cell as JSON: CAST(?::JSON AS its type)); keys (check_key, db_words: a
                          duplicate or blank key in one sentence); what an API made (made_record, unmade after Reset);
                          NAME_TAKEN (no connection called Sandbox); MAX_ROWS_ANSWERED one answer's size (the rest paged)
-    sandbox_dialects.py  a mock client's language over the sandbox: the source's SQL and its driver's marks made
+    sandbox_dialects.py  the sandbox's half of the adapter's query: the source's SQL and its driver's marks made
                          DuckDB SQL by sqlglot (each mark numbered in its own order; SELECT, INSERT, UPDATE, DELETE
-                         on the sandbox's tables only), OData $filter and $orderby, FetchXML, a list's filters;
-                         a view, a query's table (SELECT INTO too) or a sequence made or dropped (DEFINES; NEXT VALUE
-                         FOR as nextval); what cannot be emulated refused with its line
+                         on the sandbox's tables only); a view, a query's table (SELECT INTO too) or a sequence made
+                         or dropped (DEFINES; NEXT VALUE FOR as nextval); what cannot be emulated refused with its
+                         line; what a query names (names_in: Will this work for real?)
     local_api.py         API.py (2026-11-21): its `# /// swissarmybench-api` header (name, description, target,
                          base_path), its endpoints read with ast (method, path, parameters: path, query, body; the
                          answer; the connections and SQL it uses; problems with lines), models, OpenAPI 3.0, the
@@ -632,9 +633,9 @@ src/swissarmybench/
                          the deploy steps, the checklist and the variables; no secret), exports/api/<target>/ a made
                          folder
     api_scaffold.py      New endpoint from a table: the CRUD set (list with limit and offset, get, create, update,
-                         delete by a key; a TypedDict of the columns) in the source's style (DuckDB, a DB-API
-                         database's SQL and marks, T-SQL, Dataverse OData reads, SharePoint list calls); the
-                         imports it needs (a date's too) written among API.py's own (with_imports)
+                         delete by a key; a TypedDict of the columns), one style for every source: the adapter's
+                         connection(name).read and .write (2026-11-22); the imports it needs (a date's too)
+                         written among API.py's own (with_imports)
     explorer.py          the Data Explorer's search: words matched in any case and by parts (cust: customer_id,
                          CustomerKey; customerid: customer_id), spread over a result's path; results by kind
                          (connections, tables, columns, structures, apis, variables, blades), grouped, counted,
@@ -699,13 +700,14 @@ src/swissarmybench/
                          Structures' documents and paths and APIs' table-returning web calls registered from
                          theirs (register("structures"/"apis")); one failing source skipped
     sandbox.py           the project's sandbox: add (an open grid's view, a connection's table read once, a file,
-                         columns), remove, Reset (the agent's on Allow), baseline, checkpoints, a mock client's
-                         reads and writes (counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias:
+                         columns), remove, Reset (the agent's on Allow), baseline, checkpoints, the adapter's door
+                         (source_tables, read_arrow, query_arrow: the connection's SQL made DuckDB's, write_arrow:
+                         counted, an open grid following), [Sandbox] in DuckDB SQL (SandboxAlias:
                          the `sandbox` tables kind), the Catalog's Sandbox section; listing sorted, variant (a grid's
                          view or a structure's records, named apart, never written back), mock (Mocked as a
                          connection), edit (its grid's cells, rows added and deleted: typed, counted, Reset undoes),
-                         card (the Connections page's Sandbox); a mock's read past one answer kept and paged (op
-                         more); views, query tables and sequences an API makes (_define); keys (set_key, a
+                         card (the Connections page's Sandbox); views, query tables and sequences an API makes
+                         (_define); keys (set_key, a
                          connection's from the shared catalog, put back after Reset and Restore); mock_dialects
     local_api.py         the local sandbox API: state (each endpoint's data words), new, settings, run and stop
                          (started again when API.py changes), call (the agent's writes on Allow: one Allow covers
@@ -825,16 +827,22 @@ src/swissarmybench/
   adapters/              the driven edge: DuckDB, Arrow, files, the vault, websockets
     sab_adapter.py       THE adapter (Plans/adapter.plan.md), one file the app, the API's process (as `sab_adapter`)
                          and an export share, standard library + duckdb + pyarrow only: tables(source),
-                         read(source, table, plan) -> (Arrow batches, Folded), write(source, table, batches, key,
-                         mode: insert, update, merge, delete, truncate) -> Counts, table(name) and refresh(name) (a
-                         table is the data, a grid its view); the Plan (columns, filters, sort, limit,
+                         read(source, table, plan) -> (Arrow batches, Folded), query(source, sql, params) (its own
+                         SQL: joins, CTEs; a write's count), write(source, table, batches, key, mode: insert,
+                         update, merge, delete, truncate) -> Counts, planned() (a write's dry run by reads),
+                         table(name) and refresh(name) (a table is the data, a grid its view); Connection (what
+                         API.py's connection(name) gives, here and exported: tables, columns, read, query, write);
+                         source_from(client) (a connection's own client or a file's path in its backend);
+                         catalog_rows (tables as a listing's rows); the Plan (columns, filters, sort, limit,
                          offset, group, totals; what a source cannot fold done by DuckDB over the stream);
                          from_json (pages to Arrow with given types); sources DuckDB (a file, a connection, the
-                         sandbox's gated cursor), Remote (the sandbox through /sandbox/data/<key>/read|write, a
-                         kernel's open tables with the token), Sql (any DB-API connection; DIALECTS as data: quote,
-                         marks, LIMIT/OFFSET/FETCH, catalog; the plan folded, writes in one transaction), OData
-                         (Dataverse's Web API), Rows (the lakes and SharePoint by their own read); to_json and to_ipc
-                         (an endpoint's Arrow answer)
+                         sandbox's gated cursor, the app's session as it is), Remote (the sandbox through
+                         /sandbox/data/<key>/tables|read|query|write, a kernel's open tables with the token), Sql
+                         (any DB-API connection; DIALECTS as data: quote, marks, LIMIT/OFFSET/FETCH, catalog; the
+                         plan folded, writes in one transaction), OData (Dataverse's Web API; writes in $batch
+                         change sets, choice labels, keys, 429), Rows (the lakes and SharePoint by their own read
+                         and writes: Delta, a file, a list's Graph calls), Files (a file connection's CSV, Parquet,
+                         JSON); to_json and to_ipc (an endpoint's Arrow answer). Allowed 2,400 lines (one file)
     atomic_files.py      write_atomic (a unique temporary file beside it, fsync, one replace; the mode given or
                          the file's own; if_changed), replacing (the same for a writer that needs a path: a
                          zip), JsonFile (a small JSON state file; state_files.py, desktop.py, updates.py) and
@@ -953,11 +961,9 @@ src/swissarmybench/
     kernels.py           the Workbench's IPython kernels (jupyter_client): run, complete, inspect, interrupt
     environments.py      making a notebook's environment (uv, else venv and pip); the client lent to kernels
     api_runtime.py       sab_api, what API.py imports (standard library; copied into each export): endpoint,
-                         connection (use_clients), records, ApiError, handle (one request: every target calls it);
+                         connection (use_clients; else the adapter's Connection), records (Arrow or a cursor),
+                         ApiError, handle (one request: every target calls it);
                          the body checked against its model first (checked: 422 naming the field)
-    sandbox_clients.py   the mock clients (MockDbApi, MockSqlServer, MockDataverse, MockSharePoint, MockDuckDB): the
-                         real clients' public shape (tests/test_sandbox_clients.py), the sandbox's data route only;
-                         the SQL mocks' tables() and columns(); a read followed page by page to its last row (Link)
     api_host.py          a local sandbox API hosted (`python -I`): the app's client functions taken over first,
                          Starlette on 127.0.0.1, its key, the request log (a refusal's words and API.py line; the
                          line as a header of this host only), any other path the API's own 404; api_runs.py starts
@@ -977,8 +983,9 @@ src/swissarmybench/
                          plan and the write's counts (Write), files (FileWrite: beside the target, then replaced);
                          write_sql.py each database's quoting, marks, values, types and transaction (SqlWrite;
                          SqlServerWrite: sys.columns' types, #temp staging, MERGE WITH (HOLDLOCK), retried whole on
-                         Azure's passing errors), write_dataverse.py ($batch change sets, choice labels, keys).
-                         Standard library only; the statements stay in each Write function
+                         Azure's passing errors); by_adapter (the Dataverse, SharePoint list, Delta and lake file
+                         starters: the dry run the adapter's planned(), then its write). Standard library only (the
+                         adapter imported when a write runs); the SQL statements stay in each Write function
   client/blades_client.py sab.load (a catalog), sab.blade (run a saved blade here), sab.blades, sab.read (a
                          table by a Python connection's own Read a table box), sab.table (an open table as its grid
                          shows it, through the adapter: Arrow, a plan folded by the app)

@@ -12,6 +12,7 @@ snippet = r"""
 #   create    each row a new item of a SharePoint list, through Graph's $batch.
 #   update    the items whose id (or key column) is a row's, changed to the row's values.
 #   delete    the items whose id (or key column) is a row's, deleted.
+#   truncate  every item of a SharePoint list deleted, then the rows made (no rows: only cleared).
 #
 # Dry run first: as it stands it only says what it would do and changes nothing. Read it, then set
 # dry_run=False and run the cell again.
@@ -23,7 +24,7 @@ write_sharepoint_list(
     "<<connection>>",  # your SharePoint lists connection's name
     "<<target: Tasks>>",  # the list: its display name
     <<table>>,  # a DataFrame (pandas, polars, Arrow) or a DuckDB relation
-    mode="<<mode: create>>",  # create, update or delete
+    mode="<<mode: create>>",  # create, update, delete or truncate
     key="<<key column: id>>",  # update and delete: finds each item: id, or a column one item each
     dry_run=True,  # False writes: only once the dry run reads right
 )

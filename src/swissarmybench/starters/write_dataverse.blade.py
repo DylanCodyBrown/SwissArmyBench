@@ -13,6 +13,7 @@ snippet = r"""
 #   update    records of a Dataverse table updated from the rows, each found by its key.
 #   upsert    each row a record of a Dataverse table, made or updated by its key (an alternate key's column, or the record's id).
 #   delete    the records of a Dataverse table whose keys are the rows' keys, deleted.
+#   truncate  every record of a Dataverse table deleted, then the rows made (no rows: only cleared).
 #
 # Dry run first: as it stands it only says what it would do and changes nothing. Read it, then set
 # dry_run=False and run the cell again.
@@ -24,7 +25,7 @@ write_dataverse(
     "<<connection>>",  # your Dataverse connection's name
     "<<target: account>>",  # the table: its logical name (account), entity set or display name
     <<table>>,  # a DataFrame (pandas, polars, Arrow) or a DuckDB relation
-    mode="<<mode: create>>",  # create, update, upsert or delete
+    mode="<<mode: create>>",  # create, update, upsert, delete or truncate
     key="<<key column: accountnumber>>",  # update, upsert and delete: finds each record: its id (accountid) or an alternate key's column
     batch_size=1000,  # rows in one change set (one transaction; Dataverse takes up to 1,000)
     dry_run=True,  # False writes: only once the dry run reads right

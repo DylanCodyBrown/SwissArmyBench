@@ -1097,7 +1097,7 @@ def test_dataverse_upsert_update_and_delete_find_records_by_an_alternate_key(
     done = run(cell("write_dataverse", mode="upsert", dry_run=False, **values), orders=rows)
     assert done.counts == {"inserted": 1, "updated": 1}
     assert accounts(crm)["AC-1001"]["name"] == "Bluefin Outfitters Ltd" and "AC-3001" in accounts(crm)
-    with pytest.raises(ValueError, match="1 keys are not records of account: ac-9999"):
+    with pytest.raises(WriteError, match="1 of the rows' keys are not in account: an update only changes"):
         run(
             cell("write_dataverse", mode="update", dry_run=True, **values),
             orders=pd.DataFrame({"accountnumber": ["AC-9999"], "name": ["x"]}),

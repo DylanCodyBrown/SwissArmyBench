@@ -5,21 +5,19 @@
     @endpoint("GET", "/orders/{region}")
     def orders_in(region: str, limit: int = 100) -> list[Order]:
         warehouse = connection("Warehouse")
-        with warehouse.cursor() as cursor:
-            cursor.execute("SELECT TOP (?) * FROM dbo.orders WHERE region = ?", limit, region)
-            return records(cursor)
+        return records(warehouse.read("dbo.orders", filters=[["region", "=", region]], limit=limit))
 
   endpoint(method, path)  registers the function: a path's {names} are its parameters of those names; a
   parameter
                           typed with a TypedDict, a dataclass, dict or list is the JSON body; the others are
                           the
                           query's (str, int, float, bool, date, datetime; a default makes one optional)
-  connection(name)        the connection's client. Here in Swiss Army Bench (the local sandbox API): a mock
-  with
-                          the real client's shape over the project's sandbox, never the connection itself. In
-                          an
-                          export: the connection's own portable code (its variables set where it runs)
-  records(cursor)         a DB-API cursor's rows as dicts by its description
+  connection(name)        the adapter's calls on that connection (sab_adapter.Connection): tables(),
+                          columns(table), read(table, columns=, filters=, sort=, limit=), query(sql, params)
+                          in its own SQL, write(table, rows, key, mode). Here in Swiss Army Bench (the local
+                          sandbox API) over the project's sandbox, never the connection itself; in an export
+                          over the connection's own portable code (its variables set where it runs)
+  records(rows)           Arrow (a read's or a query's answer) or a DB-API cursor's rows as dicts
   ApiError(status, msg)   an answer with that status and {"error": msg}
   The body is checked against its model before the endpoint runs (a TypedDict's or a dataclass's fields,
   nested ones and lists of them): a wrong type, a missing required field or an unknown one is a 422 naming
@@ -122,18 +120,26 @@ def use_clients(make: Callable[[str], Any]) -> None:
 
 
 def connection(name: str) -> Any:
-    """The connection's client (see use_clients)."""
-    if _clients is None:
+    """The connection's calls (see use_clients; the adapter's Connection when it is beside this file)."""
+    if _clients is not None:
+        return _clients(name)
+    adapter = _adapter()
+    if adapter is None:
         raise RuntimeError(
             f"No client for {name}: run this API with Swiss Army Bench or an exported project."
         )
-    return _clients(name)
+    return adapter.Connection(name)
 
 
-def records(cursor: Any) -> list[dict[str, Any]]:
-    """A DB-API cursor's rows as dicts, by its description's names."""
-    names = [d[0] for d in cursor.description or []]
-    return [dict(zip(names, row, strict=False)) for row in cursor.fetchall()]
+def records(rows: Any) -> list[dict[str, Any]]:
+    """Rows as dicts: Arrow (a read's or a query's answer: a table or a reader), or a DB-API cursor's rows
+    by its description's names."""
+    if hasattr(rows, "read_all"):
+        rows = rows.read_all()
+    if hasattr(rows, "to_pylist"):
+        return list(rows.to_pylist())
+    names = [d[0] for d in rows.description or []]
+    return [dict(zip(names, row, strict=False)) for row in rows.fetchall()]
 
 
 # ===== values in and out =====

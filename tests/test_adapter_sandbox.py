@@ -1,7 +1,7 @@
-"""A local sandbox API's data through the adapter (Plans/adapter.plan.md, phase 1): the sandbox is its one
-backend (sab_adapter.Remote, Arrow IPC both ways through the app's data door), the SharePoint mock's reads and
-writes are the adapter's, every SQL mock lists its tables through it, and API.py itself may call
-`sab_adapter` by name in its own process. Made-up data only."""
+"""A local sandbox API's data through the adapter (Plans/adapter.plan.md, phases 1 and 3): the sandbox is its
+one backend (sab_adapter.Remote, Arrow IPC both ways through the app's data door), connection(name) is the
+adapter's calls on it, and API.py itself may call `sab_adapter` by name in its own process. Made-up data
+only."""
 
 from __future__ import annotations
 
@@ -13,14 +13,13 @@ import pytest
 from starlette.testclient import TestClient
 
 from swissarmybench.adapters import sab_adapter
-from swissarmybench.server import sandbox_clients as mocks
 from swissarmybench.server.app import create_app
 from swissarmybench.settings import Settings
 from tests.conftest import AUTH, TOKEN, make_client
 from tests.fake_keyring import memory_keyring
 from tests.live_server import running
 from tests.test_local_api import _ask
-from tests.test_sandbox_clients import TestLink, TestRemote, _put
+from tests.test_sandbox_query import TestRemote, _put
 
 TASKS = pa.table(
     {
@@ -74,31 +73,6 @@ def test_a_truncate_reaches_the_sandbox_through_the_adapter(boxed: TestClient) -
     assert (log["tasks"]["inserted"], log["tasks"]["deleted"]) == (1, 5)
 
 
-def test_the_sharepoint_mock_reads_and_writes_through_the_adapter(boxed: TestClient) -> None:
-    lists = mocks.MockSharePoint("Sandbox", TestLink(boxed, mocks.SharePointError))
-    found, total = lists.rows("tasks", columns=["title"], filters=[["status", "=", "Open"]], limit=2)
-    assert isinstance(found, pa.Table) and found.column_names == ["title"]
-    assert found.num_rows == 2 and total == 3
-    assert lists.create("tasks", [{"id": 5, "title": "Sweep the path", "status": "Open", "hours": 1}]) == {
-        "done": 1
-    }
-    assert lists.update("tasks", [{"id": 5, "STATUS": "Done"}]) == {"done": 1}
-    assert lists.delete("tasks", [1, 5]) == {"done": 2}
-    after, total = lists.rows("tasks", filters=[["status", "=", "Done"]])
-    assert total == 1 and after.column("id").to_pylist() == [2]
-    with pytest.raises(mocks.SharePointError, match="tasks has no column 'colour'"):
-        lists.create("tasks", [{"id": 6, "colour": "red"}])
-    with pytest.raises(mocks.SharePointError, match="op is one of"):
-        lists.rows("tasks", filters=[["status", "~", "Open"]])
-    assert [t["table"] for t in lists.tables()] == ["tasks"]
-
-
-def test_every_sql_mock_lists_its_tables_through_the_adapter(boxed: TestClient) -> None:
-    db = mocks.MockDbApi("Sandbox", "sqlite", TestLink(boxed))
-    assert db.tables() == ["tasks"]
-    assert db.columns("Tasks")[0] == {"name": "id", "type": "BIGINT", "key": False}
-
-
 API_PY = '''# /// swissarmybench-api
 # name = "Garden"
 # ///
@@ -106,7 +80,7 @@ API_PY = '''# /// swissarmybench-api
 
 import pyarrow as pa
 from sab_adapter import Filter, Plan, read, tables, write
-from sab_api import endpoint
+from sab_api import connection, endpoint, records
 
 
 @endpoint("GET", "/open")
@@ -114,6 +88,12 @@ def open_tasks() -> list[dict]:
     plan = Plan(filters=(Filter("status", "=", "Open"),), sort=(("id", False),))
     reader, folded = read("Sandbox", "tasks", plan)
     return [{"id": r["id"], "folded": list(folded.parts)} for r in reader.read_all().to_pylist()]
+
+
+@endpoint("GET", "/hours")
+def hours() -> list[dict]:
+    db = connection("Sandbox")
+    return records(db.query("SELECT status, sum(hours) AS hours FROM tasks GROUP BY status ORDER BY status"))
 
 
 @endpoint("POST", "/done/{task}")
@@ -142,7 +122,9 @@ def test_api_py_reads_and_writes_the_sandbox_through_the_adapter_in_its_own_proc
     folder = tmp_path / "garden"
     _ask(live, "POST", "/project/new", {"path": str(folder)})
     csv = tmp_path / "tasks.csv"
-    csv.write_text("id,title,status\n1,Count the shed,Open\n2,Paint the gate,Done\n3,Order seed,Open\n")
+    csv.write_text(
+        "id,title,status,hours\n1,Count the shed,Open,1\n2,Paint the gate,Done,3\n3,Order seed,Open,2\n"
+    )
     _ask(live, "POST", "/sandbox/tables", {"from": "file", "path": str(csv)})
     (folder / "API.py").write_text(API_PY, encoding="utf-8")
     ran = _ask(live, "POST", "/local-api/run", {})
@@ -153,6 +135,8 @@ def test_api_py_reads_and_writes_the_sandbox_through_the_adapter_in_its_own_proc
         {"id": 1, "folded": ["filters", "sort"]},
         {"id": 3, "folded": ["filters", "sort"]},
     ]
+    summed = _ask(live, "POST", "/local-api/call", {"method": "GET", "path": "/hours"})
+    assert summed["body"] == [{"status": "Done", "hours": 3}, {"status": "Open", "hours": 3}], summed
     finished = _ask(live, "POST", "/local-api/call", {"method": "POST", "path": "/done/3"})
     assert finished["body"] == {"updated": 1, "tables": ["tasks"]}
     again = _ask(live, "POST", "/local-api/call", {"method": "GET", "path": "/open"})

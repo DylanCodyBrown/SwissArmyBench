@@ -36,6 +36,7 @@ import pyarrow.ipc as ipc
 import pyarrow.json as pajson
 import pyarrow.parquet as pq
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.domain.datasets import (
     RESERVED_PREFIX,
     SOURCE_KINDS,
@@ -112,11 +113,10 @@ def table_to_arrow_stream(table: pa.Table) -> bytes:
 
 def query_to_arrow_stream(cursor: duckdb.DuckDBPyConnection, sql: str) -> bytes:
     """A query's rows as an Arrow IPC stream, batch by batch (an open table's view for a kernel's DuckDB
-    SQL). The cursor may hold an earlier execute's result, so this is execute()'s reader: DuckDB's note
-    about the copy it makes is expected here."""
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message="Arrow output on a DB-API result")
-        reader: Any = cursor.execute(sql).to_arrow_reader()
+    SQL), read through the adapter (Plans/adapter.plan.md, phase 3). The session may hold an earlier
+    execute's unfinished result, so the read takes a cursor of its own on the same database (the view's
+    cache tables are the database's)."""
+    reader = sab_adapter.query(sab_adapter.DuckDB.over(cursor, "the open tables"), sql)
     sink = pa.BufferOutputStream()
     with ipc.new_stream(sink, reader.schema) as writer:
         for batch in reader:
@@ -716,9 +716,8 @@ def parse_pasted(text: str, max_bytes: int) -> pa.Table:
 def query_table(cursor: duckdb.DuckDBPyConnection, sql: str, params: list[str] | None = None) -> pa.Table:
     """A query's whole result as a table (the "+" tab and the SQL box's CREATE TABLE); `params`: the values
     of its $1, $2 (a ${NAME}'s, bound, 12.7)."""
-    if params:
-        return cursor.sql(sql, params=params).to_arrow_table()
-    return cursor.sql(sql).to_arrow_table()
+    found = sab_adapter.query(sab_adapter.DuckDB.session(cursor, "the open tables"), sql, params or [])
+    return found.read_all()  # through the adapter (Plans/adapter.plan.md, phase 3)
 
 
 def file_name(path_text: str) -> str:

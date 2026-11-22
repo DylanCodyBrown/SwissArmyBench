@@ -3,12 +3,11 @@ services/local_api.py).
 
 What it reads from its environment, and nothing else: SAB_API_FILE (the project's API.py), SAB_API_KEY (every
 request carries it: `Authorization: Bearer <key>`), SAB_API_BASE (the base path), SAB_SANDBOX_DATA (the app's
-/sandbox/data/<key> address: the mock clients' only door). Its environment has no connection's code, variable
-or
-secret (the server builds it from scratch), and the app's own client functions are taken over before API.py is
-imported: `swissarmybench.connection`, `.blade`, `.read`, `.sql`, `.dax` and `.load` give the sandbox's mock
-or
-refuse, so nothing here reaches a real connection.
+/sandbox/data/<key> address: the adapter's only door here, sab_adapter.Remote). Its environment has no
+connection's code, variable or secret (the server builds it from scratch), and the app's own client functions
+are taken over before API.py is imported: `connection(name)` is the adapter's Connection over the sandbox's
+tables read from that connection; `swissarmybench.blade`, `.read`, `.sql`, `.dax` and `.load` refuse, so
+nothing here reaches a real connection.
 
 On 127.0.0.1 only, on a port the system gives; its first line on stdout is JSON: {"port", "endpoints"} or
 {"error", "line"} (API.py did not import). Starlette and uvicorn (the app's own); each request kept in memory
@@ -33,15 +32,15 @@ from typing import Any
 
 from swissarmybench.adapters import sab_adapter
 from swissarmybench.server import api_runtime as sab_api
-from swissarmybench.server import sandbox_clients
 
 LOG_SIZE = 200
+URL_VARIABLE = "SAB_SANDBOX_DATA"  # the app's /sandbox/data/<key> address, this process's only door
 LINE_HEADER = (
     "X-Sab-Error-Line"  # a failed request's API.py line, for Try it (this host only, never an export)
 )
 REFUSED = (
-    "A local sandbox API never reaches a real connection: use connection(name) from sab_api, which gives the "
-    "sandbox's mock of it."
+    "A local sandbox API never reaches a real connection: use connection(name) from sab_api, which reads and "
+    "writes the sandbox's tables from it through the adapter."
 )
 
 
@@ -51,7 +50,7 @@ def _say(answer: dict[str, Any]) -> None:
 
 
 def _guard(connection: Any) -> None:
-    """The app's client functions in this process: the sandbox's mock, or a refusal."""
+    """The app's client functions in this process: the adapter's connection over the sandbox, or a refusal."""
     import swissarmybench
 
     def refused(*args: Any, **kwargs: Any) -> Any:
@@ -176,11 +175,15 @@ def main() -> int:
     path = Path(os.environ["SAB_API_FILE"])
     key = os.environ["SAB_API_KEY"]
     sab_api.BASE_PATH = os.environ.get("SAB_API_BASE", "")
-    door = os.environ[sandbox_clients.URL_VARIABLE]
-    connection = sandbox_clients.clients(door)
+    door = os.environ[URL_VARIABLE]
+    # The adapter's one backend here: every name is the sandbox's tables mocked as that connection, and
+    # connection(name) is the adapter's calls on it (the same code an export runs against the real one).
+    sab_adapter.use(lambda name: sab_adapter.Remote(door, str(name or "Sandbox").strip() or "Sandbox"))
+
+    def connection(name: str) -> Any:
+        return sab_adapter.Connection(str(name or "Sandbox").strip() or "Sandbox")
+
     sab_api.use_clients(connection)
-    # The adapter's one backend here: every name is the sandbox's tables mocked as that connection.
-    sab_adapter.use(lambda name: sab_adapter.Remote(door, name))
     _guard(connection)
     try:
         _load(path)

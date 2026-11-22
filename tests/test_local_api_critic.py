@@ -18,10 +18,11 @@ from pathlib import Path
 
 import pytest
 
+from swissarmybench.adapters import sab_adapter
 from swissarmybench.domain import api_scaffold as scaffold
 from swissarmybench.domain import api_targets as targets
 from swissarmybench.domain import local_api as rules
-from swissarmybench.server import api_runtime, sandbox_clients
+from swissarmybench.server import api_runtime
 from tests.test_local_api import API_PY, _ask, live  # noqa: F401
 
 VISITS = (
@@ -40,8 +41,7 @@ def broken() -> dict:
 @endpoint("GET", "/views")
 def views() -> list:
     db = connection("Sandbox")
-    db.execute("SELECT table_name FROM information_schema.tables")
-    return records(db)
+    return records(db.query("SELECT table_name FROM information_schema.tables"))
 
 
 @endpoint("GET", "/loud")
@@ -192,12 +192,13 @@ def test_a_refusal_says_its_sentence_and_api_pys_line(live: int, tmp_path: Path)
     assert broken["line"] == lines.index('    return {"n": undefined_name}') + 1
     assert broken["where"] == f"API.py line {broken['line']}"
     assert broken["body"] == {"error": broken["error"]}  # the API's own answer is as it was
-    # The mock's refusal: one "line", said once (in `where`).
+    # The sandbox's refusal, through the adapter: one "line", said once (in `where`).
     views = _ask(port, "POST", "/local-api/call", {"method": "GET", "path": "/views"})
+    query_line = '    return records(db.query("SELECT table_name FROM information_schema.tables"))'
+    assert views["line"] == lines.index(query_line) + 1
     assert (
-        views["line"] == lines.index('    db.execute("SELECT table_name FROM information_schema.tables")') + 1
+        views["error"] == "AdapterError: The sandbox's mock has no system views (information_schema.tables)."
     )
-    assert views["error"] == "MockError: The sandbox's mock has no system views (information_schema.tables)."
     # The API's own refusals: a sentence, no line.
     missing = _ask(port, "POST", "/local-api/call", {"method": "GET", "path": "/orders/one/99"})
     assert missing["error"] == "No order 99." and "line" not in missing
@@ -247,11 +248,11 @@ def test_the_words() -> None:
         api_runtime._convert("maybe", bool, "paid")
     with pytest.raises(api_runtime.ApiError, match=r"fee is not a number: 'lots'"):
         api_runtime._convert("lots", float, "fee")
-    assert sandbox_clients._sql_line("Line 1: the sandbox's mock has no system views (x).") == (
+    assert sab_adapter.sql_line("Line 1: the sandbox's mock has no system views (x).") == (
         "The sandbox's mock has no system views (x)."
     )
-    assert sandbox_clients._sql_line("Line 3: :id has no value.") == ":id has no value. (line 3 of its SQL)"
-    assert sandbox_clients._sql_line("Conversion Error: no") == "Conversion Error: no"
+    assert sab_adapter.sql_line("Line 3: :id has no value.") == ":id has no value. (line 3 of its SQL)"
+    assert sab_adapter.sql_line("Conversion Error: no") == "Conversion Error: no"
 
 
 def test_an_export_without_rows_warns_in_its_answer() -> None:
