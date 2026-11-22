@@ -8941,3 +8941,43 @@ Open:
   writing it again); today it reformats, as Format does.
 - The tree and the text could follow each other's place (the selected node's line revealed in the text, the
   cursor's node selected in the tree).
+
+## Review fixes B2, 2026-11-22
+
+The owner, on the craft review (docs/reviews/craft-review-2026-11-22.md): "fix it all". Part B2: the ranking's
+items 8 and 9 (the composition root, the extensions' seams), item 10's Python half and item 13's cli part.
+
+Decided (confirm or change):
+- **What the project uses is one answer** (services/project_scope.py ProjectUse, given UseSources ports): the
+  scaffold's connections, context.md's "used in", the shared catalog's used_by, the ERD's tables and a shared
+  project's named connections all read it. Its "inside the project" rule is one port (`inside`, the root's
+  `_inside`: real paths, not case-folded); the old casefolded copy (bootstrap.py :610) is gone, so context.md's
+  "used in" now follows links as the scaffold did. Review A's domain function replaces `_inside`'s body.
+- **SharedProjects** (services/library_setup.py) holds the checklist's shared projects and the once-only "only
+  works on your machine" notice; LibrarySetup gets it in its constructor.
+- **The late wiring is checked at start**: bootstrap() ends with `_check_wired` (every Built field set, every
+  `LATE_BOUND` attribute set and not left as its constructor's own stand-in); where there was no cycle the
+  dependency moved into the constructor. The ones left are true cycles or a service made later (listed).
+- **`audit_log` keeps its keyword** (create_app's, the tests'), but inside it is `Built.persist`, read only
+  through `state_file(name)` and `library_files()`.
+- **Services is a typed view of Built** (same field names; `_services` copies by name); the doors' own services
+  are built in a part, `_doors`. A new service is now named in Built, Services and its part.
+- **Ceilings that only shrink**: bootstrap.py at 2,332 lines and cli/commands.py at 473
+  (tests/test_architecture.py SHRINKING); cli/ joins the 1,500-line cap.
+- **The agent's commands by area**: cli/commands_<area>.py over cli/command_kit.py; commands.py keeps the help
+  commands, AREAS, the order and the dispatcher and re-exports the kit's names (extensions import from it as
+  before). The tool list was compared before and after: the same order, names, summaries and arguments. The
+  routes test reads every command module (the one line of tests/test_cli.py that changed).
+- **Seams, typed, for the extensions** (services/hooks.py Seams), and `hooks.api_uses` and `hooks.query_hints`
+  the base reads; an extension's own services live in `services.extension[id]` (tests read
+  `ctx.extension["streamlit"].live_runs` and so on). Power BI's PowerBIProject still takes the whole services
+  record (left: it reads about a dozen members; a port of its own is the next slice).
+- **One manifest** (extensions.manifest: every module attribute an extension may declare, read once; unknown
+  upper-case names on the record). OLD_NAMES and OLD_ARGS stay the registry's to read with the commands:
+  reading them imports an extension's commands, which import the registry.
+- **Splits**: the endpoint wizard (services/local_api_wizard.py EndpointWizard over an ApiFile port), the API's
+  data door (services/sandbox.py DataDoor over SandboxCore; routes call `sandbox.door`), analysis blades
+  (services/analysis_blades.py). Routes, commands and their answers are unchanged.
+
+Not done: the per-kind connection record (item 12), the front-end half of item 10, the canvas RUNTIME (review
+C's), the approvals (review B1's).

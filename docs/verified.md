@@ -5954,3 +5954,25 @@ passed twice alone); after the structure tabs, the quick suite at four workers 5
 failed; browser suite in one process in Chromium 411 passed, 15 skipped, 0 failed (before the structure tabs;
 their own browser tests and the twelve files they touch pass); the locally built wheels pass
 tools/smoke_install.py on a fresh install. Release notes: .github/release-notes/v0.0.32.md.
+
+## Review fixes B2, 2026-11-22
+
+The craft review's composition items (docs/reviews/craft-review-2026-11-22.md; docs/ideas.md "Review fixes B2"),
+on branch review-b2 from claude/vibrant-mendel-j04osj. Checked in this worktree (PYTHONPATH=src, the shared
+.venv), Streamlit's Python the scratchpad's:
+- ruff check, ruff format --check, mypy (1,095 files) and `npm run typecheck`: clean.
+- The tool list before and after the cli split, dumped from the registry (catalog, order, areas, old and gone
+  names, each command's function): byte for byte the same file.
+- New tests at their own layer, on fakes: tests/test_project_use.py (ProjectUse, SharedProjects),
+  test_grid_view_rows.py, test_open_work.py (what_is_open, publish_api), test_bootstrap_wiring.py
+  (_check_wired), test_local_api_wizard.py, test_sandbox_door.py, test_analysis_blades.py,
+  test_extension_manifest.py, test_canvas_api_uses.py; a run_blade case in test_connection_slots_service.py;
+  tests/test_architecture.py's SHRINKING ceilings (bootstrap.py 2,332, cli/commands.py 473) and cli/ under the
+  1,500-line cap.
+- Quick suite at four workers: 5,446 passed, 40 skipped, 3 failed: test_script_export's fresh Python and
+  test_updater's uv tool (the run's PYTHONPATH, as on the base before), and test_workbench's kernel streaming
+  (under load; passed alone). test_play_live's data.py follow failed once at four workers among the Streamlit
+  files and passed alone (7 of 7).
+- Browser files in Chrome (the e2e launch pointed at this machine's Chrome for the run only, not committed):
+  canvas, canvas gaps, local APIs, script files, Scripts IDE, widget packs, widget wiring, widgets, widgets
+  shared, API learned: 28 passed.
