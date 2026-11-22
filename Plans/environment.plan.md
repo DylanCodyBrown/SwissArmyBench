@@ -87,3 +87,10 @@ columns, columns, grids, used in, from; Values: type, value, used in, from; Stru
 file; Settings: kind, value, comes from, used in). The one search runs over every tab: each tab's count lights up
 with its matches, and a line names the other tabs that match ("Also matches in Values (1)"). Mockup: the published
 Environment Mockup, version 6.
+
+## Corrections (the owner, 2026-11-22)
+"Values should be variables. And we don't need to know what is running and detection should be automatic, no need for
+a refresh, and connections are where you add tables." So: the tab is **Variables** (what the code makes); no running
+cell, Interrupt or Restart on this page (they stay in the Notebooks and Scripts pages); no Refresh: the list follows
+the watcher's notices by itself; no Add table: tables are added on the Connections page (and made by code, or by
+Save as table from a grid). Supersedes the bar and session line above.
