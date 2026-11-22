@@ -4273,7 +4273,8 @@ _ACTIONS = ("list", "describe", "run", "shape", "discover", "offer", "build")
     opt(
         "args",
         'run: {"inputs": {...}, "required"?: [paths]}; offer: {"from", "to", "take": bool}; build: {"as": '
-        'cell|function|widget, "inputs"?, "canvas"?, "page"?}.',
+        'cell (into data.ipynb)|function ("path": its script)|widget, "inputs"?, "insert"?: false, "canvas"?, '
+        '"page"?}.',
         "json",
     ),
 )

@@ -1507,6 +1507,10 @@ def bootstrap(
         hooks=hooks,
         api_adapter=api_adapter,
         adapter_text=lambda: Path(api_adapter.__file__).read_text(encoding="utf-8"),
+        changed=code_files.touched,
+        show=lambda path, at: workbench_window.ask(
+            "file.openCell" if "cell" in at else "file.openAt", {"path": path, **at}, "app"
+        ),
     )
     local_api.learned = actions.local_learned  # Try it fills its form from the learned shape
 

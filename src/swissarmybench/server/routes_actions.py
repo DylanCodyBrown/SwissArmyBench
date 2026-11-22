@@ -6,7 +6,9 @@ POST /actions/run             {"api", "action", "inputs"?, "required"?}: one cal
                               by the agent waits for the user's Allow)
 POST /actions/discover        {"api"}: the read-only probe, on the user's Allow once per API this session
 POST /actions/offer           {"api", "action", "from", "to", "take"}: a rename offered once, answered
-POST /actions/build           {"api", "action", "as": cell | function | widget, ...}: what it builds into
+POST /actions/build           {"api", "action", "as": cell | function | widget, "path"?, "insert"?, ...}: a
+                              cell into the project's data.ipynb, a function into the script `path` names, a
+                              widget on a canvas page
 """
 
 from __future__ import annotations

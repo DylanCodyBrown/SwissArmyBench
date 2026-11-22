@@ -7,17 +7,22 @@ local sandbox API, as api_adapter's actions; Build's code and widget, by the end
             cannot be; ref(): an action as the canvas names it
   words     the drift note said once ("Orders list_orders: 2 fields new since 2026-11-20")
   tried     Try it's form filled from the learned shape (made-up values by learned type; no value kept)
+  insert    Build's cell put at the end of a notebook (with_cell), its function at the end of a script the
+            user picks (script_path, with_function)
 
 Standard library only; no I/O.
 """
 
 from __future__ import annotations
 
+import itertools
 import json
 import keyword
 import re
 from collections.abc import Mapping
 from typing import Any
+
+from swissarmybench.domain import api_scaffold, notebooks
 
 LOCAL = "local"  # the project's local sandbox API among the actions (its own name is its header's)
 BUILDS = ("cell", "function", "widget")
@@ -31,8 +36,74 @@ def ref(api: str, method: str, path: str) -> str:
     return f"{method} {path}" if api.casefold() == LOCAL else f"[{api}] {method} {path}"
 
 
+# The files of a project a built function never goes into: the app makes them, or they are the API itself.
+NOT_SCRIPTS = ("API.py", "data.py", "adapter.py", "api_adapter.py", "connections.py", "sab_api.py")
+DATA_NOTEBOOK = "data.ipynb"  # where a built cell goes: the project's data notebook
+SAB_IMPORT = "import swissarmybench as sab"
+
+
 class BuildError(ValueError):
     """What an endpoint cannot be built into, in one sentence."""
+
+
+def with_cell(text: str, code: str) -> tuple[str, int]:
+    """A notebook's text with one more Python cell at its end, and the cell's own number (never reused: the
+    notebook's next number moves on). The rest of the file is kept as it is."""
+    _cells, number = notebooks.read_document(text)  # a file that is not a notebook is refused here
+    raw = json.loads(text)
+    cells = raw.setdefault("cells", [])
+    used = {c.get("id") for c in cells if isinstance(c, dict)}
+    cell_id = next(f"cell-{n}" for n in itertools.count(len(cells) + 1) if f"cell-{n}" not in used)
+    cells.append(
+        {
+            "id": cell_id,
+            "metadata": {notebooks.OWN_KEY: {"number": number}},
+            "cell_type": "code",
+            "source": code.splitlines(keepends=True),
+            "outputs": [],
+            "execution_count": None,
+        }
+    )
+    own = raw.setdefault("metadata", {}).setdefault(notebooks.OWN_KEY, {})
+    own["next_cell"] = number + 1
+    return json.dumps(raw, indent=1, ensure_ascii=False) + "\n", number
+
+
+def script_path(path: Any) -> str:
+    """The script a built function goes into, as its path inside the project: a .py of the user's own."""
+    text = str(path or "").strip().replace("\\", "/")
+    if not text:
+        raise BuildError("Name the script it goes into, as scripts/orders.py.")
+    if text.startswith("/") or ":" in text or ".." in text.split("/"):
+        raise BuildError("The script is a path inside the project, as scripts/orders.py.")
+    if not text.endswith(".py"):
+        raise BuildError("A function goes into a script: a .py file.")
+    name = text.rsplit("/", 1)[-1]
+    if name in NOT_SCRIPTS or re.fullmatch(r"API_\w+\.py", name):
+        raise BuildError(f"{name} is the app's to write (or the API itself): pick a script of your own.")
+    return text
+
+
+def with_function(text: str | None, code: str, name: str) -> tuple[str, int]:
+    """A script's text with the built function at its end, and the line its `def` is on. A new script is the
+    function's own text; an existing one keeps every line, takes `import swissarmybench as sab` among its own
+    imports when it has none, and refuses a name it already defines."""
+    made = code if code.endswith("\n") else code + "\n"
+    text = text or ""
+    if not text.strip():
+        written = made
+    else:
+        if re.search(rf"^(?:async\s+)?def\s+{re.escape(name)}\b|^{re.escape(name)}\s*=", text, re.M):
+            raise BuildError(f"The script has {name} already: rename it there, or pick another script.")
+        body = made.split(SAB_IMPORT + "\n", 1)[-1].lstrip("\n")
+        left = ""
+        if not re.search(rf"^{re.escape(SAB_IMPORT)}\b", text, re.M):
+            text, left = api_scaffold.with_imports(text, SAB_IMPORT + "\n")
+        written = text.rstrip("\n") + "\n\n\n" + (left + "\n\n" if left else "") + body
+    line = next(
+        (i for i, row in enumerate(written.split("\n"), start=1) if row.startswith(f"def {name}(")), 1
+    )
+    return written, line
 
 
 def python_name(name: str) -> str:

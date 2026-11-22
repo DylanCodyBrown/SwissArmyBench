@@ -17,6 +17,7 @@ import { api } from "./api";
 import { button, h, openDialog, toast } from "./dom";
 import { busy, busyClick } from "./loading";
 import { errorHere, errorNote, warningNote } from "./errorNote";
+import { openOnPage } from "./workbenchPages";
 
 export interface Learned {
   name: string;
@@ -109,7 +110,44 @@ function fieldRows(contract: Contract): HTMLElement {
   );
 }
 
-/** The code Build made, to copy into a notebook cell or a script. */
+/** The project's files a built function never goes into (the server refuses them too). */
+const NOT_SCRIPTS = ["API.py", "data.py", "adapter.py", "api_adapter.py", "connections.py", "sab_api.py"];
+
+/**
+ * The script a built function goes into: one of the open project's, or a new one by its name. Answers its
+ * path inside the project; "" with no project open (the code is shown to copy); null when cancelled.
+ */
+async function pickScript(): Promise<string | null> {
+  const got = await api<{ project: string | null; documents: { path: string }[] }>("/project/documents?kind=script");
+  if (!got.project) return "";
+  const mine = got.documents.map((d) => d.path).filter((p) => !NOT_SCRIPTS.includes(p.split("/").pop() ?? "") && !/(^|\/)API_\w+\.py$/.test(p));
+  return new Promise((resolve) => {
+    const { dialog, body, foot, close } = openDialog("Put the function in a script");
+    const fresh = h("input", { "aria-label": "New script", value: "api_functions.py", spellcheck: false, "data-no-variables": "" }) as HTMLInputElement;
+    const pick = h("select", { "aria-label": "Script" }, ...mine.map((p) => h("option", { value: p }, p)), h("option", { value: "" }, "A new script…")) as HTMLSelectElement;
+    const named = h("label", { class: "field" }, h("span", {}, "Its name"), fresh);
+    const follow = (): void => {
+      named.hidden = pick.value !== "";
+    };
+    pick.addEventListener("change", follow);
+    follow();
+    body.append(h("label", { class: "field" }, h("span", {}, "Script"), pick), named);
+    let done = false;
+    const end = (value: string | null): void => {
+      if (done) return;
+      done = true;
+      close();
+      resolve(value);
+    };
+    dialog.addEventListener("close", () => end(null));
+    foot.append(
+      button("Cancel", () => end(null)),
+      button("Put it there", () => end(pick.value || fresh.value.trim() || "api_functions.py"), { class: "primary api-build-put" }),
+    );
+  });
+}
+
+/** The code Build made, to copy into a notebook cell or a script (no project is open to put it in). */
 function showCode(title: string, code: string): void {
   const { body, foot, close } = openDialog(title);
   body.append(h("pre", { class: "mono api-built-code" }, code));
@@ -179,8 +217,13 @@ export function learnedSection(apiName: string, action: string, writes: boolean,
   };
   const build = async (as: string, b: HTMLElement): Promise<void> => {
     try {
-      const got = await api<{ as: string; code?: string; canvas?: string; widget?: string }>("/actions/build", "POST", { api: apiName, action, as, inputs: inputs() });
-      if (got.code) showCode(as === "cell" ? "A notebook cell" : "A script function", got.code);
+      // A function goes into a script the user picks; a cell into the project's data.ipynb.
+      const path = as === "function" ? await pickScript() : "";
+      if (path === null) return;
+      const got = await api<{ as: string; code?: string; path?: string; cell?: number; line?: number; canvas?: string; widget?: string }>("/actions/build", "POST", { api: apiName, action, as, inputs: inputs(), ...(path ? { path } : {}) });
+      // Put where it belongs and opened there (Notebooks at the cell, Scripts at the function's line).
+      if (got.path) await openOnPage(got.path, got.cell ? { cell: got.cell } : { line: got.line ?? null });
+      else if (got.code) showCode(as === "cell" ? "A notebook cell" : "A script function", got.code);
       else toast(`Put ${got.widget} on ${got.canvas}.`);
     } catch (e) {
       errorHere(e, {}, b);

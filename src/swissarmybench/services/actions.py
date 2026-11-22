@@ -10,7 +10,8 @@ sandbox API (`local`) are read from their specifications only; each call is api_
   shape     the kept shape and the contract; answer a rename offered (taken or declined, remembered)
   discover  the read-only probe, on the user's Allow once per API this session (the agent's too): each read
             endpoint called once at its smallest page, the shapes kept, values not
-  build     a notebook cell, a script function, or a widget on a canvas page (the Streamlit extension's,
+  build     a notebook cell put into the project's data.ipynb, a script function put into a script the
+            user picks (each opened there), or a widget on a canvas page (the Streamlit extension's,
             through hooks.canvas_put); nothing built until asked
   refs      every action as the canvas's one picker names it ("GET /orders": the local sandbox API's;
             "[Orders] GET /orders": a library API's), with its body fields
@@ -33,6 +34,7 @@ from typing import Any, Protocol
 
 from swissarmybench.domain import api_actions as rules
 from swissarmybench.domain import apis as api_rules
+from swissarmybench.domain import notebooks
 from swissarmybench.domain.api_actions import LOCAL, BuildError
 from swissarmybench.services.workspace import Conflict, NotFound, Refused, Workspace
 
@@ -67,6 +69,8 @@ class Actions:
         hooks: Any = None,  # services/hooks.py Hooks: canvas_put (a widget on a canvas page)
         api_adapter: Any = None,  # adapters/api_adapter.py, the module (the composition root hands it in)
         adapter_text: Callable[[], str] | None = None,  # api_adapter.py's own text (a built app carries it)
+        changed: Callable[[str, str], Awaitable[Any]] | None = None,  # a code file written: every window told
+        show: Callable[[str, dict[str, Any]], Awaitable[Any]] | None = None,  # a document opened at a place
     ) -> None:
         self.ws = ws
         self._explorer = explorer
@@ -79,6 +83,8 @@ class Actions:
         self._hooks = hooks
         self._aa = api_adapter
         self._adapter_text = adapter_text
+        self._changed = changed
+        self._show = show
         self._allowed: set[str] = set()  # the APIs whose discovery the user allowed this session
         self._last: dict[tuple[str, str], dict[str, Any]] = {}  # the last call of each action (memory only)
 
@@ -430,9 +436,12 @@ class Actions:
     # ===== build =====
 
     async def build(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"api", "action", "as": cell | function | widget, "inputs"?, "canvas"?, "page"?}: what the endpoint
-        builds into, by its learned shape. A cell's or a function's code is answered (the page puts it where
-        the user picks); a widget is put on a canvas page (the Streamlit extension's)."""
+        """{"api", "action", "as": cell | function | widget, "inputs"?, "path"?, "insert"?, "canvas"?,
+        "page"?}: what the endpoint builds into, by its learned shape. A cell is put at the end of the open
+        project's data.ipynb; a function at the end of the script `path` names (inside the project; made when
+        it is not there): {"code", "path", "cell" | "line"}, the document opened there for the agent's (the
+        page opens its own). With no project open, no `path` for a function, or "insert": false, the code
+        alone is answered, to copy. A widget is put on a canvas page (the Streamlit extension's)."""
         given = body if isinstance(body, dict) else {}
         made = str(given.get("as") or "")
         if made not in rules.BUILDS:
@@ -441,11 +450,34 @@ class Actions:
         contract = self._aa.learn(self._shape(self._shape_path(name, entry, one.name)), one)
         kind = str(contract["kind"])
         api_name = name if entry is not None else LOCAL
+        folder = self._project() if given.get("insert", True) is not False else None
         if made == "cell":
             inputs = dict(given.get("inputs") or {})
-            return {"as": "cell", "code": rules.cell(api_name, one.to_json(), inputs, kind)}
+            code = rules.cell(api_name, one.to_json(), inputs, kind)
+            if folder is None:
+                return {"as": "cell", "code": code}
+            path = _join(folder, rules.DATA_NOTEBOOK)
+            try:
+                written, number = rules.with_cell(
+                    self._files.read(path) or notebooks.write_notebook([]), code
+                )
+            except notebooks.NotebookError as error:
+                raise Conflict(f"{rules.DATA_NOTEBOOK} does not read as a notebook: {error}") from None
+            return {"as": "cell", "code": code} | await self._put(
+                path, written, {"cell": number}, who, name, one
+            )
         if made == "function":
-            return {"as": "function", "code": rules.function(api_name, one.to_json(), kind)}
+            code = rules.function(api_name, one.to_json(), kind)
+            if folder is None or not given.get("path"):
+                return {"as": "function", "code": code}
+            function = rules.python_name(one.name)
+            try:
+                path = _join(folder, rules.script_path(given.get("path")))
+                written, line = rules.with_function(self._files.read(path), code, function)
+            except BuildError as error:
+                raise Conflict(str(error)) from None
+            placed = await self._put(path, written, {"line": line}, who, name, one)
+            return {"as": "function", "code": code, "name": function} | placed
         try:
             plan = rules.widget(name, one.to_json(), kind, entry is None)
         except BuildError as error:
@@ -457,6 +489,25 @@ class Actions:
             await self._explorer.save_call(name, one.name, {"as_table": True}, who)
         placed = await put({k: given.get(k) for k in ("canvas", "page") if given.get(k)} | plan, who)
         return {"as": "widget", "widget": plan["widget"], **placed}
+
+    async def _put(
+        self, path: str, text: str, at: dict[str, Any], who: str, api: str, one: Any
+    ) -> dict[str, Any]:
+        """Build's code written into its document (whole, only when its bytes change), every window told,
+        the Session log too; for the agent the document is shown at the place when its page is open."""
+        if self._files.read(path) != text:
+            self._files.write(path, text)
+            if self._changed is not None:
+                await self._changed(path, who)
+        self.ws.audit.write(who, "api_built", f"{api} {one.name}", path=path, **at)
+        opened = False
+        if who == "agent" and self._show is not None:
+            try:
+                await self._show(path, at)
+                opened = True
+            except Exception:  # no Notebooks or Scripts page open: the answer says where it went
+                opened = False
+        return {"path": path, **at} | ({"opened": opened} if who == "agent" else {})
 
 
 def _child_command(expression: str) -> str:
