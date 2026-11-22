@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import re
 
-from swissarmybench.domain import entra
+from swissarmybench.domain import connection_kinds, entra
 from swissarmybench.domain import lake_code as code
 from swissarmybench.domain.sql_server import TOKEN_CODE
 
@@ -44,17 +44,11 @@ DATALAKE: str = "datalake"
 DELTA: str = "delta"
 SHAREPOINT: str = "sharepoint"
 SHAREPOINT_DOCS: str = "sharepoint_docs"
-# Each kind's template id is its dialect too.
-KINDS: tuple[str, ...] = (ONELAKE, DATALAKE, DELTA, SHAREPOINT, SHAREPOINT_DOCS)
-LAKE_KINDS: frozenset[str] = frozenset({ONELAKE, DATALAKE, DELTA})
-GROUP: str = "Lakes and SharePoint"  # the Connections page's group for them
-LABELS: dict[str, str] = {
-    ONELAKE: "Microsoft Fabric OneLake",
-    DATALAKE: "Azure Data Lake Storage",
-    DELTA: "Delta Lake",
-    SHAREPOINT: "SharePoint lists",
-    SHAREPOINT_DOCS: "SharePoint documents",
-}
+# Each kind's template id is its dialect too. The kinds, their labels and the prefix of the variable names
+# their forms suggest are their records' (domain/connection_kinds.py); these are its views.
+GROUP: str = connection_kinds.LAKES  # the Connections page's group for them
+KINDS: tuple[str, ...] = connection_kinds.in_group(GROUP)
+LABELS: dict[str, str] = connection_kinds.labels(KINDS)
 
 # The connection's own read, run after its code (domain/connection_tables.py's read for these kinds):
 # its rows (Arrow) and how many there are, the columns and filters the query sends.
@@ -102,13 +96,7 @@ def split_at(name: str) -> tuple[str, str]:
 # vars") =====
 
 # The names the form suggests, per kind and setting (editable).
-ENV_PREFIX: dict[str, str] = {
-    ONELAKE: "ONELAKE",
-    DATALAKE: "DATALAKE",
-    DELTA: "DELTA_LAKE",
-    SHAREPOINT: "SHAREPOINT",
-    SHAREPOINT_DOCS: "SHAREPOINT",
-}
+ENV_PREFIX: dict[str, str] = connection_kinds.env_prefixes()
 _ENV_WORDS: dict[str, str] = {
     "tenant_id": "TENANT_ID",
     "client_id": "CLIENT_ID",

@@ -24,6 +24,9 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from swissarmybench.domain import connection_kinds, dataverse, lakes, sharepoint, sql_server
+from swissarmybench.domain.blade_settings import apply_settings, detect_settings
+
 FOLDER = "app-registrations"
 FORMAT = 1
 ROLES = ("tenant", "client", "secret")
@@ -276,60 +279,30 @@ NOT_CHECKED_KINDS: dict[str, str] = {}  # every Microsoft kind is checked now (C
 # The Microsoft kinds an access report reaches, read-only, each signed in as the registration with its own
 # scope: Azure SQL (connect, the databases it sees, SELECT TOP 0 on its tables), Dataverse (WhoAmI, its
 # roles' names), SharePoint (the named site, its lists and libraries), OneLake and Data Lake (a listing of
-# the named path).
-CHECKED_KINDS: dict[str, str] = {
-    "sqlserver": "https://database.windows.net/.default",
-    "dataverse": "",  # the environment's own: <its address>/.default
-    "sharepoint": "https://graph.microsoft.com/.default",
-    "sharepoint_docs": "https://graph.microsoft.com/.default",
-    "datalake": "https://storage.azure.com/.default",
-    "onelake": "https://storage.azure.com/.default",
-    "delta": "https://storage.azure.com/.default",
-}
+# the named path). Each kind's own record says its scope, area, place and whose refusals
+# (domain/connection_kinds.py); "" here: the environment's own address.
+CHECKED_KINDS: dict[str, str] = connection_kinds.entra_scopes()
 
 
 NOT_HERE = -1  # a Refused status: the check cannot run on this computer (a driver not installed): not checked
 
 # Each kind's area in the report, in words.
-AREAS: dict[str, str] = {
-    "sqlserver": "Azure SQL",
-    "dataverse": "Dataverse",
-    "sharepoint": "SharePoint",
-    "sharepoint_docs": "SharePoint",
-    "datalake": "Data Lake",
-    "onelake": "OneLake",
-    "delta": "Data Lake",
-}
+AREAS: dict[str, str] = connection_kinds.entra_areas()
 
 
 def scope_for(kind: str, settings: Mapping[str, str]) -> str:
-    """The token's scope for a kind's check (Dataverse: the environment's own address)."""
-    if kind == "dataverse":
-        return str(settings.get("url") or "").rstrip("/") + "/.default"
-    return CHECKED_KINDS.get(kind, "")
+    """The token's scope for a kind's check (Dataverse: the environment's own address, its record's {url})."""
+    found = connection_kinds.get(kind)
+    scope = found.entra_scope if found is not None else ""
+    return scope.format(url=str(settings.get("url") or "").rstrip("/")) if "{" in scope else scope
 
 
 def place_words(kind: str, settings: Mapping[str, str]) -> str:
-    """What a kind's check names, in words: the database, the environment, the site, the path."""
-    if kind == "sqlserver":
-        return " on ".join(p for p in (settings.get("database", ""), settings.get("server", "")) if p)
-    if kind == "dataverse":
-        return settings.get("url", "")
-    if kind in ("sharepoint", "sharepoint_docs"):
-        return settings.get("site_url", "")
-    if kind == "onelake":
-        return "/".join(p for p in (settings.get("workspace", ""), settings.get("item", "")) if p)
-    if kind == "delta":
-        return settings.get("root", "")
-    return "/".join(
-        p
-        for p in (
-            settings.get("account", ""),
-            settings.get("container", ""),
-            settings.get("folder_in_container", ""),
-        )
-        if p
-    )
+    """What a kind's check names, in words: the database, the environment, the site, the path (the settings
+    its record names, joined its way)."""
+    found = connection_kinds.get(kind)
+    names, joiner = found.entra_place if found is not None else ((), "")
+    return joiner.join(p for p in (settings.get(name, "") for name in names) if p)
 
 
 def lake_place(kind: str, settings: Mapping[str, str]) -> tuple[str, str, str] | None:
@@ -349,8 +322,11 @@ def lake_place(kind: str, settings: Mapping[str, str]) -> tuple[str, str, str] |
 
 
 def refused_words(kind: str, status: int, said: str) -> tuple[str, str]:
-    """A refusal from a kind's check: (the plain reason, the fix)."""
-    if kind == "sqlserver":
+    """A refusal from a kind's check: (the plain reason, the fix), in the words of whose refusal it is (its
+    record's entra_refusals: sql, dataverse, graph, storage)."""
+    found = connection_kinds.get(kind)
+    whose = found.entra_refusals if found is not None else ""
+    if whose == "sql":
         if "18456" in said or "Login failed" in said:
             return (
                 "the database refused its sign-in: it is not a user there",
@@ -359,14 +335,14 @@ def refused_words(kind: str, status: int, said: str) -> tuple[str, str]:
         if "40615" in said or "firewall" in said.casefold():
             return "the server's firewall does not let this computer in", "Allow this address on the server"
         return f"the database refused it: {said[:200]}", "Check its server and database"
-    if kind == "dataverse":
+    if whose == "dataverse":
         if status in (401, 403):
             return (
                 "it is not an application user of this environment",
                 "Add it as an application user with a security role (Power Platform admin center)",
             )
         return f"Dataverse answered {status}", "Check the environment's address"
-    if kind in ("sharepoint", "sharepoint_docs"):
+    if whose == "graph":
         if status in (401, 403):
             return (
                 "Graph refused it: it has no Sites.Selected or Sites.Read.All permission for the site",
@@ -390,8 +366,6 @@ def refused_words(kind: str, status: int, said: str) -> tuple[str, str]:
 
 def _app_code(kind: str, root: str) -> str | None:
     """The kind's app-registration code, from its starter (the place settings filled after)."""
-    from swissarmybench.domain import dataverse, lakes, sharepoint, sql_server
-
     if kind == "sqlserver":
         return sql_server.code("app_secret", "my-server")
     if kind == "dataverse":
@@ -417,8 +391,6 @@ def signed_in_with(kind: str, code: str, reg: Registration) -> str | None:
     """The connection's code made to sign in with the registration's variables (`os.environ[...]` in it): its
     kind's app-registration code with the connection's place settings carried over (their `${NAME}` kept).
     None: its kind does not sign in with an app registration (on-premises SQL, a folder, S3)."""
-    from swissarmybench.domain.blades import apply_settings, detect_settings
-
     try:
         own = {s.key: s.text for s in detect_settings(code) if s.text is not None}
     except Exception:  # code the reader does not follow: its kind's defaults
