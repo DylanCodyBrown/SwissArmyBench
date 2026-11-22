@@ -15,7 +15,7 @@ data): the published Environment Mockup artifact; its source in the session scra
   the one session (say both plainly on the screen: Interrupt and Restart are the session's). The local sandbox API's
   host and the canvas's Play stay their own processes (a web server each), in the same `.venv`, reading tables through
   the adapter.
-- **A table enters the shared space at once:** the moment code makes it, it is a grid (named Arrow table) every
+- **A table enters the shared space at once:** the moment code makes it, it is a table (named Arrow) every
   session, the API and the canvas read by name. In the one process this costs no copy for the kernel's own tables
   (Arrow's buffers shared where the type allows); a pandas frame is converted once.
 - **The `${NAME}` settings page merges into the Environment page** as its own group (Settings and secrets: names,
@@ -68,3 +68,14 @@ delete; a secret's value is never in an answer.
 Rename, Clear, Add table, Keep. 4. One Python per project (the project's `.venv`, the one kernel; notebooks that had
 their own environment moved, said once). 5. The post-run trigger; tables shared at once through the adapter. 6. The
 Structures and Variables pages fold in.
+
+## Where it is used, and grids (the owner, 2026-11-22)
+"I should be able to see where it's used anywhere in the app and know if it's a grid or not ... grids are just links
+to the existing tables. Grids is just the visualization layer, not duplicate data. Tables can be created in app."
+- **Used by, everywhere:** each row lists every place that uses it, each a link that goes there: the grids showing it
+  (with their steps), notebook and script cells (by number), canvas widgets (page and widget), API.py endpoints,
+  analyses on the Analyze board, relationships in the ERD, exports, other tables made from it. A count in the list
+  ("Used in 6"), the whole list in the viewer.
+- **Is it in a grid:** a mark on the row ("In 2 grids", a click lists and opens them); a grid is a view, never a copy,
+  so its memory is the table's.
+- **Made in the app:** From says so (Pasted, New query, Save as table from a grid, Add table), like a connection's.
