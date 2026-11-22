@@ -68,7 +68,7 @@ CATALOG: tuple[Extension, ...] = (
         "streamlit",
         "Streamlit",
         "Build Streamlit apps from widgets on a canvas.",
-        ("The Canvas", "Widgets: your own and 56 prebuilt", "The Widgets window", "Streamlit starters"),
+        ("The Canvas", "Widgets: your own and over 100 prebuilt", "The Widgets window", "Streamlit starters"),
         "preinstalled",
         "swissarmybench-streamlit",
         project_type="streamlit",

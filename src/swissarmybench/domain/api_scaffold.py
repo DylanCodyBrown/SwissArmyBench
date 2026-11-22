@@ -21,6 +21,7 @@ import io
 import json
 import keyword
 import re
+import sys
 import tokenize
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -160,8 +161,33 @@ def with_imports(text: str, needs: str) -> tuple[str, str]:
             last = i
     if last < 0:
         return text, needs
-    added = [n.replace("  # noqa: E402", "") for n in needs.strip("\n").split("\n")]
-    return "\n".join(lines[: last + 1] + added + lines[last + 1 :]), ""
+    for need in needs.strip("\n").split("\n"):
+        line = need.replace("  # noqa: E402", "")
+        at = _import_place(lines, last, line)
+        lines.insert(at, line)
+        last += 1
+    return "\n".join(lines), ""
+
+
+def _import_place(lines: Sequence[str], last: int, line: str) -> int:
+    """Where one `from <module> import` line goes among a file's leading imports (the last at `last`), as a
+    sorter of imports would put it: a standard-library module before the first `from` import of a later
+    standard-library module, else after the last standard-library import; any other after the last import."""
+    module = line.split()[1].split(".")[0]
+    if module not in sys.stdlib_module_names:
+        return last + 1
+    after = -1
+    for i, here in enumerate(lines[: last + 1]):
+        found = re.match(r"(from|import)\s+([\w.]+)", here)
+        if not found or found.group(2).split(".")[0] not in sys.stdlib_module_names:
+            continue
+        if found.group(2) == "__future__":
+            after = i
+            continue
+        if found.group(1) == "from" and found.group(2) > line.split()[1]:
+            return i
+        after = i
+    return after + 1 if after >= 0 else last + 1
 
 
 def model_name(table: str) -> str:
