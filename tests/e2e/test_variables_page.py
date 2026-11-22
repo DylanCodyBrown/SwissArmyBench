@@ -155,8 +155,15 @@ def test_the_variables_page(browser: Browser, own_server: dict[str, Any]) -> Non
         side.get_by_role("button", name="Remove…").click()
         asked = page.locator("dialog.env-dialog")
         expect(asked).to_contain_text("Warehouse")
+        # Closing the dialog steps its history entry back; that step lands a moment after the dialog goes and
+        # cancels a new address loaded in between. Wait for the step (or a second, if none comes).
+        stepped = page.evaluate_handle(
+            "() => new Promise(done => { addEventListener('popstate', () => done(true), {once: true});"
+            " setTimeout(() => done(false), 1000); })"
+        )
         asked.get_by_role("button", name="Cancel").click()
-        expect(asked).to_have_count(0)  # closed (its history entry stepped back) before the next address
+        expect(asked).to_have_count(0)
+        stepped.json_value()
         page.wait_for_load_state()
         # The Variables page's old address lands on this tab, at the setting it named.
         page.goto(
