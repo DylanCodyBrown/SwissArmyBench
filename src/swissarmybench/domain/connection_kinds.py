@@ -70,6 +70,7 @@ class Kind:
     names_schema: bool = True  # sab.read names its schema (Dataverse's Web API has one: no)
     own_page: bool = False  # it has a page of its own (an API: the APIs page), not a Connections card
     datasets: bool = False  # its tables are grouped by dataset (a Power BI workspace)
+    grouped_by: str = ""  # what its tree calls a group of tables ("": a folder for paths, else a schema)
     actions: tuple[str, ...] = ()  # what its card's detail offers beside the usual
     # ----- [DIALECT] said once, by the first record of the dialect -----
     dialect: str = ""  # its word in catalogs.DIALECTS; "" for a kind that names none ("other")
@@ -312,6 +313,7 @@ _RECORDS: tuple[Kind, ...] = (
         naming="powerbi",
         query_tab=True,
         datasets=True,
+        grouped_by="dataset",
         dialect="dax",  # each dataset (semantic model) a schema; its language is DAX
         aliases=("powerbi", "power bi"),
         sqlglot=NEVER,
@@ -530,6 +532,7 @@ _RECORDS: tuple[Kind, ...] = (
         reads="Graph's list items, paged, $select and $filter sent",
         reads_with="code",
         naming="single",
+        grouped_by="list",
         query_tab=True,
         dialect="sharepoint",
         sqlglot=NEVER,
@@ -604,6 +607,14 @@ _DIALECT_FIELDS: tuple[str, ...] = (
 
 def _all(records: Mapping[str, Kind] | None) -> Mapping[str, Kind]:
     return KINDS if records is None else records
+
+
+def group_word(name: str | None, records: Mapping[str, Kind] | None = None) -> str:
+    """What a tables kind's tree calls a group of its tables: dataset, list, folder or schema."""
+    kind = get(name, records)
+    if kind is None:
+        return "schema"
+    return kind.grouped_by or ("folder" if kind.paths else "schema")
 
 
 def get(name: str | None, records: Mapping[str, Kind] | None = None) -> Kind | None:

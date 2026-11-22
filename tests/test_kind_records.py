@@ -10,6 +10,8 @@ import dataclasses
 import importlib
 import re
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -18,6 +20,7 @@ from swissarmybench.domain import connection_kinds as kinds
 from swissarmybench.domain.blade_templates import Template
 from swissarmybench.domain.connection_kinds import Kind, Writable
 from swissarmybench.server.blade_templates import TEMPLATES
+from swissarmybench.services import connections
 
 SRC = Path(kinds.__file__).resolve().parents[1]
 # The groups whose starters are connections with tables (a vault, a blank blade and an analysis are not).
@@ -243,3 +246,69 @@ def test_no_domain_file_names_the_path_kinds_by_hand() -> None:
         if path.name != "connection_kinds.py" and literal.search(path.read_text(encoding="utf-8"))
     ]
     assert not found, found
+
+
+# ===== the adapter and the connections service ask the records =====
+
+
+def test_the_adapters_own_dialects_are_kinds_the_records_know() -> None:
+    """adapter.py keeps its own DIALECTS (an export carries it alone); this ties the two: every dialect it
+    folds a plan into is a declared kind, and the ones the app reads through it are the records' `adapter`."""
+    from swissarmybench.adapters import adapter
+
+    for word in adapter.DIALECTS:
+        assert kinds.get(word) is not None, f"{word}: add its record to domain/connection_kinds.py"
+    read_here = set(kinds.adapter_dialects())
+    assert read_here == set(connections.ADAPTER_DIALECTS)
+    assert read_here - {"duckdb"} <= set(adapter.DIALECTS)  # DuckDB is the adapter's own source
+    # A dialect the adapter knows whose starter names none (Databricks: "other") is not read through it yet.
+    assert {w for w in adapter.DIALECTS if w not in read_here} == {"databricks"}
+    assert connections.NOT_ADAPTED == kinds.own_sql() == ("sybase",)
+
+
+def _blade(template: str, dialect: str, language: str | None = "sql", kind: str = "sql") -> Any:
+    return SimpleNamespace(
+        name="Made up",
+        kind=kind,
+        template=template,
+        dialect=dialect,
+        catalog_language=language,
+        tags=(),
+        code="",
+    )
+
+
+def test_the_service_asks_the_record_how_a_table_is_counted_and_named() -> None:
+    """The read path's questions are fields of the kind's record, not comparisons with its name."""
+    sqlserver, postgres = _blade("sqlserver", "sqlserver"), _blade("postgres", "postgres")
+    assert "sys.partitions" in connections._count_sql(sqlserver, "", "dbo", "orders")
+    assert (
+        "COUNT(*)" in connections._count_sql(sqlserver, "sales", "dbo", "orders").upper()
+    )  # named with its database
+    assert "sys.partitions" not in connections._count_sql(postgres, "", "public", "orders")
+    workspace = _blade("powerbi", "dax")
+    assert connections._origin(workspace, "Sales model") == "Made up/Sales model"
+    assert connections._origin(postgres, "public") == "Made up"
+    reads = {
+        "sql": [postgres, sqlserver, _blade("dataverse", "dataverse")],
+        "dax": [workspace],
+        "code": [
+            _blade("dataverse", "dataverse", "python"),
+            _blade("onelake", "onelake"),
+            _blade("sharepoint", "sharepoint"),
+            _blade("python", "other", kind="other"),
+        ],
+        "file": [_blade("csv", "other", kind="other"), _blade("folder", "other", kind="other")],
+    }
+    for how, blades in reads.items():
+        for blade in blades:
+            assert connections._tables(blade).reads_with == how, (how, blade.template)
+    assert not connections._tables(_blade("dataverse", "dataverse", "python")).names_schema
+    assert connections._tables(_blade("azure_key_vault", "other", kind="vault")).name == ""
+
+
+def test_what_a_tree_calls_a_group_is_the_records() -> None:
+    said = {name: kinds.group_word(name) for name in kinds.tables_contract()}
+    assert said["powerbi"] == "dataset" and said["sharepoint"] == "list" and said["database"] == "schema"
+    assert {name for name, word in said.items() if word == "folder"} == set(kinds.path_kinds())
+    assert kinds.group_word("nobody") == "schema"

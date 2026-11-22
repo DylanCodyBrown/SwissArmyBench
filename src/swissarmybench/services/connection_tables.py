@@ -20,9 +20,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from swissarmybench.domain import connection_kinds, lakes
 from swissarmybench.domain import connection_tables as rules
 from swissarmybench.domain import connection_usage as usage_rules
-from swissarmybench.domain import lakes
 from swissarmybench.domain.blades import BladeError
 from swissarmybench.domain.catalogs import normalize_dialect
 from swissarmybench.domain.connection_swap import Place
@@ -293,7 +293,8 @@ class ConnectionTables:
             known = await self._known(ref.connection, place)
             # Columns and filters go to a SQL source, and to the lake and SharePoint kinds' own reads
             # (DuckDB's pushdown, Graph's $select and $filter); DAX, Python, files and the Web API read whole.
-            sql_source = kind in ("database", "dataverse") or lakes.is_kind(kind)
+            how = connection_kinds.get(kind)  # its record: read in its own SQL, or filters its own read takes
+            sql_source = how is not None and (how.reads_with == "sql" or how.filters == "structured")
             pushed = (
                 rules.pushdown(quoted, names, ref, known, self._dialect(ref.connection))
                 if sql_source
@@ -390,9 +391,7 @@ class ConnectionTables:
                 | {"sql": rules.copy_name(saved, place, kind, shared)}
                 | ({"title": words} if words else {})
             )
-        word = {"powerbi": "dataset", "sharepoint": "list"}.get(
-            kind, "folder" if kind in rules.PATH_KINDS else "schema"
-        )
+        word = connection_kinds.group_word(kind)  # what its tables are grouped by: dataset, list, folder
         return {
             "connection": saved,
             "kind": kind,
