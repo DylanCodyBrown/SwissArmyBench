@@ -50,6 +50,7 @@ import { brokenWords, nodeMarks, type Wiring, type WiringContext, wiresOverlay, 
 import { headingElement, headingOf } from "./widgetPacks";
 import type { Context, WidgetEntry } from "./widgetPage";
 import { sidePanes } from "./sidePanes";
+import { loadPageRules } from "./workbenchPages";
 
 interface Node {
   id: string;
@@ -1471,6 +1472,7 @@ async function landing(): Promise<void> {
 async function start(): Promise<void> {
   watchTheme();
   if (!(await requireSession())) return;
+  await loadPageRules();
   mountNav("canvas");
   mountNavRail("canvas");
   startNav();

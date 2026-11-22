@@ -110,9 +110,21 @@ function recentKinds(): string[] {
 function rememberKind(id: string): void {
   remember(RECENT_KINDS, JSON.stringify([id, ...recentKinds().filter((k) => k !== id)].slice(0, 6)));
 }
-const LAKE_KINDS = new Set(["onelake", "datalake", "delta", "sharepoint", "sharepoint_docs"]);
-/** Those whose own code reads their tables: sab.read, and Test shows a table's first rows. */
-const readsByCode = (dialect: string): boolean => dialect === "dataverse" || LAKE_KINDS.has(dialect);
+/** One connection as the page treats it, by its kind (the server's: domain/connection_usage.py kind_facts). */
+interface KindFacts {
+  /** Its group on this page (Databases, Lakes and SharePoint, Files, Your own code; "" for a key vault). */
+  group: string;
+  /** How code names it, in one line. */
+  in_code: string;
+  /** A Test of it runs its own code (what each box gave), not a SQL session's connect. */
+  test_reads: boolean;
+  /** A Test says what the server is: the detail is drawn again with it. */
+  test_tells_about: boolean;
+  /** The detail's own actions: import_relationships, sql_endpoint. */
+  actions: string[];
+  has_tables: boolean;
+  on_connections_page: boolean;
+}
 
 /** What a connection leans on that only this computer has (domain/portability.py): an amber note (the owner,
  * 2026-11-17: "any connector that does not scale to a function app needs to carry a warning that it will
@@ -132,6 +144,8 @@ function localNotes(notes: LocalNote[] | undefined, extra = ""): HTMLElement | n
 }
 
 interface Form {
+  /** The heading over its secrets (Passwords; an app registration's for some kinds): the server's word. */
+  secrets_legend?: string;
   id: string;
   label: string;
   group: string;
@@ -214,6 +228,9 @@ interface Connection {
   needs_password?: { missing: string[]; message: string } | null;
   /** How it lists and reads its tables (domain/connection_tables.py); none: a key vault. */
   tables_kind?: string | null;
+  /** What the page draws for its kind, as the server says it (domain/connection_usage.py kind_facts): the
+   *  page names no kind of its own. */
+  facts?: KindFacts | null;
 }
 
 type Status = "works" | "ready" | "needs" | "failing" | "resuming";
@@ -246,6 +263,9 @@ interface Card {
   writes?: Writes | null;
   /** How it lists and reads its tables; "api": an API's (the APIs page has those, not this page). */
   tables_kind?: string | null;
+  /** What the page draws for its kind, as the server says it (domain/connection_usage.py kind_facts): the
+   *  page names no kind of its own. */
+  facts?: KindFacts | null;
   /** What it leans on that only this computer has: the card's "Only works on your machine". */
   local?: LocalNote[];
   /** Its code is the app's earlier SQL Server code on pyodbc: Update to the new driver. */
@@ -401,15 +421,9 @@ function callsList(calls: Calls): HTMLElement {
   );
 }
 
-/** How code names a connection: a Power BI workspace's DAX cells, your own Python's sab.read, a key
- *  vault's sab.blade, a database's sab.connection and SQL cell. */
-function inCode(c: Connection): string {
-  const cell = /\s/.test(c.name) ? `"${c.name}"` : c.name;
-  if (c.dialect === "dax") return `sab.dax("${c.name}/<dataset>", …)  ·  %%dax ${c.name}/<dataset>`;
-  if (c.connection === "vault") return `sab.blade("${c.name}")`;
-  if (c.connection === "python" || readsByCode(c.dialect)) return `sab.connection("${c.name}")  ·  sab.read("${c.name}", table)${c.dialect !== "sharepoint" && c.dialect !== "sharepoint_docs" && c.connection !== "python" ? `  ·  %%sql ${cell}` : ""}`;
-  return `sab.connection("${c.name}")  ·  %%sql ${cell}`;
-}
+/** How code names a connection (a Power BI workspace's DAX cells, your own Python's sab.read, a key vault's
+ *  sab.blade, a database's sab.connection and SQL cell): the server's line for its kind. */
+const inCode = (c: Connection): string => c.facts?.in_code ?? `sab.connection("${c.name}")`;
 
 function passwordSource(p: Usage["configuration"]["passwords"][number]): string {
   if (p.from === "keyring") return "the system keyring";
@@ -443,12 +457,13 @@ const CERTIFICATE_KINDS: Record<string, string[]> = {
   keystore: [".keystore", ".jks", ".jceks", ".p12", ".pfx"],
 };
 const stem = (path: string): string => (path.split(/[\\/]/).filter(Boolean).pop() ?? "").replace(/\.[^.]+$/, "");
-/** A secret's variable, named as in the vault (domain/blades.py env_name_for_secret): SqlPassword stays,
- *  Sql--Password -> Sql__Password, warehouse-password -> warehouse_password. */
-const envFor = (secret: string): string => {
-  const w = secret.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").replace(/--/g, "__").replace(/[^A-Za-z0-9_]/g, "_").replace(/^_+|_+$/g, "").slice(0, 128) || "SECRET";
-  return (/^\d/.test(w) ? `_${w}` : w).slice(0, 128);
-};
+/** A secret's variable, named as in the vault (SqlPassword stays, Sql--Password -> Sql__Password): the
+ *  server's rule, asked (POST /connections/vaults/secrets {named}; nothing runs). The page has no copy. */
+async function variablesFor(secrets: string[]): Promise<Map<string, string>> {
+  if (!secrets.length) return new Map();
+  const { names } = await api<{ names: { secret: string; env: string }[] }>("/connections/vaults/secrets", "POST", { named: secrets });
+  return new Map(names.map((n) => [n.secret, n.env]));
+}
 /** What a Test answers: a vault reads its variables; a connection makes something (a file: is there). */
 // A Power BI workspace's test signs in and lists its datasets (`found` says how many); a connection saved
 // for one dataset asks it one question: say that, not its class's name. Your own Python's says what each box gave.
@@ -525,19 +540,19 @@ export async function importRelationships(connection: string, dataset = ""): Pro
 
 /** The Connections page shows no APIs (the owner, 2026-11-17: "APIs are connections but they dont get
  *  the connection treatment here"): the APIs page has them. */
-function withoutApis<T extends { tables_kind?: string | null }>(found: T[]): T[] {
-  return found.filter((c) => c.tables_kind !== "api");
+function withoutApis<T extends { facts?: KindFacts | null }>(found: T[]): T[] {
+  return found.filter((c) => c.facts?.on_connections_page !== false);
 }
 
 /** A connection's detail: its tables (connectionTree.ts) above where it is used; a key vault has none. */
 function withTables(name: string, c: Connection | undefined, used: HTMLElement): HTMLElement {
-  if (!c?.tables_kind || c.tables_kind === "api") return used;
+  if (!c?.facts?.has_tables) return used;
   return h("div", { class: "connection-detail-main" }, tablesSection(name, shownAsTab), used);
 }
 
 /** A Dataverse connection saved for its Web API: one click moves it to its SQL endpoint. */
 function dataverseSwitch(c: Connection | undefined, after: () => void): HTMLElement | null {
-  if (c?.tables_kind !== "dataverse_web") return null;
+  if (!c?.facts?.actions.includes("sql_endpoint")) return null;
   return button("Web API (switch to the SQL endpoint)", () => {
     void api(`/connections/${encodeURIComponent(c.name)}/sql-endpoint`, "POST").then(after, (e: Error) => errorHere(e));
   }, { icon: "sql" });
@@ -701,12 +716,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           h("span", { class: "connection-card-marks connection-card-type connection-card-log" }, c.log_words ?? ""),
           h("span", { class: "connection-card-about sandbox-never-live" }, c.words ?? ""),
         ));
-    const groups: [string, (c: Card) => boolean][] = [
-      ["Databases", (c) => c.connection === "database" && !LAKE_KINDS.has(c.tables_kind ?? "")],
-      [LAKE_GROUP, (c) => LAKE_KINDS.has(c.tables_kind ?? "")],
-      ["Files", (c) => c.connection === "file"],
-      ["Your own code", (c) => c.connection === "python"],
-    ];
+    // Each card's group is the server's word for its kind (kind_facts.group), in this order.
+    const groups: [string, (c: Card) => boolean][] = ["Databases", LAKE_GROUP, "Files", "Your own code"].map((name) => [name, (c: Card) => c.facts?.group === name]);
     clear(
       body,
       found.length
@@ -772,9 +783,9 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       swatch ? h("span", { class: "connection-colour" }, swatch, "Colour") : null,
       c && c.connection === "file" && c.template !== "folder" ? button("Open as grid", busyClick("Opening…", () => openConnection(name)), { icon: "rows", class: "primary" }) : null,
       readOnly ? null : button("Edit", () => move({ at: "edit", type: null, name }, () => void showForm({ edit: name })), { icon: "edit" }),
-      button("Test", busyClick("Testing…", () => testSaved(name, tested, Boolean(c && (c.connection === "python" || readsByCode(c.dialect)))).then(() => (c?.dialect === "sqlserver" ? showDetail(name) : refreshCalls()))), { icon: "play" }),
+      button("Test", busyClick("Testing…", () => testSaved(name, tested, Boolean(c?.facts?.test_reads)).then(() => (c?.facts?.test_tells_about ? showDetail(name) : refreshCalls()))), { icon: "play" }),
       // SQL Server's foreign keys into the ERD, as a Power BI dataset's relationships.
-      c?.dialect === "sqlserver" && c.connection === "database" ? button("Import relationships", busyClick("Reading…", () => importRelationships(name)), { icon: "diagram" }) : null,
+      c?.facts?.actions.includes("import_relationships") ? button("Import relationships", busyClick("Reading…", () => importRelationships(name)), { icon: "diagram" }) : null,
       dataverseSwitch(c, () => void showDetail(name)),
       // The app's earlier SQL Server code (pyodbc and an ODBC driver): made again on mssql-python, its settings kept.
       usage.update_driver && !readOnly
@@ -1199,7 +1210,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
         "fieldset",
         { class: "connection-passwords" },
         // A Power BI workspace's are an app registration's values (two ids and a secret), not passwords alone.
-        h("legend", {}, form.dialect === "dax" || form.dialect === "dataverse" ? "App registration" : "Passwords"),
+        h("legend", {}, form.secrets_legend || "Passwords"),
         ...form.secrets.map((s) => {
           const named = looksLikeVariable(s) ? `\${${s}}` : "";
           const input = h("input", { type: named ? "text" : "password", class: "mono", autocomplete: "new-password", "aria-label": label(s), spellcheck: false, value: named, placeholder: saved[s] ? "Saved" : vaultOnly ? "${VARIABLE}" : "" }) as HTMLInputElement;
@@ -1281,12 +1292,16 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
     let readNames: string[] | null = null;
     const mapBody = h("tbody", {});
     const mapFilter = h("input", { type: "search", placeholder: "Filter", "aria-label": "Filter the secrets", hidden: true }) as HTMLInputElement;
-    /** A secret's row. `mapped`: the variable it was given; none, and it takes the vault's own name. */
-    const addMapping = (secret: string, mapped: string | null, use: boolean): void => {
-      if (mapRows.some((r) => r.secret === secret)) return;
+    /** A secret's row. `mapped`: the variable it was given; none, and it takes the vault's own name (`own`:
+     *  the server's name for it, shown as the empty box's placeholder; asked for when it is not given). */
+    const addMapping = (secret: string, mapped: string | null, use: boolean, own: string | null = null): void => {
+      const known = mapRows.find((r) => r.secret === secret);
+      if (known) {
+        if (own) setOwn(known, own);
+        return;
+      }
       const tick = h("input", { type: "checkbox", checked: use, "aria-label": `Use ${secret}` }) as HTMLInputElement;
-      const own = envFor(secret);
-      const variable = h("input", { type: "text", class: "mono", value: mapped && mapped !== own ? mapped : "", placeholder: own, spellcheck: false, "aria-label": `${secret}: the variable's name` }) as HTMLInputElement;
+      const variable = h("input", { type: "text", class: "mono", value: mapped ?? "", placeholder: own ?? "", spellcheck: false, "aria-label": `${secret}: the variable's name` }) as HTMLInputElement;
       const cell = h("td", {}, variable);
       // One name, one variable: a name typed here that another source gives is said before saving.
       const check = (): void => {
@@ -1301,10 +1316,19 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
       });
       void loadTaken().then(check);
       const row = h("tr", {}, h("td", {}, tick), h("td", {}, h("code", {}, secret)), cell);
-      mapRows.push({ secret, env: variable, use: tick, row });
+      const made = { secret, env: variable, use: tick, row };
+      mapRows.push(made);
+      if (own) setOwn(made, own);
+      else void variablesFor([secret]).then((names) => setOwn(made, names.get(secret) ?? ""), () => undefined);
       mapBody.insertBefore(row, newRow);
       mapFilter.hidden = mapRows.length <= 10;
     };
+    /** A row's own name, once the server gave it: the empty box's placeholder; a box that only repeats it
+     *  is emptied (it takes the vault's own name). */
+    function setOwn(row: (typeof mapRows)[number], own: string): void {
+      row.env.placeholder = own;
+      if (own && row.env.value.trim() === own) row.env.value = "";
+    }
     const newSecret = h("input", { type: "text", placeholder: "Secret name", spellcheck: false, "aria-label": "A secret's name in the vault" }) as HTMLInputElement;
     const addTyped = (): void => {
       const secret = newSecret.value.trim();
@@ -1343,7 +1367,7 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
           return;
         }
         readNames = r.names.map((m) => m.secret);
-        for (const m of r.names) addMapping(m.secret, null, false);
+        for (const m of r.names) addMapping(m.secret, null, false, m.env);
         result.replaceChildren(h("p", { class: "status-ok" }, `${r.names.length} secret${r.names.length === 1 ? "" : "s"}`));
       } catch (e) {
         if (mine === reading) failed(e, () => void readVault());
@@ -1403,8 +1427,8 @@ async function drawConnections(at: URL, folder?: string): Promise<void> {
             vault_all: every.checked,
             // A box left empty: the vault's own name. Every secret keeps only the ones given another.
             vault_mapping: mapRows
-              .filter((r) => (every.checked ? r.env.value.trim() !== "" && r.env.value.trim() !== envFor(r.secret) : r.use.checked))
-              .map((r) => ({ env: r.env.value.trim() || envFor(r.secret), secret: r.secret })),
+              .filter((r) => (every.checked ? r.env.value.trim() !== "" && r.env.value.trim() !== r.env.placeholder : r.use.checked))
+              .map((r) => ({ env: r.env.value.trim() || r.env.placeholder, secret: r.secret })),
           }
         : {}),
     });

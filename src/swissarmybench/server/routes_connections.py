@@ -8,7 +8,8 @@ answer holds a password's value:
   POST   /connections                 save a new one        PUT /connections/{name}   change or rename it
   POST   /connections/test            run the form's code (not saved) with the passwords typed into it
   GET    /connections/vaults          the vault blades a password can come from, with their entries
-  POST   /connections/vaults/secrets  the secrets' names in a vault (saved, or the form's draft)
+  POST   /connections/vaults/secrets  the secrets' names in a vault (saved, or the form's draft), each with
+                                      its variable's name; {named: [...]}: those names' variables, nothing run
   POST   /connections/source          point a password at the keyring, an environment variable or a vault
   POST   /connections/{name}/catalog  load its catalog in the background now (first use: a SQL cell asks)
   POST   /connections/{name}/open     a table as a grid {database, schema, table, all} (a file: its file)

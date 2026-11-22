@@ -35,6 +35,7 @@ import { FORMAT_NAMES, FORMATS, type Format, isRecords, kindOf, mountText, mount
 import { effectiveTheme } from "./theme";
 import { errorHere, errorMark, errorNote } from "./errorNote";
 import { makeVariant } from "./dataSandbox";
+import { structureSuffixes } from "./structurePaths";
 
 /** The page's name, in one place (the owner chose it, 2026-11-17): the rail, the title, the tabs. */
 
@@ -153,7 +154,7 @@ function drawPage(): void {
     if (made) await go(made.id);
   };
   const openFile = async (): Promise<void> => {
-    const path = await chooseFile({ title: `Open a ${STRUCTURES.toLowerCase().replace(/s$/, "")}`, mode: "file", suffixes: [".json", ".yaml", ".yml", ".xml", ".toml"] });
+    const path = await chooseFile({ title: `Open a ${STRUCTURES.toLowerCase().replace(/s$/, "")}`, mode: "file", suffixes: structureSuffixes() });
     if (!path) return;
     const made = await call<Summary>("/structures/open", "POST", { path });
     if (made) await go(made.id);

@@ -35,7 +35,7 @@ export interface Imported {
 }
 
 const WORDS: Record<ImportKind, string> = { documents: "notebooks, scripts and apps", connections: "connections", blades: "blades" };
-const DOCUMENT_SUFFIXES = [".ipynb", ".py", ".stapp.json"];
+const DOCUMENT_SUFFIXES = [".ipynb", ".py"];
 
 /** A loose notebook, script or app from outside the project: copied in. Its copy's whole path. */
 export async function importFile(path: string): Promise<string> {
@@ -110,7 +110,7 @@ export function openImport(kind: ImportKind): Promise<Imported | null> {
       "div",
       { class: "import-from" },
       button("Another project…", () => void chooseFile({ title: "Import from a project", mode: "folder" }).then(show), { icon: "project" }),
-      kind === "documents" ? button("A file…", () => void chooseFile({ title: "Import a notebook, script or app", mode: "file", suffixes: DOCUMENT_SUFFIXES }).then(show), { icon: "notebook" }) : null,
+      kind === "documents" ? button("A file…", () => void chooseFile({ title: "Import a notebook or script", mode: "file", suffixes: DOCUMENT_SUFFIXES }).then(show), { icon: "notebook" }) : null,
     );
     body.append(sources, list);
     foot.append(button("Cancel", () => end(null), { class: "ghost" }), go);

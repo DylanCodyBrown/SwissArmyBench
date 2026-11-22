@@ -253,11 +253,17 @@ class Canvases:
             set(context.tables) if context.tables is not None else None,
             seen,
         )
+        every = found["outs"]
         found["ports"] = {
             node["id"]: {
                 "page": page["id"],
                 "widget": node["widget"],
-                "ins": [p.to_json() for p in contracts.get(node["widget"], []) if p.direction == "in"],
+                # Each In with what its picker offers (wiring.sources: the one rule, the page draws it).
+                "ins": [
+                    p.to_json() | {"sources": wiring.sources(p, node["id"], every)}
+                    for p in contracts.get(node["widget"], [])
+                    if p.direction == "in"
+                ],
                 "outs": [p.to_json() for p in contracts.get(node["widget"], []) if p.direction == "out"],
                 "events": [p.to_json() for p in contracts.get(node["widget"], []) if p.direction == "event"],
             }

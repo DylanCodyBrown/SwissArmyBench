@@ -111,6 +111,41 @@ def _source_type(wire: Mapping[str, Any], context: Context) -> str | None:
     return None
 
 
+def takes_endpoint(wanted: str) -> bool:
+    """Whether an In of this type can read a GET endpoint's answer (JSON: records, an object, a list)."""
+    return wanted in ("Table", "dict", "list") or wanted.startswith("list")
+
+
+def takes_variable(wanted: str) -> bool:
+    """Whether an In of this type can read a variable (text, read as its type)."""
+    return wanted in ("str", "int", "float", "bool", "date", "datetime")
+
+
+def sources(port: Port, instance: str, every: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """What an In's source picker offers (the page draws this, it has no rule of its own): the kinds of
+    source its type takes, and the Outs of the app that fit it (never its own instance's). A list[Table] In
+    takes `tables`, each one a table, an Out holding a table or a page value. check_in accepts every one."""
+    many = port.type.startswith("list[Table")
+    wanted = "Table" if many else port.type
+    outs = [
+        ref
+        for ref, out in every.items()
+        if out["instance"] != instance and contract.fits(out["type"], wanted)
+    ]
+    if many:
+        return {"kinds": ["tables"], "outs": outs}
+    kinds = ["table"] if contract.fits("Table", wanted) else []
+    kinds.append("out")
+    if takes_endpoint(wanted):
+        kinds.append("endpoint")
+    if takes_variable(wanted):
+        kinds.append("variable")
+    kinds.append("page")
+    if wanted != "Table":
+        kinds.append("value")  # a table is picked, never typed
+    return {"kinds": kinds, "outs": outs}
+
+
 def check_in(port: Port, wire: Any, context: Context) -> None:
     """An In's wire, checked: its shape, its source there, its type fitting the In's. Raises ContractError
     with the reason in one sentence."""
@@ -156,7 +191,7 @@ def check_in(port: Port, wire: Any, context: Context) -> None:
             raise ContractError(f"{port.name} reads a GET endpoint's answer, as GET /orders.")
         if context.endpoints is not None and value not in context.endpoints:
             raise ContractError(_no_action(value), "Pick one of its endpoints, or add it.")
-        if wanted not in ("Table", "dict", "list") and not wanted.startswith("list"):
+        if not takes_endpoint(wanted):
             raise ContractError(f"{port.name} takes {contract.words(wanted)}: an endpoint answers JSON.")
     elif kind == "variable":
         if not isinstance(value, str) or not _ENV.match(value):
@@ -166,7 +201,7 @@ def check_in(port: Port, wire: Any, context: Context) -> None:
                 f"{value} is not set on this computer.",
                 f"Set {value} on the Environment's Settings and secrets tab.",
             )
-        if wanted not in ("str", "int", "float", "bool", "date", "datetime"):
+        if not takes_variable(wanted):
             raise ContractError(f"{port.name} takes {contract.words(wanted)}: a variable is text.")
         return
     elif kind == "value":

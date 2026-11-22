@@ -591,6 +591,8 @@ src/swissarmybench/
                          except) and its fixes, where an import goes, SQL's syntax by sqlglot, the ranking
     workbench_pages.py   Notebooks and Scripts, two pages (2026-11-21): which page a file or a kind opens on, the
                          one line a wrong-kind take is refused with, the old /workbench addresses, a command's page;
+                         rules(): the same tables as data for the pages (GET /app/rules; web/src/pageRules.ts
+                         applies them and keeps no copy: 2026-11-22);
                          a structure's file (.json, .yaml, .yml, .xml, .toml; never a canvas, a .design.json nor
                          .sab/: is_structure_path) a tab on the page it was opened from, from outside the Scripts
                          page (home_of_path; 2026-11-22)
@@ -678,7 +680,10 @@ src/swissarmybench/
                          database's or file's its template: the Connections page's Writes / Read-only
     connection_usage.py  the Connections page's rules: a connection's references in notebooks, scripts and
                          canvases (%%sql, %%dax, sab.sql/dax/read/blade/connection, read with ast), the calls
-                         this session by kind, a card's status word, the settings it may show (no password)
+                         this session by kind, a card's status word, the settings it may show (no password);
+                         what the pages draw for a connection's kind, as data (kind_facts on every listing:
+                         its group, how code names it, its detail actions, whether a query tab runs on it;
+                         group_facts: its tree; secrets_legend: the form's): the pages name no kind
     connection_colours.py each connection's colour: the palette and its turns, the rail's colours refused or
                          turned away from, each theme's readable colour, colours.toml's text (sorted, stable)
     connection_swap.py   a table's connection swapped: a table matched in another catalog (name in any case,
@@ -1452,8 +1457,11 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          (EXPLORER_DRAG: lazy/codeEditor.ts drops the cell's language's code)),
                          workbenchMenu.ts (its drop-
                          down menus), workbenchAgent.ts (right-click, Send to the agent),
-                         workbenchPages.ts (Notebooks and Scripts, two pages: the page of a file or a kind, this
-                         window's, openOnPage and bringPage by the windows' names, the old session split once);
+                         workbenchPages.ts (Notebooks and Scripts, two pages: this window's, openOnPage and
+                         bringPage by the windows' names, the old session split once; loadPageRules: the
+                         server's tables taken once at a page's start); pageRules.ts (pure: the page of a file
+                         or a kind, a file's kind, the wrong-page line, a structure's file, all applied from
+                         the server's tables: tests/test_page_rules.py runs it in Node);
                          codeExplorer.ts (each page's Files pane, on the right in a side pane: the server's groups,
                          a module's outline as typed, marks, search, New; the status bar's Files and Ctrl+B show or
                          hide it (view.files), Blades beside it on Scripts (view.blades); nothing open: the status
@@ -1565,7 +1573,9 @@ web/static/              index.html, grid.css (all theme tokens; the pages load 
                          (gitignored); design.html is the
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
-tests/                   unit + HTTP tests, golden/ (shared cases), e2e/ (Edge via Playwright; e2e/conftest.py
+tests/                   unit + HTTP tests, golden/ (shared cases), web_unit.py (the front end's unit tests: a
+                         pure module of web/src bundled by the page's esbuild, its functions called by Node),
+                         e2e/ (Edge via Playwright; e2e/conftest.py
                          holds the one browser of the run and the waits' 15 s), live_server.py (a real server in
                          a thread on a socket already bound, stopped within a second or two),
                          desktop_drive.py (the desktop app really run under Qt off screen: windows, downloads,
@@ -1657,7 +1667,9 @@ extensions/streamlit/    the Streamlit extension (swissarmybench-streamlit; entr
                          level, read with ast (Table, str, int, float, bool, date, datetime, File, list[...], dict), each
                          one's problem in a sentence; a typed payload (Event[Order]) and Table[Row] from the widget's own
                          TypedDict or dataclass (records: schema, fields); fits, fits_value; declarations made pass
-    domain/canvas_wiring.py  the canvas's wiring (an instance's `wires`): an In's source (a table, an Out, a page value,
+    domain/canvas_wiring.py  the canvas's wiring (an instance's `wires`): what an In's picker offers (sources: the
+                         kinds its type takes and the Outs that fit, on each In of the canvas state; the page has
+                         no fits of its own); an In's source (a table, an Out, a page value,
                          (an endpoint is any API's action through api_adapter: "GET /orders" the local sandbox
                          API's, "[Orders] GET /orders" a library API's: action_ref)
                          a GET endpoint, a variable, a value, tables), an Event's actions (call, set, rerun), each

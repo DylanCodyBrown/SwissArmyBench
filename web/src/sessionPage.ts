@@ -29,6 +29,7 @@ import { errorHere, errorNote, errorToast } from "./errorNote";
 import { emptyState } from "./emptyState";
 import { launchClaude } from "./claudeLaunch";
 import { openBladeOnScripts } from "./workbenchPages";
+import { kindOfPath } from "./kindColours";
 
 export interface Target {
   place: "grid" | "dataset" | "card" | "relationship" | "connection" | "blade" | "cell" | "document" | "area";
@@ -248,7 +249,7 @@ function arrivalUrl(t: Target): string {
 export function goToTarget(t: Target | null): void {
   if (!t) return;
   if ((t.place === "cell" || t.place === "document") && t.path) {
-    const kind = t.path.endsWith(".stapp.json") ? "app" : t.path.endsWith(".ipynb") ? "notebook" : "script";
+    const kind = kindOfPath(t.path) ?? "script";
     void openReference({ document: t.path, title: t.path, kind, how: "", line: "", cell: t.cell ?? null }).catch((e: Error) => errorHere(e));
     return;
   }

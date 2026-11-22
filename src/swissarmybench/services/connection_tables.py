@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as rules
+from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import lakes
 from swissarmybench.domain.blades import BladeError
 from swissarmybench.domain.catalogs import normalize_dialect
@@ -362,6 +363,7 @@ class ConnectionTables:
             return {
                 "connection": saved,
                 "kind": kind,
+                "group_facts": usage_rules.group_facts(kind),
                 "group": "schema",
                 "state": {"state": "loaded"},
                 "groups": [{"database": "", "schema": "", "tables": tables, "count": len(tables)}],
@@ -394,6 +396,7 @@ class ConnectionTables:
         return {
             "connection": saved,
             "kind": kind,
+            "group_facts": usage_rules.group_facts(kind),  # its groups' icon and actions, as data
             "group": word,
             "state": state,
             "groups": [

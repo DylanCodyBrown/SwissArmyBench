@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from swissarmybench.domain import connection_tables as table_rules
+from swissarmybench.domain import connection_usage as usage_rules
 from swissarmybench.domain import connections as rules
 from swissarmybench.domain import dataverse, lakes, powerbi, python_connections, sql_server, write_capability
 from swissarmybench.domain import project_scope as scope_rules
@@ -22,6 +23,12 @@ from swissarmybench.domain.datasets import Opened
 from swissarmybench.domain.relationships import Model
 from swissarmybench.services.blades import BladeService
 from swissarmybench.services.workspace import Refused
+
+
+def _form(template: dict[str, Any], inspected: dict[str, Any]) -> dict[str, Any]:
+    """A connection type's form, with the heading over its secrets (by its kind: the page names none)."""
+    form = rules.form(template, inspected)
+    return form | {"secrets_legend": usage_rules.secrets_legend(form.get("dialect"))}
 
 
 class ConnectionService:
@@ -83,6 +90,10 @@ class ConnectionService:
                 more["tables_kind"] = table_rules.tables_kind(
                     saved.kind, saved.template, saved.dialect, saved.catalog_language, saved.tags, saved.code
                 )
+                # What the pages draw for its kind (domain/connection_usage.py: they name no kind).
+                more["facts"] = usage_rules.kind_facts(
+                    str(b["name"]), kind, saved.dialect, more["tables_kind"], more["type"]
+                )
                 if kind != "vault":  # what it can write: "Writes: <the starters>" or "Read-only: <why>"
                     more["writes"] = write_capability.capability(
                         b.get("template"), writers, more["tables_kind"]
@@ -119,7 +130,7 @@ class ConnectionService:
         writers = self._write_starters()
         for t in self._templates:
             if rules.is_connection(t.kind, t.id):
-                form = rules.form(t.to_json(), self._blades.inspect(t.code, t.id))
+                form = _form(t.to_json(), self._blades.inspect(t.code, t.id))
                 own = rules.connection_kind(t.kind, t.id) == "python"
                 reads = self._reads(t.code, t.catalog_command, t.read_command) if own else {"reads": []}
                 writes = {} if t.kind == "vault" else {"writes": write_capability.capability(t.id, writers)}
@@ -170,7 +181,7 @@ class ConnectionService:
         }
         reads = self._reads(blade.code, blade.catalog_command, blade.read_command)
         return (
-            rules.form(template, inspected)
+            _form(template, inspected)
             | (reads if kind == "python" else {"reads": []})
             | {
                 "name": blade.name,
@@ -242,7 +253,10 @@ class ConnectionService:
 
     async def vault_names(self, body: Any) -> dict[str, Any]:
         """The secrets in a vault, saved or the form's draft, each with a variable to map it to. Names
-        only: no value is read or sent."""
+        only: no value is read or sent. `{"named": ["Sql--Password"]}`: those names' variables alone (a name
+        typed into the form: nothing runs, the one rule names it)."""
+        if isinstance(body, dict) and isinstance(body.get("named"), list):
+            return {"names": rules.vault_names(body["named"])}
         return await self._blades.vault_names(body)
 
     async def source(self, body: Any) -> dict[str, Any]:

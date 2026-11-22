@@ -24,7 +24,7 @@
 import { api } from "./api";
 import { h, icon } from "./dom";
 import { emptyState } from "./emptyState";
-import { type Kind, kindIcon } from "./kindColours";
+import { type Kind, kindIcon, kindOfPath } from "./kindColours";
 
 export interface LandingDoc {
   title: string;
@@ -58,13 +58,13 @@ export interface LandingHost {
 const EMPTY_LINES: Record<Kind, string> = {
   notebook: "A notebook mixes Python, DuckDB SQL and notes in cells, run one at a time, beside your open tables.",
   script: "A script is plain Python run top to bottom, here or on a schedule, with your tables and connections.",
-  app: "A Streamlit app is pages of blocks, each one a notebook cell, played live and exported to run anywhere.",
+  app: "An app is built from widgets on the Canvas page.",
 };
 
 export const KIND_TITLES: Record<Kind, { title: string; one: string }> = {
   notebook: { title: "Notebooks", one: "notebook" },
   script: { title: "Scripts", one: "script" },
-  app: { title: "Apps", one: "Streamlit app" },
+  app: { title: "Apps", one: "app" },
 };
 
 const baseName = (path: string): string => path.split(/[\\/]/).pop() ?? path;
@@ -81,7 +81,6 @@ export async function projectDocuments(kind: Kind): Promise<string[]> {
   return home.recent.filter((r) => r.exists && kindOfPath(r.path) === kind).map((r) => r.path);
 }
 
-const kindOfPath = (path: string): Kind | null => (/\.stapp\.json$/i.test(path) ? "app" : /\.ipynb$/i.test(path) ? "notebook" : /\.py$/i.test(path) ? "script" : null);
 
 export interface Landing {
   element: HTMLElement;

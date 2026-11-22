@@ -82,6 +82,7 @@ import { setGridShower } from "./dataPage";
 import { mountConnectionSqlWindow } from "./swapConnection";
 import { installVariableAnywhere } from "./variableAnywhere";
 import { errorHere, errorNote, errorToast } from "./errorNote";
+import { loadPageRules } from "./workbenchPages";
 
 // A variable in any box: typing ${ lists them, right-click inserts one (12.7).
 installVariableAnywhere();
@@ -284,6 +285,7 @@ function projectsAddress(url: URL): void {
 
 async function start(): Promise<void> {
   if (!(await requireSession())) return; // no token and no good cookie: how to open the app
+  await loadPageRules(); // which page a file or a kind opens on: the server's tables (workbenchPages.ts)
   watchConnectionColours(); // everything tied to a connection wears its colour (connectionColours.ts)
   // The Data page's Open as grid of an open table: its tab here (dataPage.ts).
   setGridShower((grid) => {

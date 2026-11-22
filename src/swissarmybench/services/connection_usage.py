@@ -168,6 +168,7 @@ class ConnectionUsage:
             # times, typical rows, errors; never a value), when there are any.
             "calls": (calls or rules.Calls()).to_json() | {"figures": self.figures_of(name)},
             "tables_kind": entry.get("tables_kind"),
+            "facts": entry.get("facts"),  # what the page draws for its kind (rules.kind_facts)
             # A Dataverse connection saved for its Web API: its card offers the SQL endpoint.
             "reads": dataverse.WEB_API_WORDS if entry.get("tables_kind") == "dataverse_web" else "",
             # What only this computer has (an ODBC driver, Windows sign-in, a file on this disk, the

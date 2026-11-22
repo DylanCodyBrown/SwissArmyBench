@@ -464,6 +464,7 @@ def connection_node(
         "name": name,
         "type": str(listed.get("type") or listed.get("connection") or ""),
         "tables_kind": kind,
+        "group_icon": "diagram" if kind == "powerbi" else "folder",  # its groups: datasets, or schemas
         "group": str((tree or {}).get("group") or "schema"),
         "state": state,
         "loaded": bool(groups) or state.get("state") == "loaded",

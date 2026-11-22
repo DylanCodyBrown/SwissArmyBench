@@ -31,6 +31,9 @@ export interface Port {
   /** A typed payload's or a Table[Row]'s fields, and the record's name. */
   fields?: { name: string; type: string }[];
   schema?: string;
+  /** An In's picker, as the server gives it (canvas_wiring.sources): the kinds of source its type takes
+   *  (table, out, endpoint, variable, page, value; tables for a list of tables) and the Outs that fit it. */
+  sources?: { kinds: string[]; outs: string[] };
 }
 
 export interface Wiring {
@@ -60,15 +63,8 @@ const isApp = (ref: string): boolean => ref === VIEWER || ref.startsWith("app.vi
 
 export type SendWire = (port: string, wire: Wire | null) => Promise<void>;
 
-/** Whether an Out (or a source) of type `given` can feed an In of type `wanted` (widget_contract.fits). */
-export function fits(given: string, wanted: string): boolean {
-  if (given === wanted) return true;
-  if (wanted === "float" && given === "int") return true;
-  if (wanted === "Table" && (given === "list[dict]" || given === "list")) return true;
-  if (wanted === "list" && given.startsWith("list")) return true;
-  if (wanted.startsWith("list[") && given === "list") return true;
-  return wanted === "list[float]" && given === "list[int]";
-}
+/** Whether an In's picker offers a kind of source (the server's rule: canvas_wiring.sources). */
+const takes = (port: Port, kind: string): boolean => (port.sources?.kinds ?? []).includes(kind);
 
 /** An Out in words: "w3 sales_filter · region"; one from another page "Reports · w3 sales_filter.region"; the
  *  app's own "The viewer". */
@@ -116,9 +112,9 @@ function tableOptions(context: WiringContext, value: string): HTMLOptGroupElemen
 
 /** The Outs an In can read, grouped: this page's ("Page values"), each other page's (by its name: an app-wide
  *  value), and the app's own (the viewer). */
-function outOptions(port: Port, id: string, page: string, wiring: Wiring, value: string, tablesOnly = false, names: Record<string, string> = {}): HTMLOptGroupElement[] {
-  const wanted = tablesOnly ? "Table" : port.type;
-  const refs = Object.entries(wiring.outs).filter(([, o]) => o.instance !== id && fits(o.type, wanted));
+function outOptions(port: Port, page: string, wiring: Wiring, value: string, names: Record<string, string> = {}): HTMLOptGroupElement[] {
+  const fitting = new Set(port.sources?.outs ?? []); // the Outs that fit this In: the server's answer
+  const refs = Object.entries(wiring.outs).filter(([ref]) => fitting.has(ref));
   const groups: HTMLOptGroupElement[] = [];
   const option = ([ref, o]: [string, Wiring["outs"][string]]): HTMLOptionElement =>
     h("option", { value: `out:${ref}`, selected: value === `out:${ref}` }, ref === VIEWER ? "viewer: who is viewing" : isApp(ref) ? `${o.port}: the viewer's ${VIEWER_WORDS[ref] ?? ref}` : `${o.instance} ${o.widget} · ${o.port} (${o.direction === "event" ? "its last payload" : o.type})`);
@@ -152,12 +148,12 @@ function inputField(port: Port, id: string, page: string, given: Wire | undefine
   const auto = !given ? wiring.wires.find((w) => w.auto && w.to === `${id}.${port.name}`) : undefined;
   const head = h("div", { class: "wg-prop-head" }, h("span", { class: "wg-prop-name" }, port.name), h("span", { class: "wg-prop-mask" }, `In · ${port.words}`));
   const body: HTMLElement[] = [];
-  if (port.type.startsWith("list[Table")) {
+  if (takes(port, "tables")) {
     const items = Array.isArray(given?.tables) ? (given!.tables as Wire[]) : [];
     const put = (next: Wire[]): void => void sending(said, () => send(port.name, next.length ? { tables: next } : null));
     items.forEach((item, at) => {
       const box = h("select", { class: "wg-input", disabled: !editable, "aria-label": `${port.name}: table ${at + 1}` }, ...tableOptions(context, keyOf(item)));
-      box.append(...outOptions(port, id, page, wiring, keyOf(item), true, context.page_names));
+      box.append(...outOptions(port, page, wiring, keyOf(item), context.page_names));
       box.addEventListener("change", () => {
         const next = [...items];
         next[at] = wireOf(box.value) ?? item;
@@ -181,7 +177,7 @@ function inputField(port: Port, id: string, page: string, given: Wire | undefine
       );
     });
     const add = h("select", { class: "wg-input cvs-wire-add", disabled: !editable, "aria-label": `${port.name}: add a table` }, h("option", { value: "" }, "Add a table…"), ...tableOptions(context, ""));
-    add.append(...outOptions(port, id, page, wiring, "", true, context.page_names));
+    add.append(...outOptions(port, page, wiring, "", context.page_names));
     add.addEventListener("change", () => {
       const made = wireOf(add.value);
       if (made) put([...items, made]);
@@ -191,17 +187,17 @@ function inputField(port: Port, id: string, page: string, given: Wire | undefine
     const current = keyOf(given);
     const box = h("select", { class: "wg-input cvs-source", disabled: !editable, "aria-label": `${port.name}: its source` });
     box.append(h("option", { value: "", selected: !current }, auto ? `Automatic: ${outWords(auto.from, wiring, page, context.page_names)}` : `Not wired (${port.default === null ? "none" : JSON.stringify(port.default)})`));
-    if (port.type === "Table") box.append(...tableOptions(context, current));
-    box.append(...outOptions(port, id, page, wiring, current, false, context.page_names));
+    if (takes(port, "table")) box.append(...tableOptions(context, current));
+    box.append(...outOptions(port, page, wiring, current, context.page_names));
     const gets = (context.endpoints ?? []).filter(readsOnly);
-    if (gets.length && (port.type === "Table" || port.type === "dict" || port.type.startsWith("list"))) {
+    if (gets.length && takes(port, "endpoint")) {
       box.append(...actionGroups(gets, current, (e) => `endpoint:${e}`));
     }
-    if (context.variables.length && ["str", "int", "float", "bool", "date", "datetime"].includes(port.type)) {
+    if (context.variables.length && takes(port, "variable")) {
       box.append(h("optgroup", { label: "Variables" }, ...context.variables.map((v) => h("option", { value: `variable:${v}`, selected: current === `variable:${v}` }, v))));
     }
     box.append(h("option", { value: "page", selected: current === "page" }, "A page value by its key…"));
-    if (port.type !== "Table") box.append(h("option", { value: "value", selected: current === "value" }, "A value…"));
+    if (takes(port, "value")) box.append(h("option", { value: "value", selected: current === "value" }, "A value…"));
     if (current.startsWith("out:") && !box.querySelector(`option[value="${CSS.escape(current)}"]`)) box.append(h("option", { value: current, selected: true }, `${current.slice(4)} (not there any more)`));
     if (current.startsWith("table:") && !box.querySelector(`option[value="${CSS.escape(current)}"]`)) box.append(h("option", { value: current, selected: true }, current.slice(6)));
     const typed = h("input", { type: "text", class: "wg-input cvs-source-typed", hidden: current !== "value" && current !== "page", disabled: !editable, spellcheck: "false", "data-no-variables": "", "aria-label": `${port.name}: ${current === "page" ? "the key" : "the value"}` }) as HTMLInputElement;

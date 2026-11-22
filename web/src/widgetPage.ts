@@ -39,6 +39,7 @@ import { pythonIntel, showProblems } from "./workbenchIntel";
 import { Kernel, WINDOW_ID } from "./workbenchKernel";
 import { type Prop, propertyField } from "./widgetFields";
 import { headingElement, headingOf } from "./widgetPacks";
+import { loadPageRules } from "./workbenchPages";
 
 export interface WidgetEntry {
   name: string;
@@ -634,6 +635,7 @@ async function copyCurrent(to?: "project" | "library", from: HTMLElement = copyB
 async function start(): Promise<void> {
   watchTheme();
   if (!(await requireSession())) return;
+  await loadPageRules();
   layout();
   search.addEventListener("input", () => {
     query = search.value;

@@ -7,7 +7,8 @@ workbook design stay beside the notebooks, as before. A structure's file (.json,
 2026-11-22, the owner: "I want it beside the ide so you can search and explore") opens as a tab on either
 page, the one it was opened from; from outside (the desktop app, an address, the agent with no page) on the
 Scripts page. An app's canvas (*.canvas.json), a workbook design, an old .stapp.json and the app's own state
-(.sab/) are never a structure's tab. web/src/workbenchPages.ts and structurePaths.ts hold the same rules.
+(.sab/) are never a structure's tab. The pages hold no copy of these rules: they read them as data
+(rules(), GET /app/rules; web/src/pageRules.ts applies the tables it is given).
 Pure rules, no I/O.
 """
 
@@ -24,17 +25,35 @@ _KIND_PAGE: dict[str, str] = {"notebook": "notebooks", "app": "notebooks", "scri
 _KIND_WORDS: dict[str, str] = {"notebook": "A notebook", "app": "A Streamlit app", "script": "A script"}
 
 
+# A file's page by its name's ending, the first that matches: .py the Scripts page; .ipynb, an old app's
+# .stapp.json and a workbook's .design.json the Notebooks page.
+_PATH_PAGES: tuple[tuple[str, str], ...] = (
+    (".py", "scripts"),
+    (".ipynb", "notebooks"),
+    (".stapp.json", "notebooks"),
+    (".design.json", "notebooks"),
+)
+# A document's kind by its file's ending (the landing pages, the Session page's links, a tab's colour).
+_PATH_KINDS: tuple[tuple[str, str], ...] = ((".stapp.json", "app"), (".ipynb", "notebook"), (".py", "script"))
+_WRONG_PAGE: str = "{kind} opens on the {page} page, not here."
+_STATE_FOLDER: str = ".sab"
+
+
 def page_of_path(path: Any) -> str | None:
     """The page a file opens on: .py the Scripts page; .ipynb, an app's .stapp.json and a workbook's
     .design.json the Notebooks page; anything else none."""
     if not isinstance(path, str) or not path.strip():
         return None
     name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
-    if name.endswith(".py"):
-        return "scripts"
-    if name.endswith((".ipynb", ".stapp.json", ".design.json")):
-        return "notebooks"
-    return None
+    return next((page for ending, page in _PATH_PAGES if name.endswith(ending)), None)
+
+
+def kind_of_path(path: Any) -> str | None:
+    """A document's kind by its file's ending (notebook, script; an old app's canvas "app"); else none."""
+    if not isinstance(path, str):
+        return None
+    name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    return next((kind for ending, kind in _PATH_KINDS if name.endswith(ending)), None)
 
 
 STRUCTURE_SUFFIXES: tuple[str, ...] = (".json", ".yaml", ".yml", ".xml", ".toml")
@@ -49,7 +68,7 @@ def is_structure_path(path: Any) -> bool:
         return False
     parts = path.replace("\\", "/").split("/")
     name = parts[-1].lower()
-    if ".sab" in parts[:-1] or not name.endswith(STRUCTURE_SUFFIXES) or name.endswith(_NOT_STRUCTURES):
+    if _STATE_FOLDER in parts[:-1] or not name.endswith(STRUCTURE_SUFFIXES) or name.endswith(_NOT_STRUCTURES):
         return False
     return not name.startswith(".")
 
@@ -57,7 +76,7 @@ def is_structure_path(path: Any) -> bool:
 def home_of_path(path: Any) -> str | None:
     """The page a file opens on when nothing says which: its kind's page, and a structure's the Scripts
     page."""
-    return page_of_path(path) or ("scripts" if is_structure_path(path) else None)
+    return page_of_path(path) or ("scripts" if is_structure_path(path) else None)  # rules(): structures.home
 
 
 def page_of_kind(kind: Any) -> str | None:
@@ -71,7 +90,29 @@ def wrong_page(kind: Any, page: str) -> str | None:
     home = page_of_kind(kind)
     if home is None or home == page:
         return None
-    return f"{_KIND_WORDS[str(kind)]} opens on the {WORDS[home]} page, not here."
+    return _WRONG_PAGE.format(kind=_KIND_WORDS[str(kind)], page=WORDS[home])
+
+
+def rules() -> dict[str, Any]:
+    """These rules as data, for the pages (GET /app/rules): they apply the tables and keep no copy. The
+    endings are matched in order against a file's lower-cased name; `wrong_page` is the one sentence, its
+    {kind} and {page} filled from kind_words and words."""
+    return {
+        "pages": list(PAGES),
+        "windows": dict(WINDOW_NAMES),
+        "words": dict(WORDS),
+        "path_pages": [list(pair) for pair in _PATH_PAGES],
+        "path_kinds": [list(pair) for pair in _PATH_KINDS],
+        "kind_pages": dict(_KIND_PAGE),
+        "kind_words": dict(_KIND_WORDS),
+        "wrong_page": _WRONG_PAGE,
+        "structures": {
+            "suffixes": list(STRUCTURE_SUFFIXES),
+            "not": list(_NOT_STRUCTURES),
+            "state_folder": _STATE_FOLDER,
+            "home": "scripts",
+        },
+    }
 
 
 def url_of(page: str) -> str:

@@ -46,7 +46,7 @@
  */
 import { inlineStatus } from "./inlineCompletion";
 import "./shareApp"; // Share… a running app (globalThis.sabShare: the canvas wires it into Play's menu)
-import { bringPage, type CodePage, isCanvasFile, openCanvasFile, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
+import { bringPage, type CodePage, isCanvasFile, loadPageRules, openCanvasFile, openOnPage, PAGE_WINDOW, PAGE_WORDS, pageOfKind, pageOfPath, splitSession, thisPage, wrongPage } from "./workbenchPages";
 import { mountCodeExplorer, type TreeFile } from "./codeExplorer";
 import { sidePanes } from "./sidePanes";
 import { deleteFile, duplicateFile, ideMoves, newPackage, renameFile, searchScripts } from "./workbenchIde";
@@ -75,7 +75,7 @@ import { type ExplorerResult, type ExplorerState, openDataWindow } from "./dataE
 import { mountGroups, onTabKinds, registerTabKind, type SavedLayout, type Side, type TabKind, tabKinds } from "./workbenchGroups";
 import { type CodeFileView, newCodeFile, openCodeFile } from "./workbenchCodeFile";
 import { openStructureDoc, type StructureDoc, type StructureView } from "./structureDoc";
-import { isStructurePath } from "./structurePaths";
+import { isStructurePath, structureSuffixes } from "./structurePaths";
 import type { Part } from "./structureTree";
 import { openStructures } from "./lazyPages";
 import { mountLayout } from "./workbenchLayout";
@@ -158,6 +158,7 @@ interface PythonChoice {
 const top = document.getElementById("wb-top") as HTMLElement;
 // Notebooks and Scripts are two pages (the owner, 2026-11-21: "notebooks and scripts should not reuse the
 // same page they are seperate things"): this window is one of them (its path says which, workbenchPages.ts).
+await loadPageRules(); // which page a file or a kind opens on: the server's tables, before the first question
 const PAGE: CodePage = thisPage();
 document.body.dataset.page = PAGE;
 document.title = PAGE_WORDS[PAGE]; // "Notebooks" or "Scripts" until a document says more
@@ -353,13 +354,10 @@ function drawTablesTool(): void {
 }
 
 // ===== projects, and the canvases' New entries =====
-// No Streamlit here (2026-11-21): app notebooks, live Streamlit cells and the old .stapp.json canvases were
-// replaced by widgets on the Canvas (its own page). An old .stapp.json says so in one line when opened.
+// No app documents here (2026-11-21): an app is built from widgets on the Canvas (its own page). A file from
+// before that is refused by the server's own open, in its one line.
 
 const DATA_NOTEBOOK = "data.ipynb";
-const APP_ENDING = ".stapp.json";
-/** What opening an old app canvas says (the Streamlit extension's canvas_model.OLD_SAID, in one line). */
-const OLD_APP = "App notebooks and their canvases were replaced by widgets: make a new canvas and insert widgets.";
 const isData = (doc: Doc): boolean => !!doc.notebook && !!doc.path && baseName(doc.path).toLowerCase() === DATA_NOTEBOOK;
 
 /** A workbook's design (workbook.design.json) on the Excel canvas: offered while the open project's mode
@@ -1645,10 +1643,9 @@ function splitDoc(doc: Doc | null, side: Side): void {
 
 // ===== files =====
 
-const STRUCTURE_SUFFIXES = [".json", ".yaml", ".yml", ".xml", ".toml"];
 
 async function open(path?: string): Promise<void> {
-  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [...(PAGE === "scripts" ? [".py"] : [".ipynb", ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])]), ...STRUCTURE_SUFFIXES], start: sab.folder ?? current?.path ?? homeFolder }));
+  let chosen = path ?? (await chooseFile({ title: "Open", mode: "file", suffixes: [...(PAGE === "scripts" ? [".py"] : [".ipynb", ...(offersCanvas("excel") ? [WORKBOOK_ENDING] : [])]), ...structureSuffixes()], start: sab.folder ?? current?.path ?? homeFolder }));
   if (!chosen) return;
   // A JSON, YAML, XML or TOML file: a structure's tab here, beside the code (where it is: never copied in).
   if (isStructurePath(chosen)) return void (await openStructureTab({ path: chosen }));
@@ -1670,8 +1667,6 @@ async function open(path?: string): Promise<void> {
   const already = docs.find((d) => d.path === chosen);
   if (already) return show(already);
   if (chosen.toLowerCase().endsWith(WORKBOOK_ENDING)) return void openWorkbook(chosen);
-  // An old app canvas (2026-11-21: app notebooks and their canvases were replaced by widgets): one line.
-  if (chosen.toLowerCase().endsWith(APP_ENDING)) return void errorHere(OLD_APP);
   try {
     const found = await api<{ path: string; kind: "notebook" | "script"; modified: number; cells?: CellData[]; text?: string; python: string | null; next_cell?: number; dictionary?: Descriptions; hash?: string | null; moved_environment?: Offer }>("/workbench/open", "POST", { path: chosen });
     if (found.kind === "notebook") openNotebook(found.path, found.cells ?? [], found.modified, found.next_cell, found.dictionary);
@@ -2791,10 +2786,10 @@ async function restore(): Promise<boolean> {
 
 // ===== the rail's Notebooks, Scripts and Apps (rail.ts) =====
 
-const KIND_WORDS: Record<Kind, { name: string; ending: string }> = {
-  notebook: { name: "Notebooks", ending: ".ipynb" },
-  script: { name: "Scripts", ending: ".py" },
-  app: { name: "Apps", ending: APP_ENDING },
+const KIND_WORDS: Record<Kind, { name: string }> = {
+  notebook: { name: "Notebooks" },
+  script: { name: "Scripts" },
+  app: { name: "Apps" },
 };
 function codeKindOf(word: string | null): Kind | null {
   return word === "notebook" || word === "script" || word === "app" ? word : null;

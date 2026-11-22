@@ -6,6 +6,9 @@ GET  /app/modes   every project type this app can make: the base's, then each on
 GET  /app/gates   the features a project type keeps closed, Open every feature, the first-open pop-up
                  (POST {every} or {seen})
 GET  /app/areas   the rail's areas the on extensions add, each with the footer's mark route it may answer
+GET  /app/rules   the rules the pages apply and keep no copy of: which page a file or a kind opens on, the
+                  one line a wrong-kind take is refused with, which files are a structure's tab
+                  (domain/workbench_pages.py rules())
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import BaseRoute, Route
 
+from swissarmybench.domain import workbench_pages
 from swissarmybench.server.http import json_response, with_body
 from swissarmybench.services.modes import Modes
 
@@ -33,6 +37,9 @@ def routes(modes: Modes) -> list[BaseRoute]:
 
         return json_response({"opens": extensions.opens()})
 
+    async def rules(request: Request) -> Response:
+        return json_response({"pages": workbench_pages.rules()})
+
     async def gates(request: Request) -> Response:
         return json_response(modes.gates())
 
@@ -40,6 +47,7 @@ def routes(modes: Modes) -> list[BaseRoute]:
         Route("/app/mode", active),
         Route("/app/modes", every),
         Route("/app/areas", areas),
+        Route("/app/rules", rules),
         Route("/app/gates", gates),
         Route("/app/opens", opens),
         Route("/app/gates", with_body(modes.set_gates), methods=["POST"]),
