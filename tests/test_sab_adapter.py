@@ -240,6 +240,29 @@ def test_a_write_that_fails_writes_nothing(shop: str) -> None:
         sab.write(source, "orders", clash, mode="upsert")
 
 
+def test_a_truncate_with_no_rows_clears_the_table_and_keeps_its_columns(shop: str) -> None:
+    source = sab.DuckDB.file(shop)
+    assert sab.write(source, "orders", mode="truncate") == sab.Counts(deleted=4)
+    assert _ids(shop) == []
+    listed = {t.name: t for t in sab.tables(source)}["orders"]
+    assert [c.name for c in listed.columns] == ["id", "region", "amount", "placed"]
+    with pytest.raises(sab.AdapterError, match="takes the rows"):
+        sab.write(source, "orders", mode="insert")
+
+
+def test_a_truncate_with_rows_clears_and_inserts_all_or_none(shop: str) -> None:
+    source = sab.DuckDB.file(shop)
+    fresh = pa.table({"id": [10, 11], "region": ["West", "East"], "amount": [1.0, 2.0]})
+    assert sab.write(source, "orders", fresh, mode="truncate") == sab.Counts(inserted=2, deleted=4)
+    assert [r[0] for r in _ids(shop)] == [10, 11]
+    clash = pa.table({"id": [12, 12], "region": ["West", "West"], "amount": [1.0, 1.0]})
+    with pytest.raises(duckdb.ConstraintException):
+        sab.write(source, "orders", clash, mode="truncate")
+    assert [r[0] for r in _ids(shop)] == [10, 11]  # nothing cleared: one transaction
+    empty = pa.table({"id": pa.array([], pa.int32()), "region": pa.array([], pa.string())})
+    assert sab.write(source, "orders", empty, mode="truncate") == sab.Counts(deleted=2)
+
+
 # ===== JSON pages =====
 
 
@@ -273,31 +296,31 @@ def test_strict_json_refuses_a_value_of_the_wrong_type() -> None:
         sab.from_json(["[]"], {"id": "INTEGER); DROP TABLE x; --"})
 
 
-# ===== grids =====
+# ===== tables =====
 
 
-def test_a_grid_is_made_on_first_use_kept_and_read_again_on_refresh(shop: str) -> None:
-    grids = sab.Grids()
-    grids.define(
+def test_a_table_is_made_on_first_use_kept_and_read_again_on_refresh(shop: str) -> None:
+    made = sab.Tables()
+    made.define(
         "by_region",
         sab.DuckDB.file(shop),
         "orders",
         Plan(filters=(Filter("placed", "is not null"),)),
         f"SELECT region, sum(amount) AS total FROM {sab.ROWS} GROUP BY 1 ORDER BY 1",  # noqa: S608
     )
-    first = grids.grid("by_region")
+    first = made.table("by_region")
     assert first.to_pylist() == [
         {"region": "North", "total": decimal.Decimal("19.75")},
         {"region": "South", "total": decimal.Decimal("40.00")},
     ]
-    assert grids.grid("by_region") is first
+    assert made.table("by_region") is first
     sab.write(sab.DuckDB.file(shop), "orders", pa.table({"id": [8], "region": ["West"], "amount": [3.0],
               "placed": [datetime.date(2026, 3, 1)]}))  # fmt: skip
-    assert grids.grid("by_region") is first  # kept until a page asks
-    assert grids.refresh("by_region").num_rows == 3
-    grids.drop("by_region")
-    with pytest.raises(sab.AdapterError, match="No grid is named"):
-        grids.grid("by_region")
+    assert made.table("by_region") is first  # kept until a page asks
+    assert made.refresh("by_region").num_rows == 3
+    made.drop("by_region")
+    with pytest.raises(sab.AdapterError, match="No table is named"):
+        made.table("by_region")
 
 
 # ===== one file, copied as it is =====

@@ -451,7 +451,7 @@ def _adapter_rows(connection: Any, read: dict[str, Any]) -> dict[str, Any]:
     from swissarmybench.adapters import sab_adapter as sab
 
     source = sab.DuckDB.over(connection)
-    table = sab.make_grid(sab.GridSource(source, str(read["table"]), sab.plan_from(read.get("plan"))))
+    table = sab.make_table(sab.TableSource(source, str(read["table"]), sab.plan_from(read.get("plan"))))
     total = None
     if read.get("count"):
         counted, _ = sab.read(source, str(read["table"]), sab.Plan(totals=(sab.Total("count"),)))

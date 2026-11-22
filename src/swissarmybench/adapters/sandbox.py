@@ -342,7 +342,7 @@ class SandboxFiles:
 
     def arrow(self, name: str) -> pa.Table:
         """A sandbox table as a grid's Arrow table: read whole through the adapter."""
-        return sab_adapter.make_grid(sab_adapter.GridSource(self.source(), name))
+        return sab_adapter.make_table(sab_adapter.TableSource(self.source(), name))
 
     def read(self, name: str, plan: Any) -> tuple[pa.RecordBatchReader, tuple[str, ...]]:
         """A table read with a plan (its JSON): the batches as DuckDB makes them, and what was folded."""
@@ -350,7 +350,7 @@ class SandboxFiles:
         return reader, folded.parts
 
     def write_arrow(self, name: str, data: bytes, key: Sequence[str], mode: str) -> dict[str, int]:
-        """An Arrow IPC stream's rows into a table (insert, update, merge or delete by key): the counts."""
+        """An Arrow IPC stream's rows into a table (insert; update, merge or delete by key; truncate)."""
         reader = pa.ipc.open_stream(pa.BufferReader(data))
         done = sab_adapter.write(self.source(), name, reader, key, mode)
         return {"inserted": done.inserted, "updated": done.updated, "deleted": done.deleted}

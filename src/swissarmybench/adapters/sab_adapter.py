@@ -1,8 +1,9 @@
 """sab_adapter: every data call in and out of a project, the same file wherever it runs (the app, a Workbench
 kernel, a local sandbox API's process, an exported project). It holds nothing: a read streams Arrow record
-batches from its source, a write streams them into it, and only grids (named Arrow tables) stay.
+batches from its source, a write streams them into it, and only tables (named Arrow tables) stay: a grid is
+only a view of one.
 
-    from sab_adapter import Filter, Plan, grid, read, tables, write
+    from sab_adapter import Filter, Plan, read, table, tables, write
 
     reader, folded = read("Warehouse", "orders", Plan(columns=("id", "amount"), filters=(Filter("region",
                           "=", "North"),), limit=100))
@@ -20,7 +21,7 @@ It reads top to bottom in the order a call runs:
                     not fold is finished here, in DuckDB, over the stream
   4. JSON to Arrow  pages of records (an API's answer, a request's body) made Arrow by DuckDB, page by page,
                     with the types given (else the first page's)
-  5. Grids          grid(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
+  5. Tables         table(name): a named Arrow table made from one read and one DuckDB SQL, made on first use
                     and kept; refresh(name) reads it again
 
 The standard library, duckdb and pyarrow only: an export copies this file as it is.
@@ -45,9 +46,10 @@ import pyarrow.ipc as ipc
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
 TOTALS = ("count", "count_distinct", "sum", "avg", "min", "max")
-MODES = ("insert", "update", "merge", "delete")
+MODES = ("insert", "update", "merge", "delete", "truncate")
+KEYED = ("update", "merge", "delete")  # the modes that match rows by a key
 PARTS = ("filters", "group", "totals", "columns", "sort", "offset", "limit")  # in the order SQL applies them
-ROWS = "rows"  # what a grid's SQL calls its read: SELECT region, sum(amount) FROM rows GROUP BY 1
+ROWS = "rows"  # what a table's SQL calls its read: SELECT region, sum(amount) FROM rows GROUP BY 1
 
 
 class AdapterError(ValueError):
@@ -223,7 +225,7 @@ class Counts:
 
 class Source(Protocol):
     """A source plugs in by three functions. read folds what it can of the plan into its own query and says
-    which parts it folded; write takes the batches in its own insert, update, merge or delete."""
+    which parts it folded; write takes the batches in its own insert, update, merge, delete or truncate."""
 
     def tables(self) -> list[Table]: ...
 
@@ -355,21 +357,24 @@ class DuckDB:
     def write(self, table: str, batches: pa.RecordBatchReader, key: Sequence[str], mode: str) -> Counts:
         if mode not in MODES:
             raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
-        if mode != "insert" and not key:
+        if mode in KEYED and not key:
             raise AdapterError(f"A {mode} names the key its rows are matched by.")
+        names = [str(n) for n in batches.schema.names]
         with self._connect(True) as con:
             schema, name = self._place(con, table)
             target = f"{quote(schema)}.{quote(name)}"
-            con.register("sab_incoming", batches)
+            if names:  # a truncate with no rows has no columns to register
+                con.register("sab_incoming", batches)
             con.execute("BEGIN TRANSACTION")
             try:
-                done = _written(con, target, [str(n) for n in batches.schema.names], list(key), mode)
+                done = _written(con, target, names, list(key), mode)
                 con.execute("COMMIT")
             except BaseException:
                 con.execute("ROLLBACK")
                 raise
             finally:
-                con.unregister("sab_incoming")
+                if names:
+                    con.unregister("sab_incoming")
             return done
 
 
@@ -423,7 +428,13 @@ def _stream(
 
 def _written(con: Any, target: str, names: list[str], key: list[str], mode: str) -> Counts:
     """sab_incoming's rows (its columns `names`) into `target`, in the open transaction. A merge stages them
-    once, as it reads them twice."""
+    once, as it reads them twice. A truncate clears the table (its columns kept), then inserts the rows."""
+    if mode == "truncate":
+        deleted = _count(con, f"DELETE FROM {target}")  # noqa: S608 (the name quoted)
+        if not names:
+            return Counts(deleted=deleted)
+        inserted = _count(con, f"INSERT INTO {target} BY NAME SELECT * FROM sab_incoming")  # noqa: S608
+        return Counts(inserted=inserted, deleted=deleted)
     if mode == "insert":
         return Counts(inserted=_count(con, f"INSERT INTO {target} BY NAME SELECT * FROM sab_incoming"))  # noqa: S608
     if mode == "update":
@@ -583,14 +594,19 @@ def _finished(reader: pa.RecordBatchReader, rest: Plan) -> pa.RecordBatchReader:
 def write(
     source: str | Source,
     table: str,
-    batches: pa.RecordBatchReader | pa.Table,
+    batches: pa.RecordBatchReader | pa.Table | None = None,
     key: Sequence[str] = (),
     mode: str = "insert",
 ) -> Counts:
-    """Arrow batches into a table: insert, update (by key), merge (update, else insert, by key) or delete
-    (by key); all or none. The counts of rows each way."""
+    """Arrow batches into a table: insert, update (by key), merge (update, else insert, by key), delete
+    (by key) or truncate (the table cleared, its columns kept, then the rows inserted; no rows: only
+    cleared); all or none. The counts of rows each way."""
     if mode not in MODES:
         raise AdapterError(f"A write's mode is one of {', '.join(MODES)}, not {mode!r}.")
+    if batches is None:
+        if mode != "truncate":
+            raise AdapterError(f"A {mode} takes the rows it writes.")
+        batches = pa.table({})
     reader = batches if isinstance(batches, pa.RecordBatchReader) else batches.to_reader()
     return source_of(source).write(table, reader, tuple(key), mode)
 
@@ -665,12 +681,12 @@ def _structure(con: Any, first: str, columns: Mapping[str, str] | None) -> str |
     return found.replace("'", "''")
 
 
-# ===== 5. Grids =====
+# ===== 5. Tables =====
 
 
 @dataclass(frozen=True)
-class GridSource:
-    """Where a grid comes from: one source's table read with a plan, then (if given) one DuckDB SQL over the
+class TableSource:
+    """Where a table comes from: one source's table read with a plan, then (if given) one DuckDB SQL over the
     read, which it names `rows`."""
 
     source: str | Source
@@ -679,8 +695,8 @@ class GridSource:
     sql: str = ""
 
 
-def make_grid(made_from: GridSource) -> pa.Table:
-    """The grid's Arrow table: the read streamed through its SQL, and nothing of the read kept."""
+def make_table(made_from: TableSource) -> pa.Table:
+    """The table (the one copy): the read streamed through its SQL, and nothing of the read kept."""
     reader, _ = read(made_from.source, made_from.table, made_from.plan)
     if not made_from.sql:
         return reader.read_all()
@@ -692,26 +708,27 @@ def make_grid(made_from: GridSource) -> pa.Table:
         con.close()
 
 
-class Grids:
-    """Named Arrow tables: the only data kept. A grid is made on first use and read again on refresh."""
+class Tables:
+    """Named Arrow tables, the only data kept (a grid only shows one): made on first use, read again on
+    refresh."""
 
     def __init__(self) -> None:
-        self._from: dict[str, GridSource] = {}
+        self._from: dict[str, TableSource] = {}
         self._made: dict[str, pa.Table] = {}
 
     def define(
         self, name: str, source: str | Source, table: str, plan: Plan | None = None, sql: str = ""
     ) -> None:
-        self._from[name] = GridSource(source, table, plan or Plan(), sql)
+        self._from[name] = TableSource(source, table, plan or Plan(), sql)
         self._made.pop(name, None)
 
-    def grid(self, name: str) -> pa.Table:
+    def table(self, name: str) -> pa.Table:
         if name not in self._made:
-            self._made[name] = make_grid(self._defined(name))
+            self._made[name] = make_table(self._defined(name))
         return self._made[name]
 
     def refresh(self, name: str) -> pa.Table:
-        self._made[name] = make_grid(self._defined(name))
+        self._made[name] = make_table(self._defined(name))
         return self._made[name]
 
     def drop(self, name: str) -> None:
@@ -721,15 +738,15 @@ class Grids:
     def names(self) -> list[str]:
         return list(self._from)
 
-    def _defined(self, name: str) -> GridSource:
+    def _defined(self, name: str) -> TableSource:
         found = self._from.get(name)
         if found is None:
-            raise AdapterError(f"No grid is named {name!r}.")
+            raise AdapterError(f"No table is named {name!r}.")
         return found
 
 
-GRIDS = Grids()  # this process's grids
-define, grid, refresh = GRIDS.define, GRIDS.grid, GRIDS.refresh
+TABLES = Tables()  # this process's tables
+define, table, refresh = TABLES.define, TABLES.table, TABLES.refresh
 
 __all__ = [
     "AdapterError",
@@ -738,21 +755,21 @@ __all__ = [
     "DuckDB",
     "Filter",
     "Folded",
-    "GridSource",
-    "Grids",
     "Plan",
     "Remote",
     "Source",
     "Table",
+    "TableSource",
+    "Tables",
     "Total",
     "define",
     "from_json",
-    "grid",
-    "make_grid",
+    "make_table",
     "plan_from",
     "plan_sql",
     "read",
     "refresh",
+    "table",
     "tables",
     "use",
     "write",
