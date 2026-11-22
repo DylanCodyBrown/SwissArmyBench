@@ -1084,11 +1084,25 @@ def norm(name: str) -> str:
     return re.sub(r"[^0-9a-z.@#\[\]]", "", str(name).lower())
 
 
+def _date_of(text: str, style: str, fmt: str) -> datetime.date:
+    """A date in one style (ValueError when it is not a real day): built from its parts, strptime only for a
+    month's name (strptime is slow over thousands of values)."""
+    if style == "iso":
+        return datetime.date.fromisoformat(text)
+    if style == "m/d/y":
+        month, day, year = (int(p) for p in text.split("/"))
+        return datetime.date(year, month, day)
+    if style == "d.m.y":
+        day, month, year = (int(p) for p in text.split("."))
+        return datetime.date(year, month, day)
+    return datetime.datetime.strptime(text, fmt).date()
+
+
 def _date_style(text: str) -> tuple[str, str] | None:
     for pattern, style, fmt in _DATES:
         if pattern.match(text):
             try:
-                datetime.datetime.strptime(text, fmt)
+                _date_of(text, style, fmt)
             except ValueError:
                 continue
             return style, fmt
@@ -1272,9 +1286,31 @@ def _offers(
     return offers
 
 
+_FITS: dict[str, tuple[type, ...]] = {
+    "integer": (int,),
+    "number": (int, float),
+    "list": (list,),
+    "object": (dict,),
+}
+
+
+def _fits(value: Any, known: Mapping[str, Any]) -> bool:
+    """A value already of its known type by its Python type alone (most values: no text read again)."""
+    want = known.get("type")
+    if value is None or (want == "boolean" and isinstance(value, bool)):
+        return True
+    if isinstance(value, bool):
+        return False
+    if want == "text" and isinstance(value, str):
+        return True
+    return isinstance(value, _FITS.get(str(want), ()))
+
+
 def coerce(value: Any, known: Mapping[str, Any]) -> tuple[Any, bool]:
     """A value as the type it had before, where it reads cleanly (a number in text, a date in another style:
     ISO), else as it came; and whether it read cleanly."""
+    if _fits(value, known):
+        return value, True
     kind, fmt = type_of(value)
     want = known.get("type")
     if value is None or (kind == want and (fmt == known.get("format") or fmt == "")):
@@ -1292,7 +1328,7 @@ def coerce(value: Any, known: Mapping[str, Any]) -> tuple[Any, bool]:
     if want == "date" and kind == "date":
         style = _date_style(text)
         if style and known.get("format") == "iso":
-            return datetime.datetime.strptime(text, style[1]).date().isoformat(), True
+            return _date_of(text, style[0], style[1]).isoformat(), True
         return value, style is not None
     if want == "datetime" and kind == "datetime":
         return value, True
@@ -1342,15 +1378,30 @@ def _mark(value: Any, known: Mapping[str, Any], clean: bool) -> str:
         return ""
     if not clean:
         return "retyped"
+    if _fits(value, known) and not isinstance(value, str):
+        return ""
     kind, fmt = type_of(value)
     same = kind == known.get("type") and fmt in (known.get("format"), "")
     return "" if same or known.get("format") == "mixed" else "retyped"
 
 
+_NORMS: dict[tuple[str, ...], dict[str, str]] = {}
+
+
+def _norms(keys: tuple[str, ...]) -> dict[str, str]:
+    """A record's keys by their forgiving form, once per set of keys (a page shares them)."""
+    found = _NORMS.get(keys)
+    if found is None:
+        if len(_NORMS) > 256:
+            _NORMS.clear()
+        found = _NORMS[keys] = {norm(k): k for k in keys}
+    return found
+
+
 def _adapted_row(
     record: Mapping[str, Any], fields: Mapping[str, Any], renames: Mapping[str, str], marks: dict[str, str]
 ) -> dict[str, Any]:
-    by_norm = {norm(k): k for k in record}
+    by_norm = _norms(tuple(record))
     row = dict(record)
     for path, kind in fields.items():
         source = by_norm.get(norm(path))

@@ -186,6 +186,8 @@ def test_types_are_read_from_values_not_the_declaration() -> None:
     }
     assert fields["at"]["type"] == "datetime" and fields["us"]["format"] == "m/d/y"
     assert fields["note"]["empty"] is True and fields["note"]["type"] == "text"
+    assert aa.type_of("02/30/2026") == ("text", "") and aa.type_of("14.11.2026") == ("date", "d.m.y")
+    assert aa.type_of("14 Nov 2026") == ("date", "d mon y") and aa.type_of("2026-13-01") == ("text", "")
 
 
 # ===== paging =====
