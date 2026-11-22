@@ -20,10 +20,10 @@ import itertools
 import json
 import os
 import re
+import sys
 import threading
 import uuid
 import warnings
-import zipfile
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +52,7 @@ from swissarmybench.domain.datasets import (
     same_name_ignoring_case,
     validate_name,
 )
+from swissarmybench.domain.packages import MissingPackagesError, missing_packages
 
 
 def split_json_to_arrow(payload: Any) -> pa.Table:
@@ -614,7 +615,8 @@ def _read_json_records(source: _Source, what: str) -> pa.Table:
 
 
 def excel_sheets(path_text: str) -> list[str]:
-    """The sheet names of an .xlsx workbook, in workbook order (for the sheet picker)."""
+    """The tables of an .xlsx workbook, its sheets in workbook order and then its named tables (for the
+    sheet picker)."""
     return _sheets(_from_path(_checked_path(path_text)))
 
 
@@ -623,99 +625,43 @@ def excel_sheets_bytes(data: bytes, filename: str) -> list[str]:
     return _sheets(_from_bytes(data, filename))
 
 
+def _workbook(source: _Source) -> adapter.Excel:
+    """A workbook as the adapter's Excel source (Plans/excel.plan.md): the one reader of a sheet's rows."""
+    opened = source.open()
+    return adapter.Excel(opened if isinstance(opened, str) else opened.getvalue(), f"'{source.name}'")
+
+
 def _sheets(source: _Source) -> list[str]:
     if source.suffix != ".xlsx":
         raise DatasetError(f"'{source.name}' is not an Excel workbook (.xlsx).")
-    book = _open_book(source)
     try:
-        return list(book.sheetnames)
-    finally:
-        book.close()
-
-
-def _open_book(source: _Source) -> Any:
-    # openpyxl loads with the first workbook read, not with the app (60 ms at start).
-    from openpyxl import load_workbook
-    from openpyxl.utils.exceptions import InvalidFileException
-
-    try:
-        return load_workbook(source.open(), read_only=True, data_only=True)
-    except (zipfile.BadZipFile, InvalidFileException, KeyError) as error:
-        raise DatasetError(f"Could not read '{source.name}' as an Excel workbook: {error}") from error
+        return [t.name for t in _workbook(source).tables()]
+    except adapter.AdapterError as error:
+        raise DatasetError(str(error)) from error
+    except ModuleNotFoundError as error:
+        raise _no_openpyxl() from error
 
 
 def _read_sheet(source: _Source, sheet: str | None, max_bytes: int, what: str) -> pa.Table:
-    """One sheet as a table: the first row is the header, values are the cached results of
-    formulas (data_only), and a column that mixes kinds (numbers and text) becomes text. Blank
-    rows inside the data are kept; the blank rows Excel often reports after it are not."""
-    book = _open_book(source)
+    """One sheet (or named table) as a table, read by the adapter: the first row is the header, values are
+    the last results of formulas, a column that mixes kinds becomes text; the size limit kept."""
     try:
-        names = list(book.sheetnames)
-        if sheet is None:
-            if len(names) > 1:
-                raise DatasetError(
-                    f"{what} has {len(names)} sheets ({', '.join(names)}); name the one to load."
-                )
-            sheet = names[0]
-        if sheet not in names:
-            raise DatasetError(f"{what} has no sheet {sheet!r}; its sheets are {', '.join(names)}.")
-        rows = book[sheet].iter_rows(values_only=True)
-        header = list(next(rows, None) or [])
-        if not header:
-            raise DatasetError(f"Sheet {sheet!r} of {what} is empty.")
-        columns: list[list[Any]] = [[] for _ in header]
-        blank_run = 0  # blank rows seen since the last row with a value
-        size = 0
-        for row in rows:
-            if all(value is None for value in row):
-                blank_run += 1
-                continue
-            for _ in range(blank_run):
-                for column in columns:
-                    column.append(None)
-            blank_run = 0
-            for i, column in enumerate(columns):
-                value = row[i] if i < len(row) else None
-                column.append(value)
-                size += 8 + (len(value) if isinstance(value, str) else 0)
-            if size > max_bytes:
-                raise DatasetTooLargeError(
-                    f"Sheet {sheet!r} of {what} is more than {mib(max_bytes)} once loaded; the limit "
-                    f"is {mib(max_bytes)}. Load a smaller sheet or raise the limit "
-                    "(SWISSARMYBENCH_MAX_DATASET_MB, then restart the server)."
-                )
-    finally:
-        book.close()
-    kept = [i for i, name in enumerate(header) if name is not None or any(v is not None for v in columns[i])]
-    names_out = _header_names([header[i] for i in kept])
-    return pa.table({name: _arrow_column(columns[i]) for name, i in zip(names_out, kept, strict=True)})
+        reader, _ = adapter.read(_workbook(source), sheet or "")
+        return _collect(reader, reader.schema, max_bytes, f"Sheet {sheet!r} of {what}" if sheet else what)
+    except adapter.AdapterError as error:
+        raise DatasetError(str(error)) from error
+    except ModuleNotFoundError as error:
+        raise _no_openpyxl() from error
 
 
-def _header_names(cells: list[Any]) -> list[str]:
-    """Header cells as unique column names: a blank one becomes column_<n>, a repeat gets _2.
-    A repeat in another case counts (DuckDB matches names without case)."""
-    names: list[str] = []
-    taken: set[str] = set()
-    for n, cell in enumerate(cells, start=1):
-        base = str(cell).strip() if cell is not None and str(cell).strip() else f"column_{n}"
-        name, k = base, 2
-        while name.lower() in taken:
-            name, k = f"{base}_{k}", k + 1
-        names.append(name)
-        taken.add(name.lower())
-    return names
+def _no_openpyxl() -> MissingPackagesError:
+    """openpyxl is not in the app's Python: the one missing-package answer."""
+    return MissingPackagesError(missing_packages("Excel workbooks", ["openpyxl"], sys.executable, own=True))
 
 
-def _arrow_column(values: list[Any]) -> pa.Array:
-    try:
-        return pa.array(values)
-    except (pa.ArrowInvalid, pa.ArrowTypeError, OverflowError):
-        # Mixed kinds (a number column with a "n/a" in it): keep every value, as text.
-        return pa.array([None if v is None else _as_text(v) for v in values], pa.string())
-
-
-def _as_text(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False) if isinstance(value, dict | list) else str(value)
+# A header's names and a column's type: the adapter's one set of rules, for delimited text and JSON too.
+_header_names = adapter.header_names
+_arrow_column = adapter.typed
 
 
 def parse_pasted(text: str, max_bytes: int) -> pa.Table:

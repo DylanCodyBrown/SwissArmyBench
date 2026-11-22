@@ -13,9 +13,9 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
 from openpyxl.workbook.defined_name import DefinedName
 
-from swissarmybench_accounting import runtime
+from swissarmybench import sab_excel as runtime
+from swissarmybench.sab_excel import WorkbookError
 from swissarmybench_accounting import templates as rules
-from swissarmybench_accounting.runtime import WorkbookError
 from swissarmybench_accounting.templates import TemplateError
 from tests import accounting_data as made_up
 

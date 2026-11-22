@@ -13,9 +13,10 @@ import duckdb
 import pytest
 from openpyxl import load_workbook
 
+from swissarmybench import sab_excel as runtime
+from swissarmybench.sab_excel import WorkbookError
 from swissarmybench_accounting import design as rules
-from swissarmybench_accounting import exporter, runtime
-from swissarmybench_accounting.runtime import WorkbookError
+from swissarmybench_accounting import exporter
 from tests import accounting_data as made_up
 
 

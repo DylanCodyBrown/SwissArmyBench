@@ -5,7 +5,7 @@ workbook read back for people (Play's preview, a template on the canvas), and th
                     (numbers in their format, a total's formula worked out), merged cells, column
                     widths, bold and fills, conditional colours applied, named ranges, charts (their
                     kind, anchor, series and values). At most PREVIEW_ROWS by PREVIEW_COLUMNS a sheet
-  build(design, tables)  the workbook's bytes, from runtime.build_workbook
+  build(design, tables)  the workbook's bytes, from sab_excel.build
 """
 
 from __future__ import annotations
@@ -21,13 +21,13 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 
+from swissarmybench import sab_excel
 from swissarmybench.adapters.atomic_files import write_atomic
-from swissarmybench_accounting import runtime
 
 PREVIEW_ROWS = 200
 PREVIEW_COLUMNS = 40
 MAX_TEMPLATE_BYTES = 20 * 1024 * 1024
-RUNTIME_FILE = Path(runtime.__file__)
+RUNTIME_FILE = Path(sab_excel.__file__)
 
 
 def runtime_text() -> str:
@@ -71,11 +71,11 @@ def copy_template(source: str | Path, target: str | Path) -> str:
     """An existing workbook copied in as a template (read first: it must open as a workbook)."""
     src = Path(source).expanduser()
     if src.suffix.lower() not in (".xlsx", ".xlsm"):
-        raise runtime.WorkbookError(f"{src.name} is not an Excel workbook (.xlsx).")
+        raise sab_excel.WorkbookError(f"{src.name} is not an Excel workbook (.xlsx).")
     if not src.is_file():
         raise FileNotFoundError(f"There is no workbook at {src}.")
     if src.stat().st_size > MAX_TEMPLATE_BYTES:
-        raise runtime.WorkbookError("A template is at most 20 MB.")
+        raise sab_excel.WorkbookError("A template is at most 20 MB.")
     load_workbook(src)  # it opens, or it says why
     dest = Path(target)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -100,9 +100,8 @@ def join(folder: str | Path, *parts: str) -> str:
 
 
 def build(design: dict[str, Any], tables: dict[str, Any]) -> bytes:
-    out = io.BytesIO()
-    runtime.build_workbook(design, tables).save(out)
-    return out.getvalue()
+    made: bytes = sab_excel.build(tables, design)
+    return made
 
 
 # ===== a workbook read back for people =====
@@ -377,8 +376,8 @@ def preview(
 def build_statements(
     template: str, data: Any, lines: Any, args: dict[str, Any], bindings: list[dict[str, Any]], dry_run: bool
 ) -> list[dict[str, Any]]:
-    """The runtime's build_statements, with the app's checked arguments."""
-    return runtime.build_statements(
+    """sab_excel's build_statements, with the app's checked arguments."""
+    return sab_excel.build_statements(
         template,
         data,
         lines,
@@ -396,4 +395,4 @@ def build_statements(
 
 
 def read_register(folder: str) -> tuple[list[str], list[tuple[Any, ...]]]:
-    return runtime.read_register(folder)
+    return sab_excel.read_register(folder)

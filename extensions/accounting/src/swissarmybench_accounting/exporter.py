@@ -2,8 +2,8 @@
 extension's domain; no I/O: the runtime's text is handed in).
 
 The design is data; the Python is generated from it: workbook.py holds the design (a Python literal),
-the builder (runtime.py's own text, whole: the one generator Play runs too), and reads its tables from
-data.py, the data notebook's export. It runs anywhere with openpyxl and duckdb:
+the builder (sab_excel's own text, the one builder Play runs too: only the parts this design uses), and
+reads its tables from data.py, the data notebook's export. It runs anywhere with openpyxl and duckdb:
 
     python workbook.py                  writes <title>.xlsx beside it
     python workbook.py out/April.xlsx   writes there
@@ -35,10 +35,25 @@ def output_name(design: Mapping[str, Any]) -> str:
     return f"{stem}.xlsx"
 
 
-def _body(runtime: str) -> str:
-    """The runtime's code after its docstring and `from __future__` line."""
+MARK = "# ===== "
+ALWAYS = ("cells", "data", "tables", "design")  # the parts every design's workbook is built with
+BY_BLOCK = {"pivot": "pivots", "chart": "charts"}  # a block kind's own part
+
+
+def parts_used(design: Mapping[str, Any]) -> list[str]:
+    """The builder's parts this design needs: the core, and a part for each kind of block it has."""
+    kinds = {b.get("kind") for s in design.get("sheets") or [] for b in s.get("blocks") or []}
+    return [*ALWAYS, *(part for kind, part in BY_BLOCK.items() if kind in kinds)]
+
+
+def _body(runtime: str, design: Mapping[str, Any]) -> str:
+    """The builder's code after its docstring and `from __future__` line: what comes before its first part
+    (the imports and settings), then only the parts this design uses, in the builder's own order."""
     at = runtime.index(FUTURE)
-    return runtime[at + len(FUTURE) :].lstrip("\n")
+    head, *parts = runtime[at + len(FUTURE) :].lstrip("\n").split("\n" + MARK)
+    wanted = parts_used(design)
+    kept = [MARK + p for p in parts if p.split(":", 1)[0].strip() in wanted]
+    return "\n".join([head.rstrip() + "\n\n", *kept])
 
 
 def workbook_py(design: Mapping[str, Any], runtime: str, tables: list[str]) -> str:
@@ -54,8 +69,8 @@ def workbook_py(design: Mapping[str, Any], runtime: str, tables: list[str]) -> s
         f"{FUTURE}\n"
         f"DESIGN = {literal}\n\n"
         f"# The tables the workbook reads, and their names in data.py.\nTABLES = {pprint.pformat(names, width=100)}\n\n"
-        "# ===== the builder (Swiss Army Bench Accounting's runtime) =====\n\n"
-        f"{_body(runtime).rstrip()}\n\n\n"
+        "# ===== the builder (Swiss Army Bench's sab_excel: the parts this design uses) =====\n\n"
+        f"{_body(runtime, design).rstrip()}\n\n\n"
         "# ===== the data and the run =====\n\n\n"
         "def load_tables() -> dict[str, Any]:\n"
         '    """The tables, by the names the design reads, from data.py (the data notebook\'s export)."""\n'

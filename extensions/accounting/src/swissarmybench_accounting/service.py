@@ -469,6 +469,6 @@ class Accounting:
 def _check_place(xlsx: str, place: str) -> None:
     from openpyxl import load_workbook
 
-    from swissarmybench_accounting import runtime
+    from swissarmybench import sab_excel
 
-    runtime.place_of(load_workbook(xlsx), place)
+    sab_excel.place_of(load_workbook(xlsx), place)

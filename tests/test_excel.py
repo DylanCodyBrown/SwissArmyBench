@@ -56,7 +56,7 @@ def test_a_workbook_with_several_sheets_names_the_one_to_load(tmp_path: Path) ->
         load_file(str(path), MAX)
     table, _ = load_file(str(path), MAX, sheet="Q2")
     assert table.column("b").to_pylist() == [2, 3]
-    with pytest.raises(DatasetError, match="no sheet 'Q3'"):
+    with pytest.raises(DatasetError, match="no sheet or named table 'Q3'"):
         load_file(str(path), MAX, sheet="Q3")
 
 

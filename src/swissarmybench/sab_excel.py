@@ -1,23 +1,34 @@
-"""The workbook builder: a workbook's design built into an .xlsx from the data, and statements and invoices
-built from a template. ONE generator (the owner, 2026-11-17): Play runs this file in the app, and Export
-writes it into workbook.py whole, which builds the same workbook anywhere with openpyxl and duckdb (a
-Function App included). Never Excel itself, never a real pivot table: a pivot is a summary DuckDB
-computes, written as a formatted table.
+"""sab_excel: the one way to make an Excel workbook (Plans/excel.plan.md, the owner, 2026-11-21), the same
+file wherever it runs (the app, a Workbench kernel, a Streamlit app, an exported project).
 
-  connect(tables)        a DuckDB of its own with the tables registered by name, then locked (no files,
-                         no network): every block's query runs here, in the app and in workbook.py alike
-  rows_of(con, source)   a block's rows: {"table": name} or {"query": "SELECT ..."}
-  pivot_sql / pivot      a pivot's GROUP BY GROUPING SETS (rows, columns, values with sum, count, average,
-                         min, max; totals by DuckDB), and its layout as a table
-  build_workbook         the design (sheets, blocks: title, text, table, pivot, chart; formats, conditional
-                         colours, freeze panes, print setup) into an openpyxl Workbook, saved when a path
-  fill_template          a template workbook (its layout, formats, merged cells, named ranges kept) with its
-                         places bound: a value (a column, text, the number, the date) or a table that grows
-  build_statements       one workbook per group (or one workbook, a sheet per group), named from columns,
-                         numbered, dated; dry_run first (the plan: files, rows, totals; nothing written);
-                         a register of what was built (register.csv beside them)
+    import sab_excel                                   # in the app: from swissarmybench import sab_excel
 
-Standard library, openpyxl and duckdb only: nothing of the app (workbook.py holds this file's text).
+    sab_excel.build({"Orders": orders})                          # a plain workbook: a sheet a grid
+    sab_excel.build({"orders": orders}, design, out="report.xlsx")   # laid out by a design
+    sab_excel.build({"invoice": header, "lines": lines}, {"bindings": [...], "lines": "lines"},
+                    template="invoice.xlsx", out="INV-1001.xlsx")    # a template filled
+
+It takes grids (Arrow tables or readers from the adapter, DataFrames, or (columns, rows)) and lays them out.
+It never reads a connection and never reads a sheet's rows: that is the adapter's (adapter.Excel). Never
+Excel itself, never a real pivot table: a pivot is a summary DuckDB computes, written as a formatted table.
+Text from the data is always a text cell, never a formula; a whole number of more digits than Excel keeps and
+a date before 1900-03-01 are written as text, exact.
+
+It reads top to bottom in the order a build runs; each part starts at a `# =====` line, and workbook.py in
+an export carries only the parts its design uses:
+
+  cells       a cell's name, the number formats by name, the one rule for a cell's value (cell_value)
+  data        connect(tables): a DuckDB of its own with the grids by name, locked; rows_of(con, source)
+  tables      a header and rows written and styled, a total row, conditional colours, an entry form's checks
+  design      build_workbook(design, tables): sheets of blocks (title, text, table; freeze panes, print setup)
+  pivots      a pivot block: GROUP BY GROUPING SETS in DuckDB, laid out as a table
+  charts      a chart block: Excel's own chart over a table or a pivot on the workbook
+  templates   fill_template: an existing workbook's places bound to data, its tables growing
+  statements  build_statements: one workbook per group (or a sheet each), named, numbered, dated, a register
+  plain       plain_workbook: rows as they are, streamed (the grid's Excel export; near a million rows)
+  build       build(grids, design, template, out): the one call over all of it
+
+Standard library, openpyxl and duckdb only: nothing of the app.
 """
 
 from __future__ import annotations
@@ -27,18 +38,23 @@ import datetime as _dt
 import decimal
 import json
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook, load_workbook
-from openpyxl.chart import BarChart, LineChart, PieChart, Reference
-from openpyxl.formatting.rule import CellIsRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import absolute_coordinate, get_column_letter, quote_sheetname, range_boundaries
 from openpyxl.utils.cell import column_index_from_string, coordinate_from_string
 
+VERSION = "1.0.0"
+
 MAX_ROWS = 1_000_000  # one block's rows (a sheet holds 1,048,576)
+SHEET_ROWS = 1_048_576  # the rows one sheet holds, its header too
+SHEET_COLUMNS = 16_384  # and its columns
+MAX_CELL_CHARS = 32_767  # the characters one cell holds
+EXACT_DIGITS = 15  # the digits of a number Excel keeps: a longer whole number is written as text
+FIRST_DAY = (1900, 3, 1)  # an earlier date reads back as another day: written as text
 
 # The number formats offered by name (any other text is an Excel format code, used as written).
 FORMATS: dict[str, str] = {
@@ -63,7 +79,9 @@ OPERATORS: dict[str, str] = {
     "between": "between",
 }
 CHARTS = ("bar", "column", "line", "pie", "combo")
+CHECKS = ("whole", "number", "date")  # what an entry form's column may hold (with choices: a list)
 HEADER_FILL = "1F3864"
+REQUIRED_FILL = "C00000"
 BAND_FILL = "EEF2F8"
 THIN = Side(style="thin", color="9AA5B8")
 
@@ -72,7 +90,7 @@ class WorkbookError(ValueError):
     """A design, template or build that cannot be done as asked (the message says why)."""
 
 
-# ===== cells and formats =====
+# ===== cells: a cell's name, formats, and the one rule for a cell's value =====
 
 
 def split_cell(cell: str) -> tuple[int, int]:
@@ -100,31 +118,75 @@ def _colour(value: Any) -> str | None:
     return text.upper() if re.fullmatch(r"[0-9A-Fa-f]{6}", text) else None
 
 
-def _plain(value: Any) -> Any:
-    """A value as a cell takes it (openpyxl: numbers, text, dates, booleans)."""
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
+_UNWRITABLE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]|_(?=x[0-9A-Fa-f]{4}_)")
+
+
+def cell_text(text: str) -> str:
+    """Text as a cell's file holds it: a character XML cannot hold as Excel's own _xHHHH_ (and a literal
+    _xHHHH_ kept literal), so Excel shows the text as it was."""
+    if not _UNWRITABLE.search(text):
+        return text
+    return _UNWRITABLE.sub(lambda m: f"_x{ord(m.group(0)):04X}_", text)
+
+
+def cell_value(value: Any) -> tuple[Any, bool]:
+    """A value as a cell holds it, and whether it is a text cell (text is never a formula). The one rule:
+    a whole number of more digits than Excel keeps, a date before 1900-03-01 and a time with a zone are
+    written as text, exact; a decimal as a number while Excel keeps its digits; a list or a record as JSON;
+    anything else as its words."""
+    if value is None or isinstance(value, bool):
+        return value, False
+    if isinstance(value, int):
+        return (value, False) if abs(value) < 10**EXACT_DIGITS else (str(value), True)
+    if isinstance(value, float):
+        return (value, False) if value == value and abs(value) != float("inf") else (repr(value), True)
+    if isinstance(value, str):
+        return cell_text(value), True
     if isinstance(value, decimal.Decimal):
-        return float(value)
-    if isinstance(value, _dt.datetime):
-        return value.replace(tzinfo=None) if value.tzinfo else value
-    if isinstance(value, _dt.date | _dt.time):
-        return value
-    if hasattr(value, "item"):  # numpy's scalars
+        fits = value.is_finite() and len(value.as_tuple().digits) <= EXACT_DIGITS
+        return (float(value), False) if fits else (str(value), True)
+    if isinstance(value, _dt.date):  # a date, or a date and time
+        if value != value:  # pandas' missing time
+            return None, False
+        zoned = getattr(value, "tzinfo", None) is not None
+        early = (value.year, value.month, value.day) < FIRST_DAY
+        return (value.isoformat(), True) if zoned or early else (value, False)
+    if isinstance(value, _dt.time | _dt.timedelta):
+        return value, False
+    if hasattr(value, "item") and not isinstance(value, bytes):  # numpy's scalars
         try:
-            return _plain(value.item())
+            return cell_value(value.item())
         except (TypeError, ValueError):
             pass
+    if isinstance(value, dict | list | tuple):
+        return cell_text(json.dumps(value, ensure_ascii=False, default=str)), True
+    return cell_text(str(value)), True
+
+
+def _put(ws: Any, row: int, column: int, value: Any) -> Any:
+    """One value from the data into a cell, by the one rule (a number that is not one: blank)."""
     if isinstance(value, float) and value != value:
-        return None
-    return str(value)
+        value = None
+    held, text = cell_value(value)
+    cell = ws.cell(row=row, column=column, value=held)
+    if text:
+        cell.data_type = "s"
+    return cell
+
+
+def _plain(value: Any) -> Any:
+    """A value as a plan or a register says it (numbers, text, dates, yes/no)."""
+    if isinstance(value, _dt.datetime) and value.tzinfo:
+        return value.replace(tzinfo=None)
+    held, _ = cell_value(value)
+    return held
 
 
 def _quote(name: str) -> str:
     return '"' + str(name).replace('"', '""') + '"'
 
 
-# ===== the data: a DuckDB of its own =====
+# ===== data: a DuckDB of its own, the tables by name =====
 
 
 def connect(tables: Mapping[str, Any]) -> Any:
@@ -169,6 +231,342 @@ def rows_of(con: Any, source: Mapping[str, Any]) -> tuple[list[str], list[tuple[
     if len(rows) > MAX_ROWS:
         raise WorkbookError(f"A block holds at most {MAX_ROWS:,} rows.")
     return columns, rows
+
+
+# ===== tables: a header and rows written and styled, conditional colours, an entry form's checks =====
+
+
+def _font(style: Mapping[str, Any], base: Font | None = None) -> Font:
+    base = base or Font()
+    return Font(
+        name=base.name,
+        bold=style.get("bold", base.bold),
+        italic=style.get("italic", base.italic),
+        size=style.get("size", base.size),
+        color=_colour(style.get("colour")) or base.color,
+    )
+
+
+def _fill(colour: Any) -> PatternFill | None:
+    found = _colour(colour)
+    return PatternFill("solid", start_color=found, end_color=found) if found else None
+
+
+def _merge(ws: Any, row: int, column: int, w: int, h: int) -> None:
+    if w > 1 or h > 1:
+        ws.merge_cells(start_row=row, start_column=column, end_row=row + h - 1, end_column=column + w - 1)
+
+
+def _widths(
+    ws: Any, column: int, header: Sequence[Any], rows: Sequence[Sequence[Any]], given: Mapping[int, Any]
+) -> None:
+    """Each column wide enough for its words (the first 200 rows read), or as the design says."""
+    for i, name in enumerate(header):
+        letter = get_column_letter(column + i)
+        if isinstance(given.get(i), int | float) and given[i]:
+            ws.column_dimensions[letter].width = float(given[i])
+            continue
+        longest = max([len(str(name))] + [len(_shown(r[i])) for r in rows[:200] if i < len(r)])
+        wanted = min(50.0, max(8.0, longest * 1.15 + 2))
+        if (ws.column_dimensions[letter].width or 0) < wanted:
+            ws.column_dimensions[letter].width = wanted
+
+
+def _shown(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:,.2f}"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return f"{value:,}"
+    return "" if value is None else str(value)
+
+
+def _write_grid(
+    ws: Any,
+    row: int,
+    column: int,
+    header: Sequence[str],
+    body: Sequence[Sequence[Any]],
+    formats: Sequence[str | None],
+    style: Mapping[str, Any],
+    total: Sequence[Any] | None = None,
+    widths: Mapping[int, Any] | None = None,
+) -> dict[str, Any]:
+    """A header, rows and a total row at (row, column), styled; the range written, for charts."""
+    theme = str(style.get("theme") or "banded")
+    head_fill = _fill(style.get("header_fill") or (None if theme == "plain" else HEADER_FILL))
+    head_font = Font(
+        bold=True,
+        color=_colour(style.get("header_colour")) or ("FFFFFF" if head_fill and theme != "plain" else None),
+    )
+    for i, name in enumerate(header):
+        cell = ws.cell(row=row, column=column + i, value=name)
+        cell.font = head_font
+        if head_fill:
+            cell.fill = head_fill
+        cell.border = Border(bottom=THIN)
+        cell.alignment = Alignment(
+            horizontal="center" if i >= int(style.get("labels", 0)) else "left", wrap_text=True
+        )
+    band = _fill(style.get("band_fill") or BAND_FILL) if theme == "banded" else None
+    for r, values in enumerate(body, start=1):
+        for i, value in enumerate(values):
+            cell = _put(ws, row + r, column + i, value)
+            if i < len(formats) and formats[i]:
+                cell.number_format = formats[i]
+            if band and r % 2 == 0:
+                cell.fill = band
+    last = row + len(body)
+    if total is not None:
+        last += 1
+        for i, value in enumerate(total):
+            formula = isinstance(value, str) and value.startswith("=")  # the total's own formula
+            cell = (
+                ws.cell(row=last, column=column + i, value=value)
+                if formula
+                else _put(ws, last, column + i, value)
+            )
+            cell.font = Font(bold=True)
+            cell.border = Border(top=THIN, bottom=Side(style="double", color="9AA5B8"))
+            if i < len(formats) and formats[i]:
+                cell.number_format = formats[i]
+    _widths(ws, column, header, body, widths or {})
+    return {
+        "sheet": ws.title,
+        "row": row,
+        "column": column,
+        "header": list(header),
+        "first": row + 1,
+        "last": row + len(body),
+        "end": last,
+    }
+
+
+def _table(ws: Any, con: Any, block: Mapping[str, Any]) -> dict[str, Any]:
+    row, column = split_cell(block.get("cell") or "A1")
+    names, rows = rows_of(con, block.get("source") or {})
+    specs = [c for c in block.get("columns") or [] if isinstance(c, dict) and c.get("name")]
+    if specs:
+        missing = [c["name"] for c in specs if c["name"] not in names]
+        if missing:
+            raise WorkbookError(f"The table has no column {', '.join(missing)}. It has: {', '.join(names)}.")
+        picks = [names.index(c["name"]) for c in specs]
+        rows = [tuple(r[i] for i in picks) for r in rows]
+        header = [str(c.get("label") or c["name"]) for c in specs]
+    else:
+        specs = [{"name": n} for n in names]
+        header = list(names)
+    formats = [excel_format(c.get("format")) for c in specs]
+    total: list[Any] | None = None
+    if block.get("total_row"):
+        total = ["Total", *([None] * (len(specs) - 1))]
+        first, last = row + 1, row + len(rows)
+        for i, spec in enumerate(specs):
+            how = str(spec.get("total") or "").lower()
+            if i == 0 and how == "":
+                continue
+            if how in ("sum", "count", "average", "min", "max") and rows:
+                letter = get_column_letter(column + i)
+                fn = {"average": "AVERAGE", "count": "COUNTA"}.get(how, how.upper())
+                total[i] = f"={fn}({letter}{first}:{letter}{last})"
+    done = _write_grid(
+        ws,
+        row,
+        column,
+        header,
+        rows,
+        formats,
+        block.get("style") or {},
+        total,
+        {i: c.get("width") for i, c in enumerate(specs)},
+    )
+    for rule in block.get("conditional") or []:
+        _conditional(ws, rule, header, specs, done)
+    _entry(ws, specs, done, block)
+    return done
+
+
+def _conditional(
+    ws: Any,
+    rule: Mapping[str, Any],
+    header: Sequence[str],
+    specs: Sequence[Mapping[str, Any]],
+    done: Mapping[str, Any],
+) -> None:
+    names = [s["name"] for s in specs]
+    if rule.get("column") not in names:
+        raise WorkbookError(
+            f"A colour rule names {rule.get('column')!r}: the table's columns are {', '.join(names)}."
+        )
+    op = str(rule.get("op") or ">")
+    if op not in OPERATORS:
+        raise WorkbookError(f"{op} is not a rule: {', '.join(OPERATORS)}.")
+    if done["last"] < done["first"]:
+        return
+    letter = get_column_letter(done["column"] + names.index(rule["column"]))
+    area = f"{letter}{done['first']}:{letter}{done['last']}"
+
+    def number(v: Any) -> str:
+        if isinstance(v, bool) or not isinstance(v, int | float):
+            text = str(v).replace('"', '""')
+            return f'"{text}"'
+        return repr(v)
+
+    formula = (
+        [number(rule.get("value")), number(rule.get("to"))]
+        if op == "between"
+        else [number(rule.get("value"))]
+    )
+    fill = _fill(rule.get("fill") or "F8D7DA")
+    font = Font(color=_colour(rule.get("colour"))) if _colour(rule.get("colour")) else None
+    from openpyxl.formatting.rule import CellIsRule
+
+    ws.conditional_formatting.add(
+        area, CellIsRule(operator=OPERATORS[op], formula=formula, fill=fill, font=font)
+    )
+
+
+def _entry(
+    ws: Any, specs: Sequence[Mapping[str, Any]], done: Mapping[str, Any], block: Mapping[str, Any]
+) -> None:
+    """A table as a form to fill in: a column's `note` (a comment on its header), `choices` (a list Excel
+    offers and checks), `check` (whole, number or date, checked by Excel) and `required` (its header red, a
+    blank refused), over the table's rows or the block's `entry_rows` below the header."""
+    if not any(s.get(k) for s in specs for k in ("note", "choices", "check", "required")):
+        return
+    from openpyxl.comments import Comment
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    rows = max(int(block.get("entry_rows") or 0), done["last"] - done["first"] + 1, 1)
+    for i, spec in enumerate(specs):
+        letter = get_column_letter(done["column"] + i)
+        head = ws.cell(row=done["row"], column=done["column"] + i)
+        needed = bool(spec.get("required"))
+        if needed:
+            head.fill = _fill(REQUIRED_FILL)
+            head.font = Font(bold=True, color="FFFFFF")
+        if spec.get("note"):
+            head.comment = Comment(str(spec["note"]), "Swiss Army Bench")
+        check = str(spec.get("check") or "").lower()
+        if spec.get("choices"):
+            listed = ",".join(str(c).replace('"', "'") for c in spec["choices"])
+            rule = DataValidation(type="list", formula1=f'"{listed}"', allow_blank=not needed)
+        elif check == "whole":
+            rule = DataValidation(
+                type="whole", operator="greaterThanOrEqual", formula1="-2147483647", allow_blank=not needed
+            )
+        elif check == "number":
+            rule = DataValidation(
+                type="decimal", operator="greaterThanOrEqual", formula1="-1E+300", allow_blank=not needed
+            )
+        elif check == "date":
+            rule = DataValidation(type="date", operator="greaterThan", formula1="1", allow_blank=not needed)
+        elif check:
+            raise WorkbookError(f"{check} is not a check: {', '.join(CHECKS)}.")
+        else:
+            continue
+        rule.error = f"{spec['name']}: {spec.get('note') or 'see the header'}"
+        rule.showErrorMessage = True
+        ws.add_data_validation(rule)
+        rule.add(f"{letter}{done['row'] + 1}:{letter}{done['row'] + rows}")
+
+
+# ===== design: a workbook built from its design (sheets of blocks) =====
+
+
+# A block's writer by its kind: (ws, con, block) -> what it wrote (for a chart), or nothing. A part of this
+# file adds its own (pivots); AFTER holds the kinds drawn once every table is written (charts).
+BLOCKS: dict[str, Callable[[Any, Any, Mapping[str, Any]], Any]] = {}
+AFTER: dict[str, Callable[[Any, Mapping[str, Any], Mapping[str, Mapping[str, Any]], Any], None]] = {}
+KINDS = ("title", "text", "table", "pivot", "chart")
+
+
+def _text_block(ws: Any, _con: Any, block: Mapping[str, Any]) -> None:
+    """A title (bold, large) or a text (wrapped over its cells)."""
+    kind = block.get("kind")
+    row, column = split_cell(block.get("cell") or "A1")
+    cell = ws.cell(row=row, column=column, value=str(block.get("text") or ""))
+    style = block.get("style") or {}
+    cell.font = _font(style, Font(bold=True, size=16) if kind == "title" else Font())
+    cell.alignment = Alignment(
+        wrap_text=kind == "text", vertical="top", horizontal=style.get("align") or None
+    )
+    if _fill(style.get("fill")):
+        cell.fill = _fill(style.get("fill"))
+    _merge(ws, row, column, int(block.get("w") or 1), int(block.get("h") or 1) if kind == "text" else 1)
+
+
+BLOCKS["title"] = BLOCKS["text"] = _text_block
+BLOCKS["table"] = _table
+
+
+def _sheet_setup(ws: Any, sheet: Mapping[str, Any]) -> None:
+    if sheet.get("freeze"):
+        split_cell(str(sheet["freeze"]))
+        ws.freeze_panes = str(sheet["freeze"]).upper()
+    if _colour(sheet.get("tab_colour")):
+        ws.sheet_properties.tabColor = _colour(sheet.get("tab_colour"))
+    printing = sheet.get("print") or {}
+    if printing.get("orientation") in ("portrait", "landscape"):
+        ws.page_setup.orientation = printing["orientation"]
+    if printing.get("paper") in ("A4", "Letter"):
+        ws.page_setup.paperSize = ws.PAPERSIZE_A4 if printing["paper"] == "A4" else ws.PAPERSIZE_LETTER
+    if printing.get("fit_width"):
+        ws.sheet_properties.pageSetUpPr.fitToPage = True
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 0
+    if printing.get("header"):
+        ws.oddHeader.center.text = str(printing["header"])
+    if printing.get("footer"):
+        ws.oddFooter.center.text = str(printing["footer"])
+
+
+def build_workbook(
+    design: Mapping[str, Any], tables: Mapping[str, Any] | Any, path: str | Path | None = None
+) -> Any:
+    """The design into a workbook: `tables` by name (DataFrames, Arrow tables) or a DuckDB connection
+    connect() made. Saved at `path` when given. Charts come after every table and pivot, so a chart may
+    show a block on another sheet."""
+    con = tables if hasattr(tables, "execute") else connect(tables)
+    book = Workbook()
+    book.remove(book.active)
+    written: dict[str, dict[str, Any]] = {}
+    later: list[tuple[Any, Mapping[str, Any]]] = []
+    sheets = design.get("sheets") or []
+    if not sheets:
+        raise WorkbookError("The workbook has no sheet.")
+    for sheet in sheets:
+        ws = book.create_sheet(str(sheet.get("name") or "Sheet")[:31])
+        for block in sheet.get("blocks") or []:
+            try:
+                done = _block(ws, con, block, later)
+            except WorkbookError as error:
+                raise WorkbookError(f"{sheet.get('name')}, {block.get('cell')}: {error}") from None
+            if done:
+                written[str(block.get("id"))] = done
+        _sheet_setup(ws, sheet)
+    for ws, block in later:
+        try:
+            AFTER[str(block.get("kind"))](ws, block, written, book)
+        except WorkbookError as error:
+            raise WorkbookError(f"{ws.title}, {block.get('cell')}: {error}") from None
+    if design.get("title"):
+        book.properties.title = str(design["title"])
+    if path is not None:
+        book.save(str(path))
+    return book
+
+
+def _block(ws: Any, con: Any, block: Mapping[str, Any], later: list[tuple[Any, Mapping[str, Any]]]) -> Any:
+    """One block written by its kind's writer (a chart: kept for after the tables)."""
+    kind = block.get("kind")
+    if kind in AFTER:
+        later.append((ws, block))
+        return None
+    if kind in BLOCKS:
+        return BLOCKS[kind](ws, con, block)
+    if kind in KINDS:
+        raise WorkbookError(f"This copy of the builder was made without {kind} blocks: export it again.")
+    raise WorkbookError(f"{kind!r} is not a block: title, text, table, pivot or chart.")
 
 
 # ===== pivots: summaries DuckDB computes (the owner, 2026-11-17) =====
@@ -280,195 +678,25 @@ def pivot(con: Any, block: Mapping[str, Any]) -> dict[str, Any]:
     return {"header": header, "rows": body, "total": total_row, "formats": formats, "labels": len(rows)}
 
 
-# ===== building a workbook from its design =====
-
-
-def _font(style: Mapping[str, Any], base: Font | None = None) -> Font:
-    base = base or Font()
-    return Font(
-        name=base.name,
-        bold=style.get("bold", base.bold),
-        italic=style.get("italic", base.italic),
-        size=style.get("size", base.size),
-        color=_colour(style.get("colour")) or base.color,
-    )
-
-
-def _fill(colour: Any) -> PatternFill | None:
-    found = _colour(colour)
-    return PatternFill("solid", start_color=found, end_color=found) if found else None
-
-
-def _merge(ws: Any, row: int, column: int, w: int, h: int) -> None:
-    if w > 1 or h > 1:
-        ws.merge_cells(start_row=row, start_column=column, end_row=row + h - 1, end_column=column + w - 1)
-
-
-def _widths(
-    ws: Any, column: int, header: Sequence[Any], rows: Sequence[Sequence[Any]], given: Mapping[int, Any]
-) -> None:
-    """Each column wide enough for its words (the first 200 rows read), or as the design says."""
-    for i, name in enumerate(header):
-        letter = get_column_letter(column + i)
-        if isinstance(given.get(i), int | float) and given[i]:
-            ws.column_dimensions[letter].width = float(given[i])
-            continue
-        longest = max([len(str(name))] + [len(_shown(r[i])) for r in rows[:200] if i < len(r)])
-        wanted = min(50.0, max(8.0, longest * 1.15 + 2))
-        if (ws.column_dimensions[letter].width or 0) < wanted:
-            ws.column_dimensions[letter].width = wanted
-
-
-def _shown(value: Any) -> str:
-    if isinstance(value, float):
-        return f"{value:,.2f}"
-    if isinstance(value, int) and not isinstance(value, bool):
-        return f"{value:,}"
-    return "" if value is None else str(value)
-
-
-def _write_grid(
-    ws: Any,
-    row: int,
-    column: int,
-    header: Sequence[str],
-    body: Sequence[Sequence[Any]],
-    formats: Sequence[str | None],
-    style: Mapping[str, Any],
-    total: Sequence[Any] | None = None,
-    widths: Mapping[int, Any] | None = None,
-) -> dict[str, Any]:
-    """A header, rows and a total row at (row, column), styled; the range written, for charts."""
-    theme = str(style.get("theme") or "banded")
-    head_fill = _fill(style.get("header_fill") or (None if theme == "plain" else HEADER_FILL))
-    head_font = Font(
-        bold=True,
-        color=_colour(style.get("header_colour")) or ("FFFFFF" if head_fill and theme != "plain" else None),
-    )
-    for i, name in enumerate(header):
-        cell = ws.cell(row=row, column=column + i, value=name)
-        cell.font = head_font
-        if head_fill:
-            cell.fill = head_fill
-        cell.border = Border(bottom=THIN)
-        cell.alignment = Alignment(
-            horizontal="center" if i >= int(style.get("labels", 0)) else "left", wrap_text=True
-        )
-    band = _fill(style.get("band_fill") or BAND_FILL) if theme == "banded" else None
-    for r, values in enumerate(body, start=1):
-        for i, value in enumerate(values):
-            cell = ws.cell(row=row + r, column=column + i, value=_plain(value))
-            if i < len(formats) and formats[i]:
-                cell.number_format = formats[i]
-            if band and r % 2 == 0:
-                cell.fill = band
-    last = row + len(body)
-    if total is not None:
-        last += 1
-        for i, value in enumerate(total):
-            cell = ws.cell(
-                row=last,
-                column=column + i,
-                value=value if isinstance(value, str) and value.startswith("=") else _plain(value),
-            )
-            cell.font = Font(bold=True)
-            cell.border = Border(top=THIN, bottom=Side(style="double", color="9AA5B8"))
-            if i < len(formats) and formats[i]:
-                cell.number_format = formats[i]
-    _widths(ws, column, header, body, widths or {})
-    return {
-        "sheet": ws.title,
-        "row": row,
-        "column": column,
-        "header": list(header),
-        "first": row + 1,
-        "last": row + len(body),
-        "end": last,
-    }
-
-
-def _table(ws: Any, con: Any, block: Mapping[str, Any]) -> dict[str, Any]:
+def _pivot_block(ws: Any, con: Any, block: Mapping[str, Any]) -> dict[str, Any]:
+    """A pivot block on its sheet: DuckDB's summary written as a table, its totals in bold."""
     row, column = split_cell(block.get("cell") or "A1")
-    names, rows = rows_of(con, block.get("source") or {})
-    specs = [c for c in block.get("columns") or [] if isinstance(c, dict) and c.get("name")]
-    if specs:
-        missing = [c["name"] for c in specs if c["name"] not in names]
-        if missing:
-            raise WorkbookError(f"The table has no column {', '.join(missing)}. It has: {', '.join(names)}.")
-        picks = [names.index(c["name"]) for c in specs]
-        rows = [tuple(r[i] for i in picks) for r in rows]
-        header = [str(c.get("label") or c["name"]) for c in specs]
-    else:
-        specs = [{"name": n} for n in names]
-        header = list(names)
-    formats = [excel_format(c.get("format")) for c in specs]
-    total: list[Any] | None = None
-    if block.get("total_row"):
-        total = ["Total", *([None] * (len(specs) - 1))]
-        first, last = row + 1, row + len(rows)
-        for i, spec in enumerate(specs):
-            how = str(spec.get("total") or "").lower()
-            if i == 0 and how == "":
-                continue
-            if how in ("sum", "count", "average", "min", "max") and rows:
-                letter = get_column_letter(column + i)
-                fn = {"average": "AVERAGE", "count": "COUNTA"}.get(how, how.upper())
-                total[i] = f"={fn}({letter}{first}:{letter}{last})"
-    done = _write_grid(
-        ws,
-        row,
-        column,
-        header,
-        rows,
-        formats,
-        block.get("style") or {},
-        total,
-        {i: c.get("width") for i, c in enumerate(specs)},
+    shaped = pivot(con, block)
+    style = dict(block.get("style") or {}) | {"labels": shaped["labels"]}
+    return _write_grid(
+        ws, row, column, shaped["header"], shaped["rows"], shaped["formats"], style, shaped["total"]
     )
-    for rule in block.get("conditional") or []:
-        _conditional(ws, rule, header, specs, done)
-    return done
 
 
-def _conditional(
-    ws: Any,
-    rule: Mapping[str, Any],
-    header: Sequence[str],
-    specs: Sequence[Mapping[str, Any]],
-    done: Mapping[str, Any],
-) -> None:
-    names = [s["name"] for s in specs]
-    if rule.get("column") not in names:
-        raise WorkbookError(
-            f"A colour rule names {rule.get('column')!r}: the table's columns are {', '.join(names)}."
-        )
-    op = str(rule.get("op") or ">")
-    if op not in OPERATORS:
-        raise WorkbookError(f"{op} is not a rule: {', '.join(OPERATORS)}.")
-    if done["last"] < done["first"]:
-        return
-    letter = get_column_letter(done["column"] + names.index(rule["column"]))
-    area = f"{letter}{done['first']}:{letter}{done['last']}"
+BLOCKS["pivot"] = _pivot_block
 
-    def number(v: Any) -> str:
-        if isinstance(v, bool) or not isinstance(v, int | float):
-            text = str(v).replace('"', '""')
-            return f'"{text}"'
-        return repr(v)
 
-    formula = (
-        [number(rule.get("value")), number(rule.get("to"))]
-        if op == "between"
-        else [number(rule.get("value"))]
-    )
-    fill = _fill(rule.get("fill") or "F8D7DA")
-    font = Font(color=_colour(rule.get("colour"))) if _colour(rule.get("colour")) else None
-    ws.conditional_formatting.add(
-        area, CellIsRule(operator=OPERATORS[op], formula=formula, fill=fill, font=font)
-    )
+# ===== charts: Excel's own charts over a table or a pivot on the workbook =====
 
 
 def _chart(ws: Any, block: Mapping[str, Any], written: Mapping[str, Mapping[str, Any]], book: Any) -> None:
+    from openpyxl.chart import BarChart, LineChart, PieChart, Reference
+
     kind = str(block.get("chart") or "column")
     if kind not in CHARTS:
         raise WorkbookError(f"{kind} is not a chart: {', '.join(CHARTS)}.")
@@ -522,97 +750,7 @@ def _chart(ws: Any, block: Mapping[str, Any], written: Mapping[str, Mapping[str,
     ws.add_chart(chart, str(block.get("cell") or "A1").upper())
 
 
-def _sheet_setup(ws: Any, sheet: Mapping[str, Any]) -> None:
-    if sheet.get("freeze"):
-        split_cell(str(sheet["freeze"]))
-        ws.freeze_panes = str(sheet["freeze"]).upper()
-    if _colour(sheet.get("tab_colour")):
-        ws.sheet_properties.tabColor = _colour(sheet.get("tab_colour"))
-    printing = sheet.get("print") or {}
-    if printing.get("orientation") in ("portrait", "landscape"):
-        ws.page_setup.orientation = printing["orientation"]
-    if printing.get("paper") in ("A4", "Letter"):
-        ws.page_setup.paperSize = ws.PAPERSIZE_A4 if printing["paper"] == "A4" else ws.PAPERSIZE_LETTER
-    if printing.get("fit_width"):
-        ws.sheet_properties.pageSetUpPr.fitToPage = True
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
-    if printing.get("header"):
-        ws.oddHeader.center.text = str(printing["header"])
-    if printing.get("footer"):
-        ws.oddFooter.center.text = str(printing["footer"])
-
-
-def build_workbook(
-    design: Mapping[str, Any], tables: Mapping[str, Any] | Any, path: str | Path | None = None
-) -> Any:
-    """The design into a workbook: `tables` by name (DataFrames, Arrow tables) or a DuckDB connection
-    connect() made. Saved at `path` when given. Charts come after every table and pivot, so a chart may
-    show a block on another sheet."""
-    con = tables if hasattr(tables, "execute") else connect(tables)
-    book = Workbook()
-    book.remove(book.active)
-    written: dict[str, dict[str, Any]] = {}
-    charts: list[tuple[Any, Mapping[str, Any]]] = []
-    sheets = design.get("sheets") or []
-    if not sheets:
-        raise WorkbookError("The workbook has no sheet.")
-    for sheet in sheets:
-        ws = book.create_sheet(str(sheet.get("name") or "Sheet")[:31])
-        for block in sheet.get("blocks") or []:
-            kind = block.get("kind")
-            try:
-                if kind in ("title", "text"):
-                    row, column = split_cell(block.get("cell") or "A1")
-                    cell = ws.cell(row=row, column=column, value=str(block.get("text") or ""))
-                    style = block.get("style") or {}
-                    base = Font(bold=True, size=16) if kind == "title" else Font()
-                    cell.font = _font(style, base)
-                    cell.alignment = Alignment(
-                        wrap_text=kind == "text", vertical="top", horizontal=style.get("align") or None
-                    )
-                    if _fill(style.get("fill")):
-                        cell.fill = _fill(style.get("fill"))
-                    _merge(
-                        ws,
-                        row,
-                        column,
-                        int(block.get("w") or 1),
-                        int(block.get("h") or 1) if kind == "text" else 1,
-                    )
-                elif kind == "table":
-                    written[str(block.get("id"))] = _table(ws, con, block)
-                elif kind == "pivot":
-                    row, column = split_cell(block.get("cell") or "A1")
-                    shaped = pivot(con, block)
-                    style = dict(block.get("style") or {}) | {"labels": shaped["labels"]}
-                    written[str(block.get("id"))] = _write_grid(
-                        ws,
-                        row,
-                        column,
-                        shaped["header"],
-                        shaped["rows"],
-                        shaped["formats"],
-                        style,
-                        shaped["total"],
-                    )
-                elif kind == "chart":
-                    charts.append((ws, block))
-                else:
-                    raise WorkbookError(f"{kind!r} is not a block: title, text, table, pivot or chart.")
-            except WorkbookError as error:
-                raise WorkbookError(f"{sheet.get('name')}, {block.get('cell')}: {error}") from None
-        _sheet_setup(ws, sheet)
-    for ws, block in charts:
-        try:
-            _chart(ws, block, written, book)
-        except WorkbookError as error:
-            raise WorkbookError(f"{ws.title}, {block.get('cell')}: {error}") from None
-    if design.get("title"):
-        book.properties.title = str(design["title"])
-    if path is not None:
-        book.save(str(path))
-    return book
+AFTER["chart"] = _chart
 
 
 # ===== templates: an existing workbook, its places bound to data (the owner, 2026-11-17) =====
@@ -694,9 +832,9 @@ def _grow(book: Any, ws: Any, first: int, height: int, extra: int) -> None:
             ref = dest[0][1].replace("$", "")
             min_col, min_row, max_col, max_row = range_boundaries(ref)
             if min_row is not None and min_row >= at:
-                span = absolute_coordinate(
-                    f"{cell_name(min_row + extra, min_col or 1)}:{cell_name((max_row or min_row) + extra, max_col or min_col or 1)}"
-                )
+                low = cell_name(min_row + extra, min_col or 1)
+                high = cell_name((max_row or min_row) + extra, max_col or min_col or 1)
+                span = absolute_coordinate(f"{low}:{high}")
                 if span.split(":")[0] == span.split(":")[1]:
                     span = span.split(":")[0]
                 sheet_ref = quote_sheetname(ws.title)
@@ -770,7 +908,7 @@ def fill_template(
         formats = binding.get("formats") or {}
         for r, line in enumerate(rows):
             for i, pick in enumerate(picks):
-                cell = ws.cell(row=first + r, column=column + i, value=_plain(line[pick]))
+                cell = _put(ws, first + r, column + i, line[pick])
                 code = excel_format(formats.get(wanted[i])) if isinstance(formats, dict) else None
                 if code:
                     cell.number_format = code
@@ -779,7 +917,10 @@ def fill_template(
             continue
         ws, r, c = place_of(book, str(binding.get("place")))
         cell = ws.cell(row=r, column=c)
-        cell.value = _value_for(binding, row, number, date)
+        held, text = cell_value(_value_for(binding, row, number, date))
+        cell.value = held
+        if text:  # text from the data: never a formula
+            cell.data_type = "s"
         code = excel_format(binding.get("format"))
         if code and binding.get("format") != "keep":
             cell.number_format = code
@@ -787,6 +928,8 @@ def fill_template(
             cell.number_format = FORMATS["date"]
     return book
 
+
+# ===== statements: one workbook per group, named, numbered, dated, with a register =====
 
 _UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
 
@@ -881,7 +1024,8 @@ def build_statements(
         absent = [k for k in keys if k not in line_columns]
         if absent:
             raise WorkbookError(
-                f"The lines have no column {', '.join(absent)} to join on. They have: {', '.join(line_columns)}."
+                f"The lines have no column {', '.join(absent)} to join on. "
+                f"They have: {', '.join(line_columns)}."
             )
     numbers = _numbers(number, len(groups))
     out = Path(out_folder)
@@ -940,7 +1084,8 @@ def build_statements(
     clashes = [t for t in targets if (out / t).exists()]
     if clashes and not overwrite:
         raise WorkbookError(
-            f"These are there already: {', '.join(clashes[:5])}. Nothing was written (overwrite replaces them)."
+            f"These are there already: {', '.join(clashes[:5])}. "
+            "Nothing was written (overwrite replaces them)."
         )
     if one_workbook:
         book = load_workbook(str(template))
@@ -1037,3 +1182,257 @@ def read_register(folder: str | Path) -> tuple[list[str], list[tuple[Any, ...]]]
     with path.open(newline="", encoding="utf-8") as handle:
         found = list(csv.reader(handle))
     return found[0], [tuple(r) for r in found[1:]]
+
+
+# ===== plain: rows as they are, streamed into a workbook (the grid's Excel export) =====
+
+BATCH_ROWS = 50_000  # the rows read and written at a time
+WIDEST = 60  # a column is sized to its longest text in the first batch, up to this
+_LIMIT = 10**EXACT_DIGITS
+_INF = float("inf")
+
+
+def _batches(rows: Any) -> tuple[list[str], Iterator[list[list[Any]]]]:
+    """A grid as its column names and its rows a batch at a time, each batch as its columns' values: Arrow
+    (a table or a reader of record batches) as it streams, anything else (a DataFrame, (columns, rows))
+    through a DuckDB of its own."""
+    if hasattr(rows, "schema") and hasattr(rows, "to_batches"):  # an Arrow table
+        batches = rows.to_batches(max_chunksize=BATCH_ROWS)
+        return list(rows.schema.names), ([c.to_pylist() for c in b.columns] for b in batches)
+    if hasattr(rows, "schema") and hasattr(rows, "read_next_batch"):  # an Arrow reader
+        return list(rows.schema.names), ([c.to_pylist() for c in b.columns] for b in rows)
+    result = connect({"rows": rows}).execute('SELECT * FROM "rows"')
+    names = [d[0] for d in result.description]
+    return names, _fetched(result, len(names))
+
+
+def _fetched(result: Any, width: int) -> Iterator[list[list[Any]]]:
+    while True:
+        chunk = result.fetchmany(BATCH_ROWS)
+        if not chunk:
+            return
+        yield [[r[i] for r in chunk] for i in range(width)]
+
+
+def _plain_column(
+    values: list[Any], name: str, first_row: int, truncate: bool
+) -> tuple[list[Any], list[int], int]:
+    """One batch's column as cells take it (changed in place where the rule says), the positions whose text
+    Excel would read as a formula or an error (written as text cells), and its longest text."""
+    forced: list[int] = []
+    width = 0
+    for at, value in enumerate(values):
+        if value is None:
+            continue
+        kind = type(value)
+        if kind is bool or (kind is int and -_LIMIT < value < _LIMIT):
+            width = max(width, len(str(value)))
+            continue
+        if kind is float and value == value and value not in (_INF, -_INF):
+            if width < WIDEST:
+                width = max(width, len(repr(value)))
+            continue
+        held, text = cell_value(value)
+        if text:
+            if len(held) > MAX_CELL_CHARS:
+                held = _shortened(held, name, first_row + at, truncate)
+            if held[:1] in ("=", "#"):
+                forced.append(at)
+        values[at] = held
+        if width < WIDEST:
+            width = max(width, len(str(held)))
+    return values, forced, min(WIDEST, width)
+
+
+def _shortened(text: str, name: str, row: int, truncate: bool) -> str:
+    if not truncate:
+        raise WorkbookError(
+            f"Row {row:,}, column {name} holds {len(text):,} characters; an Excel cell holds "
+            f"{MAX_CELL_CHARS:,}. Export CSV instead, or allow truncation."
+        )
+    return text[:MAX_CELL_CHARS]
+
+
+def _text_cell(ws: Any, text: str, bold: bool = False) -> Any:
+    """A text cell of a streamed sheet: its text as it is, never a formula."""
+    from openpyxl.cell import WriteOnlyCell
+
+    cell = WriteOnlyCell(ws, value=cell_text(text)[:MAX_CELL_CHARS])
+    cell.data_type = "s"
+    if bold:
+        cell.font = Font(bold=True)
+    return cell
+
+
+def _plain_sheet(ws: Any, rows: Any, truncate: bool) -> int:
+    """One grid streamed into its sheet: a bold header, frozen, with a filter; each column sized to its
+    longest text in the first batch. Returns the rows written."""
+    names, batches = _batches(rows)
+    if len(names) > SHEET_COLUMNS:
+        raise WorkbookError(
+            f"{len(names):,} columns is more than one Excel sheet holds ({SHEET_COLUMNS:,}). "
+            "Choose fewer columns, or export CSV or Parquet."
+        )
+    written = 0
+    for columns in batches:
+        size = len(columns[0]) if columns else 0
+        if written + size + 1 > SHEET_ROWS:
+            raise WorkbookError(
+                f"More rows than one Excel sheet holds ({SHEET_ROWS - 1:,} data rows). Filter first, or "
+                "export CSV or Parquet."
+            )
+        made = [_plain_column(c, names[i], written + 1, truncate) for i, c in enumerate(columns)]
+        if not written:
+            _plain_top(ws, names, [m[2] for m in made])
+        table: Iterable[Sequence[Any]] = zip(*(m[0] for m in made), strict=True)
+        if any(m[1] for m in made):
+            table = _with_text_cells(ws, table, [m[1] for m in made])
+        for row in table:
+            ws.append(row)
+        written += size
+    if not written:
+        _plain_top(ws, names, [0] * len(names))
+    if names:
+        ws.auto_filter.ref = f"A1:{get_column_letter(len(names))}{max(written, 1) + 1}"
+    return written
+
+
+def _with_text_cells(
+    ws: Any, table: Iterable[Sequence[Any]], forced: Sequence[Sequence[int]]
+) -> list[list[Any]]:
+    """The batch's rows with each text Excel would misread as a text cell of its own."""
+    rows = [list(r) for r in table]
+    for i, places in enumerate(forced):
+        for at in places:
+            rows[at][i] = _text_cell(ws, rows[at][i])
+    return rows
+
+
+def _plain_top(ws: Any, names: Sequence[str], widths: Sequence[int]) -> None:
+    """What a streamed sheet says before its first row: the widths, the frozen header, the header."""
+    for i, name in enumerate(names):
+        ws.column_dimensions[get_column_letter(i + 1)].width = max(8, max(widths[i], len(name)) + 2)
+    ws.freeze_panes = "A2"
+    ws.append([_text_cell(ws, str(name), bold=True) for name in names])
+
+
+def plain_workbook(
+    grids: Mapping[str, Any],
+    out: str | Path | None = None,
+    notes: Mapping[str, Sequence[tuple[str, str]]] | None = None,
+    truncate: bool = False,
+) -> Any:
+    """Each grid as a sheet of its own, as it is: streamed a batch at a time, so near a million rows are
+    written without holding them. `notes`: more sheets of labelled lines (an export's Provenance).
+    `truncate`: a text longer than a cell holds is cut (else refused, naming its row and column). The
+    workbook's bytes, or the path written when `out` is given."""
+    if not isinstance(grids, Mapping) or not grids:
+        raise WorkbookError('A plain workbook takes its grids by sheet name: {"Orders": orders}.')
+    book = Workbook(write_only=True)
+    for name, rows in grids.items():
+        _plain_sheet(book.create_sheet(str(name)[:31] or "Sheet"), rows, truncate)
+    for name, lines in (notes or {}).items():
+        ws = book.create_sheet(str(name)[:31])
+        ws.column_dimensions["A"].width, ws.column_dimensions["B"].width = 14, 80
+        for label, text in lines:
+            ws.append([_text_cell(ws, str(label), bold=True), _text_cell(ws, str(text))])
+    return _saved(book, out)
+
+
+# ===== build: the one call =====
+
+
+def _saved(book: Any, out: str | Path | None) -> Any:
+    """The workbook's bytes, or, with `out`, its file: written beside it, then put in its place."""
+    import io
+    import os
+
+    if out is None:
+        buffer = io.BytesIO()
+        book.save(buffer)
+        return buffer.getvalue()
+    path = Path(out)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_name(f".{path.name}.sab-writing")
+    try:
+        book.save(str(partial))
+        os.replace(partial, path)
+    finally:
+        if partial.exists():
+            partial.unlink()
+    return str(path)
+
+
+def _from_template(grids: Mapping[str, Any], design: Mapping[str, Any], template: Any, out: Any) -> Any:
+    """A template filled once (the first row of its data, its lines), or, with `group_by` (or `each_row`),
+    a statement per group into the folder `out`."""
+    import io
+
+    names = list(grids) if isinstance(grids, Mapping) else []
+    data = grids.get(design.get("data") or (names[0] if names else "")) if names else None
+    lines = grids.get(design["lines"]) if design.get("lines") else None
+    if design.get("lines") and lines is None:
+        raise WorkbookError(
+            f"There is no grid {design['lines']!r} for the lines. There are: {', '.join(names)}."
+        )
+    bindings = design.get("bindings")
+    if design.get("group_by") is not None or design.get("each_row"):
+        if out is None or isinstance(template, bytes):
+            raise WorkbookError(
+                "Statements are files: give the template's path and the folder they go in (out)."
+            )
+        return build_statements(
+            template,
+            data,
+            lines,
+            group_by=design.get("group_by") or (),
+            out_folder=out,
+            dry_run=bool(design.get("dry_run")),
+            bindings=bindings,
+            key=design.get("key"),
+            name=str(design.get("name") or "{number} {date}.xlsx"),
+            number=design.get("number"),
+            date=design.get("date"),
+            one_workbook=bool(design.get("one_workbook")),
+            overwrite=bool(design.get("overwrite")),
+        )
+    if bindings is None:
+        raise WorkbookError('A template is filled by its bindings: {"bindings": [{"place": "B2", ...}]}.')
+    columns, rows = _as_rows(data) if data is not None else ([], [])
+    when = design.get("date")
+    book = fill_template(
+        load_workbook(io.BytesIO(template)) if isinstance(template, bytes) else template,
+        bindings,
+        dict(zip(columns, rows[0], strict=True)) if rows else {},
+        _as_rows(lines) if lines is not None else None,
+        design.get("number"),
+        _dt.date.fromisoformat(when) if isinstance(when, str) else when,
+    )
+    return _saved(book, out)
+
+
+def build(
+    grids: Mapping[str, Any] | Any,
+    design: Mapping[str, Any] | None = None,
+    template: str | Path | bytes | None = None,
+    out: str | Path | None = None,
+    *,
+    notes: Mapping[str, Sequence[tuple[str, str]]] | None = None,
+    truncate: bool = False,
+) -> Any:
+    """The one way to make a workbook. `grids`: the data by name (Arrow from the adapter, DataFrames,
+    (columns, rows)).
+
+      no design            a plain workbook, a sheet a grid (plain_workbook; `notes`, `truncate`)
+      a design             its sheets of blocks: title, text, table, pivot, chart (build_workbook)
+      a template           the template filled by the design's bindings: {"bindings": [...], "data": the
+                           grid its values come from (default: the first), "lines": the grid of its table's
+                           rows}; with "group_by" (or "each_row": true) a statement per group in the folder
+                           `out` (name, number, date, key, one_workbook, overwrite, dry_run): its plan
+
+    Returns the workbook's bytes, or, with `out`, the path written (statements: the plan)."""
+    if template is not None:
+        return _from_template(grids, design or {}, template, out)
+    if design is None:
+        return plain_workbook(grids, out, notes, truncate)
+    return _saved(build_workbook(design, grids), out)
