@@ -23,8 +23,10 @@ Names, types, sizes and short looks only; a secret's value is never in an item (
 
 from __future__ import annotations
 
+import io
 import json
 import re
+import tokenize
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -214,6 +216,18 @@ def words_in(text: str) -> set[str]:
     return set(_WORD.findall(text))
 
 
+def code_only(source: str) -> str:
+    """Python code without its comments (a name in a comment uses nothing): a cell that starts with a cell
+    magic (%%sql: the source's own language) and code Python cannot read yet are given back as written."""
+    if source.lstrip().startswith("%%") or "#" not in source:
+        return source
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, SyntaxError):
+        return source
+    return " ".join(t.string for t in tokens if t.type != tokenize.COMMENT)
+
+
 @dataclass(frozen=True)
 class Document:
     """A notebook's or a script's code, to look for names in: its cells by number (a script: one, None)."""
@@ -237,7 +251,7 @@ def cell_uses(
     for document in documents:
         hits: dict[str, list[int | None]] = {}
         for number, source in document.cells:
-            for word in words_in(source):
+            for word in words_in(code_only(source)):
                 name = wanted.get(word.casefold() if fold else word)
                 if name is not None:
                     hits.setdefault(name, []).append(number)
