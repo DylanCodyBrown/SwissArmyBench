@@ -1285,6 +1285,10 @@ src/swissarmybench/
   mcp/server.py          the stdio MCP server: one typed tool per command, generated from the registry (363 in the base, 393 with the Streamlit extension).
                          It holds no logic; add a command in cli/commands.py and it appears
 web/src/                 main.ts (composition) + one module per panel; lazy/ holds Monaco, Vega, Mermaid
+                         dom.ts is the page's shared parts (h, button, icons, openDialog, showMenu: the one
+                         menu; dragResize: the one drag-to-resize, each handle's keys its own; askYesNo and
+                         askText: every question on the app's own dialog, never the browser's confirm() or
+                         prompt(): 2026-11-22);
                          and Plotly (each loads when first needed; svgSafe cleans drawings);
                          lazyLoad.ts the one loader each for Monaco and the diagrams (loadEditors, loadDiagrams);
                          lazyPages.ts the rail's pages that load when first opened (APIs, Structures, Code App,
@@ -1432,7 +1436,13 @@ web/src/                 main.ts (composition) + one module per panel; lazy/ hol
                          only); errorMark its inline form for one-line rows; problemsHere several as one; toast()
                          is info only; ApiError carries the refusal (`said`, saidOf); The Workbench (static/workbench.html, its own
                          window): workbenchPage.ts (composition: the top row, each group's controls, the
-                         status bar), workbenchLayout.ts (RStudio's panes: the groups, the console,
+                         status bar; split along its own headings 2026-11-22, each part given the page's
+                         names as a host: workbenchCommandList.ts (every action of the window by one name: the
+                         list the palette, the keys and the agent's workbench_window run), workbenchView.ts
+                         (the code's own zoom, full screen), workbenchFileChanged.ts (a document whose file
+                         changed anywhere: followed in place, or its bar: Reload, Keep mine, Compare),
+                         workbenchRestore.ts (the documents kept over a reload)), notebookCells.ts (a cell's
+                         rules that need no page: its kind, its role, a run's time, a cell as it is saved), workbenchLayout.ts (RStudio's panes: the groups, the console,
                          Variables, both closed until the status bar opens them; splitters; F1 help as a
                          card; pictures go to Analyze), workbenchGroups.ts (tab groups as VS Code's
                          editor groups: drag to reorder or split with the five-way guide, splitters, the
@@ -1574,8 +1584,10 @@ web/static/              index.html, grid.css (all theme tokens; the pages load 
                          page an HTML cell's design is drawn in (sandboxed; its policy loads nothing
                          over the network)
 tests/                   unit + HTTP tests, golden/ (shared cases), web_unit.py (the front end's unit tests: a
-                         pure module of web/src bundled by the page's esbuild, its functions called by Node),
-                         e2e/ (Edge via Playwright; e2e/conftest.py
+                         pure module of web/src bundled by the page's esbuild, its functions called by Node:
+                         test_page_rules.py, test_workbench_view.py, test_notebook_cells.py),
+                         e2e/ (Edge via Playwright; e2e/asks.py: the app's own questions answered,
+                         accept_asks and answer_ask; e2e/conftest.py
                          holds the one browser of the run and the waits' 15 s), live_server.py (a real server in
                          a thread on a socket already bound, stopped within a second or two),
                          desktop_drive.py (the desktop app really run under Qt off screen: windows, downloads,

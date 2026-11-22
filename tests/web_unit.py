@@ -30,13 +30,20 @@ console.log(JSON.stringify(out));
 """
 
 
-def bundled(folder: Path, source: str) -> Callable[..., list[Any]]:
+def bundled(folder: Path, source: str, more: str = "") -> Callable[..., list[Any]]:
     """web/src/<source> bundled into `folder`; the answer calls its exported functions: run([name, *args],
-    ...) gives each call's result, in order (undefined as None)."""
+    ...) gives each call's result, in order (undefined as None). `more`: TypeScript added beside the
+    module's exports (a small caller, where a function takes what JSON cannot carry); it names the module
+    as "@module"."""
+    module = (WEB / "src" / source).as_posix()
+    entry = folder / "entry.ts"
+    entry.write_text(
+        f'export * from "{module}";\n' + more.replace('"@module"', f'"{module}"'), encoding="utf-8"
+    )
     built = subprocess.run(  # noqa: S603
         [
             str(ESBUILD),
-            str(WEB / "src" / source),
+            str(entry),
             "--bundle",
             "--format=esm",
             "--platform=node",
