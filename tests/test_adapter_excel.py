@@ -161,7 +161,9 @@ def test_a_header_row_and_a_range_of_cells_say_where_the_table_is(book: Path) ->
 def test_what_cannot_be_read_is_said_in_one_sentence(book: Path, tmp_path: Path) -> None:
     with pytest.raises(sab.AdapterError, match=r"no sheet or named table 'Nope'.*Orders, Report, Cities"):
         sab.read(sab.Excel(book), "Nope")
-    with pytest.raises(sab.AdapterError, match=r"3 tables \(Orders, Report, Cities\): name the one to read"):
+    with pytest.raises(
+        sab.AdapterError, match=r"3 sheets and named tables \(Orders, Report, Cities\): name the one to read"
+    ):
         sab.read(sab.Excel(book), "")
     fake = tmp_path / "fake.xlsx"
     fake.write_text("not a zip file", encoding="utf-8")
@@ -212,7 +214,7 @@ def test_a_write_keeps_text_as_text_long_numbers_exact_and_early_dates_true(tmp_
     path = tmp_path / "safe.xlsx"
     rows = pa.table(
         {
-            "text": ["=1+1", "+cmd", "plain"],
+            "text": ["=1+1", "+cmd", "a\x01b _x0041_"],
             "id": [12345678901234567890 % 2**63, 7, None],
             "day": [date(1899, 12, 30), date(2026, 1, 2), None],
             "at": pa.array([datetime(2026, 1, 2, 3, 4), None, None], pa.timestamp("us", tz="Europe/Paris")),
@@ -222,6 +224,7 @@ def test_a_write_keeps_text_as_text_long_numbers_exact_and_early_dates_true(tmp_
     sheet = load_workbook(path)["Data"]
     assert [sheet["A2"].value, sheet["A2"].data_type] == ["=1+1", "s"]  # never a formula
     assert sheet["A3"].data_type == "s"
+    assert sheet["A4"].value == "a_x0001_b _x005F_x0041_"  # as Excel writes what XML cannot hold
     assert sheet["B2"].value == str(12345678901234567890 % 2**63) and sheet["B3"].value == 7
     assert sheet["C2"].value == "1899-12-30" and sheet["C3"].value == datetime(2026, 1, 2)
     assert sheet["D2"].value == "2026-01-02T04:04:00+01:00"  # Excel has no zones: the offset kept as text

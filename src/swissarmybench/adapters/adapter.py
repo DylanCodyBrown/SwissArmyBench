@@ -2940,7 +2940,9 @@ def header_names(cells: Sequence[Any]) -> list[str]:
 def _as_text(value: Any) -> str | None:
     if value is None:
         return None
-    return json.dumps(value, ensure_ascii=False) if isinstance(value, dict | list) else str(value)
+    if isinstance(value, dict | list | tuple):
+        return json.dumps(value, ensure_ascii=False, default=str)
+    return str(value)
 
 
 def typed(values: Sequence[Any]) -> pa.Array:
@@ -2983,7 +2985,7 @@ def sheet_value(value: Any) -> tuple[Any, bool]:
     if isinstance(value, float):
         return (value, False) if value == value and abs(value) != float("inf") else (repr(value), True)
     if isinstance(value, str):
-        return value, True
+        return _sheet_text(value), True
     if hasattr(value, "as_tuple"):  # a decimal: a number while Excel keeps its digits
         fits = value.is_finite() and len(value.as_tuple().digits) <= EXCEL_DIGITS
         return (float(value), False) if fits else (str(value), True)
@@ -2993,7 +2995,16 @@ def sheet_value(value: Any) -> tuple[Any, bool]:
         return (value.isoformat(), True) if zoned or early else (value, False)
     if hasattr(value, "hour") or hasattr(value, "total_seconds"):  # a time of day, a duration
         return value, False
-    return _as_text(value), True
+    return _sheet_text(str(_as_text(value))), True
+
+
+_UNWRITABLE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]|_(?=x[0-9A-Fa-f]{4}_)")
+
+
+def _sheet_text(text: str) -> str:
+    """Text as a workbook's file holds it: a character XML cannot hold as Excel's own _xHHHH_ (a literal
+    _xHHHH_ kept literal), so Excel shows the text as it was."""
+    return _UNWRITABLE.sub(lambda m: f"_x{ord(m.group(0)):04X}_", text) if _UNWRITABLE.search(text) else text
 
 
 def _listed_parts(archive: Any, part: str) -> list[dict[str, str]]:
@@ -3094,7 +3105,8 @@ class Excel:
         names = ", ".join(p[0] for p in parts)
         if not str(table or "").strip():
             if len(parts) != 1:
-                raise AdapterError(f"{self.name} has {len(parts)} tables ({names}): name the one to read.")
+                what = "sheets and named tables" if any(p[2] for p in parts) else "sheets"
+                raise AdapterError(f"{self.name} has {len(parts)} {what} ({names}): name the one to read.")
             return parts[0]
         for part in parts:
             if part[0].casefold() == str(table).strip().casefold():
