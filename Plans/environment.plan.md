@@ -94,3 +94,10 @@ a refresh, and connections are where you add tables." So: the tab is **Variables
 cell, Interrupt or Restart on this page (they stay in the Notebooks and Scripts pages); no Refresh: the list follows
 the watcher's notices by itself; no Add table: tables are added on the Connections page (and made by code, or by
 Save as table from a grid). Supersedes the bar and session line above.
+
+## Libraries (the owner, 2026-11-22)
+"What would be helpful is a drop down to see all the libraries that are in the env." The page's top line has
+"14 libraries ▾": a dropdown with a search box (by name), each library's name, version and where it is imported (a
+notebook or script, the adapter, the canvas, a connection, API.py; or "not imported yet"), and Install a library…
+(the one missing-package prompt's install into the project's .venv; requirements.txt updated so a teammate gets it;
+the agent's waits for Allow). Esc closes it.
