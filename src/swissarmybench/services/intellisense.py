@@ -99,6 +99,9 @@ class Intellisense:
         structures: Callable[[], list[str]],
         dialect_of: Callable[[str], str | None],
         read_file: Callable[[str], str],
+        sandbox_clients: Callable[[], list[tuple[str, str]]] = lambda: [],
+        sandbox_tables: Callable[[], list[tuple[str, list[str]]]] = lambda: [],
+        sandbox_mocks: Callable[[], dict[str, tuple[str, list[str]]]] = lambda: {},
     ) -> None:
         self.ws = ws
         self._engine = engine
@@ -109,10 +112,10 @@ class Intellisense:
         self._project_folder = project_folder
         self._blades = blades
         # The project's sandbox (services/sandbox.py): its mocked connections and its tables, for API.py.
-        self.sandbox_clients: Callable[[], list[tuple[str, str]]] = lambda: []
-        self.sandbox_tables: Callable[[], list[tuple[str, list[str]]]] = lambda: []
+        self.sandbox_clients: Callable[[], list[tuple[str, str]]] = sandbox_clients
+        self.sandbox_tables: Callable[[], list[tuple[str, list[str]]]] = sandbox_tables
         # API.py's squiggles: each mock name's dialect and tables (services/sandbox.py mock_dialects)
-        self.sandbox_mocks: Callable[[], dict[str, tuple[str, list[str]]]] = lambda: {}
+        self.sandbox_mocks: Callable[[], dict[str, tuple[str, list[str]]]] = sandbox_mocks
         self._variables = variables
         self._structures = structures
         self._dialect_of = dialect_of

@@ -99,6 +99,8 @@ class ContextMd:
         structures: Callable[[], dict[str, Any]] | None = None,
         shared: Callable[[], dict[str, Any]] | None = None,
         clock: Callable[[], float] = time.monotonic,
+        access: Callable[[str], dict[str, Any]] | None = None,
+        gates: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.ws = ws
         self._files = files
@@ -120,10 +122,10 @@ class ContextMd:
         self._structures = structures
         self._shared = shared  # the shared catalog's listing (services/shared_catalog.py); None: not built
         self._clock = clock
-        # Set once built (bootstrap.py): a connection's Access section (services/app_registrations.py) and the
-        # open project's gates (services/modes.py). None: not said.
-        self.access: Callable[[str], dict[str, Any]] | None = None
-        self.gates: Callable[[], dict[str, Any]] | None = None
+        # A connection's Access section (services/app_registrations.py) and the open project's gates
+        # (services/modes.py). None: not said.
+        self.access: Callable[[str], dict[str, Any]] | None = access
+        self.gates: Callable[[], dict[str, Any]] | None = gates
         self._lock = asyncio.Lock()
         self._looked: tuple[int, float] | None = None  # the notice count and time of the last look
         self._pending: rules.Rendered | None = None  # a change not yet settled

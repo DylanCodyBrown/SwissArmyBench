@@ -77,6 +77,7 @@ class ConnectionSlots:
         save_limits: Callable[[str, dict[str, int]], str] | None = None,
         ask: Callable[[str, str, str], Awaitable[bool]] | None = None,
         clock: Callable[[], float] = time.time,
+        on_finished: Callable[[dict[str, Any], list[Any]], None] | None = None,
     ) -> None:
         self._live = live
         self._audit = audit
@@ -92,7 +93,7 @@ class ConnectionSlots:
         self.kernel_caller: Callable[[str], Caller] = lambda kernel: Caller(kernel=kernel)
         self.interrupt_kernel: Callable[[str], Awaitable[None]] | None = None
         # Each finished call heard (the statistics: services/call_stats.py CallStats.finished).
-        self.on_finished: Callable[[dict[str, Any], list[Any]], None] | None = None
+        self.on_finished: Callable[[dict[str, Any], list[Any]], None] | None = on_finished
         self._dirty = False
         self._sweeper: asyncio.Task[None] | None = None
         self.started = secrets.token_hex(

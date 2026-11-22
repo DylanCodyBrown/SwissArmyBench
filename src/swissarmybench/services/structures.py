@@ -119,6 +119,7 @@ class Structures:
         default_folder: Callable[[], str],
         documents: Callable[[], Iterable[str]],
         read_document: Callable[[str], tuple[str, str, float]],
+        grid_steps: Callable[[str], list[str]] = lambda table: [],
     ) -> None:
         self.ws = ws
         self._files = files
@@ -133,7 +134,7 @@ class Structures:
         # Run again: an API call's origin sent again (services/api_explorer.py sets it): (value, origin).
         self.rerun: Callable[[dict[str, Any], str], Awaitable[tuple[Any, dict[str, Any]]]] | None = None
         # A grid's own steps in words, for the lineage (services/grids.py, by table).
-        self.grid_steps: Callable[[str], list[str]] = lambda table: []
+        self.grid_steps: Callable[[str], list[str]] = grid_steps
         self._project: str | None = None  # the project folder last told (project_changed)
         self._lock = asyncio.Lock()
         # The Variables page (services/variables.py, set once built): a path's ${NAME} (12.7).
