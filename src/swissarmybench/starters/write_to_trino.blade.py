@@ -7,7 +7,7 @@
 # family = "Write"
 # variable = "write_trino"
 # ///
-"""Trino (or Presto): the rows written to a table, by `mode`: append, create, upsert, delete (not replace).
+"""Trino (or Presto): the rows written to a table, by `mode`: append, create, replace, upsert, delete.
 
     write_trino = sab.blade("Write to Trino")  # the project's functions.py will hold it
     write_trino("Warehouse", "iceberg.sales.orders", orders, mode="upsert", keys=["order_id"])  # a dry run
@@ -18,8 +18,9 @@ dry_run=False only after the user said to write, in their own words, in this con
 through the connection's own sign-in (sab.connection): no password here. Returns the write's report.
 
 Trino writes row batches without a transaction: a failure part-way leaves the rows already written, and
-says which batch failed and how many rows were written before it. So replace (clear the table, then write
-the rows) is refused: it could clear the table and then fail, leaving it without its rows. Clear it first
+says which batch failed and how many rows were written before it. So replace is one statement, CREATE OR
+REPLACE TABLE ... AS (its columns' types and properties kept, all of its rows or none), on the catalogs that
+have it (Iceberg's); a catalog without it (Hive's) refuses it and nothing changes: clear the table first
 (sab.write(connection, table, None, "truncate")), then append. An upsert is MERGE, on the connectors that
 have it (Iceberg, Delta Lake, Hive transactional tables, some JDBC ones).
 
@@ -52,7 +53,7 @@ def write_trino(
 ) -> SqlWrite:
     """The rows written to `table` on the connection named `connection`.
 
-    mode: append, create, upsert, delete (replace is refused). keys: the columns that find a row (upsert, delete).
+    mode: append, create, replace (one statement: Iceberg), upsert, delete. keys: the columns that find a row.
     rows: a DataFrame (pandas, polars, Arrow) or a DuckDB relation.
     """
     if mode not in MODES:

@@ -65,8 +65,8 @@ WRITABLE: dict[str, Writable] = {
     "oracle": Writable(_SQL, "SQL in one transaction (MERGE)"),
     "sqlite": Writable(_SQL, "SQL in one transaction (the file opened again to write)"),
     "trino": Writable(
-        ("append", "create", "upsert", "delete"),
-        "SQL, row batches without a transaction (replace refused: it could clear the table, then fail)",
+        ("append", "create", "replace", "upsert", "delete"),
+        "SQL, row batches without a transaction (replace one statement where the catalog has it: Iceberg)",
         "depends on the catalog's connector: Iceberg, Delta Lake and Hive write; a connector that cannot is "
         "refused in Trino's own words",
     ),
