@@ -247,6 +247,12 @@ def source_of(
 ) -> Source:
     """What the file says about a table that came from `origin`. `kernel_document`: the Workbench
     document whose kernel pushed it; `place`: a connection's database, schema and table."""
+    if origin.kind == "file" and origin.connection and place is not None:
+        # A file connection's file: read again through its connection (its path is the connection's).
+        database, schema, table = place
+        return Source(
+            "connection", connection=origin.connection, database=database, schema=schema, table=table
+        )
     if origin.kind == "file" and origin.path:
         relative = near(origin.path, sab_folder)
         read = {"reader": "adapter"} if origin.adapted else {}  # a file connection's: the adapter's Files

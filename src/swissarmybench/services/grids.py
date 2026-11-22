@@ -51,7 +51,8 @@ class GridService:
 
     def _source(self, dataset: str) -> dict[str, Any]:
         origin = self._origin_of(dataset)
-        named = origin.connection if origin.kind == "connection" and origin.connection else None
+        # A file connection's file is in its connection's group too.
+        named = origin.connection if origin.kind in ("connection", "file") and origin.connection else None
         return {"kind": origin.kind, "connection": connection_named(named) if named else None}
 
     def find(self, grid_id: str) -> tuple[Grid, DatasetInfo]:
