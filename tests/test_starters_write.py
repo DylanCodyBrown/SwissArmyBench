@@ -472,7 +472,7 @@ def leaves_no_trace() -> Iterator[None]:
         ) as db:
             db.execute("DROP SCHEMA IF EXISTS sab_writes CASCADE")
     with contextlib.suppress(Exception):
-        import pymysql
+        pymysql: Any = importlib.import_module("pymysql")  # no stubs: the test bed's driver
 
         root = pymysql.connect(unix_socket=state["mariadb"]["socket"], user="root", autocommit=True)
         with root.cursor() as c:
