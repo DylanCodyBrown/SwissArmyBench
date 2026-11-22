@@ -338,6 +338,10 @@ def save_as(act: Actions, workbench: Page, name: str) -> None:
     act.fill(chooser.get_by_label("File name"), name)
     act.click(chooser.get_by_role("button", name="Save here"))
     expect(chooser).to_be_hidden(timeout=20000)
+    # The chooser closes before the save is answered (use cases 5 and 10 sometimes copied or read the
+    # file before it was there; the sweep, 2026-11-22): saved is the tab under the file's name, its dot gone.
+    tab = workbench.locator(".wb-tab.active", has=workbench.locator(".tab-label", has_text=name))
+    expect(tab.locator(".wb-tab-dirty")).to_have_text("", timeout=20000)
 
 
 def type_into_cell(act: Actions, workbench: Page, cell: Locator, code: str) -> None:
