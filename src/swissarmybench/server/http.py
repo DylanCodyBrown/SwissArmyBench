@@ -24,7 +24,7 @@ from starlette.responses import Response, StreamingResponse
 from starlette.routing import BaseRoute, Route
 
 from swissarmybench.domain import refusals
-from swissarmybench.domain.blades import BladeError
+from swissarmybench.domain.blades import BladeError, VaultUnavailableError
 from swissarmybench.domain.catalogs import CatalogError
 from swissarmybench.domain.datasets import (
     DatasetError,
@@ -233,6 +233,8 @@ def _error_response(error: Exception) -> Response:
             fixes=[refusals.install(command if isinstance(command, str) else None)],
             missing=error.missing,
         )
+    if isinstance(error, VaultUnavailableError):  # no keyring on this computer: the user's to act on
+        return _refused(refusals.of(error), status_code=409)
     if isinstance(error, MissingVariables):  # 12.7 and 9.5: "NAME is not set on this computer", Set it
         return _refused(error.to_json(), status_code=422)
     if isinstance(error, DatasetTooLargeError | BodyTooLargeError):

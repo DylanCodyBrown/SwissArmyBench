@@ -862,6 +862,32 @@ def test_an_add_that_is_refused_leaves_nothing_behind(
     assert (folder / "openapi.json").is_file() and (folder / "API_Orders.py").is_file()
 
 
+def test_no_keyring_on_this_computer_is_a_refusal_in_words_not_a_crash(
+    client: TestClient, service: Service, tmp_path: Path
+) -> None:
+    """The sweep, 2026-11-22: Add API with a key for the keyring, on a computer with none (a Linux box
+    with no Secret Service), answered 500. It is a refusal the user can act on, as the connection's and the
+    blade's own saves already said it (409), and it leaves nothing of the API behind."""
+    import keyring
+    from keyring.backends import fail
+
+    service.mode = "api_key_header"
+    previous = keyring.get_keyring()
+    keyring.set_keyring(fail.Keyring())  # type: ignore[no-untyped-call]
+    try:
+        body = {
+            "spec_url": service.url + "/openapi.json",
+            "variables": [{"name": "ORDERS_API_KEY", "from": "keyring"}],
+            "secrets": {"ORDERS_API_KEY": standin.API_KEY},
+        }
+        refused = client.post("/apis", json=body, headers=AGENT)
+    finally:
+        keyring.set_keyring(previous)
+    assert refused.status_code == 409, refused.text
+    assert "keep secrets in" in refused.json()["error"] and "grid server" not in refused.text
+    assert not (tmp_path / "state" / "library" / "apis" / "Orders").exists()
+
+
 def test_re_import_shows_the_changes_then_writes_and_keeps_the_mapping(
     client: TestClient, service: Service, tmp_path: Path
 ) -> None:
