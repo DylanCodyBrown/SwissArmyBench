@@ -36,7 +36,7 @@ It reads top to bottom in the order a call runs:
 The standard library, duckdb and pyarrow only: an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.2.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.3.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -55,6 +55,9 @@ Version 1.2.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   1.2.0    observe(hook): each read's, query's and write's facts as it ends (times in parts, sizes, what the
            source folded against what DuckDB did, the outcome's kind, the result's fingerprint; never a
            value); fingerprint(schema)
+  1.3.0    Trino's replace (a truncate with rows) as one CREATE OR REPLACE TABLE ... AS where the catalog has
+           it (Iceberg's): its columns' types and properties kept, all or none (TRINO_REPLACE); a catalog
+           without it refused as before, nothing changed; at most TRINO_REPLACE_VALUES values in it
 """
 
 from __future__ import annotations
@@ -76,7 +79,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.2.0"  # the docstring's change list says what each version added
+VERSION = "1.3.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -1168,8 +1171,9 @@ class Sql:
             return _server_planned(self, table, rows, list(key), mode)
         counts = counted_by_reads(self, table, rows, key, mode)
         if self.dialect.name == "trino":
-            _trino_checked(table, rows.schema.names, mode)
-            return replace(counts, notes=(NO_TRANSACTION,))
+            _trino_checked(table, rows.schema.names, mode, rows.num_rows)
+            replaces = mode == "truncate" and rows.num_rows > 0
+            return replace(counts, notes=(TRINO_REPLACE if replaces else NO_TRANSACTION,))
         return counts
 
     def statements(self, table: str, names: Sequence[str], key: Sequence[str], mode: str) -> list[str]:
@@ -1829,19 +1833,108 @@ def _server_statements(db: Sql, table: str, names: list[str], key: list[str], mo
 # leaves the batches before it written, which its error says. An insert is INSERT ... VALUES (...), (...); a
 # merge and an update MERGE INTO ... USING (VALUES ...) on the connectors that have MERGE (Iceberg, Delta
 # Lake, Hive transactional tables, some JDBC ones); a delete DELETE ... WHERE the batch's keys. A truncate
-# with rows is refused: it would clear the table first, then could fail part-way, leaving it without its rows.
+# with rows (a replace): one CREATE OR REPLACE TABLE ... AS where the catalog has it (Iceberg), else refused.
 
 NO_TRANSACTION = (
     "Trino writes row batches without a transaction: a failure part-way leaves the rows already written."
 )
 
 
-def _trino_checked(table: str, names: Sequence[str], mode: str) -> None:
-    if mode == "truncate" and names:
+TRINO_REPLACE = (
+    "Trino replaces the table in one statement (CREATE OR REPLACE TABLE ... AS, its columns' types and its "
+    "properties kept): all of its rows or none."
+)
+TRINO_REPLACE_VALUES = 100_000  # values one replace's statement carries at most (Trino's query length)
+_TRINO_WITH = re.compile(r"\)\s*WITH\s*\((.*)\)\s*$", re.DOTALL)
+
+
+def _trino_checked(table: str, names: Sequence[str], mode: str, rows: int = 0) -> None:
+    """A replace (a truncate with rows) is one statement: refused before anything runs when it is too big."""
+    if mode == "truncate" and names and rows * len(names) > TRINO_REPLACE_VALUES:
         raise AdapterError(
-            f"{NO_TRANSACTION[:-1]}, so a truncate with rows could clear {table} and then fail, leaving it "
-            "without its rows. Clear it first (truncate with no rows), then insert the rows."
+            f"A replace of {rows:,} rows is too big for one Trino statement (at most "
+            f"{TRINO_REPLACE_VALUES:,} values), and {NO_TRANSACTION[:-1]}. Clear {table} first (truncate "
+            "with no rows), then insert the rows."
         )
+
+
+def _trino_refused(table: str) -> str:
+    """A catalog without CREATE OR REPLACE TABLE ... AS (Hive's): the replace refused, nothing changed."""
+    return (
+        f"{table}'s catalog cannot replace a table in one statement (CREATE OR REPLACE TABLE ... AS: "
+        f"Iceberg's can), and {NO_TRANSACTION[:-1]}, so a truncate with rows could clear it and then fail, "
+        "leaving it without its rows. Clear it first (truncate with no rows), then insert the rows."
+    )
+
+
+def _trino_types(db: Sql, cursor: Any, table: str) -> dict[str, str]:
+    """The table's columns' own types (its catalog's information_schema), so a replace keeps them."""
+    parts = str(table).split(".", 2)
+    q = db.dialect.quote
+    where = f"{q(parts[0])}.information_schema.columns" if len(parts) == 3 else "information_schema.columns"
+    named = parts[-2:] if len(parts) > 1 else parts
+    sql = f"SELECT column_name, data_type FROM {where} WHERE table_name = {_mark(db.style, 1)}"  # noqa: S608
+    values = [named[-1]]
+    if len(named) == 2:
+        sql += f" AND table_schema = {_mark(db.style, 2)}"
+        values.append(named[0])
+    try:
+        cursor.execute(sql, _bound(db.style, values))
+        return {str(n): str(t) for n, t in cursor.fetchall()}
+    except Exception:
+        return {}  # a table not there yet: the replace makes it with the rows' types
+
+
+def _trino_properties(cursor: Any, target: str) -> str:
+    """The table's properties (format, partitioning, location...) from SHOW CREATE TABLE: what a replace says
+    again in its WITH, so the new table is laid out as the old one."""
+    try:
+        cursor.execute(f"SHOW CREATE TABLE {target}")
+        shown = str(cursor.fetchall()[0][0])
+    except Exception:
+        return ""
+    found = _TRINO_WITH.search(shown)
+    return " ".join(found.group(1).split()) if found else ""
+
+
+def _trino_replace_sql(
+    db: Sql, target: str, names: list[str], types: Mapping[str, str], props: str, rows: int
+) -> str:
+    q = db.dialect.quote
+    picked = ", ".join(
+        f"CAST({q(n)} AS {types[n].upper()}) AS {q(n)}" if n in types else f"{q(n)} AS {q(n)}" for n in names
+    )
+    groups = ", ".join("(" + ", ".join(_mark(db.style, 1) for _ in names) + ")" for _ in range(rows))
+    shown = f"\nWITH ({props})" if props else ""
+    cols = ", ".join(q(n) for n in names)
+    return (
+        f"CREATE OR REPLACE TABLE {target}{shown}\nAS SELECT {picked}\nFROM (VALUES {groups}) AS s ({cols})"
+    )
+
+
+def _trino_replace(db: Sql, cursor: Any, table: str, target: str, batches: pa.RecordBatchReader) -> Counts:
+    """A replace as one statement where the catalog has it (Iceberg's): its rows in one CREATE OR REPLACE
+    TABLE ... AS, each column cast to its own type, its properties said again; all or none. A catalog without
+    it refuses the statement: nothing changed, and the refusal says what to do instead."""
+    data = batches.read_all()
+    names = [str(n) for n in data.schema.names]
+    _trino_checked(table, names, "truncate", data.num_rows)
+    try:
+        before = _trino_count(db, cursor, target)
+    except Exception:
+        before = 0  # not there yet: the replace makes it
+    if not data.num_rows:  # no rows: only cleared
+        _trino_run(db, cursor, f"DELETE FROM {target}", [])  # noqa: S608
+        return Counts(deleted=before, notes=(NO_TRANSACTION,))
+    types, props = _trino_types(db, cursor, table), _trino_properties(cursor, target)
+    values = [db.value(r[n]) for r in data.to_pylist() for n in names]
+    try:
+        _trino_run(db, cursor, _trino_replace_sql(db, target, names, types, props, data.num_rows), values)
+    except Exception as error:
+        if "not supported" in str(error).lower() or "NOT_SUPPORTED" in str(error):
+            raise AdapterError(_trino_refused(table)) from error
+        raise
+    return Counts(inserted=data.num_rows, deleted=before, notes=(TRINO_REPLACE,))
 
 
 def _trino_sql(db: Sql, target: str, names: list[str], key: list[str], mode: str, rows: int) -> str:
@@ -1866,12 +1959,13 @@ def _trino_sql(db: Sql, target: str, names: list[str], key: list[str], mode: str
 def _trino_written(db: Sql, table: str, batches: pa.RecordBatchReader, key: list[str], mode: str) -> Counts:
     """A Trino write, a statement a batch (each answer read: Trino runs a statement as its answer is read)."""
     names = [str(n) for n in batches.schema.names]
-    _trino_checked(table, names, mode)
     if mode == "update" and not [n for n in names if n not in key]:
         raise AdapterError("The rows have nothing to change but their key.")
     target = table_name(db.dialect, table)
     cursor = db.connection.cursor()
     try:
+        if mode == "truncate" and names:  # a replace: one statement, all or none
+            return _trino_replace(db, cursor, table, target, batches)
         before = _trino_count(db, cursor, target) if mode in ("merge", "delete", "truncate") else 0
         if mode == "truncate":
             _trino_run(db, cursor, f"DELETE FROM {target}", [])  # noqa: S608
@@ -1946,6 +2040,12 @@ def _trino_count(db: Sql, cursor: Any, target: str) -> int:
 def _trino_statements(db: Sql, table: str, names: list[str], key: list[str], mode: str) -> list[str]:
     """What a Trino write runs, for a dry run's report (a batch's statement, its rows as (...))."""
     target = table_name(db.dialect, table)
+    if mode == "truncate" and names:  # a replace: one statement (its columns' types read first)
+        one = _trino_replace_sql(db, target, names, {}, "its properties", 1)
+        groups = "(" + ", ".join(_mark(db.style, 1) for _ in names) + ")"
+        return [
+            one.replace(f"VALUES {groups}", f"VALUES {groups}, ...", 1) + "  -- every row in one statement"
+        ]
     if mode == "truncate":
         return [f"DELETE FROM {target}"]  # noqa: S608
     if mode == "delete":
