@@ -92,3 +92,20 @@ endpoint was called and a def will then scan that struct and expose to the widge
   (`apis/<name>/shapes/`, one small file per endpoint, byte-stable, replaced when the shape changes). **Values are never
   kept** (the owner: "No need to ever keep values"): no example payloads, no tick, nothing of an answer's or a request's
   values on disk, in the library or in the project.
+## Discover an API (the owner, 2026-11-22)
+"This is about learning an API. We should have a def that can run on an API after we upload its specs and it will
+discover and map the payloads to build widgets, scripts and notebooks etc." So `discover(api)`, in api_adapter.py:
+1. **Read the specification:** every endpoint, its inputs and its declared answers (a first guess).
+2. **Probe, read-only, on the user's Allow** (the owner's answer; once per API, the agent's too): one GET per read
+   endpoint at the smallest page size, its required inputs filled from other endpoints' answers (an id from
+   `GET /orders` for `GET /orders/{id}`), at most a set number of calls, never an endpoint that writes (those are learned
+   from the specification). The shapes found become each endpoint's current shape; no value is kept.
+3. **Map each endpoint by its shape:** a list of records to a table (an API table widget, a grid); one record to a
+   detail card or an edit form; a single value to a metric; a file to a download; a request body to an input form
+   (each field's type picks its box: a closed set of values a dropdown, a date a date picker); ids shared between
+   endpoints to a master and detail pair.
+4. **A discovery report first:** each endpoint, what was learned, what is proposed; the user ticks what to build, then
+   it writes into the project scaffold: a notebook (one cell per endpoint reading into a table), a script (one
+   function per action), widgets wired onto a starter canvas page. Endpoints that change data stay actions with
+   their forms; discovery never calls them.
+The agent runs the same discovery and gets the same report (`actions(action="discover")`).
