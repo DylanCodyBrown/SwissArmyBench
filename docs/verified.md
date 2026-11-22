@@ -5214,3 +5214,44 @@ Python 3.12.3, DuckDB 1.x (the app's) and 2.0.0 with Streamlit 1.67.0 (the expor
 - Not checked: Edge; Windows and macOS (the move's replace and rmtree there); an exported app deployed on a hosted
   Streamlit service or an API on a real Function App; a YAML, XML or TOML structure's line in data.py (not written
   yet); the stress test.
+
+## The endpoint wizard and its patterns (branch endpoint-wizard, 2026-11-22)
+Linux, Python 3.12, DuckDB 1.x, sqlglot 30; Chromium (Playwright's, not Edge). Made-up data only.
+- tests/test_api_patterns.py (19 passed): the nine patterns as data with their own steps and pairings; an
+  extension's pattern; the ranking's sentences for three table shapes; a pattern's plan (columns offered,
+  defaults); every pattern's code compiled, parsed and marked for nine source styles (DuckDB, SQL Server,
+  PostgreSQL, Oracle, MySQL, Trino, SQLite, Dataverse, SharePoint: 18 endpoints each, every one naming only its
+  connection, no cursor or driver); the folded SQL per source (T-SQL's DATETRUNC and OFFSET/FETCH, PostgreSQL's
+  DATE_TRUNC and LIMIT) and the stream path where a source has no SQL; each refusal's one sentence.
+- Run against the sandbox through the app (a real hosted API.py): all nine over plain DuckDB tables; a summary
+  by month and a reconcile over tables mocked as a SQL Server connection (the mock runs the T-SQL); a summary by
+  month over a table mocked as Dataverse and a reconcile across two connections (DuckDB over the streams, said
+  in the data words). Checked: reconcile's counts and paged rows, choices searched, search by text, filter and
+  date with sort and page, the most literal path winning over /orders/{key}, summaries with a filter and with
+  `since`, a CSV and an Excel download, a bulk dry run's three problems then a refused and a written upload, an
+  action's all-or-none (404, 409, 422), versions never changed, the keys kept by the sandbox, the change log.
+- Exported for FastAPI, Azure Functions and AWS Lambda and run with no app against the real connection (a
+  made-up SQLite file; FastAPI and azure.functions stood in for, as tests/test_api_export.py does): fifteen calls
+  covering all nine patterns, the three targets answering alike (the Excel answer base64 through Lambda).
+- sab_api: download checked against openpyxl's read of the workbook it wrote; an optional `date | None`
+  parameter now arrives as a date.
+- tests/test_canvas_pairing.py (2 passed): a dropped API table, API form and bar chart wired to the endpoint
+  their pattern made (property or In), one Undo, said once; two tables' endpoints decided by the nearest
+  widget, left unwired with none near; a given value never overwritten.
+- In Chromium: tests/e2e/test_endpoint_wizard_page.py (the wizard end to end: ranking with its sentences, an
+  unfit pattern disabled, Summary's own four steps, the code following each change, the missing thing said, a
+  period, Add, the pattern's label on the APIs page, Run and Try it, Reconcile's second table from the sandbox's
+  row, the same wizard on API.py's Endpoints pane), test_local_apis_page (the wizard's Table), test_forms_recon_app
+  (the example with its rebuilt endpoints), test_canvas_page, test_widget_wiring_page: 12 passed, Streamlit's
+  Python given.
+- The quick suite (`-n 4 --dist loadfile tests --ignore=tests/e2e`): 5,098 passed, 47 skipped, 9 failed. Two
+  were this branch's (the agent's guide named a command that does not exist: fixed, both pass). Five passed
+  alone (test_apis' three auth types, test_analyze_http's read limit, test_workbench's busy reader). Two fail
+  alone on this loaded machine and are on the known list: test_performance's million rows and test_adapter's
+  streams test (it reads `ps`). ruff, ruff format, mypy, the page's typecheck and build: clean.
+- Not checked: Edge; Windows and macOS; a real SQL Server, PostgreSQL, Oracle, Snowflake or Trino running the
+  folded statements (only sqlglot's text, the sandbox's mock for T-SQL and a real SQLite); a real Dataverse or
+  SharePoint source on the stream path; memory on Larkfield's 10M lines for Summary and Reconcile (the stress
+  test was not extended); Excel opening the standard-library workbook (openpyxl read it); the wizard under a
+  screen reader; the desktop app's window (the browser page only).
+

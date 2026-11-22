@@ -1943,7 +1943,13 @@ data.
    - **The Sandbox is a connection.** The Connections page shows the project's Sandbox (local test data, never
      live) in its own indigo, with its tables, the change log and Reset. DuckDB SQL names its tables
      `[Sandbox].orders`. It is never exported as a connection.
-2. **Write endpoints.** **New endpoint from a table…** writes list, get, create, update and delete into API.py; or
+2. **Write endpoints.** **New endpoint…** is one wizard: pick a sandbox table, then what the endpoint is for.
+   The choices are ranked for your table, each with one sentence why: Table (list, get, create, update and
+   delete), Choices (a dropdown's), Search, Summary (totals per group or per month), Bulk upload (checked,
+   a dry run, then all or none), Action (approve, close: the rows you send, all or none), Versions,
+   Reconcile (two tables: matched, missing, differing) and Export (a CSV file or an Excel workbook). Each
+   asks only its own few things, shows the code it will add, and adds it to API.py, where it is yours to
+   change. A widget you then drop on the Canvas wires itself to the endpoint made for it. Or
    write your own with `@endpoint("GET", "/orders/{region}")`. `connection("Warehouse")` gives the same calls here
    and in an export: `read("orders", filters=[["region", "=", region]], limit=50)`, `query(sql, params)` in
    Warehouse's own SQL (joins, CTEs), `write("orders", rows, key=["order_id"], mode="merge")`, `tables()`. Here

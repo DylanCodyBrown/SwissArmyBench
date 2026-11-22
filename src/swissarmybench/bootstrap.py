@@ -87,6 +87,7 @@ from swissarmybench.adapters.vault_names import VaultNameFiles
 from swissarmybench.adapters.views import ViewEngine
 from swissarmybench.adapters.workbench import Documents
 from swissarmybench.client import kernel_intel
+from swissarmybench.domain import api_patterns as api_pattern_rules
 from swissarmybench.domain import api_targets as api_target_rules
 from swissarmybench.domain import blade_tables, python_connections
 from swissarmybench.domain import connection_slots as slot_rules
@@ -2125,6 +2126,8 @@ def _exports(b: Built) -> None:
     for extension in b.on_extensions:
         for raw in getattr(extension, "API_TARGETS", ()) or ():
             api_export.registry.add(api_target_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
+        for raw in getattr(extension, "API_PATTERNS", ()) or ():  # the endpoint wizard's patterns
+            local_api.patterns.add(api_pattern_rules.from_extension(raw, str(getattr(extension, "ID", ""))))
     b.scaffold = _scaffold(b)
     local_api.target_ids = api_export.registry.ids
     local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]

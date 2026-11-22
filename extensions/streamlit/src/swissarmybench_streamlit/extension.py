@@ -274,6 +274,8 @@ def routes(services: Any) -> list[Any]:
     # Launch, Builds and the Performance Analyzer (Visual Studio's F5, its history, its profiler).
     launches = Launches(canvases, live_runs, BuildFiles())
     canvases.launches = launches
+    if getattr(services, "local_api", None) is not None:  # a dropped widget wires itself to its endpoint
+        canvases.paired = services.local_api.paired
     # Each widget's preview, rendered headless once (Play's own builder and run) and kept by its hash.
     previewer = Previewer(widgets, live_runs)
     services.widgets = widgets

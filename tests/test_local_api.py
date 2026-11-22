@@ -359,7 +359,7 @@ def test_the_crud_set_compiles_in_every_source_style() -> None:
         assert "OrdersRow" in api.models and api.models["OrdersRow"].fields["placed"][0] == "date"
     # One style for every source (phase 3): the adapter's calls, its schema in the table's name.
     tsql = scaffold.crud("orders", columns, scaffold.Source("database", "Warehouse", "sqlserver", "dbo"))
-    assert "connection('Warehouse').read('dbo.orders', sort=[['order_id', \"asc\"]]" in tsql
+    assert 'connection("Warehouse").read("dbo.orders", sort=[["order_id", "asc"]]' in tsql
     odata = scaffold.crud("orders", columns, scaffold.Source("dataverse", "Sales CRM", "dataverse"))
     assert "create_orders" in odata and 'mode="update"' in odata
     with pytest.raises(scaffold.ScaffoldError, match="has list_orders already"):
@@ -398,8 +398,8 @@ def test_new_endpoint_from_a_table_runs_its_crud_set_on_the_mocks(live: int, tmp
     assert by["list_orders"]["data"] == ["The sandbox (plain DuckDB)"]
     text = (folder / "API.py").read_text(encoding="utf-8")
     assert (
-        "connection('Warehouse').read('dbo.invoices'" in text
-        and "connection('Sandbox').read('orders'" in text
+        'connection("Warehouse").read("dbo.invoices"' in text
+        and 'connection("Sandbox").read("orders"' in text
     )
     assert _ask(port, "POST", "/local-api/run", {})["running"]
 

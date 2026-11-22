@@ -1,5 +1,6 @@
-"""New endpoint from a table: the CRUD set over one sandbox table, appended to API.py, through the adapter
-(Plans/adapter.plan.md: the per-source styles of 2026-11-21 went with the mock clients, 2026-11-22).
+"""The Table pattern (the endpoint wizard's first: domain/api_patterns.py has the registry and the other
+eight): the CRUD set over one sandbox table, appended to API.py, through the adapter (Plans/adapter.plan.md:
+the per-source styles of 2026-11-21 went with the mock clients, 2026-11-22).
 
   list    GET    /<table>?limit=&offset=      its rows, a page at a time (the API table widget pages with
   them)
@@ -15,8 +16,12 @@ Pure text: standard library only.
 
 from __future__ import annotations
 
+import ast
+import io
+import json
 import keyword
 import re
+import tokenize
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -38,6 +43,22 @@ class Source:
     schema: str = ""
 
 
+def py(value: Any, indent: int | None = None) -> str:
+    """A value written as Python the way a formatter leaves it: double quotes; a long list of names one a
+    line when `indent` (the line's own) is given."""
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, Mapping):
+        return "{" + ", ".join(f"{py(k)}: {py(v)}" for k, v in value.items()) + "}"
+    if isinstance(value, (list, tuple)):
+        flat = "[" + ", ".join(py(v) for v in value) + "]"
+        if indent is None or len(flat) + indent <= 88:
+            return flat
+        pad = " " * (indent + 4)
+        return "[\n" + "".join(f"{pad}{py(v)},\n" for v in value) + " " * indent + "]"
+    return repr(value)
+
+
 def _ident(text: str) -> str:
     made = re.sub(r"\W+", "_", text).strip("_").lower() or "table"
     if made[0].isdigit():
@@ -50,26 +71,60 @@ def stem(table: str) -> str:
     return _ident(table)
 
 
-_NEEDED = {"TypedDict": "from typing import TypedDict", "ApiError": "sab_api", "connection": "sab_api",
-           "endpoint": "sab_api", "records": "sab_api"}  # fmt: skip
+_SAB_API = ("ApiError", "Download", "connection", "download", "endpoint", "records")
+
+
+def _used(block: str) -> set[str]:
+    """The names a block of code reads (its annotations too)."""
+    try:
+        tree = ast.parse(block)
+    except SyntaxError:
+        return set(re.findall(r"[A-Za-z_]\w*", block))
+    return {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
 
 
 def imports_missing(text: str, block: str = "") -> str:
-    """The import lines a CRUD set needs that API.py does not have yet ("" when it has them). `block`: the
-    set's text: a date or datetime field needs its import too (API.py would not start without it)."""
+    """The import lines a pattern's block needs that API.py does not have yet ("" when it has them): what
+    the block reads of sab_api, TypedDict, and date or datetime (API.py would not start without them)."""
     imported = set(re.findall(r"^\s*from\s+[\w.]+\s+import\s+([^\n#]+)", text, re.M))
     names = {n.strip().split(" as ")[-1] for line in imported for n in line.strip("() ").split(",")}
+    names |= set(re.findall(r"^import\s+(\w+)\s*$", text, re.M))  # a module by its own name
+    used = _used(block) if block else {"TypedDict", "ApiError", "connection", "endpoint", "records"}
     lines = []
-    if "TypedDict" not in names:
+    if "TypedDict" in used and "TypedDict" not in names:
         lines.append("from typing import TypedDict  # noqa: E402")
-    used = re.findall(r"^    \w+: (date|datetime)$", block, re.M)
     dates = [n for n in ("date", "datetime") if n in used and n not in names]
     if dates:
         lines.append(f"from datetime import {', '.join(dates)}  # noqa: E402")
-    wanted = [n for n in ("ApiError", "connection", "endpoint", "records") if n not in names]
+    wanted = [n for n in _SAB_API if n in used and n not in names]
     if wanted:
         lines.append(f"from sab_api import {', '.join(wanted)}  # noqa: E402")
     return "\n".join(lines) + ("\n" if lines else "")
+
+
+def fitted(text: str, block: str) -> str:
+    """A block made to stand in this API.py: where the file imports the datetime module by its name
+    (`import datetime`), the block's `date` and `datetime` are written `datetime.date` and
+    `datetime.datetime` (importing the class would hide the module the file's own code uses). Only the
+    code's own names: never a word in a string or a comment."""
+    if not re.search(r"^import datetime\s*$", text, re.M) or re.search(
+        r"^from datetime import [^\n]*\bdatetime\b", text, re.M
+    ):
+        return block
+    spots: list[tuple[int, int]] = []
+    before = ""
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(block).readline):
+            if token.type == tokenize.NAME and token.string in ("date", "datetime") and before != ".":
+                spots.append(token.start)
+            if token.type not in (tokenize.NL, tokenize.NEWLINE, tokenize.COMMENT, tokenize.INDENT):
+                before = token.string
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return block
+    lines = block.split("\n")
+    for row, column in reversed(spots):
+        lines[row - 1] = lines[row - 1][:column] + "datetime." + lines[row - 1][column:]
+    return "\n".join(lines)
 
 
 def with_imports(text: str, needs: str) -> tuple[str, str]:
@@ -80,6 +135,23 @@ def with_imports(text: str, needs: str) -> tuple[str, str]:
     if not needs:
         return text, ""
     lines = text.split("\n")
+    rest = []
+    for need in needs.strip("\n").split("\n"):  # a module API.py imports from already: its line takes them
+        module, _, wanted = need.replace("  # noqa: E402", "").partition(" import ")
+        at = next(
+            (i for i, line in enumerate(lines) if re.fullmatch(rf"{re.escape(module)} import [\w, ]+", line)),
+            -1,
+        )
+        if at < 0:
+            rest.append(need)
+            continue
+        names = sorted(
+            {n.strip() for n in (lines[at].partition(" import ")[2] + "," + wanted).split(",") if n.strip()}
+        )
+        lines[at] = f"{module} import {', '.join(names)}"
+    text, needs = "\n".join(lines), "\n".join(rest) + ("\n" if rest else "")
+    if not needs:
+        return text, ""
     last = -1
     for i, line in enumerate(lines):
         if re.match(r"(def|class|async def|@)\b|@", line):
@@ -134,11 +206,12 @@ def crud(
     ]
     if not all(field_lines):
         bad = next(n for n, line in zip(names, field_lines, strict=True) if not line)
-        raise ScaffoldError(f"The column {bad!r} is not a Python name, so it cannot be a field of {model}.")
+        raise ScaffoldError(f"The column {py(bad)} is not a Python name, so it cannot be a field of {model}.")
     head = [
         "",
         "",
-        f"# ===== {table}: {_style_words(source)} (New endpoint from a table) =====",
+        f"# ===== {table}: Table ({_style_words(source)}) =====",
+        f"# pattern: table of {table}",
         "",
         "",
         f"class {model}(TypedDict, total=False):",
@@ -153,7 +226,7 @@ def crud(
 def _style_words(source: Source) -> str:
     if source.kind == "duckdb":
         return 'connection("Sandbox") through the adapter'
-    return f"connection({source.connection!r}) through the adapter"
+    return f"connection({py(source.connection)}) through the adapter"
 
 
 def _decorators(path: str) -> dict[str, str]:
@@ -172,18 +245,18 @@ def _styled(
     """One style for every source: the adapter's read and write on connection(name), so the same code runs
     on the sandbox here and on the real connection in an export."""
     deco = _decorators(path)
-    c = f"connection({source.connection!r})"
-    t = repr(f"{source.schema}.{table}" if source.schema else table)
+    c = f"connection({py(source.connection)})"
+    t = py(f"{source.schema}.{table}" if source.schema else table)
     return f'''{deco["list"]}
 def list_{stem}(limit: int = 50, offset: int = 0) -> list[{model}]:
     """{table}: a page of its rows."""
-    return records({c}.read({t}, sort=[[{key!r}, "asc"]], limit=limit, offset=offset))
+    return records({c}.read({t}, sort=[[{py(key)}, "asc"]], limit=limit, offset=offset))
 
 
 {deco["get"]}
 def get_{stem}(key: {key_type}) -> {model}:
     """{table}: one row by {key}."""
-    found = records({c}.read({t}, filters=[[{key!r}, "=", key]], limit=1))
+    found = records({c}.read({t}, filters=[[{py(key)}, "=", key]], limit=1))
     if not found:
         raise ApiError(404, f"No {table} row has {key} {{key}}.")
     return found[0]
@@ -192,17 +265,17 @@ def get_{stem}(key: {key_type}) -> {model}:
 {deco["create"]}
 def create_{stem}(row: {model}) -> {model}:
     """{table}: a new row from the body."""
-    {c}.write({t}, [{{c: v for c, v in row.items() if c in {names!r}}}])
+    {c}.write({t}, [{{c: v for c, v in row.items() if c in {py(names)}}}])
     return row
 
 
 {deco["update"]}
 def update_{stem}(key: {key_type}, row: {model}) -> {model}:
     """{table}: the body's columns set on one row."""
-    changes = {{c: v for c, v in row.items() if c in {names!r} and c != {key!r}}}
+    changes = {{c: v for c, v in row.items() if c in {py(names)} and c != {py(key)}}}
     if not changes:
         raise ApiError(422, "Send at least one column to change.")
-    done = {c}.write({t}, [changes | {{{key!r}: key}}], key=[{key!r}], mode="update")
+    done = {c}.write({t}, [changes | {{{py(key)}: key}}], key=[{py(key)}], mode="update")
     if not done.updated:
         raise ApiError(404, f"No {table} row has {key} {{key}}.")
     return get_{stem}(key)
@@ -211,7 +284,7 @@ def update_{stem}(key: {key_type}, row: {model}) -> {model}:
 {deco["delete"]}
 def delete_{stem}(key: {key_type}) -> None:
     """{table}: one row gone."""
-    done = {c}.write({t}, [{{{key!r}: key}}], key=[{key!r}], mode="delete")
+    done = {c}.write({t}, [{{{py(key)}: key}}], key=[{py(key)}], mode="delete")
     if not done.deleted:
         raise ApiError(404, f"No {table} row has {key} {{key}}.")
 '''

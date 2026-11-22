@@ -32,7 +32,7 @@ Pure rules: no I/O, standard library only.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -490,3 +490,81 @@ def set_wire(
     else:
         node.pop("wires", None)
     return canvas
+
+
+# ===== a widget dropped near a matching endpoint wires itself (the endpoint wizard's pairings) =====
+
+
+def _uses(node: Mapping[str, Any]) -> list[str]:
+    """The endpoints a widget instance uses: its endpoint property, its Ins' sources, its Events' calls."""
+    found = []
+    named = (node.get("values") or {}).get("endpoint")
+    if isinstance(named, str) and named:
+        found.append(named)
+    for wire in (node.get("wires") or {}).values():
+        if not isinstance(wire, Mapping):
+            continue
+        if isinstance(wire.get("endpoint"), str):
+            found.append(wire["endpoint"])
+        for action in wire.get("actions") or []:
+            if isinstance(action, Mapping) and isinstance(action.get("endpoint"), str):
+                found.append(action["endpoint"])
+    return found
+
+
+def _centre(node: Mapping[str, Any]) -> tuple[float, float]:
+    return node.get("x", 0) + node.get("w", 0) / 2, node.get("y", 0) + node.get("h", 0) / 2
+
+
+def pair_for(
+    canvas: Mapping[str, Any],
+    instance: str,
+    pairings: Sequence[Mapping[str, Any]],
+    properties: Sequence[str],
+    ins: Sequence[str],
+) -> dict[str, Any] | None:
+    """The endpoint a widget just put on the canvas wires itself to, or None. `pairings`: each endpoint a
+    wizard's pattern made, with the widget that pairs with it ({endpoint, widget, port, pattern, of}: the
+    base's local_api.paired). Its own endpoint property (or the In the pairing names) must be free. One
+    matching endpoint: that one. Several: the one over the same table as the nearest widget that already
+    uses an endpoint (in its own container first, then the rest of its page); with none near, it is left
+    for the user to pick, never guessed."""
+    page, parent, node = model.find(canvas, instance)
+    if node.get("kind") != "widget":
+        return None
+    fits = []
+    for p in pairings:
+        port = str(p.get("port") or "endpoint")
+        if p.get("widget") != node.get("widget"):
+            continue
+        if port == "endpoint" and "endpoint" in properties and not (node.get("values") or {}).get("endpoint"):
+            fits.append(p)
+        elif port in ins and port not in (node.get("wires") or {}) and port not in (node.get("values") or {}):
+            fits.append(p)
+    if not fits:
+        return None
+    chosen = fits[0] if len({str(p["endpoint"]) for p in fits}) == 1 else None
+    if chosen is None:
+        table_of = {str(p["endpoint"]): str(p.get("of") or "") for p in pairings}
+        siblings = [
+            n for n in (parent or page)["children"] if n.get("kind") == "widget" and n["id"] != instance
+        ]
+        mine = _centre(node)
+        siblings.sort(key=lambda n: (_centre(n)[0] - mine[0]) ** 2 + (_centre(n)[1] - mine[1]) ** 2)
+        seen = {n["id"] for n in siblings} | {instance}
+        others = [n for pg, n in model.walk(canvas) if pg["id"] == page["id"] and n.get("kind") == "widget"]
+        for near in [*siblings, *[n for n in others if n["id"] not in seen]]:
+            tables = [table_of[e] for e in _uses(near) if table_of.get(e)]
+            chosen = next((p for p in fits if tables and str(p.get("of") or "") == tables[0]), None)
+            if chosen is not None or tables:
+                break
+    if chosen is None:
+        return None
+    port = str(chosen.get("port") or "endpoint")
+    return {
+        "endpoint": str(chosen["endpoint"]),
+        "port": port,
+        "as": "property" if port == "endpoint" else "in",
+        "words": f"{node['widget']} is wired to {chosen['endpoint']}: the {chosen.get('pattern')} pattern "
+        f"over {chosen.get('of')} pairs with it. Change it in Properties.",
+    }

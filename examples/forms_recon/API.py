@@ -13,6 +13,11 @@ column store   GET /forms/{form_id}/entries: one typed column per field (DuckDB 
 reconciliations  a form's entries against a source table: keys, compares and tolerances, totals;
                run for a month, the results paged (matched, differences, only in entries,
                only in source, duplicates)
+
+The endpoints above the last four banners are this project's own logic, written by hand. The ones at the
+end were made by New endpoint (the wizard) where one of its patterns fits, each under its marker comment:
+a form picker's choices, a reconciliation's runs (a search of recon_runs), a run's counts by status (a
+summary of recon_results) and its results as a CSV file.
 """
 
 import datetime
@@ -20,7 +25,7 @@ import json
 import re
 from typing import TypedDict
 
-from sab_api import ApiError, connection, endpoint, records
+from sab_api import ApiError, Download, connection, download, endpoint, records
 
 TYPES = ("text", "number", "money", "date", "choice", "yes/no", "file")
 NUMBERS = ("number", "money")
@@ -712,12 +717,6 @@ def run_recon(recon_id: str, run: RunIn) -> dict:
     return get_run(run_id)
 
 
-@endpoint("GET", "/recons/{recon_id}/runs")
-def list_runs(recon_id: str) -> list[dict]:
-    """A reconciliation's runs, newest first."""
-    return [_run_out(r) for r in _rows("SELECT * FROM recon_runs WHERE recon_id = ? ORDER BY run_id DESC", [recon_id])]
-
-
 def _run_out(row: dict) -> dict:
     row["totals"] = json.loads(row.get("totals") or "[]")
     return row
@@ -759,3 +758,136 @@ def sign_off(run_id: int, signed: SignOff) -> dict:
     _run("UPDATE recon_runs SET signed_off_by = ?, signed_off_at = ? WHERE run_id = ?",
          [signed["by"], _now(), run_id])  # fmt: skip
     return get_run(run_id)
+
+
+# ===== forms: Choices (connection("Sandbox") through the adapter) =====
+# pattern: choices of forms
+
+
+class FormsChoice(TypedDict, total=False):
+    form_id: str
+    title: str
+
+
+@endpoint("GET", "/forms/choices")
+def choices_forms(search: str = "", limit: int = 200) -> list[FormsChoice]:
+    """forms: its choices for a dropdown (form_id and title).
+
+    Sorted by title, `limit` at most; ?search= narrows by title."""
+    filters = [["title", "like", f"%{search}%"]] if search else []
+    plan = {"columns": ["form_id", "title"], "filters": filters, "sort": [["title", "asc"]], "limit": limit}
+    return records(connection("Sandbox").read("forms", plan))
+
+
+# ===== recon_runs: Search (connection("Sandbox") through the adapter) =====
+# pattern: search of recon_runs
+
+
+class ReconRunsFound(TypedDict, total=False):
+    run_id: int
+    recon_id: str
+    period: str
+    ran_at: datetime.datetime
+    matched: int
+    differences: int
+    only_entries: int
+    only_source: int
+    duplicates: int
+    totals: str
+    signed_off_by: str
+    signed_off_at: datetime.datetime
+
+
+@endpoint("GET", "/recon_runs/search")
+def search_recon_runs(
+    recon_id: str | None = None,
+    period: str | None = None,
+    sort: str = "run_id",
+    descending: bool = False,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[ReconRunsFound]:
+    """recon_runs: the rows that match, a page at a time.
+
+    recon_id and period narrow it. The filters, the sort and the page go to the source."""
+    columns = [
+        "run_id",
+        "recon_id",
+        "period",
+        "ran_at",
+        "matched",
+        "differences",
+        "only_entries",
+        "only_source",
+        "duplicates",
+        "totals",
+        "signed_off_by",
+        "signed_off_at",
+    ]
+    filters: list[list] = []
+    if recon_id is not None:
+        filters.append(["recon_id", "=", recon_id])
+    if period is not None:
+        filters.append(["period", "=", period])
+    if sort not in columns:
+        raise ApiError(422, "sort is one of the columns it answers.")
+    way = "desc" if descending else "asc"
+    plan = {"columns": columns, "filters": filters, "sort": [[sort, way]], "limit": limit, "offset": offset}
+    return records(connection("Sandbox").read("recon_runs", plan))
+
+
+# ===== recon_results: Summary (connection("Sandbox") through the adapter) =====
+# pattern: summary of recon_results
+
+
+class ReconResultsRunIdStatusSummary(TypedDict, total=False):
+    run_id: int
+    status: str
+    rows: int
+
+
+@endpoint("GET", "/recon_results/summary/run_id/status")
+def summary_recon_results_by_run_id_status(
+    run_id: int | None = None,
+    status: str | None = None,
+    limit: int = 1000,
+) -> list[ReconResultsRunIdStatusSummary]:
+    """recon_results: the row count by run_id and status.
+
+    The group and the totals are the read's plan: the source does them where it can."""
+    filters: list[list] = []
+    if run_id is not None:
+        filters.append(["run_id", "=", run_id])
+    if status is not None:
+        filters.append(["status", "=", status])
+    plan = {
+        "group": ["run_id", "status"],
+        "totals": [{"fn": "count", "name": "rows"}],
+        "filters": filters,
+        "sort": [["run_id", "asc"], ["status", "asc"]],
+        "limit": limit,
+    }
+    return records(connection("Sandbox").read("recon_results", plan))
+
+
+# ===== recon_results: Export (connection("Sandbox") through the adapter) =====
+# pattern: export of recon_results
+
+
+@endpoint("GET", "/recon_results/export.csv")
+def export_recon_results(limit: int = 100000) -> Download:
+    """recon_results as a CSV file to save.
+
+    It carries every column, sorted by record_key: read from the source a batch at a time, `limit` rows at
+    most."""
+    columns = [
+        "run_id",
+        "status",
+        "record_key",
+        "entry_values",
+        "source_values",
+        "difference",
+        "fields_off",
+    ]
+    plan = {"columns": columns, "sort": [["record_key", "asc"]], "limit": limit}
+    return download(connection("Sandbox").read("recon_results", plan), "recon_results.csv")
