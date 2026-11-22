@@ -17,7 +17,7 @@ import sysconfig
 import tempfile
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -771,7 +771,7 @@ class Built:
     processes: ProcessRegistry
     tickets: ExportTickets
     approvals: Approvals
-    slots: ConnectionSlots
+    connection_slots: ConnectionSlots
     call_stats: CallStats
     changes: ChangeLog
     datasets: DatasetService
@@ -842,13 +842,31 @@ class Built:
     project_outline: ProjectOutline
     file_dialogs: FileDialogs
     lifecycle: Lifecycle
-    grid_service: GridService
+    grids: GridService
     analysis: Analysis
-    key_finder: KeyFinder
+    keys: KeyFinder
     tie_out: TieOut
     script_exports: ScriptExports
     api_export: ApiExport
     scaffold: Scaffold
+    # ----- what only the doors use (_doors) -----
+    profiles: Profiles
+    analyze: Analyze
+    regression: Regression
+    timeseries: TimeSeries
+    sql: SqlBox
+    exports: Exports
+    codes: CodeService
+    inbox: Inbox
+    folders: Folders
+    finder: Finder
+    snapshots: Snapshots
+    debugger: Debugger
+    switched_on: list[Any]
+    export_writer: Any
+    navigation: Navigation
+    desktop: Desktop
+    lineage: Lineage
 
     def state_file(self, name: str) -> Path | None:
         """A state file's path in the state folder, or None when this server writes no state files."""
@@ -899,6 +917,7 @@ def bootstrap(
         _editors_and_claude,
         _outline_dialogs_and_life,
         _exports,
+        _doors,
     ):
         part(b)
     _check_wired(b)
@@ -918,8 +937,8 @@ LATE_BOUND = (
     "datasets.variables",
     "blades.open_table",
     "blades.lint",
-    "slots.kernel_caller",
-    "slots.interrupt_kernel",
+    "connection_slots.kernel_caller",
+    "connection_slots.interrupt_kernel",
     "sab_projects.shared_folder",
     "structures.rerun",
     "structures.hash_of",
@@ -950,6 +969,9 @@ def _check_wired(b: Any) -> None:
     """Every part built what it names (each Built field set), and every late-bound attribute set by its part:
     not None, and not the stand-in a service's own constructor gave it (a lambda made in its __init__)."""
     problems = [f"{name} was not built" for name in Built.__annotations__ if name not in vars(b)]
+    problems += [
+        f"Services' {f.name} is not Built's" for f in fields(Services) if f.name not in Built.__annotations__
+    ]
     for path in LATE_BOUND:
         owner: Any = b
         try:
@@ -1017,7 +1039,9 @@ def _connection_runs(b: Built) -> None:
         # the Connections page counts (services/connection_usage.py; memory only); each waits for one of the
         # connection's slots first (services/connection_slots.py), and gives it back however it ends.
         try:
-            answer = await b.slots.run_blade(blade.name, blade.kind, blade.dialect, mode, extra, work)
+            answer = await b.connection_slots.run_blade(
+                blade.name, blade.kind, blade.dialect, mode, extra, work
+            )
         except Exception as error:
             b.connection_usage.record(blade.name, mode, ok=False, error=str(error))
             raise
@@ -1118,7 +1142,7 @@ def _data(b: Built) -> None:
     b.changes = ChangeLog(ChangeFiles(), project, stamp)
     if isinstance(ws.audit, Heard):
         ws.audit.changes = b.changes
-    b.slots = ConnectionSlots(
+    b.connection_slots = ConnectionSlots(
         b.live,
         ws.audit,
         limits_of=lambda name: slot_rules.limits_of_header(blade_store.get(name).queries),
@@ -1238,11 +1262,11 @@ def _workbench_part(b: Built) -> None:
         return Caller(role, "The agent" if role == "agent" else words, kernel=kernel, source=source)
 
     async def kernel_ended(kernel: str) -> None:
-        b.slots.kernel_stopped(kernel)  # its slots go back at once
+        b.connection_slots.kernel_stopped(kernel)  # its slots go back at once
 
     b.datasets.origins.document_of = workbench.document_of  # a table a kernel sends: the document it ran for
-    b.slots.kernel_caller = kernel_caller
-    b.slots.interrupt_kernel = workbench.interrupt
+    b.connection_slots.kernel_caller = kernel_caller
+    b.connection_slots.interrupt_kernel = workbench.interrupt
     workbench.set_kernel_stopped(kernel_ended)
 
 
@@ -2054,9 +2078,9 @@ def _outline_dialogs_and_life(b: Built) -> None:
         idle=settings.life_idle_seconds,
         start_grace=settings.life_start_grace_seconds,
     )
-    b.grid_service = GridService(ws, b.datasets.origins.get)
+    b.grids = GridService(ws, b.datasets.origins.get)
     b.analysis = Analysis(ws, b.verifier)
-    b.key_finder = KeyFinder(ws)
+    b.keys = KeyFinder(ws)
     b.tie_out = TieOut(b.compares)
 
 
@@ -2210,120 +2234,48 @@ def _scaffold(b: Built) -> Scaffold:
     return made
 
 
-def _services(b: Built) -> Services:
+def _doors(b: Built) -> None:
+    """The services only the doors use, built last: the analyses' pages, the SQL box, exports, copy as code,
+    the file picker, the debugger, navigation, the desktop app and the lineage; the module and the list the
+    doors read as they are."""
     ws, workbench = b.ws, b.workbench
-    return Services(
-        settings=b.settings,
-        ws=ws,
-        datasets=b.datasets,
-        file_watch=b.file_watch,
-        code_files=b.code_files,
-        grids=b.grid_service,
-        profiles=Profiles(ws),
-        analysis=b.analysis,
-        analyze=Analyze(
-            ws, b.grid_service, b.datasets, b.analysis, b.tie_out, b.key_finder, b.cards, b.blades
-        ),
-        regression=Regression(ws),
-        timeseries=TimeSeries(ws),
-        sql=SqlBox(ws, b.datasets, table_reader),
-        exports=Exports(ws, export_writer, b.tickets, now=lambda: datetime.now(UTC)),
-        codes=CodeService(ws, b.verifier),
-        cards=b.cards,
-        inbox=Inbox(ws),
-        agent=b.agent,
-        sessions=b.sessions,
-        catalogs=b.catalogs,
-        blades=b.blades,
-        connections=b.connections,
-        found_connections=b.found_connections,
-        connection_usage=b.connection_usage,
-        connection_slots=b.slots,
-        call_stats=b.call_stats,
-        changes=b.changes,
-        apis=b.apis,
-        structures=b.structures,
-        api_explorer=b.api_explorer,
-        actions=b.actions,
-        catalog_loading=b.catalog_loading,
-        vault_names_at_start=b.vault_names_at_start,
-        connection_tables=b.connection_tables,
-        folders=Folders(
-            folder_listing,
-            lambda where: ensure_own_folder(where, b.settings.workbench_dir),
-            places=b.file_dialogs.places,
-            make_folder=make_folder,
-        ),
-        file_dialogs=b.file_dialogs,
-        workbench=workbench,
-        models=b.models,
-        project_tables=b.project_tables,
-        finder=Finder(ws, b.models),
-        library=b.library,
-        library_setup=b.library_setup,
-        team=b.team,
-        sharing=b.sharing,
-        sandbox=b.sandbox,
-        local_api=b.local_api,
-        api_export=b.api_export,
-        scaffold=b.scaffold,
-        shared_catalog=b.shared_catalog,
-        app_registrations=b.app_registrations,
-        keys=b.key_finder,
-        compares=b.compares,
-        tie_out=b.tie_out,
-        snapshots=Snapshots(ws),
-        workbench_window=b.workbench_window,
-        intellisense=b.intellisense,
-        script_ide=b.script_ide,
-        debugger=Debugger(
-            ws,
-            lambda kernel: cast(
-                "DebugKernel | None", workbench.kernel_or_none(kernel)
-            ),  # server/kernels.py's
-            workbench.kernel_for,
-            workbench.document_of,
-        ),
-        table_cells=b.table_cells,
-        modes=b.modes,
-        switched_on=b.on_extensions,
-        hooks=b.hooks,
-        data_export=b.data_export,
-        documents=b.documents,
-        project_files=b.project_files,
-        export_writer=export_writer,
-        process_event=b.process_event,
-        session_log=b.session_log,
-        variables=b.variables,
-        environment=b.environment,
-        project_python=b.project_python,
-        explorer=b.explorer,
-        connection_swap=b.connection_swap,
-        navigation=Navigation(ws, JsonFile(b.state_file("rail.json"))),
-        script_runs=b.script_runs,
-        connection_colours=b.connection_colours,
-        beta=b.beta,
-        updates=b.updates,
-        extensions=b.extensions,
-        lifecycle=b.lifecycle,
-        desktop=Desktop(SystemShell(info_file_path()), ws.audit, qt_version()),
-        claude=b.claude,
-        context_md=b.context_md,
-        lineage=Lineage(
-            ws,
-            b.hooks,
-            b.datasets.origins,
-            b.documents.read,
-            b.project_files,
-            workbench.lineage_values,
-            kernel_for=workbench.kernel_for,
-        ),
-        projects=b.projects,
-        sab_projects=b.sab_projects,
-        project_explorer=b.project_explorer,
-        project_scope=b.project_scope,
-        project_outline=b.project_outline,
-        script_exports=b.script_exports,
-        live=b.live,
-        workers=b.workers,
+    b.profiles = Profiles(ws)
+    b.analyze = Analyze(ws, b.grids, b.datasets, b.analysis, b.tie_out, b.keys, b.cards, b.blades)
+    b.regression = Regression(ws)
+    b.timeseries = TimeSeries(ws)
+    b.sql = SqlBox(ws, b.datasets, table_reader)
+    b.exports = Exports(ws, export_writer, b.tickets, now=lambda: datetime.now(UTC))
+    b.codes = CodeService(ws, b.verifier)
+    b.inbox = Inbox(ws)
+    b.folders = Folders(
+        folder_listing,
+        lambda where: ensure_own_folder(where, b.settings.workbench_dir),
+        places=b.file_dialogs.places,
+        make_folder=make_folder,
     )
+    b.finder = Finder(ws, b.models)
+    b.snapshots = Snapshots(ws)
+    b.debugger = Debugger(
+        ws,
+        lambda kernel: cast("DebugKernel | None", workbench.kernel_or_none(kernel)),  # server/kernels.py's
+        workbench.kernel_for,
+        workbench.document_of,
+    )
+    b.switched_on = b.on_extensions
+    b.export_writer = export_writer
+    b.navigation = Navigation(ws, JsonFile(b.state_file("rail.json")))
+    b.desktop = Desktop(SystemShell(info_file_path()), ws.audit, qt_version())
+    b.lineage = Lineage(
+        ws,
+        b.hooks,
+        b.datasets.origins,
+        b.documents.read,
+        b.project_files,
+        workbench.lineage_values,
+        kernel_for=workbench.kernel_for,
+    )
+
+
+def _services(b: Built) -> Services:
+    """What the doors are given: Services, a typed view of Built (each of its fields Built's of that name)."""
+    return Services(**{f.name: getattr(b, f.name) for f in fields(Services)})
