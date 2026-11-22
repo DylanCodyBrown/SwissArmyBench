@@ -193,7 +193,6 @@ def test_open_as_grid_reads_every_dialect_the_adapter_knows_through_it() -> None
 
 
 WRITES_OWN = {  # the Write starters that still write themselves, and why (docs/ideas.md "One adapter")
-    "write_to_sql_server": "typed #temp staging, MERGE WITH (HOLDLOCK), Azure's passing errors retried",
     "write_to_trino": "no transactions: a statement at a time, MERGE where the connector has it",
     "write_to_excel_sheet": "moves with the Excel module (Plans/excel.plan.md)",
 }
