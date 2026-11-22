@@ -7975,3 +7975,8 @@ thing now sees:
 - Not done here, and why: the base's .stapp.json recognition (the Streamlit extension's one-line "gone" for an old
   app canvas needs it); streamlit_use.py (still used); the server's VS Code opener path in live_updates; the rest of
   bootstrap's split and cleanup 4 (after the adapter).
+
+## The API adapter (the owner, 2026-11-22): proposed
+api_adapter.py: any API's answer in, one envelope out, with active payload detection (format, envelope, paging, types)
+and drift handling (fields bound by path; added, missing, retyped and moved fields adapt; an unsure rename offered once,
+never guessed). Plan: Plans/api-adapter.plan.md.
