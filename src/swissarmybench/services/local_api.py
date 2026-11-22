@@ -687,19 +687,30 @@ class LocalApi:
                 if path != (self._running_for or path):
                     await self.stop(None, "app")
                     return
-                stamp = self._files.stamp(path)
-                if stamp != self._stamp:
-                    async with self._lock:
-                        await self._stop_quietly()
-                        await self._begin()
-                    await self._told("app", "local_api_restart", failed=bool(self._failed))
+                await self._restart_if_changed()
         except asyncio.CancelledError:
             pass
 
+    async def _restart_if_changed(self) -> None:
+        """API.py changed on disk since the process started: it is started again (the watch's look, and a
+        call's own: a call sent the moment after a save is answered by the code as saved, never the old)."""
+        if self._runner is None and self._failed is None:
+            return
+        path = self.path()
+        if path != (self._running_for or path) or self._files.stamp(path) == self._stamp:
+            return
+        async with self._lock:
+            if self._files.stamp(path) == self._stamp:
+                return  # another caller started it again meanwhile
+            await self._stop_quietly()
+            await self._begin()
+        await self._told("app", "local_api_restart", failed=bool(self._failed))
+
     # ===== calls =====
 
-    async def call(self, body: Any, who: str = "user") -> dict[str, Any]:
-        """{"method", "path", "query"?, "body"?}: one request through the running API."""
+    async def call(self, body: Any, who: str = "user", raw: bool = False) -> dict[str, Any]:
+        """{"method", "path", "query"?, "body"?}: one request through the running API. `raw`: the answer's
+        own bytes and headers too (`raw`, `headers`), for a caller that reads them itself (api_adapter)."""
         given = body if isinstance(body, dict) else {}
         method = str(given.get("method") or "GET").upper()
         path = str(given.get("path") or "/")
@@ -709,6 +720,9 @@ class LocalApi:
         # An optional parameter left empty (None) is not sent.
         query = {k: v for k, v in asked.items() if v is not None} if isinstance(asked, dict) else {}
         payload = given.get("body")
+        await self._restart_if_changed()
+        if self._runner is None and self._failed is not None:
+            raise Conflict(f"The local sandbox API did not start: {self._failed.get('error')}")
         if not self.running() or self._runner is None:
             raise Conflict("The local sandbox API is not running: Run it first.")
         if who == "agent" and method != "GET" and not self.agent_writes():
@@ -743,6 +757,8 @@ class LocalApi:
                 done["where"] = f"{rules.FILE} line {line}"
                 # The mock's refusal names the line itself: said once, in `where`.
                 done["error"] = done["error"].replace(f"{rules.FILE} line {line}: ", "", 1)
+        if raw:
+            done |= {"raw": answer, "headers": kinds}
         return done
 
     def agent_writes(self) -> bool:
