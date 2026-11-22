@@ -258,6 +258,26 @@ def test_a_period_and_a_group_through_the_sandbox_and_by_name_in_json(tmp_path: 
     ]
 
 
+def test_a_period_of_dates_held_as_text_is_read_as_dates_first(tmp_path: Path) -> None:
+    texts = SALES.set_column(2, "placed", pa.array([str(d) for d in SALES.column("placed").to_pylist()]))
+    path = str(tmp_path / "texts.duckdb")
+    con = duckdb.connect(path)
+    con.register("given", texts)
+    con.execute("CREATE TABLE sales AS SELECT * FROM given")
+    con.close()
+    reader, _ = adapter.read(adapter.DuckDB.file(path), "sales", _period_plan("quarter"))
+    assert _answered(reader) == _expected("quarter")
+
+    class Texts(Shelf):
+        def rows(self, table: str, **asked: Any) -> tuple[pa.Table, int]:
+            return texts.select(asked["columns"]), texts.num_rows
+
+    reader, _ = adapter.read(adapter.Rows(Texts(), "Lake"), "sales", _period_plan("week"))
+    assert _answered(reader) == _expected("week")
+    plain, _ = adapter.plan_sql('"sales"', _period_plan("month"))
+    assert "CAST(DATE_TRUNC('month', \"placed\") AS DATE)" in plain  # a date column: no cast before it
+
+
 def test_a_period_is_checked_and_said_plainly() -> None:
     with pytest.raises(adapter.AdapterError, match="A period is one of year, quarter, month, week, day"):
         adapter.check_plan(Plan(periods=(Period("placed", "fortnight"),), totals=(Total("count"),)))

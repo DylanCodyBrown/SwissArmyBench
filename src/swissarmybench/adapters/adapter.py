@@ -40,7 +40,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.9.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.9.1 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -88,6 +88,9 @@ Version 1.9.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            contains(lower(...), lower(?)); each dialect's LOWER(column) LIKE ? ESCAPE '!' with the text
            escaped (contains_pattern; SQL Server's [ too); Dataverse's contains(field,'text') (its strings
            compared in any case), a text with one of its wildcards left to DuckDB; Rows' by DuckDB
+  1.9.1    a period in DuckDB groups a date column as it is (no cast first: 59 ms, not 96, on 3.3M rows),
+           a column held as text read as a date and time first (plan_sql's texts: DuckDB's own table's
+           VARCHAR columns, a stream's string ones)
 """
 
 from __future__ import annotations
@@ -111,7 +114,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.9.0"  # the docstring's change list says what each version added
+VERSION = "1.9.1"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null", "contains")
@@ -492,13 +495,20 @@ def quote(name: str) -> str:
     return '"' + str(name).replace('"', '""') + '"'
 
 
-def plan_sql(relation: str, plan: Plan) -> tuple[str, list[Any]]:
+def plan_sql(relation: str, plan: Plan, texts: Sequence[str] = ()) -> tuple[str, list[Any]]:
     """The plan as one DuckDB query over `relation` (a quoted name, or a subquery in brackets), its values
-    bound as parameters."""
+    bound as parameters. `texts`: the columns held as text, a period of one read as a date and time first
+    (a date column is grouped as it is: no cast, the fastest)."""
     check_plan(plan)
     params: list[Any] = []
     wheres = [_condition(f, params) for f in plan.filters]
-    grouped = [period_sql("duckdb", p.unit, quote(p.column)) for p in plan.periods]
+    held = {t.casefold() for t in texts}
+    grouped = [
+        period_sql("duckdb", p.unit, f"CAST({quote(p.column)} AS TIMESTAMP)")
+        if p.column.casefold() in held
+        else period_sql("duckdb", p.unit, quote(p.column))
+        for p in plan.periods
+    ]
     grouped += [quote(c) for c in plan.group]
     if plan.totals:
         labels = [quote(p.label) for p in plan.periods] + [quote(c) for c in plan.group]
@@ -535,8 +545,7 @@ def period_sql(dialect: str, unit: str, column: str) -> str:
     a week from Monday whatever its DATEFIRST); MySQL's and SQLite's date functions; Oracle's TRUNC. No % in
     the text but SQLite's (its driver's marks are ?, a pyformat driver's %s would misread one)."""
     if dialect in ("duckdb", "postgres", "snowflake", "trino", "databricks"):
-        given = f"CAST({column} AS TIMESTAMP)" if dialect == "duckdb" else column  # DuckDB: text dates too
-        return f"CAST(DATE_TRUNC('{unit}', {given}) AS DATE)"
+        return f"CAST(DATE_TRUNC('{unit}', {column}) AS DATE)"  # a date or a date and time as it is
     if dialect == "sqlserver":
         weekday = f"(DATEPART(weekday, {column}) + @@DATEFIRST - 2)"  # 0 on a Monday, +7 at most
         return {
@@ -666,11 +675,13 @@ class DuckDB:
 
     def _query(self, con: Any, table: str, plan: Plan) -> tuple[str, list[Any]]:
         schema, name = self._place(con, table)
-        known = {c[0].casefold() for c in _columns(con, schema, name)}
+        columns = _columns(con, schema, name)
+        known = {c[0].casefold() for c in columns}
         for column in plan.needed():
             if column.casefold() not in known:
                 raise AdapterError(f"{table} has no column {column!r}.")
-        return plan_sql(f"{quote(schema)}.{quote(name)}", plan)
+        texts = [c[0] for c in columns if c[1] == "VARCHAR"] if plan.periods else []
+        return plan_sql(f"{quote(schema)}.{quote(name)}", plan, texts)
 
     def _place(self, con: Any, table: str) -> tuple[str, str]:
         wanted = str(table).casefold()
@@ -3767,7 +3778,12 @@ def _finished(reader: pa.RecordBatchReader, rest: Plan) -> pa.RecordBatchReader:
         con = duckdb.connect()
         try:
             con.register("sab_read", reader)
-            sql, params = plan_sql("sab_read", rest)
+            texts = [
+                f.name
+                for f in reader.schema
+                if pa.types.is_string(f.type) or pa.types.is_large_string(f.type)
+            ]
+            sql, params = plan_sql("sab_read", rest, texts)
             finished = con.sql(sql, params=params).to_arrow_reader(BATCH_ROWS)
             yield finished.schema
             yield from finished

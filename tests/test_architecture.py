@@ -257,8 +257,9 @@ def test_no_layer_file_is_much_over_1500_lines(folder: str) -> None:
 # 4,275 (2026-11-22, 1.7.0): Connection.planned, a write's dry run through the connection (about 15).
 # 4,400 (2026-11-22, 1.8.0): a plan grouped by a date's period in every dialect (period_sql; about 125).
 # 4,425 (2026-11-22, 1.9.0): a filter's op contains, in any case, folded where it can be (about 20).
+# 4,450 (2026-11-22, 1.9.1): a period groups a date as it is, a text date cast first (about 10).
 # api_adapter.py the same (2026-11-22, Plans/api-adapter.plan.md; principle 12b): one file an export copies.
-ONE_FILE = {"adapter.py": 4425, "api_adapter.py": 3000}
+ONE_FILE = {"adapter.py": 4450, "api_adapter.py": 3000}
 
 
 def test_every_feature_has_at_most_one_file_in_each_layer() -> None:
