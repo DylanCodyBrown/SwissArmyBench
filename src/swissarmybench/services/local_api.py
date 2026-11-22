@@ -112,6 +112,8 @@ class LocalApi:
         approvals: Any,
         data_url: Callable[[str], str],
         now: Callable[[], float] = time.time,
+        catalog: Any = None,
+        publish: Callable[[dict[str, str]], None] = lambda values: None,
     ) -> None:
         self.ws = ws
         self._project = project
@@ -144,10 +146,10 @@ class LocalApi:
             {"id": i, "label": i} for i in self.target_ids()
         ]
         # The loaded catalogs (services/catalogs.py): "Will this work for real?" reads them, never loads one.
-        self.catalog: Any = None
+        self.catalog: Any = catalog
         # Where it runs, put in this server's environment while it runs (SAB_API_URL, SAB_API_KEY,
         # SAB_API_BASE), so an app Play or Launch starts afterwards reaches it; {} when it stops.
-        self.publish: Callable[[dict[str, str]], None] = lambda values: None
+        self.publish: Callable[[dict[str, str]], None] = publish
         # The canvases' widget instances that name an endpoint (the Streamlit extension's; none without it).
         self.api_uses: Callable[[], list[dict[str, Any]]] = lambda: []
         # The endpoint wizard's patterns: the base's nine and each extension's (its API_PATTERNS; bootstrap).

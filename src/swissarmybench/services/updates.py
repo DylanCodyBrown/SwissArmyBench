@@ -49,6 +49,46 @@ class UpdateHelper(Protocol):
 #  "kernels": n}
 OpenWork = Callable[[], Awaitable[dict[str, Any]]]
 
+# The kinds of a Workbench window's document whose unsaved changes an update would lose.
+DOCUMENT_KINDS = ("notebook", "script", "app")
+
+
+async def what_is_open(
+    tables: Callable[[], list[dict[str, Any]]],
+    workbench_open: Callable[[], bool],
+    ask_documents: Callable[[], Awaitable[Any]],
+    unsaved: Callable[[], list[str]],
+    kernels: Callable[[], int],
+    wait: float = 3.0,
+) -> dict[str, Any]:
+    """What is open and what an update would lose (OpenWork): the open tables, the Workbench window's
+    documents (when one is open and answers within `wait` seconds), the titles with unsaved changes (the
+    window's, then what the extensions hold), the kernels running."""
+    documents: list[dict[str, Any]] = []
+    if workbench_open():
+        try:
+            answer = await asyncio.wait_for(ask_documents(), wait)
+            listed = answer.get("documents", []) if isinstance(answer, dict) else []
+            documents = [
+                {
+                    "key": d.get("index"),
+                    "title": d.get("title"),
+                    "unsaved": d.get("unsaved_changes") is True,
+                }
+                for d in listed
+                if isinstance(d, dict) and d.get("kind") in DOCUMENT_KINDS
+            ]
+        except Exception:  # noqa: S110 (a window that does not answer lists nothing)
+            pass
+    titles = [str(d["title"]) for d in documents if d["unsaved"]] + unsaved()
+    return {
+        "tables": tables(),
+        "documents": documents,
+        "unsaved": list(dict.fromkeys(titles)),
+        "kernels": kernels(),
+    }
+
+
 # Long enough for the answer to reach the asker before the server stops.
 STOP_AFTER_SECONDS: float = 0.5
 

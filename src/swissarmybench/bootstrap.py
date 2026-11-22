@@ -82,6 +82,7 @@ from swissarmybench.adapters.variables import (
     VariableFiles,
     VariableKeyring,
     backup_copies,
+    publish_api,
 )
 from swissarmybench.adapters.vault_names import VaultNameFiles
 from swissarmybench.adapters.views import ViewEngine
@@ -200,7 +201,7 @@ from swissarmybench.services.table_cells import TableCells
 from swissarmybench.services.team import Team
 from swissarmybench.services.tieout import TieOut
 from swissarmybench.services.timeseries import TimeSeries
-from swissarmybench.services.updates import Updates
+from swissarmybench.services.updates import Updates, what_is_open
 from swissarmybench.services.variables import Variables
 from swissarmybench.services.vault_names import KeptVaultNames, VaultNamesAtStart
 from swissarmybench.services.workbench import Workbench
@@ -1728,6 +1729,8 @@ def _sandbox_part(b: Built) -> None:
         sandbox,
         b.approvals,
         data_url=lambda key: f"http://127.0.0.1:{b.port}/sandbox/data/{key}",
+        catalog=b.catalogs,
+        publish=publish_api,
     )
     b.explorer.register("sandbox", explorer_providers.sandbox_provider(sandbox.names_and_columns))
     # Every API's actions through api_adapter (Plans/api-adapter.plan.md): the library's and the local one's.
@@ -1754,36 +1757,6 @@ def _sandbox_part(b: Built) -> None:
 # ----- the app's own life: what is open, extensions, the Team box, sharing, updates -----
 
 
-async def _open_work(b: Built) -> dict[str, Any]:
-    """What is open and what an update would lose: the tables, the Workbench
-    window's documents (when one is open), the documents with unsaved changes, the kernels."""
-    ws, live = b.ws, b.live
-    tables = [{"grid": g.id, "name": g.dataset} for g in ws.grids.all() if b.store.get(g.dataset)]
-    documents: list[dict[str, Any]] = []
-    if live.workbench_open():
-        try:
-            answer = await asyncio.wait_for(b.workbench_window.ask("documents", {}, "app"), 3.0)
-            listed = answer.get("documents", []) if isinstance(answer, dict) else []
-            documents = [
-                {
-                    "key": d.get("index"),
-                    "title": d.get("title"),
-                    "unsaved": d.get("unsaved_changes") is True,
-                }
-                for d in listed
-                if isinstance(d, dict) and d.get("kind") in ("notebook", "script", "app")
-            ]
-        except Exception:  # noqa: S110 (a window that does not answer lists nothing)
-            pass
-    titles = [str(d["title"]) for d in documents if d["unsaved"]] + b.hooks.unsaved()
-    return {
-        "tables": tables,
-        "documents": documents,
-        "unsaved": list(dict.fromkeys(titles)),
-        "kernels": b.workbench.kernel_count(),
-    }
-
-
 def _app_life(b: Built) -> None:
     ws, live, state_dir, audit_log, approvals = b.ws, b.live, b.state_dir, b.audit_log, b.approvals
     # The update check (the one request that leaves the computer, the owner's call) and Update to X.
@@ -1802,8 +1775,16 @@ def _app_life(b: Built) -> None:
     # Share a running app with your organization (Microsoft Dev Tunnels; the third way data leaves this
     # computer, on the user's click): devtunnel in the state folder's devtunnel/, got on the first share.
     b.sharing = _sharing(ws, b.hooks, approvals, state_dir, b.port)
+    open_work = partial(
+        what_is_open,
+        lambda: [{"grid": g.id, "name": g.dataset} for g in ws.grids.all() if b.store.get(g.dataset)],
+        live.workbench_open,
+        lambda: b.workbench_window.ask("documents", {}, "app"),
+        b.hooks.unsaved,
+        b.workbench.kernel_count,
+    )
     b.updates = _updates(
-        ws, live, b.settings, b.update_helper, b.extensions, approvals, partial(_open_work, b), failure_note,
+        ws, live, b.settings, b.update_helper, b.extensions, approvals, open_work, failure_note,
         state_dir, audit_log, b.on_shutdown,
     )  # fmt: skip
 
@@ -2002,15 +1983,6 @@ def _outline_dialogs_and_life(b: Built) -> None:
 # ----- exports: a document as one script, a local sandbox API for its framework target -----
 
 
-def _publish_api(values: dict[str, str]) -> None:
-    """The local sandbox API's address and key in this server's environment (what sab.api reads)."""
-    for name in ("SAB_API_URL", "SAB_API_KEY", "SAB_API_BASE"):
-        if name in values:
-            os.environ[name] = values[name]
-        else:
-            os.environ.pop(name, None)
-
-
 _CARRIED_FILES = {"sab_excel": "sab_excel.py", "adapter": "adapters/adapter.py"}
 
 
@@ -2056,8 +2028,6 @@ def _exports(b: Built) -> None:
     b.scaffold = _scaffold(b)
     local_api.target_ids = api_export.registry.ids
     local_api.targets = lambda: [{"id": t.id, "label": t.label} for t in api_export.registry.targets.values()]
-    local_api.catalog = b.catalogs
-    local_api.publish = _publish_api
     b.intellisense.sandbox_clients = sandbox.mock_names
     b.intellisense.sandbox_tables = sandbox.table_columns
     b.intellisense.sandbox_mocks = sandbox.mock_dialects
