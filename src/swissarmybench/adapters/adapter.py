@@ -38,7 +38,7 @@ The standard library, duckdb and pyarrow only (openpyxl too once a workbook is r
 one sentence when it is missing): an export copies this file as it is. Its contract only grows
 (design principle 12b): a version adds, never breaks a caller.
 
-Version 1.4.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
+Version 1.5.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
   phase 1  the contract (tables, read with a Plan and what was Folded, write by mode: insert, update, merge,
            delete), the Plan, JSON pages to Arrow (from_json), tables; the sources DuckDB and Remote
   phase 2  truncate; table(name), Tables, TableSource, make_table; Sql with DIALECTS, OData, Rows; to_json and
@@ -66,11 +66,17 @@ Version 1.4.0 (2026-11-22). What each phase added (Plans/adapter.plan.md):
            truncate: the sheet replaced), the other sheets kept, the file replaced safely; sheet_value
            (text never a formula, long numbers and early dates exact); source_from takes a workbook's path
            or bytes
+  1.5.0    a plan's values keep their type through JSON: Plan.to_json(typed=True) says a date, a date and
+           time, a time or a decimal as {"sab_type", "value"} (typed_value), plan_from gives the same type
+           (untyped); Remote's read sends its plan so (a date filter is a date on the sandbox's side); Sql's
+           read binds its plan's values as the driver takes them (Sql.value: SQLite's a date as its text)
 """
 
 from __future__ import annotations
 
 import contextlib
+import datetime as dt
+import decimal
 import hashlib
 import http.client
 import itertools
@@ -87,7 +93,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc as ipc
 
-VERSION = "1.4.0"  # the docstring's change list says what each version added
+VERSION = "1.5.0"  # the docstring's change list says what each version added
 
 BATCH_ROWS = 50_000  # rows in each record batch a read streams
 OPS = ("=", "!=", "<", "<=", ">", ">=", "in", "between", "like", "is null", "is not null")
@@ -174,11 +180,14 @@ class Plan:
         }
         return tuple(p for p in PARTS if asked[p])
 
-    def to_json(self) -> dict[str, Any]:
-        """The plan as JSON (its filters as [column, op, value], its sort as [column, "asc" | "desc"])."""
+    def to_json(self, typed: bool = False) -> dict[str, Any]:
+        """The plan as JSON (its filters as [column, op, value], its sort as [column, "asc" | "desc"]).
+        `typed`: a date, a date and time, a time or a decimal as {"sab_type", "value"} (typed_value), so
+        plan_from on the far side gives back the same type; else each value as it is."""
+        said = typed_value if typed else _as_is
         return {
             "columns": list(self.columns),
-            "filters": [[f.column, f.op, f.value] for f in self.filters],
+            "filters": [[f.column, f.op, said(f.value)] for f in self.filters],
             "sort": [[c, "desc" if d else "asc"] for c, d in self.sort],
             "limit": self.limit,
             "offset": self.offset,
@@ -194,7 +203,8 @@ def plan_from(raw: Mapping[str, Any] | None) -> Plan:
     for item in given.get("filters") or []:
         if not isinstance(item, (list, tuple)) or len(item) not in (2, 3):
             raise AdapterError("A filter is [column, op, value].")
-        filters.append(Filter(str(item[0]), str(item[1]).lower(), item[2] if len(item) == 3 else None))
+        value = untyped(item[2]) if len(item) == 3 else None
+        filters.append(Filter(str(item[0]), str(item[1]).lower(), value))
     sort = []
     for item in given.get("sort") or []:
         column, way = (
@@ -217,6 +227,47 @@ def plan_from(raw: Mapping[str, Any] | None) -> Plan:
     )
     check_plan(plan)
     return plan
+
+
+TYPED = ("date", "timestamp", "time", "decimal")  # what a value's sab_type may say
+
+
+def _as_is(value: Any) -> Any:
+    return value
+
+
+def typed_value(value: Any) -> Any:
+    """A value as JSON carries it with its type: a date, a date and time (its zone kept), a time or a decimal
+    as {"sab_type": "date", "value": "2026-01-15"}; a list item by item; anything else as it is."""
+    if isinstance(value, list | tuple):
+        return [typed_value(v) for v in value]
+    if isinstance(value, dt.datetime):
+        return {"sab_type": "timestamp", "value": value.isoformat()}
+    if isinstance(value, dt.date):
+        return {"sab_type": "date", "value": value.isoformat()}
+    if isinstance(value, dt.time):
+        return {"sab_type": "time", "value": value.isoformat()}
+    if isinstance(value, decimal.Decimal):
+        return {"sab_type": "decimal", "value": str(value)}
+    return value
+
+
+def untyped(value: Any) -> Any:
+    """typed_value's value back as its own type (a list item by item); anything else as it is."""
+    if isinstance(value, list | tuple):
+        return [untyped(v) for v in value]
+    if not (isinstance(value, Mapping) and set(value) == {"sab_type", "value"}):
+        return value
+    kind, text = str(value["sab_type"]), str(value["value"])
+    read = {"date": dt.date.fromisoformat, "timestamp": dt.datetime.fromisoformat,
+            "time": dt.time.fromisoformat, "decimal": decimal.Decimal}.get(kind)  # fmt: skip
+    if read is None:
+        raise AdapterError(f"A value's sab_type is one of {', '.join(TYPED)}, not {kind!r}.")
+    try:
+        return read(text)
+    except (ValueError, ArithmeticError):
+        said = {"timestamp": "a date and time", "decimal": "a decimal"}.get(kind, f"a {kind}")
+        raise AdapterError(f"{text!r} is not {said}.") from None
 
 
 def _whole(value: Any, what: str) -> int:
@@ -658,7 +709,9 @@ class Remote:
         ]
 
     def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
-        body = json.dumps({"connection": self.connection, "table": table, "plan": plan.to_json()}).encode()
+        body = json.dumps(
+            {"connection": self.connection, "table": table, "plan": plan.to_json(typed=True)}
+        ).encode()  # each value with its type: a date filter is a date on the far side (plan_from)
         answer = self._post("/read", body)
         folded = Folded(tuple(p for p in answer.getheader("X-Sab-Folded", "").split(",") if p))
         reader = ipc.open_stream(answer)  # read as it arrives: one batch at a time
@@ -1085,6 +1138,7 @@ class Sql:
 
     def read(self, table: str, plan: Plan) -> tuple[pa.RecordBatchReader, Folded]:
         sql, params = dialect_sql(self.dialect, table, plan, self.style)
+        params = [self.value(v) for v in params]  # as the driver takes it (SQLite: a date as its text)
         typed = getattr(self.connection, "read_arrow", None)  # a connection typing its own Arrow (SQL Server)
         if callable(typed) and not params:
             return typed(sql).to_reader(), Folded(plan.parts())
@@ -1161,9 +1215,6 @@ class Sql:
             return self._value(value)
         if self.dialect.name != "sqlite":
             return value
-        import datetime as dt
-        import decimal
-
         if isinstance(value, decimal.Decimal):
             return float(value)
         if isinstance(value, dt.datetime):
