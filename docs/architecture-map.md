@@ -96,7 +96,7 @@ flowchart TB
     server -->|9| root
     server -->|82| services
     server -->|2| settings
-    services -->|328| domain
+    services -->|329| domain
     services -->|2| settings
     settings -->|1| domain
 ```
@@ -127,7 +127,7 @@ low by design and its D says little; the measure bites for the components that h
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | domain | the model and its rules | 121 | 155 | 0 | 0.00 | 320 | 1 | 0.00 | 1.00 |
 | settings | every limit, one frozen record | 1 | 5 | 1 | 0.17 | 2 | 0 | 0.00 | 0.83 |
-| services | the use cases | 84 | 86 | 106 | 0.55 | 279 | 134 | 0.48 | 0.03 |
+| services | the use cases | 84 | 86 | 107 | 0.55 | 279 | 134 | 0.48 | 0.03 |
 | adapters | the driven edge: DuckDB, files, the keyring | 43 | 22 | 34 | 0.61 | 108 | 2 | 0.02 | 0.37 |
 | cli | the agent's commands | 41 | 7 | 4 | 0.36 | 5 | 0 | 0.00 | 0.64 |
 | client | the plain client and the kernel's helpers | 24 | 7 | 21 | 0.75 | 26 | 0 | 0.00 | 0.25 |

@@ -321,11 +321,17 @@ def lake_place(kind: str, settings: Mapping[str, str]) -> tuple[str, str, str] |
     return None
 
 
+def refused_by(kind: str) -> str:
+    """Whose words a kind's refusal is said in, as its record says: sql, dataverse, graph, storage ("": a
+    kind that is not checked)."""
+    found = connection_kinds.get(kind)
+    return found.entra_refusals if found is not None else ""
+
+
 def refused_words(kind: str, status: int, said: str) -> tuple[str, str]:
     """A refusal from a kind's check: (the plain reason, the fix), in the words of whose refusal it is (its
     record's entra_refusals: sql, dataverse, graph, storage)."""
-    found = connection_kinds.get(kind)
-    whose = found.entra_refusals if found is not None else ""
+    whose = refused_by(kind)
     if whose == "sql":
         if "18456" in said or "Login failed" in said:
             return (

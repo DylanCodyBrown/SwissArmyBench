@@ -312,3 +312,29 @@ def test_what_a_tree_calls_a_group_is_the_records() -> None:
     assert said["powerbi"] == "dataset" and said["sharepoint"] == "list" and said["database"] == "schema"
     assert {name for name, word in said.items() if word == "folder"} == set(kinds.path_kinds())
     assert kinds.group_word("nobody") == "schema"
+
+
+# ===== how many files a new kind touches =====
+
+# The domain and service files that still name a lake or SharePoint kind by its quoted word, and why. Before
+# the records (the merge base of 2026-11-22) there were ten: catalogs, connection_tables (domain and service),
+# context_md, write_capability, app_registrations (domain and service), lakes, lake_code and
+# local_api_wizard. A file added here is a table or a branch that should have been a record's field.
+NAMES_A_LAKE_KIND = {
+    "domain/connection_kinds.py": "the record: the one entry a new kind writes",
+    "domain/lakes.py": "its code module: each kind's own code, sign-ins and words",
+    "domain/lake_code.py": "the lakes' shared code (\"delta\" is a table's format there)",
+    "domain/app_registrations.py": "its app-registration code, and the path an Azure lake's check lists",
+    "services/local_api_wizard.py": "a sandbox table mocked as a SharePoint list reads by the list's client",
+}
+
+
+def test_a_new_kind_is_one_record_and_its_code_module() -> None:
+    quoted = re.compile(r"""["'](?:onelake|datalake|delta|sharepoint|sharepoint_docs)["']""")
+    found = {
+        f"{folder}/{path.name}"
+        for folder in ("domain", "services")
+        for path in sorted((SRC / folder).glob("*.py"))
+        if quoted.search(path.read_text(encoding="utf-8"))
+    }
+    assert found == set(NAMES_A_LAKE_KIND), sorted(found ^ set(NAMES_A_LAKE_KIND))

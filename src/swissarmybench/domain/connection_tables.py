@@ -110,11 +110,13 @@ def copy_name(connection: str, place: Place, kind: str, shared: Iterable[str] = 
     alone would not say which (a table two datasets share; a database table outside the first schema)."""
     shared_names = {s.casefold() for s in shared}
     parts: list[str] = []
-    if kind == "powerbi":
+    found = kinds.get(kind)
+    naming = found.naming if found is not None else "database"  # its record says how its tables are named
+    if naming == "powerbi":
         parts = [place.schema, place.table] if place.table.casefold() in shared_names else [place.table]
-    elif kind in PATH_KINDS:
+    elif naming == "path":
         parts = lakes.path_parts(place.database, place.schema, place.table)
-    elif kind in ("file", "folder", "python", "api", "dataverse", "dataverse_web", "sharepoint"):
+    elif naming in ("single", "file"):
         parts = [place.table]
     else:
         parts = [p for p in (place.database, place.schema, place.table) if p]

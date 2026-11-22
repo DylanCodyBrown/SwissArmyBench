@@ -152,6 +152,12 @@ class ConnectionFacts:
             return "file"
         return "single" if self.kind == "python" else "database"
 
+    @property
+    def versioned(self) -> bool:
+        """Its tables take a version or a time after @ (a lake's; a document library's do not)."""
+        found = connection_kinds.get(self.template)
+        return found is not None and found.versions
+
     def sql_of(self, t: CatalogTable) -> str:
         if self.naming == "powerbi":
             parts = [t.schema, t.table] if t.table.casefold() in self.shared else [t.table]
@@ -180,7 +186,7 @@ class ConnectionFacts:
             at = f" ({shape('<folder>', '"<table>@v12"')} or @2026-11-01: a Delta table's version or time)"
             return shape("<folder>", "<table>") + (
                 at
-                if self.template != "sharepoint_docs"
+                if self.versioned
                 else f" ({shape('<library>', '<folder>', '"<workbook.xlsx>"', '<sheet>')})"
             )
         return f"{shape('<schema>', '<table>')} (or {shape('<database>', '<schema>', '<table>')})"
